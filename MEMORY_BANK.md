@@ -368,7 +368,10 @@ Closed (Room only, removed from irisSessions)
 - `TerminalScreen` — block mode: `Column { LazyColumn<PromptBlock> + PromptDivider, weight=1f }` then fixed `BlockInputField` (separate cell, not scrolling with content); classic mode: `TerminalViewHost + InputBarHost`
 - Mode switch: `LaunchedEffect(useBlockEngine)` calls `terminalManager.addTab()` for new session (skips first emission)
 - Removed TUI auto-fullscreen — TUI apps render as block output normally, user toggles fullscreen manually
-- `TerminalSessionClientImpl.onAltBufferChanged` + `TerminalManager.altBufferActive` StateFlow — available for future TUI detection
+- When a TUI app runs (nano, vim, htop, etc.) in block mode, `altBufferActive` becomes true → `fullscreen = true` → TerminalViewHost is shown fullscreen (raw terminal), blocks hidden. When TUI exits (alt buffer deactivated), returns to block rendering
+- Text selection in blocks: `SelectionContainer` wraps prompt, directory, and output Text composables — long-press to select, copy text
+- PromptBlock: tap → 3-dot `IconButton` (EllipsisVertical) appears; click it → `IrisDropdownMenu` with: Komutu kopyala, Tekrar çalıştır, Komutu düzenle, Output'u kopyala, Dışa aktar, Block'u sil
+- Input field: `Column { LazyColumn(weight=1f), PromptDivider, BlockInputField }` — input is in a separate cell, not scrolling with content
 - Block mode LazyColumn has `statusBars` top padding to avoid drawing under status bar icons
 - `CommandSeparatorOverlay.kt` removed (PromptBlock rendering replaces overlay approach)
 - Runtime fix: `FOREGROUND_SERVICE_DATA_SYNC` permission added to `AndroidManifest.xml` — required since `targetSdk=36` for `dataSync` foreground service type
