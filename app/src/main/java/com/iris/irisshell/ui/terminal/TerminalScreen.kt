@@ -135,6 +135,10 @@ private fun ReadyScreen(
     extraKeyState: com.iris.irisshell.terminal.ExtraKeyState? = null,
 ) {
     var fullscreen by remember { mutableStateOf(false) }
+    val altBufferActive by terminalManager.altBufferActive.collectAsState()
+    LaunchedEffect(altBufferActive) {
+        if (altBufferActive) fullscreen = true
+    }
     var sidebarOpen by remember { mutableStateOf(false) }
     var browserUrl by remember { mutableStateOf<String?>(null) }
 
@@ -433,6 +437,7 @@ private fun ReadyScreen(
                     promptLabel = promptDir,
                     promptSuffix = promptSuffix,
                 )
+                PromptDivider()
             }
         } else {
             /*
