@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.selectionContainer
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -64,58 +64,57 @@ fun PromptBlock(
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (!promptDir.isNullOrEmpty()) {
-            Text(
-                text = promptDir,
-                color = IrisTextSecondary,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .padding(horizontal = 14.dp, vertical = 0.dp)
-                    .selectionContainer(),
-            )
-        }
-
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-                        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { showThreeDot = true },
-                )
-                .padding(horizontal = 14.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = IrisPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
-                        append(promptText)
-                        append(" ")
-                    }
-                    withStyle(SpanStyle(color = IrisPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
-                        append(block.command)
-                    }
-                },
-                color = IrisText,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 13.sp,
-                modifier = Modifier.selectionContainer(),
-            )
-            Spacer(Modifier.weight(1f))
-            if (showThreeDot) {
-                Icon(
-                    imageVector = IrisIcons.EllipsisVertical,
-                    contentDescription = "Block menu",
-                    tint = IrisTextSecondary,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable(onClick = { showMenu = true }),
+            SelectionContainer {
+                Text(
+                    text = promptDir,
+                    color = IrisTextSecondary,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 0.dp),
                 )
             }
         }
+
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showThreeDot = true },
+                    )
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SelectionContainer {
+                    Text(
+                        text = buildAnnotatedString {
+                            withStyle(SpanStyle(color = IrisPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
+                                append(promptText)
+                                append(" ")
+                            }
+                            withStyle(SpanStyle(color = IrisPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
+                                append(block.command)
+                            }
+                        },
+                        color = IrisText,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                if (showThreeDot) {
+                    Icon(
+                        imageVector = IrisIcons.EllipsisVertical,
+                        contentDescription = "Block menu",
+                        tint = IrisTextSecondary,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(onClick = { showMenu = true }),
+                    )
+                }
+            }
 
             IrisDropdownMenu(
                 expanded = showMenu,
@@ -143,16 +142,16 @@ fun PromptBlock(
         }
 
         if (block.outputLines.isNotEmpty()) {
-            Text(
-                text = block.outputLines.joinToString("\n"),
-                color = outputColor,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-                modifier = Modifier
-                    .padding(horizontal = 14.dp, vertical = 2.dp)
-                    .selectionContainer(),
-            )
+            SelectionContainer {
+                Text(
+                    text = block.outputLines.joinToString("\n"),
+                    color = outputColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
+                )
+            }
         }
     }
 }
