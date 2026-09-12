@@ -465,6 +465,7 @@ private fun ReadyScreen(
                         promptSuffix = promptSuffix,
                     )
                 }
+            }
         } else {
             /*
              * CLASSIC TERMINAL PATH
