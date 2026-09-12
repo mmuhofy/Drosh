@@ -25,6 +25,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
@@ -135,6 +136,10 @@ private fun ReadyScreen(
     extraKeyState: com.iris.irisshell.terminal.ExtraKeyState? = null,
 ) {
     var fullscreen by remember { mutableStateOf(false) }
+    val altBufferActive by terminalManager.altBufferActive.collectAsStateWithLifecycle()
+    LaunchedEffect(altBufferActive) {
+        fullscreen = altBufferActive
+    }
     var sidebarOpen by remember { mutableStateOf(false) }
     var browserUrl by remember { mutableStateOf<String?>(null) }
 
@@ -150,6 +155,14 @@ private fun ReadyScreen(
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
     val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
+
+    var firstModeCheck by remember { mutableStateOf(true) }
+    LaunchedEffect(useBlockEngine) {
+        if (!firstModeCheck) {
+            terminalManager.addTab()
+        }
+        firstModeCheck = false
+    }
 
     LaunchedEffect(shouldExit) {
         if (shouldExit) {
@@ -399,8 +412,13 @@ private fun ReadyScreen(
                             PromptBlock(
                                 block = block,
                                 promptDir = promptDir,
-                                promptSuffix = promptSuffix,
-                                modifier = Modifier.padding(vertical = 2.dp),
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                onCopyCommand = { blockEngineViewModel.onCopyCommand(block) },
+                                onCopyOutput = { blockEngineViewModel.onCopyOutput(block) },
+                                onRerunCommand = { cmd -> blockEngineViewModel.onRerunCommand(cmd) },
+                                onEditCommand = { cmd -> blockEngineViewModel.onEditCommand(cmd) },
+                                onExportOutput = { blockEngineViewModel.onExportOutput(block) },
+                                onDeleteBlock = { blockEngineViewModel.onDeleteBlock(block.id) },
                             )
                             if (block.id != blocks.lastOrNull()?.id) {
                                 PromptDivider()

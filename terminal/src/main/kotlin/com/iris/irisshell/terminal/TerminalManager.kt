@@ -63,6 +63,9 @@ class TerminalManager(
     private val _activeTabIndex = MutableStateFlow(0)
     val activeTabIndex: StateFlow<Int> = _activeTabIndex.asStateFlow()
 
+    private val _altBufferActive = MutableStateFlow(false)
+    val altBufferActive: StateFlow<Boolean> = _altBufferActive.asStateFlow()
+
     /**
      * Synchronous snapshot of the active tab index, intended for UI scaffolds
      * (e.g. the topbar's "1 / N" indicator) that do not need a Flow<T>.
@@ -107,6 +110,9 @@ class TerminalManager(
         sessionClient.onTextChanged = { session ->
             terminalViewRef?.onScreenUpdated()
             blockEngineWire?.onSessionTextChanged(session)
+        }
+        sessionClient.onAltBufferChanged = { isActive ->
+            _altBufferActive.value = isActive
         }
         sessionClient.onPidChanged = { session, pid -> onSessionPidChanged(session, pid) }
 

@@ -15,11 +15,19 @@ class TerminalSessionClientImpl : TerminalSessionClient {
     var onTitleChanged: ((TerminalSession) -> Unit)? = null
     var onSessionFinished: ((TerminalSession) -> Unit)? = null
     var onPidChanged: ((TerminalSession, Int) -> Unit)? = null
+    var onAltBufferChanged: ((Boolean) -> Unit)? = null
     var clipboard: ClipboardManager? = null
     var terminalView: com.termux.view.TerminalView? = null
 
+    private var lastAltBufferState: Boolean = false
+
     override fun onTextChanged(changedSession: TerminalSession) {
         onTextChanged?.invoke(changedSession)
+        val altActive = changedSession.emulator?.isAlternateBufferActive() ?: false
+        if (altActive != lastAltBufferState) {
+            lastAltBufferState = altActive
+            onAltBufferChanged?.invoke(altActive)
+        }
     }
 
     override fun onTitleChanged(changedSession: TerminalSession) {
