@@ -55,7 +55,17 @@
 - [ ] Handle PTY session resize on orientation change
 - [ ] Terminal font loading from custom .ttf files
 
-### Terminal Link Detection + In-App Browser (2026-09-08)
+### Block Mode — PromptBlock (2026-09-12)
+- [x] Replace card-based BlockCard with PromptBlock (styled prompt/command/output text blocks)
+- [x] Two-line prompt: directory (gray) on top, prompt text + command (blue) below
+- [x] Use actual `block.prompt` (full prompt with suffix) — not hardcoded `$`
+- [x] Block spacing: 8dp vertical padding (Warp-style breathing room)
+- [x] Divider: 0.5dp thin line (IrisBorderSubtle)
+- [x] Long-press context menu with 3-dot button (EllipsisVertical) → IrisDropdownMenu
+- [x] Clear command (`clear`) clears all blocks (pendingEchoWasClear in BlockEngineWire)
+- [x] TUI apps auto-enter fullscreen (onAltBufferChanged callback in TerminalSessionClientImpl)
+- [x] Mode switch (classic ↔ block) auto-creates new session (LaunchedEffect on useBlockEngine)
+- [x] Status bar padding in block mode LazyColumn
 - [x] UrlDetector — shared URL detection utility (domain/UrlDetector.kt)
 - [x] Block engine: colored + underlined + clickable URLs in BlockBody.kt
 - [x] Classic terminal: tap detection callback in TerminalViewClientImpl.kt (replaces external Intent)

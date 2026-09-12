@@ -358,16 +358,18 @@ Closed (Room only, removed from irisSessions)
 ## Block Mode — PromptBlock Rendering (2026-09-12)
 
 - Block mode renders **styled text blocks** (not card-based) — matches `html/block_mode_reference-1.html`
-- `PromptBlock.kt` in `ui/block/` — renders prompt symbol + command (IrisPrimary blue), then output (IrisText / IrisTextMuted for errors)
-- `PromptDivider.kt` — thin 1dp horizontal line (IrisBorderSubtle) between blocks
-- `BlockTerminalView.kt` — uses `PromptBlock` + `PromptDivider` instead of `BlockCard` (card rendering removed)
+- `PromptBlock.kt` in `ui/block/` — renders full prompt text from `block.prompt` (blue IrisPrimary) + command (blue), then output (IrisText / IrisTextMuted for errors)
+- PromptBlock: two-line layout — directory path (IrisTextSecondary, 12sp) on top, prompt text (IrisPrimary, 13sp) + command below
+- PromptBlock: `combinedClickable` with `onLongClick` → shows 3-dot `IconButton` (EllipsisVertical) → `IrisDropdownMenu` with: Komutu kopyala, Tekrar çalıştır, Komutu düzenle, Output'u kopyala, Dışa aktar, Block'u sil
+- `PromptDivider.kt` — thin 0.5dp horizontal line (IrisBorderSubtle) between blocks, increased block spacing to 8dp (Warp-style breathing room)
 - `BlockInputField.kt` — simplified to match HTML `input-row` (plain row, no bordered box, no vertical bar), accepts `promptSuffix` param
-- `TerminalScreen.kt` — block mode uses `LazyColumn<PromptBlock>` + `BlockInputField`; classic mode uses `TerminalViewHost` + `InputBarHost`
+- `BlockEngineWire.lastPrompt` stores full prompt including suffix character (`$`, `#`, `❯`, `➜`); `pendingEchoWasClear` handles `clear` command → `blockRepository.clear()`
+- `TerminalSessionClientImpl` — added `onAltBufferChanged` callback that fires when TUI apps enter/exit alternate buffer
+- `TerminalManager` — `altBufferActive: StateFlow<Boolean>` exposed for TUI fullscreen auto-detection
+- `TerminalScreen` — block mode uses `LazyColumn<PromptBlock>` + `PromptDivider` + `BlockInputField`; classic mode uses `TerminalViewHost` + `InputBarHost`
+- Mode switch auto-refreshes: `LaunchedEffect(useBlockEngine)` calls `terminalManager.addTab()` when mode changes (skips first emission)
+- TUI auto-fullscreen: `LaunchedEffect(altBufferActive)` sets `fullscreen` when TUI app starts; exits when TUI exits
 - Switching modes changes rendering: block mode shows styled blocks, classic mode shows raw terminal
-- Prompt rendering: two-line layout — directory path (IrisTextSecondary, 12sp) on top, prompt suffix + command (IrisPrimary, 13sp) below
-- `BlockEngineWire.lastPrompt` now stores full prompt including suffix character (`$`, `#`, `❯`, `➜`)
-- `BlockEngineViewModel.promptSuffix` StateFlow derives suffix from `lastPrompt` via regex extraction
-- `TerminalScreen` passes `promptDir` and `promptSuffix` to both `PromptBlock` and `BlockInputField`
-- Block mode LazyColumn has `statusBars` top padding to avoid drawing under status bar
+- Block mode LazyColumn has `statusBars` top padding to avoid drawing under status bar icons
 - `CommandSeparatorOverlay.kt` removed (PromptBlock rendering replaces overlay approach)
 - Runtime fix: `FOREGROUND_SERVICE_DATA_SYNC` permission added to `AndroidManifest.xml` — required since `targetSdk=36` for `dataSync` foreground service type
