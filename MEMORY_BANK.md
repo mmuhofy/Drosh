@@ -368,7 +368,7 @@ Closed (Room only, removed from irisSessions)
 - `TerminalScreen` — block mode: `Column { LazyColumn<PromptBlock> + PromptDivider, weight=1f }` then fixed `BlockInputField` (separate cell, not scrolling with content); classic mode: `TerminalViewHost + InputBarHost`
 - Mode switch: `LaunchedEffect(useBlockEngine)` calls `terminalManager.addTab()` for new session (skips first emission)
 - Removed TUI auto-fullscreen — TUI apps render as block output normally, user toggles fullscreen manually
-- When a TUI app runs (nano, vim, htop, etc.) in block mode, `altBufferActive` becomes true → `fullscreen = true` → TerminalViewHost is shown fullscreen (raw terminal), blocks hidden. When TUI exits (alt buffer deactivated), returns to block rendering
+- TUI apps (nano, vim, htop, etc.) in block mode: `altBufferActive` becomes true → TerminalViewHost rendered fullscreen in the block area (terminal's native fullscreen). **No app-level fullscreen** (top bar, input bar remain visible). Manual exit via `CompactFullscreenExit` button.
 - Text selection in blocks: `SelectionContainer` wraps prompt, directory, and output Text composables — long-press to select, copy text
 - PromptBlock: tap → 3-dot `IconButton` (EllipsisVertical) appears; click it → `IrisDropdownMenu` with: Komutu kopyala, Tekrar çalıştır, Komutu düzenle, Output'u kopyala, Dışa aktar, Block'u sil
 - Input field: `Column { LazyColumn(weight=1f), PromptDivider, BlockInputField }` — input is in a separate cell, not scrolling with content
