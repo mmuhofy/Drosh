@@ -1,7 +1,7 @@
 package com.iris.irisshell.ui.block
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +79,7 @@ fun PromptBlock(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(
+                    .combinedClickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { contextOpen = true },
