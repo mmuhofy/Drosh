@@ -136,9 +136,6 @@ private fun ReadyScreen(
 ) {
     var fullscreen by remember { mutableStateOf(false) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
-    LaunchedEffect(altBufferActive) {
-        if (altBufferActive) fullscreen = true
-    }
     var sidebarOpen by remember { mutableStateOf(false) }
     var browserUrl by remember { mutableStateOf<String?>(null) }
 
