@@ -136,7 +136,7 @@ private fun ReadyScreen(
     extraKeyState: com.iris.irisshell.terminal.ExtraKeyState? = null,
 ) {
     var fullscreen by remember { mutableStateOf(false) }
-    val altBufferActive by terminalManager.altBufferActive.collectAsStateWithLifecycle()
+    val altBufferActive by terminalManager.altBufferActive.collectAsState()
     LaunchedEffect(altBufferActive) {
         fullscreen = altBufferActive
     }
