@@ -397,26 +397,51 @@ private fun ReadyScreen(
             val promptDir by blockEngineViewModel.lastDir.collectAsState()
             val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        top = WindowInsets.statusBars
-                            .asPaddingValues()
-                            .calculateTopPadding()
-                    ),
-            ) {
-                LazyColumn(
+            // When a TUI app runs (nano, vim, htop, etc.) it enters the
+            // alternate screen buffer — switch to terminal fullscreen so the
+            // raw terminal view is visible.
+            if (altBufferActive) {
+                TerminalViewHost(
+                    terminalManager = terminalManager,
+                    fontSizeSp = fontSizeSp,
+                    colorProps = colorProps,
+                    terminalViewModel = terminalViewModel,
+                    terminalViewRef = terminalViewRef,
+                    extraKeyState = extraKeyState,
+                    onUrlClick = { browserUrl = it },
+                    searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
+                    searchOverlayRef = searchOverlayRef,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    state = rememberLazyListState(),
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    contentAlignment = Alignment.TopStart,
                 ) {
-                    items(blocks, key = { it.id }) { block ->
-                        PromptBlock(
-                            block = block,
-                            promptDir = promptDir,
-                            modifier = Modifier.padding(vertical = 8.dp),
+                    CompactFullscreenExit { fullscreen = false }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            top = WindowInsets.statusBars
+                                .asPaddingValues()
+                                .calculateTopPadding()
+                        ),
+                ) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        state = rememberLazyListState(),
+                    ) {
+                        items(blocks, key = { it.id }) { block ->
+                            PromptBlock(
+                                block = block,
+                                promptDir = promptDir,
+                                modifier = Modifier.padding(vertical = 8.dp),
                             onCopyCommand = { blockEngineViewModel.onCopyCommand(block) },
                             onCopyOutput = { blockEngineViewModel.onCopyOutput(block) },
                             onRerunCommand = { cmd -> blockEngineViewModel.onRerunCommand(cmd) },
@@ -427,18 +452,19 @@ private fun ReadyScreen(
                         if (block.id != blocks.lastOrNull()?.id) {
                             PromptDivider()
                         }
+                        }
                     }
-                }
 
-                BlockInputField(
-                    onSubmit = { cmd ->
-                        blockEngineViewModel.onCommandSubmitted("", cmd)
-                    },
-                    promptLabel = promptDir,
-                    promptSuffix = promptSuffix,
-                )
-                PromptDivider()
-            }
+                    PromptDivider()
+
+                    BlockInputField(
+                        onSubmit = { cmd ->
+                            blockEngineViewModel.onCommandSubmitted("", cmd)
+                        },
+                        promptLabel = promptDir,
+                        promptSuffix = promptSuffix,
+                    )
+                }
         } else {
             /*
              * CLASSIC TERMINAL PATH
