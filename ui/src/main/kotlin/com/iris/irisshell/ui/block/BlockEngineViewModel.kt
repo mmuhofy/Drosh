@@ -128,6 +128,9 @@ class BlockEngineViewModel @Inject constructor(
     fun onCommandSubmitted(prompt: String, command: String) {
         val (rx, tx) = trafficStats.snapshotTotals()
         val resolvedPrompt = prompt.takeIf { it.isNotBlank() } ?: blockEngineState.lastPrompt
+        if (command.trim() == "clear" || command.trim() == "ctrl+l") {
+            blockRepository.clear()
+        }
         blockRepository.onCommandSubmitted(
             prompt = resolvedPrompt,
             command = command,

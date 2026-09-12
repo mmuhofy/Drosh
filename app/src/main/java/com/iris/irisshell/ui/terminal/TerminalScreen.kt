@@ -135,10 +135,6 @@ private fun ReadyScreen(
     extraKeyState: com.iris.irisshell.terminal.ExtraKeyState? = null,
 ) {
     var fullscreen by remember { mutableStateOf(false) }
-    val altBufferActive by terminalManager.altBufferActive.collectAsState()
-    LaunchedEffect(altBufferActive) {
-        fullscreen = altBufferActive
-    }
     var sidebarOpen by remember { mutableStateOf(false) }
     var browserUrl by remember { mutableStateOf<String?>(null) }
 
@@ -387,85 +383,90 @@ private fun ReadyScreen(
                 .fillMaxSize()
                 .imePadding(),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-            ) {
-                if (useBlockEngine) {
-                    val blocks by blockEngineViewModel.blocks.collectAsState()
-                    val promptDir by blockEngineViewModel.lastDir.collectAsState()
-                    val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f),
+    ) {
+        if (useBlockEngine) {
+            val blocks by blockEngineViewModel.blocks.collectAsState()
+            val promptDir by blockEngineViewModel.lastDir.collectAsState()
+            val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()
 
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(
-                                top = WindowInsets.statusBars
-                                    .asPaddingValues()
-                                    .calculateTopPadding()
-                            ),
-                        state = rememberLazyListState(),
-                    ) {
-                        items(blocks, key = { it.id }) { block ->
-                            PromptBlock(
-                                block = block,
-                                promptDir = promptDir,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                onCopyCommand = { blockEngineViewModel.onCopyCommand(block) },
-                                onCopyOutput = { blockEngineViewModel.onCopyOutput(block) },
-                                onRerunCommand = { cmd -> blockEngineViewModel.onRerunCommand(cmd) },
-                                onEditCommand = { cmd -> blockEngineViewModel.onEditCommand(cmd) },
-                                onExportOutput = { blockEngineViewModel.onExportOutput(block) },
-                                onDeleteBlock = { blockEngineViewModel.onDeleteBlock(block.id) },
-                            )
-                            if (block.id != blocks.lastOrNull()?.id) {
-                                PromptDivider()
-                            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = WindowInsets.statusBars
+                            .asPaddingValues()
+                            .calculateTopPadding()
+                    ),
+            ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    state = rememberLazyListState(),
+                ) {
+                    items(blocks, key = { it.id }) { block ->
+                        PromptBlock(
+                            block = block,
+                            promptDir = promptDir,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            onCopyCommand = { blockEngineViewModel.onCopyCommand(block) },
+                            onCopyOutput = { blockEngineViewModel.onCopyOutput(block) },
+                            onRerunCommand = { cmd -> blockEngineViewModel.onRerunCommand(cmd) },
+                            onEditCommand = { cmd -> blockEngineViewModel.onEditCommand(cmd) },
+                            onExportOutput = { blockEngineViewModel.onExportOutput(block) },
+                            onDeleteBlock = { blockEngineViewModel.onDeleteBlock(block.id) },
+                        )
+                        if (block.id != blocks.lastOrNull()?.id) {
+                            PromptDivider()
                         }
                     }
-
-                    BlockInputField(
-                        onSubmit = { cmd ->
-                            blockEngineViewModel.onCommandSubmitted("", cmd)
-                        },
-                        promptLabel = promptDir,
-                        promptSuffix = promptSuffix,
-                        modifier = Modifier.align(Alignment.BottomCenter),
-                    )
-                } else {
-                    /*
-                     * CLASSIC TERMINAL PATH
-                     *
-                     * terminalViewRef is shared with InputBarHost so the
-                     * Liquid Glass surface can sample this exact TerminalView.
-                     */
-                    TerminalViewHost(
-                        terminalManager = terminalManager,
-                        fontSizeSp = fontSizeSp,
-                        colorProps = colorProps,
-                        terminalViewModel = terminalViewModel,
-                        terminalViewRef = terminalViewRef,
-                        extraKeyState = extraKeyState,
-                        onUrlClick = { browserUrl = it },
-                        searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
-                        searchOverlayRef = searchOverlayRef,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(
-                                top = WindowInsets.statusBars
-                                    .asPaddingValues()
-                                    .calculateTopPadding()
-                            )
-                            .graphicsLayer {
-                                scaleX = appearScale
-                                scaleY = appearScale
-                                alpha = appearAlpha
-                            },
-                    )
                 }
 
-                if (fullscreen) {
+                BlockInputField(
+                    onSubmit = { cmd ->
+                        blockEngineViewModel.onCommandSubmitted("", cmd)
+                    },
+                    promptLabel = promptDir,
+                    promptSuffix = promptSuffix,
+                )
+            }
+        } else {
+            /*
+             * CLASSIC TERMINAL PATH
+             *
+             * terminalViewRef is shared with InputBarHost so the
+             * Liquid Glass surface can sample this exact TerminalView.
+             */
+            TerminalViewHost(
+                terminalManager = terminalManager,
+                fontSizeSp = fontSizeSp,
+                colorProps = colorProps,
+                terminalViewModel = terminalViewModel,
+                terminalViewRef = terminalViewRef,
+                extraKeyState = extraKeyState,
+                onUrlClick = { browserUrl = it },
+                searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
+                searchOverlayRef = searchOverlayRef,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = WindowInsets.statusBars
+                            .asPaddingValues()
+                            .calculateTopPadding()
+                    )
+                    .graphicsLayer {
+                        scaleX = appearScale
+                        scaleY = appearScale
+                        alpha = appearAlpha
+                    },
+            )
+        }
+
+        if (fullscreen) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

@@ -1,7 +1,7 @@
 package com.iris.irisshell.ui.block
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,9 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.iris.irisshell.design.system.IrisBorderSubtle
 import com.iris.irisshell.design.system.IrisDropdownMenu
-import com.iris.irisshell.design.system.IrisError
 import com.iris.irisshell.design.system.IrisMenuItem
 import com.iris.irisshell.design.system.IrisMenuItemStyle
 import com.iris.irisshell.design.system.IrisPrimary
@@ -54,6 +51,10 @@ fun PromptBlock(
     onExportOutput: () -> Unit = {},
     onDeleteBlock: () -> Unit = {},
 ) {
+    var showThreeDot by rememberSaveable { mutableStateOf(false) }
+    var showMenu by rememberSaveable { mutableStateOf(false) }
+    val onDismissMenu = { showMenu = false; showThreeDot = false }
+
     val promptText = block.prompt.ifBlank { "$" }
     val outputColor = when (block.state) {
         is BlockState.Error -> IrisTextMuted
@@ -74,16 +75,13 @@ fun PromptBlock(
         Box(
             modifier = Modifier.fillMaxWidth(),
         ) {
-            var contextOpen by rememberSaveable { mutableStateOf(false) }
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .combinedClickable(
+                    .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { contextOpen = true },
-                        onLongClick = { contextOpen = true },
+                        onClick = { showThreeDot = true },
                     )
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -103,24 +101,21 @@ fun PromptBlock(
                     fontSize = 13.sp,
                 )
                 Spacer(Modifier.weight(1f))
-                if (contextOpen) {
-                    IconButton(
-                        onClick = { /* menu handled below */ },
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Icon(
-                            imageVector = IrisIcons.EllipsisVertical,
-                            contentDescription = "Block menu",
-                            tint = IrisTextSecondary,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
+                if (showThreeDot) {
+                    Icon(
+                        imageVector = IrisIcons.EllipsisVertical,
+                        contentDescription = "Block menu",
+                        tint = IrisTextSecondary,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(onClick = { showMenu = true }),
+                    )
                 }
             }
 
             IrisDropdownMenu(
-                expanded = contextOpen,
-                onDismissRequest = { contextOpen = false },
+                expanded = showMenu,
+                onDismissRequest = onDismissMenu,
                 items = listOf(
                     IrisMenuItem(label = "Komutu kopyala", icon = IrisIcons.Copy),
                     IrisMenuItem(label = "Tekrar çalıştır", icon = IrisIcons.Play),
@@ -130,7 +125,7 @@ fun PromptBlock(
                     IrisMenuItem(label = "Block'u sil", icon = IrisIcons.Trash2, style = IrisMenuItemStyle.Destructive, dividerBefore = true),
                 ),
                 onItemClick = { item ->
-                    contextOpen = false
+                    onDismissMenu()
                     when (item.label) {
                         "Komutu kopyala" -> onCopyCommand()
                         "Tekrar çalıştır" -> onRerunCommand(block.command)
