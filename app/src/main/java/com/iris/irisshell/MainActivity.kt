@@ -4,14 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
 import androidx.activity.compose.setContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,6 +29,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.compose.AnimatedNavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import com.iris.irisshell.domain.settings.PinLockRepository
 import com.iris.irisshell.domain.terminal.ObserveFirstLaunchUseCase
@@ -42,24 +49,9 @@ import com.iris.irisshell.ui.settings.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
-/**
- * Single-activity entry point.
- *
- * Phase 1 — Terminal Core, now with a full setup UX:
- *
- *  1. Observe [ObserveFirstLaunchUseCase.isCompleted] from DataStore.
- *  2. While loading → render a thin splash.
- *  3. `false` → push [OnboardingScreen]; on completion it flips the flag and
- *     kicks off [TriggerBootstrapUseCase.start].
- *  4. `true` → render [BootstrapStepperScreen]; it routes to
- *     [SetupRecoveryScreen] on failure or to [TerminalScreen] on Ready.
- *
- * Per AGENT.md §125-128 the UI never imports `terminal/UbuntuSetupState`
- * directly. The one remaining direct import is `UbuntuSetupState.Ready`,
- * passed to the Phase 1 [TerminalScreen] whose signature is locked. A
- * follow-up PR will refactor [TerminalScreen] to consume a `:domain` state
- * type and remove this seam.
- */
+private const val ANIM_DURATION_MS = 300
+private val ANIM_SPEC = tween<Float>(durationMillis = ANIM_DURATION_MS)
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -72,9 +64,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Draw edge-to-edge so each screen's own background continues behind
-        // the transparent system bars. The app uses a dark theme, so system
-        // bar icons stay light for legibility.
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
@@ -89,17 +78,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             IrisTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    RootScreen()
+                    IrisAnimatedNavHost()
                 }
             }
         }
     }
 
     @Composable
-    private fun RootScreen() {
+    private fun IrisAnimatedNavHost() {
+        val navController = rememberNavController()
+        val coroutineScope = rememberCoroutineScope()
+
         var firstCompleted by remember { mutableStateOf<Boolean?>(null) }
-        var bootstrapReady by remember { mutableStateOf(false) }
-        var bootstrapFailed by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
             firstLaunchUseCase.isCompleted().collect { firstCompleted = it }
@@ -111,48 +101,65 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        when {
-            firstCompleted == null -> SplashScreen()
+        AnimatedNavHost(
+            navController = navController,
+            startDestination = "splash",
+            enterTransition = { slideInHorizontally(animationSpec = ANIM_SPEC) { it } },
+            exitTransition = { slideOutHorizontally(animationSpec = ANIM_SPEC) { -it } },
+            popEnterTransition = { slideInHorizontally(animationSpec = ANIM_SPEC) { -it } },
+            popExitTransition = { slideOutHorizontally(animationSpec = ANIM_SPEC) { it } },
+        ) {
+            composable("splash") {
+                val destination = if (firstCompleted == true) "terminal" else "onboarding"
+                if (firstCompleted != null) {
+                    LaunchedEffect(firstCompleted) {
+                        navController.navigate(destination) {
+                            popUpTo("splash") { inclusive = true }
+                        }
+                    }
+                }
+                SplashScreen()
+            }
 
-            firstCompleted == false -> OnboardingScreen(
-                onCompleted = { firstCompleted = true },
-            )
-
-            bootstrapFailed -> SetupRecoveryScreen(
-                viewModel = androidx.hilt.navigation.compose.hiltViewModel(),
-            )
-
-            !bootstrapReady -> {
-                BootstrapStepperScreen(
-                    onReady = { bootstrapReady = true },
-                    onSetupFailed = { bootstrapFailed = true },
+            composable("onboarding") {
+                OnboardingScreen(
+                    onCompleted = {
+                        navController.navigate("bootstrap") {
+                            popUpTo("onboarding") { inclusive = true }
+                        }
+                    },
                 )
             }
 
-            else -> TerminalNavHost(
-                terminalManager = terminalManager,
-                onRetry = { triggerBootstrap.retry() },
-                extraKeyState = extraKeyState,
-            )
-        }
-    }
+            composable("bootstrap") {
+                BootstrapStepperScreen(
+                    onReady = {
+                        navController.navigate("terminal") {
+                            popUpTo("bootstrap") { inclusive = true }
+                        }
+                    },
+                    onSetupFailed = {
+                        navController.navigate("recovery") {
+                            popUpTo("bootstrap") { inclusive = true }
+                        }
+                    },
+                )
+            }
 
-    @Composable
-    private fun TerminalNavHost(
-        terminalManager: TerminalManager,
-        onRetry: () -> Unit,
-        extraKeyState: ExtraKeyState,
-    ) {
-        val navController = rememberNavController()
-        val isPinLockEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
-        val coroutineScope = rememberCoroutineScope()
+            composable("recovery") {
+                SetupRecoveryScreen(
+                    onRetry = {
+                        navController.navigate("bootstrap") {
+                            popUpTo("recovery") { inclusive = true }
+                        }
+                    },
+                )
+            }
 
-        NavHost(
-            navController = navController,
-            startDestination = "terminal",
-        ) {
             composable("terminal") {
                 val context = LocalContext.current as ComponentActivity
+                val isPinLockEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
+
                 if (isPinLockEnabled) {
                     PinEntryScreen(
                         title = "Enter PIN",
@@ -160,11 +167,10 @@ class MainActivity : ComponentActivity() {
                         onPinReady = { pin ->
                             coroutineScope.launch {
                                 if (pinLock.verify(pin)) {
-                                    navController.navigate("terminalHome") {
+                                    navController.navigate("terminal_home") {
                                         popUpTo("terminal") { inclusive = true }
                                     }
                                 }
-                                // wrong pin: stay on entry screen, do nothing
                             }
                         },
                     )
@@ -172,25 +178,33 @@ class MainActivity : ComponentActivity() {
                     TerminalScreen(
                         terminalManager = terminalManager,
                         ubuntuSetupState = UbuntuSetupState.Ready,
-                        onRetry = onRetry,
+                        onRetry = { triggerBootstrap.retry() },
                         onOpenSettings = { navController.navigate("settings") },
                         extraKeyState = extraKeyState,
                         onExit = { context.finish() },
                     )
                 }
             }
-            composable("terminalHome") {
+
+            composable("terminal_home") {
                 val context = LocalContext.current as ComponentActivity
                 TerminalScreen(
                     terminalManager = terminalManager,
                     ubuntuSetupState = UbuntuSetupState.Ready,
-                    onRetry = onRetry,
+                    onRetry = { triggerBootstrap.retry() },
                     onOpenSettings = { navController.navigate("settings") },
                     extraKeyState = extraKeyState,
                     onExit = { context.finish() },
                 )
             }
-            composable("settings") {
+
+            composable(
+                "settings",
+                enterTransition = { fadeIn(animationSpec = ANIM_SPEC) },
+                exitTransition = { fadeOut(animationSpec = ANIM_SPEC) },
+                popEnterTransition = { fadeIn(animationSpec = ANIM_SPEC) },
+                popExitTransition = { fadeOut(animationSpec = ANIM_SPEC) },
+            ) {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
                 )
@@ -199,17 +213,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Tiny splash used until DataStore emits its first value. */
 @Composable
 private fun SplashScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-             .background(Color(0xFF000000)),
-         contentAlignment = Alignment.Center,
-     ) {
-         CircularProgressIndicator(
-             color = Color(0xFF3B82F6),
+            .background(Color(0xFF000000)),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(
+            color = Color(0xFF3B82F6),
             strokeWidth = 2.dp,
         )
     }
