@@ -50,21 +50,6 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     targetCompatibility = IrisBuildConfig.JAVA_VERSION
                 }
 
-                buildTypes {
-                    getByName("debug") {
-                        isMinifyEnabled = false
-                        applicationIdSuffix = ".debug"
-                    }
-                    getByName("release") {
-                        isMinifyEnabled = true
-                        isShrinkResources = true
-                        proguardFiles(
-                            getDefaultProguardFile("proguard-android-optimize.txt"),
-                            "proguard-rules.pro",
-                        )
-                    }
-                }
-
                 packaging {
                     resources {
                         excludes += "/META-INF/{AL2.0,LGPL2.1}"
