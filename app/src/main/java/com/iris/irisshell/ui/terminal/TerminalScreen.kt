@@ -513,15 +513,14 @@ private fun ReadyScreen(
             if (!fullscreen) {
                 val inputBarState by inputBarViewModel.uiState.collectAsState()
 
-                if (inputBarState.renderBar) {
-                    FlatKeyBar(
-                        ctrlStuck = inputBarState.ctrlStuck,
-                        altStuck = inputBarState.altStuck,
-                        terminalView = terminalViewRef.value,
-                        onIntent = inputBarViewModel::onIntent,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                FlatKeyBar(
+                    ctrlStuck = inputBarState.ctrlStuck,
+                    altStuck = inputBarState.altStuck,
+                    terminalView = terminalViewRef.value,
+                    onIntent = inputBarViewModel::onIntent,
+                    blurLevel = 8f,
+                    modifier = Modifier.align(Alignment.BottomStart),
+                )
             }
         }
 
