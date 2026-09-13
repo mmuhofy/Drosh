@@ -127,6 +127,21 @@ _Scope (revised 2026-07-28): TopBar modal session switcher only — no Home scre
 - [x] Block: Ctrl+C/Z/D/X flush raw bytes to PTY via SubmitRawByteUseCase
 - [x] Settings toggle: "Extra Keys Bar" in SettingsScreen
 
+### Flat Key Bar (Sprint 2 — COMPLETED 2026-09-13)
+- [x] `FlatKeyBar.kt` — text-only keys, no surfaces, blur behind (API 31+ RenderEffect)
+- [x] Key groups: System (Esc, Ctrl, Alt, Tab), Arrows, Navigation (Home/End/PgUp/PgDn), Editing (BkSpc/Enter/Space), F-keys (F1-F12)
+- [x] Gradient vertical dividers between groups (IrisBorderSubtle)
+- [x] Hover: border + subtle background overlay
+- [x] Pressed: stronger background overlay
+- [x] Primary keys (Ctrl/Alt/Tab): IrisPrimary color, hover → IrisPrimary lighter
+- [x] Active/stuck keys: full IrisPrimary background
+- [x] F-keys: smaller 11sp font
+- [x] Horizontal scroll (single row)
+- [x] Default visible: true (was false)
+- [x] Integrated into TerminalScreen — replaces InputBarHost usage
+- [x] HTML mockup: `html/irisshell_keybar_flat_mockup.html`
+- [ ] Blur level configurable (TODO: parameterized via settings)
+
 ### Ghost Text Autocomplete
 - [ ] `GhostTextEngine.kt` — inline ghost text
 - [ ] Suggestion pill above keyboard
