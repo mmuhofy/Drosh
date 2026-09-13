@@ -4,6 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -20,11 +24,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -46,6 +52,9 @@ import com.iris.irisshell.ui.theme.IrisTheme
 import com.iris.irisshell.ui.settings.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+
+private const val ANIM_DURATION_MS = 300
+private val ANIM_TWEEN = tween<IntOffset>(durationMillis = ANIM_DURATION_MS)
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -84,7 +93,7 @@ class MainActivity : ComponentActivity() {
         val navController = rememberNavController()
         val coroutineScope = rememberCoroutineScope()
 
-        var firstCompleted by remember { mutableStateOf<Boolean?>(null) }
+        var firstCompleted by rememberSaveable { mutableStateOf<Boolean?>(null) }
 
         LaunchedEffect(Unit) {
             firstLaunchUseCase.isCompleted().collect { firstCompleted = it }
@@ -110,38 +119,46 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                SplashScreen()
+                AnimatedScreen(targetState = "splash") {
+                    SplashScreen()
+                }
             }
 
             composable("onboarding") {
-                OnboardingScreen(
-                    onCompleted = {
-                        navController.navigate("bootstrap") {
-                            popUpTo("onboarding") { inclusive = true }
-                        }
-                    },
-                )
+                AnimatedScreen(targetState = "onboarding") {
+                    OnboardingScreen(
+                        onCompleted = {
+                            navController.navigate("bootstrap") {
+                                popUpTo("onboarding") { inclusive = true }
+                            }
+                        },
+                    )
+                }
             }
 
             composable("bootstrap") {
-                BootstrapStepperScreen(
-                    onReady = {
-                        navController.navigate("terminal") {
-                            popUpTo("bootstrap") { inclusive = true }
-                        }
-                    },
-                    onSetupFailed = {
-                        navController.navigate("recovery") {
-                            popUpTo("bootstrap") { inclusive = true }
-                        }
-                    },
-                )
+                AnimatedScreen(targetState = "bootstrap") {
+                    BootstrapStepperScreen(
+                        onReady = {
+                            navController.navigate("terminal") {
+                                popUpTo("bootstrap") { inclusive = true }
+                            }
+                        },
+                        onSetupFailed = {
+                            navController.navigate("recovery") {
+                                popUpTo("bootstrap") { inclusive = true }
+                            }
+                        },
+                    )
+                }
             }
 
             composable("recovery") {
-                SetupRecoveryScreen(
-                    modifier = Modifier.fillMaxSize(),
-                )
+                AnimatedScreen(targetState = "recovery") {
+                    SetupRecoveryScreen(
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
 
             composable("terminal") {
@@ -149,20 +166,38 @@ class MainActivity : ComponentActivity() {
                 val isPinLockEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
 
                 if (isPinLockEnabled) {
-                    PinEntryScreen(
-                        title = "Enter PIN",
-                        subtitle = "App lock enabled",
-                        onPinReady = { pin ->
-                            coroutineScope.launch {
-                                if (pinLock.verify(pin)) {
-                                    navController.navigate("terminal_home") {
-                                        popUpTo("terminal") { inclusive = true }
+                    AnimatedScreen(targetState = "pin_entry") {
+                        PinEntryScreen(
+                            title = "Enter PIN",
+                            subtitle = "App lock enabled",
+                            onPinReady = { pin ->
+                                coroutineScope.launch {
+                                    if (pinLock.verify(pin)) {
+                                        navController.navigate("terminal_home") {
+                                            popUpTo("terminal") { inclusive = true }
+                                        }
                                     }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 } else {
+                    AnimatedScreen(targetState = "terminal") {
+                        TerminalScreen(
+                            terminalManager = terminalManager,
+                            ubuntuSetupState = UbuntuSetupState.Ready,
+                            onRetry = { triggerBootstrap.retry() },
+                            onOpenSettings = { navController.navigate("settings") },
+                            extraKeyState = extraKeyState,
+                            onExit = { context.finish() },
+                        )
+                    }
+                }
+            }
+
+            composable("terminal_home") {
+                val context = LocalContext.current as ComponentActivity
+                AnimatedScreen(targetState = "terminal_home") {
                     TerminalScreen(
                         terminalManager = terminalManager,
                         ubuntuSetupState = UbuntuSetupState.Ready,
@@ -174,26 +209,52 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            composable("terminal_home") {
-                val context = LocalContext.current as ComponentActivity
-                TerminalScreen(
-                    terminalManager = terminalManager,
-                    ubuntuSetupState = UbuntuSetupState.Ready,
-                    onRetry = { triggerBootstrap.retry() },
-                    onOpenSettings = { navController.navigate("settings") },
-                    extraKeyState = extraKeyState,
-                    onExit = { context.finish() },
-                )
-            }
-
-            composable(
-                "settings",
-            ) {
-                SettingsScreen(
-                    onBack = { navController.popBackStack() },
-                )
+            composable("settings") {
+                AnimatedScreen(targetState = "settings", isModal = true) {
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun AnimatedScreen(
+    targetState: String,
+    isModal: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    var previousState by rememberSaveable { mutableStateOf<String?>(null) }
+    AnimatedContent(
+        targetState = targetState,
+        transitionSpec = {
+            val forward = previousState != null && targetState != previousState
+            val isForwardEnter = targetState > (previousState ?: "")
+            val enter = if (isModal) {
+                fadeIn(animationSpec = ANIM_TWEEN) + slideInHorizontally(animationSpec = ANIM_TWEEN) { { it / 10 } }
+            } else if (isForwardEnter) {
+                slideInHorizontally(animationSpec = ANIM_TWEEN) { it } + fadeIn(animationSpec = ANIM_TWEEN)
+            } else {
+                slideInHorizontally(animationSpec = ANIM_TWEEN) { -it } + fadeIn(animationSpec = ANIM_TWEEN)
+            }
+            val exit = if (isModal) {
+                fadeOut(animationSpec = ANIM_TWEEN) + slideOutHorizontally(animationSpec = ANIM_TWEEN) { { -it / 10 } }
+            } else if (isForwardEnter) {
+                slideOutHorizontally(animationSpec = ANIM_TWEEN) { -it } + fadeOut(animationSpec = ANIM_TWEEN)
+            } else {
+                slideOutHorizontally(animationSpec = ANIM_TWEEN) { it } + fadeOut(animationSpec = ANIM_TWEEN)
+            }
+            ContentTransform(
+                targetContentEnter = enter,
+                initialContentExit = exit,
+            )
+        },
+        contentKey = { it },
+    ) { target ->
+        previousState = target
+        content()
     }
 }
 
