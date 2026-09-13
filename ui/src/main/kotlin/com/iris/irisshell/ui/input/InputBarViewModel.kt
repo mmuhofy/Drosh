@@ -64,6 +64,14 @@ class InputBarViewModel @Inject constructor(
     init {
         observePreferences()
         observeHardwareKeyboard()
+        // When hardware keyboard consumes a sticky modifier (readCtrl/readAlt),
+        // push refreshed state so the key-bar highlight clears.
+        modifierState.setOnModifierConsumed {
+            pushModifierState(
+                ctrl = modifierState.peekCtrl(),
+                alt = modifierState.peekAlt(),
+            )
+        }
     }
 
     private fun observePreferences() {

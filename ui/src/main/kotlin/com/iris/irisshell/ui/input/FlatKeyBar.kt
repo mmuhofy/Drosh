@@ -32,6 +32,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
@@ -46,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.draw.drawBehind
 import com.iris.irisshell.design.system.IrisBackground
 import com.iris.irisshell.design.system.IrisBorderSubtle
 import com.iris.irisshell.design.system.IrisPrimary
@@ -54,9 +57,19 @@ import com.iris.irisshell.design.system.IrisText
 import com.iris.irisshell.design.system.IrisTextMuted
 import com.iris.irisshell.domain.input.ExtraKey
 import com.iris.irisshell.domain.input.InputIntent
+import kotlinx.coroutines.delay
 
 private val KEY_CORNER = RoundedCornerShape(4.dp)
 private val BAR_CORNER = RoundedCornerShape(0.dp)
+private const val KEY_REPEAT_INITIAL_DELAY_MS = 500L
+private const val KEY_REPEAT_RATE_MS = 50L
+
+private val ARROW_NAV_KEYS = setOf(
+    ExtraKey.Navigation.ARROW_UP,
+    ExtraKey.Navigation.ARROW_DOWN,
+    ExtraKey.Navigation.ARROW_LEFT,
+    ExtraKey.Navigation.ARROW_RIGHT,
+)
 
 /**
  * Flat key bar — text-only keys with blur behind, no surface background.
@@ -82,11 +95,21 @@ fun FlatKeyBar(
 ) {
     val scrollState = rememberScrollState()
     val canBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    // 100% opaque when not scrolled, 85% when horizontally scrolled.
+    val surfaceAlpha = if (scrollState.value > 0) 0.85f else 1.0f
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(48.dp)
+            .drawBehind {
+                drawLine(
+                    color = IrisBorderSubtle,
+                    p1 = Offset(0f, 0f),
+                    p2 = Offset(size.width, 0f),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            },
     ) {
         // Blurred frosted-glass background — semi-opaque so the surface
         // is clearly visible while the blur + terminal beneath shows through.
@@ -100,7 +123,7 @@ fun FlatKeyBar(
                         )
                         bg
                             .background(
-                                IrisSurface.copy(alpha = 0.75f),
+                                IrisSurface.copy(alpha = surfaceAlpha),
                             )
                             .graphicsLayer {
                                 renderEffect = effect.asComposeRenderEffect()
@@ -108,7 +131,7 @@ fun FlatKeyBar(
                     } else {
                         bg
                             .background(
-                                IrisSurface.copy(alpha = 0.85f),
+                                IrisSurface.copy(alpha = surfaceAlpha),
                             )
                     }
                 }
@@ -292,6 +315,22 @@ private fun FlatKeyButton(
         else -> 44.dp
     }
 
+    // Auto-repeat for arrow keys: fire once on press, then repeat while held.
+    val isRepetitive = spec.key in ARROW_NAV_KEYS
+
+    if (isRepetitive) {
+        LaunchedEffect(pressed) {
+            if (pressed) {
+                onClick()
+                delay(KEY_REPEAT_INITIAL_DELAY_MS)
+                while (true) {
+                    onClick()
+                    delay(KEY_REPEAT_RATE_MS)
+                }
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .width(keyWidth)
@@ -301,8 +340,8 @@ private fun FlatKeyButton(
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick,
-                onLongClick = onLongPress.takeIf { it != {} },
+                onClick = { if (!isRepetitive) onClick() },
+                onLongClick = if (!isRepetitive) onLongPress.takeIf { it != {} } else null,
             ),
     ) {
         if (hovered || pressed) {

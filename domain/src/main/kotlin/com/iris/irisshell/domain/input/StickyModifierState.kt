@@ -45,4 +45,12 @@ interface StickyModifierState {
 
     /** ALT sibling of [tapCtrl]. */
     fun tapAlt()
+
+    /**
+     * Register a listener invoked whenever the sticky state is consumed
+     * by an external reader (e.g. hardware keyboard event in TerminalView
+     * calls [consumeCtrl]/[consumeAlt]). The UI layer uses this to push
+     * fresh `ctrlStuck`/`altStuck` values into [InputBarUiState].
+     */
+    fun setOnModifierConsumed(listener: () -> Unit)
 }

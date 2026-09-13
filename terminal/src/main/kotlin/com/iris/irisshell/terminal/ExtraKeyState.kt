@@ -21,6 +21,16 @@ class ExtraKeyState : StickyModifierState {
     var altActive: Boolean = false
     var altLocked: Boolean = false
 
+    private var onModifierConsumed: (() -> Unit)? = null
+
+    override fun setOnModifierConsumed(listener: () -> Unit) {
+        onModifierConsumed = listener
+    }
+
+    private fun notifyConsumed() {
+        onModifierConsumed?.invoke()
+    }
+
     override fun tapCtrl() {
         if (ctrlLocked) {
             ctrlLocked = false
@@ -30,6 +40,7 @@ class ExtraKeyState : StickyModifierState {
         } else {
             ctrlActive = true
         }
+        notifyConsumed()
     }
 
     fun longPressCtrl() {
@@ -39,7 +50,10 @@ class ExtraKeyState : StickyModifierState {
 
     fun readCtrl(): Boolean {
         if (!ctrlActive) return false
-        if (!ctrlLocked) ctrlActive = false
+        if (!ctrlLocked) {
+            ctrlActive = false
+            notifyConsumed()
+        }
         return true
     }
 
@@ -52,6 +66,7 @@ class ExtraKeyState : StickyModifierState {
         } else {
             altActive = true
         }
+        notifyConsumed()
     }
 
     fun longPressAlt() {
@@ -61,7 +76,10 @@ class ExtraKeyState : StickyModifierState {
 
     fun readAlt(): Boolean {
         if (!altActive) return false
-        if (!altLocked) altActive = false
+        if (!altLocked) {
+            altActive = false
+            notifyConsumed()
+        }
         return true
     }
 
