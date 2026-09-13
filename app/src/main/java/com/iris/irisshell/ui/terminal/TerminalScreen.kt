@@ -152,6 +152,7 @@ private fun ReadyScreen(
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
     val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
+    val inputBarState by inputBarViewModel.uiState.collectAsState()
 
     var firstModeCheck by remember { mutableStateOf(true) }
     LaunchedEffect(useBlockEngine) {
