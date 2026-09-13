@@ -4,9 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
 import androidx.activity.compose.setContent
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -14,6 +11,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -25,12 +23,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.IntOffset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.IntOffset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.compose.AnimatedNavHost
+import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
@@ -49,10 +47,6 @@ import com.iris.irisshell.ui.theme.IrisTheme
 import com.iris.irisshell.ui.settings.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-
-private const val ANIM_DURATION_MS = 300
-private val SLIDE_ANIM_SPEC = tween<IntOffset>(durationMillis = ANIM_DURATION_MS)
-private val FADE_ANIM_SPEC = tween<Float>(durationMillis = ANIM_DURATION_MS)
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -80,14 +74,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             IrisTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    IrisAnimatedNavHost()
+                    IrisNavHost()
                 }
             }
         }
     }
 
     @Composable
-    private fun IrisAnimatedNavHost() {
+    private fun IrisNavHost() {
         val navController = rememberNavController()
         val coroutineScope = rememberCoroutineScope()
 
@@ -103,13 +97,10 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        AnimatedNavHost(
+        NavHost(
             navController = navController,
             startDestination = "splash",
-            enterTransition = { slideInHorizontally(animationSpec = SLIDE_ANIM_SPEC) { it } },
-            exitTransition = { slideOutHorizontally(animationSpec = SLIDE_ANIM_SPEC) { -it } },
-            popEnterTransition = { slideInHorizontally(animationSpec = SLIDE_ANIM_SPEC) { -it } },
-            popExitTransition = { slideOutHorizontally(animationSpec = SLIDE_ANIM_SPEC) { it } },
+            modifier = Modifier.fillMaxSize(),
         ) {
             composable("splash") {
                 val destination = if (firstCompleted == true) "terminal" else "onboarding"
@@ -198,10 +189,6 @@ class MainActivity : ComponentActivity() {
 
             composable(
                 "settings",
-                enterTransition = { fadeIn(animationSpec = FADE_ANIM_SPEC) },
-                exitTransition = { fadeOut(animationSpec = FADE_ANIM_SPEC) },
-                popEnterTransition = { fadeIn(animationSpec = FADE_ANIM_SPEC) },
-                popExitTransition = { fadeOut(animationSpec = FADE_ANIM_SPEC) },
             ) {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
