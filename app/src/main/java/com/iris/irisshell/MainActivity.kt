@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.IntOffset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +51,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 private const val ANIM_DURATION_MS = 300
-private val ANIM_SPEC = tween<Float>(durationMillis = ANIM_DURATION_MS)
+private val SLIDE_ANIM_SPEC = tween<IntOffset>(durationMillis = ANIM_DURATION_MS)
+private val FADE_ANIM_SPEC = tween<Float>(durationMillis = ANIM_DURATION_MS)
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -104,10 +106,10 @@ class MainActivity : ComponentActivity() {
         AnimatedNavHost(
             navController = navController,
             startDestination = "splash",
-            enterTransition = { slideInHorizontally(animationSpec = ANIM_SPEC) { it } },
-            exitTransition = { slideOutHorizontally(animationSpec = ANIM_SPEC) { -it } },
-            popEnterTransition = { slideInHorizontally(animationSpec = ANIM_SPEC) { -it } },
-            popExitTransition = { slideOutHorizontally(animationSpec = ANIM_SPEC) { it } },
+            enterTransition = { slideInHorizontally(animationSpec = SLIDE_ANIM_SPEC) { it } },
+            exitTransition = { slideOutHorizontally(animationSpec = SLIDE_ANIM_SPEC) { -it } },
+            popEnterTransition = { slideInHorizontally(animationSpec = SLIDE_ANIM_SPEC) { -it } },
+            popExitTransition = { slideOutHorizontally(animationSpec = SLIDE_ANIM_SPEC) { it } },
         ) {
             composable("splash") {
                 val destination = if (firstCompleted == true) "terminal" else "onboarding"
@@ -148,11 +150,7 @@ class MainActivity : ComponentActivity() {
 
             composable("recovery") {
                 SetupRecoveryScreen(
-                    onRetry = {
-                        navController.navigate("bootstrap") {
-                            popUpTo("recovery") { inclusive = true }
-                        }
-                    },
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
 
@@ -200,10 +198,10 @@ class MainActivity : ComponentActivity() {
 
             composable(
                 "settings",
-                enterTransition = { fadeIn(animationSpec = ANIM_SPEC) },
-                exitTransition = { fadeOut(animationSpec = ANIM_SPEC) },
-                popEnterTransition = { fadeIn(animationSpec = ANIM_SPEC) },
-                popExitTransition = { fadeOut(animationSpec = ANIM_SPEC) },
+                enterTransition = { fadeIn(animationSpec = FADE_ANIM_SPEC) },
+                exitTransition = { fadeOut(animationSpec = FADE_ANIM_SPEC) },
+                popEnterTransition = { fadeIn(animationSpec = FADE_ANIM_SPEC) },
+                popExitTransition = { fadeOut(animationSpec = FADE_ANIM_SPEC) },
             ) {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
