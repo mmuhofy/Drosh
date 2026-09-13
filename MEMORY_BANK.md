@@ -1,7 +1,16 @@
 # Iris Shell — Memory Bank
-_Last updated: 2026-09-12_
+_Last updated: 2026-09-13_
 
-Last commit: `94ce9e7` — chore: remove unused CommandSeparatorOverlay.kt
+Last commit: `3efe15e` — fix: remove isMinifyEnabled=true from library convention plugin + add hilt_aggregated_deps keep rule in ui/proguard
+
+### Release Build Crash Fix (2026-09-13)
+
+**Root cause:** `build-logic/.../AndroidLibraryConventionPlugin.kt` set `isMinifyEnabled = true` for release build type. The `ui` module's `proguard-rules.pro` only had `-keep class com.iris.irisshell.ui.** { *; }` which does NOT cover `hilt_aggregated_deps.*` classes. R8 stripped these Hilt-generated Dagger aggregation modules, leaving the `ViewModelC` Dagger component with an empty `hiltViewModelMap`. When `HiltViewModelFactory.create()` looked for `OnboardingViewModel` in the map, it found nothing and fell through to `NewInstanceFactory.create()` (reflection), which failed with `NoSuchMethodException` since `OnboardingViewModel` has no no-arg constructor.
+
+**Fix:**
+1. Removed `isMinifyEnabled = true` + `isShrinkResources = true` + `proguardFiles(...)` from `AndroidApplicationConventionPlugin` and `AndroidLibraryConventionPlugin` — release builds now use `isMinifyEnabled = false` by default (matching Phase 1's simplicity)
+2. Added `-keep class hilt_aggregated_deps.** { *; }` to `ui/proguard-rules.pro` as a safety net for future R8 enablement
+3. Added `--refresh-dependencies --no-configuration-cache` to release CI workflow to bypass all Gradle caches
 
 ### Icon System — Final Architecture (2026-09-11)
 - ✅ **Library**: `io.github.ardasoyturk.compose.icons:lucide-android:2.0.7` from Maven Central (replaces local AAR + thelacspace library)

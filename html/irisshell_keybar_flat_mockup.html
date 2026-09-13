@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iris Shell — Key Bar with Blur (bottom) + Terminal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #14171B;
+            color: #F0F2F4;
+            font-family: ui-monospace, 'SF Mono', Monaco, 'Courier New', monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ===== TERMINAL ===== */
+        .terminal-container {
+            flex: 1;
+            background: #14171B;
+            color: #F0F2F4;
+            overflow-y: auto;
+            padding: 12px 16px;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+            scrollbar-width: thin;
+            scrollbar-color: #343A43 transparent;
+            position: relative;
+            z-index: 1;
+        }
+        .terminal-container::-webkit-scrollbar { width: 6px; }
+        .terminal-container::-webkit-scrollbar-track { background: transparent; }
+        .terminal-container::-webkit-scrollbar-thumb { background: #343A43; border-radius: 3px; }
+        .terminal-container .line { margin: 0 0 2px 0; }
+        .terminal-container .prompt { color: #719FFF; }
+        .terminal-container .command { color: #719FFF; }
+        .terminal-container .output { color: #B8B8B8; }
+        .terminal-container .output-highlight { color: #FFD97B; }
+        .terminal-container .output-dim { color: #747B85; }
+        .terminal-container .error { color: #EF4444; }
+        .terminal-container .success { color: #22C55E; }
+        .terminal-container .warning { color: #F59E0B; }
+        .terminal-container .cursor {
+            display: inline-block;
+            width: 9px;
+            height: 1em;
+            background: #719FFF;
+            animation: blink 1s step-end infinite;
+            vertical-align: baseline;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* ===== KEY BAR (overlapping terminal, bottom, blur) ===== */
+        .key-bar-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: auto;
+            z-index: 100;
+        }
+
+        .key-bar {
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 10px 14px;
+            gap: 4px;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+            scrollbar-width: none;
+            background: rgba(26, 32, 40, 0.75);
+            border-top: 1px solid rgba(52, 58, 67, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.5);
+        }
+        .key-bar::-webkit-scrollbar { display: none; }
+
+        .key-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .key-group .group-divider {
+            width: 1px;
+            height: 20px;
+            background: linear-gradient(180deg, transparent, #343A43, transparent);
+            margin: 0 10px;
+        }
+
+        .key-bar .key {
+            flex: 0 0 auto;
+            padding: 9px 11px;
+            font-size: 13px;
+            font-weight: 400;
+            color: #747B85;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            outline: none;
+            transition: all 0.12s ease;
+            position: relative;
+            min-width: 44px;
+            text-align: center;
+        }
+        .key-bar .key:hover {
+            color: #F0F2F4;
+            border-color: rgba(240, 242, 244, 0.15);
+            background: rgba(240, 242, 244, 0.04);
+        }
+        .key-bar .key.primary {
+            color: #719FFF;
+            border-color: rgba(113, 159, 255, 0.3);
+        }
+        .key-bar .key.primary:hover {
+            color: #9BB8FF;
+            border-color: rgba(155, 168, 255, 0.5);
+            background: rgba(113, 159, 255, 0.08);
+        }
+        .key-bar .key.fn {
+            font-size: 11px;
+            padding: 7px 7px;
+            min-width: 36px;
+            color: #747B85;
+        }
+        .key-bar .key.fn:hover {
+            color: #F0F2F4;
+            background: rgba(240, 242, 244, 0.04);
+            border-color: rgba(240, 242, 244, 0.15);
+        }
+        .key-bar .key.active {
+            color: #14171B;
+            background: #719FFF;
+            border-color: #719FFF;
+        }
+        .key-bar .key.locked {
+            color: #719FFF;
+        }
+        .key-bar .key.locked:hover {
+            color: #9BB8FF;
+        }
+
+        /* ===== BLUR SLIDER PANEL ===== */
+        .slider-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 320px;
+            background: rgba(28, 32, 37, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-left: 1px solid #343A43;
+            border-bottom: 1px solid #343A43;
+            padding: 16px;
+            box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .slider-panel .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .slider-panel .panel-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #F0F2F4;
+        }
+        .slider-panel .close-btn {
+            background: transparent;
+            border: 1px solid #343A43;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 12px;
+            color: #A0A0A0;
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+        .slider-panel .close-btn:hover {
+            border-color: #719FFF;
+            color: #719FFF;
+        }
+        .slider-panel .slider-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .slider-panel .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #B8B8B8;
+        }
+        .slider-panel .slider-label .value {
+            color: #719FFF;
+        }
+        .slider-panel input[type="range"] {
+            width: 100%;
+            height: 4px;
+            -webkit-appearance: none;
+            background: #343A43;
+            border-radius: 2px;
+            outline: none;
+        }
+        .slider-panel input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #719FFF;
+            border: 2px solid #14171B;
+            cursor: pointer;
+            box-shadow: 0 0 0 2px rgba(113, 159, 255, 0.3);
+        }
+        .slider-panel .preset-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .slider-panel .preset-btn {
+            flex: 1;
+            background: transparent;
+            border: 1px solid #343A43;
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-size: 12px;
+            color: #A0A0A0;
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+        .slider-panel .preset-btn:hover {
+            border-color: #719FFF;
+            color: #719FFF;
+        }
+        .slider-panel .preset-btn.active {
+            background: #719FFF;
+            color: #14171B;
+            border-color: #719FFF;
+        }
+    </style>
+</head>
+<body>
+    <!-- ===== TERMINAL (top, scrollable) ===== -->
+    <div class="terminal-container" id="terminal">
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">ls -la</span><span class="cursor"></span></div>
+        <div class="line output-dim">total 48</div>
+        <div class="line output-dim">drwxr-xr-x  8 user user 4096 Sep 13 09:12 .</div>
+        <div class="line output-dim">drwxr-xr-x  5 user user 4096 Sep 13 09:12 ..</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:10 bin</div>
+        <div class="line output-dim">drwxr-xr-x  4 user user 4096 Sep 13 09:05 dev</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:10 etc</div>
+        <div class="line output-dim">drwxr-xr-x  3 user user 4096 Sep 13 09:08 home</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:08 include</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:10 lib</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:08 media</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:08 mnt</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:08 opt</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:08 proc</div>
+        <div class="line output-dim">drwxr-xr-x  2 user root 4096 Sep 13 09:10 root</div>
+        <div class="line output-dim">drwxr-xr-x  2 user root 4096 Sep 13 09:08 run</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:10 sbin</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:08 srv</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:08 sys</div>
+        <div class="line output-dim">drwxr-xr-x  2 user user 4096 Sep 13 09:08 tmp</div>
+        <div class="line output-dim">drwxr-xr-x 13 user root 4096 Sep 13 09:11 usr</div>
+        <div class="line output-dim">drwxr-xr-x  1 user root 4096 Sep 13 09:12 var</div>
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">cat documents/notes.md</span><span class="cursor"></span></div>
+        <div class="line output"># Iris Shell Notes</div>
+        <div class="line output"></div>
+        <div class="line output output-highlight">## TODO</div>
+        <div class="line output">- [ ] Fix release APK crash: ViewModel binding</div>
+        <div class="line output">- [ ] Add flat design key bar (bottom)</div>
+        <div class="line output">- [ ] Implement block engine v2</div>
+        <div class="line output">- [ ] Add SSH constellation support</div>
+        <div class="line output">- [ ] Port termux-view JNI</div>
+        <div class="line output">- [ ] Ubuntu 24.04 bootstrap</div>
+        <div class="line output">- [ ] PRoot v5.2.0 runtime</div>
+        <div class="line output"></div>
+        <div class="line output output-highlight">## Architecture</div>
+        <div class="line output">ui/ -> Compose screens, ViewModels</div>
+        <div class="line output-dim">domain/ -> Pure Kotlin interfaces</div>
+        <div class="line output-dim">data/ -> Room DAOs, SSHJ</div>
+        <div class="line output-dim">terminal/ -> PTY, block engine</div>
+        <div class="line output-dim">ssh/ -> SSHJ manager</div>
+        <div class="line output-dim">agent/ -> LLM loop (Phase 6)</div>
+        <div class="line"></div>
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">git log --oneline -10</span><span class="cursor"></span></div>
+        <div class="line output">3efe15e fix: remove isMinifyEnabled=true from convention plugin</div>
+        <div class="line output">d5d149d fix(release): add --refresh-dependencies to bypass cache</div>
+        <div class="line output">57965b5 fix: add androidx.hilt:hilt-lifecycle-viewmodel-compose</div>
+        <div class="line output-dim">e8ef571 refactor: Navigation migration to single NavHost</div>
+        <div class="line output-dim">94ce9e7 chore: remove unused CommandSeparatorOverlay.kt</div>
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">grep -r "hilt_aggregated" --include=*.kt ui/src/</span></div>
+        <div class="line output output-highlight">(no matches — generated by KSP, not in source)</div>
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">./gradlew :app:assembleRelease --refresh-dependencies --no-configuration-cache</span></div>
+        <div class="line output-dim">> Task :app:clean UP-TO-DATE</div>
+        <div class="line output-dim">> Task :ui:compileReleaseKotlin</div>
+        <div class="line output-dim">> Task :ui:mergeReleaseNativeLibs</div>
+        <div class="line output-dim">> Task :app:mergeReleaseNativeLibs</div>
+        <div class="line success">BUILD SUCCESSFUL in 4m29s</div>
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">ls app/build/outputs/apk/release/</span></div>
+        <div class="line output">app-arm64-v8a-release.apk  app-x86-release.apk  output.json</div>
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">echo "Checking DEX for hilt_aggregated_deps"</span></div>
+        <div class="line output">Checking DEX for hilt_aggregated_deps</div>
+        <div class="line output-dim">hilt_aggregated_deps/_com_iris_irisshell_ui_setup_OnboardingViewModel_HiltModules_BindsModule  ✓</div>
+        <div class="line output-dim">hilt_aggregated_deps/_com_iris_irisshell_ui_setup_OnboardingViewModel_HiltModules_KeyModule  ✓</div>
+        <div class="line output-dim">hilt_aggregated_deps/_com_iris_irisshell_ui_block_BlockEngineViewModel_HiltModules_BindsModule  ✓</div>
+        <div class="line output-dim">hilt_aggregated_deps/_com_iris_irisshell_ui_terminal_TerminalViewModel_HiltModules_BindsModule  ✓</div>
+        <div class="line output-dim">hilt_aggregated_deps/_com_iris_irisshell_ui_settings_SettingsViewModel_HiltModules_BindsModule  ✓</div>
+        <div class="line output-dim">hilt_aggregated_deps/_com_iris_irisshell_ui_terminal_TerminalViewModel_HiltModules_BindsModule  ✓</div>
+        <div class="line output-dim">hilt_aggregated_deps/_com_iris_irisshell_ui_input_InputBarViewModel_HiltModules_BindsModule  ✓</div>
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">strings classes3.dex | grep hilt_aggregated</span></div>
+        <div class="line output success">All 14 hilt_aggregated_deps classes FOUND</div>
+        <div class="line output success">Release APK build PASSED</div>
+        <div class="line output success">Crash: Cannot create OnboardingViewModel - FIXED</div>
+        <div class="line"><span class="prompt">user@irisshell:~$</span> <span class="command">exit</span></div>
+        <div class="line output">exit</div>
+    </div>
+
+    <!-- ===== KEY BAR (overlapping terminal bottom, blur, dynamic, grouped) ===== -->
+    <div class="key-bar-container">
+        <div class="key-bar" id="keyBar">
+            <!-- System / Nav -->
+            <div class="key-group">
+                <span class="key">Esc</span>
+                <span class="key primary active">Ctrl</span>
+                <span class="key primary">Alt</span>
+                <span class="key primary locked">Tab</span>
+            </div>
+            <div class="group-divider"></div>
+            <!-- Arrows -->
+            <div class="key-group">
+                <span class="key">↑</span>
+                <span class="key">←</span>
+                <span class="key">↓</span>
+                <span class="key">→</span>
+            </div>
+            <div class="group-divider"></div>
+            <!-- Navigation -->
+            <div class="key-group">
+                <span class="key">Home</span>
+                <span class="key">End</span>
+                <span class="key">PgUp</span>
+                <span class="key">PgDn</span>
+            </div>
+            <div class="group-divider"></div>
+            <!-- Editing -->
+            <div class="key-group">
+                <span class="key">BkSPC</span>
+                <span class="key">Enter</span>
+                <span class="key">Space</span>
+            </div>
+            <div class="group-divider"></div>
+            <!-- Function keys -->
+            <div class="key-group">
+                <span class="key fn">F1</span>
+                <span class="key fn">F2</span>
+                <span class="key fn">F3</span>
+                <span class="key fn">F4</span>
+                <span class="key fn">F5</span>
+                <span class="key fn">F6</span>
+                <span class="key fn">F7</span>
+                <span class="key fn">F8</span>
+                <span class="key fn">F9</span>
+                <span class="key fn">F10</span>
+                <span class="key fn">F11</span>
+                <span class="key fn">F12</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== BLUR SLIDER PANEL ===== -->
+    <div class="slider-panel" id="sliderPanel">
+        <div class="panel-header">
+            <span class="panel-title">Key Bar Blur</span>
+            <button class="close-btn" onclick="togglePanel()">×</button>
+        </div>
+        <div class="slider-row">
+            <label class="slider-label">
+                Blur intensity
+                <span class="value" id="blurValue">8px</span>
+            </label>
+            <input type="range" id="blurSlider" min="0" max="20" step="1" value="8">
+            <div class="preset-row">
+                <button class="preset-btn active" onclick="setPreset('8', this)">Normal (8px)</button>
+                <button class="preset-btn" onclick="setPreset('4', this)">Light (4px)</button>
+                <button class="preset-btn" onclick="setPreset('12', this)">Heavy (12px)</button>
+                <button class="preset-btn" onclick="setPreset('0', this)">None (0px)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const blurSlider = document.getElementById('blurSlider');
+        const blurValue = document.getElementById('blurValue');
+        const keyBar = document.getElementById('keyBar');
+        const sliderPanel = document.getElementById('sliderPanel');
+
+        function updateBlur(px) {
+            const val = px + 'px';
+            keyBar.style.backdropFilter = 'blur(' + val + ')';
+            keyBar.style.webkitBackdropFilter = 'blur(' + val + ')';
+            blurValue.textContent = val;
+        }
+
+        blurSlider.addEventListener('input', (e) => {
+            updateBlur(e.target.value);
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        });
+
+        function setPreset(px, btn) {
+            document.getElementById('blurSlider').value = px;
+            updateBlur(px);
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        function togglePanel() {
+            if (sliderPanel.style.right === '0px') {
+                sliderPanel.style.right = '-320px';
+            } else {
+                sliderPanel.style.right = '0px';
+            }
+        }
+
+        // Initialize
+        sliderPanel.style.right = '-320px';
+    </script>
+</body>
+</html>
