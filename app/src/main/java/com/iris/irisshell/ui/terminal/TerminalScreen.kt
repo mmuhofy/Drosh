@@ -508,20 +508,18 @@ private fun ReadyScreen(
                             fullscreen = false
                         }
                     }
-                }
             }
+        }
 
-            if (!fullscreen) {
-                if (inputBarState.renderBar) {
-                    FlatKeyBar(
-                        ctrlStuck = inputBarState.ctrlStuck,
-                        altStuck = inputBarState.altStuck,
-                        terminalView = terminalViewRef.value,
-                        onIntent = inputBarViewModel::onIntent,
-                        modifier = Modifier.align(Alignment.BottomStart),
-                    )
-                }
-            }
+        // Flat key bar overlay — floats on terminal at bottom.
+        if (!fullscreen && inputBarState.renderBar) {
+            FlatKeyBar(
+                ctrlStuck = inputBarState.ctrlStuck,
+                altStuck = inputBarState.altStuck,
+                terminalView = terminalViewRef.value,
+                onIntent = inputBarViewModel::onIntent,
+                modifier = Modifier.align(Alignment.BottomStart),
+            )
         }
 
         // Top bar overlay — floats on terminal, takes no layout space.
