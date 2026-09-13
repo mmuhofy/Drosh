@@ -47,19 +47,6 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
                     targetCompatibility = IrisBuildConfig.JAVA_VERSION
                 }
 
-                buildTypes {
-                    getByName("debug") {
-                        isMinifyEnabled = false
-                    }
-                    getByName("release") {
-                        isMinifyEnabled = true
-                        proguardFiles(
-                            getDefaultProguardFile("proguard-android-optimize.txt"),
-                            "proguard-rules.pro",
-                        )
-                    }
-                }
-
                 testOptions {
                     unitTests.isReturnDefaultValues = true
                 }
