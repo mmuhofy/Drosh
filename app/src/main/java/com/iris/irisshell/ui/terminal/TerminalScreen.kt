@@ -510,7 +510,9 @@ private fun ReadyScreen(
                 }
             }
         }
+    }
 
+        // Flat key bar overlay — floats on terminal, blur samples terminal behind.
         if (!fullscreen && !inputBarState.hardwareKeyboardPresent) {
             FlatKeyBar(
                 ctrlStuck = inputBarState.ctrlStuck,
@@ -520,10 +522,10 @@ private fun ReadyScreen(
                 blurLevel = 8f,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .imePadding(),
+                    .imePadding()
+                    .align(Alignment.BottomStart),
             )
         }
-    }
 
         // Top bar overlay — floats on terminal, takes no layout space.
         if (!fullscreen) {
