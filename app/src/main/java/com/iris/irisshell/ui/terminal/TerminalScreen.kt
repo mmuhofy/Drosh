@@ -518,7 +518,7 @@ private fun ReadyScreen(
                 altStuck = inputBarState.altStuck,
                 terminalView = terminalViewRef.value,
                 onIntent = inputBarViewModel::onIntent,
-                modifier = Modifier.align(Alignment.BottomStart),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
 
