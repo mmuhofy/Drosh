@@ -88,9 +88,8 @@ fun FlatKeyBar(
             .fillMaxWidth()
             .height(48.dp),
     ) {
-        // Blurred background layer — blur is applied to the semi-transparent
-        // background itself, creating a frosted-glass effect. The terminal
-        // content beneath the key bar is visible through the transparency.
+        // Blurred frosted-glass background — semi-opaque so the surface
+        // is clearly visible while the blur + terminal beneath shows through.
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -101,7 +100,7 @@ fun FlatKeyBar(
                         )
                         bg
                             .background(
-                                IrisBackground.copy(alpha = 0.65f),
+                                IrisSurface.copy(alpha = 0.75f),
                             )
                             .graphicsLayer {
                                 renderEffect = effect.asComposeRenderEffect()
@@ -109,7 +108,7 @@ fun FlatKeyBar(
                     } else {
                         bg
                             .background(
-                                IrisBackground.copy(alpha = 0.85f),
+                                IrisSurface.copy(alpha = 0.85f),
                             )
                     }
                 }
