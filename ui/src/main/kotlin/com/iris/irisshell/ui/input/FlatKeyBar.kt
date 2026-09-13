@@ -105,8 +105,8 @@ fun FlatKeyBar(
             .drawBehind {
                 drawLine(
                     color = IrisBorderSubtle,
-                    p1 = Offset(0f, 0f),
-                    p2 = Offset(size.width, 0f),
+                    start = Offset(0f, 0f),
+                    end = Offset(size.width, 0f),
                     strokeWidth = 1.dp.toPx(),
                 )
             },
