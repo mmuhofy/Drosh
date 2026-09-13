@@ -141,7 +141,7 @@ class SettingsRepositoryImpl @Inject constructor(
         val KEY_AUTO_LOCK_TIMEOUT       = stringPreferencesKey("auto_lock_timeout")
 
         const val DEFAULT_USE_BLOCK_ENGINE       = false
-        const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = false
+        const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = true
         const val DEFAULT_FONT_SIZE_SP           = 14
         const val DEFAULT_TERMINAL_BG_COLOR      = "#000000"
         const val DEFAULT_ACCENT_COLOR           = "#3B82F6"

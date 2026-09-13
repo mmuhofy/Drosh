@@ -367,6 +367,7 @@ private fun ReadyScreen(
     // Terminal content is always fully visible.
     val appearScale = 1f
     val appearAlpha = 1f
+    val inputBarState by inputBarViewModel.uiState.collectAsState()
 
     Box(
         modifier = Modifier
@@ -377,7 +378,7 @@ private fun ReadyScreen(
          * Terminal content fills all available space.
          *
          * The extra-key bar remains below the terminal in the normal layout,
-         * while its Liquid Glass layer samples the classic TerminalView that
+         * while its blur layer samples the classic TerminalView that
          * sits behind it.
            */
         Column(
@@ -511,14 +512,13 @@ private fun ReadyScreen(
             }
 
             if (!fullscreen) {
-                val inputBarState by inputBarViewModel.uiState.collectAsState()
-
                 if (inputBarState.renderBar) {
                     FlatKeyBar(
                         ctrlStuck = inputBarState.ctrlStuck,
                         altStuck = inputBarState.altStuck,
                         terminalView = terminalViewRef.value,
                         onIntent = inputBarViewModel::onIntent,
+                        modifier = Modifier.align(Alignment.BottomStart),
                     )
                 }
             }
