@@ -59,17 +59,8 @@ android {
             if (keystoreProperties.isNotEmpty()) {
                 signingConfig = signingConfigs.getByName("debug-keystore")
             }
-            // Minify on debug too — AGP debug normally keeps all symbols +
-            // adds huge field/method debug metadata which ballooned the dex
-            // classes*.dex total to ~80 MB. Enabling R8 in fullMode here
-            // shrinks the classes to ~10-15 MB without breaking Compose
-            // tooling: ui-tooling (used only at preview-time) stays separate.
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
         getByName("release") {
             if (keystoreProperties.isNotEmpty()) {
