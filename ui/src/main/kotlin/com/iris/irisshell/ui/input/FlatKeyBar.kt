@@ -88,9 +88,9 @@ fun FlatKeyBar(
             .fillMaxWidth()
             .height(48.dp),
     ) {
-        // Blurred background — samples content behind the bar (terminal).
-        // This layer has no opaque children so the blur captures whatever
-        // is rendered beneath it in the parent composition.
+        // Blurred background layer — blur is applied to the semi-transparent
+        // background itself, creating a frosted-glass effect. The terminal
+        // content beneath the key bar is visible through the transparency.
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -99,25 +99,20 @@ fun FlatKeyBar(
                         val effect = RenderEffect.createBlurEffect(
                             blurLevel, blurLevel, Shader.TileMode.MIRROR,
                         )
-                        bg.graphicsLayer {
-                            renderEffect = effect.asComposeRenderEffect()
-                        }
+                        bg
+                            .background(
+                                IrisBackground.copy(alpha = 0.65f),
+                            )
+                            .graphicsLayer {
+                                renderEffect = effect.asComposeRenderEffect()
+                            }
                     } else {
                         bg
+                            .background(
+                                IrisBackground.copy(alpha = 0.85f),
+                            )
                     }
                 }
-                .clip(BAR_CORNER),
-        )
-
-        // Semi-transparent overlay — sits ON TOP of the blur, not blurred itself.
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    IrisBackground.copy(
-                        alpha = if (canBlur) 0.65f else 0.85f,
-                    ),
-                )
                 .clip(BAR_CORNER),
         )
 
