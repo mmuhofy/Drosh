@@ -1,5 +1,7 @@
 package com.iris.irisshell.ui.input
 
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.os.Build
 import android.view.View
 import androidx.compose.animation.AnimatedVisibility
@@ -20,7 +22,6 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,11 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.RenderEffect
-import androidx.compose.ui.graphics.Shader
-import androidx.compose.ui.graphics.asAndroidRenderEffect
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,7 +53,6 @@ import com.iris.irisshell.design.system.IrisSurface
 import com.iris.irisshell.design.system.IrisText
 import com.iris.irisshell.design.system.IrisTextMuted
 import com.iris.irisshell.domain.input.ExtraKey
-import com.iris.irisshell.domain.input.ExtraKeyBarLayout
 import com.iris.irisshell.domain.input.InputIntent
 
 private val KEY_CORNER = RoundedCornerShape(4.dp)
@@ -91,10 +89,11 @@ fun FlatKeyBar(
             .height(48.dp)
             .let { base ->
                 if (canBlur) {
+                    val effect = RenderEffect.createBlurEffect(
+                        blurLevel, blurLevel, Shader.TileMode.MIRROR,
+                    )
                     base.graphicsLayer {
-                        renderEffect = RenderEffect
-                            .createBlurEffect(blurLevel, blurLevel, Shader.TileMode.MIRROR)
-                            .asAndroidRenderEffect()
+                        renderEffect = effect.asComposeRenderEffect()
                     }
                 } else {
                     base
