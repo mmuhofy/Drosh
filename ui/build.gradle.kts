@@ -36,6 +36,7 @@ dependencies {
 
     // Hilt + ViewModel integration
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
 
     // Coil — image loading for theme store previews (MEMORYBANK.md §58).
     // OMITTED in Phase 1 (no theme store surface yet). Re-add when the

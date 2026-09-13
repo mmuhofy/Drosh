@@ -21,6 +21,7 @@ import com.iris.irisshell.domain.terminal.SetupPreferences
 import com.iris.irisshell.domain.terminal.ShellChoice
 import com.iris.irisshell.domain.settings.PinLockRepository
 import com.iris.irisshell.ui.setup.OnboardingViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.iris.irisshell.ui.setup.onboarding.components.SetupButton
 import com.iris.irisshell.ui.setup.onboarding.scenes.DeviceCheckScene
 import com.iris.irisshell.ui.setup.onboarding.scenes.PreferencesScene
@@ -46,7 +47,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun OnboardingScreen(
     onCompleted: () -> Unit,
-    viewModel: OnboardingViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
+    viewModel: OnboardingViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
     var scene by remember { mutableStateOf(OnboardingSceneKind.Welcome) }

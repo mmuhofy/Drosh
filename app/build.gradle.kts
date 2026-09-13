@@ -125,6 +125,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
 
     // WorkManager — cron / agent watch scheduled background work.
     implementation(libs.androidx.work.runtime.ktx)
