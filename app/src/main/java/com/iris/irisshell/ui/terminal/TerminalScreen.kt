@@ -54,6 +54,7 @@ import com.iris.irisshell.ui.block.BlockInputField
 import com.iris.irisshell.ui.block.PromptBlock
 import com.iris.irisshell.ui.block.PromptDivider
 import com.iris.irisshell.ui.browser.WebViewSheet
+import com.iris.irisshell.ui.input.FlatKeyBar
 import com.iris.irisshell.ui.input.InputBarHost
 import com.iris.irisshell.ui.input.InputBarViewModel
 import com.iris.irisshell.ui.search.DraggableSearchBar
@@ -512,15 +513,15 @@ private fun ReadyScreen(
             if (!fullscreen) {
                 val inputBarState by inputBarViewModel.uiState.collectAsState()
 
-                InputBarHost(
-                    uiState = inputBarState,
-                    onToggle = inputBarViewModel::toggleBarVisible,
-                    onIntent = inputBarViewModel::onIntent,
-
-                    // NEW:
-                    // Give the Liquid Glass renderer the classic TerminalView.
-                    terminalView = terminalViewRef.value,
-                )
+                if (inputBarState.renderBar) {
+                    FlatKeyBar(
+                        ctrlStuck = inputBarState.ctrlStuck,
+                        altStuck = inputBarState.altStuck,
+                        terminalView = terminalViewRef.value,
+                        onIntent = inputBarViewModel::onIntent,
+                        modifier = Modifier.align(Alignment.BottomStart),
+                    )
+                }
             }
         }
 
