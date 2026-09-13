@@ -86,26 +86,42 @@ fun FlatKeyBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .let { base ->
-                if (canBlur) {
-                    val effect = RenderEffect.createBlurEffect(
-                        blurLevel, blurLevel, Shader.TileMode.MIRROR,
-                    )
-                    base.graphicsLayer {
-                        renderEffect = effect.asComposeRenderEffect()
-                    }
-                } else {
-                    base
-                }
-            }
-            .background(
-                IrisBackground.copy(
-                    alpha = if (canBlur) 0.65f else 0.85f,
-                ),
-            )
-            .clip(BAR_CORNER),
+            .height(48.dp),
     ) {
+        // Blurred background — samples content behind the bar (terminal).
+        // This layer has no opaque children so the blur captures whatever
+        // is rendered beneath it in the parent composition.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .let { bg ->
+                    if (canBlur) {
+                        val effect = RenderEffect.createBlurEffect(
+                            blurLevel, blurLevel, Shader.TileMode.MIRROR,
+                        )
+                        bg.graphicsLayer {
+                            renderEffect = effect.asComposeRenderEffect()
+                        }
+                    } else {
+                        bg
+                    }
+                }
+                .clip(BAR_CORNER),
+        )
+
+        // Semi-transparent overlay — sits ON TOP of the blur, not blurred itself.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    IrisBackground.copy(
+                        alpha = if (canBlur) 0.65f else 0.85f,
+                    ),
+                )
+                .clip(BAR_CORNER),
+        )
+
+        // Foreground content — keys rendered sharp, no blur applied.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
