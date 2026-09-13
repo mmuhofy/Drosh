@@ -54,7 +54,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 private const val ANIM_DURATION_MS = 300
-private val ANIM_TWEEN = tween<IntOffset>(durationMillis = ANIM_DURATION_MS)
+private val FLOAT_TWEEN = tween<Float>(durationMillis = ANIM_DURATION_MS)
+private val INT_TWEEN = tween<IntOffset>(durationMillis = ANIM_DURATION_MS)
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -233,18 +234,18 @@ private fun AnimatedScreen(
             val forward = previousState != null && targetState != previousState
             val isForwardEnter = targetState > (previousState ?: "")
             val enter = if (isModal) {
-                fadeIn(animationSpec = ANIM_TWEEN) + slideInHorizontally(animationSpec = ANIM_TWEEN) { { it / 10 } }
+                fadeIn(animationSpec = FLOAT_TWEEN) + slideInHorizontally(animationSpec = INT_TWEEN) { it / 10 }
             } else if (isForwardEnter) {
-                slideInHorizontally(animationSpec = ANIM_TWEEN) { it } + fadeIn(animationSpec = ANIM_TWEEN)
+                slideInHorizontally(animationSpec = INT_TWEEN) { it } + fadeIn(animationSpec = FLOAT_TWEEN)
             } else {
-                slideInHorizontally(animationSpec = ANIM_TWEEN) { -it } + fadeIn(animationSpec = ANIM_TWEEN)
+                slideInHorizontally(animationSpec = INT_TWEEN) { -it } + fadeIn(animationSpec = FLOAT_TWEEN)
             }
             val exit = if (isModal) {
-                fadeOut(animationSpec = ANIM_TWEEN) + slideOutHorizontally(animationSpec = ANIM_TWEEN) { { -it / 10 } }
+                fadeOut(animationSpec = FLOAT_TWEEN) + slideOutHorizontally(animationSpec = INT_TWEEN) { -it / 10 }
             } else if (isForwardEnter) {
-                slideOutHorizontally(animationSpec = ANIM_TWEEN) { -it } + fadeOut(animationSpec = ANIM_TWEEN)
+                slideOutHorizontally(animationSpec = INT_TWEEN) { -it } + fadeOut(animationSpec = FLOAT_TWEEN)
             } else {
-                slideOutHorizontally(animationSpec = ANIM_TWEEN) { it } + fadeOut(animationSpec = ANIM_TWEEN)
+                slideOutHorizontally(animationSpec = INT_TWEEN) { it } + fadeOut(animationSpec = FLOAT_TWEEN)
             }
             ContentTransform(
                 targetContentEnter = enter,
