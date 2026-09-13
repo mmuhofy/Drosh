@@ -36,8 +36,8 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > app/keystore.jks
           fi
 
-      - name: Assemble release (clean, no cache)
-        run: ./gradlew clean assembleRelease --no-daemon --stacktrace --rerun-tasks
+      - name: Assemble release (clean, no cache, refresh deps)
+        run: ./gradlew clean assembleRelease --no-daemon --refresh-dependencies --stacktrace --rerun-tasks
         env:
           KEYSTORE_PATH: app/keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
