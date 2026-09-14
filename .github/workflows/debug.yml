@@ -31,12 +31,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Assemble debug
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace --max-workers=2
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: irisshell-debug-arm64-v8a-apk
+          name: drosh-debug-arm64-v8a-apk
           path: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
           if-no-files-found: warn
           retention-days: 14
