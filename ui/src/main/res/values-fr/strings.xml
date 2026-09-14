@@ -15,7 +15,7 @@
     <string name="settings_proot_start_command">Commande de démarrage PRoot</string>
     <string name="settings_proot_start_description">Expérimental — modifier ceci peut casser les sessions</string>
     <string name="settings_security_section">Sécurité</string>
-    <string name="settings_app_lock">Verrouillage de l&#x27;application (code PIN)</string>
+    <string name="settings_app_lock">Verrouillage de l'application (code PIN)</string>
     <string name="settings_app_lock_description">Exiger un code PIN au démarrage</string>
     <string name="settings_about_section">À propos</string>
     <string name="settings_version">Version</string>
