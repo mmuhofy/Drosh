@@ -1,15 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Application-wide string resources (العربية). -->
 <resources>
     <string name="app_name">Drosh</string>
+
+    <!-- Foreground service notifications -->
     <string name="terminal_service_name">طرفية Drosh</string>
     <string name="terminal_service_channel_name">طرفية Drosh</string>
     <plurals name="notification_session_count">
+        <item quantity="zero">لا توجد جلسات نشطة</item>
         <item quantity="one">جلسة نشطة واحدة</item>
-        <item quantity="other">%1$d جلسات نشطة</item>
+        <item quantity="two">جلستان نشطتان</item>
+        <item quantity="few">%1$d جلسات نشطة</item>
+        <item quantity="many">%1$d جلسة نشطة</item>
+        <item quantity="other">%1$d جلسة نشطة</item>
     </plurals>
     <string name="notification_action_exit">خروج</string>
+
+    <!-- Command completion notifications -->
     <string name="command_complete_channel_name">إتمامات الأوامر</string>
     <string name="notification_command_completed">%1$s — تم الإكمال</string>
     <string name="notification_command_error">%1$s — خطأ (رمز الخروج %2$d)</string>
     <string name="notification_command_cancelled">%1$s — تم الإلغاء</string>
+
+    <!-- Settings screen -->
+    <string name="settings_language_title">اللغة</string>
+    <string name="settings_language_system">النظام</string>
+    <string name="settings_terminal_section">الطرفية</string>
+    <string name="settings_cursor_style">نمط المؤشر</string>
+    <string name="settings_cursor_style_block">كتلة</string>
+    <string name="settings_cursor_style_beam">شعاع</string>
+    <string name="settings_cursor_style_underline">تسطير</string>
+    <string name="settings_cursor_blink_rate">معدل وميض المؤشر</string>
+    <string name="settings_cursor_blink_description">فاصل النبض</string>
+    <string name="settings_font_size">حجم الخط</string>
+    <string name="settings_proot_start_command">أمر بدء تشغيل PRoot</string>
+    <string name="settings_proot_start_description">تجريبي — قد يؤدي تغيير هذا إلى تعطيل الجلسات</string>
+    <string name="settings_security_section">الأمان</string>
+    <string name="settings_app_lock">قفل التطبيق (رمز PIN)</string>
+    <string name="settings_app_lock_description">طلب رمز PIN عند التشغيل</string>
+    <string name="settings_about_section">حول</string>
+    <string name="settings_version">الإصدار</string>
+    <string name="settings_description">الوصف</string>
+    <string name="settings_license">الترخيص</string>
+    <string name="settings_made_by">من إعداد Muhofy</string>
+    <string name="settings_default_build_description">طرفية متقدمة</string>
+    <string name="settings_back_content_description">رجوع</string>
+    <string name="pin_entry_title">تعيين رمز PIN</string>
+    <string name="pin_entry_subtitle">أدخل رمز PIN جديدًا مكونًا من 4 أرقام</string>
 </resources>
