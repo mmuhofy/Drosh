@@ -43,7 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshSurfaceContainerLowest
+import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
