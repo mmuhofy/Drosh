@@ -1,5 +1,5 @@
 // Inspired by: termux/termux-app — TerminalView rendering coordinate system
-// Adapted for Iris Shell — com.iris.irisshell
+// Adapted for Drosh — com.iris.irisshell
 //
 // Overlay View that draws search-highlight rectangles AND URL underlines on top
 // of a classic TerminalView. Uses the TerminalRenderer's font metrics

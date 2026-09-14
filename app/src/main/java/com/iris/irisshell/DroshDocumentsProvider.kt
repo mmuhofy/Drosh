@@ -13,18 +13,18 @@ import java.io.File
 import java.io.FileNotFoundException
 
 /**
- * DocumentsProvider that exposes Iris Shell's internal Ubuntu rootfs to the
+ * DocumentsProvider that exposes Drosh's internal Ubuntu rootfs to the
  * Android Storage Access Framework (SAF) — e.g. the "Files" app's "Open by app"
  * picker, or ACTION_OPEN_DOCUMENT.
  *
- * Root: "Iris Shell" → `$context.filesDir/ubuntu/`
+ * Root: "Drosh" → `$context.filesDir/ubuntu/`
  * Document IDs are absolute file paths (consistent with IrisCode's
  * IrisDocumentsProvider pattern).
  *
  * Inspired by: ~/projects/IrisCode/app/.../documents/IrisDocumentsProvider.kt
- * Adapted for Iris Shell — com.iris.irisshell
+ * Adapted for Drosh — com.iris.irisshell
  */
-class IrisShellDocumentsProvider : DocumentsProvider() {
+class DroshDocumentsProvider : DocumentsProvider() {
 
     private val ALL_MIME_TYPES = "*/*"
 
@@ -63,7 +63,7 @@ class IrisShellDocumentsProvider : DocumentsProvider() {
             Root.COLUMN_FLAGS,
             Root.FLAG_SUPPORTS_CREATE or Root.FLAG_SUPPORTS_SEARCH or Root.FLAG_SUPPORTS_IS_CHILD,
         )
-        row.add(Root.COLUMN_TITLE, "Iris Shell")
+        row.add(Root.COLUMN_TITLE, "Drosh")
         row.add(Root.COLUMN_MIME_TYPES, ALL_MIME_TYPES)
         row.add(Root.COLUMN_AVAILABLE_BYTES, baseDir.freeSpace)
         return result

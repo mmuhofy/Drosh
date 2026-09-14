@@ -3,7 +3,7 @@ package com.iris.irisshell.terminal
 import com.iris.irisshell.domain.input.StickyModifierState
 
 // Ported from: mmuhofy/IrisCode — app/src/main/kotlin/com/iris/iriscode/terminal/ExtraKeyState.kt
-// Adapted for Iris Shell — com.iris.irisshell
+// Adapted for Drosh — com.iris.irisshell
 //
 // Originally used Compose runtime's mutableStateOf/getValue/setValue. Since this
 // module does NOT apply the Compose plugin (Compose belongs to :ui and :app per

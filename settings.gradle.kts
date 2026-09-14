@@ -22,7 +22,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "IrisShell"
+rootProject.name = "Drosh"
 
 // Application entry point
 include(":app")

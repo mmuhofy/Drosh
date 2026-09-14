@@ -18,8 +18,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisPrimary
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshPrimary
 
 @Composable
 fun KeyboardHandle(
@@ -50,7 +50,7 @@ fun KeyboardHandle(
                 .size(width = 48.dp, height = 3.dp)
                 .alpha(if (barVisible) 0.72f else 0.38f)
                 .background(
-                    color = if (barVisible) IrisPrimary else IrisBorderSubtle,
+                    color = if (barVisible) DroshPrimary else DroshBorderSubtle,
                     shape = RoundedCornerShape(4.dp),
                 ),
         )

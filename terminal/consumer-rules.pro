@@ -1,4 +1,4 @@
-# Iris Shell - consumer ProGuard rules for :terminal.
+# Drosh - consumer ProGuard rules for :terminal.
 # These rules are applied automatically to any module that depends on :terminal.
 #
 # Keep rules added per-phase as the termux-view JNI surface is finalized.

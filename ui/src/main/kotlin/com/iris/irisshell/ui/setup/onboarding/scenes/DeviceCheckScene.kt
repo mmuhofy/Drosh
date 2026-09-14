@@ -29,12 +29,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
 import com.iris.irisshell.design.system.OutfitFontFamily
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 import com.iris.irisshell.ui.setup.onboarding.components.CheckStatus
 import com.iris.irisshell.ui.setup.onboarding.components.DeviceCheckItem
 import com.iris.irisshell.ui.setup.onboarding.components.SetupButton
@@ -49,11 +49,11 @@ fun DeviceCheckScene(
 ) {
     val context = LocalContext.current
 
-    val archIcon = IrisIcons.Terminal
-    val androidIcon = IrisIcons.Square
-    val storageIcon = IrisIcons.Download
-    val ramIcon = IrisIcons.SquareTerminal
-    val batteryIcon = IrisIcons.SquareTerminal
+    val archIcon = DroshIcons.Terminal
+    val androidIcon = DroshIcons.Square
+    val storageIcon = DroshIcons.Download
+    val ramIcon = DroshIcons.SquareTerminal
+    val batteryIcon = DroshIcons.SquareTerminal
 
     val checks = remember { mutableStateListOf<DeviceCheck>() }
     var isScanning by remember { mutableStateOf(true) }
@@ -108,7 +108,7 @@ fun DeviceCheckScene(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(IrisBackground),
+            .background(DroshBackground),
     ) {
         Column(
             modifier = Modifier
@@ -124,7 +124,7 @@ fun DeviceCheckScene(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 20.sp,
                 ),
-                color = IrisText,
+                color = DroshText,
                 modifier = Modifier.padding(horizontal = 28.dp),
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -135,7 +135,7 @@ fun DeviceCheckScene(
                     fontWeight = FontWeight.Normal,
                     fontSize = 14.sp,
                 ),
-                color = IrisTextMuted,
+                color = DroshTextMuted,
                 modifier = Modifier.padding(horizontal = 28.dp),
             )
 
@@ -146,7 +146,7 @@ fun DeviceCheckScene(
                     .fillMaxWidth()
                     .padding(horizontal = 28.dp),
                 shape = RoundedCornerShape(16.dp),
-                color = IrisSurface,
+                color = DroshSurface,
             ) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     checks.forEach { check ->

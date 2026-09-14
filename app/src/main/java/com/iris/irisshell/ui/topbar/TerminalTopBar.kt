@@ -42,12 +42,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.iris.irisshell.ui.IrisIcons
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisError
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.ui.DroshIcons
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshError
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.design.system.OutfitFontFamily
 import com.iris.irisshell.ui.session.SessionSwitcherViewModel
 
@@ -68,7 +68,7 @@ import com.iris.irisshell.ui.session.SessionSwitcherViewModel
  *    gerekir — ayrı bir adım olarak ele alınmalı.
  *  - MoreActionsDropdown: hardcoded offset kaldırıldı (anchor'a göre
  *    otomatik konumlanıyor), Divider → HorizontalDivider.
- *  - Icons now use IrisIcons ImageVector instead of painterResource XML drawables.
+ *  - Icons now use DroshIcons ImageVector instead of painterResource XML drawables.
  *
  * Public API değişmedi: TerminalTopBar(...) imzası aynı.
  */
@@ -112,7 +112,7 @@ fun TerminalTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 GlassPillButton(
-                    icon = IrisIcons.PanelLeft,
+                    icon = DroshIcons.PanelLeft,
                     contentDescription = "Open sessions",
                     onClick = onOpenSidebar,
                 )
@@ -120,17 +120,17 @@ fun TerminalTopBar(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(percent = 50))
-                        .background(IrisSurfaceVariant.copy(alpha = 0.72f))
+                        .background(DroshSurfaceVariant.copy(alpha = 0.72f))
                         .border(
                             width = 1.dp,
-                            color = IrisBorderSubtle.copy(alpha = 0.6f),
+                            color = DroshBorderSubtle.copy(alpha = 0.6f),
                             shape = RoundedCornerShape(percent = 50),
                         )
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        text = activeName ?: "IrisShell",
-                        color = IrisText,
+                        text = activeName ?: "Drosh",
+                        color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 15.sp,
@@ -151,13 +151,13 @@ fun TerminalTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 GlassPillButton(
-                    icon = if (keyboardFocused) IrisIcons.KeyboardOff else IrisIcons.Keyboard,
+                    icon = if (keyboardFocused) DroshIcons.KeyboardOff else DroshIcons.Keyboard,
                     contentDescription = if (keyboardFocused) "Hide keyboard" else "Show keyboard",
                     onClick = onToggleKeyboard,
                 )
 
                 GlassPillButton(
-                    icon = IrisIcons.EllipsisVertical,
+                    icon = DroshIcons.EllipsisVertical,
                     contentDescription = "More actions",
                     onClick = { moreExpanded = true },
                 )
@@ -195,12 +195,12 @@ private fun MoreActionsDropdown(
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
-        containerColor = IrisSurfaceVariant,
+        containerColor = DroshSurfaceVariant,
         tonalElevation = 8.dp,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.border(
             width = 1.dp,
-            color = IrisBorderSubtle.copy(alpha = 0.2f),
+            color = DroshBorderSubtle.copy(alpha = 0.2f),
             shape = RoundedCornerShape(12.dp),
         ),
     ) {
@@ -212,14 +212,14 @@ private fun MoreActionsDropdown(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Icon(
-                        imageVector = IrisIcons.RotateCw,
+                        imageVector = DroshIcons.RotateCw,
                         contentDescription = null,
-                        tint = IrisTextSecondary,
+                        tint = DroshTextSecondary,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
                         text = "Refresh terminal",
-                        color = IrisText,
+                        color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -235,14 +235,14 @@ private fun MoreActionsDropdown(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Icon(
-                        imageVector = IrisIcons.Plus,
+                        imageVector = DroshIcons.Plus,
                         contentDescription = null,
-                        tint = IrisTextSecondary,
+                        tint = DroshTextSecondary,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
                         text = "New session",
-                        color = IrisText,
+                        color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -258,14 +258,14 @@ private fun MoreActionsDropdown(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Icon(
-                        imageVector = if (isFullscreen) IrisIcons.Minimize else IrisIcons.Maximize,
+                        imageVector = if (isFullscreen) DroshIcons.Minimize else DroshIcons.Maximize,
                         contentDescription = null,
-                        tint = IrisTextSecondary,
+                        tint = DroshTextSecondary,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
                         text = if (isFullscreen) "Exit fullscreen" else "Enter fullscreen",
-                        color = IrisText,
+                        color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -281,14 +281,14 @@ private fun MoreActionsDropdown(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Icon(
-                        imageVector = IrisIcons.Search,
+                        imageVector = DroshIcons.Search,
                         contentDescription = null,
-                        tint = IrisTextSecondary,
+                        tint = DroshTextSecondary,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
                         text = "Find in output",
-                        color = IrisText,
+                        color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -297,7 +297,7 @@ private fun MoreActionsDropdown(
             },
         )
         HorizontalDivider(
-            color = IrisBorderSubtle,
+            color = DroshBorderSubtle,
             thickness = 1.dp,
             modifier = Modifier.padding(vertical = 4.dp),
         )
@@ -309,14 +309,14 @@ private fun MoreActionsDropdown(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Icon(
-                        imageVector = IrisIcons.Settings,
+                        imageVector = DroshIcons.Settings,
                         contentDescription = null,
-                        tint = IrisTextSecondary,
+                        tint = DroshTextSecondary,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
                         text = "Settings",
-                        color = IrisText,
+                        color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -332,14 +332,14 @@ private fun MoreActionsDropdown(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Icon(
-                        imageVector = IrisIcons.XCircle,
+                        imageVector = DroshIcons.XCircle,
                         contentDescription = null,
-                        tint = IrisError,
+                        tint = DroshError,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
                         text = "Close session",
-                        color = IrisError,
+                        color = DroshError,
                         fontFamily = OutfitFontFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -380,7 +380,7 @@ private fun GlassPillButton(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(IrisSurfaceVariant.copy(alpha = if (pressed) 0.85f else 0.62f))
+            .background(DroshSurfaceVariant.copy(alpha = if (pressed) 0.85f else 0.62f))
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
@@ -392,7 +392,7 @@ private fun GlassPillButton(
             )
             .border(
                 width = 1.dp,
-                color = IrisBorderSubtle.copy(alpha = 0.6f),
+                color = DroshBorderSubtle.copy(alpha = 0.6f),
                 shape = CircleShape,
             )
             .pointerInput(Unit) {
@@ -410,7 +410,7 @@ private fun GlassPillButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = IrisText,
+            tint = DroshText,
             modifier = Modifier
                 .size(iconSize)
                 .graphicsLayer {

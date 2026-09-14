@@ -26,7 +26,7 @@ class KotlinLibraryConventionPlugin : Plugin<Project> {
 
             extensions.configure<JavaPluginExtension>("java") {
                 toolchain {
-                    languageVersion.set(JavaLanguageVersion.of(IrisBuildConfig.JAVA_VERSION.majorVersion))
+                    languageVersion.set(JavaLanguageVersion.of(DroshBuildConfig.JAVA_VERSION.majorVersion))
                 }
             }
 

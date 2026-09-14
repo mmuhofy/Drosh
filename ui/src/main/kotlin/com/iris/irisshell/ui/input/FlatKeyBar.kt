@@ -42,11 +42,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
 import com.iris.irisshell.domain.input.ExtraKey
 import com.iris.irisshell.domain.input.InputIntent
 import kotlinx.coroutines.delay
@@ -73,7 +73,7 @@ private val ARROW_NAV_KEYS = setOf(
  * semi-transparent fallback is used instead.
  *
  * Positioned floating above the terminal via [align] in the outer Box
- * scope so the terminal content renders behind it. A thin [IrisBorderSubtle]
+ * scope so the terminal content renders behind it. A thin [DroshBorderSubtle]
  * top border separates the bar from the terminal output.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -92,7 +92,7 @@ fun FlatKeyBar(
             .height(48.dp)
             .drawBehind {
                 drawLine(
-                    color = IrisBorderSubtle,
+                    color = DroshBorderSubtle,
                     start = Offset(0f, 0f),
                     end = Offset(size.width, 0f),
                     strokeWidth = 1.dp.toPx(),
@@ -103,7 +103,7 @@ fun FlatKeyBar(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(IrisSurface)
+                .background(DroshSurface)
                 .clip(BAR_CORNER),
         )
 
@@ -264,9 +264,9 @@ private fun FlatKeyButton(
     val pressed by interactionSource.collectIsPressedAsState()
 
     val textColor = when {
-        spec.style == FlatKeySpec.Primary -> IrisPrimary
-        hovered || pressed -> IrisText
-        else -> IrisTextMuted
+        spec.style == FlatKeySpec.Primary -> DroshPrimary
+        hovered || pressed -> DroshText
+        else -> DroshTextMuted
     }
 
     val fontSize = when (spec.style) {
@@ -317,9 +317,9 @@ private fun FlatKeyButton(
             Canvas(modifier = Modifier.matchParentSize()) {
                 drawRoundRect(
                     color = if (spec.style == FlatKeySpec.Primary)
-                        IrisPrimary.copy(alpha = 0.10f)
+                        DroshPrimary.copy(alpha = 0.10f)
                     else
-                        IrisText.copy(alpha = 0.06f),
+                        DroshText.copy(alpha = 0.06f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(
                         4.dp.toPx(),
                         4.dp.toPx(),
@@ -347,9 +347,9 @@ private fun KeyDivider() {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        IrisSurface,
-                        IrisBorderSubtle,
-                        IrisSurface,
+                        DroshSurface,
+                        DroshBorderSubtle,
+                        DroshSurface,
                     ),
                 ),
             ),
@@ -372,7 +372,7 @@ private fun MoreKeyButton(
         Text(
             text = if (expanded) "▲" else "•••",
             fontSize = 17.sp,
-            color = IrisTextMuted,
+            color = DroshTextMuted,
         )
     }
 }
@@ -401,7 +401,7 @@ private fun MoreKeysPanel(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(IrisSurface.copy(alpha = 0.85f)),
+                .background(DroshSurface.copy(alpha = 0.85f)),
         )
 
         Row(
@@ -425,7 +425,7 @@ private fun MoreKeysPanel(
                     Text(
                         text = label,
                         fontSize = 10.sp,
-                        color = IrisTextMuted,
+                        color = DroshTextMuted,
                     )
                 }
             }

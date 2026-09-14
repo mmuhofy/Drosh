@@ -85,11 +85,11 @@ class TerminalSessionClientImpl : TerminalSessionClient {
         if (tag != null && message != null) Log.v(tag, message)
     }
     override fun logStackTraceWithMessage(tag: String?, message: String?, e: Exception?) {
-        val t = tag ?: "IrisShell"
+        val t = tag ?: "Drosh"
         val m = message ?: ""
         if (e != null) Log.e(t, m, e) else Log.e(t, m)
     }
     override fun logStackTrace(tag: String?, e: Exception?) {
-        if (e != null) Log.e(tag ?: "IrisShell", "", e)
+        if (e != null) Log.e(tag ?: "Drosh", "", e)
     }
 }

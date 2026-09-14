@@ -22,13 +22,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.design.system.OutfitFontFamily
 import com.iris.irisshell.domain.terminal.PackageProfile
 import com.iris.irisshell.domain.terminal.ShellChoice
@@ -56,7 +56,7 @@ fun PreferencesScene(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(IrisBackground)
+            .background(DroshBackground)
             .verticalScroll(rememberScrollState()),
     ) {
         Spacer(modifier = Modifier.height(48.dp))
@@ -68,7 +68,7 @@ fun PreferencesScene(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 20.sp,
             ),
-            color = IrisText,
+            color = DroshText,
             modifier = Modifier.padding(horizontal = 28.dp),
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -79,7 +79,7 @@ fun PreferencesScene(
                 fontWeight = FontWeight.Normal,
                 fontSize = 14.sp,
             ),
-            color = IrisTextMuted,
+            color = DroshTextMuted,
             modifier = Modifier.padding(horizontal = 28.dp),
         )
 
@@ -90,7 +90,7 @@ fun PreferencesScene(
                 .fillMaxWidth()
                 .padding(horizontal = 28.dp),
             shape = RoundedCornerShape(16.dp),
-            color = IrisSurface,
+            color = DroshSurface,
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -100,7 +100,7 @@ fun PreferencesScene(
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp,
                     ),
-                    color = IrisTextMuted,
+                    color = DroshTextMuted,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -116,7 +116,7 @@ fun PreferencesScene(
                                 fontWeight = FontWeight.Normal,
                                 fontSize = 14.sp,
                             ),
-                            color = IrisTextMuted,
+                            color = DroshTextMuted,
                         )
                     },
                     singleLine = true,
@@ -128,14 +128,14 @@ fun PreferencesScene(
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.Normal,
                         fontSize = 16.sp,
-                        color = IrisText,
+                        color = DroshText,
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = IrisPrimary,
-                        unfocusedBorderColor = IrisBorderSubtle,
-                        focusedPlaceholderColor = IrisTextMuted,
-                        unfocusedPlaceholderColor = IrisTextMuted,
-                        cursorColor = IrisPrimary,
+                        focusedBorderColor = DroshPrimary,
+                        unfocusedBorderColor = DroshBorderSubtle,
+                        focusedPlaceholderColor = DroshTextMuted,
+                        unfocusedPlaceholderColor = DroshTextMuted,
+                        cursorColor = DroshPrimary,
                     ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(),
@@ -148,7 +148,7 @@ fun PreferencesScene(
                         fontWeight = FontWeight.Normal,
                         fontSize = 12.sp,
                     ),
-                    color = IrisTextSecondary,
+                    color = DroshTextSecondary,
                 )
             }
         }
@@ -160,7 +160,7 @@ fun PreferencesScene(
                 .fillMaxWidth()
                 .padding(horizontal = 28.dp),
             shape = RoundedCornerShape(16.dp),
-            color = IrisSurface,
+            color = DroshSurface,
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 ShellSelector(

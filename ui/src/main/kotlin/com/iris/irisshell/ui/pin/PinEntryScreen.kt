@@ -44,13 +44,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisError
-import com.iris.irisshell.design.system.IrisOutline
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshError
+import com.iris.irisshell.design.system.DroshOutline
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 
 /**
  * Modern minimalist 4-digit PIN UI.
@@ -86,7 +86,7 @@ fun PinEntryScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(IrisBackground)
+            .background(DroshBackground)
             .navigationBarsPadding(),
     ) {
         Column(
@@ -98,7 +98,7 @@ fun PinEntryScreen(
         ) {
             Text(
                 text = title,
-                color = IrisText,
+                color = DroshText,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -107,7 +107,7 @@ fun PinEntryScreen(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = subtitle,
-                    color = IrisTextSecondary,
+                    color = DroshTextSecondary,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -142,7 +142,7 @@ fun PinEntryScreen(
             if (errorMessage != null) {
                 Text(
                     text = errorMessage,
-                    color = IrisError,
+                    color = DroshError,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(top = 8.dp),
@@ -153,7 +153,7 @@ fun PinEntryScreen(
                 Spacer(Modifier.height(24.dp))
                 Text(
                     text = "Cancel",
-                    color = IrisTextMuted,
+                    color = DroshTextMuted,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
@@ -178,7 +178,7 @@ private fun PinDotBoxes(
         repeat(length) { index ->
             val filled = index < pin.length
             val dotColor by animateColorAsState(
-                targetValue = if (filled) IrisPrimary else Color.Transparent,
+                targetValue = if (filled) DroshPrimary else Color.Transparent,
                 animationSpec = tween(200),
                 label = "dotColor",
             )
@@ -192,7 +192,7 @@ private fun PinDotBoxes(
                         shape = RoundedCornerShape(8.dp),
                     )
                     .border(
-                        border = BorderStroke(1.5.dp, if (filled) IrisPrimary else IrisOutline),
+                        border = BorderStroke(1.5.dp, if (filled) DroshPrimary else DroshOutline),
                         shape = RoundedCornerShape(8.dp),
                     ),
             )
@@ -254,7 +254,7 @@ fun PinSetupScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(IrisBackground),
+            .background(DroshBackground),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         when (step) {

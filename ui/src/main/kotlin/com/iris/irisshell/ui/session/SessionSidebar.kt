@@ -67,30 +67,30 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iris.irisshell.domain.session.SessionSnapshot
-import com.iris.irisshell.ui.IrisIcons
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisError
-import com.iris.irisshell.design.system.IrisOnPrimary
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSuccess
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.ui.DroshIcons
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshError
+import com.iris.irisshell.design.system.DroshOnPrimary
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSuccess
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 
 /**
  * Slide-in sol sidebar — iOS / Apple Settings tarzı layout (Stitch taslağı),
- * ama renkler tamamen projenin kendi paleti: com.iris.irisshell.ui.theme.IrisTheme.kt.
+ * ama renkler tamamen projenin kendi paleti: com.iris.irisshell.ui.theme.DroshTheme.kt.
  *
  * ÖNEMLİ NOT (Muhofy'nin bilmesi gereken bir tutarsızlık):
  * MEMORYBANK.md §5 Primary = #E8C547 (warm gold) diyor, ama gerçek kodda
- * (IrisTheme.kt) Primary = #3B82F6 (mavi) tanımlı. Bu dosya gerçek kodu
+ * (DroshTheme.kt) Primary = #3B82F6 (mavi) tanımlı. Bu dosya gerçek kodu
  * (canonical, derlenen kaynak) esas alıyor — Memory Bank muhtemelen güncel
  * değil. Bunu ayrıca Memory Bank güncelleme adımında teyit etmen gerekir.
  *
- * Kullanılan gerçek token'lar: IrisSurfaceVariant, IrisPrimary, IrisOnPrimary,
- * IrisText, IrisTextSecondary, IrisTextMuted, IrisBorderSubtle, IrisError,
- * IrisSuccess. Hiçbir renk tahmin/icat edilmedi — hepsi IrisTheme.kt'den.
+ * Kullanılan gerçek token'lar: DroshSurfaceVariant, DroshPrimary, DroshOnPrimary,
+ * DroshText, DroshTextSecondary, DroshTextMuted, DroshBorderSubtle, DroshError,
+ * DroshSuccess. Hiçbir renk tahmin/icat edilmedi — hepsi DroshTheme.kt'den.
  *
  * Public API değişmedi: SessionSidebar(isOpen, onDismiss, onOpenSettings).
  * userDisplayName / userInitials opsiyonel, mevcut çağrı yerlerini bozmaz.
@@ -207,7 +207,7 @@ private fun SidebarContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(IrisSurfaceVariant),
+            .background(DroshSurfaceVariant),
     ) {
         Column(
             modifier = Modifier
@@ -231,8 +231,8 @@ private fun SidebarContent(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Iris Shell",
-                    color = IrisText,
+                    text = "Drosh",
+                    color = DroshText,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 17.sp,
                 )
@@ -240,27 +240,27 @@ private fun SidebarContent(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(IrisSuccess),
+                        .background(DroshSuccess),
                 )
             }
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(IrisPrimary)
+                    .background(DroshPrimary)
                     .clickable { viewModel.createNew("shell") }
                     .padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Icon(
-                    imageVector = IrisIcons.Plus,
+                    imageVector = DroshIcons.Plus,
                     contentDescription = "New session",
-                    tint = IrisOnPrimary,
+                    tint = DroshOnPrimary,
                     modifier = Modifier.size(14.dp),
                 )
                 Text(
                     text = "New",
-                    color = IrisOnPrimary,
+                    color = DroshOnPrimary,
                     fontWeight = FontWeight.Medium,
                     fontSize = 12.sp,
                 )
@@ -276,11 +276,11 @@ private fun SidebarContent(
                 .height(32.dp)
                 .border(
                     width = 1.dp,
-                    color = IrisBorderSubtle.copy(alpha = 0.2f),
+                    color = DroshBorderSubtle.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(8.dp),
                 ),
             shape = RoundedCornerShape(8.dp),
-            color = IrisSurfaceVariant,
+            color = DroshSurfaceVariant,
             tonalElevation = 2.dp,
         ) {
             Row(
@@ -289,16 +289,16 @@ private fun SidebarContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    imageVector = IrisIcons.Search,
+                    imageVector = DroshIcons.Search,
                     contentDescription = null,
-                    tint = IrisTextSecondary,
+                    tint = DroshTextSecondary,
                     modifier = Modifier.size(14.dp),
                 )
                 Box(modifier = Modifier.fillMaxWidth()) {
                     if (searchQuery.isEmpty()) {
                         Text(
                             text = "Search sessions...",
-                            color = IrisTextMuted,
+                            color = DroshTextMuted,
                             fontSize = 13.sp,
                         )
                     }
@@ -306,8 +306,8 @@ private fun SidebarContent(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         singleLine = true,
-                        textStyle = TextStyle(color = IrisText, fontSize = 13.sp),
-                        cursorBrush = SolidColor(IrisText),
+                        textStyle = TextStyle(color = DroshText, fontSize = 13.sp),
+                        cursorBrush = SolidColor(DroshText),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -327,15 +327,15 @@ private fun SidebarContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(IrisSurfaceVariant),
+                            .background(DroshSurfaceVariant),
                     ) {
                         SessionRow(
                             snapshot = activeSession,
                             isActive = true,
-                            dotColor = IrisSuccess,
+                            dotColor = DroshSuccess,
                             trailingText = "now",
-                            trailingColor = IrisPrimary,
-                            rowBackground = IrisPrimary.copy(alpha = 0.12f),
+                            trailingColor = DroshPrimary,
+                            rowBackground = DroshPrimary.copy(alpha = 0.12f),
                             isRenaming = renamingSessionId == activeSession.id,
                             renameValue = renameValue,
                             onRenameValueChange = { renameValue = it },
@@ -358,7 +358,7 @@ private fun SidebarContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(IrisSurfaceVariant.copy(alpha = 0.5f)),
+                            .background(DroshSurfaceVariant.copy(alpha = 0.5f)),
                     ) {
                         recentSessions.forEachIndexed { index, snapshot ->
                             if (index > 0) {
@@ -366,15 +366,15 @@ private fun SidebarContent(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(1.dp)
-                                        .background(IrisBorderSubtle),
+                                        .background(DroshBorderSubtle),
                                 )
                             }
                             SessionRow(
                                 snapshot = snapshot,
                                 isActive = false,
-                                dotColor = IrisTextMuted,
+                                dotColor = DroshTextMuted,
                                 trailingText = null,
-                                trailingColor = IrisTextMuted,
+                                trailingColor = DroshTextMuted,
                                 rowBackground = Color.Transparent,
                                 isRenaming = renamingSessionId == snapshot.id,
                                 renameValue = renameValue,
@@ -396,7 +396,7 @@ private fun SidebarContent(
                 item(key = "empty") {
                     Text(
                         text = if (searchQuery.isBlank()) "No active sessions" else "No results",
-                        color = IrisTextMuted,
+                        color = DroshTextMuted,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
@@ -426,14 +426,14 @@ private fun SidebarContent(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(IrisSurfaceVariant),
+                        .background(DroshSurfaceVariant),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = userInitials, color = IrisText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Text(text = userInitials, color = DroshText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 }
                 Text(
                     text = userDisplayName,
-                    color = IrisText,
+                    color = DroshText,
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -443,8 +443,8 @@ private fun SidebarContent(
             HoverIconButton(
                 onClick = onOpenSettings,
                 contentDescription = "Settings",
-                 icon = IrisIcons.Settings,
-                tint = IrisTextSecondary,
+                 icon = DroshIcons.Settings,
+                tint = DroshTextSecondary,
                 iconSize = 18.dp,
                 buttonSize = 24.dp,
             )
@@ -458,7 +458,7 @@ private fun HoverIconButton(
     onClick: () -> Unit,
     contentDescription: String,
     icon: ImageVector,
-    tint: Color = IrisTextSecondary,
+    tint: Color = DroshTextSecondary,
     iconSize: Dp = 14.dp,
     buttonSize: Dp = 24.dp,
 ) {
@@ -507,7 +507,7 @@ private fun SectionHeader(label: String, trailing: String?) {
     ) {
         Text(
             text = label,
-            color = IrisTextMuted,
+            color = DroshTextMuted,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             letterSpacing = 0.6.sp,
@@ -515,7 +515,7 @@ private fun SectionHeader(label: String, trailing: String?) {
         if (trailing != null) {
             Text(
                 text = trailing,
-                color = IrisPrimary,
+                color = DroshPrimary,
                 fontSize = 11.sp,
             )
         }
@@ -570,13 +570,13 @@ private fun SessionRow(
         if (isRenaming) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = IrisSurfaceVariant,
+                color = DroshSurfaceVariant,
                 tonalElevation = 2.dp,
                 modifier = Modifier
                     .weight(1f)
                     .border(
                         width = 1.dp,
-                        color = IrisPrimary.copy(alpha = 0.4f),
+                        color = DroshPrimary.copy(alpha = 0.4f),
                         shape = RoundedCornerShape(8.dp),
                     ),
             ) {
@@ -596,11 +596,11 @@ private fun SessionRow(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     singleLine = true,
                     textStyle = TextStyle(
-                        color = IrisText,
+                        color = DroshText,
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.5.sp,
                     ),
-                    cursorBrush = SolidColor(IrisPrimary),
+                    cursorBrush = SolidColor(DroshPrimary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onRenameCommit() }),
                 )
@@ -608,15 +608,15 @@ private fun SessionRow(
             HoverIconButton(
                 onClick = onRenameCommit,
                 contentDescription = "Confirm rename",
-                 icon = IrisIcons.Check,
-                tint = IrisPrimary,
+                 icon = DroshIcons.Check,
+                tint = DroshPrimary,
                 iconSize = 16.dp,
                 buttonSize = 24.dp,
             )
         } else {
             Text(
                 text = snapshot.name,
-                color = if (isActive) IrisText else IrisText.copy(alpha = 0.9f),
+                color = if (isActive) DroshText else DroshText.copy(alpha = 0.9f),
                 fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
                 fontSize = 13.5.sp,
                 maxLines = 1,
@@ -629,14 +629,14 @@ private fun SessionRow(
             HoverIconButton(
                 onClick = onStartRename,
                 contentDescription = "Rename",
-                 icon = IrisIcons.Pencil,
+                 icon = DroshIcons.Pencil,
                 iconSize = 14.dp,
                 buttonSize = 24.dp,
             )
             HoverIconButton(
                 onClick = onDelete,
                 contentDescription = "Delete",
-                 icon = IrisIcons.Trash2,
+                 icon = DroshIcons.Trash2,
                 iconSize = 14.dp,
                 buttonSize = 24.dp,
             )

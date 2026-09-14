@@ -39,7 +39,7 @@ import com.iris.irisshell.ui.setup.SetupRecoveryScreen
 import com.iris.irisshell.ui.setup.onboarding.OnboardingScreen
 import com.iris.irisshell.ui.terminal.TerminalScreen
 import com.iris.irisshell.ui.pin.PinEntryScreen
-import com.iris.irisshell.ui.theme.IrisTheme
+import com.iris.irisshell.ui.theme.DroshTheme
 import com.iris.irisshell.ui.settings.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            IrisTheme {
+            DroshTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     IrisNavHost()
                 }

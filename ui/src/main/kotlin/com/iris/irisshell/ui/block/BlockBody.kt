@@ -32,10 +32,10 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.domain.UrlDetector
 import com.iris.irisshell.domain.block.Block
 import com.iris.irisshell.domain.block.BlockState
@@ -54,9 +54,9 @@ fun BlockBody(
     val showPrompt = !isLikelyPrompt(prompt)
     val inputAnnotated: AnnotatedString = if (showPrompt) {
         buildAnnotatedString {
-            withStyle(SpanStyle(color = IrisPrimary)) { append(prompt) }
+            withStyle(SpanStyle(color = DroshPrimary)) { append(prompt) }
             append(" ")
-            withStyle(SpanStyle(color = IrisText)) { append(command) }
+            withStyle(SpanStyle(color = DroshText)) { append(command) }
         }
     } else {
         buildAnnotatedString { append(command) }
@@ -115,9 +115,9 @@ fun BlockBody(
                                         .fillMaxWidth()
                                         .background(
                                             if (isCurrentMatchBlock)
-                                                IrisPrimary.copy(alpha = 0.2f)
+                                                DroshPrimary.copy(alpha = 0.2f)
                                             else
-                                                IrisPrimary.copy(alpha = 0.1f),
+                                                DroshPrimary.copy(alpha = 0.1f),
                                         ),
                                 ) {
                                     OutputLineWithLinks(
@@ -153,7 +153,7 @@ private fun OutputLineWithLinks(
     highlightMatch: Boolean = false,
 ) {
     val textStyle = LocalTextStyle.current.copy(
-        color = IrisTextSecondary,
+        color = DroshTextSecondary,
         fontFamily = FontFamily.Monospace,
         fontSize = 13.sp,
         lineHeight = 19.sp,
@@ -166,7 +166,7 @@ private fun OutputLineWithLinks(
     if (urlMatches.isEmpty() && searchQuery.isNullOrEmpty()) {
         Text(
             text = text,
-            color = IrisTextSecondary,
+            color = DroshTextSecondary,
             style = textStyle,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -213,9 +213,9 @@ private fun buildAnnotatedStringWithHighlights(
     highlightMatch: Boolean,
 ): AnnotatedString {
     val searchBg = if (highlightMatch)
-        IrisPrimary.copy(alpha = 0.4f)
+        DroshPrimary.copy(alpha = 0.4f)
     else
-        IrisPrimary.copy(alpha = 0.25f)
+        DroshPrimary.copy(alpha = 0.25f)
 
     val urlFlags = BooleanArray(text.length)
     val searchFlags = BooleanArray(text.length)
@@ -257,18 +257,18 @@ private fun buildAnnotatedStringWithHighlights(
             val spanStyle = when {
                 inUrl && inSearch -> SpanStyle(
                     background = searchBg,
-                    color = IrisPrimary,
+                    color = DroshPrimary,
                     textDecoration = TextDecoration.Underline,
                 )
                 inUrl -> SpanStyle(
-                    color = IrisPrimary,
+                    color = DroshPrimary,
                     textDecoration = TextDecoration.Underline,
                 )
                 inSearch -> SpanStyle(
                     background = searchBg,
-                    color = IrisTextSecondary,
+                    color = DroshTextSecondary,
                 )
-                else -> SpanStyle(color = IrisTextSecondary)
+                else -> SpanStyle(color = DroshTextSecondary)
             }
 
             withStyle(spanStyle) {
@@ -293,7 +293,7 @@ private fun EmptyOutputPlaceholder(isRunning: Boolean, modifier: Modifier = Modi
     val text = if (isRunning) "running…" else "no output"
     Text(
         text = text,
-        color = IrisTextMuted,
+        color = DroshTextMuted,
         fontFamily = FontFamily.Monospace,
         fontSize = 12.sp,
         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,

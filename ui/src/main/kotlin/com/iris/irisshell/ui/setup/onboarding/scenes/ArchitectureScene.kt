@@ -36,7 +36,7 @@ fun ArchitectureScene(
         listOf(
             "$ iris system",
             "",
-            " Iris Shell v1.0",
+            " Drosh v1.0",
             " Architecture: $arch",
             " Runtime: PRoot + Ubuntu 24.04",
             " Terminal: termux-emulator (JNI)",

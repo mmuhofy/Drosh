@@ -23,14 +23,14 @@ class BlockEngineScenarioTest {
         //   previous prompt (zsh), echo of the typed command, ls output, new prompt.
         val previous = listOf(
             "",
-            "muhofy@iris-shell:~/IrisShell$",  // previous prompt (no trailing space)
+            "muhofy@drosh:~/Drosh$",  // previous prompt (no trailing space)
         )
         val current = listOf(
             "",
-            "muhofy@iris-shell:~/IrisShell$",  // unchanged prompt
-            "muhofy@iris-shell:~/IrisShell$ ls",  // echoed command line
+            "muhofy@drosh:~/Drosh$",  // unchanged prompt
+            "muhofy@drosh:~/Drosh$ ls",  // echoed command line
             "muhofy-projects",                // ls output
-            "root@iris-shell:~$",             // new prompt (different shell/identity)
+            "root@drosh:~$",             // new prompt (different shell/identity)
         )
 
         // Anchor on the previous prompt (which still exists in current at index 1).
@@ -40,14 +40,14 @@ class BlockEngineScenarioTest {
         //   [echoed command, ls output, new prompt]
         assertEquals(
             listOf(
-                "muhofy@iris-shell:~/IrisShell\$ ls",
+                "muhofy@drosh:~/Drosh\$ ls",
                 "muhofy-projects",
-                "root@iris-shell:~\$",
+                "root@drosh:~\$",
             ),
             newLines,
         )
 
-        // Prompt detection: last line `root@iris-shell:~$` is a prompt.
+        // Prompt detection: last line `root@drosh:~$` is a prompt.
         val boundary = detector.detectPromptReady(current)
         assertTrue("expected PromptReady, got $boundary", boundary is CommandBoundary.PromptReady)
     }
@@ -57,7 +57,7 @@ class BlockEngineScenarioTest {
         val current = listOf(
             "iris\$ whoami",
             "root",
-            "root@iris-shell:~\$",
+            "root@drosh:~\$",
         )
         val boundary = detector.detectPromptReady(current)
         assertTrue(boundary is CommandBoundary.PromptReady)
@@ -72,10 +72,10 @@ class BlockEngineScenarioTest {
 
     @Test
     fun `two-line prompt - oh-my-zsh style`() {
-        // Two-line prompt: `muhofy@iris-shell:~/path` then `❯ ` on the next line.
+        // Two-line prompt: `muhofy@drosh:~/path` then `❯ ` on the next line.
         val current = listOf(
             "git status output",
-            "muhofy@iris-shell:~/IrisShell",
+            "muhofy@drosh:~/Drosh",
             "❯ ",
         )
         val boundary = detector.detectPromptReady(current)

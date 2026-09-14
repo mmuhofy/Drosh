@@ -32,14 +32,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisError
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurfaceHigh
-import com.iris.irisshell.design.system.IrisText
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshError
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurfaceHigh
+import com.iris.irisshell.design.system.DroshText
 import com.iris.irisshell.design.system.OutfitFontFamily
 import com.iris.irisshell.domain.settings.CursorStyle
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 import kotlinx.coroutines.launch
 
 @Composable
@@ -61,7 +61,7 @@ fun SettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(IrisBackground),
+            .background(DroshBackground),
     ) {
         Column(
             modifier = Modifier
@@ -86,7 +86,7 @@ fun SettingsScreen(
                         useBlockEngine = useBlockEngine,
                     )
                     SettingsSubRow(
-                        icon = IrisIcons.ALargeSmall,
+                        icon = DroshIcons.ALargeSmall,
                         label = "Cursor Style",
                     ) {
                         CursorSegmentedControl(
@@ -98,18 +98,18 @@ fun SettingsScreen(
                         )
                     }
                     SettingsSliderRow(
-                        icon = IrisIcons.Gauge,
+                        icon = DroshIcons.Gauge,
                         label = "Cursor Blink Rate",
                         description = "Pulse interval",
                         trailing = {
                             Text(
                                 text = "${cursorBlinkRateMs} ms",
-                                color = IrisPrimary,
+                                color = DroshPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 fontFamily = OutfitFontFamily,
                                 modifier = Modifier
-                                    .background(IrisSurfaceHigh, RoundedCornerShape(6.dp))
+                                    .background(DroshSurfaceHigh, RoundedCornerShape(6.dp))
                                     .padding(horizontal = 8.dp, vertical = 2.dp),
                             )
                         },
@@ -121,17 +121,17 @@ fun SettingsScreen(
                         },
                     )
                     SettingsSliderRow(
-                        icon = IrisIcons.Type,
+                        icon = DroshIcons.Type,
                         label = "Font Size",
                         trailing = {
                             Text(
                                 text = "${fontSizeSp} sp",
-                                color = IrisPrimary,
+                                color = DroshPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 fontFamily = OutfitFontFamily,
                                 modifier = Modifier
-                                    .background(IrisSurfaceHigh, RoundedCornerShape(6.dp))
+                                    .background(DroshSurfaceHigh, RoundedCornerShape(6.dp))
                                     .padding(horizontal = 10.dp, vertical = 4.dp),
                             )
                         },
@@ -143,7 +143,7 @@ fun SettingsScreen(
                         },
                     )
                     SettingsCommandFieldRow(
-                        icon = IrisIcons.Terminal,
+                        icon = DroshIcons.Terminal,
                         label = "PRoot Start Command",
                         description = "Experimental — changing this can break sessions",
                         command = prootStartCommand.ifEmpty { "\$shell --login" },
@@ -155,8 +155,8 @@ fun SettingsScreen(
             SettingsSection(label = "Security") {
                 SettingsSectionContainer {
                     SettingsSubRow(
-                        icon = IrisIcons.Lock,
-                        iconTint = IrisError,
+                        icon = DroshIcons.Lock,
+                        iconTint = DroshError,
                         label = "App Lock (PIN)",
                         description = "Require PIN on launch",
                     ) {
@@ -176,19 +176,19 @@ fun SettingsScreen(
             SettingsSection(label = "About") {
                 SettingsSectionContainer {
                     SettingsNavigationRow(
-                        icon = IrisIcons.Info,
+                        icon = DroshIcons.Info,
                         label = "Version",
                         trailingText = aboutInfo?.version ?: "—",
                         onClick = {},
                     )
                     SettingsNavigationRow(
-                        icon = IrisIcons.Terminal,
+                        icon = DroshIcons.Terminal,
                         label = "Description",
                         trailingText = aboutInfo?.build ?: "Advanced terminal",
                         onClick = {},
                     )
                     SettingsNavigationRow(
-                        icon = IrisIcons.Shield,
+                        icon = DroshIcons.Shield,
                         label = "License",
                         trailingBadge = aboutInfo?.license ?: "MIT",
                         showTrailingIcon = true,
@@ -201,7 +201,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(top = 24.dp),
             ) {
                 SettingsNavigationRow(
-                    icon = IrisIcons.CircleUser,
+                    icon = DroshIcons.CircleUser,
                     label = "Made by Muhofy",
                     trailingText = null,
                     onClick = {},
@@ -241,15 +241,15 @@ fun SettingsTopBar(onBack: () -> Unit) {
             modifier = Modifier.size(40.dp),
         ) {
             Icon(
-                imageVector = IrisIcons.ArrowLeft,
+                imageVector = DroshIcons.ArrowLeft,
                 contentDescription = "Back",
-                tint = IrisPrimary,
+                tint = DroshPrimary,
                 modifier = Modifier.size(22.dp),
             )
         }
         Text(
             text = "Settings",
-            color = IrisText,
+            color = DroshText,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = OutfitFontFamily,

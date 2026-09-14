@@ -42,13 +42,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
+import com.iris.irisshell.ui.DroshIcons
 
 private val SEARCH_BAR_SHAPE = RoundedCornerShape(20.dp)
 
@@ -94,10 +94,10 @@ fun DraggableSearchBar(
                 .width(340.dp)
                 .height(44.dp)
                 .clip(SEARCH_BAR_SHAPE)
-                .background(IrisSurfaceVariant)
+                .background(DroshSurfaceVariant)
                 .border(
                     width = 1.dp,
-                    color = IrisBorderSubtle.copy(alpha = 0.3f),
+                    color = DroshBorderSubtle.copy(alpha = 0.3f),
                     shape = SEARCH_BAR_SHAPE,
                 ),
         ) {
@@ -110,9 +110,9 @@ fun DraggableSearchBar(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Icon(
-                    imageVector = IrisIcons.Search,
+                    imageVector = DroshIcons.Search,
                     contentDescription = null,
-                    tint = IrisTextSecondary,
+                    tint = DroshTextSecondary,
                     modifier = Modifier.size(16.dp),
                 )
 
@@ -125,7 +125,7 @@ fun DraggableSearchBar(
                 if (matchCount > 0) {
                     Text(
                         text = "$currentMatch/$matchCount",
-                        color = IrisTextSecondary,
+                        color = DroshTextSecondary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                     )
@@ -138,33 +138,33 @@ fun DraggableSearchBar(
                         .padding(vertical = 4.dp),
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
                         containerColor = if (searchScope == SearchScope.BLOCK)
-                            IrisPrimary.copy(alpha = 0.2f) else Color.Transparent,
+                            DroshPrimary.copy(alpha = 0.2f) else Color.Transparent,
                     ),
                 ) {
                     Text(
                         text = if (searchScope == SearchScope.BLOCK) "Block" else "All",
-                        color = if (searchScope == SearchScope.BLOCK) IrisPrimary else IrisTextMuted,
+                        color = if (searchScope == SearchScope.BLOCK) DroshPrimary else DroshTextMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
 
                 NavigationArrow(
-                    icon = IrisIcons.ChevronUp,
+                    icon = DroshIcons.ChevronUp,
                     contentDescription = "Previous match",
                     onClick = onPrev,
                     enabled = matchCount > 1 && currentMatch > 1,
                 )
 
                 NavigationArrow(
-                    icon = IrisIcons.ChevronDown,
+                    icon = DroshIcons.ChevronDown,
                     contentDescription = "Next match",
                     onClick = onNext,
                     enabled = matchCount > 1 && currentMatch < matchCount,
                 )
 
                 NavigationArrow(
-                    icon = IrisIcons.X,
+                    icon = DroshIcons.X,
                     contentDescription = "Close search",
                     onClick = onClose,
                     enabled = true,
@@ -186,7 +186,7 @@ private fun SearchTextField(
         if (value.isEmpty()) {
             Text(
                 text = "Find in output...",
-                color = IrisTextMuted,
+                color = DroshTextMuted,
                 fontSize = 13.sp,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -202,7 +202,7 @@ private fun SearchTextField(
                     focused = state.isFocused
                 },
             textStyle = TextStyle(
-                color = IrisText,
+                color = DroshText,
                 fontSize = 13.sp,
             ),
             placeholder = null,
@@ -217,7 +217,7 @@ private fun SearchTextField(
                 unfocusedContainerColor = Color.Transparent,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                cursorColor = IrisPrimary,
+                cursorColor = DroshPrimary,
             ),
             interactionSource = remember { MutableInteractionSource() },
         )
@@ -235,9 +235,9 @@ private fun NavigationArrow(
     val pressed by interactionSource.collectIsPressedAsState()
 
     val tint = when {
-        !enabled -> IrisTextMuted.copy(alpha = 0.4f)
-        pressed -> IrisPrimary
-        else -> IrisTextSecondary
+        !enabled -> DroshTextMuted.copy(alpha = 0.4f)
+        pressed -> DroshPrimary
+        else -> DroshTextSecondary
     }
 
     IconButton(

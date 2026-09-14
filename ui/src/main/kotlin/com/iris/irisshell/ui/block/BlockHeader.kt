@@ -31,11 +31,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.domain.block.Block
 import com.iris.irisshell.domain.block.BlockState
 import com.iris.irisshell.domain.block.NetworkDelta
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 
 @Composable
 fun BlockHeader(
@@ -114,7 +114,7 @@ private fun DurationLabel(block: Block) {
     val text = formatDuration(block.elapsedMs(System.currentTimeMillis()))
     Text(
         text = text,
-        color = IrisTextSecondary,
+        color = DroshTextSecondary,
         fontSize = 11.sp,
         fontFamily = FontFamily.Monospace,
     )
@@ -129,7 +129,7 @@ private fun NetworkLabel(delta: NetworkDelta) {
     }
     Text(
         text = text,
-        color = IrisTextSecondary,
+        color = DroshTextSecondary,
         fontSize = 11.sp,
         fontFamily = FontFamily.Monospace,
     )
@@ -149,9 +149,9 @@ private fun CopyButton(onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = IrisIcons.Copy,
+            imageVector = DroshIcons.Copy,
             contentDescription = "Copy",
-            tint = IrisTextSecondary.copy(alpha = 0.7f),
+            tint = DroshTextSecondary.copy(alpha = 0.7f),
             modifier = Modifier.size(15.dp),
         )
     }
@@ -171,9 +171,9 @@ private fun CollapseButton(isCollapsed: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = IrisIcons.ChevronDown,
+            imageVector = DroshIcons.ChevronDown,
             contentDescription = if (isCollapsed) "Expand" else "Collapse",
-            tint = IrisTextSecondary.copy(alpha = 0.7f),
+            tint = DroshTextSecondary.copy(alpha = 0.7f),
             modifier = Modifier
                 .size(18.dp)
                 .rotate(if (isCollapsed) -90f else 0f),

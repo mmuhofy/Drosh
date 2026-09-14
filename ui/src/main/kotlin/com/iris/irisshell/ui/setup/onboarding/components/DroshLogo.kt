@@ -18,9 +18,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisTextMuted
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshTextMuted
 
 /**
  * "Drosh" — a stylized shell/terminal icon drawn with Compose Canvas.
@@ -30,13 +30,13 @@ import com.iris.irisshell.design.system.IrisTextMuted
  * 3s ease-in-out repeat) gives life without distraction.
  *
  * Inspired by: github.com/termux/termux-app — app/src/main/res/drawable/ic_launcher_foreground.xml
- * Adapted for Iris Shell — com.iris.irisshell
+ * Adapted for Drosh — com.iris.irisshell
  */
 @Composable
 fun DroshLogo(
     modifier: Modifier = Modifier,
     size: Dp = 96.dp,
-    tint: Color = IrisPrimary,
+    tint: Color = DroshPrimary,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "drosh-float")
     val offsetY by infiniteTransition.animateFloat(
@@ -90,7 +90,7 @@ fun DroshLogo(
                 }
                 drawPath(
                     path = path,
-                    color = if (i == 0) tint else IrisTextMuted.copy(alpha = 0.3f),
+                    color = if (i == 0) tint else DroshTextMuted.copy(alpha = 0.3f),
                     style = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round),
                 )
             }

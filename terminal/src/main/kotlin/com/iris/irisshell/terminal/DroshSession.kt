@@ -8,14 +8,14 @@ import com.termux.terminal.TerminalSession
  * (github.com/termux/termux-app, termux-shared/.../terminal/TermuxSession.kt),
  * which pairs each `TerminalSession` with an `ExecutionCommand`.
  *
- * Iris Shell does not yet have an equivalent of `ExecutionCommand`, so this
+ * Drosh does not yet have an equivalent of `ExecutionCommand`, so this
  * wrapper stores the minimal metadata the session system needs:
  * the persistent Room id (if any), the user-visible name, and the shell pid.
  *
  * Ported from: mmuhofy/IrisCode — terminal/TerminalManager.kt
- * Adapted for Iris Shell — com.iris.irisshell
+ * Adapted for Drosh — com.iris.irisshell
  */
-class IrisSession(
+class DroshSession(
     val terminalSession: TerminalSession,
     val persistentId: String?,
     var name: String,

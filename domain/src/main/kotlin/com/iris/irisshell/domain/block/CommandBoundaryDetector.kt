@@ -34,7 +34,7 @@ class CommandBoundaryDetector {
         }
 
         // Two-line prompt: second-to-last line is user@host info, last
-        // line is bare marker (e.g. `muhofy@iris-shell:~/IrisShell` +
+        // line is bare marker (e.g. `muhofy@drosh:~/Drosh` +
         // `$ `).
         if (lastIdx >= 1) {
             val prev = lines[lastIdx - 1].trimEnd()

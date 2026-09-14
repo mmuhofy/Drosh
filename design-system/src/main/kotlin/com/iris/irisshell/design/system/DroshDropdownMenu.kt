@@ -25,25 +25,25 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 
-enum class IrisMenuItemStyle { Default, Destructive }
+enum class DroshMenuItemStyle { Default, Destructive }
 
 private val MIN_MENU_WIDTH = 140.dp
 private val MAX_MENU_WIDTH = 280.dp
 
-data class IrisMenuItem(
+data class DroshMenuItem(
     val label: String,
     val icon: ImageVector? = null,
-    val style: IrisMenuItemStyle = IrisMenuItemStyle.Default,
+    val style: DroshMenuItemStyle = DroshMenuItemStyle.Default,
     val dividerBefore: Boolean = false,
     val enabled: Boolean = true,
 )
 
 @Composable
-fun IrisDropdownMenu(
+fun DroshDropdownMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
-    items: List<IrisMenuItem>,
-    onItemClick: (IrisMenuItem) -> Unit,
+    items: List<DroshMenuItem>,
+    onItemClick: (DroshMenuItem) -> Unit,
     offset: DpOffset = DpOffset(0.dp, 4.dp),
     modifier: Modifier = Modifier,
 ) {
@@ -52,28 +52,28 @@ fun IrisDropdownMenu(
         onDismissRequest = onDismissRequest,
         offset           = offset,
         shape            = RoundedCornerShape(14.dp),
-        containerColor   = IrisSurfaceVariant,
+        containerColor   = DroshSurfaceVariant,
         modifier         = modifier
-            .background(IrisSurfaceVariant)
+            .background(DroshSurfaceVariant)
             .widthIn(min = MIN_MENU_WIDTH, max = MAX_MENU_WIDTH),
     ) {
         items.forEachIndexed { index, item ->
             if (item.dividerBefore && index != 0) {
                 HorizontalDivider(
-                    color    = IrisOutline.copy(alpha = 0.35f),
+                    color    = DroshOutline.copy(alpha = 0.35f),
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
             }
 
             val textColor = when {
-                !item.enabled                               -> IrisTextSecondary.copy(alpha = 0.4f)
-                item.style == IrisMenuItemStyle.Destructive -> IrisError
-                else                                        -> IrisText
+                !item.enabled                               -> DroshTextSecondary.copy(alpha = 0.4f)
+                item.style == DroshMenuItemStyle.Destructive -> DroshError
+                else                                        -> DroshText
             }
             val iconTint = when {
-                !item.enabled                               -> IrisTextSecondary.copy(alpha = 0.3f)
-                item.style == IrisMenuItemStyle.Destructive -> IrisError.copy(alpha = 0.85f)
-                else                                        -> IrisTextSecondary
+                !item.enabled                               -> DroshTextSecondary.copy(alpha = 0.3f)
+                item.style == DroshMenuItemStyle.Destructive -> DroshError.copy(alpha = 0.85f)
+                else                                        -> DroshTextSecondary
             }
 
             Row(

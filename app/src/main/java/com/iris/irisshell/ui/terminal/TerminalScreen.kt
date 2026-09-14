@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.LifecycleEventObserver
-import com.iris.irisshell.design.system.IrisBackground
+import com.iris.irisshell.design.system.DroshBackground
 import com.iris.irisshell.terminal.SearchHighlightOverlay
 import com.iris.irisshell.terminal.TerminalManager
 import com.iris.irisshell.terminal.TerminalViewClientImpl
@@ -372,7 +372,7 @@ private fun ReadyScreen(
     Box(
         modifier = Modifier
         .fillMaxSize()
-        .background(IrisBackground)
+        .background(DroshBackground)
     ) {
                 	/*
          * Terminal content fills all available space.
@@ -627,7 +627,7 @@ private fun CompactFullscreenExit(
     onExitFullscreen: () -> Unit,
 ) {
     androidx.compose.material3.Surface(
-        color = com.iris.irisshell.design.system.IrisSurface.copy(
+        color = com.iris.irisshell.design.system.DroshSurface.copy(
             alpha = 0.85f,
         ),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
@@ -644,7 +644,7 @@ private fun CompactFullscreenExit(
         ) {
             Text(
                 text = "Tap to exit fullscreen",
-                color = com.iris.irisshell.design.system.IrisTextSecondary,
+                color = com.iris.irisshell.design.system.DroshTextSecondary,
                 style = MaterialTheme.typography.labelMedium,
             )
         }

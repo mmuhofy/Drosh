@@ -45,7 +45,7 @@ import compose.icons.lucideicons.Type
 import compose.icons.lucideicons.Undo
 import compose.icons.lucideicons.X
 
-object IrisIcons {
+object DroshIcons {
     val ALargeSmall: ImageVector get() = LucideIcons.ALargeSmall
     val ArrowBigDown: ImageVector get() = LucideIcons.ArrowBigDown
     val ArrowBigLeft: ImageVector get() = LucideIcons.ArrowBigLeft

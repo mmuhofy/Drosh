@@ -22,10 +22,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
 import com.iris.irisshell.design.system.OutfitFontFamily
 import com.iris.irisshell.domain.terminal.ShellChoice
 
@@ -53,7 +53,7 @@ fun ShellSelector(
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
             ),
-            color = IrisTextMuted,
+            color = DroshTextMuted,
         )
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -83,8 +83,8 @@ private fun ShellOption(
     selected: Boolean,
     onSelect: () -> Unit,
 ) {
-    val bgColor = if (selected) IrisPrimary.copy(alpha = 0.08f) else IrisSurfaceVariant
-    val borderColor = if (selected) IrisPrimary else IrisSurfaceVariant
+    val bgColor = if (selected) DroshPrimary.copy(alpha = 0.08f) else DroshSurfaceVariant
+    val borderColor = if (selected) DroshPrimary else DroshSurfaceVariant
 
     Surface(
         onClick = onSelect,
@@ -107,12 +107,12 @@ private fun ShellOption(
             ) {
                 if (selected) {
                     Canvas(modifier = Modifier.size(18.dp)) {
-                        drawCircle(color = IrisPrimary)
+                        drawCircle(color = DroshPrimary)
                     }
                 } else {
                     Canvas(modifier = Modifier.size(18.dp)) {
                         drawArc(
-                            color = IrisTextMuted.copy(alpha = 0.4f),
+                            color = DroshTextMuted.copy(alpha = 0.4f),
                             startAngle = 0f,
                             sweepAngle = 360f,
                             useCenter = false,
@@ -130,7 +130,7 @@ private fun ShellOption(
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp,
                     ),
-                    color = IrisText,
+                    color = DroshText,
                 )
                 Text(
                     text = subtitle,
@@ -139,12 +139,12 @@ private fun ShellOption(
                         fontWeight = FontWeight.Normal,
                         fontSize = 11.sp,
                     ),
-                    color = IrisTextMuted,
+                    color = DroshTextMuted,
                 )
             }
             if (recommended) {
                 Surface(
-                    color = IrisPrimary.copy(alpha = 0.15f),
+                    color = DroshPrimary.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.height(20.dp),
                 ) {
@@ -155,7 +155,7 @@ private fun ShellOption(
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 10.sp,
                         ),
-                        color = IrisPrimary,
+                        color = DroshPrimary,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }

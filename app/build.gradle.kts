@@ -13,7 +13,7 @@ plugins {
 }
 
 // Load signing config from keystore.properties (root of repo) if it exists.
-// This file is gitignored for production; for IrisShell we keep a stable
+// This file is gitignored for production; for Drosh we keep a stable
 // debug signing key checked into git (see .gitignore and keystore.properties)
 // so that CI-built APKs and locally-built APKs share a signing identity and
 // can be installed over each other without uninstalling.

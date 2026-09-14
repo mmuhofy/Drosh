@@ -25,13 +25,13 @@ import javax.inject.Singleton
  * that was missing in the prior implementation.
  *
  * Ported from: mmuhofy/IrisCode — data/SessionManagerAdapter.kt
- * Adapted for Iris Shell — com.iris.irisshell
+ * Adapted for Drosh — com.iris.irisshell
  *
  * Inspired by Termux's service-level session management pattern
  * (github.com/termux/termux-app, TermuxService.kt + TermuxShellManager.kt),
  * where the service owns the session list and callbacks flow back to keep
  * UI state in sync. When the last session exits or is deleted, the service
- * calls requestStopService() to exit — Iris Shell mirrors this by setting
+ * calls requestStopService() to exit — Drosh mirrors this by setting
  * shouldExit so the UI can finish the Activity.
  */
 @Singleton

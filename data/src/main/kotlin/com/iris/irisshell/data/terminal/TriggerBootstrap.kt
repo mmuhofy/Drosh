@@ -20,7 +20,7 @@ import javax.inject.Singleton
  * `Ready` and emits a single line to logs.
  */
 // Inspired by: github.com/termux/termux-app (proot-loader)
-// Adapted for Iris Shell — com.iris.irisshell
+// Adapted for Drosh — com.iris.irisshell
 @Singleton
 class TriggerBootstrap @Inject constructor(
     private val port: BootstrapStatePort,

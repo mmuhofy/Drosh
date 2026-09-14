@@ -1,9 +1,9 @@
-# Iris Shell - consumer ProGuard rules for :design-system.
+# Drosh - consumer ProGuard rules for :design-system.
 # These rules are applied automatically to any module that depends on :design-system.
 #
 # Compose ships its own consumer rules. Nothing module-specific to add yet.
 
-# IrisColors.kt defines top-level Color val properties accessed via static getters
-# (IrisColorsKt). R8 full mode strips these as "unused" when they are only
+# DroshColors.kt defines top-level Color val properties accessed via static getters
+# (DroshColorsKt). R8 full mode strips these as "unused" when they are only
 # referenced through Compose @Composable code.
--keep class com.iris.irisshell.design.system.IrisColorsKt { *; }
+-keep class com.iris.irisshell.design.system.DroshColorsKt { *; }

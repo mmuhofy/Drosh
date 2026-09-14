@@ -5,7 +5,7 @@ package com.iris.irisshell.domain.block
  *
  * Exposed to the UI / domain layers so a newly submitted command can
  * be displayed with the correct prompt prefix (e.g.
- * `muhofy@iris:~/IrisShell$`) without taking a hard dependency on the
+ * `muhofy@iris:~/Drosh$`) without taking a hard dependency on the
  * `:terminal` module.
  *
  * Implementations observe the raw PTY byte stream and update
@@ -19,6 +19,6 @@ interface BlockEngineState {
     /** Most recently seen prompt text, sans the trailing suffix. */
     val lastPrompt: String
 
-    /** Last directory inferred from the prompt (e.g. `~/IrisShell` → `IrisShell`). */
+    /** Last directory inferred from the prompt (e.g. `~/Drosh` → `Drosh`). */
     val lastDir: String
 }

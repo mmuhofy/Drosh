@@ -33,12 +33,12 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             }
 
             extensions.configure<ApplicationExtension> {
-                compileSdk = IrisBuildConfig.COMPILE_SDK
+                compileSdk = DroshBuildConfig.COMPILE_SDK
 
                 defaultConfig {
-                    applicationId = IrisBuildConfig.APPLICATION_ID
-                    minSdk = IrisBuildConfig.MIN_SDK
-                    targetSdk = IrisBuildConfig.TARGET_SDK
+                    applicationId = DroshBuildConfig.APPLICATION_ID
+                    minSdk = DroshBuildConfig.MIN_SDK
+                    targetSdk = DroshBuildConfig.TARGET_SDK
                     versionCode = 1
                     versionName = "0.1.0"
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -46,8 +46,8 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                 }
 
                 compileOptions {
-                    sourceCompatibility = IrisBuildConfig.JAVA_VERSION
-                    targetCompatibility = IrisBuildConfig.JAVA_VERSION
+                    sourceCompatibility = DroshBuildConfig.JAVA_VERSION
+                    targetCompatibility = DroshBuildConfig.JAVA_VERSION
                 }
 
                 packaging {

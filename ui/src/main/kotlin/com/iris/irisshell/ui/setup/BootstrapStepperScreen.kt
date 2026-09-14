@@ -47,7 +47,7 @@ import com.iris.irisshell.ui.setup.theme.SetupPalette
  * Full-screen bootstrap stepper.
  *
  * Layout (top to bottom):
- *  - Hero: `SetupHeroMark` + `"Iris Shell"` + tagline
+ *  - Hero: `SetupHeroMark` + `"Drosh"` + tagline
  *  - Stepper: 5 StepRows + connectors
  *  - Current step message (blue caption)
  *  - Determinate progress bar + ETA
@@ -93,7 +93,7 @@ fun BootstrapStepperScreen(
             SetupHeroMark(sizeDp = 80.dp)
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Iris Shell",
+                text = "Drosh",
                 color = SetupPalette.Text,
                 style = TextStyle(
                     fontFamily = OutfitFontFamily,

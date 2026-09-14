@@ -12,14 +12,14 @@ import javax.inject.Inject
  * entire component tree.
  *
  * Ported from mmuhofy/IrisCode — app/src/main/kotlin/com/iris/iriscode/IrisCodeApp.kt
- * Adapted for Iris Shell — com.iris.irisshell
+ * Adapted for Drosh — com.iris.irisshell
  *
  * Phase 1+ — boots [SessionManagerAdapter] for session reconciliation,
  * then starts [TerminalService] as a foreground service so PTY sessions
  * survive process-level death by the Activity.
  */
 @HiltAndroidApp
-class IrisApplication : Application() {
+class DroshApplication : Application() {
 
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
 

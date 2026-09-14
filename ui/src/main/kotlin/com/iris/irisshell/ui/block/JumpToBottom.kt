@@ -16,12 +16,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.iris.irisshell.ui.IrisIcons
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisBuild
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisText
+import com.iris.irisshell.ui.DroshIcons
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshBuild
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshText
 import kotlinx.coroutines.launch
 
 @Composable
@@ -41,16 +41,16 @@ internal fun JumpToBottom(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .background(IrisBuild, CircleShape)
+                .background(DroshBuild, CircleShape)
                 .clickable {
                     scope.launch { listState.animateScrollToItem(targetIndex) }
                 },
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = IrisIcons.ArrowDown,
+                imageVector = DroshIcons.ArrowDown,
                 contentDescription = "Jump to bottom",
-                tint = IrisText,
+                tint = DroshText,
                 modifier = Modifier.size(18.dp),
             )
         }

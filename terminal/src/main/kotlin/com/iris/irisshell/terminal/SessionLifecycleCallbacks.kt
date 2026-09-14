@@ -7,12 +7,12 @@ package com.iris.irisshell.terminal
  * Inspired by Termux's `TerminalSessionClient` callback pattern
  * (github.com/termux/termux-app, terminal-emulator/.../TerminalSessionClient.kt),
  * where the service-bound client receives `onSessionFinished` and
- * `setTerminalShellPid` events. Iris Shell splits this: the PTY-level
+ * `setTerminalShellPid` events. Drosh splits this: the PTY-level
  * events flow through [TerminalSessionClientImpl], and the session-level
  * events (keyed by persistent id) flow through this interface.
  *
  * Ported from: mmuhofy/IrisCode — terminal/TerminalManager.kt
- * Adapted for Iris Shell — com.iris.irisshell
+ * Adapted for Drosh — com.iris.irisshell
  */
 interface SessionLifecycleCallbacks {
     /**

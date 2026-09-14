@@ -16,18 +16,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.iris.irisshell.design.system.IrisBuild
-import com.iris.irisshell.design.system.IrisDropdownMenu
-import com.iris.irisshell.design.system.IrisError
-import com.iris.irisshell.design.system.IrisMenuItem
-import com.iris.irisshell.design.system.IrisMenuItemStyle
-import com.iris.irisshell.design.system.IrisOutline
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSuccess
-import com.iris.irisshell.design.system.IrisSurface
+import com.iris.irisshell.design.system.DroshBuild
+import com.iris.irisshell.design.system.DroshDropdownMenu
+import com.iris.irisshell.design.system.DroshError
+import com.iris.irisshell.design.system.DroshMenuItem
+import com.iris.irisshell.design.system.DroshMenuItemStyle
+import com.iris.irisshell.design.system.DroshOutline
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSuccess
+import com.iris.irisshell.design.system.DroshSurface
 import com.iris.irisshell.domain.block.Block
 import com.iris.irisshell.domain.block.BlockState
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 
 @Composable
 fun BlockCard(
@@ -48,16 +48,16 @@ fun BlockCard(
 ) {
     var contextOpen by remember { mutableStateOf(false) }
     val accentColor = when (block.state) {
-        is BlockState.Success -> if (isActive) IrisPrimary else IrisSuccess
-        is BlockState.Error -> if (isActive) IrisPrimary else IrisError
-        BlockState.Running -> IrisBuild
-        else -> IrisOutline
+        is BlockState.Success -> if (isActive) DroshPrimary else DroshSuccess
+        is BlockState.Error -> if (isActive) DroshPrimary else DroshError
+        BlockState.Running -> DroshBuild
+        else -> DroshOutline
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(IrisSurface, RoundedCornerShape(6.dp))
+            .background(DroshSurface, RoundedCornerShape(6.dp))
             .padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -83,35 +83,35 @@ fun BlockCard(
             }
         }
 
-        IrisDropdownMenu(
+        DroshDropdownMenu(
             expanded = contextOpen,
             onDismissRequest = { contextOpen = false },
             items = listOf(
-                IrisMenuItem(
+                DroshMenuItem(
                     label = "Komutu kopyala",
-                    icon = IrisIcons.Copy,
+                    icon = DroshIcons.Copy,
                 ),
-                IrisMenuItem(
+                DroshMenuItem(
                     label = "Tekrar çalıştır",
-                    icon = IrisIcons.Play,
+                    icon = DroshIcons.Play,
                 ),
-                IrisMenuItem(
+                DroshMenuItem(
                     label = "Komutu düzenle",
-                    icon = IrisIcons.Pencil,
+                    icon = DroshIcons.Pencil,
                 ),
-                IrisMenuItem(
+                DroshMenuItem(
                     label = "Output'u kopyala",
-                    icon = IrisIcons.Copy,
+                    icon = DroshIcons.Copy,
                     dividerBefore = true,
                 ),
-                IrisMenuItem(
+                DroshMenuItem(
                     label = "Dışa aktar",
-                    icon = IrisIcons.Download,
+                    icon = DroshIcons.Download,
                 ),
-                IrisMenuItem(
+                DroshMenuItem(
                     label = "Block'u sil",
-                    icon = IrisIcons.Trash2,
-                    style = IrisMenuItemStyle.Destructive,
+                    icon = DroshIcons.Trash2,
+                    style = DroshMenuItemStyle.Destructive,
                     dividerBefore = true,
                 ),
             ),

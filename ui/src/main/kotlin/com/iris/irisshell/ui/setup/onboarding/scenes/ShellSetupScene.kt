@@ -30,14 +30,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisOnPrimary
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshOnPrimary
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.design.system.OutfitFontFamily
 import com.iris.irisshell.ui.setup.onboarding.components.SetupButton
 import kotlinx.coroutines.delay
@@ -72,7 +72,7 @@ fun ShellSetupScene(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(IrisBackground),
+            .background(DroshBackground),
     ) {
         Spacer(modifier = Modifier.height(48.dp))
 
@@ -83,7 +83,7 @@ fun ShellSetupScene(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 20.sp,
             ),
-            color = IrisText,
+            color = DroshText,
             modifier = Modifier.padding(horizontal = 28.dp),
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -94,7 +94,7 @@ fun ShellSetupScene(
                 fontWeight = FontWeight.Normal,
                 fontSize = 14.sp,
             ),
-            color = IrisTextMuted,
+            color = DroshTextMuted,
             modifier = Modifier.padding(horizontal = 28.dp),
         )
 
@@ -105,7 +105,7 @@ fun ShellSetupScene(
                 .fillMaxWidth()
                 .padding(horizontal = 28.dp),
             shape = RoundedCornerShape(16.dp),
-            color = IrisSurface,
+            color = DroshSurface,
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Box(
@@ -113,14 +113,14 @@ fun ShellSetupScene(
                         .fillMaxWidth()
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp))
-                        .background(IrisSurfaceVariant),
+                        .background(DroshSurfaceVariant),
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(fraction = progressAnim)
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp))
-                            .background(IrisPrimary),
+                            .background(DroshPrimary),
                     )
                 }
 
@@ -161,8 +161,8 @@ enum class SetupStepStatus { Pending, Ok }
 @Composable
 private fun SetupStep(label: String, stepNum: Int, status: SetupStepStatus) {
     val isDone = status == SetupStepStatus.Ok
-    val circleBg = if (isDone) IrisPrimary else IrisSurfaceVariant
-    val circleFg = if (isDone) IrisOnPrimary else IrisTextSecondary
+    val circleBg = if (isDone) DroshPrimary else DroshSurfaceVariant
+    val circleFg = if (isDone) DroshOnPrimary else DroshTextSecondary
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -205,7 +205,7 @@ private fun SetupStep(label: String, stepNum: Int, status: SetupStepStatus) {
                 fontWeight = FontWeight.Normal,
                 fontSize = 14.sp,
             ),
-            color = if (isDone) IrisText else IrisTextMuted,
+            color = if (isDone) DroshText else DroshTextMuted,
         )
     }
 }

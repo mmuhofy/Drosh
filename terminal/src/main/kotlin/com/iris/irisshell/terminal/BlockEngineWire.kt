@@ -155,7 +155,7 @@ class BlockEngineWire(
     }
 
     private companion object {
-        const val DEFAULT_PROMPT = "muhofy@iris-shell:~/IrisShell$"
+        const val DEFAULT_PROMPT = "muhofy@drosh:~/Drosh$"
         const val MIN_ANCHOR_BYTES = 16
         const val MAX_ANCHOR_BYTES = 8192
         val PROMPT_SUFFIX_REGEX = Regex("""[#$❯➜]\s*$""")

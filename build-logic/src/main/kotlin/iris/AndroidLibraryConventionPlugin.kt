@@ -34,17 +34,17 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
             }
 
             extensions.configure<LibraryExtension> {
-                compileSdk = IrisBuildConfig.COMPILE_SDK
+                compileSdk = DroshBuildConfig.COMPILE_SDK
 
                 defaultConfig {
-                    minSdk = IrisBuildConfig.MIN_SDK
+                    minSdk = DroshBuildConfig.MIN_SDK
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
                     consumerProguardFiles("consumer-rules.pro")
                 }
 
                 compileOptions {
-                    sourceCompatibility = IrisBuildConfig.JAVA_VERSION
-                    targetCompatibility = IrisBuildConfig.JAVA_VERSION
+                    sourceCompatibility = DroshBuildConfig.JAVA_VERSION
+                    targetCompatibility = DroshBuildConfig.JAVA_VERSION
                 }
 
                 testOptions {

@@ -26,7 +26,7 @@ class UbuntuBootstrap(private val context: Context) {
 
     /** Marker file written by `rootfs-optimize.sh` once bootstrap completes. */
     private val setupMarker: File
-        get() = File(rootfsDir, "var/lib/iris-shell/.setup_complete")
+        get() = File(rootfsDir, "var/lib/drosh/.setup_complete")
 
     /** Rootfs identity check — used to early-exit when bootstrap is already done. */
     val isInstalled: Boolean

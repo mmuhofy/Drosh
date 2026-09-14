@@ -29,11 +29,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.design.system.OutfitFontFamily
 import com.iris.irisshell.domain.terminal.PackageProfile
 
@@ -60,7 +60,7 @@ fun PackageProfileSelector(
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
             ),
-            color = IrisTextMuted,
+            color = DroshTextMuted,
         )
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -108,7 +108,7 @@ private fun ProfileOption(
         shape = RoundedCornerShape(14.dp),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        color = if (selected) IrisPrimary.copy(alpha = 0.08f) else IrisSurfaceVariant,
+        color = if (selected) DroshPrimary.copy(alpha = 0.08f) else DroshSurfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
@@ -123,8 +123,8 @@ private fun ProfileOption(
                 selected = selected,
                 onClick = onSelect,
                 colors = RadioButtonDefaults.colors(
-                    selectedColor = IrisPrimary,
-                    unselectedColor = IrisTextSecondary,
+                    selectedColor = DroshPrimary,
+                    unselectedColor = DroshTextSecondary,
                 ),
                 modifier = Modifier.size(18.dp),
             )
@@ -137,7 +137,7 @@ private fun ProfileOption(
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp,
                     ),
-                    color = IrisText,
+                    color = DroshText,
                 )
                 Text(
                     text = subtitle,
@@ -146,7 +146,7 @@ private fun ProfileOption(
                         fontWeight = FontWeight.Normal,
                         fontSize = 11.sp,
                     ),
-                    color = IrisTextMuted,
+                    color = DroshTextMuted,
                 )
             }
         }
@@ -170,7 +170,7 @@ private fun CustomPackageGrid(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 12.sp,
             ),
-            color = IrisTextMuted,
+            color = DroshTextMuted,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -214,8 +214,8 @@ private fun PackageCheckboxItem(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = CheckboxDefaults.colors(
-                checkedColor = IrisPrimary,
-                uncheckedColor = IrisTextSecondary,
+                checkedColor = DroshPrimary,
+                uncheckedColor = DroshTextSecondary,
                 checkmarkColor = Color.Black,
             ),
             modifier = Modifier.size(16.dp),
@@ -228,7 +228,7 @@ private fun PackageCheckboxItem(
                 fontWeight = FontWeight.Normal,
                 fontSize = 12.sp,
             ),
-            color = IrisText,
+            color = DroshText,
         )
     }
 }

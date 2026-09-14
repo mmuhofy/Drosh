@@ -2,7 +2,7 @@ package com.iris.irisshell.data.di
 
 import android.content.Context
 import androidx.room.Room
-import com.iris.irisshell.data.local.IrisDatabase
+import com.iris.irisshell.data.local.DroshDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -11,7 +11,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * Provides the Room [IrisDatabase] instance.
+ * Provides the Room [DroshDatabase] instance.
  *
  * Database file lives at the standard `databases/irisshell.db` path
  * inside the app's no-backup-data directory; the framework guarantees
@@ -23,11 +23,11 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideIrisDatabase(
+    fun provideDroshDatabase(
         @ApplicationContext context: Context,
-    ): IrisDatabase = Room.databaseBuilder(
+    ): DroshDatabase = Room.databaseBuilder(
         context,
-        IrisDatabase::class.java,
-        IrisDatabase.DATABASE_NAME,
+        DroshDatabase::class.java,
+        DroshDatabase.DATABASE_NAME,
     ).build()
 }

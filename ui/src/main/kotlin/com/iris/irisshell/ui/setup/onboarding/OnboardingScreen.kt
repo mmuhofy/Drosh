@@ -15,7 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.iris.irisshell.design.system.IrisBackground
+import com.iris.irisshell.design.system.DroshBackground
 import com.iris.irisshell.domain.terminal.PackageProfile
 import com.iris.irisshell.domain.terminal.SetupPreferences
 import com.iris.irisshell.domain.terminal.ShellChoice
@@ -138,7 +138,7 @@ fun OnboardingScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(IrisBackground),
+            .background(DroshBackground),
     ) {
         AnimatedContent(
             targetState = scene,

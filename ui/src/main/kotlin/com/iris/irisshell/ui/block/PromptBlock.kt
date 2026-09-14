@@ -28,17 +28,17 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisDropdownMenu
-import com.iris.irisshell.design.system.IrisMenuItem
-import com.iris.irisshell.design.system.IrisMenuItemStyle
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshDropdownMenu
+import com.iris.irisshell.design.system.DroshMenuItem
+import com.iris.irisshell.design.system.DroshMenuItemStyle
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.domain.block.Block
 import com.iris.irisshell.domain.block.BlockState
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 
 @Composable
 fun PromptBlock(
@@ -58,8 +58,8 @@ fun PromptBlock(
 
     val promptText = block.prompt.ifBlank { "$" }
     val outputColor = when (block.state) {
-        is BlockState.Error -> IrisTextMuted
-        else -> IrisText
+        is BlockState.Error -> DroshTextMuted
+        else -> DroshText
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -67,7 +67,7 @@ fun PromptBlock(
             SelectionContainer {
                 Text(
                     text = promptDir,
-                    color = IrisTextSecondary,
+                    color = DroshTextSecondary,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 0.dp),
@@ -90,15 +90,15 @@ fun PromptBlock(
                 SelectionContainer {
                     Text(
                         text = buildAnnotatedString {
-                            withStyle(SpanStyle(color = IrisPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
+                            withStyle(SpanStyle(color = DroshPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
                                 append(promptText)
                                 append(" ")
                             }
-                            withStyle(SpanStyle(color = IrisPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
+                            withStyle(SpanStyle(color = DroshPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
                                 append(block.command)
                             }
                         },
-                        color = IrisText,
+                        color = DroshText,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
                     )
@@ -106,9 +106,9 @@ fun PromptBlock(
                 Spacer(Modifier.weight(1f))
                 if (showThreeDot) {
                     Icon(
-                        imageVector = IrisIcons.EllipsisVertical,
+                        imageVector = DroshIcons.EllipsisVertical,
                         contentDescription = "Block menu",
-                        tint = IrisTextSecondary,
+                        tint = DroshTextSecondary,
                         modifier = Modifier
                             .size(20.dp)
                             .clickable(onClick = { showMenu = true }),
@@ -116,16 +116,16 @@ fun PromptBlock(
                 }
             }
 
-            IrisDropdownMenu(
+            DroshDropdownMenu(
                 expanded = showMenu,
                 onDismissRequest = onDismissMenu,
                 items = listOf(
-                    IrisMenuItem(label = "Komutu kopyala", icon = IrisIcons.Copy),
-                    IrisMenuItem(label = "Tekrar çalıştır", icon = IrisIcons.Play),
-                    IrisMenuItem(label = "Komutu düzenle", icon = IrisIcons.Pencil),
-                    IrisMenuItem(label = "Output'u kopyala", icon = IrisIcons.Copy, dividerBefore = true),
-                    IrisMenuItem(label = "Dışa aktar", icon = IrisIcons.Download),
-                    IrisMenuItem(label = "Block'u sil", icon = IrisIcons.Trash2, style = IrisMenuItemStyle.Destructive, dividerBefore = true),
+                    DroshMenuItem(label = "Komutu kopyala", icon = DroshIcons.Copy),
+                    DroshMenuItem(label = "Tekrar çalıştır", icon = DroshIcons.Play),
+                    DroshMenuItem(label = "Komutu düzenle", icon = DroshIcons.Pencil),
+                    DroshMenuItem(label = "Output'u kopyala", icon = DroshIcons.Copy, dividerBefore = true),
+                    DroshMenuItem(label = "Dışa aktar", icon = DroshIcons.Download),
+                    DroshMenuItem(label = "Block'u sil", icon = DroshIcons.Trash2, style = DroshMenuItemStyle.Destructive, dividerBefore = true),
                 ),
                 onItemClick = { item ->
                     onDismissMenu()
@@ -164,6 +164,6 @@ fun PromptDivider(
         modifier = modifier
             .fillMaxWidth()
             .height(0.5.dp)
-            .background(IrisBorderSubtle),
+            .background(DroshBorderSubtle),
     )
 }

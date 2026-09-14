@@ -23,10 +23,10 @@ import java.util.concurrent.TimeUnit
  * Manages PTY session lifecycle, tab state, and id-keyed session lookup.
  *
  * Ported from: mmuhofy/IrisCode — terminal/TerminalManager.kt
- * Adapted for Iris Shell — com.iris.irisshell
+ * Adapted for Drosh — com.iris.irisshell
  *
  * Key improvements over the prior implementation:
- *  - [IrisSession] wrapper bundles TerminalSession + persistentId + name + pid,
+ *  - [DroshSession] wrapper bundles TerminalSession + persistentId + name + pid,
  *    replacing the fragile 4-parallel-structure design (_sessions + _tabNames
  *    + _idToIndex + _indexToId) that could desync.
  *  - [onSessionFinished] now cleans up id mappings (like [closeTab] does) and
@@ -42,12 +42,12 @@ class TerminalManager(
 ) {
     private val appContext: Context = application.applicationContext
     /**
-     * Single source of truth for session storage. Each [IrisSession] bundles
+     * Single source of truth for session storage. Each [DroshSession] bundles
      * the live [TerminalSession] with its persistent id, display name, and
      * shell pid — eliminating the prior risk of _sessions / _tabNames /
      * _idToIndex / _indexToId falling out of sync.
      */
-    private val irisSessions: MutableList<IrisSession> = mutableListOf()
+    private val irisSessions: MutableList<DroshSession> = mutableListOf()
 
     private val _sessionCount = MutableStateFlow(0)
     val sessionCountFlow: StateFlow<Int> = _sessionCount.asStateFlow()
@@ -159,7 +159,7 @@ class TerminalManager(
     fun addTab(): TerminalSession = addTabWithId(null, "")
 
     fun addTabWithId(persistentId: String?, name: String): TerminalSession {
-        val irisSession = IrisSession(
+        val irisSession = DroshSession(
             terminalSession = createNewSession(),
             persistentId = persistentId,
             name = name,
@@ -196,9 +196,9 @@ class TerminalManager(
         irisSessions.indexOfFirst { it.terminalSession === session }
 
     /**
-     * Look up the [IrisSession] for a [TerminalSession] by reference.
+     * Look up the [DroshSession] for a [TerminalSession] by reference.
      */
-    private fun getIrisSession(session: TerminalSession): IrisSession? =
+    private fun getDroshSession(session: TerminalSession): DroshSession? =
         irisSessions.find { it.terminalSession === session }
 
     /**
@@ -217,7 +217,7 @@ class TerminalManager(
 
     /**
      * Snapshot of all session ids currently live in the terminal manager
-     * (i.e. in [irisSessions] with a non-null [IrisSession.persistentId]).
+     * (i.e. in [irisSessions] with a non-null [DroshSession.persistentId]).
      * Used by [SessionManagerAdapter] to reconcile Room state with live
      * PTY sessions.
      */
@@ -395,7 +395,7 @@ class TerminalManager(
                 alias ..='cd ..'
                 alias grep='grep --color=auto'
 
-                PROMPT='%F{yellow}%n@iris-shell%f:%F{blue}%~%f${d} '
+                PROMPT='%F{yellow}%n@drosh%f:%F{blue}%~%f${d} '
 
                 if [[ -z "${d}IRIS_WELCOME_SHOWN" ]]; then
                     export IRIS_WELCOME_SHOWN=1
@@ -475,12 +475,12 @@ class TerminalManager(
     /**
      * Called by [TerminalSessionClientImpl.onPidChanged] when the shell pid
      * is assigned (during [TerminalSession.initializeEmulator]). Stores the
-     * pid on the [IrisSession] and forwards it to [lifecycleCallbacks] so
+     * pid on the [DroshSession] and forwards it to [lifecycleCallbacks] so
      * the data layer can persist it if needed (PID tracking, inspired by
      * Termux's TerminalSessionClient.setTerminalShellPid).
      */
     private fun onSessionPidChanged(session: TerminalSession, pid: Int) {
-        val irisSession = getIrisSession(session) ?: return
+        val irisSession = getDroshSession(session) ?: return
         irisSession.pid = pid
         lifecycleCallbacks?.onSessionPidChanged(irisSession.persistentId, pid)
     }

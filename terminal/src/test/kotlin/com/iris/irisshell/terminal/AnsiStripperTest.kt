@@ -21,12 +21,12 @@ class AnsiStripperTest {
     }
 
     @Test fun `preserves plain text`() {
-        val input = "muhofy@iris:~/IrisShell$ "
-        assertEquals("muhofy@iris:~/IrisShell$ ", AnsiStripper.strip(input))
+        val input = "muhofy@iris:~/Drosh$ "
+        assertEquals("muhofy@iris:~/Drosh$ ", AnsiStripper.strip(input))
     }
 
     @Test fun `strips zsh prompt color codes leaving prompt text`() {
-        val input = "\u001b[33mmuhofy@iris-shell\u001b[0m:\u001b[34m~/IrisShell\u001b[0m$ "
-        assertEquals("muhofy@iris-shell:~/IrisShell$ ", AnsiStripper.strip(input))
+        val input = "\u001b[33mmuhofy@drosh\u001b[0m:\u001b[34m~/Drosh\u001b[0m$ "
+        assertEquals("muhofy@drosh:~/Drosh$ ", AnsiStripper.strip(input))
     }
 }

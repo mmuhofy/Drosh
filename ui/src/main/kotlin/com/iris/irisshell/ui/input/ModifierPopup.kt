@@ -19,9 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisTextMuted
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshTextMuted
 import com.iris.irisshell.domain.input.ExtraKey
 import com.iris.irisshell.domain.input.ExtraKeyBarLayout
 import com.iris.irisshell.domain.input.InputIntent
@@ -64,13 +64,13 @@ fun ModifierPopup(
                 .padding(horizontal = 12.dp)
                 .padding(bottom = 4.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(IrisSurface)
+                .background(DroshSurface)
                 .padding(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 text = "${modifier.name} combos",
-                color = IrisTextMuted,
+                color = DroshTextMuted,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 style = MaterialTheme.typography.labelSmall,
@@ -100,7 +100,7 @@ fun ModifierPopup(
                     ) {
                         Text(
                             text = label,
-                            color = IrisPrimary,
+                            color = DroshPrimary,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 13.sp,
                             style = MaterialTheme.typography.labelMedium,

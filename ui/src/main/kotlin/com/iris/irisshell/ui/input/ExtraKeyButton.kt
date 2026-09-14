@@ -24,11 +24,11 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
 import com.iris.irisshell.domain.input.ExtraKey
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 
 @Composable
 fun ExtraKeyButton(
@@ -49,7 +49,7 @@ fun ExtraKeyButton(
 
     val background = when {
         stuckActive ->
-            IrisPrimary.copy(alpha = 0.10f)
+            DroshPrimary.copy(alpha = 0.10f)
 
         pressed ->
             Color.White.copy(alpha = 0.13f)
@@ -63,13 +63,13 @@ fun ExtraKeyButton(
 
     val glyphColor = when {
         stuckActive ->
-            IrisPrimary
+            DroshPrimary
 
         active || hovered ->
             Color.White
 
         else ->
-            IrisTextMuted
+            DroshTextMuted
     }
 
     Box(
@@ -102,16 +102,16 @@ fun ExtraKeyButton(
 
         val arrow = when (key) {
             ExtraKey.Navigation.ARROW_UP ->
-                IrisIcons.ArrowBigUp
+                DroshIcons.ArrowBigUp
 
             ExtraKey.Navigation.ARROW_DOWN ->
-                IrisIcons.ArrowBigDown
+                DroshIcons.ArrowBigDown
 
             ExtraKey.Navigation.ARROW_LEFT ->
-                IrisIcons.ArrowBigLeft
+                DroshIcons.ArrowBigLeft
 
             ExtraKey.Navigation.ARROW_RIGHT ->
-                IrisIcons.ArrowBigRight
+                DroshIcons.ArrowBigRight
 
             else -> null
         }

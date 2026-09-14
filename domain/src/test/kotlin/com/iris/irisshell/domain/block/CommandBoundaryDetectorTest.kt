@@ -13,7 +13,7 @@ class CommandBoundaryDetectorTest {
         val lines = listOf(
             "total 48",
             "drwxr-xr-x 5 root root 3456 Jul 28 12:09 .",
-            "muhofy@iris-shell:~/IrisShell$ ",
+            "muhofy@drosh:~/Drosh$ ",
         )
         val result = detector.detectPromptReady(lines)
         assertEquals(CommandBoundary.PromptReady::class, result::class)
@@ -22,21 +22,21 @@ class CommandBoundaryDetectorTest {
 
     @Test
     fun `root prompt with hash terminator is detected`() {
-        val lines = listOf("root@iris-shell:/data# ")
+        val lines = listOf("root@drosh:/data# ")
         val result = detector.detectPromptReady(lines)
         assertTrue(result is CommandBoundary.PromptReady)
     }
 
     @Test
     fun `spaceship-style prompt with arrow is detected`() {
-        val lines = listOf(" ~/IrisShell ❯ ")
+        val lines = listOf(" ~/Drosh ❯ ")
         val result = detector.detectPromptReady(lines)
         assertTrue(result is CommandBoundary.PromptReady)
     }
 
     @Test
     fun `oh-my-zsh arrow prompt with status is detected`() {
-        val lines = listOf("➜  ~/IrisShell git:(main) ✗")
+        val lines = listOf("➜  ~/Drosh git:(main) ✗")
         val result = detector.detectPromptReady(lines)
         assertTrue(result is CommandBoundary.PromptReady)
     }
@@ -46,7 +46,7 @@ class CommandBoundaryDetectorTest {
         val lines = listOf(
             "total 48",
             "drwxr-xr-x 5 root root 3456 Jul 28 12:09 .",
-            "muhofy@iris-shell:~/IrisShell",
+            "muhofy@drosh:~/Drosh",
             "$ ",
         )
         val result = detector.detectPromptReady(lines)
@@ -88,9 +88,9 @@ class CommandBoundaryDetectorTest {
     fun `most recent prompt is returned when multiple exist`() {
         val lines = listOf(
             "first command output",
-            "muhofy@iris-shell:~$ ",
+            "muhofy@drosh:~$ ",
             "second command output",
-            "muhofy@iris-shell:~/IrisShell$ ",
+            "muhofy@drosh:~/Drosh$ ",
         )
         val result = detector.detectPromptReady(lines)
         assertEquals(3, (result as CommandBoundary.PromptReady).atLine)

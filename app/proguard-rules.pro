@@ -1,4 +1,4 @@
-# Iris Shell — app-level ProGuard rules.
+# Drosh — app-level ProGuard rules.
 # Module-level consumer rules live alongside each module's build.gradle.kts.
 #
 # See AGENT.md §410 — confirm versions against libs.versions.toml before

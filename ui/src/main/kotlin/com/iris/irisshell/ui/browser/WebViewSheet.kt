@@ -40,11 +40,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextSecondary
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextSecondary
+import com.iris.irisshell.ui.DroshIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +60,7 @@ fun WebViewSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = IrisSurface,
+        containerColor = DroshSurface,
         tonalElevation = 0.dp,
         dragHandle = {
             Box(
@@ -68,7 +68,7 @@ fun WebViewSheet(
                     .width(40.dp)
                     .height(3.dp)
                     .clip(CircleShape)
-                    .background(IrisText.copy(alpha = 0.15f)),
+                    .background(DroshText.copy(alpha = 0.15f)),
             )
         },
     ) {
@@ -80,13 +80,13 @@ fun WebViewSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(IrisSurface)
+                    .background(DroshSurface)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = currentUrl,
-                    color = IrisTextSecondary,
+                    color = DroshTextSecondary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Normal,
                     maxLines = 1,
@@ -97,14 +97,14 @@ fun WebViewSheet(
                 )
                 Box(
                     modifier = Modifier
-                        .background(IrisBackground.copy(alpha = 0.7f), CircleShape)
+                        .background(DroshBackground.copy(alpha = 0.7f), CircleShape)
                         .clickable { onDismiss() }
                         .padding(8.dp),
                 ) {
                     Icon(
-                        imageVector = IrisIcons.X,
+                        imageVector = DroshIcons.X,
                         contentDescription = "Close browser",
-                        tint = IrisText,
+                        tint = DroshText,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -130,7 +130,7 @@ fun WebViewSheet(
                             settings.loadWithOverviewMode = true
                             settings.mixedContentMode =
                                 WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                            settings.userAgentString = "IrisShell/1.0"
+                            settings.userAgentString = "Drosh/1.0"
 
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(

@@ -57,17 +57,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisOnPrimary
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshOnPrimary
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.domain.session.SessionSnapshot
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -103,7 +103,7 @@ fun SessionSwitcherSheet(
         onDismissRequest = onDismiss,
         sheetState       = sheetState,
         shape            = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor   = IrisSurface,
+        containerColor   = DroshSurface,
         tonalElevation   = 0.dp,
         dragHandle = {
             Box(
@@ -111,7 +111,7 @@ fun SessionSwitcherSheet(
                     .padding(top = 14.dp, bottom = 6.dp)
                     .size(width = 40.dp, height = 3.dp)
                     .clip(CircleShape)
-                    .background(IrisText.copy(alpha = 0.1f)),
+                    .background(DroshText.copy(alpha = 0.1f)),
             )
         },
     ) {
@@ -312,7 +312,7 @@ private fun SheetTopBar(
     ) {
         Text(
             text     = "Sessions",
-            color    = IrisText,
+            color    = DroshText,
             style    = MaterialTheme.typography.titleLarge.copy(
                 fontWeight    = FontWeight.Bold,
                 letterSpacing = (-0.5).sp,
@@ -326,7 +326,7 @@ private fun SheetTopBar(
             modifier = Modifier
                 .height(36.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(IrisPrimary),
+                .background(DroshPrimary),
         ) {
             Row(
                 modifier          = Modifier.padding(horizontal = 14.dp),
@@ -334,14 +334,14 @@ private fun SheetTopBar(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Icon(
-                    imageVector        = IrisIcons.Plus,
+                    imageVector        = DroshIcons.Plus,
                     contentDescription = null,
-                    tint               = IrisOnPrimary,
+                    tint               = DroshOnPrimary,
                     modifier           = Modifier.size(13.dp),
                 )
                 Text(
                     text       = "New",
-                    color      = IrisOnPrimary,
+                    color      = DroshOnPrimary,
                     fontSize   = 13.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -357,12 +357,12 @@ private fun SheetTopBar(
                 .size(36.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.03f))
-                .border(0.5.dp, IrisBorderSubtle.copy(alpha = 0.3f), CircleShape),
+                .border(0.5.dp, DroshBorderSubtle.copy(alpha = 0.3f), CircleShape),
         ) {
             Icon(
-                imageVector        = IrisIcons.X,
+                imageVector        = DroshIcons.X,
                 contentDescription = "Close",
-                tint               = IrisTextSecondary,
+                tint               = DroshTextSecondary,
                 modifier           = Modifier.size(18.dp),
             )
         }
@@ -378,23 +378,23 @@ private fun SheetTopBar(
             .padding(bottom = 12.dp),
         singleLine    = true,
         shape         = RoundedCornerShape(16.dp),
-        placeholder   = { Text("Search sessions…", color = IrisTextMuted, fontSize = 13.5.sp) },
+        placeholder   = { Text("Search sessions…", color = DroshTextMuted, fontSize = 13.5.sp) },
         leadingIcon   = {
             Icon(
-                imageVector        = IrisIcons.Search,
+                imageVector        = DroshIcons.Search,
                 contentDescription = null,
-                tint               = IrisTextMuted,
+                tint               = DroshTextMuted,
                 modifier           = Modifier.size(15.dp),
             )
         },
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor   = IrisPrimary.copy(alpha = 0.5f),
-            unfocusedBorderColor = IrisBorderSubtle.copy(alpha = 0.08f),
-            focusedContainerColor   = IrisBackground.copy(alpha = 0.2f),
-            unfocusedContainerColor = IrisBackground.copy(alpha = 0.1f),
-            cursorColor          = IrisPrimary,
-            focusedTextColor     = IrisText,
-            unfocusedTextColor   = IrisText,
+            focusedBorderColor   = DroshPrimary.copy(alpha = 0.5f),
+            unfocusedBorderColor = DroshBorderSubtle.copy(alpha = 0.08f),
+            focusedContainerColor   = DroshBackground.copy(alpha = 0.2f),
+            unfocusedContainerColor = DroshBackground.copy(alpha = 0.1f),
+            cursorColor          = DroshPrimary,
+            focusedTextColor     = DroshText,
+            unfocusedTextColor   = DroshText,
         ),
     )
 }
@@ -417,7 +417,7 @@ private fun SheetEmptyState(
     ) {
         Text(
             text  = if (searchText.isNotBlank()) "No matching session" else "No active session",
-            color = IrisText,
+            color = DroshText,
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
         )
         Spacer(Modifier.height(6.dp))
@@ -426,7 +426,7 @@ private fun SheetEmptyState(
                 "Try a different search term"
             else
                 "Tap New to spawn your first terminal",
-            color = IrisTextMuted,
+            color = DroshTextMuted,
             style = MaterialTheme.typography.bodyMedium,
         )
     }
@@ -444,7 +444,7 @@ private fun CreateSessionDialog(
     var name by remember { mutableStateOf("shell") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title            = { Text("New session", color = IrisText) },
+        title            = { Text("New session", color = DroshText) },
         text             = {
             OutlinedTextField(
                 value         = name,
@@ -455,15 +455,15 @@ private fun CreateSessionDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(name.ifBlank { "shell" }) }) {
-                Text("Create", color = IrisPrimary)
+                Text("Create", color = DroshPrimary)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = IrisTextMuted)
+                Text("Cancel", color = DroshTextMuted)
             }
         },
-        containerColor = IrisSurfaceVariant,
+        containerColor = DroshSurfaceVariant,
     )
 }
 
@@ -476,7 +476,7 @@ private fun RenameSessionDialog(
     var name by remember(currentName) { mutableStateOf(currentName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title            = { Text("Rename session", color = IrisText) },
+        title            = { Text("Rename session", color = DroshText) },
         text             = {
             OutlinedTextField(
                 value         = name,
@@ -491,14 +491,14 @@ private fun RenameSessionDialog(
                 onClick = { onConfirm(name.trim()) },
                 enabled = name.isNotBlank(),
             ) {
-                Text("Save", color = IrisPrimary)
+                Text("Save", color = DroshPrimary)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = IrisTextMuted)
+                Text("Cancel", color = DroshTextMuted)
             }
         },
-        containerColor = IrisSurfaceVariant,
+        containerColor = DroshSurfaceVariant,
     )
 }

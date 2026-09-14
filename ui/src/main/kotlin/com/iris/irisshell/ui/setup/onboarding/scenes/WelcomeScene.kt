@@ -17,10 +17,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
 import com.iris.irisshell.design.system.OutfitFontFamily
 import com.iris.irisshell.ui.setup.onboarding.components.DroshLogo
 import com.iris.irisshell.ui.setup.onboarding.components.SetupButton
@@ -45,7 +45,7 @@ fun WelcomeScene(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(IrisBackground),
+            .background(DroshBackground),
     ) {
         Column(
             modifier = Modifier
@@ -55,19 +55,19 @@ fun WelcomeScene(
         ) {
             Spacer(modifier = Modifier.height(80.dp))
 
-            DroshLogo(size = 96.dp, tint = IrisPrimary)
+            DroshLogo(size = 96.dp, tint = DroshPrimary)
 
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "Iris Shell",
+                text = "Drosh",
                 style = TextStyle(
                     fontFamily = OutfitFontFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 22.sp,
                     letterSpacing = 0.5.sp,
                 ),
-                color = IrisText,
+                color = DroshText,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -82,7 +82,7 @@ fun WelcomeScene(
                     lineHeight = 20.sp,
                     textAlign = TextAlign.Center,
                 ),
-                color = IrisTextMuted,
+                color = DroshTextMuted,
             )
 
             Spacer(modifier = Modifier.weight(1f))

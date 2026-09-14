@@ -18,7 +18,7 @@ class BlockTest {
         currentTxBytes: Long = 50L,
     ) = Block(
         id = "test-id",
-        prompt = "muhofy@iris-shell:~$",
+        prompt = "muhofy@drosh:~$",
         command = "ls",
         outputLines = listOf("file1", "file2"),
         state = state,

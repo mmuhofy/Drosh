@@ -10,19 +10,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Iris Shell monogram — a small vector mark that ships inside the topbar.
+ * Drosh monogram — a small vector mark that ships inside the topbar.
  *
  * Built as Canvas primitives so we never depend on emoji or raster assets.
  * The mark is a square with a centered dot ("iris" → "I") with a thin blue
- * accent stroke that matches MEMORYBANK.md §133 IrisPrimary = #3B82F6.
+ * accent stroke that matches MEMORYBANK.md §133 DroshPrimary = #3B82F6.
  *
  * The user rule forbids emoji as structural icons; this is a pure-vector
  * replacement for any raster logo.
  */
 @Composable
-fun IrisShellMark(
+fun DroshMark(
     modifier: Modifier = Modifier.size(20.dp),
-    color: Color = Color(0xFF3B82F6), // IrisPrimary
+    color: Color = Color(0xFF3B82F6), // DroshPrimary
 ) {
     Canvas(modifier = modifier) {
         val strokeWidth = 2.dp.toPx()
@@ -51,7 +51,7 @@ fun IrisShellMark(
 @Composable
 fun ChevronRight(
     modifier: Modifier = Modifier.size(16.dp),
-    color: Color = Color(0xFFA0A0A0), // IrisTextSecondary
+    color: Color = Color(0xFFA0A0A0), // DroshTextSecondary
 ) {
     Canvas(modifier = modifier) {
         val strokeWidth = 1.5.dp.toPx()

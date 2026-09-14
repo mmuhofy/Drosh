@@ -1,4 +1,4 @@
-// build-logic — convention plugins for IrisShell.
+// build-logic — convention plugins for Drosh.
 //
 // Exposes the following Gradle convention plugins (each as a Kotlin class
 // in src/main/kotlin/iris/*.kt):

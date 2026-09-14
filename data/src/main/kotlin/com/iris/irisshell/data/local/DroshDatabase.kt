@@ -22,7 +22,7 @@ import com.iris.irisshell.data.session.SessionEntity
     version = 1,
     exportSchema = true,
 )
-abstract class IrisDatabase : RoomDatabase() {
+abstract class DroshDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
 
     companion object {

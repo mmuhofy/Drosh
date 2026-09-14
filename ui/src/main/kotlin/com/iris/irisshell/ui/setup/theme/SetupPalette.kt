@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.Color
  * Setup-screen specific design tokens.
  *
  * Values mirror MEMORYBANK.md §5 — Visual Identity. We duplicate them here
- * (rather than depend on `:app`'s `IrisTheme`) so `:ui` stays free of
+ * (rather than depend on `:app`'s `DroshTheme`) so `:ui` stays free of
  * cross-module dependencies per AGENT.md §110-139.
  *
  * Once the `:design-system` consolidation lands, these tokens should move to

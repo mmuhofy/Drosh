@@ -51,19 +51,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import com.iris.irisshell.design.system.IrisError
-import com.iris.irisshell.design.system.IrisOutline
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurface
-import com.iris.irisshell.design.system.IrisSurfaceContainerLowest
-import com.iris.irisshell.design.system.IrisSurfaceHigh
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextDisabled
-import com.iris.irisshell.design.system.IrisTextSecondary
-import com.iris.irisshell.design.system.IrisWarning
+import com.iris.irisshell.design.system.DroshError
+import com.iris.irisshell.design.system.DroshOutline
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurface
+import com.iris.irisshell.design.system.DroshSurfaceContainerLowest
+import com.iris.irisshell.design.system.DroshSurfaceHigh
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextDisabled
+import com.iris.irisshell.design.system.DroshTextSecondary
+import com.iris.irisshell.design.system.DroshWarning
 import com.iris.irisshell.design.system.OutfitFontFamily
 import androidx.compose.ui.graphics.Color
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 
 @Composable
 fun SettingsSection(
@@ -74,7 +74,7 @@ fun SettingsSection(
     Column(modifier = modifier) {
         Text(
             text = label.uppercase(),
-            color = IrisTextSecondary,
+            color = DroshTextSecondary,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.2.sp,
@@ -95,7 +95,7 @@ fun SettingsSectionContainer(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(IrisSurface),
+            .background(DroshSurface),
     ) {
         content()
     }
@@ -106,10 +106,10 @@ fun SettingsSubRow(
     icon: ImageVector,
     label: String,
     description: String? = null,
-    iconTint: Color = IrisPrimary,
+    iconTint: Color = DroshPrimary,
     trailing: @Composable () -> Unit,
 ) {
-    val bgTint = if (iconTint == IrisError) IrisError.copy(alpha = 0.12f) else IrisPrimary.copy(alpha = 0.12f)
+    val bgTint = if (iconTint == DroshError) DroshError.copy(alpha = 0.12f) else DroshPrimary.copy(alpha = 0.12f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -134,7 +134,7 @@ fun SettingsSubRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
-                color = IrisText,
+                color = DroshText,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = OutfitFontFamily,
@@ -142,7 +142,7 @@ fun SettingsSubRow(
             if (description != null) {
                 Text(
                     text = description,
-                    color = IrisTextSecondary,
+                    color = DroshTextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 1.dp),
                     fontFamily = OutfitFontFamily,
@@ -158,11 +158,11 @@ fun SettingsSliderRow(
     icon: ImageVector,
     label: String,
     description: String? = null,
-    iconTint: Color = IrisPrimary,
+    iconTint: Color = DroshPrimary,
     trailing: @Composable () -> Unit = {},
     sliderContent: @Composable () -> Unit,
 ) {
-    val bgTint = if (iconTint == IrisError) IrisError.copy(alpha = 0.12f) else IrisPrimary.copy(alpha = 0.12f)
+    val bgTint = if (iconTint == DroshError) DroshError.copy(alpha = 0.12f) else DroshPrimary.copy(alpha = 0.12f)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -189,7 +189,7 @@ fun SettingsSliderRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
-                    color = IrisText,
+                    color = DroshText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     fontFamily = OutfitFontFamily,
@@ -197,7 +197,7 @@ fun SettingsSliderRow(
                 if (description != null) {
                     Text(
                         text = description,
-                        color = IrisTextSecondary,
+                        color = DroshTextSecondary,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 1.dp),
                         fontFamily = OutfitFontFamily,
@@ -216,11 +216,11 @@ fun SettingsCommandFieldRow(
     icon: ImageVector,
     label: String,
     description: String? = null,
-    iconTint: Color = IrisPrimary,
+    iconTint: Color = DroshPrimary,
     command: String,
     onCommandChange: (String) -> Unit,
 ) {
-    val bgTint = if (iconTint == IrisError) IrisError.copy(alpha = 0.12f) else IrisPrimary.copy(alpha = 0.12f)
+    val bgTint = if (iconTint == DroshError) DroshError.copy(alpha = 0.12f) else DroshPrimary.copy(alpha = 0.12f)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -247,7 +247,7 @@ fun SettingsCommandFieldRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
-                    color = IrisText,
+                    color = DroshText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     fontFamily = OutfitFontFamily,
@@ -255,7 +255,7 @@ fun SettingsCommandFieldRow(
                 if (description != null) {
                     Text(
                         text = description,
-                        color = IrisTextSecondary,
+                        color = DroshTextSecondary,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 1.dp),
                         fontFamily = OutfitFontFamily,
@@ -272,7 +272,7 @@ fun SettingsCommandFieldRow(
                 onCommandChange(it)
             },
             textStyle = TextStyle(
-                color = IrisPrimary,
+                color = DroshPrimary,
                 fontSize = 12.sp,
                 fontFamily = OutfitFontFamily,
             ),
@@ -280,8 +280,8 @@ fun SettingsCommandFieldRow(
             shape = RoundedCornerShape(6.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = Color.Transparent,
-                focusedBorderColor = IrisPrimary.copy(alpha = 0.3f),
-                cursorColor = IrisPrimary,
+                focusedBorderColor = DroshPrimary.copy(alpha = 0.3f),
+                cursorColor = DroshPrimary,
             ),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -294,7 +294,7 @@ fun TerminalModeRow(
     onSelect: (Boolean) -> Unit,
 ) {
     SettingsSubRow(
-        icon = IrisIcons.Terminal,
+        icon = DroshIcons.Terminal,
         label = "Terminal Mode",
     ) {
         SegmentControl(
@@ -317,19 +317,19 @@ private fun SegmentControl(
     Row(
         modifier = modifier
             .height(trackHeight)
-            .background(IrisSurfaceHigh, RoundedCornerShape(16.dp))
+            .background(DroshSurfaceHigh, RoundedCornerShape(16.dp))
             .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         options.forEachIndexed { index, opt ->
             val isSelected = index == selectedIndex
             val animColor by animateColorAsState(
-                targetValue = if (isSelected) IrisPrimary else Color.Transparent,
+                targetValue = if (isSelected) DroshPrimary else Color.Transparent,
                 animationSpec = tween(200),
                 label = "segment_color_$index",
             )
             val animTextColor by animateColorAsState(
-                targetValue = if (isSelected) Color(0xFF14171B) else IrisTextSecondary,
+                targetValue = if (isSelected) Color(0xFF14171B) else DroshTextSecondary,
                 animationSpec = tween(200),
                 label = "segment_text_$index",
             )
@@ -388,7 +388,7 @@ fun TerminalPreviewCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(IrisSurfaceContainerLowest)
+            .background(DroshSurfaceContainerLowest)
             .padding(14.dp),
     ) {
         Row(
@@ -397,7 +397,7 @@ fun TerminalPreviewCard(
                 .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            listOf(IrisError, IrisWarning, IrisPrimary).forEach { color ->
+            listOf(DroshError, DroshWarning, DroshPrimary).forEach { color ->
                 Box(
                     modifier = Modifier
                         .size(10.dp)
@@ -415,15 +415,15 @@ fun TerminalPreviewCard(
             if (useBlockEngine && index > 0) {
                 Divider(
                     modifier = Modifier.padding(vertical = 4.dp),
-                    color = IrisOutline.copy(alpha = 0.3f),
+                    color = DroshOutline.copy(alpha = 0.3f),
                     thickness = 1.dp,
                 )
             }
             val text = buildAnnotatedString {
-                withStyle(SpanStyle(color = IrisPrimary, fontWeight = FontWeight.Medium)) {
+                withStyle(SpanStyle(color = DroshPrimary, fontWeight = FontWeight.Medium)) {
                     append(prompt)
                 }
-                withStyle(SpanStyle(color = IrisText)) {
+                withStyle(SpanStyle(color = DroshText)) {
                     append(output)
                 }
             }
@@ -445,14 +445,14 @@ fun TerminalPreviewCard(
         ) {
             Text(
                 text = "user@irisshell ~ %",
-                color = IrisPrimary,
+                color = DroshPrimary,
                 fontSize = fontSizeSp.sp,
                 fontFamily = FontFamily.Monospace,
             )
             var cmdText by rememberSaveable { mutableStateOf("") }
             Text(
                 text = cmdText,
-                color = IrisText,
+                color = DroshText,
                 fontSize = fontSizeSp.sp,
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier
@@ -479,7 +479,7 @@ fun BlinkingCursor(visible: Boolean, rateMs: Int, style: String, fontSizeSp: Int
                 isVisible = !isVisible
             }
         }
-        val color = if (isVisible) IrisPrimary else Color.Transparent
+        val color = if (isVisible) DroshPrimary else Color.Transparent
         val cursorHeightDp = fontSizeSp * 1.15f
 
         val widthDp: Float
@@ -520,7 +520,7 @@ fun BlinkRateSlider(
     ) {
         Text(
             text = "Slow",
-            color = IrisTextSecondary,
+            color = DroshTextSecondary,
             fontSize = 12.sp,
             fontFamily = OutfitFontFamily,
         )
@@ -533,7 +533,7 @@ fun BlinkRateSlider(
         )
         Text(
             text = "Fast",
-            color = IrisTextSecondary,
+            color = DroshTextSecondary,
             fontSize = 12.sp,
             fontFamily = OutfitFontFamily,
         )
@@ -554,9 +554,9 @@ fun FontSizeSlider(
             modifier = Modifier.size(28.dp),
         ) {
             Icon(
-                imageVector = IrisIcons.Minus,
+                imageVector = DroshIcons.Minus,
                 contentDescription = "Decrease font size",
-                tint = IrisTextSecondary,
+                tint = DroshTextSecondary,
                 modifier = Modifier.size(14.dp),
             )
         }
@@ -572,9 +572,9 @@ fun FontSizeSlider(
             modifier = Modifier.size(28.dp),
         ) {
             Icon(
-                imageVector = IrisIcons.Plus,
+                imageVector = DroshIcons.Plus,
                 contentDescription = "Increase font size",
-                tint = IrisTextSecondary,
+                tint = DroshTextSecondary,
                 modifier = Modifier.size(14.dp),
             )
         }
@@ -596,8 +596,8 @@ fun ThinSlider(
         steps = steps,
         colors = SliderDefaults.colors(
             thumbColor = Color.White,
-            activeTrackColor = IrisPrimary,
-            inactiveTrackColor = IrisSurfaceHigh,
+            activeTrackColor = DroshPrimary,
+            inactiveTrackColor = DroshSurfaceHigh,
             activeTickColor = Color.Transparent,
             inactiveTickColor = Color.Transparent,
         ),
@@ -611,7 +611,7 @@ fun SettingsToggleSwitch(
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val trackColor by animateColorAsState(
-        targetValue = if (checked) IrisPrimary else IrisSurfaceHigh,
+        targetValue = if (checked) DroshPrimary else DroshSurfaceHigh,
         animationSpec = tween(200),
         label = "toggle_track",
     )
@@ -668,13 +668,13 @@ fun SettingsNavigationRow(
             modifier = Modifier
                 .size(32.dp)
                 .clip(RoundedCornerShape(100))
-                .background(IrisSurfaceHigh),
+                .background(DroshSurfaceHigh),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = IrisTextSecondary,
+                tint = DroshTextSecondary,
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -682,7 +682,7 @@ fun SettingsNavigationRow(
         if (label.isNotBlank()) {
             Text(
                 text = label,
-                color = IrisText,
+                color = DroshText,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = OutfitFontFamily,
@@ -692,42 +692,42 @@ fun SettingsNavigationRow(
         if (trailingBadge != null) {
             Text(
                 text = trailingBadge,
-                color = IrisPrimary,
+                color = DroshPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = OutfitFontFamily,
                 modifier = Modifier
-                    .background(IrisPrimary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                    .background(DroshPrimary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
             Spacer(Modifier.width(8.dp))
             Icon(
-                imageVector = IrisIcons.ArrowRight,
+                imageVector = DroshIcons.ArrowRight,
                 contentDescription = null,
-                tint = IrisTextDisabled,
+                tint = DroshTextDisabled,
                 modifier = Modifier.size(16.dp),
             )
         } else if (trailingText != null) {
             Text(
                 text = trailingText,
-                color = IrisTextSecondary,
+                color = DroshTextSecondary,
                 fontSize = 15.sp,
                 fontFamily = OutfitFontFamily,
             )
             if (showTrailingIcon) {
                 Spacer(Modifier.width(8.dp))
                 Icon(
-                    imageVector = IrisIcons.ArrowRight,
+                    imageVector = DroshIcons.ArrowRight,
                     contentDescription = null,
-                    tint = IrisTextDisabled,
+                    tint = DroshTextDisabled,
                     modifier = Modifier.size(16.dp),
                 )
             }
         } else if (showTrailingIcon) {
             Icon(
-                imageVector = IrisIcons.ArrowRight,
+                imageVector = DroshIcons.ArrowRight,
                 contentDescription = null,
-                tint = IrisTextDisabled,
+                tint = DroshTextDisabled,
                 modifier = Modifier.size(16.dp),
             )
         }

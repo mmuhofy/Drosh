@@ -26,10 +26,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.ui.DroshIcons
 
 @Composable
 fun BlockInputField(
@@ -55,7 +55,7 @@ fun BlockInputField(
         ) {
             Text(
                 text = if (focused) "$promptLabel$ ▸" else "$promptLabel$promptSuffix",
-                color = IrisPrimary,
+                color = DroshPrimary,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(end = 8.dp),
@@ -64,7 +64,7 @@ fun BlockInputField(
                 if (text.isEmpty()) {
                     Text(
                         text = if (enabled) "type a command…" else "block mode disabled",
-                        color = IrisTextMuted,
+                        color = DroshTextMuted,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
                     )
@@ -74,12 +74,12 @@ fun BlockInputField(
                     onValueChange = { if (enabled) text = it },
                     enabled = enabled,
                     textStyle = TextStyle(
-                        color = IrisText,
+                        color = DroshText,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                     ),
-                    cursorBrush = SolidColor(IrisPrimary),
+                    cursorBrush = SolidColor(DroshPrimary),
                     modifier = Modifier
                         .fillMaxWidth()
                         .onFocusChanged { focused = it.isFocused },
@@ -105,9 +105,9 @@ fun BlockInputField(
                     modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
-                        imageVector = IrisIcons.ArrowUp,
+                        imageVector = DroshIcons.ArrowUp,
                         contentDescription = "Send",
-                        tint = IrisPrimary,
+                        tint = DroshPrimary,
                         modifier = Modifier.size(16.dp),
                     )
                 }

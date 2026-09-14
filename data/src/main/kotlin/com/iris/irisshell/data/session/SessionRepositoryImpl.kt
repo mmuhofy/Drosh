@@ -6,7 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.iris.irisshell.data.di.ApplicationScope
-import com.iris.irisshell.data.local.IrisDatabase
+import com.iris.irisshell.data.local.DroshDatabase
 import com.iris.irisshell.data.local.irisShellDataStore
 import com.iris.irisshell.domain.session.SessionRepository
 import com.iris.irisshell.domain.session.SessionSnapshot
@@ -29,7 +29,7 @@ import javax.inject.Singleton
 @Singleton
 class SessionRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val database: IrisDatabase,
+    private val database: DroshDatabase,
     @ApplicationScope private val appScope: CoroutineScope,
 ) : SessionRepository {
 

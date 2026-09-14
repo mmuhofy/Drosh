@@ -43,19 +43,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisBorderSubtle
-import com.iris.irisshell.design.system.IrisDropdownMenu
-import com.iris.irisshell.design.system.IrisError
-import com.iris.irisshell.design.system.IrisMenuItem
-import com.iris.irisshell.design.system.IrisMenuItemStyle
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisTextSecondary
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshBorderSubtle
+import com.iris.irisshell.design.system.DroshDropdownMenu
+import com.iris.irisshell.design.system.DroshError
+import com.iris.irisshell.design.system.DroshMenuItem
+import com.iris.irisshell.design.system.DroshMenuItemStyle
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshTextSecondary
 import com.iris.irisshell.domain.session.SessionSnapshot
 import com.iris.irisshell.domain.session.SessionState
-import com.iris.irisshell.ui.IrisIcons
+import com.iris.irisshell.ui.DroshIcons
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -105,12 +105,12 @@ fun SessionCard(
             modifier = Modifier
                 .matchParentSize()
                 .clip(CardShape)
-                .background(IrisError.copy(alpha = 0.08f + deleteProgress * 0.22f)),
+                .background(DroshError.copy(alpha = 0.08f + deleteProgress * 0.22f)),
             contentAlignment = Alignment.CenterEnd,
         ) {
             Text(
                 text     = "Delete",
-                color    = IrisError.copy(alpha = deleteProgress),
+                color    = DroshError.copy(alpha = deleteProgress),
                 style    = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                 modifier = Modifier
                     .padding(end = 20.dp)
@@ -167,9 +167,9 @@ fun SessionCard(
                 .border(
                     width = 0.5.dp,
                     color = if (isActive)
-                        IrisPrimary.copy(alpha = 0.25f)
+                        DroshPrimary.copy(alpha = 0.25f)
                     else
-                        IrisBorderSubtle.copy(alpha = 0.1f),
+                        DroshBorderSubtle.copy(alpha = 0.1f),
                     shape = CardShape,
                 )
                 .clickable(enabled = !isCommitting && swipeOffset.value == 0f) { onActivate() },
@@ -182,7 +182,7 @@ fun SessionCard(
                         .width(2.dp)
                         .height(32.dp)
                         .clip(RoundedCornerShape(topEnd = 2.dp, bottomEnd = 2.dp))
-                        .background(IrisPrimary),
+                        .background(DroshPrimary),
                 )
             }
 
@@ -203,7 +203,7 @@ fun SessionCard(
                 ) {
                     Text(
                         text     = snapshot.name,
-                        color    = IrisText,
+                        color    = DroshText,
                         style    = MaterialTheme.typography.bodyLarge.copy(
                             fontWeight    = FontWeight.SemiBold,
                             letterSpacing = (-0.3).sp,
@@ -218,13 +218,13 @@ fun SessionCard(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(IrisPrimary.copy(alpha = 0.1f))
-                                .border(0.5.dp, IrisPrimary.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                                .background(DroshPrimary.copy(alpha = 0.1f))
+                                .border(0.5.dp, DroshPrimary.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                         ) {
                             Text(
                                 text          = "ACTIVE",
-                                color         = IrisPrimary,
+                                color         = DroshPrimary,
                                 fontSize      = 9.sp,
                                 fontWeight    = FontWeight.SemiBold,
                                 letterSpacing = 0.5.sp,
@@ -242,7 +242,7 @@ fun SessionCard(
                 // Subtitle: state · freshness
                 Text(
                     text     = "${stateLabel(snapshot.state)} · ${relativeTime(snapshot.lastUsedAtMs)}",
-                    color    = IrisTextSecondary,
+                    color    = DroshTextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
                     modifier = Modifier.padding(top = 3.dp),
@@ -256,13 +256,13 @@ fun SessionCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(PreviewShape)
-                            .background(IrisBackground.copy(alpha = 0.3f))
-                            .border(0.5.dp, IrisBorderSubtle.copy(alpha = 0.15f), PreviewShape)
+                            .background(DroshBackground.copy(alpha = 0.3f))
+                            .border(0.5.dp, DroshBorderSubtle.copy(alpha = 0.15f), PreviewShape)
                             .padding(horizontal = 10.dp, vertical = 7.dp),
                     ) {
                         Text(
                             text       = preview,
-                            color      = IrisTextMuted,
+                            color      = DroshTextMuted,
                             fontSize   = 11.5.sp,
                             fontFamily = FontFamily.Monospace,
                             maxLines   = 1,
@@ -293,24 +293,24 @@ private fun CardOverflowMenu(
             modifier = Modifier.size(36.dp),
         ) {
             Icon(
-                imageVector        = IrisIcons.EllipsisVertical,
+                imageVector        = DroshIcons.EllipsisVertical,
                 contentDescription = "Session options",
-                tint               = IrisTextSecondary,
+                tint               = DroshTextSecondary,
                 modifier           = Modifier.size(18.dp),
             )
         }
-        IrisDropdownMenu(
+        DroshDropdownMenu(
             expanded         = expanded,
             onDismissRequest = { expanded = false },
             items = listOf(
-                IrisMenuItem(
+                DroshMenuItem(
                     label = "Rename",
-                    icon  = IrisIcons.Pencil,
+                    icon  = DroshIcons.Pencil,
                 ),
-                IrisMenuItem(
+                DroshMenuItem(
                     label         = "Delete",
-                    icon          = IrisIcons.Trash2,
-                    style         = IrisMenuItemStyle.Destructive,
+                    icon          = DroshIcons.Trash2,
+                    style         = DroshMenuItemStyle.Destructive,
                     dividerBefore = true,
                 ),
             ),

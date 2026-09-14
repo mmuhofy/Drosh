@@ -240,7 +240,7 @@ private fun RecoveryActions(
                 )
                 RecoveryAction.ResetEverything -> PrimaryRecoveryButton(
                     label = "Reset everything",
-                    sublabel = "Wipe ~/.iris-shell/ folder. Next launch will redownload all.",
+                    sublabel = "Wipe ~/.drosh/ folder. Next launch will redownload all.",
                     accent = SetupPalette.Warning,
                     onClick = onReset,
                 )
@@ -318,7 +318,7 @@ private fun reportIssue(
         appendLine("**ABI:** ${android.os.Build.SUPPORTED_ABIS.joinToString()}")
     }
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("Iris Shell diagnostic", body))
+    clipboard.setPrimaryClip(ClipData.newPlainText("Drosh diagnostic", body))
     Toast.makeText(context, "Diagnostic copied to clipboard", Toast.LENGTH_SHORT).show()
 
     val intent = Intent(
@@ -328,4 +328,4 @@ private fun reportIssue(
     runCatching { context.startActivity(intent) }
 }
 
-private const val GITHUB_ISSUES_URL = "https://github.com/mmuhofy/IrisShell/issues/new"
+private const val GITHUB_ISSUES_URL = "https://github.com/mmuhofy/Drosh/issues/new"

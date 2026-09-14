@@ -21,9 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.iris.irisshell.design.system.IrisBackground
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSurface
+import com.iris.irisshell.design.system.DroshBackground
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSurface
 import com.iris.irisshell.domain.block.Block
 import kotlinx.coroutines.flow.StateFlow
 
@@ -59,7 +59,7 @@ fun BlockTerminalView(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().background(IrisBackground)) {
+    Column(modifier = modifier.fillMaxSize().background(DroshBackground)) {
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
@@ -116,13 +116,13 @@ private fun SimpleScrollbar(
     val firstVisible = info.visibleItemsInfo.firstOrNull()?.index ?: 0
     val progress = if (total - visible <= 0) 0f
     else (firstVisible.toFloat() / (total - visible)).coerceIn(0f, 1f)
-    Box(modifier = modifier.background(IrisSurface.copy(alpha = 0.4f), RoundedCornerShape(2.dp))) {
+    Box(modifier = modifier.background(DroshSurface.copy(alpha = 0.4f), RoundedCornerShape(2.dp))) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(thumbFraction)
                 .padding(top = (progress * (1f - thumbFraction) * 320f).dp.coerceAtLeast(0.dp))
-                .background(IrisPrimary.copy(alpha = 0.55f), RoundedCornerShape(2.dp)),
+                .background(DroshPrimary.copy(alpha = 0.55f), RoundedCornerShape(2.dp)),
         )
     }
 }

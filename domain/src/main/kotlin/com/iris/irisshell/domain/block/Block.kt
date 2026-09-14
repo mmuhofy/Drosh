@@ -20,7 +20,7 @@ package com.iris.irisshell.domain.block
 data class Block(
     /** Runtime UUID; not persisted. */
     val id: String,
-    /** Prompt line shown above the command, e.g. "muhofy@iris-shell:~/IrisShell$". */
+    /** Prompt line shown above the command, e.g. "muhofy@drosh:~/Drosh$". */
     val prompt: String,
     /** Command text the user entered, e.g. "ls -la". */
     val command: String,

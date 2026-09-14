@@ -22,13 +22,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisError
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisSuccess
-import com.iris.irisshell.design.system.IrisSurfaceVariant
-import com.iris.irisshell.design.system.IrisText
-import com.iris.irisshell.design.system.IrisTextMuted
-import com.iris.irisshell.design.system.IrisWarning
+import com.iris.irisshell.design.system.DroshError
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshSuccess
+import com.iris.irisshell.design.system.DroshSurfaceVariant
+import com.iris.irisshell.design.system.DroshText
+import com.iris.irisshell.design.system.DroshTextMuted
+import com.iris.irisshell.design.system.DroshWarning
 import com.iris.irisshell.design.system.OutfitFontFamily
 
 /**
@@ -62,10 +62,10 @@ fun DeviceCheckItem(
     fontSize: TextUnit = 14.sp,
 ) {
     val statusColor = when (status) {
-        CheckStatus.Ok -> IrisSuccess
-        CheckStatus.Warn -> IrisWarning
-        CheckStatus.Error -> IrisError
-        CheckStatus.Unknown -> IrisTextMuted
+        CheckStatus.Ok -> DroshSuccess
+        CheckStatus.Warn -> DroshWarning
+        CheckStatus.Error -> DroshError
+        CheckStatus.Unknown -> DroshTextMuted
     }
 
     Row(
@@ -77,7 +77,7 @@ fun DeviceCheckItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = IrisText,
+            tint = DroshText,
             modifier = Modifier.size(iconSize),
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -92,7 +92,7 @@ fun DeviceCheckItem(
                     fontSize = fontSize,
                     lineHeight = fontSize * 1.4,
                 ),
-                color = IrisText,
+                color = DroshText,
             )
             Text(
                 text = value,
@@ -102,7 +102,7 @@ fun DeviceCheckItem(
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
                 ),
-                color = IrisTextMuted,
+                color = DroshTextMuted,
             )
         }
         Box(

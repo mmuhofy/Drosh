@@ -15,16 +15,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.iris.irisshell.design.system.IrisOnPrimary
-import com.iris.irisshell.design.system.IrisPrimary
-import com.iris.irisshell.design.system.IrisTextDisabled
+import com.iris.irisshell.design.system.DroshOnPrimary
+import com.iris.irisshell.design.system.DroshPrimary
+import com.iris.irisshell.design.system.DroshTextDisabled
 import com.iris.irisshell.design.system.OutfitFontFamily
 
 /**
  * Primary blue button used across onboarding scenes.
  *
  * Full-width by default, 52dp height, 24dp corner radius.
- * Disabled state uses IrisTextDisabled for the label (greyed).
+ * Disabled state uses DroshTextDisabled for the label (greyed).
  */
 @Composable
 fun SetupButton(
@@ -43,10 +43,10 @@ fun SetupButton(
             .height(height),
         shape = RoundedCornerShape(cornerRadius),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (enabled) IrisPrimary else IrisTextDisabled.copy(alpha = 0.15f),
-            contentColor = if (enabled) IrisOnPrimary else IrisTextDisabled,
-            disabledContainerColor = IrisTextDisabled.copy(alpha = 0.15f),
-            disabledContentColor = IrisTextDisabled,
+            containerColor = if (enabled) DroshPrimary else DroshTextDisabled.copy(alpha = 0.15f),
+            contentColor = if (enabled) DroshOnPrimary else DroshTextDisabled,
+            disabledContainerColor = DroshTextDisabled.copy(alpha = 0.15f),
+            disabledContentColor = DroshTextDisabled,
         ),
         enabled = enabled,
     ) {

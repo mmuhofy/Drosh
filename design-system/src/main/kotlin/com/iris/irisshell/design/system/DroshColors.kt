@@ -3,9 +3,9 @@ package com.iris.irisshell.design.system
 import androidx.compose.ui.graphics.Color
 
 /**
- * Design tokens — the Iris Shell palette.
+ * Design tokens — the Drosh palette.
  *
- * Originally defined inside `:app/.../ui/theme/IrisTheme.kt` (Phase 2), the
+ * Originally defined inside `:app/.../ui/theme/DroshTheme.kt` (Phase 2), the
  * tokens are promoted to `:design-system` so every module that renders
  * Compose — `:app`, `:ui`, and future `:agent` HUDs — sees the exact same
  * hex values without duplicating them. Per MEMORYBANK.md §5 — Visual
@@ -17,29 +17,29 @@ import androidx.compose.ui.graphics.Color
  *   - Text #F0F2F4, TextSecondary #A8AEB6, TextMuted #747B85, TextDisabled #585F69
  *   - Success #22C55E, Error #EF4444, Warning #F59E0B, Build #719FFF
  *
- * Iris Shell is dark-only on v1.0 — dark mode (#14171B) is the default
+ * Drosh is dark-only on v1.0 — dark mode (#14171B) is the default
  * background. Surface levels use subtle luminance steps for clear visual hierarchy.
  * The blue accent (#719FFF) replaces the previous gold, evoking terminal cursor cyan
  * and VS Code's professional dark theme.
  */
-val IrisBackground: Color = Color(0xFF14171B)
-val IrisSurface: Color = Color(0xFF1C2025)
-val IrisSurfaceVariant: Color = Color(0xFF252A30)
-val IrisSurfaceLow: Color = Color(0xFF191C20)
-val IrisSurfaceHigh: Color = Color(0xFF272A2E)
-val IrisSurfaceContainerLowest: Color = Color(0xFF0B0E12)
-val IrisOutline: Color = Color(0xFF343A43)
-val IrisBorderSubtle: Color = Color(0xFF343A43)
+val DroshBackground: Color = Color(0xFF14171B)
+val DroshSurface: Color = Color(0xFF1C2025)
+val DroshSurfaceVariant: Color = Color(0xFF252A30)
+val DroshSurfaceLow: Color = Color(0xFF191C20)
+val DroshSurfaceHigh: Color = Color(0xFF272A2E)
+val DroshSurfaceContainerLowest: Color = Color(0xFF0B0E12)
+val DroshOutline: Color = Color(0xFF343A43)
+val DroshBorderSubtle: Color = Color(0xFF343A43)
 
-val IrisPrimary: Color = Color(0xFF719FFF)
-val IrisOnPrimary: Color = Color(0xFF14171B)
+val DroshPrimary: Color = Color(0xFF719FFF)
+val DroshOnPrimary: Color = Color(0xFF14171B)
 
-val IrisText: Color = Color(0xFFF0F2F4)
-val IrisTextSecondary: Color = Color(0xFFA8AEB6)
-val IrisTextMuted: Color = Color(0xFF747B85)
-val IrisTextDisabled: Color = Color(0xFF585F69)
+val DroshText: Color = Color(0xFFF0F2F4)
+val DroshTextSecondary: Color = Color(0xFFA8AEB6)
+val DroshTextMuted: Color = Color(0xFF747B85)
+val DroshTextDisabled: Color = Color(0xFF585F69)
 
-val IrisSuccess: Color = Color(0xFF22C55E)
-val IrisError: Color = Color(0xFFEF4444)
-val IrisWarning: Color = Color(0xFFF59E0B)
-val IrisBuild: Color = Color(0xFF719FFF)
+val DroshSuccess: Color = Color(0xFF22C55E)
+val DroshError: Color = Color(0xFFEF4444)
+val DroshWarning: Color = Color(0xFFF59E0B)
+val DroshBuild: Color = Color(0xFF719FFF)

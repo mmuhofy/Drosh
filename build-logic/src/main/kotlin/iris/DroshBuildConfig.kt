@@ -10,7 +10,7 @@ import org.gradle.api.JavaVersion
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.kotlin.dsl.getByType
 
-internal object IrisBuildConfig {
+internal object DroshBuildConfig {
     const val APPLICATION_ID = "com.iris.irisshell"
     const val MIN_SDK = 26
     const val TARGET_SDK = 28

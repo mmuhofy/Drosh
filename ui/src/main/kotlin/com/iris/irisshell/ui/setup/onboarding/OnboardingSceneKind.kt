@@ -1,7 +1,7 @@
 package com.iris.irisshell.ui.setup.onboarding
 
 /**
- * The five scenes that make up Iris Shell's onboarding wizard.
+ * The five scenes that make up Drosh's onboarding wizard.
  *
  * Flow:
  *   Welcome → DeviceCheck → Preferences → ShellSetup (conditional — Zsh only) → Security

@@ -1,4 +1,4 @@
-# Iris Shell - consumer ProGuard rules for :core.
+# Drosh - consumer ProGuard rules for :core.
 # These rules are applied automatically to any module that depends on :core
 # (similar to how HTTP libraries ship consumer-rules.pro themselves).
 #
