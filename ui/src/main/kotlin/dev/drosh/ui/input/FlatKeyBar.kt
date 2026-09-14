@@ -108,11 +108,13 @@ fun FlatKeyBar(
         )
 
         // Foreground content — keys rendered sharp, no blur applied.
-        Row(
+         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(scrollState)
-                .padding(horizontal = 10.dp),
+                .padding(horizontal = 10.dp)
+                .align(Alignment.CenterVertically),
+            verticalAlignment = Alignment.CenterVertically,
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {

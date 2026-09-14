@@ -43,7 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshSurfaceVariant
+import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
@@ -192,7 +192,7 @@ private fun MoreActionsDropdown(
      DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
-        containerColor = DroshSurfaceVariant.copy(alpha = 0.9f),
+        containerColor = DroshSurface,
         tonalElevation = 8.dp,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.border(

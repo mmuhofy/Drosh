@@ -73,7 +73,7 @@ import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSuccess
-import dev.drosh.design.system.DroshSurfaceVariant
+import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
@@ -88,7 +88,7 @@ import dev.drosh.design.system.DroshTextSecondary
  * (canonical, derlenen kaynak) esas alıyor — Memory Bank muhtemelen güncel
  * değil. Bunu ayrıca Memory Bank güncelleme adımında teyit etmen gerekir.
  *
- * Kullanılan gerçek token'lar: DroshSurfaceVariant, DroshPrimary, DroshOnPrimary,
+ * Kullanılan gerçek token'lar: DroshSurface, DroshPrimary, DroshOnPrimary,
  * DroshText, DroshTextSecondary, DroshTextMuted, DroshBorderSubtle, DroshError,
  * DroshSuccess. Hiçbir renk tahmin/icat edilmedi — hepsi DroshTheme.kt'den.
  *
@@ -207,7 +207,7 @@ private fun SidebarContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DroshSurfaceVariant),
+            .background(DroshSurface),
     ) {
         Column(
             modifier = Modifier
@@ -280,7 +280,7 @@ private fun SidebarContent(
                     shape = RoundedCornerShape(8.dp),
                 ),
             shape = RoundedCornerShape(8.dp),
-            color = DroshSurfaceVariant,
+            color = DroshSurface,
             tonalElevation = 2.dp,
         ) {
             Row(
@@ -327,7 +327,7 @@ private fun SidebarContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(DroshSurfaceVariant),
+                            .background(DroshSurface),
                     ) {
                         SessionRow(
                             snapshot = activeSession,
@@ -358,7 +358,7 @@ private fun SidebarContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(DroshSurfaceVariant.copy(alpha = 0.5f)),
+                            .background(DroshSurface.copy(alpha = 0.5f)),
                     ) {
                         recentSessions.forEachIndexed { index, snapshot ->
                             if (index > 0) {
@@ -426,7 +426,7 @@ private fun SidebarContent(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(DroshSurfaceVariant),
+                        .background(DroshSurface),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(text = userInitials, color = DroshText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
@@ -570,7 +570,7 @@ private fun SessionRow(
         if (isRenaming) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = DroshSurfaceVariant,
+                color = DroshSurface,
                 tonalElevation = 2.dp,
                 modifier = Modifier
                     .weight(1f)

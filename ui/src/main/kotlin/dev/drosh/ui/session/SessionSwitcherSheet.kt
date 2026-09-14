@@ -62,7 +62,6 @@ import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
@@ -463,7 +462,7 @@ private fun CreateSessionDialog(
                 Text("Cancel", color = DroshTextMuted)
             }
         },
-        containerColor = DroshSurfaceVariant,
+        containerColor = DroshSurface,
     )
 }
 
@@ -499,6 +498,6 @@ private fun RenameSessionDialog(
                 Text("Cancel", color = DroshTextMuted)
             }
         },
-        containerColor = DroshSurfaceVariant,
+        containerColor = DroshSurface,
     )
 }
