@@ -32,8 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,7 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshSurfaceVariant
+import dev.drosh.design.system.DroshSurfaceContainerLowest
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
@@ -117,17 +115,16 @@ fun TerminalTopBar(
                     onClick = onOpenSidebar,
                 )
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(DroshSurfaceVariant.copy(alpha = 0.72f))
-                        .border(
-                            width = 1.dp,
-                            color = DroshBorderSubtle.copy(alpha = 0.6f),
-                            shape = RoundedCornerShape(percent = 50),
-                        )
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                ) {
+                 Box(
+                     modifier = Modifier
+                         .clip(RoundedCornerShape(percent = 50))
+                         .border(
+                             width = 1.dp,
+                             color = DroshBorderSubtle,
+                             shape = RoundedCornerShape(percent = 50),
+                         )
+                         .padding(horizontal = 16.dp, vertical = 10.dp),
+                 ) {
                     Text(
                         text = activeName ?: "Drosh",
                         color = DroshText,
@@ -192,10 +189,10 @@ private fun MoreActionsDropdown(
 ) {
     // Not: hardcoded offset kaldırıldı — DropdownMenu artık anchor'ı olan
     // composable'a (bu Box) göre Compose tarafından otomatik konumlanıyor.
-    DropdownMenu(
+     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
-        containerColor = DroshSurfaceVariant,
+        containerColor = DroshSurfaceContainerLowest,
         tonalElevation = 8.dp,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.border(
@@ -380,19 +377,9 @@ private fun GlassPillButton(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(DroshSurfaceVariant.copy(alpha = if (pressed) 0.85f else 0.62f))
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.06f),
-                        Color.Transparent,
-                    ),
-                ),
-                shape = CircleShape,
-            )
             .border(
                 width = 1.dp,
-                color = DroshBorderSubtle.copy(alpha = 0.6f),
+                color = DroshBorderSubtle,
                 shape = CircleShape,
             )
             .pointerInput(Unit) {
