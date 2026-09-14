@@ -192,7 +192,7 @@ private fun MoreActionsDropdown(
      DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
-        containerColor = DroshSurfaceContainerLowest,
+        containerColor = DroshSurfaceVariant.copy(alpha = 0.9f),
         tonalElevation = 8.dp,
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.border(

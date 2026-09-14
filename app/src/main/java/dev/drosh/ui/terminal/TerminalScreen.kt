@@ -516,9 +516,7 @@ private fun ReadyScreen(
                 ctrlStuck = inputBarState.ctrlStuck,
                 altStuck = inputBarState.altStuck,
                 onIntent = inputBarViewModel::onIntent,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
