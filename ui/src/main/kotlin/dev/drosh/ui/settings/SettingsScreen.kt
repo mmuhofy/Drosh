@@ -66,6 +66,7 @@ fun SettingsScreen(
     val cursorBlinkRateMs by viewModel.cursorBlinkRateMs.collectAsStateWithLifecycle(500)
     val aboutInfo         by viewModel.aboutInfo.collectAsStateWithLifecycle(null)
 
+    val activityContext = LocalContext.current
     var showPinEntry by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -91,7 +92,7 @@ fun SettingsScreen(
                         options = LanguageCatalog.options,
                         onSelect = { tag ->
                             viewModel.setLocale(tag)
-                            (LocalContext.current as Activity).recreate()
+                            (activityContext as Activity).recreate()
                         },
                     )
                 }
