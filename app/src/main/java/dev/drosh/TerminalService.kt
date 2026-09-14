@@ -17,6 +17,7 @@ import androidx.core.content.getSystemService
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dev.drosh.domain.session.SessionRepository
+import dev.drosh.core.TerminalConstants
 import dev.drosh.terminal.TerminalManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -64,7 +65,7 @@ class TerminalService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> {
+            TerminalConstants.ACTION_STOP -> {
                 terminalManager.destroy()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -73,11 +74,11 @@ class TerminalService : LifecycleService() {
                 val notification = buildNotification(terminalManager.tabCount)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     startForeground(
-                        NOTIFICATION_ID, notification,
+                        TerminalConstants.NOTIFICATION_ID, notification,
                         android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
                     )
                 } else {
-                    startForeground(NOTIFICATION_ID, notification)
+                    startForeground(TerminalConstants.NOTIFICATION_ID, notification)
                 }
                 isForeground = true
             }
@@ -98,7 +99,7 @@ class TerminalService : LifecycleService() {
                 if (!isForeground) return@collectLatest
 
                 val nm = getSystemService<NotificationManager>()
-                nm?.notify(NOTIFICATION_ID, buildNotification(count))
+                nm?.notify(TerminalConstants.NOTIFICATION_ID, buildNotification(count))
 
                 if (count == 0 && sessionRepository.shouldExit.value) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -110,7 +111,7 @@ class TerminalService : LifecycleService() {
     }
 
     private fun ensureCompletionFile() {
-        val file = File(filesDir, COMPLETION_FILE_NAME)
+        val file = File(filesDir, TerminalConstants.COMPLETION_FILE_NAME)
         if (!file.exists()) file.createNewFile()
     }
 
@@ -121,7 +122,7 @@ class TerminalService : LifecycleService() {
      */
     private fun startCompletionMonitor() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val file = File(filesDir, COMPLETION_FILE_NAME)
+            val file = File(filesDir, TerminalConstants.COMPLETION_FILE_NAME)
             while (isActive) {
                 delay(500)
                 if (!isActive) break
@@ -175,7 +176,7 @@ class TerminalService : LifecycleService() {
         val durationText = formatDuration(elapsedSec)
 
         val nm = getSystemService<NotificationManager>()
-        nm?.notify(COMMAND_COMPLETE_ID, NotificationCompat.Builder(this, COMMAND_CHANNEL_ID)
+        nm?.notify(TerminalConstants.COMMAND_COMPLETE_ID, NotificationCompat.Builder(this, TerminalConstants.COMMAND_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(statusText)
             .setContentText(durationText)
@@ -218,7 +219,7 @@ class TerminalService : LifecycleService() {
         )
 
         val exitIntent = Intent(this, TerminalService::class.java).apply {
-            action = ACTION_STOP
+            action = TerminalConstants.ACTION_STOP
         }
         val exitPending = PendingIntent.getService(
             this, 0, exitIntent,
@@ -231,7 +232,7 @@ class TerminalService : LifecycleService() {
             getString(R.string.notification_session_count, sessionCount)
         }
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(this, TerminalConstants.CHANNEL_ID)
             .setContentTitle(getString(R.string.terminal_service_name))
             .setContentText(sessionText)
             .setSmallIcon(R.drawable.ic_notification)
@@ -244,7 +245,7 @@ class TerminalService : LifecycleService() {
     private fun setupNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
+                TerminalConstants.CHANNEL_ID,
                 getString(R.string.terminal_service_channel_name),
                 NotificationManager.IMPORTANCE_LOW,
             )
@@ -256,7 +257,7 @@ class TerminalService : LifecycleService() {
     private fun setupCommandCompleteChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                COMMAND_CHANNEL_ID,
+                TerminalConstants.COMMAND_CHANNEL_ID,
                 getString(R.string.command_complete_channel_name),
                 NotificationManager.IMPORTANCE_HIGH,
             )
@@ -266,12 +267,4 @@ class TerminalService : LifecycleService() {
         }
     }
 
-    companion object {
-        const val NOTIFICATION_ID = 1337
-        const val CHANNEL_ID = "drosh_terminal_service"
-        const val COMMAND_CHANNEL_ID = "drosh_command_complete"
-        const val COMMAND_COMPLETE_ID = 1338
-        const val COMPLETION_FILE_NAME = "drosh_cmd_complete"
-        const val ACTION_STOP = "dev.drosh.action.STOP_SERVICE"
-    }
 }

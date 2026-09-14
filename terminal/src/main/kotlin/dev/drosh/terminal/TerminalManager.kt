@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import dev.drosh.core.TerminalConstants
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.settings.SettingsRepository
 import com.termux.terminal.TerminalEmulator
@@ -335,11 +336,11 @@ class TerminalManager(
 
     private fun writeShellHooksFile(): Map<String, String> {
         val d = "${'$'}"
-        val hooksFile = File(appContext.filesDir, "drosh_hooks.zsh")
+        val hooksFile = File(appContext.filesDir, TerminalConstants.HOOKS_FILE_NAME)
 
         // Pre-create completion file to prevent race condition where
         // precmd fires before file exists (causes "no such file" error)
-        val completionFile = File(appContext.filesDir, "drosh_cmd_complete")
+        val completionFile = File(appContext.filesDir, TerminalConstants.COMPLETION_FILE_NAME)
         appContext.filesDir.mkdirs()
         if (!completionFile.exists()) completionFile.createNewFile()
 
