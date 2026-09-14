@@ -4,7 +4,7 @@
 
 | Madde | Doğrulama yöntemi |
 |-------|-------------------|
-| OSC 133 emission | Iris Shell PROMPT'un OSC 133 yayınlayıp yayınlamadığını test et. Gerekirse PROMPT string'e `set_prompt` hook ekle |
+| OSC 133 emission | Drosh PROMPT'un OSC 133 yayınlayıp yayınlamadığını test et. Gerekirse PROMPT string'e `set_prompt` hook ekle |
 | TerminalBuffer.mLines erişim | Vendor kodda package-private. mLines public veya accessor gerekli olabilir |
 | TrafficStats.getUidRxBytes PRoot'ta | PRoot altında network namespace izole olabilir. Test et |
 | Compose `imePadding` + sticky input | Klavye açılınca LazyColumn davranışı. Edge case testleri |

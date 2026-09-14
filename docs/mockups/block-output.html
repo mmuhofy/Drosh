@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IrisShell — Block Output · Prompt-kart vs Full-kart</title>
+<title>Drosh — Block Output · Prompt-kart vs Full-kart</title>
 <style>
   :root {
     --iris-bg: #0C0C0C;
@@ -546,7 +546,7 @@
 
 <!-- TopBar (mirrors TerminalTopBar.kt) -->
 <div class="topbar">
-  <span class="title">IrisShell</span>
+  <span class="title">Drosh</span>
   <span class="menu">⋮</span>
 </div>
 
@@ -595,7 +595,7 @@
       <div class="output">total 48
 drwxr-xr-x  3 muhofy muhofy  4096 Jul 27 18:42 .
 -rw-r--r--  1 muhofy muhofy  1024 Jul 27 18:42 .bashrc
-drwxr-xr-x  5 muhofy muhofy  4096 Jul 27 18:42 IrisShell</div>
+drwxr-xr-x  5 muhofy muhofy  4096 Jul 27 18:42 Drosh</div>
     </div>
 
     <!-- Spotlight ❶ — medium command: prompt is fixed-width, command fills the rest -->
@@ -608,7 +608,7 @@ drwxr-xr-x  5 muhofy muhofy  4096 Jul 27 18:42 IrisShell</div>
     </div>
     <div class="block success">
       <div class="prompt-card">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell/master-feature-branch</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh/master-feature-branch</span><span class="sign">$</span></span>
         <span class="command">git diff --stat HEAD~5 HEAD -- 'app/**/*.kt'</span>
         <span class="meta">exit 0 · 310ms</span>
         <div class="toolbar">
@@ -631,7 +631,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
     </div>
     <div class="block success">
       <div class="prompt-card">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
         <span class="command">flutter pub run build_runner build --define=build_config=android_sdk=26 --define=build_config=compile_sdk=36 --define=build_config=min_sdk=26 --target=lib/main_dev.dart --verbose --no-pub --delete-conflicting-outputs</span>
         <span class="meta">exit 0 · 1m42s</span>
         <div class="toolbar">
@@ -675,7 +675,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
     </div>
     <div class="block success">
       <div class="prompt-card">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
         <span class="command">tail -20 build.log</span>
         <span class="meta">exit 0 · 12ms</span>
         <div class="toolbar">
@@ -707,7 +707,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
     </div>
     <div class="block hang success" style="--prompt-w: 240px">
       <div class="prompt-card">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell/master-feature-branch</span><span class="sign">$</span></span><span class="command">flutter pub run build_runner build --define=build_config=android_sdk=26 --define=build_config=compile_sdk=36 --define=build_config=min_sdk=26 --target=lib/main_dev.dart --verbose --no-pub --delete-conflicting-outputs --analyze-after</span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh/master-feature-branch</span><span class="sign">$</span></span><span class="command">flutter pub run build_runner build --define=build_config=android_sdk=26 --define=build_config=compile_sdk=36 --define=build_config=min_sdk=26 --target=lib/main_dev.dart --verbose --no-pub --delete-conflicting-outputs --analyze-after</span>
         <div class="toolbar">
           <button title="Copy output">⧉</button>
           <button title="Collapse">−</button>
@@ -738,7 +738,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
     <!-- Block 4 — running -->
     <div class="block running">
       <div class="prompt-card">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
         <span class="command">./gradlew :app:assembleDebug --no-daemon</span>
         <span class="meta">running · 3.2s · ✕</span>
         <div class="toolbar">
@@ -753,7 +753,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
     <!-- Block 5 — collapsed -->
     <div class="block success">
       <div class="prompt-card">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
         <span class="command">git log --oneline -50</span>
         <span class="meta">exit 0 · 2.1s · ▸ collapsed</span>
         <div class="toolbar">
@@ -769,7 +769,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
       <span class="spot-label">spotlight ❺ — kısa input: tek satır, problem yok</span>
     </div>
     <div class="active-prompt">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" value="ls" autofocus />
     </div>
 
@@ -779,17 +779,17 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
       <span class="spot-label">spotlight ❻ — uzun input: 3 mod yan yana (wrap / scroll / truncate). aynı uzun metin</span>
     </div>
     <div class="active-prompt">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <textarea class="input" rows="1" data-mode="wrap">git commit -m 'feat(block): mockup overflow spotlights — wrap mode. فعًلا، هذا اختبار طويل جداً على التفاف النص ضمن بطاقة الأمر. Russian: Привет, это очень длинная командная строка для проверки переноса.'</textarea>
       <span class="mode-chip">wrap</span>
     </div>
     <div class="active-prompt" style="margin-top: 8px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" data-mode="scroll" value="git commit -m 'feat(block): mockup overflow spotlights — scroll mode. فعًلا، هذا اختبار طويل جداً على التفاف النص ضمن بطاقة الأمر. Russian: Привет, это очень длинная командная строка для проверки переноса.'" />
       <span class="mode-chip">scroll</span>
     </div>
     <div class="active-prompt" style="margin-top: 8px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" data-mode="truncate" value="git commit -m 'feat(block): mockup overflow spotlights — truncate mode. فعًلا، هذا اختبار طويل جداً على التفاف النص ضمن بطاقة الأمر. Russian: Привет, это очень длинная командная строка для проверки переноса.'" />
       <span class="mode-chip">truncate</span>
     </div>
@@ -799,17 +799,17 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
       <span class="spot-label">spotlight ❼ — tek-token (SHA): 3 mod, 80-char SHA hash</span>
     </div>
     <div class="active-prompt">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <textarea class="input" rows="1" data-mode="wrap">git checkout 7a3f9c4d2e8b1f6a3c5d4e7b9f2a1c6d8e0b3f5a7c9d2e4b6f8a1c3d5e7b9f2a4c6d8e0b</textarea>
       <span class="mode-chip">wrap</span>
     </div>
     <div class="active-prompt" style="margin-top: 8px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" data-mode="scroll" value="git checkout 7a3f9c4d2e8b1f6a3c5d4e7b9f2a1c6d8e0b3f5a7c9d2e4b6f8a1c3d5e7b9f2a4c6d8e0b" />
       <span class="mode-chip">scroll</span>
     </div>
     <div class="active-prompt" style="margin-top: 8px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" data-mode="truncate" value="git checkout 7a3f9c4d2e8b1f6a3c5d4e7b9f2a1c6d8e0b3f5a7c9d2e4b6f8a1c3d5e7b9f2a4c6d8e0b" />
       <span class="mode-chip">truncate</span>
     </div>
@@ -820,7 +820,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
       <span class="spot-label">spotlight ❾ — 🔥 input + hanging indent birlikte: canlı wrap prompt'la hizalı. SEÇİLEN MOD</span>
     </div>
     <div class="active-prompt hang" style="--prompt-w: 200px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <textarea class="input" rows="1" data-mode="wrap">flutter pub run build_runner build --define=build_config=android_sdk=26 --define=build_config=compile_sdk=36 --define=build_config=min_sdk=26 --target=lib/main_dev.dart --verbose --no-pub --delete-conflicting-outputs --analyze-after</textarea>
     </div>
   </div>
@@ -844,7 +844,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
       <div class="output">total 48
 drwxr-xr-x  3 muhofy muhofy  4096 Jul 27 18:42 .
 -rw-r--r--  1 muhofy muhofy  1024 Jul 27 18:42 .bashrc
-drwxr-xr-x  5 muhofy muhofy  4096 Jul 27 18:42 IrisShell</div>
+drwxr-xr-x  5 muhofy muhofy  4096 Jul 27 18:42 Drosh</div>
     </div>
 
     <!-- Spotlight ❶ — medium command: kart içinde satır, satır kırılmaz -->
@@ -858,7 +858,7 @@ drwxr-xr-x  5 muhofy muhofy  4096 Jul 27 18:42 IrisShell</div>
         <span class="duration">310ms · exit 0</span>
       </div>
       <div class="prompt-row">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell/master-feature-branch</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh/master-feature-branch</span><span class="sign">$</span></span>
         <span class="command">git diff --stat HEAD~5 HEAD -- 'app/**/*.kt'</span>
       </div>
       <div class="output">app/src/main/java/com/iris/irisshell/MainActivity.kt | 18 ±2  -2
@@ -876,7 +876,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
         <span class="duration">1m42s · exit 0</span>
       </div>
       <div class="prompt-row">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
         <span class="command">flutter pub run build_runner build --define=build_config=android_sdk=26 --define=build_config=compile_sdk=36 --define=build_config=min_sdk=26 --target=lib/main_dev.dart --verbose --no-pub --delete-conflicting-outputs</span>
       </div>
       <div class="output">[INFO] Generating build script...
@@ -912,7 +912,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
         <span class="duration">12ms · exit 0</span>
       </div>
       <div class="prompt-row">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
         <span class="command">tail -20 build.log</span>
       </div>
       <div class="output"><span class="ansi-info">[2026-07-27 18:42:13]</span> START  assembleDebug
@@ -938,7 +938,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
         <span class="duration">1m42s · exit 0</span>
       </div>
       <div class="prompt-row">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span><span class="command">flutter pub run build_runner build --define=build_config=android_sdk=26 --define=build_config=compile_sdk=36 --define=build_config=min_sdk=26 --target=lib/main_dev.dart --verbose --no-pub --delete-conflicting-outputs --analyze-after</span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span><span class="command">flutter pub run build_runner build --define=build_config=android_sdk=26 --define=build_config=compile_sdk=36 --define=build_config=min_sdk=26 --target=lib/main_dev.dart --verbose --no-pub --delete-conflicting-outputs --analyze-after</span>
       </div>
       <div class="output">[INFO] Generating build script...
 [INFO] Building asset graph completed, took 124ms
@@ -952,7 +952,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
         <span class="duration">running · 3.2s</span>
       </div>
       <div class="prompt-row">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
         <span class="command">./gradlew :app:assembleDebug --no-daemon</span>
       </div>
       <div class="output">Configuration in demand...
@@ -968,7 +968,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
         <span class="duration">2.1s · exit 0</span>
       </div>
       <div class="prompt-row">
-        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+        <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
         <span class="command">git log --oneline -50</span>
         <span class="command-meta">▸ collapsed</span>
       </div>
@@ -980,7 +980,7 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
       <span class="spot-label">spotlight ❺ — kısa input (baseline)</span>
     </div>
     <div class="active-prompt">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" value="ls" />
     </div>
 
@@ -989,17 +989,17 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
       <span class="spot-label">spotlight ❻ — uzun input: wrap / scroll / truncate yan yana</span>
     </div>
     <div class="active-prompt">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <textarea class="input" rows="1" data-mode="wrap">git commit -m 'feat(block): mockup overflow spotlights — wrap. فعًلا، هذا اختبار طويل جداً. Russian: Привет, это очень длинная командная строка.'</textarea>
       <span class="mode-chip">wrap</span>
     </div>
     <div class="active-prompt" style="margin-top: 8px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" data-mode="scroll" value="git commit -m 'feat(block): mockup overflow spotlights — scroll. فعًلا، هذا اختبار طويل جداً. Russian: Привет, это очень длинная командная строка.'" />
       <span class="mode-chip">scroll</span>
     </div>
     <div class="active-prompt" style="margin-top: 8px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" data-mode="truncate" value="git commit -m 'feat(block): mockup overflow spotlights — truncate. فعًلا، هذا اختبار طويل جداً. Russian: Привет, это очень длинная командная строка.'" />
       <span class="mode-chip">truncate</span>
     </div>
@@ -1009,17 +1009,17 @@ app/src/main/java/com/iris/irisshell/ui/terminal/TerminalScreen.kt | 7 ±2  +2 �
       <span class="spot-label">spotlight ❼ — tek-token 80-char SHA: 3 mod</span>
     </div>
     <div class="active-prompt">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <textarea class="input" rows="1" data-mode="wrap">git checkout 7a3f9c4d2e8b1f6a3c5d4e7b9f2a1c6d8e0b3f5a7c9d2e4b6f8a1c3d5e7b9f2a4c6d8e0b</textarea>
       <span class="mode-chip">wrap</span>
     </div>
     <div class="active-prompt" style="margin-top: 8px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" data-mode="scroll" value="git checkout 7a3f9c4d2e8b1f6a3c5d4e7b9f2a1c6d8e0b3f5a7c9d2e4b6f8a1c3d5e7b9f2a4c6d8e0b" />
       <span class="mode-chip">scroll</span>
     </div>
     <div class="active-prompt" style="margin-top: 8px">
-      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/IrisShell</span><span class="sign">$</span></span>
+      <span class="prompt"><span class="user">muhofy</span><span class="at">@</span><span class="host">iris</span>:<span class="cwd">~/Drosh</span><span class="sign">$</span></span>
       <input class="input" type="text" data-mode="truncate" value="git checkout 7a3f9c4d2e8b1f6a3c5d4e7b9f2a1c6d8e0b3f5a7c9d2e4b6f8a1c3d5e7b9f2a4c6d8e0b" />
       <span class="mode-chip">truncate</span>
     </div>

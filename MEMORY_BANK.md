@@ -1,11 +1,11 @@
-# Iris Shell — Memory Bank
+# Drosh — Memory Bank
 _Last updated: 2026-09-13_
 
 Last commit: `3efe15e` — fix: remove isMinifyEnabled=true from library convention plugin + add hilt_aggregated_deps keep rule in ui/proguard
 
 ### Release Build Crash Fix (2026-09-13)
 
-**Root cause:** `build-logic/.../AndroidLibraryConventionPlugin.kt` set `isMinifyEnabled = true` for release build type. The `ui` module's `proguard-rules.pro` only had `-keep class com.iris.irisshell.ui.** { *; }` which does NOT cover `hilt_aggregated_deps.*` classes. R8 stripped these Hilt-generated Dagger aggregation modules, leaving the `ViewModelC` Dagger component with an empty `hiltViewModelMap`. When `HiltViewModelFactory.create()` looked for `OnboardingViewModel` in the map, it found nothing and fell through to `NewInstanceFactory.create()` (reflection), which failed with `NoSuchMethodException` since `OnboardingViewModel` has no no-arg constructor.
+**Root cause:** `build-logic/.../AndroidLibraryConventionPlugin.kt` set `isMinifyEnabled = true` for release build type. The `ui` module's `proguard-rules.pro` only had `-keep class com.iris.drosh.ui.** { *; }` which does NOT cover `hilt_aggregated_deps.*` classes. R8 stripped these Hilt-generated Dagger aggregation modules, leaving the `ViewModelC` Dagger component with an empty `hiltViewModelMap`. When `HiltViewModelFactory.create()` looked for `OnboardingViewModel` in the map, it found nothing and fell through to `NewInstanceFactory.create()` (reflection), which failed with `NoSuchMethodException` since `OnboardingViewModel` has no no-arg constructor.
 
 **Fix:**
 1. Removed `isMinifyEnabled = true` + `isShrinkResources = true` + `proguardFiles(...)` from `AndroidApplicationConventionPlugin` and `AndroidLibraryConventionPlugin` — release builds now use `isMinifyEnabled = false` by default (matching Phase 1's simplicity)
@@ -29,12 +29,12 @@ Last commit: `3efe15e` — fix: remove isMinifyEnabled=true from library convent
 
 | Field | Value |
 |-------|-------|
-| App name | Iris Shell |
-| Package | `com.iris.irisshell` |
+| App name | Drosh |
+| Package | `com.iris.drosh` |
 | Tagline | "Your phone is a Unix machine. Finally." |
 | License | MIT |
 | Distribution | F-Droid first, GitHub Releases |
-| Repo | github.com/mmuhofy/IrisShell |
+| Repo | github.com/mmuhofy/Drosh |
 | Ecosystem | Iris — by Muhofy |
 
 ---
@@ -184,14 +184,14 @@ Closed (Room only, removed from irisSessions)
 ### Termux Patterns Studied (2026-09-06)
 
 - **TermuxShellManager** (termux-shared/shell/TermuxShellManager.java): simple
-  `List<TermuxSession>` + static ID counter. No parallel arrays. Iris Shell
+  `List<TermuxSession>` + static ID counter. No parallel arrays. Drosh
   mirrors with single `MutableList<IrisSession>`.
 - **TermuxService** (app/TermuxService.java): `mShellManager.mTermuxSessions`
   is the single source of truth. `onTermuxSessionExited` removes from list.
   `updateNotification()` calls `requestStopService()` when sessions empty.
 - **TermuxActivity** (app/TermuxActivity.java): `onServiceConnected` checks
   `isTermuxSessionsEmpty()` → creates new session if visible, or
-  `finishActivityIfNotFinishing()` if not. Iris Shell mirrors:
+  `finishActivityIfNotFinishing()` if not. Drosh mirrors:
   startup creates default session, user deletion triggers exit.
 
 ---
@@ -346,7 +346,7 @@ Closed (Room only, removed from irisSessions)
 ## 9. Release Build (2026-09-09)
 
 - Release build config in `app/build.gradle.kts`: `targetSdk` 28 → 36, enabled `isMinifyEnabled`, `isShrinkResources`, proguard files
-- R8 stripping fix: Hilt-injected + Kotlin file classes (`XXXKt`) stripped by each module's own R8 pass before reaching app module — added `-keep { class com.iris.irisshell.**; }` + `-dontwarn` to every module's `proguard-rules.pro` (not just consumer-rules.pro)
+- R8 stripping fix: Hilt-injected + Kotlin file classes (`XXXKt`) stripped by each module's own R8 pass before reaching app module — added `-keep { class com.iris.drosh.**; }` + `-dontwarn` to every module's `proguard-rules.pro` (not just consumer-rules.pro)
 - Release workflow: `.github/workflows/release.yml` triggers on `v*` tag push, builds `app-arm64-v8a-release.apk`
 - ✅ CI release build passes (v0.1.0), APK artifact uploaded (5.7MB)
 

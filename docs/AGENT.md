@@ -56,7 +56,7 @@ For any critical or complex system, **never write from scratch without first stu
 5. **Document the inspiration source** in a comment at the top of the file:
    ```kotlin
    // Inspired by: github.com/termux/termux-app/...
-   // Adapted for Iris Shell — com.iris.irisshell
+   // Adapted for Drosh — com.iris.drosh
    ```
 
 ### What does NOT need a reference:
@@ -270,21 +270,21 @@ web_search   → Tavily API
 
 ---
 
-## 📦 PORT RULES (Iris Code → Iris Shell)
+## 📦 PORT RULES (Iris Code → Drosh)
 
 When porting a module from Iris Code:
 
 1. **Always fetch the latest version** of the file from `mmuhofy/IrisCode` — never reconstruct from memory.
-2. **Adapt package names:** `com.iris.iriscode` → `com.iris.irisshell`
-3. **Adapt color references:** Iris Code uses `#7C3AED` purple. Iris Shell uses `#E8C547` gold.
-4. **Check dependency versions:** Iris Shell uses Kotlin `2.3.20`. Confirm compatibility before porting.
+2. **Adapt package names:** `com.iris.iriscode` → `com.iris.drosh`
+3. **Adapt color references:** Iris Code uses `#7C3AED` purple. Drosh uses `#E8C547` gold.
+4. **Check dependency versions:** Drosh uses Kotlin `2.3.20`. Confirm compatibility before porting.
 5. **Document the port** at the top of the file:
    ```kotlin
    // Ported from: mmuhofy/IrisCode — agent/AgentLoop.kt
-   // Adapted for Iris Shell — com.iris.irisshell
+   // Adapted for Drosh — com.iris.drosh
    // Changes: [list what changed]
    ```
-6. **Do not port dead code.** Only port what Iris Shell actually needs.
+6. **Do not port dead code.** Only port what Drosh actually needs.
 
 ### Portability Status
 | Module | Status | Notes |
@@ -377,7 +377,7 @@ Phase 6 — Agent Intelligence ← last
 
 | Component | Technology | Version |
 |-----------|------------|---------|
-| Package | `com.iris.irisshell` | — |
+| Package | `com.iris.drosh` | — |
 | Language | Kotlin | `2.3.20` |
 | UI | Jetpack Compose BOM | `2026.04.01` |
 | Material | Material 3 | via BOM |

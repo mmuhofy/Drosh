@@ -1,8 +1,8 @@
-# Iris Shell
+# Drosh
 
 > Your phone is a Unix machine. Finally.
 
-Iris Shell is a ground-up reimagination of what a mobile terminal should be:
+Drosh is a ground-up reimagination of what a mobile terminal should be:
 agent-native, semantically aware, and built for the way people actually use
 their phones. Not a Termux fork — a modern terminal environment where the
 agent and the shell are the same thing.

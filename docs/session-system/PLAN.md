@@ -138,7 +138,7 @@ fun switchSessionById(id: String) {
 
 ### 5.1 TopBar changes (`TerminalTopBar.kt`)
 
-Replace the static `"IrisShell"` text with a clickable session-name
+Replace the static `"Drosh"` text with a clickable session-name
 chip that opens the modal:
 
 ```

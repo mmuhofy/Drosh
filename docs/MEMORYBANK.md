@@ -1,4 +1,4 @@
-# Iris Shell — Memory Bank
+# Drosh — Memory Bank
 _Last updated: 2026-07-16_
 
 ---
@@ -7,24 +7,24 @@ _Last updated: 2026-07-16_
 
 | Field | Value |
 |-------|-------|
-| App name | Iris Shell |
-| Package | `com.iris.irisshell` |
+| App name | Drosh |
+| Package | `com.iris.drosh` |
 | Tagline | "Your phone is a Unix machine. Finally." |
 | License | MIT |
 | Distribution | F-Droid first, GitHub Releases |
-| Repo | github.com/mmuhofy/IrisShell |
+| Repo | github.com/mmuhofy/Drosh |
 | Ecosystem | Iris — by Muhofy |
 
 ---
 
 ## 2. Vision
 
-Termux brought the terminal to Android in 2012. Iris Shell reinvents it for 2026. Not a Termux fork — a ground-up reimagination of what a mobile terminal should be: agent-native, semantically aware, and built for the way people actually use their phones. The goal is a single application that combines desktop terminal power, mobile-first UX, semantic UI, and AI workflow — making it the first terminal environment where the agent and the shell are the same thing.
+Termux brought the terminal to Android in 2012. Drosh reinvents it for 2026. Not a Termux fork — a ground-up reimagination of what a mobile terminal should be: agent-native, semantically aware, and built for the way people actually use their phones. The goal is a single application that combines desktop terminal power, mobile-first UX, semantic UI, and AI workflow — making it the first terminal environment where the agent and the shell are the same thing.
 
 **Target users:** Termux power users, mobile developers, DevOps engineers, CTF players, students learning Linux.
 
 **Why it's different:**
-- Every other Android terminal is a shell with a keyboard. Iris Shell is an intelligent environment.
+- Every other Android terminal is a shell with a keyboard. Drosh is an intelligent environment.
 - Warp did this for desktop. Nobody did it for Android.
 - Open-source, free, bring-your-own-model — no cloud lock-in.
 
@@ -519,7 +519,7 @@ Reports result, notifies on completion
 Each step shown as a block. User can pause between steps. Agent handles errors and retries.
 
 #### Live Share
-Real-time terminal session sharing between Iris Shell instances:
+Real-time terminal session sharing between Drosh instances:
 
 **Initiator:** generates share link / QR code
 **Guest:** opens link → joins session
