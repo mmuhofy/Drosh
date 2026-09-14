@@ -112,6 +112,7 @@ dependencies {
     implementation(project(":ssh"))
     implementation(project(":ui"))
     implementation(project(":design-system"))
+    implementation(libs.androidx.datastore.preferences)
 
     // AndroidX entry-point
     implementation(libs.androidx.core.ktx)
