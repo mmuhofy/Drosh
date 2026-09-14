@@ -1,13 +1,13 @@
-# Iris Shell — TODO
+# Drosh Shell — TODO
 
 ## Phase 1 — Terminal Core
 
 ### Session System (mid-execution)
 - [x] Study Termux session lifecycle (TermuxService → TermuxShellManager → TermuxSession → TerminalSession → TerminalSessionClient)
 - [x] Study ReTerminal id-keyed session map pattern
-- [x] Create IrisSession wrapper (terminal/IrisSession.kt)
+- [x] Create DroshSession wrapper (terminal/DroshSession.kt)
 - [x] Create SessionLifecycleCallbacks interface (terminal/SessionLifecycleCallbacks.kt)
-- [x] Refactor TerminalManager to use IrisSession list instead of 4 parallel structures
+- [x] Refactor TerminalManager to use DroshSession list instead of 4 parallel structures
 - [x] Fix onSessionFinished: clean up idToIndex + notify lifecycle callbacks
 - [x] Wire PID tracking (TerminalSessionClientImpl → TerminalManager.onSessionPidChanged)
 - [x] SessionManagerAdapter implements SessionLifecycleCallbacks
@@ -60,8 +60,8 @@
 - [x] Two-line prompt: directory (gray) on top, prompt text + command (blue) below
 - [x] Use actual `block.prompt` (full prompt with suffix) — not hardcoded `$`
 - [x] Block spacing: 8dp vertical padding (Warp-style breathing room)
-- [x] Divider: 0.5dp thin line (IrisBorderSubtle)
-- [x] Long-press context menu with 3-dot button (EllipsisVertical) → IrisDropdownMenu
+- [x] Divider: 0.5dp thin line (DroshBorderSubtle)
+- [x] Long-press context menu with 3-dot button (EllipsisVertical) → DroshDropdownMenu
 - [x] Clear command (`clear`) clears all blocks (pendingEchoWasClear in BlockEngineWire)
 - [x] TUI apps auto-enter fullscreen (onAltBufferChanged callback in TerminalSessionClientImpl)
 - [x] Mode switch (classic ↔ block) auto-creates new session (LaunchedEffect on useBlockEngine)

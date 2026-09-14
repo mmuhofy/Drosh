@@ -15,10 +15,10 @@ Last commit: `3efe15e` — fix: remove isMinifyEnabled=true from library convent
 ### Icon System — Final Architecture (2026-09-11)
 - ✅ **Library**: `io.github.ardasoyturk.compose.icons:lucide-android:2.0.7` from Maven Central (replaces local AAR + thelacspace library)
 - ✅ **API**: `compose.icons.LucideIcons` object with extension properties in `compose.icons.lucideicons` package (e.g. `LucideIcons.PanelLeft`)
-- ✅ `IrisIcons.kt` — thin wrapper: 37 `ImageVector` constants delegating to `LucideIcons.*` extension properties
-- ✅ Only name difference: thelacspace `XCircle` → ardasoyturk `CircleX` (aliased in `IrisIcons.kt`)
+- ✅ `DroshIcons.kt` — thin wrapper: 37 `ImageVector` constants delegating to `LucideIcons.*` extension properties
+- ✅ Only name difference: thelacspace `XCircle` → ardasoyturk `CircleX` (aliased in `DroshIcons.kt`)
 - ✅ `ui/libs/` deleted (no more local AAR files)
-- ✅ All 50 call sites across `app/` + `ui/` use `IrisIcons.*` properties (no changes needed)
+- ✅ All 50 call sites across `app/` + `ui/` use `DroshIcons.*` properties (no changes needed)
 - ✅ CI build passes — no more crash from missing drawable resources in app module
 - ✅ New icons added: `ArrowRight`, `Gauge`, `Info`, `Timer`, `Type` (for settings screen), `Minus`, `Plus`, `Shield`, `CircleUser`
 
@@ -35,7 +35,7 @@ Last commit: `3efe15e` — fix: remove isMinifyEnabled=true from library convent
 | License | MIT |
 | Distribution | F-Droid first, GitHub Releases |
 | Repo | github.com/mmuhofy/Drosh |
-| Ecosystem | Iris — by Muhofy |
+| Ecosystem | Drosh — by Muhofy |
 
 ---
 
@@ -66,7 +66,7 @@ Last commit: `3efe15e` — fix: remove isMinifyEnabled=true from library convent
 ui/           → Compose screens, ViewModels
 domain/       → Pure Kotlin interfaces, use cases
 data/         → Repository impls, Room DAOs, SessionManagerAdapter
-terminal/     → PTY session management, TerminalManager, IrisSession
+terminal/     → PTY session management, TerminalManager, DroshSession
 di/           → Hilt modules
 util/         → Constants, helpers
 ```
@@ -84,7 +84,7 @@ SessionRepositoryImpl (Room + DataStore, _shouldExit MutableStateFlow)
       ↓ bridges
 SessionManagerAdapter (implements SessionLifecycleCallbacks)
       ↓ calls
-TerminalManager (IrisSession list, PTY lifecycle)
+TerminalManager (DroshSession list, PTY lifecycle)
       ↓ owns
 TerminalSession (PTY emulator) + TerminalSessionClientImpl
 ```
@@ -118,7 +118,7 @@ User deletes last session OR last session exits naturally:
 | `data/session/SessionDao.kt` | Room DAO |
 | `data/session/SessionRepositoryImpl.kt` | Room + DataStore impl, _livePreviews StateFlow |
 | `data/session/SessionManagerAdapter.kt` | Bridges Room ↔ TerminalManager; implements SessionLifecycleCallbacks |
-| `terminal/IrisSession.kt` | Wrapper: TerminalSession + persistentId + name + pid |
+| `terminal/DroshSession.kt` | Wrapper: TerminalSession + persistentId + name + pid |
 | `terminal/SessionLifecycleCallbacks.kt` | Callback interface for session lifecycle events |
 | `terminal/TerminalManager.kt` | PTY session lifecycle; single irisSessions list + idToIndex map |
 | `terminal/TerminalSessionClientImpl.kt` | TerminalSessionClient impl; forwards onSessionFinished + onPidChanged |
@@ -128,10 +128,10 @@ User deletes last session OR last session exits naturally:
 **Bug fixes:**
 - `TerminalManager.onSessionFinished()` now cleans up `idToIndex` mappings (previously leaked stale entries)
 - `onSessionFinished()` now calls `SessionLifecycleCallbacks.onSessionFinished` so Room state updates to Closed when PTY exits
-- PID tracking wired: `TerminalSessionClientImpl.setTerminalShellPid` → `TerminalManager.onSessionPidChanged` → stores pid on `IrisSession`
+- PID tracking wired: `TerminalSessionClientImpl.setTerminalShellPid` → `TerminalManager.onSessionPidChanged` → stores pid on `DroshSession`
 
 **Architecture:**
-- Replaced 4 parallel structures (`_sessions`, `_tabNames`, `_idToIndex`, `_indexToId`) with single `MutableList<IrisSession>` + `idToIndex`
+- Replaced 4 parallel structures (`_sessions`, `_tabNames`, `_idToIndex`, `_indexToId`) with single `MutableList<DroshSession>` + `idToIndex`
 - `SessionManagerAdapter.reconcile()` now compares Room state against `TerminalManager.liveSessionIds()` instead of stale `lastIds` delta — ensures Closed sessions aren't re-spawned, restored Idle sessions ARE spawned
 - `SessionManagerAdapter` implements `SessionLifecycleCallbacks`, wires itself via `terminalManager.lifecycleCallbacks = this` in `start()`
 
@@ -185,7 +185,7 @@ Closed (Room only, removed from irisSessions)
 
 - **TermuxShellManager** (termux-shared/shell/TermuxShellManager.java): simple
   `List<TermuxSession>` + static ID counter. No parallel arrays. Drosh
-  mirrors with single `MutableList<IrisSession>`.
+  mirrors with single `MutableList<DroshSession>`.
 - **TermuxService** (app/TermuxService.java): `mShellManager.mTermuxSessions`
   is the single source of truth. `onTermuxSessionExited` removes from list.
   `updateNotification()` calls `requestStopService()` when sessions empty.
@@ -226,12 +226,12 @@ Closed (Room only, removed from irisSessions)
 - ✅ All import/path compilation errors resolved (fillMaxWidth, Text, statusBars, rememberRipple, DpOffset, DropdownMenuItem API)
 - ✅ Runtime crash fix: 3 vector drawables missing `android:width`/`android:height` → added 24dp (lucide_keyboard, lucide_panel_left, lucide_square_plus)
 - ✅ Terminal visibility fix: replaced `Animatable`+`LaunchedEffect`+`coroutineScope` with static 1f values (race condition when `activeId` transitioned `null`→value at startup left `appearAlpha` stuck at 0)
-- ✅ Top bar redesign: floating pills (no surface/background surface, only subtle 8% press alpha), session name gets own `IrisSurfaceVariant` surface with 12dp rounded corners
+- ✅ Top bar redesign: floating pills (no surface/background surface, only subtle 8% press alpha), session name gets own `DroshSurfaceVariant` surface with 12dp rounded corners
 - ✅ Left sidebar button is pill-shaped (CircleShape 36dp), session name NOT clickable — only the pill button opens sidebar
 - ✅ Top bar redesign: pills float directly on terminal (transparent container), no border on pills, larger (38dp), merged pill group with connected corners, divider between sidebar button and session name
 
 ### Completed (Settings Screen — 2026-09-11)
-- ✅ Color palette: added `IrisSurfaceLow` (#191C20), `IrisSurfaceHigh` (#272A2E), `IrisSurfaceContainerLowest` (#0B0E12) to IrisColors.kt
+- ✅ Color palette: added `DroshSurfaceLow` (#191C20), `DroshSurfaceHigh` (#272A2E), `DroshSurfaceContainerLowest` (#0B0E12) to DroshColors.kt
 - ✅ Domain enums: `CursorStyle` (Block/Beam/Underline), `AutoLockTimeout` (Immediately/OneMinute/FiveMinutes/FifteenMinutes/ThirtyMinutes/Never) in `domain/settings/TerminalPreferences.kt`
 - ✅ SettingsRepository: added `cursorStyle`, `cursorBlinkRateMs`, `autoLockTimeout` flows + setters
 - ✅ SettingsViewModel: added `cursorStyle`, `cursorBlinkRateMs`, `autoLockTimeout` StateFlows + `setCursorStyle`, `setCursorBlinkRateMs`, `setAutoLockTimeout` functions
@@ -243,20 +243,20 @@ Closed (Room only, removed from irisSessions)
   - ✅ CI build passes — no more `rememberRipple`, `MutableInteractionSource`, `normalizeHex`, `statusBars`, or `launch` compilation errors
   - ✅ Removed all custom ripple usage (plain `Modifier.clickable { }` with default Material 3 ripple)
   - ✅ Fixed pre-existing `normalizeHex` undefined reference (simplified color setters)
-  - ✅ Cleaned up duplicate imports in IrisIcons.kt (Copy, SquareTerminal, Terminal, Trash2, Undo appeared twice)
+  - ✅ Cleaned up duplicate imports in DroshIcons.kt (Copy, SquareTerminal, Terminal, Trash2, Undo appeared twice)
 
 ### Fixes (Settings Screen — 2026-09-12)
 - ✅ Cards now have 16dp horizontal padding (Column padding, not full-bleed containers)
 - ✅ SettingsTopBar: back button is icon-only IconButton, title centered with weight(1f), empty 40dp spacer balances layout
 - ✅ Text stretching fixed: removed `fill = false` from `weight(1f)` on Column/Text in SettingsSubRow and SettingsNavigationRow
-- ✅ Custom ThinSlider: Material 3 Slider with white thumb, IrisPrimary active track, IrisSurfaceHigh inactive track, 20dp height
+- ✅ Custom ThinSlider: Material 3 Slider with white thumb, DroshPrimary active track, DroshSurfaceHigh inactive track, 20dp height
 - ✅ FontSizeStepper → FontSizeSlider: stepper buttons (icon-only, transparent) + thin slider + value badge
 - ✅ TerminalPreviewCard: accepts cursorStyle, cursorBlinkRateMs, fontSizeSp, useBlockEngine params — cursor shape changes in real-time
 - ✅ BlinkingCursor: matches HTML — Block (8x1.15em), Beam (2x1.15em), Underline (9x2.5px), positioned at prompt end
 - ✅ Block mode: thin 1dp Divider lines between commands (not glow/border), matching HTML's block separation
 - ✅ Font size applied to all preview text + cursor sizing dynamically
-- ✅ PRoot Start Command made editable (OutlinedTextField with IrisPrimary text, IrisPrimary focus border)
-- ✅ Font size +/- buttons: transparent background, icon-only (removed IrisSurfaceHigh background)
+- ✅ PRoot Start Command made editable (OutlinedTextField with DroshPrimary text, DroshPrimary focus border)
+- ✅ Font size +/- buttons: transparent background, icon-only (removed DroshSurfaceHigh background)
 - ✅ Terminal mode toggle: segment control updates preview appearance (divider lines in block mode, none in classic)
 - ✅ CI build passes
 
@@ -267,7 +267,7 @@ Closed (Room only, removed from irisSessions)
 - ✅ TerminalPreviewCard uses `FontFamily.Monospace` (terminal-like) instead of `OutfitFontFamily`
 - ✅ TerminalPreviewCard updated to match HTML: "Shell: zsh 5.9 • Term: xterm-256color" (combined line)
 - ✅ BlinkingCursor height fixed: `fontSizeSp * 1.15` (was incorrectly `fontSizeSp * 4.6` which made cursor huge)
-- ✅ Font size +/- buttons: transparent background (removed IrisSurfaceHigh), icon-only
+- ✅ Font size +/- buttons: transparent background (removed DroshSurfaceHigh), icon-only
 - ✅ Block mode: thin 1dp Divider between commands (not glow/border)
 - ✅ Terminal mode segment control updates preview (dividers appear/disappear)
 - ✅ SegmentControl width capped (`widthIn(max=160dp)`, `widthIn(max=220dp)`) to prevent label text wrapping
@@ -367,10 +367,10 @@ Closed (Room only, removed from irisSessions)
 ## Block Mode — PromptBlock Rendering (2026-09-12)
 
 - Block mode renders **styled text blocks** (not card-based) — matches `html/block_mode_reference-1.html`
-- `PromptBlock.kt` — renders full prompt text from `block.prompt` (blue IrisPrimary) + command (blue), then output (IrisText / IrisTextMuted for errors)
-- PromptBlock: two-line layout — directory path (IrisTextSecondary, 12sp) on top, prompt text (IrisPrimary, 13sp) + command below
-- PromptBlock: tap block → 3-dot `IconButton` (EllipsisVertical) appears; click it → `IrisDropdownMenu` with: Komutu kopyala, Tekrar çalıştır, Komutu düzenle, Output'u kopyala, Dışa aktar, Block'u sil
-- `PromptDivider` — thin 0.5dp horizontal line (IrisBorderSubtle) between blocks, 8dp block spacing (Warp-style breathing room)
+- `PromptBlock.kt` — renders full prompt text from `block.prompt` (blue DroshPrimary) + command (blue), then output (DroshText / DroshTextMuted for errors)
+- PromptBlock: two-line layout — directory path (DroshTextSecondary, 12sp) on top, prompt text (DroshPrimary, 13sp) + command below
+- PromptBlock: tap block → 3-dot `IconButton` (EllipsisVertical) appears; click it → `DroshDropdownMenu` with: Komutu kopyala, Tekrar çalıştır, Komutu düzenle, Output'u kopyala, Dışa aktar, Block'u sil
+- `PromptDivider` — thin 0.5dp horizontal line (DroshBorderSubtle) between blocks, 8dp block spacing (Warp-style breathing room)
 - `BlockInputField` — simplified to match HTML `input-row` (plain row, no bordered box, no vertical bar), accepts `promptSuffix` param
 - `BlockEngineViewModel.onCommandSubmitted` — checks for `clear`/`ctrl+l` and calls `blockRepository.clear()` immediately before submitting
 - `BlockEngineWire` — `lastPrompt` stores full prompt including suffix; `pendingEchoWasClear` handles `clear` echo detection
@@ -379,7 +379,7 @@ Closed (Room only, removed from irisSessions)
 - Removed TUI auto-fullscreen — TUI apps render as block output normally, user toggles fullscreen manually
 - TUI apps (nano, vim, htop, etc.) in block mode: `altBufferActive` becomes true → TerminalViewHost rendered fullscreen in the block area (terminal's native fullscreen). **No app-level fullscreen** (top bar, input bar remain visible). Manual exit via `CompactFullscreenExit` button.
 - Text selection in blocks: `SelectionContainer` wraps prompt, directory, and output Text composables — long-press to select, copy text
-- PromptBlock: tap → 3-dot `IconButton` (EllipsisVertical) appears; click it → `IrisDropdownMenu` with: Komutu kopyala, Tekrar çalıştır, Komutu düzenle, Output'u kopyala, Dışa aktar, Block'u sil
+- PromptBlock: tap → 3-dot `IconButton` (EllipsisVertical) appears; click it → `DroshDropdownMenu` with: Komutu kopyala, Tekrar çalıştır, Komutu düzenle, Output'u kopyala, Dışa aktar, Block'u sil
 - Input field: `Column { LazyColumn(weight=1f), PromptDivider, BlockInputField }` — input is in a separate cell, not scrolling with content
 - Block mode LazyColumn has `statusBars` top padding to avoid drawing under status bar icons
 - `CommandSeparatorOverlay.kt` removed (PromptBlock rendering replaces overlay approach)

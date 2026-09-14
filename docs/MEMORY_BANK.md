@@ -8,7 +8,7 @@ Android terminal emulator with block-based output, PRoot Linux environment, and 
 Kotlin 2.2.0, Compose BOM 2026.04.01, Hilt 2.57, Room 2.8.4, Kotlinx Serialization 1.7.x, WorkManager 2.11.2, SSHJ 0.38.x, OkHttp 4.12.x.
 
 ## Architecture Rules
-- `domain/` — pure Kotlin, no Android imports, repository interfaces, use cases, `UrlDetector`, `IrisTool`
+- `domain/` — pure Kotlin, no Android imports, repository interfaces, use cases, `UrlDetector`, `DroshTool`
 - `data/` — implements `domain` interfaces (Room DAOs, DataStore, SSHJ adapters)
 - `terminal/` — depends on `domain/` only; termux-view JNI bridge, block engine, semantic parser, `TerminalManager`, `ProotRunner`
 - `agent/` — depends on `domain/` only (DI via Hilt)
@@ -21,7 +21,7 @@ Kotlin 2.2.0, Compose BOM 2026.04.01, Hilt 2.57, Room 2.8.4, Kotlinx Serializati
 
 ### Terminal Link Detection
 - `UrlDetector.kt` in `domain/` with `findUrls(text)`, `matches(word)`, `normalizeUrlFromWord(word)`
-- `BlockBody.kt` — URLs rendered with `IrisPrimary` color + `TextDecoration.Underline`, clickable
+- `BlockBody.kt` — URLs rendered with `DroshPrimary` color + `TextDecoration.Underline`, clickable
 - `BlockCard.kt` — `onUrlClick: (String) -> Unit` parameter
 - `BlockTerminalView.kt` — `onUrlClick` parameter passed through
 - `TerminalViewClientImpl.kt` — `onSingleTapUp` uses `UrlDetector.matches()` + `onUrlClick` instead of `Intent.ACTION_VIEW`
@@ -44,7 +44,7 @@ Kotlin 2.2.0, Compose BOM 2026.04.01, Hilt 2.57, Room 2.8.4, Kotlinx Serializati
 - Notification: session count, clickable PendingIntent → MainActivity, Exit action button
 - `observeSessionCount()` — updates notification on count change; auto-stops when sessions empty + shouldExit
 - `AndroidManifest.xml` — `<service>` declaration + `FOREGROUND_SERVICE` permission
-- `IrisApplication.onCreate()` — starts service via `ContextCompat.startForegroundService()`
+- `DroshApplication.onCreate()` — starts service via `ContextCompat.startForegroundService()`
 
 ### Command Completion Notification + Toast (ENV injection)
 - `writeShellHooksFile()` creates hooks in app's `filesDir/iris_hooks.zsh`, returns `Map("ENV" to path)`

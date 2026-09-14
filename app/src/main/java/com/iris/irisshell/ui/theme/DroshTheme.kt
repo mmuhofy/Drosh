@@ -50,7 +50,7 @@ val DroshError: Color = Color(0xFFEF4444)
 val DroshWarning: Color = Color(0xFFF59E0B)
 val DroshBuild: Color = Color(0xFF719FFF)
 
-private val IrisDarkColors = darkColorScheme(
+private val DroshDarkColors = darkColorScheme(
     primary = DroshPrimary,
     onPrimary = DroshOnPrimary,
     secondary = DroshTextSecondary,
@@ -68,7 +68,7 @@ private val IrisDarkColors = darkColorScheme(
  * assignments, and sizes — so any title/body/label token feels at home in
  * a ReTerminal-style shell.
  */
-private val IrisTypography = Typography(
+private val DroshTypography = Typography(
     displayLarge = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 57.sp),
     displayMedium = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 45.sp),
     displaySmall = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 36.sp),
@@ -97,8 +97,8 @@ fun DroshTheme(content: @Composable () -> Unit) {
     // The system dark mode flag is intentionally ignored — Drosh mandate.
     @Suppress("UNUSED_VARIABLE") val isDark = isSystemInDarkTheme()
     MaterialTheme(
-        colorScheme = IrisDarkColors,
-        typography = IrisTypography,
+        colorScheme = DroshDarkColors,
+        typography = DroshTypography,
         content = content,
     )
 }

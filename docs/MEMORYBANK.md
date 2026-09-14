@@ -13,7 +13,7 @@ _Last updated: 2026-07-16_
 | License | MIT |
 | Distribution | F-Droid first, GitHub Releases |
 | Repo | github.com/mmuhofy/Drosh |
-| Ecosystem | Iris — by Muhofy |
+| Ecosystem | Drosh — by Muhofy |
 
 ---
 
@@ -157,7 +157,7 @@ Compose UI         → renders BlockList with animations
 | INFO | `#888888` muted |
 
 ### Terminal Themes (v1.1+)
-- **Default** — Iris dark, warm gold accents
+- **Default** — Drosh dark, warm gold accents
 - **Stealth** — Pure black, minimal color
 - **Material You** — Dynamic color from wallpaper
 - **Glass** — Subtle blur, translucent surfaces
@@ -475,7 +475,7 @@ Stored in Room FTS5. Queryable:
 - "Find when I last ran npm install"
 
 #### Session Intelligence
-Iris indexes all sessions. Natural language queries across session history. Uses FTS5 full-text search. Agent layer for complex queries.
+Drosh indexes all sessions. Natural language queries across session history. Uses FTS5 full-text search. Agent layer for complex queries.
 
 #### Natural Language Cron
 ```
@@ -483,7 +483,7 @@ Iris indexes all sessions. Natural language queries across session history. Uses
 "Every Monday clean server logs"
 "Every 5 minutes ping health endpoint"
         ↓
-Iris parses → generates cron expression
+Drosh parses → generates cron expression
         ↓
 WorkManager schedules job
         ↓
@@ -500,15 +500,15 @@ Background monitoring with natural language conditions:
 ```
 WorkManager + Foreground Service. Sends Android notification when condition met. Notification actions: View, Dismiss, Repeat.
 
-#### Iris Autopilot
+#### Drosh Autopilot
 Multi-step task execution:
 ```
 User: "Deploy the app to production"
         ↓
-Iris: shows step plan
+Drosh: shows step plan
 User: approves
         ↓
-Iris executes step by step:
+Drosh executes step by step:
   1. git add . && git commit -m "..."
   2. git push origin main
   3. ssh server "pm2 restart app"
@@ -537,7 +537,7 @@ SSH-inspired but human-first. No external server required for LAN sharing. Relay
 #### Terminal Lens
 Point camera at any terminal, monitor, document, or paper:
 - OCR reads the text
-- Iris parses it as a command or output
+- Drosh parses it as a command or output
 - Shows: "Run this command?" → user approves
 - Eliminates manual retyping
 
@@ -592,7 +592,7 @@ Warning card shows: what will happen, estimated impact, confirm / cancel.
 
 #### Smart Sudo
 Before any `sudo` command:
-- Iris explains what the command will do
+- Drosh explains what the command will do
 - Shows affected files/paths
 - Risk level: LOW / MEDIUM / HIGH
 - User confirms → executes
@@ -628,11 +628,11 @@ Actionable cards from raw output. Supported: npm, pip, gradle, cargo, apt, docke
 
 #### Error DNA
 When a command fails:
-1. Iris detects failure (exit code ≠ 0)
+1. Drosh detects failure (exit code ≠ 0)
 2. Agent diagnoses: what failed and why
 3. Suggests fix
 4. If user applies fix → outcome stored
-5. Next time same error occurs → Iris proposes proven fix immediately
+5. Next time same error occurs → Drosh proposes proven fix immediately
 
 Learned fixes stored in Room. Per-user, per-project.
 
@@ -724,7 +724,7 @@ data class SshHost(
 - Secret Redaction — API keys/passwords masked in output
 - Incognito Session — no history, no DNA, no logs
 - Clipboard auto-clear after configurable timeout
-- No telemetry, no analytics, no data sent to Iris servers
+- No telemetry, no analytics, no data sent to Drosh servers
 
 ### App Lock — 4-digit PIN
 
@@ -747,7 +747,7 @@ data class SshHost(
 |-------|-------------|---------|
 | Long command finished | "✓ Command done — exit 0" | View Output |
 | SSH connection dropped | "⚠️ prod-server disconnected" | Reconnect |
-| Agent task completed | "Iris finished — 3 files changed" | View |
+| Agent task completed | "Drosh finished — 3 files changed" | View |
 | Cron job finished | "Scheduled task: git pull done" | View Log |
 | Agent Watch trigger | "CPU hit 94% on prod-server" | Open Terminal |
 | Autopilot paused | "Waiting for your approval" | Approve / Cancel |

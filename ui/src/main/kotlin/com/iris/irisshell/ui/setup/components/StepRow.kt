@@ -36,7 +36,7 @@ import com.iris.irisshell.ui.setup.theme.SetupPalette
  * The connector line colour is animated: blue if this step is done or active,
  * muted otherwise. Alpha animates from 0.3f → 1f based on step state.
  *
- * Per Iris style — minimal, no card chrome. Each step is just text + a marker.
+ * Per Drosh style — minimal, no card chrome. Each step is just text + a marker.
  *
  * @param showConnector  false for the last row to suppress trailing connector.
  */

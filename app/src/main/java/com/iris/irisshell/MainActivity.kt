@@ -70,14 +70,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             DroshTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    IrisNavHost()
+                    DroshNavHost()
                 }
             }
         }
     }
 
     @Composable
-    private fun IrisNavHost() {
+    private fun DroshNavHost() {
         val navController = rememberNavController()
         val coroutineScope = rememberCoroutineScope()
 

@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
  *
  * Default: 14sp. Range: 10..32sp, linear.
  *
- * The repository is exposed via Hilt via `:data`'s IrisPrefsModule.
+ * The repository is exposed via Hilt via `:data`'s DroshPrefsModule.
  */
 interface SetTerminalFontSizeUseCase {
     /** Hot stream of the persisted font size in sp, clamped to 10..32. */

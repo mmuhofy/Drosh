@@ -65,7 +65,7 @@ _Last updated: 2026-07-16_
 - [x] Copy button per block
 - [x] Long press block → copy, share, pin, search
 - [x] Terminal link detection — `UrlDetector` in `domain/` shared by both block + classic paths
-- [x] URL rendering with `IrisPrimary` color + `TextDecoration.Underline` in `BlockBody`
+- [x] URL rendering with `DroshPrimary` color + `TextDecoration.Underline` in `BlockBody`
 - [x] URL tap handling via `onUrlClick` callback → `WebViewSheet` in-app browser (bottom sheet)
 
 ### Semantic Output Highlighting
@@ -130,11 +130,11 @@ _Scope (revised 2026-07-28): TopBar modal session switcher only — no Home scre
 ### Flat Key Bar (Sprint 2 — COMPLETED 2026-09-13)
 - [x] `FlatKeyBar.kt` — text-only keys, no surfaces, blur behind (API 31+ RenderEffect)
 - [x] Key groups: System (Esc, Ctrl, Alt, Tab), Arrows, Navigation (Home/End/PgUp/PgDn), Editing (BkSpc/Enter/Space), F-keys (F1-F12)
-- [x] Gradient vertical dividers between groups (IrisBorderSubtle)
+- [x] Gradient vertical dividers between groups (DroshBorderSubtle)
 - [x] Hover: border + subtle background overlay
 - [x] Pressed: stronger background overlay
-- [x] Primary keys (Ctrl/Alt/Tab): IrisPrimary color, hover → IrisPrimary lighter
-- [x] Active/stuck keys: full IrisPrimary background
+- [x] Primary keys (Ctrl/Alt/Tab): DroshPrimary color, hover → DroshPrimary lighter
+- [x] Active/stuck keys: full DroshPrimary background
 - [x] F-keys: smaller 11sp font
 - [x] Horizontal scroll (single row)
 - [x] Default visible: true (was false)
@@ -277,7 +277,7 @@ _Scope (revised 2026-07-28): TopBar modal session switcher only — no Home scre
 - [ ] Fix / Details action buttons
 
 ### Advanced Agent Features
-- [ ] Iris Autopilot — multi-step task execution
+- [ ] Drosh Autopilot — multi-step task execution
 - [ ] Agent Watch — WorkManager background conditions
 - [ ] Natural Language Cron — WorkManager scheduler
 - [ ] Terminal Lens — OCR → command

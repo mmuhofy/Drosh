@@ -380,7 +380,7 @@ fun TerminalPreviewCard(
 ) {
     val lines = listOf(
         Triple("user@irisshell ~ %", "neofetch", true),
-        Triple("OS:", " Iris Linux aarch64 (POSIX)", false),
+        Triple("OS:", " Drosh Linux aarch64 (POSIX)", false),
         Triple("Shell:", " zsh 5.9 \u2022 Term: xterm-256color", false),
     )
 

@@ -1,4 +1,4 @@
-// Internal helper used by all Iris convention plugins to share the common
+// Internal helper used by all Drosh convention plugins to share the common
 // Android configuration values (SDK versions, Java toolchain, etc.).
 //
 // Centralizing these constants here guarantees that any change to the

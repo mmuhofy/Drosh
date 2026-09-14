@@ -113,7 +113,7 @@ ui/           → Compose screens, components, ViewModels.
                 No direct data/agent/terminal access.
 
 domain/       → Use cases, business logic, repository interfaces,
-                IrisTool interface. Pure Kotlin only.
+                DroshTool interface. Pure Kotlin only.
                 Zero Android imports unless unavoidable — flag explicitly.
 
 data/         → Repository implementations, Room DAOs, SSHJ client,
@@ -169,7 +169,7 @@ LLM function_call response
       ↓
 ToolRegistry.execute(name, args, mode)
       ↓
-IrisTool implementation
+DroshTool implementation
       ↓ (if write_file)
 DiffApproveEvent → UI DiffCard → User Approve / Reject
       ↓ (if bash)
@@ -200,7 +200,7 @@ ToolResult (Success | Error | Cancelled | AwaitingApproval)
 |---------|-----------|---------|
 | Files | PascalCase | `BlockEngine.kt` |
 | Classes | PascalCase | `SemanticParser` |
-| Interfaces | PascalCase | `IrisTool` |
+| Interfaces | PascalCase | `DroshTool` |
 | Functions | camelCase | `parseOutput()` |
 | Constants | SCREAMING_SNAKE | `MAX_BLOCK_LINES` |
 | Composables | PascalCase | `TerminalBlock()` |
@@ -226,9 +226,9 @@ ToolResult (Success | Error | Cancelled | AwaitingApproval)
 
 ## 🔧 TOOL SYSTEM RULES
 
-Every tool implements `IrisTool` interface:
+Every tool implements `DroshTool` interface:
 ```kotlin
-interface IrisTool {
+interface DroshTool {
     val name: String
     val description: String
     val parameters: JsonObject

@@ -4,7 +4,7 @@
 // Per AGENT.md §72–103 commit format and §107–135 architecture, no module
 // should re-declare AGP / Compose / Hilt boilerplate. Each module's
 // build.gradle.kts only declares:
-//   - the Iris convention plugin ids it needs
+//   - the Drosh convention plugin ids it needs
 //   - the modules / catalog libraries it consumes
 //   - module-specific options (namespace, test instrumentation, etc.)
 

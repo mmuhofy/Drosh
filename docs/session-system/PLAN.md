@@ -53,7 +53,7 @@ domain/session/          (pure Kotlin, already created)
 data/session/            (Room + DataStore, already created)
   SessionEntity.kt
   SessionDao.kt
-  IrisDatabase.kt          — :data/local/
+  DroshDatabase.kt          — :data/local/
   DatabaseModule.kt        — :data/di/
   SessionRepositoryImpl.kt
   ObserveActiveSessionUseCaseImpl.kt
