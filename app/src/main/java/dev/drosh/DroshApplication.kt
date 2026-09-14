@@ -23,8 +23,6 @@ import javax.inject.Inject
 @HiltAndroidApp
 class DroshApplication : Application() {
 
-    private val localeKey = stringPreferencesKey("locale")
-
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
 
     override fun attachBaseContext(base: Context) {
