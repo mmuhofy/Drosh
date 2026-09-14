@@ -115,7 +115,6 @@ fun FlatKeyBar(
                 .padding(horizontal = 10.dp)
                 .align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically,
-            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             KeyGroupSection(
