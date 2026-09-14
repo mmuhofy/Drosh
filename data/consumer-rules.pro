@@ -6,9 +6,9 @@
 
 # Hilt-injected classes in :data — R8 full mode strips them when they are
 # only referenced through Hilt-generated code.
--keep class com.iris.irisshell.data.** { *; }
--keep class * extends com.iris.irisshell.domain.** { *; }
--dontwarn com.iris.irisshell.data.**
+-keep class dev.drosh.data.** { *; }
+-keep class * extends dev.drosh.domain.** { *; }
+-dontwarn dev.drosh.data.**
 
 # Security Crypto -> Tink pulls com.google.errorprone.annotations (CanIgnoreReturnValue)
 # referenced transitively from com.google.crypto.tink.KeysetManager.

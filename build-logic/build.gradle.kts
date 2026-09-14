@@ -18,7 +18,7 @@ plugins {
     `kotlin-dsl`
 }
 
-group = "com.iris.irisshell.buildlogic"
+group = "dev.drosh.buildlogic"
 
 // Plugin classpath — required for `plugins { id(...) }` blocks in the
 // convention plugin classes to resolve external plugins at compile time.

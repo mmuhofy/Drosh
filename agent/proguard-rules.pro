@@ -5,5 +5,5 @@
 
 # Hilt-injected classes — only referenced through generated Dagger code,
 # so R8 cannot trace reachability. Keep all agent module classes in release.
--keep class com.iris.irisshell.agent.** { *; }
--dontwarn com.iris.irisshell.agent.**
+-keep class dev.drosh.agent.** { *; }
+-dontwarn dev.drosh.agent.**

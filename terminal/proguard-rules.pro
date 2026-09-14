@@ -5,7 +5,7 @@
 
 # Hilt-injected classes — only referenced through generated Dagger code,
 # so R8 cannot trace reachability. Keep all terminal module classes in release.
--keep class com.iris.irisshell.terminal.** { *; }
+-keep class dev.drosh.terminal.** { *; }
 -keep class com.termux.** { *; }
--dontwarn com.iris.irisshell.terminal.**
+-dontwarn dev.drosh.terminal.**
 -dontwarn com.termux.**

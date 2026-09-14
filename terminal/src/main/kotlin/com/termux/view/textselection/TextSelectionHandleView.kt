@@ -13,7 +13,7 @@ import android.view.WindowManager
 import android.widget.PopupWindow
 
 import com.termux.view.TerminalView
-import com.iris.irisshell.terminal.R
+import dev.drosh.terminal.R
 import com.termux.view.support.PopupWindowCompatGingerbread
 
 @SuppressLint("ViewConstructor")

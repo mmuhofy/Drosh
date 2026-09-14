@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "com.iris.irisshell.data"
+    namespace = "dev.drosh.data"
 }
 
 room {

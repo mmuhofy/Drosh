@@ -4,5 +4,5 @@
 # Cross-module consumer rules belong in consumer-rules.pro for this module.
 
 # Keep all core module classes in release.
--keep class com.iris.irisshell.core.** { *; }
--dontwarn com.iris.irisshell.core.**
+-keep class dev.drosh.core.** { *; }
+-dontwarn dev.drosh.core.**

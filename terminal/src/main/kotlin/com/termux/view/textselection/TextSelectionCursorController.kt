@@ -13,7 +13,7 @@ import android.view.View
 
 import com.termux.terminal.TerminalBuffer
 import com.termux.terminal.WcWidth
-import com.iris.irisshell.terminal.R
+import dev.drosh.terminal.R
 import com.termux.view.TerminalView
 
 class TextSelectionCursorController(private val terminalView: TerminalView) : CursorController {

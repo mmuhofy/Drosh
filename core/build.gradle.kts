@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "com.iris.irisshell.core"
+    namespace = "dev.drosh.core"
 }
 
 dependencies {

@@ -5,5 +5,5 @@
 
 # Hilt-injected classes — only referenced through generated Dagger code,
 # so R8 cannot trace reachability. Keep all ssh module classes in release.
--keep class com.iris.irisshell.ssh.** { *; }
--dontwarn com.iris.irisshell.ssh.**
+-keep class dev.drosh.ssh.** { *; }
+-dontwarn dev.drosh.ssh.**

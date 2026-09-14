@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "com.iris.irisshell.agent"
+    namespace = "dev.drosh.agent"
 }
 
 dependencies {

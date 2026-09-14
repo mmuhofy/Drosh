@@ -6,4 +6,4 @@
 # DroshColors.kt defines top-level Color val properties accessed via static getters
 # (DroshColorsKt). R8 full mode strips these as "unused" when they are only
 # referenced through Compose @Composable code.
--keep class com.iris.irisshell.design.system.DroshColorsKt { *; }
+-keep class dev.drosh.design.system.DroshColorsKt { *; }

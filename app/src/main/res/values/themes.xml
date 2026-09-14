@@ -2,7 +2,7 @@
 <!--
   App theme — Drosh, dark only (v1.0).
   The Compose layer carries real palette + typography tokens (see
-  com.iris.irisshell.ui.theme.DroshTheme). This XML only handles the bits
+  dev.drosh.ui.theme.DroshTheme). This XML only handles the bits
   Compose cannot paint from inside the activity: the system status bar and
   navigation bar, and the launcher icon surface.
 

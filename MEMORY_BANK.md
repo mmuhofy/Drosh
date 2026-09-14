@@ -5,7 +5,7 @@ Last commit: `3efe15e` — fix: remove isMinifyEnabled=true from library convent
 
 ### Release Build Crash Fix (2026-09-13)
 
-**Root cause:** `build-logic/.../AndroidLibraryConventionPlugin.kt` set `isMinifyEnabled = true` for release build type. The `ui` module's `proguard-rules.pro` only had `-keep class com.iris.drosh.ui.** { *; }` which does NOT cover `hilt_aggregated_deps.*` classes. R8 stripped these Hilt-generated Dagger aggregation modules, leaving the `ViewModelC` Dagger component with an empty `hiltViewModelMap`. When `HiltViewModelFactory.create()` looked for `OnboardingViewModel` in the map, it found nothing and fell through to `NewInstanceFactory.create()` (reflection), which failed with `NoSuchMethodException` since `OnboardingViewModel` has no no-arg constructor.
+**Root cause:** `build-logic/.../AndroidLibraryConventionPlugin.kt` set `isMinifyEnabled = true` for release build type. The `ui` module's `proguard-rules.pro` only had `-keep class dev.drosh.ui.** { *; }` which does NOT cover `hilt_aggregated_deps.*` classes. R8 stripped these Hilt-generated Dagger aggregation modules, leaving the `ViewModelC` Dagger component with an empty `hiltViewModelMap`. When `HiltViewModelFactory.create()` looked for `OnboardingViewModel` in the map, it found nothing and fell through to `NewInstanceFactory.create()` (reflection), which failed with `NoSuchMethodException` since `OnboardingViewModel` has no no-arg constructor.
 
 **Fix:**
 1. Removed `isMinifyEnabled = true` + `isShrinkResources = true` + `proguardFiles(...)` from `AndroidApplicationConventionPlugin` and `AndroidLibraryConventionPlugin` — release builds now use `isMinifyEnabled = false` by default (matching Phase 1's simplicity)
@@ -30,7 +30,7 @@ Last commit: `3efe15e` — fix: remove isMinifyEnabled=true from library convent
 | Field | Value |
 |-------|-------|
 | App name | Drosh |
-| Package | `com.iris.drosh` |
+| Package | `dev.drosh` |
 | Tagline | "Your phone is a Unix machine. Finally." |
 | License | MIT |
 | Distribution | F-Droid first, GitHub Releases |
@@ -346,7 +346,7 @@ Closed (Room only, removed from irisSessions)
 ## 9. Release Build (2026-09-09)
 
 - Release build config in `app/build.gradle.kts`: `targetSdk` 28 → 36, enabled `isMinifyEnabled`, `isShrinkResources`, proguard files
-- R8 stripping fix: Hilt-injected + Kotlin file classes (`XXXKt`) stripped by each module's own R8 pass before reaching app module — added `-keep { class com.iris.drosh.**; }` + `-dontwarn` to every module's `proguard-rules.pro` (not just consumer-rules.pro)
+- R8 stripping fix: Hilt-injected + Kotlin file classes (`XXXKt`) stripped by each module's own R8 pass before reaching app module — added `-keep { class dev.drosh.**; }` + `-dontwarn` to every module's `proguard-rules.pro` (not just consumer-rules.pro)
 - Release workflow: `.github/workflows/release.yml` triggers on `v*` tag push, builds `app-arm64-v8a-release.apk`
 - ✅ CI release build passes (v0.1.0), APK artifact uploaded (5.7MB)
 

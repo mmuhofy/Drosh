@@ -2,7 +2,7 @@
 _Last updated: 2026-09-08_
 
 ## Project
-Android terminal emulator with block-based output, PRoot Linux environment, and agent intelligence. Package: `com.iris.drosh`.
+Android terminal emulator with block-based output, PRoot Linux environment, and agent intelligence. Package: `dev.drosh`.
 
 ## Stack
 Kotlin 2.2.0, Compose BOM 2026.04.01, Hilt 2.57, Room 2.8.4, Kotlinx Serialization 1.7.x, WorkManager 2.11.2, SSHJ 0.38.x, OkHttp 4.12.x.
@@ -51,7 +51,7 @@ Kotlin 2.2.0, Compose BOM 2026.04.01, Hilt 2.57, Room 2.8.4, Kotlinx Serializati
 - `ProotRunner.build()` merges `environmentHooks` into PRoot env — `$ENV` sourced by zsh for interactive shells
 - zsh sources `$ENV` after `.zshrc` — user's `.zshrc` never modified, `.zshrc` template has hooks removed
 - `preexec` captures `$1` + start time; `precmd` captures `$?` (BEFORE `date`), computes elapsed, writes to completion file
-- Completion file: `/data/data/com.iris.drosh/files/drosh_cmd_complete` (accessible from PRoot via `/data` bind mount)
+- Completion file: `/data/data/dev.drosh/files/drosh_cmd_complete` (accessible from PRoot via `/data` bind mount)
 - `TerminalService.startCompletionMonitor()` — 500ms polling, `RandomAccessFile` for incremental reads
 - Completion notification: non-ongoing, `IMPORTANCE_HIGH` channel, shows command + status + duration
 - Completion toast: `Toast.LENGTH_SHORT` at `Gravity.TOP or Gravity.END` (top-right corner)

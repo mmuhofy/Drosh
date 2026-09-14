@@ -8,7 +8,7 @@ _Last updated: 2026-07-16_
 | Field | Value |
 |-------|-------|
 | App name | Drosh |
-| Package | `com.iris.drosh` |
+| Package | `dev.drosh` |
 | Tagline | "Your phone is a Unix machine. Finally." |
 | License | MIT |
 | Distribution | F-Droid first, GitHub Releases |

@@ -25,10 +25,10 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.iris.irisshell"
+    namespace = "dev.drosh"
 
     defaultConfig {
-        applicationId = "com.iris.irisshell"
+        applicationId = "dev.drosh"
         // Version code / name sourced from build config injected by convention plugin.
         targetSdk = 28
 

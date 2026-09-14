@@ -11,7 +11,7 @@ _Last updated: 2026-07-16_
 
 ### Project Setup
 - [ ] Gradle KTS + Version Catalog + Hilt
-- [ ] Package: `com.iris.drosh`
+- [ ] Package: `dev.drosh`
 - [ ] Min SDK 26, Target SDK 36
 - [ ] Kotlin 2.3.20
 - [ ] Compose BOM 2026.04.01

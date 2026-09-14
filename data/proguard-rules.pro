@@ -5,5 +5,5 @@
 
 # Hilt-injected classes — only referenced through generated Dagger code,
 # so R8 cannot trace reachability. Keep all data module classes in release.
--keep class com.iris.irisshell.data.** { *; }
--dontwarn com.iris.irisshell.data.**
+-keep class dev.drosh.data.** { *; }
+-dontwarn dev.drosh.data.**

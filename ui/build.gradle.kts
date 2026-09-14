@@ -14,7 +14,7 @@ plugins {
 }
 
 android {
-    namespace = "com.iris.irisshell.ui"
+    namespace = "dev.drosh.ui"
 
     defaultConfig {
         // Coil needs network security config for theme store previews — fine on Android.

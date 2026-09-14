@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "com.iris.irisshell.ssh"
+    namespace = "dev.drosh.ssh"
 }
 
 dependencies {

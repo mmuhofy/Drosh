@@ -12,7 +12,7 @@ plugins {
 }
 
 android {
-    namespace = "com.iris.irisshell.terminal"
+    namespace = "dev.drosh.terminal"
     // The termux view + emulator Java sources ship as src/main/java/ alongside
     // src/main/kotlin/ in this module. AGP must schedule compileDebugJavaWithJavac
     // before compileDebugKotlin so the Java sources are reachable from Kotlin.
