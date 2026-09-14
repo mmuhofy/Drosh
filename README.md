@@ -30,7 +30,7 @@ agent and the shell are the same thing.
 | DI | Hilt 2.57 |
 | Local DB | Room 2.8.4 + FTS5 |
 | SSH | SSHJ 0.39.x |
-| Terminal Engine | termux-view + termux-terminal-emulator (vendored from Iris Code) |
+| Terminal Engine | termux-view + termux-terminal-emulator (vendored from Termux) |
 | Linux Env | PRoot 5.2.0 + Ubuntu 24.04 rootfs |
 | Min SDK | 26 (Android 8.0+) |
 | Target SDK | 36 (Android 16) |
@@ -61,4 +61,9 @@ Strict layering — see `docs/AGENT.md` for the rules.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GPLv3 — see [LICENSE](LICENSE).
+
+This project uses code from [Termux](https://github.com/termux), which is
+licensed under the GNU General Public License v3.0. As required by the terms
+of that license, Drosh is also licensed under GPLv3 to ensure license
+compatibility and to preserve the same freedoms for all users.
