@@ -1,15 +1,15 @@
 // build-logic — convention plugins for Drosh.
 //
 // Exposes the following Gradle convention plugins (each as a Kotlin class
-// in src/main/kotlin/iris/*.kt):
+// in src/main/kotlin/dev/drosh/*.kt):
 //
-//   iris.android.application     — AGP application + Kotlin Android + SDK + Java 17
-//   iris.android.library         — AGP library + Kotlin Android + SDK + Java 17
-//   iris.android.compose         — Compose Compiler plugin + Compose BOM
-//   iris.android.hilt            — Hilt + KSP for Android modules
-//   iris.android.room            — Room + KSP for data module
-//   iris.kotlin.library          — Kotlin JVM plugin for pure-Kotlin modules (domain/)
-//   iris.kotlin.serialization    — kotlinx.serialization plugin
+//   dev.drosh.android.application     — AGP application + Kotlin Android + SDK + Java 17
+//   dev.drosh.android.library         — AGP library + Kotlin Android + SDK + Java 17
+//   dev.drosh.android.compose         — Compose Compiler plugin + Compose BOM
+//   dev.drosh.android.hilt            — Hilt + KSP for Android modules
+//   dev.drosh.android.room            — Room + KSP for data module
+//   dev.drosh.kotlin.library          — Kotlin JVM plugin for pure-Kotlin modules (domain/)
+//   dev.drosh.kotlin.serialization    — kotlinx.serialization plugin
 //
 // Module-level build files reference these by id rather than re-wiring
 // AGP/Compose/Hilt each time.
@@ -33,32 +33,32 @@ dependencies {
 gradlePlugin {
     plugins {
         register("androidApplication") {
-            id = "iris.android.application"
-            implementationClass = "iris.AndroidApplicationConventionPlugin"
+            id = "dev.drosh.android.application"
+            implementationClass = "dev.drosh.AndroidApplicationConventionPlugin"
         }
         register("androidLibrary") {
-            id = "iris.android.library"
-            implementationClass = "iris.AndroidLibraryConventionPlugin"
+            id = "dev.drosh.android.library"
+            implementationClass = "dev.drosh.AndroidLibraryConventionPlugin"
         }
         register("androidCompose") {
-            id = "iris.android.compose"
-            implementationClass = "iris.AndroidComposeConventionPlugin"
+            id = "dev.drosh.android.compose"
+            implementationClass = "dev.drosh.AndroidComposeConventionPlugin"
         }
         register("androidHilt") {
-            id = "iris.android.hilt"
-            implementationClass = "iris.AndroidHiltConventionPlugin"
+            id = "dev.drosh.android.hilt"
+            implementationClass = "dev.drosh.AndroidHiltConventionPlugin"
         }
         register("androidRoom") {
-            id = "iris.android.room"
-            implementationClass = "iris.AndroidRoomConventionPlugin"
+            id = "dev.drosh.android.room"
+            implementationClass = "dev.drosh.AndroidRoomConventionPlugin"
         }
         register("kotlinLibrary") {
-            id = "iris.kotlin.library"
-            implementationClass = "iris.KotlinLibraryConventionPlugin"
+            id = "dev.drosh.kotlin.library"
+            implementationClass = "dev.drosh.KotlinLibraryConventionPlugin"
         }
         register("kotlinSerialization") {
-            id = "iris.kotlin.serialization"
-            implementationClass = "iris.KotlinSerializationConventionPlugin"
+            id = "dev.drosh.kotlin.serialization"
+            implementationClass = "dev.drosh.KotlinSerializationConventionPlugin"
         }
     }
 }

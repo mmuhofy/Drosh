@@ -4,10 +4,10 @@
 // remote LLM / SSH clients, theme store client.
 
 plugins {
-    alias(libs.plugins.iris.android.library)
-    alias(libs.plugins.iris.android.room)
-    alias(libs.plugins.iris.android.hilt)
-    alias(libs.plugins.iris.kotlin.serialization)
+    alias(libs.plugins.dev.drosh.android.library)
+    alias(libs.plugins.dev.drosh.android.room)
+    alias(libs.plugins.dev.drosh.android.hilt)
+    alias(libs.plugins.dev.drosh.kotlin.serialization)
 }
 
 android {

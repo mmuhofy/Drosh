@@ -6,8 +6,8 @@
 // Modules that need said helpers declare a dep on :core.
 
 plugins {
-    alias(libs.plugins.iris.android.library)
-    alias(libs.plugins.iris.kotlin.serialization)
+    alias(libs.plugins.dev.drosh.android.library)
+    alias(libs.plugins.dev.drosh.kotlin.serialization)
 }
 
 android {

@@ -200,10 +200,10 @@ spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 
 # Convention plugins — exposed by build-logic
-iris-android-application = { id = "iris.android.application", version = "unspecified" }
-iris-android-library = { id = "iris.android.library", version = "unspecified" }
-iris-android-compose = { id = "iris.android.compose", version = "unspecified" }
-iris-android-hilt = { id = "iris.android.hilt", version = "unspecified" }
-iris-android-room = { id = "iris.android.room", version = "unspecified" }
-iris-kotlin-library = { id = "iris.kotlin.library", version = "unspecified" }
-iris-kotlin-serialization = { id = "iris.kotlin.serialization", version = "unspecified" }
+dev-drosh-android-application = { id = "dev.drosh.android.application", version = "unspecified" }
+dev-drosh-android-library = { id = "dev.drosh.android.library", version = "unspecified" }
+dev-drosh-android-compose = { id = "dev.drosh.android.compose", version = "unspecified" }
+dev-drosh-android-hilt = { id = "dev.drosh.android.hilt", version = "unspecified" }
+dev-drosh-android-room = { id = "dev.drosh.android.room", version = "unspecified" }
+dev-drosh-kotlin-library = { id = "dev.drosh.kotlin.library", version = "unspecified" }
+dev-drosh-kotlin-serialization = { id = "dev.drosh.kotlin.serialization", version = "unspecified" }

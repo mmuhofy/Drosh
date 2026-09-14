@@ -38,5 +38,5 @@ include(":ui")
 include(":design-system")
 
 // Convention plugins — included as a composite build so its plugin ids
-// (e.g. `iris.android.library`) are visible to all subprojects.
+// (e.g. `dev.drosh.android.library`) are visible to all subprojects.
 includeBuild("build-logic")

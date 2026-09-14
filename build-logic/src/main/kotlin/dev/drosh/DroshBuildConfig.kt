@@ -4,7 +4,7 @@
 // Centralizing these constants here guarantees that any change to the
 // targeted Android API surface is reflected across every module.
 
-package iris
+package dev.drosh
 
 import org.gradle.api.JavaVersion
 import org.gradle.api.artifacts.VersionCatalogsExtension

@@ -6,8 +6,8 @@
 // and UseCases that data/, agent/, terminal/, ssh/ implement.
 
 plugins {
-    alias(libs.plugins.iris.kotlin.library)
-    alias(libs.plugins.iris.kotlin.serialization)
+    alias(libs.plugins.dev.drosh.kotlin.library)
+    alias(libs.plugins.dev.drosh.kotlin.serialization)
 }
 
 // No Android types are permitted in this module.

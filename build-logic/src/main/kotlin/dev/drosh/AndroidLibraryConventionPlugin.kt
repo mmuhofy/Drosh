@@ -1,6 +1,6 @@
-package iris
+package dev.drosh
 
-import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.dsl.LibraryExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -8,20 +8,21 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 /**
- * Convention plugin applied to the root `:app` application module.
+ * Convention plugin applied to every Android *library* module
+ * (`core`, `data`, `agent`, `terminal`, `ssh`, `ui`, `design-system`).
  *
  * Sets up:
- *  - AGP `com.android.application`
+ *  - AGP `com.android.library`
  *  - Kotlin Android
  *  - Java 17 toolchain + Kotlin jvmTarget 17
- *  - Common Android SDK levels (minSdk 26, targetSdk 36, compileSdk 36)
- *  - Test fixtures + unit test support
+ *  - Common Android SDK levels (minSdk 26, compileSdk 36)
+ *  - Test fixtures support for modular testing
  */
-class AndroidApplicationConventionPlugin : Plugin<Project> {
+class AndroidLibraryConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
             with(pluginManager) {
-                apply("com.android.application")
+                apply("com.android.library")
                 apply("org.jetbrains.kotlin.android")
             }
 
@@ -32,17 +33,13 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                 }
             }
 
-            extensions.configure<ApplicationExtension> {
+            extensions.configure<LibraryExtension> {
                 compileSdk = DroshBuildConfig.COMPILE_SDK
 
                 defaultConfig {
-                    applicationId = DroshBuildConfig.APPLICATION_ID
                     minSdk = DroshBuildConfig.MIN_SDK
-                    targetSdk = DroshBuildConfig.TARGET_SDK
-                    versionCode = 1
-                    versionName = "0.1.0"
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-                    vectorDrawables.useSupportLibrary = true
+                    consumerProguardFiles("consumer-rules.pro")
                 }
 
                 compileOptions {
@@ -50,10 +47,8 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     targetCompatibility = DroshBuildConfig.JAVA_VERSION
                 }
 
-                packaging {
-                    resources {
-                        excludes += "/META-INF/{AL2.0,LGPL2.1}"
-                    }
+                testOptions {
+                    unitTests.isReturnDefaultValues = true
                 }
             }
         }

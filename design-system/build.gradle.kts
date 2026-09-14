@@ -9,8 +9,8 @@
 // on design-system.
 
 plugins {
-    alias(libs.plugins.iris.android.library)
-    alias(libs.plugins.iris.android.compose)
+    alias(libs.plugins.dev.drosh.android.library)
+    alias(libs.plugins.dev.drosh.android.compose)
 }
 
 android {

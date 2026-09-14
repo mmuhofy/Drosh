@@ -6,9 +6,9 @@
 import java.util.Properties
 
 plugins {
-    alias(libs.plugins.iris.android.application)
-    alias(libs.plugins.iris.android.compose)
-    alias(libs.plugins.iris.android.hilt)
+    alias(libs.plugins.dev.drosh.android.application)
+    alias(libs.plugins.dev.drosh.android.compose)
+    alias(libs.plugins.dev.drosh.android.hilt)
     alias(libs.plugins.kotlin.serialization)
 }
 
