@@ -510,20 +510,16 @@ private fun ReadyScreen(
                 }
             }
         }
-    }
 
-         // Flat key bar overlay — floats on terminal at bottom.
         if (!fullscreen && !inputBarState.hardwareKeyboardPresent) {
             FlatKeyBar(
                 ctrlStuck = inputBarState.ctrlStuck,
                 altStuck = inputBarState.altStuck,
                 onIntent = inputBarViewModel::onIntent,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-                    .align(Alignment.BottomStart),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
 
         // Top bar overlay — floats on terminal, takes no layout space.
         if (!fullscreen) {
