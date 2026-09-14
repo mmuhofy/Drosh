@@ -4,16 +4,10 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
-import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.drosh.core.LocaleHelper
-import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.data.session.SessionManagerAdapter
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 
 /**
  * Application entry — `@HiltAndroidApp` triggers Hilt's code generation for the
@@ -34,10 +28,7 @@ class DroshApplication : Application() {
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
 
     override fun attachBaseContext(base: Context) {
-        val language = runBlocking(Dispatchers.IO) {
-            base.irisShellDataStore.data.map { prefs -> prefs[localeKey] ?: "" }.first()
-        }
-        super.attachBaseContext(LocaleHelper.applyLocale(base, language))
+        super.attachBaseContext(LocaleHelper.applyLocale(base, ""))
     }
 
     override fun onCreate() {

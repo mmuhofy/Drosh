@@ -1,7 +1,15 @@
 package dev.drosh
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.datastore.preferences.core.stringPreferencesKey
+import dev.drosh.core.LocaleHelper
+import dev.drosh.data.local.irisShellDataStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 import androidx.core.view.WindowCompat
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -46,6 +54,15 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private val localeKey = stringPreferencesKey("locale")
+
+    override fun attachBaseContext(base: Context) {
+        val language = runBlocking(Dispatchers.IO) {
+            base.irisShellDataStore.data.map { prefs -> prefs[localeKey] ?: "" }.first()
+        }
+        super.attachBaseContext(LocaleHelper.applyLocale(base, language))
+    }
 
     @Inject lateinit var terminalManager: TerminalManager
     @Inject lateinit var firstLaunchUseCase: ObserveFirstLaunchUseCase
