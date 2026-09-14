@@ -4,13 +4,15 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
+import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.drosh.core.LocaleHelper
+import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.data.session.SessionManagerAdapter
-import dev.drosh.domain.settings.SettingsRepository
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -27,11 +29,14 @@ import kotlinx.coroutines.runBlocking
 @HiltAndroidApp
 class DroshApplication : Application() {
 
+    private val localeKey = stringPreferencesKey("locale")
+
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
-    @Inject lateinit var settings: SettingsRepository
 
     override fun attachBaseContext(base: Context) {
-        val language = runBlocking(Dispatchers.IO) { settings.locale.first() }
+        val language = runBlocking(Dispatchers.IO) {
+            base.irisShellDataStore.data.map { prefs -> prefs[localeKey] ?: "" }.first()
+        }
         super.attachBaseContext(LocaleHelper.applyLocale(base, language))
     }
 
