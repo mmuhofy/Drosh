@@ -512,14 +512,12 @@ private fun ReadyScreen(
         }
     }
 
-        // Flat key bar overlay — floats on terminal, blur samples terminal behind.
+         // Flat key bar overlay — floats on terminal at bottom.
         if (!fullscreen && !inputBarState.hardwareKeyboardPresent) {
             FlatKeyBar(
                 ctrlStuck = inputBarState.ctrlStuck,
                 altStuck = inputBarState.altStuck,
-                terminalView = terminalViewRef.value,
                 onIntent = inputBarViewModel::onIntent,
-                blurLevel = 8f,
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()

@@ -1,9 +1,5 @@
 package com.iris.irisshell.ui.input
 
-import android.graphics.RenderEffect
-import android.graphics.Shader
-import android.os.Build
-import android.view.View
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -40,16 +36,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.draw.drawBehind
-import com.iris.irisshell.design.system.IrisBackground
 import com.iris.irisshell.design.system.IrisBorderSubtle
 import com.iris.irisshell.design.system.IrisPrimary
 import com.iris.irisshell.design.system.IrisSurface
@@ -80,23 +72,19 @@ private val ARROW_NAV_KEYS = setOf(
  * RenderEffect blur sampling whatever is behind it; on API 26-30 a
  * semi-transparent fallback is used instead.
  *
- * Blur level can be controlled via [blurLevel] parameter (in pixels).
- * Default: 8px (matches HTML mockup).
+ * Positioned floating above the terminal via [align] in the outer Box
+ * scope so the terminal content renders behind it. A thin [IrisBorderSubtle]
+ * top border separates the bar from the terminal output.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FlatKeyBar(
     ctrlStuck: Boolean,
     altStuck: Boolean,
-    terminalView: View?,
     onIntent: (InputIntent) -> Unit,
-    blurLevel: Float = 8f,
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
-    val canBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    // 100% opaque when not scrolled, 85% when horizontally scrolled.
-    val surfaceAlpha = if (scrollState.value > 0) 0.85f else 1.0f
 
     Box(
         modifier = modifier
@@ -111,30 +99,11 @@ fun FlatKeyBar(
                 )
             },
     ) {
-        // Blurred frosted-glass background — semi-opaque so the surface
-        // is clearly visible while the blur + terminal beneath shows through.
+        // Solid opaque background — 100% visible, no transparency.
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .let { bg ->
-                    if (canBlur) {
-                        val effect = RenderEffect.createBlurEffect(
-                            blurLevel, blurLevel, Shader.TileMode.MIRROR,
-                        )
-                        bg
-                            .background(
-                                IrisSurface.copy(alpha = surfaceAlpha),
-                            )
-                            .graphicsLayer {
-                                renderEffect = effect.asComposeRenderEffect()
-                            }
-                    } else {
-                        bg
-                            .background(
-                                IrisSurface.copy(alpha = surfaceAlpha),
-                            )
-                    }
-                }
+                .background(IrisSurface)
                 .clip(BAR_CORNER),
         )
 
