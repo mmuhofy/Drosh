@@ -120,6 +120,17 @@ class SettingsViewModel @Inject constructor(
 
     // ── App Info ────────────────────────────────────────────────────────────────
 
+    // ── App Info ────────────────────────────────────────────────────────────────
+
     val aboutInfo: StateFlow<AboutInfo?> = settings.appInfo
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    // ── Locale ────────────────────────────────────────────────────────────────
+
+    val locale: StateFlow<String> = settings.locale
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    fun setLocale(tag: String) {
+        viewModelScope.launch { settings.setLocale(tag) }
+    }
 }

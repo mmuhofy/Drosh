@@ -84,4 +84,10 @@ interface SettingsRepository {
 
     /** Static app info (version / build tag / license) sourced from about.json. */
     val appInfo: Flow<AboutInfo>
+
+    /** Hot stream of the user-selected UI locale tag (e.g. "tr"). Empty = system locale. */
+    val locale: Flow<String>
+
+    /** Persists the UI locale tag. Pass "" to follow the system locale. */
+    suspend fun setLocale(tag: String)
 }

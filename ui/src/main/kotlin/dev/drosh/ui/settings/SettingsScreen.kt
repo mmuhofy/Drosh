@@ -1,6 +1,7 @@
 package dev.drosh.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,18 +16,24 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +44,8 @@ import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
+import dev.drosh.core.LanguageCatalog
+import dev.drosh.core.LanguageOption
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.ui.DroshIcons
@@ -47,6 +56,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    val locale            by viewModel.locale.collectAsStateWithLifecycle("")
     val useBlockEngine    by viewModel.useBlockEngine.collectAsStateWithLifecycle(false)
     val fontSizeSp        by viewModel.fontSizeSp.collectAsStateWithLifecycle(14)
     val prootStartCommand by viewModel.prootStartCommand.collectAsStateWithLifecycle("")
@@ -73,7 +83,20 @@ fun SettingsScreen(
         ) {
             SettingsTopBar(onBack = onBack)
 
-            SettingsSection(label = "Terminal") {
+            SettingsSection(label = stringResource(R.string.settings_language_title)) {
+                SettingsSectionContainer {
+                    SettingsLanguageRow(
+                        currentLocale = locale,
+                        options = LanguageCatalog.options,
+                        onSelect = { tag ->
+                            viewModel.setLocale(tag)
+                            (LocalContext.current as Activity).recreate()
+                        },
+                    )
+                }
+            }
+
+            SettingsSection(label = stringResource(R.string.settings_terminal_section)) {
                 SettingsSectionContainer {
                     TerminalModeRow(
                         useBlockEngine = useBlockEngine,
@@ -87,11 +110,11 @@ fun SettingsScreen(
                     )
                     SettingsSubRow(
                         icon = DroshIcons.ALargeSmall,
-                        label = "Cursor Style",
+                        label = stringResource(R.string.settings_cursor_style),
                     ) {
                         CursorSegmentedControl(
                             selected = cursorStyle,
-                            options = listOf("Block", "Beam", "Underline"),
+                            options = listOf(stringResource(R.string.settings_cursor_style_block), stringResource(R.string.settings_cursor_style_beam), stringResource(R.string.settings_cursor_style_underline),)
                             onSelect = {
                                 viewModel.setCursorStyle(CursorStyle.fromString(it))
                             },
@@ -99,8 +122,8 @@ fun SettingsScreen(
                     }
                     SettingsSliderRow(
                         icon = DroshIcons.Gauge,
-                        label = "Cursor Blink Rate",
-                        description = "Pulse interval",
+                        label = stringResource(R.string.settings_cursor_blink_rate),
+                        description = stringResource(R.string.settings_cursor_blink_description),
                         trailing = {
                             Text(
                                 text = "${cursorBlinkRateMs} ms",
@@ -122,7 +145,7 @@ fun SettingsScreen(
                     )
                     SettingsSliderRow(
                         icon = DroshIcons.Type,
-                        label = "Font Size",
+                        label = stringResource(R.string.settings_font_size),
                         trailing = {
                             Text(
                                 text = "${fontSizeSp} sp",
@@ -144,21 +167,21 @@ fun SettingsScreen(
                     )
                     SettingsCommandFieldRow(
                         icon = DroshIcons.Terminal,
-                        label = "PRoot Start Command",
-                        description = "Experimental — changing this can break sessions",
+                        label = stringResource(R.string.settings_proot_start_command),
+                        description = stringResource(R.string.settings_proot_start_description),
                         command = prootStartCommand.ifEmpty { "\$shell --login" },
                         onCommandChange = { viewModel.setProotStartCommand(it) },
                     )
                 }
             }
 
-            SettingsSection(label = "Security") {
+            SettingsSection(label = stringResource(R.string.settings_security_section)) {
                 SettingsSectionContainer {
                     SettingsSubRow(
                         icon = DroshIcons.Lock,
                         iconTint = DroshError,
-                        label = "App Lock (PIN)",
-                        description = "Require PIN on launch",
+                        label = stringResource(R.string.settings_app_lock),
+                        description = stringResource(R.string.settings_app_lock_description),
                     ) {
                         SettingsToggleSwitch(
                             checked = isPinLockEnabled,
@@ -173,23 +196,23 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection(label = "About") {
+            SettingsSection(label = stringResource(R.string.settings_about_section)) {
                 SettingsSectionContainer {
                     SettingsNavigationRow(
                         icon = DroshIcons.Info,
-                        label = "Version",
+                        label = stringResource(R.string.settings_version),
                         trailingText = aboutInfo?.version ?: "—",
                         onClick = {},
                     )
                     SettingsNavigationRow(
                         icon = DroshIcons.Terminal,
-                        label = "Description",
-                        trailingText = aboutInfo?.build ?: "Advanced terminal",
+                        label = stringResource(R.string.settings_description),
+                        trailingText = aboutInfo?.build ?: stringResource(R.string.settings_default_build_description),
                         onClick = {},
                     )
                     SettingsNavigationRow(
                         icon = DroshIcons.Shield,
-                        label = "License",
+                        label = stringResource(R.string.settings_license),
                         trailingBadge = aboutInfo?.license ?: "MIT",
                         showTrailingIcon = true,
                         onClick = {},
@@ -202,7 +225,7 @@ fun SettingsScreen(
             ) {
                 SettingsNavigationRow(
                     icon = DroshIcons.CircleUser,
-                    label = "Made by Muhofy",
+                    label = stringResource(R.string.settings_made_by),
                     trailingText = null,
                     onClick = {},
                 )
@@ -212,8 +235,8 @@ fun SettingsScreen(
 
     if (showPinEntry) {
         dev.drosh.ui.pin.PinEntryScreen(
-            title = "Set PIN",
-            subtitle = "Enter a new 4-digit PIN",
+            title = stringResource(R.string.pin_entry_title),
+            subtitle = stringResource(R.string.pin_entry_subtitle),
             onPinReady = { pin ->
                 scope.launch {
                     viewModel.setPin(pin)
@@ -242,13 +265,13 @@ fun SettingsTopBar(onBack: () -> Unit) {
         ) {
             Icon(
                 imageVector = DroshIcons.ArrowLeft,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.settings_back_content_description),
                 tint = DroshPrimary,
                 modifier = Modifier.size(22.dp),
             )
         }
         Text(
-            text = "Settings",
+            text = stringResource(R.string.settings_title),
             color = DroshText,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
@@ -256,5 +279,42 @@ fun SettingsTopBar(onBack: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         Box(modifier = Modifier.size(40.dp))
+    }
+}
+
+@Composable
+fun SettingsLanguageRow(
+    currentLocale: String,
+    options: List<LanguageOption>,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = options.find { it.tag == currentLocale } ?: options.first()
+    Box(Modifier.clickable { expanded = true }) {
+        SettingsSubRow(
+            icon = DroshIcons.Globe,
+            label = stringResource(R.string.settings_language_title),
+            description = selected.displayName,
+            trailing = {
+                Text(
+                    text = selected.nativeName,
+                    color = DroshPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            },
+        )
+    }
+    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        options.forEach { option ->
+            DropdownMenuItem(
+                onClick = {
+                    expanded = false
+                    onSelect(option.tag)
+                },
+            ) {
+                Text(option.nativeName)
+            }
+        }
     }
 }

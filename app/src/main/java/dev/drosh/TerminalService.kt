@@ -226,11 +226,11 @@ class TerminalService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        val sessionText = if (sessionCount == 1) {
-            getString(R.string.notification_one_session)
-        } else {
-            getString(R.string.notification_session_count, sessionCount)
-        }
+        val sessionText = resources.getQuantityString(
+            R.plurals.notification_session_count,
+            sessionCount,
+            sessionCount,
+        )
 
         return NotificationCompat.Builder(this, TerminalConstants.CHANNEL_ID)
             .setContentTitle(getString(R.string.terminal_service_name))

@@ -1,11 +1,17 @@
 package dev.drosh
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
+import dev.drosh.core.LocaleHelper
 import dev.drosh.data.session.SessionManagerAdapter
+import dev.drosh.domain.settings.SettingsRepository
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /**
  * Application entry — `@HiltAndroidApp` triggers Hilt's code generation for the
@@ -22,6 +28,12 @@ import javax.inject.Inject
 class DroshApplication : Application() {
 
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
+    @Inject lateinit var settings: SettingsRepository
+
+    override fun attachBaseContext(base: Context) {
+        val language = runBlocking(Dispatchers.IO) { settings.locale.first() }
+        super.attachBaseContext(LocaleHelper.applyLocale(base, language))
+    }
 
     override fun onCreate() {
         super.onCreate()

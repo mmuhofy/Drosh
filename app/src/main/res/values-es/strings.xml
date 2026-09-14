@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Drosh</string>
+    <string name="terminal_service_name">Terminal de Drosh</string>
+    <string name="terminal_service_channel_name">Terminal de Drosh</string>
+    <plurals name="notification_session_count">
+        <item quantity="one">1 sesión activa</item>
+        <item quantity="other">%1$d sesiones activas</item>
+    </plurals>
+    <string name="notification_action_exit">Salir</string>
+    <string name="command_complete_channel_name">Finalizaciones de comandos</string>
+    <string name="notification_command_completed">%1$s — Completado</string>
+    <string name="notification_command_error">%1$s — Error (salida %2$d)</string>
+    <string name="notification_command_cancelled">%1$s — Cancelado</string>
+</resources>

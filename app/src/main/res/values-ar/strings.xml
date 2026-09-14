@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Drosh</string>
+    <string name="terminal_service_name">طرفية Drosh</string>
+    <string name="terminal_service_channel_name">طرفية Drosh</string>
+    <plurals name="notification_session_count">
+        <item quantity="one">جلسة نشطة واحدة</item>
+        <item quantity="other">%1$d جلسات نشطة</item>
+    </plurals>
+    <string name="notification_action_exit">خروج</string>
+    <string name="command_complete_channel_name">إكمال الأوامر</string>
+    <string name="notification_command_completed">%1$s — اكتمل</string>
+    <string name="notification_command_error">%1$s — خطأ (رمز الخروج %2$d)</string>
+    <string name="notification_command_cancelled">%1$s — أُلغي</string>
+</resources>

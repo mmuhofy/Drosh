@@ -126,6 +126,14 @@ class SettingsRepositoryImpl @Inject constructor(
         emit(AboutInfo(jsonProp(text, "version"), jsonProp(text, "build"), jsonProp(text, "license")))
     }
 
+    // ── Locale ───────────────────────────────────────────────────────────
+
+    override val locale: Flow<String> = dataStore.data.map { prefs -> prefs[KEY_LOCALE] ?: DEFAULT_LOCALE }
+
+    override suspend fun setLocale(tag: String) {
+        dataStore.edit { prefs -> prefs[KEY_LOCALE] = tag }
+    }
+
     // ── Keys & Defaults ───────────────────────────────────────────────────────
 
     private companion object {
@@ -139,6 +147,7 @@ class SettingsRepositoryImpl @Inject constructor(
         val KEY_CURSOR_STYLE            = stringPreferencesKey("cursor_style")
         val KEY_CURSOR_BLINK_RATE_MS    = intPreferencesKey("cursor_blink_rate_ms")
         val KEY_AUTO_LOCK_TIMEOUT       = stringPreferencesKey("auto_lock_timeout")
+        val KEY_LOCALE                  = stringPreferencesKey("locale")
 
         const val DEFAULT_USE_BLOCK_ENGINE       = false
         const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = true
@@ -150,5 +159,6 @@ class SettingsRepositoryImpl @Inject constructor(
         const val DEFAULT_CURSOR_STYLE           = "Block"
         const val DEFAULT_CURSOR_BLINK_RATE_MS   = 500
         const val DEFAULT_AUTO_LOCK_TIMEOUT      = "Immediately"
+        const val DEFAULT_LOCALE                 = ""
     }
 }
