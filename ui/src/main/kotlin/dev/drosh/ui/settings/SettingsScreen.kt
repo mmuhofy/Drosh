@@ -49,6 +49,7 @@ import dev.drosh.core.LanguageOption
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 import kotlinx.coroutines.launch
 
 @Composable
@@ -312,9 +313,8 @@ fun SettingsLanguageRow(
                     expanded = false
                     onSelect(option.tag)
                 },
-            ) {
-                Text(option.nativeName)
-            }
+                text = { Text(option.nativeName) },
+            )
         }
     }
 }
