@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Drosh</string>
-    <string name="terminal_service_name">Terminal Drosh</string>
-    <string name="terminal_service_channel_name">Terminal Drosh</string>
+    <string name="terminal_service_name">Drosh Terminal</string>
+    <string name="terminal_service_channel_name">Drosh Terminal</string>
     <plurals name="notification_session_count">
         <item quantity="one">1 sessão ativa</item>
         <item quantity="other">%1$d sessões ativas</item>

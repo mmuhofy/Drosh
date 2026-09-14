@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">设置</string>
+    <string name="settings_language_auto_summary">跟随系统语言</string>
+    <string name="settings_language_title">语言</string>
+    <string name="settings_language_system">系统</string>
+    <string name="settings_terminal_section">终端</string>
+    <string name="settings_cursor_style">光标样式</string>
+    <string name="settings_cursor_style_block">块状</string>
+    <string name="settings_cursor_style_beam">光束</string>
+    <string name="settings_cursor_style_underline">下划线</string>
+    <string name="settings_cursor_blink_rate">光标闪烁频率</string>
+    <string name="settings_cursor_blink_description">脉冲间隔</string>
+    <string name="settings_font_size">字体大小</string>
+    <string name="settings_proot_start_command">PRoot 启动命令</string>
+    <string name="settings_proot_start_description">实验性功能 — 更改此设置可能导致会话出错</string>
+    <string name="settings_security_section">安全</string>
+    <string name="settings_app_lock">应用锁定（PIN）</string>
+    <string name="settings_app_lock_description">启动时需要 PIN</string>
+    <string name="settings_about_section">关于</string>
+    <string name="settings_version">版本</string>
+    <string name="settings_description">描述</string>
+    <string name="settings_license">许可证</string>
+    <string name="settings_made_by">由 Muhofy 制作</string>
+    <string name="settings_default_build_description">高级终端</string>
+    <string name="settings_back_content_description">返回</string>
+    <string name="pin_entry_title">设置 PIN</string>
+    <string name="pin_entry_subtitle">输入新的 4 位 PIN</string>
+</resources>

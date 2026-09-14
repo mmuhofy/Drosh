@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Настройки</string>
+    <string name="settings_language_auto_summary">Следовать языку системы</string>
+    <string name="settings_language_title">Язык</string>
+    <string name="settings_language_system">Системный</string>
+    <string name="settings_terminal_section">Терминал</string>
+    <string name="settings_cursor_style">Стиль курсора</string>
+    <string name="settings_cursor_style_block">Блок</string>
+    <string name="settings_cursor_style_beam">Луч</string>
+    <string name="settings_cursor_style_underline">Подчёркивание</string>
+    <string name="settings_cursor_blink_rate">Частота мигания курсора</string>
+    <string name="settings_cursor_blink_description">Интервал импульса</string>
+    <string name="settings_font_size">Размер шрифта</string>
+    <string name="settings_proot_start_command">Команда запуска PRoot</string>
+    <string name="settings_proot_start_description">Экспериментально — изменение этого параметра может нарушить работу сеансов</string>
+    <string name="settings_security_section">Безопасность</string>
+    <string name="settings_app_lock">Блокировка приложения (PIN)</string>
+    <string name="settings_app_lock_description">Требовать PIN при запуске</string>
+    <string name="settings_about_section">О приложении</string>
+    <string name="settings_version">Версия</string>
+    <string name="settings_description">Описание</string>
+    <string name="settings_license">Лицензия</string>
+    <string name="settings_made_by">Разработано Muhofy</string>
+    <string name="settings_default_build_description">Продвинутый терминал</string>
+    <string name="settings_back_content_description">Назад</string>
+    <string name="pin_entry_title">Установить PIN</string>
+    <string name="pin_entry_subtitle">Введите новый 4-значный PIN-код</string>
+</resources>

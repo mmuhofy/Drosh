@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Configurações</string>
+    <string name="settings_language_auto_summary">Seguir o idioma do sistema</string>
+    <string name="settings_language_title">Idioma</string>
+    <string name="settings_language_system">Sistema</string>
+    <string name="settings_terminal_section">Terminal</string>
+    <string name="settings_cursor_style">Estilo do cursor</string>
+    <string name="settings_cursor_style_block">Bloco</string>
+    <string name="settings_cursor_style_beam">Feixe</string>
+    <string name="settings_cursor_style_underline">Sublinhado</string>
+    <string name="settings_cursor_blink_rate">Taxa de piscar do cursor</string>
+    <string name="settings_cursor_blink_description">Intervalo de pulso</string>
+    <string name="settings_font_size">Tamanho da fonte</string>
+    <string name="settings_proot_start_command">Comando de inicialização do PRoot</string>
+    <string name="settings_proot_start_description">Experimental — alterar isso pode quebrar as sessões</string>
+    <string name="settings_security_section">Segurança</string>
+    <string name="settings_app_lock">Bloqueio do app (PIN)</string>
+    <string name="settings_app_lock_description">Exigir PIN ao iniciar</string>
+    <string name="settings_about_section">Sobre</string>
+    <string name="settings_version">Versão</string>
+    <string name="settings_description">Descrição</string>
+    <string name="settings_license">Licença</string>
+    <string name="settings_made_by">Feito por Muhofy</string>
+    <string name="settings_default_build_description">Terminal avançado</string>
+    <string name="settings_back_content_description">Voltar</string>
+    <string name="pin_entry_title">Definir PIN</string>
+    <string name="pin_entry_subtitle">Digite um novo PIN de 4 dígitos</string>
+</resources>

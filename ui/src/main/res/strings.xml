@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_language_auto_summary">Follow system locale</string>
+    <string name="settings_language_title">Language</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_terminal_section">Terminal</string>
+    <string name="settings_cursor_style">Cursor Style</string>
+    <string name="settings_cursor_style_block">Block</string>
+    <string name="settings_cursor_style_beam">Beam</string>
+    <string name="settings_cursor_style_underline">Underline</string>
+    <string name="settings_cursor_blink_rate">Cursor Blink Rate</string>
+    <string name="settings_cursor_blink_description">Pulse interval</string>
+    <string name="settings_font_size">Font Size</string>
+    <string name="settings_proot_start_command">PRoot Start Command</string>
+    <string name="settings_proot_start_description">Experimental — changing this can break sessions</string>
+    <string name="settings_security_section">Security</string>
+    <string name="settings_app_lock">App Lock (PIN)</string>
+    <string name="settings_app_lock_description">Require PIN on launch</string>
+    <string name="settings_about_section">About</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_description">Description</string>
+    <string name="settings_license">License</string>
+    <string name="settings_made_by">Made by Muhofy</string>
+    <string name="settings_default_build_description">Advanced terminal</string>
+    <string name="settings_back_content_description">Back</string>
+    <string name="pin_entry_title">Set PIN</string>
+    <string name="pin_entry_subtitle">Enter a new 4-digit PIN</string>
+</resources>

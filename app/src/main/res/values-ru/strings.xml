@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Drosh</string>
-    <string name="terminal_service_name">Терминал Drosh</string>
-    <string name="terminal_service_channel_name">Терминал Drosh</string>
+    <string name="terminal_service_name">Drosh Терминал</string>
+    <string name="terminal_service_channel_name">Drosh Терминал</string>
     <plurals name="notification_session_count">
-        <item quantity="one">Активных сеансов: 1</item>
-        <item quantity="other">Активных сеансов: %1$d</item>
+        <item quantity="one">1 активный сеанс</item>
+        <item quantity="other">%1$d активных сеансов</item>
     </plurals>
-    <string name="notification_action_exit">Выйти</string>
-    <string name="command_complete_channel_name">Завершение команд</string>
+    <string name="notification_action_exit">Выход</string>
+    <string name="command_complete_channel_name">Завершения команд</string>
     <string name="notification_command_completed">%1$s — Завершено</string>
-    <string name="notification_command_error">%1$s — Ошибка (выход %2$d)</string>
+    <string name="notification_command_error">%1$s — Ошибка (код выхода %2$d)</string>
     <string name="notification_command_cancelled">%1$s — Отменено</string>
 </resources>

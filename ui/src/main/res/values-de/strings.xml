@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_language_auto_summary">Systemsprache folgen</string>
+    <string name="settings_language_title">Sprache</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_terminal_section">Terminal</string>
+    <string name="settings_cursor_style">Cursorstil</string>
+    <string name="settings_cursor_style_block">Block</string>
+    <string name="settings_cursor_style_beam">Strahl</string>
+    <string name="settings_cursor_style_underline">Unterstrich</string>
+    <string name="settings_cursor_blink_rate">Cursor-Blinkrate</string>
+    <string name="settings_cursor_blink_description">Pulsintervall</string>
+    <string name="settings_font_size">Schriftgröße</string>
+    <string name="settings_proot_start_command">PRoot-Startbefehl</string>
+    <string name="settings_proot_start_description">Experimentell — eine Änderung kann Sitzungen beeinträchtigen</string>
+    <string name="settings_security_section">Sicherheit</string>
+    <string name="settings_app_lock">App-Sperre (PIN)</string>
+    <string name="settings_app_lock_description">PIN beim Start erforderlich</string>
+    <string name="settings_about_section">Über</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_description">Beschreibung</string>
+    <string name="settings_license">Lizenz</string>
+    <string name="settings_made_by">Erstellt von Muhofy</string>
+    <string name="settings_default_build_description">Erweitertes Terminal</string>
+    <string name="settings_back_content_description">Zurück</string>
+    <string name="pin_entry_title">PIN festlegen</string>
+    <string name="pin_entry_subtitle">Neue 4-stellige PIN eingeben</string>
+</resources>

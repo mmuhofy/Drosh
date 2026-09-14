@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Mga Setting</string>
+    <string name="settings_language_auto_summary">Sundin ang wika ng system</string>
+    <string name="settings_language_title">Wika</string>
+    <string name="settings_language_system">Sistema</string>
+    <string name="settings_terminal_section">Terminal</string>
+    <string name="settings_cursor_style">Estilo ng Cursor</string>
+    <string name="settings_cursor_style_block">Block</string>
+    <string name="settings_cursor_style_beam">Beam</string>
+    <string name="settings_cursor_style_underline">Underline</string>
+    <string name="settings_cursor_blink_rate">Bilis ng Pagkislap ng Cursor</string>
+    <string name="settings_cursor_blink_description">Agwat ng Pulso</string>
+    <string name="settings_font_size">Sukat ng Font</string>
+    <string name="settings_proot_start_command">PRoot Start Command</string>
+    <string name="settings_proot_start_description">Eksperimental — maaaring masira ang mga sesyon kapag binago ito</string>
+    <string name="settings_security_section">Seguridad</string>
+    <string name="settings_app_lock">App Lock (PIN)</string>
+    <string name="settings_app_lock_description">Kailanganin ang PIN sa paglunsad</string>
+    <string name="settings_about_section">Tungkol</string>
+    <string name="settings_version">Bersyon</string>
+    <string name="settings_description">Paglalarawan</string>
+    <string name="settings_license">Lisensya</string>
+    <string name="settings_made_by">Gawa ni Muhofy</string>
+    <string name="settings_default_build_description">Advanced na terminal</string>
+    <string name="settings_back_content_description">Bumalik</string>
+    <string name="pin_entry_title">Itakda ang PIN</string>
+    <string name="pin_entry_subtitle">Maglagay ng bagong 4-digit na PIN</string>
+</resources>

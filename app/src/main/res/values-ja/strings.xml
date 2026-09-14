@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Drosh</string>
-    <string name="terminal_service_name">Droshターミナル</string>
-    <string name="terminal_service_channel_name">Droshターミナル</string>
+    <string name="terminal_service_name">Drosh ターミナル</string>
+    <string name="terminal_service_channel_name">Drosh ターミナル</string>
     <plurals name="notification_session_count">
-        <item quantity="one">アクティブなセッション: 1</item>
-        <item quantity="other">アクティブなセッション: %1$d</item>
+        <item quantity="one">アクティブなセッション 1件</item>
+        <item quantity="other">アクティブなセッション %1$d件</item>
     </plurals>
     <string name="notification_action_exit">終了</string>
     <string name="command_complete_channel_name">コマンド完了</string>
     <string name="notification_command_completed">%1$s — 完了</string>
     <string name="notification_command_error">%1$s — エラー（終了コード %2$d）</string>
-    <string name="notification_command_cancelled">%1$s — キャンセル</string>
+    <string name="notification_command_cancelled">%1$s — キャンセル済み</string>
 </resources>

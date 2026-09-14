@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">設定</string>
+    <string name="settings_language_auto_summary">システム言語に従う</string>
+    <string name="settings_language_title">言語</string>
+    <string name="settings_language_system">システム</string>
+    <string name="settings_terminal_section">ターミナル</string>
+    <string name="settings_cursor_style">カーソルスタイル</string>
+    <string name="settings_cursor_style_block">ブロック</string>
+    <string name="settings_cursor_style_beam">ビーム</string>
+    <string name="settings_cursor_style_underline">下線</string>
+    <string name="settings_cursor_blink_rate">カーソル点滅速度</string>
+    <string name="settings_cursor_blink_description">パルス間隔</string>
+    <string name="settings_font_size">フォントサイズ</string>
+    <string name="settings_proot_start_command">PRoot 起動コマンド</string>
+    <string name="settings_proot_start_description">実験的機能 — 変更するとセッションが壊れる可能性があります</string>
+    <string name="settings_security_section">セキュリティ</string>
+    <string name="settings_app_lock">アプリロック（PIN）</string>
+    <string name="settings_app_lock_description">起動時に PIN を要求</string>
+    <string name="settings_about_section">アプリについて</string>
+    <string name="settings_version">バージョン</string>
+    <string name="settings_description">説明</string>
+    <string name="settings_license">ライセンス</string>
+    <string name="settings_made_by">Muhofy 制作</string>
+    <string name="settings_default_build_description">高機能ターミナル</string>
+    <string name="settings_back_content_description">戻る</string>
+    <string name="pin_entry_title">PIN を設定</string>
+    <string name="pin_entry_subtitle">新しい4桁の PIN を入力してください</string>
+</resources>
