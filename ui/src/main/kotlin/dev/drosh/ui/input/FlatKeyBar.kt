@@ -113,7 +113,7 @@ fun FlatKeyBar(
                 .fillMaxWidth()
                 .horizontalScroll(scrollState)
                 .padding(horizontal = 10.dp)
-                .align(Alignment.CenterVertically),
+                .align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically,
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
