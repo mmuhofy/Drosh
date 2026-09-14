@@ -239,7 +239,7 @@ Closed (Room only, removed from irisSessions)
 - ✅ SettingsComponents.kt: all composables for settings rows, toggle, custom thin slider, preview card, segmented controls, editable PRoot command field
 - ✅ PinEntryScreen embedded as modal overlay for PIN setup flow
   - ✅ "Made by Muhofy" footer row with `CircleUser` icon
-  - ✅ Design reference: `html/irisshell_settings_pure.html` (Tailwind iOS-style design)
+  - ✅ Design reference: `html/drosh_settings_pure.html` (Tailwind iOS-style design)
   - ✅ CI build passes — no more `rememberRipple`, `MutableInteractionSource`, `normalizeHex`, `statusBars`, or `launch` compilation errors
   - ✅ Removed all custom ripple usage (plain `Modifier.clickable { }` with default Material 3 ripple)
   - ✅ Fixed pre-existing `normalizeHex` undefined reference (simplified color setters)

@@ -139,7 +139,7 @@ _Scope (revised 2026-07-28): TopBar modal session switcher only — no Home scre
 - [x] Horizontal scroll (single row)
 - [x] Default visible: true (was false)
 - [x] Integrated into TerminalScreen — replaces InputBarHost usage
-- [x] HTML mockup: `html/irisshell_keybar_flat_mockup.html`
+- [x] HTML mockup: `html/drosh_keybar_flat_mockup.html`
 - [ ] Blur level configurable (TODO: parameterized via settings)
 
 ### Ghost Text Autocomplete

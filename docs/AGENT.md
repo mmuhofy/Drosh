@@ -310,7 +310,7 @@ When porting a module from Iris Code:
 - Artifact title must match the actual filename (e.g., `BlockEngine.kt`)
 - Always include the **full project path** in the artifact title:
   ```
-  app/src/main/java/com/iris/irisshell/terminal/engine/BlockEngine.kt
+  app/src/main/java/dev/drosh/terminal/engine/BlockEngine.kt
   ```
 - Never refer to a file by name alone — always pair with full path
 - If a file is too long for one artifact, split by logical section and label clearly
