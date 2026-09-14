@@ -347,9 +347,9 @@ private fun KeyDivider() {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        IrisBackground,
+                        IrisSurface,
                         IrisBorderSubtle,
-                        IrisBackground,
+                        IrisSurface,
                     ),
                 ),
             ),
