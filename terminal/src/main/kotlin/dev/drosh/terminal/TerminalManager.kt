@@ -379,6 +379,11 @@ class TerminalManager(
     private fun ensureShellRc() {
         val d = "${'$'}"
         val zshrc = File(ubuntuBootstrap.rootfsDir, "home/.zshrc")
+        val omzPath = File(ubuntuBootstrap.rootfsDir, "home/.oh-my-zsh")
+
+        // If Oh My Zsh is present, a full .zshrc was already written by
+        // zshrc-write.sh during bootstrap — don't clobber it.
+        if (zshrc.exists() && omzPath.exists()) return
 
         val cleanTemplate = """
                 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -402,8 +407,8 @@ class TerminalManager(
                     export IRIS_WELCOME_SHOWN=1
                     echo ""
                     echo "  ╔══════════════════════════════════════════╗"
-                    echo "  ║        Welcome to Iris Code v1.0         ║"
-                    echo "  ║     Your AI-powered coding terminal      ║"
+                    echo "  ║        Welcome to Drosh v1.0           ║"
+                    echo "  ║     Your phone is a Unix machine.     ║"
                     echo "  ╚══════════════════════════════════════════╝"
                     echo ""
                 fi
@@ -411,12 +416,6 @@ class TerminalManager(
 
         if (!zshrc.exists()) {
             zshrc.writeText(cleanTemplate)
-        } else {
-            // Migrate: remove legacy hooks from old .zshrc
-            val content = zshrc.readText()
-            if (content.contains("__drosh_cmd") || content.contains("preexec()")) {
-                zshrc.writeText(cleanTemplate)
-            }
         }
     }
 

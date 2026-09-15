@@ -129,9 +129,15 @@ class UbuntuBootstrap(private val context: Context) {
                     onLog("→ Installing Oh My Zsh + plugins…")
                     onState(UbuntuSetupState.InstallingOhMyZsh("Installing Oh My Zsh..."))
                     lastFailedStep = "OhMyZsh"
-                    runScriptInProot(SCRIPTS_OMZ, onLog = onLog)
-                    runScriptInProot(SCRIPTS_ZSHRC, onLog = onLog)
-                    onLog("✓ Oh My Zsh ready.")
+                    try {
+                        runScriptInProot(SCRIPTS_OMZ, onLog = onLog)
+                        runScriptInProot(SCRIPTS_ZSHRC, onLog = onLog)
+                        onLog("✓ Oh My Zsh ready.")
+                    } catch (e: Exception) {
+                        onLog("⚠ Oh My Zsh install failed (${e.message}); falling back to bash.")
+                        runScriptInProot(SCRIPTS_BASHRC, onLog = onLog)
+                        onLog("✓ Fallback to bash configured for ${preferences.userName}.")
+                    }
                 } else {
                     onLog("→ Bash selected — skipping Oh My Zsh and set-default-shell.")
                     onState(UbuntuSetupState.Optimizing)
@@ -161,7 +167,10 @@ class UbuntuBootstrap(private val context: Context) {
         } catch (e: Exception) {
             Log.e("UbuntuBootstrap", "Setup failed", e)
             onLog("✗ FAILED at [$lastFailedStep]: ${e::class.simpleName}: ${e.message ?: "Unknown error"}")
-            onState(UbuntuSetupState.Failed("${e::class.simpleName}: ${e.message ?: "Unknown error"}"))
+            onState(UbuntuSetupState.Failed(
+                error = "${e::class.simpleName}: ${e.message ?: "Unknown error"}",
+                failedStep = lastFailedStep,
+            ))
         }
     }
 

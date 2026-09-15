@@ -41,7 +41,7 @@ if [ -z "\${IRIS_WELCOME_SHOWN}" ]; then
     export IRIS_WELCOME_SHOWN=1
     echo ""
     echo "  ╔══════════════════════════════════════════╗"
-    echo "  ║        Welcome to Iris Shell v1.0        ║"
+    echo "  ║        Welcome to Drosh v1.0           ║"
     echo "  ║     Your phone is a Unix machine.        ║"
     echo "  ╚══════════════════════════════════════════╝"
     echo ""

@@ -64,7 +64,7 @@ class ProotRunner(
             }
         }
 
-        val env = buildEnvironment() + environmentHooks.map { "${it.key}=${it.value}" }
+        val env = buildEnvironment(shell) + environmentHooks.map { "${it.key}=${it.value}" }
 
         return ProotCommand(
             executable = linkerPath,
@@ -151,13 +151,13 @@ class ProotRunner(
         return binds
     }
 
-    private fun buildEnvironment(): List<String> {
+    private fun buildEnvironment(shell: String = "/bin/bash"): List<String> {
         val env = mutableListOf<String>().apply {
             add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
             add("HOME=/home")
             add("TERM=xterm-256color")
             add("LANG=C.UTF-8")
-            add("SHELL=/bin/bash")
+            add("SHELL=$shell")
             add("TMPDIR=/tmp")
             add("PROOT_TMP_DIR=$tmpPath")
             add("LD_LIBRARY_PATH=$libPath")

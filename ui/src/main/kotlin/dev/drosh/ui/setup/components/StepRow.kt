@@ -58,7 +58,7 @@ fun StepRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(64.dp),
+            .height(56.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Box(

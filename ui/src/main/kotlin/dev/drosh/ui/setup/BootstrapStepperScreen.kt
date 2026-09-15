@@ -10,15 +10,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,11 +67,9 @@ fun BootstrapStepperScreen(
     val liveLogs by viewModel.liveLogs.collectAsStateWithLifecycle()
     val isLogDrawerOpen by viewModel.isLogDrawerOpen.collectAsStateWithLifecycle()
 
-    // Side-effects: when fully ready, fire onReady; when failed, fire onSetupFailed.
-    if (progress.isReady) {
-        onReady()
-        return
-    } else if (progress.isFailed) {
+    // Side-effects: when failed, route to recovery screen.
+    // On ready, show the "Enter Terminal" button — user must opt in.
+    if (progress.isFailed) {
         onSetupFailed()
         return
     }
@@ -90,8 +87,8 @@ fun BootstrapStepperScreen(
                 .padding(horizontal = 24.dp, vertical = 60.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            SetupHeroMark(sizeDp = 80.dp)
-            Spacer(modifier = Modifier.height(24.dp))
+            SetupHeroMark(sizeDp = 96.dp)
+            Spacer(modifier = Modifier.height(28.dp))
             Text(
                 text = "Drosh",
                 color = SetupPalette.Text,
@@ -112,7 +109,7 @@ fun BootstrapStepperScreen(
                 ),
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             StepperList(progress)
 
@@ -125,6 +122,10 @@ fun BootstrapStepperScreen(
             ProgressBlock(progress)
 
             Spacer(modifier = Modifier.height(32.dp))
+
+            if (progress.isReady) {
+                EnterTerminalButton(onClick = onReady)
+            }
 
             LiveLogCard(
                 lines = liveLogs,
@@ -250,6 +251,33 @@ private fun Row(
         verticalAlignment = verticalAlignment,
         content = content,
     )
+}
+
+@Composable
+private fun EnterTerminalButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = SetupPalette.Primary,
+            contentColor = SetupPalette.OnPrimary,
+        ),
+    ) {
+        Text(
+            text = "Terminal'e Gir",
+            style = TextStyle(
+                fontFamily = OutfitFontFamily,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+        )
+    }
 }
 
 // Re-export for callers that want to use the WindowInsets scanner — kept

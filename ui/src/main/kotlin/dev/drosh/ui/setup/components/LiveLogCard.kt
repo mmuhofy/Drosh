@@ -68,10 +68,10 @@ fun LiveLogCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(SetupPalette.SurfaceVariant.copy(alpha = 0.5f))
+                .background(SetupPalette.Surface)
                 .border(
                     width = 1.dp,
-                    color = SetupPalette.Outline,
+                    color = SetupPalette.BorderSubtle,
                     shape = RoundedCornerShape(14.dp),
                 )
                 .clickable(onClick = onToggleOpen)

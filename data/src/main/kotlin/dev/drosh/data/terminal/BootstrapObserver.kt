@@ -67,9 +67,10 @@ class BootstrapObserver @Inject constructor(
         val stepStates = stepStatesFor(state)
         val (percent, remaining) = percentAndEtaFor(state)
         val currentMessage = messageFor(state)
+        val failedStepName = (state as? UbuntuSetupState.Failed)?.failedStep ?: "Configuring"
         val error = (state as? UbuntuSetupState.Failed)?.let { f ->
             BootstrapError(
-                step = inferFailedStep(),
+                step = stepFromName(failedStepName),
                 shortMessage = f.error,
                 lastLogLines = emptyList(),
                 recoveryActions = listOf(
@@ -90,6 +91,16 @@ class BootstrapObserver @Inject constructor(
         )
     }
 
+    private fun stepFromName(name: String): BootstrapStep = when (name) {
+        "Rootfs" -> BootstrapStep.Extracting
+        "Configure" -> BootstrapStep.Configuring
+        "Packages" -> BootstrapStep.InstallingPackages
+        "OhMyZsh" -> BootstrapStep.InstallingOhMyZsh
+        "Bash" -> BootstrapStep.InstallingPackages
+        "Optimize" -> BootstrapStep.Optimizing
+        else -> BootstrapStep.Configuring
+    }
+
     private fun mapCurrent(state: UbuntuSetupState): BootstrapStep = when (state) {
         UbuntuSetupState.Idle -> BootstrapStep.Idle
         UbuntuSetupState.Extracting -> BootstrapStep.Extracting
@@ -100,8 +111,6 @@ class BootstrapObserver @Inject constructor(
         UbuntuSetupState.Ready -> BootstrapStep.Ready
         is UbuntuSetupState.Failed -> BootstrapStep.Failed
     }
-
-    private fun inferFailedStep(): BootstrapStep = BootstrapStep.Configuring
 
     private fun stepStatesFor(state: UbuntuSetupState): Map<BootstrapStep, StepState> {
         val ordered = listOf(

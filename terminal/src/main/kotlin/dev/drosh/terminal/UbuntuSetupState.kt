@@ -13,5 +13,5 @@ sealed class UbuntuSetupState {
     ) : UbuntuSetupState()
     data object Optimizing : UbuntuSetupState()
     data object Ready : UbuntuSetupState()
-    data class Failed(val error: String) : UbuntuSetupState()
+    data class Failed(val error: String, val failedStep: String = "Unknown") : UbuntuSetupState()
 }
