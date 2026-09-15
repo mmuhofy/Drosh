@@ -111,11 +111,7 @@ class TerminalManager(
      */
     private fun effectiveShellPath(): String {
         val omzDir = File(ubuntuBootstrap.rootfsDir, "home/.oh-my-zsh")
-        return if (omzDir.exists()) "/bin/zsh"
-        else {
-            val bashBin = File(ubuntuBootstrap.rootfsDir, "bin/bash")
-            if (bashBin.exists()) bashBin.path else "/bin/bash"
-        }
+        return if (omzDir.exists()) "/bin/zsh" else "/bin/bash"
     }
 
     init {
