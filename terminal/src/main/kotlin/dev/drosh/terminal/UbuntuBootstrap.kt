@@ -130,9 +130,12 @@ class UbuntuBootstrap(private val context: Context) {
                     lastFailedStep = "OhMyZsh"
                     var omzSuccess = false
                     try {
-                        runScriptInProot(SCRIPTS_SET_DEFAULT_SHELL, onLog = onLog)
-                        runScriptInProot(SCRIPTS_OMZ, onLog = onLog)
-                        runScriptInProot(SCRIPTS_ZSHRC, onLog = onLog)
+                        val rc1 = runScriptInProot(SCRIPTS_SET_DEFAULT_SHELL, onLog = onLog)
+                        if (rc1 != 0) throw Exception("set-default-shell exited $rc1")
+                        val rc2 = runScriptInProot(SCRIPTS_OMZ, onLog = onLog)
+                        if (rc2 != 0) throw Exception("omz-install exited $rc2")
+                        val rc3 = runScriptInProot(SCRIPTS_ZSHRC, onLog = onLog)
+                        if (rc3 != 0) throw Exception("zshrc-write exited $rc3")
                         onLog("✓ Oh My Zsh ready.")
                         omzSuccess = true
                     } catch (e: Exception) {

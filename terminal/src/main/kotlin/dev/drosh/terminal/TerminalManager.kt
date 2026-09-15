@@ -104,9 +104,6 @@ class TerminalManager(
 
     var projectPath: String? = null
 
-    @Suppress("unused")
-    var shellPath: String = "/bin/zsh"
-
     /**
      * Detects the effective shell: if Oh My Zsh is installed, use zsh;
      * otherwise fall back to bash. This handles the case where zsh was chosen
@@ -322,15 +319,6 @@ class TerminalManager(
             val guestWd = if (projectPath != null) {
                 "/sdcard/dev.drosh/${File(projectPath!!).name}"
             } else null
-
-            // Detect shell: if OMZ is present, use zsh; otherwise fall back to bash.
-            // This handles the case where zsh was chosen but OMZ install failed.
-            val effectiveShell = if (File(ubuntuBootstrap.rootfsDir, "home/.oh-my-zsh").exists()) {
-                "/bin/zsh"
-            } else {
-                File(ubuntuBootstrap.rootfsDir, "bin/bash").takeIf { it.exists() }?.path
-                    ?: "/bin/bash"
-            }
 
             val cmd = prootRunner.build(
             guestWd,
