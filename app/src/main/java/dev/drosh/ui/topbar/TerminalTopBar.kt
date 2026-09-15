@@ -19,9 +19,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,10 +39,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshBorderSubtle
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshSurface
+import dev.drosh.design.system.DroshDropdownMenu
+import dev.drosh.design.system.DroshMenuItem
+import dev.drosh.design.system.DroshMenuItemStyle
 import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.session.SessionSwitcherViewModel
 
@@ -187,164 +184,48 @@ private fun MoreActionsDropdown(
     onOpenSettings: () -> Unit,
     onClose: () -> Unit,
 ) {
-    // Not: hardcoded offset kaldırıldı — DropdownMenu artık anchor'ı olan
-    // composable'a (bu Box) göre Compose tarafından otomatik konumlanıyor.
-     DropdownMenu(
+    DroshDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
-        containerColor = DroshSurface,
-        tonalElevation = 8.dp,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.border(
-            width = 1.dp,
-            color = DroshBorderSubtle.copy(alpha = 0.2f),
-            shape = RoundedCornerShape(12.dp),
+        items = listOf(
+            DroshMenuItem(
+                label = "Refresh terminal",
+                icon = DroshIcons.RotateCw,
+            ),
+            DroshMenuItem(
+                label = "New session",
+                icon = DroshIcons.Plus,
+            ),
+            DroshMenuItem(
+                label = if (isFullscreen) "Exit fullscreen" else "Enter fullscreen",
+                icon = if (isFullscreen) DroshIcons.Minimize else DroshIcons.Maximize,
+            ),
+            DroshMenuItem(
+                label = "Find in output",
+                icon = DroshIcons.Search,
+            ),
+            DroshMenuItem(dividerBefore = true, label = ""),
+            DroshMenuItem(
+                label = "Settings",
+                icon = DroshIcons.Settings,
+            ),
+            DroshMenuItem(
+                label = "Close session",
+                icon = DroshIcons.XCircle,
+                style = DroshMenuItemStyle.Destructive,
+            ),
         ),
-    ) {
-        DropdownMenuItem(
-            onClick = { onRefresh() },
-            text = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = DroshIcons.RotateCw,
-                        contentDescription = null,
-                        tint = DroshTextSecondary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "Refresh terminal",
-                        color = DroshText,
-                        fontFamily = OutfitFontFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            },
-        )
-        DropdownMenuItem(
-            onClick = { onNewSession() },
-            text = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = DroshIcons.Plus,
-                        contentDescription = null,
-                        tint = DroshTextSecondary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "New session",
-                        color = DroshText,
-                        fontFamily = OutfitFontFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            },
-        )
-        DropdownMenuItem(
-            onClick = { onToggleFullscreen() },
-            text = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = if (isFullscreen) DroshIcons.Minimize else DroshIcons.Maximize,
-                        contentDescription = null,
-                        tint = DroshTextSecondary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = if (isFullscreen) "Exit fullscreen" else "Enter fullscreen",
-                        color = DroshText,
-                        fontFamily = OutfitFontFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            },
-        )
-        DropdownMenuItem(
-            onClick = { onFindInOutput() },
-            text = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = DroshIcons.Search,
-                        contentDescription = null,
-                        tint = DroshTextSecondary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "Find in output",
-                        color = DroshText,
-                        fontFamily = OutfitFontFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            },
-        )
-        HorizontalDivider(
-            color = DroshBorderSubtle,
-            thickness = 1.dp,
-            modifier = Modifier.padding(vertical = 4.dp),
-        )
-        DropdownMenuItem(
-            onClick = { onOpenSettings() },
-            text = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = DroshIcons.Settings,
-                        contentDescription = null,
-                        tint = DroshTextSecondary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "Settings",
-                        color = DroshText,
-                        fontFamily = OutfitFontFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            },
-        )
-        DropdownMenuItem(
-            onClick = { onClose() },
-            text = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = DroshIcons.XCircle,
-                        contentDescription = null,
-                        tint = DroshError,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = "Close session",
-                        color = DroshError,
-                        fontFamily = OutfitFontFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            },
-        )
-    }
+        onItemClick = { item ->
+            when (item.label) {
+                "Refresh terminal" -> onRefresh()
+                "New session" -> onNewSession()
+                "Exit fullscreen", "Enter fullscreen" -> onToggleFullscreen()
+                "Find in output" -> onFindInOutput()
+                "Settings" -> onOpenSettings()
+                "Close session" -> onClose()
+            }
+        },
+    )
 }
 
 /**
