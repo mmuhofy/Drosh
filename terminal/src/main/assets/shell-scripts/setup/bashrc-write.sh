@@ -49,14 +49,39 @@ fi
 BASHRC
 }
 
+write_bash_profile() {
+    local dir="$1"
+    if [ -f "$dir/.bash_profile" ]; then return 0; fi
+    cat > "$dir/.bash_profile" <<'PROFILE'
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+PROFILE
+}
+
+write_profile() {
+    local dir="$1"
+    if [ -f "$dir/.profile" ]; then return 0; fi
+    cat > "$dir/.profile" <<'PROFILE'
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+PROFILE
+}
+
 if [ -d /root ]; then
     write_bashrc /root/.bashrc
+    write_bash_profile /root
 fi
 if [ -d /home ]; then
     write_bashrc /home/.bashrc
+    write_bash_profile /home
+    write_profile /home
 fi
 if [ -d /etc/skel ]; then
     write_bashrc /etc/skel/.bashrc
+    write_bash_profile /etc/skel
+    write_profile /etc/skel
 fi
 
 echo "bashrc-write: ok"
