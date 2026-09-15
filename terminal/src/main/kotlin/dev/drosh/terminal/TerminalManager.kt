@@ -104,7 +104,22 @@ class TerminalManager(
 
     var projectPath: String? = null
 
+    @Suppress("unused")
     var shellPath: String = "/bin/zsh"
+
+    /**
+     * Detects the effective shell: if Oh My Zsh is installed, use zsh;
+     * otherwise fall back to bash. This handles the case where zsh was chosen
+     * but the OMZ install failed during bootstrap.
+     */
+    private fun effectiveShellPath(): String {
+        val omzDir = File(ubuntuBootstrap.rootfsDir, "home/.oh-my-zsh")
+        return if (omzDir.exists()) "/bin/zsh"
+        else {
+            val bashBin = File(ubuntuBootstrap.rootfsDir, "bin/bash")
+            if (bashBin.exists()) bashBin.path else "/bin/bash"
+        }
+    }
 
     init {
         sessionClient.onSessionFinished = { session -> onSessionFinished(session) }
@@ -308,12 +323,21 @@ class TerminalManager(
                 "/sdcard/dev.drosh/${File(projectPath!!).name}"
             } else null
 
+            // Detect shell: if OMZ is present, use zsh; otherwise fall back to bash.
+            // This handles the case where zsh was chosen but OMZ install failed.
+            val effectiveShell = if (File(ubuntuBootstrap.rootfsDir, "home/.oh-my-zsh").exists()) {
+                "/bin/zsh"
+            } else {
+                File(ubuntuBootstrap.rootfsDir, "bin/bash").takeIf { it.exists() }?.path
+                    ?: "/bin/bash"
+            }
+
             val cmd = prootRunner.build(
             guestWd,
-            shell = shellPath,
+            shell = effectiveShellPath(),
             startCommand = prootStartCommand,
             environmentHooks = writeShellHooksFile()
-        )
+            )
             return TerminalSession(
                 cmd.executable,
                 cmd.cwd,
@@ -504,7 +528,7 @@ class TerminalManager(
             "/sdcard/dev.drosh/${File(projectPath!!).name}"
         } else null
 
-        val cmd = prootRunner.buildBashCommand(command, guestWd, shellPath)
+        val cmd = prootRunner.buildBashCommand(command, guestWd, effectiveShellPath())
 
         try {
             val process = ProcessBuilder(cmd.argv)

@@ -125,18 +125,26 @@ class UbuntuBootstrap(private val context: Context) {
 
                 val shellChoice = preferences.shellChoice
                 if (shellChoice == ShellChoice.Zsh) {
-                    runScriptInProot(SCRIPTS_SET_DEFAULT_SHELL, onLog = onLog)
                     onLog("→ Installing Oh My Zsh + plugins…")
                     onState(UbuntuSetupState.InstallingOhMyZsh("Installing Oh My Zsh..."))
                     lastFailedStep = "OhMyZsh"
+                    var omzSuccess = false
                     try {
+                        runScriptInProot(SCRIPTS_SET_DEFAULT_SHELL, onLog = onLog)
                         runScriptInProot(SCRIPTS_OMZ, onLog = onLog)
                         runScriptInProot(SCRIPTS_ZSHRC, onLog = onLog)
                         onLog("✓ Oh My Zsh ready.")
+                        omzSuccess = true
                     } catch (e: Exception) {
                         onLog("⚠ Oh My Zsh install failed (${e.message}); falling back to bash.")
+                    }
+                    // If OMZ failed, reset default shell to bash so /etc/passwd
+                    // is consistent with the bash .bashrc we write next.
+                    if (!omzSuccess) {
+                        runScriptInProot(SCRIPTS_RESET_SHELL_TO_BASH, onLog = onLog)
                         runScriptInProot(SCRIPTS_BASHRC, onLog = onLog)
                         onLog("✓ Fallback to bash configured for ${preferences.userName}.")
+                    }
                     }
                 } else {
                     onLog("→ Bash selected — skipping Oh My Zsh and set-default-shell.")
@@ -327,10 +335,11 @@ class UbuntuBootstrap(private val context: Context) {
 
         // Asset script filenames under terminal/src/main/assets/shell-scripts/setup/.
         // Each is shipped in the APK and streamed to proot via stdin (`bash -s`).
-        private const val SCRIPTS_CONFIGURE = "rootfs-configure.sh"
+                    private const val SCRIPTS_CONFIGURE = "rootfs-configure.sh"
         private const val SCRIPTS_PACKAGES = "packages-install.sh"
         private const val SCRIPTS_SET_DEFAULT_SHELL = "set-default-shell.sh"
-         private const val SCRIPTS_OMZ = "omz-install.sh"
+        private const val SCRIPTS_RESET_SHELL_TO_BASH = "reset-shell-to-bash.sh"
+        private const val SCRIPTS_OMZ = "omz-install.sh"
         private const val SCRIPTS_ZSHRC = "zshrc-write.sh"
         private const val SCRIPTS_BASHRC = "bashrc-write.sh"
         private const val SCRIPTS_OPTIMIZE = "rootfs-optimize.sh"
