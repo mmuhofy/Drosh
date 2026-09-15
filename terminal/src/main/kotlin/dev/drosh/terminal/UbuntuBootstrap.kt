@@ -145,7 +145,6 @@ class UbuntuBootstrap(private val context: Context) {
                         runScriptInProot(SCRIPTS_BASHRC, onLog = onLog)
                         onLog("✓ Fallback to bash configured for ${preferences.userName}.")
                     }
-                    }
                 } else {
                     onLog("→ Bash selected — skipping Oh My Zsh and set-default-shell.")
                     onState(UbuntuSetupState.Optimizing)
@@ -335,7 +334,7 @@ class UbuntuBootstrap(private val context: Context) {
 
         // Asset script filenames under terminal/src/main/assets/shell-scripts/setup/.
         // Each is shipped in the APK and streamed to proot via stdin (`bash -s`).
-                    private const val SCRIPTS_CONFIGURE = "rootfs-configure.sh"
+        private const val SCRIPTS_CONFIGURE = "rootfs-configure.sh"
         private const val SCRIPTS_PACKAGES = "packages-install.sh"
         private const val SCRIPTS_SET_DEFAULT_SHELL = "set-default-shell.sh"
         private const val SCRIPTS_RESET_SHELL_TO_BASH = "reset-shell-to-bash.sh"
