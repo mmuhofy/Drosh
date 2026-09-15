@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-MARKER_DIR=/var/lib/iris-shell
+MARKER_DIR=/var/lib/drosh
 MARKER_FILE="$MARKER_DIR/.setup_complete"
 
 echo "rootfs-optimize: cleaning deb cache..."
@@ -25,7 +25,7 @@ echo "rootfs-optimize: writing setup-completion marker..."
 mkdir -p "$MARKER_DIR"
 # Capture install signature so re-runs are cheap.
 {
-    echo "iris_shell_setup_version=1"
+    echo "drosh_setup_version=1"
     echo "completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "abi=${ABI:-unknown}"
 } > "$MARKER_FILE"
