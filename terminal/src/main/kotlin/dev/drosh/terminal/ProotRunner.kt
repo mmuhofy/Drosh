@@ -69,7 +69,7 @@ class ProotRunner(
         return ProotCommand(
             executable = linkerPath,
             argv = argv,
-            cwd = rootfsPath,
+            cwd = baseDir.absolutePath,
             environment = env
         )
     }
