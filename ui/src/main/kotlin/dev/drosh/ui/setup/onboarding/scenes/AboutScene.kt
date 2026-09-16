@@ -20,10 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
@@ -84,7 +85,7 @@ fun AboutScene(
             Spacer(modifier = Modifier.height(40.dp))
 
             FeatureItem(
-                icon = DroshIcons.Highlight,
+                icon = DroshIcons.Info,
                 label = "Full Zsh + Oh My Zsh",
                 iconTint = DroshPrimary,
             )

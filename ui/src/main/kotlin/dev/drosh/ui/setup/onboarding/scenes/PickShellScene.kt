@@ -45,6 +45,7 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.domain.terminal.ShellChoice
+import dev.drosh.ui.DroshIcons
 import androidx.compose.material3.TextButton
 
 @Composable

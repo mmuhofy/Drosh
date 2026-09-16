@@ -22,7 +22,6 @@ import compose.icons.lucideicons.Download
 import compose.icons.lucideicons.EllipsisVertical
 import compose.icons.lucideicons.Gauge
 import compose.icons.lucideicons.Globe
-import compose.icons.lucideicons.Highlight
 import compose.icons.lucideicons.Info
 import compose.icons.lucideicons.Keyboard
 import compose.icons.lucideicons.KeyboardOff
@@ -69,7 +68,6 @@ object DroshIcons {
     val EllipsisVertical: ImageVector get() = LucideIcons.EllipsisVertical
     val Gauge: ImageVector get() = LucideIcons.Gauge
     val Globe: ImageVector get() = LucideIcons.Globe
-    val Highlight: ImageVector get() = LucideIcons.Highlight
     val Info: ImageVector get() = LucideIcons.Info
     val Keyboard: ImageVector get() = LucideIcons.Keyboard
     val KeyboardOff: ImageVector get() = LucideIcons.KeyboardOff
