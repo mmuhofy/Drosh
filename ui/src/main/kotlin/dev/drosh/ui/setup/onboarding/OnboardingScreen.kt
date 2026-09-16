@@ -1,9 +1,11 @@
 package dev.drosh.ui.setup.onboarding
 
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animatedContentScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -15,35 +17,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.domain.terminal.PackageProfile
 import dev.drosh.domain.terminal.SetupPreferences
 import dev.drosh.domain.terminal.ShellChoice
-import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.ui.setup.OnboardingViewModel
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import dev.drosh.ui.setup.onboarding.components.SetupButton
-import dev.drosh.ui.setup.onboarding.scenes.DeviceCheckScene
-import dev.drosh.ui.setup.onboarding.scenes.PreferencesScene
-import dev.drosh.ui.setup.onboarding.scenes.PreferencesState
-import dev.drosh.ui.setup.onboarding.scenes.ShellSetupScene
+import dev.drosh.ui.setup.onboarding.scenes.AboutScene
+import dev.drosh.ui.setup.onboarding.scenes.PickShellScene
 import dev.drosh.ui.setup.onboarding.scenes.WelcomeScene
-import dev.drosh.ui.pin.PinSetupScreen
 import kotlinx.coroutines.launch
 
-/**
- * Four-scene onboarding wizard:
- *
- *   Welcome → DeviceCheck → Preferences → ShellSetup (Zsh only)
- *
- * State:
- *   - [userName]    → used as shell prompt after bootstrap
- *   - [shellChoice] → Zsh or Bash; drives whether ShellSetup is shown
- *   - [packageProfile] + [customPackages] → sent to bootstrap use case
- *
- * Skip is available on Welcome and DeviceCheck via SkipAnchor, and routes
- * straight to finishOnboarding (same as completing the full wizard).
- */
 @Composable
 fun OnboardingScreen(
     onCompleted: () -> Unit,
@@ -51,21 +36,19 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     var scene by remember { mutableStateOf(OnboardingSceneKind.Welcome) }
+    var hasAnimated by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    var userName by remember { mutableStateOf("muhofy") }
     var shellChoice by remember { mutableStateOf(ShellChoice.Zsh) }
-    var packageProfile by remember { mutableStateOf(PackageProfile.Developer) }
-    var customPackages by remember { mutableStateOf(setOf<String>()) }
 
-    val finish: () -> Unit = {
+    val finish: (ShellChoice) -> Unit = { chosenShell ->
         coroutineScope.launch {
             viewModel.finishOnboarding(
                 SetupPreferences(
-                    userName = userName,
-                    shellChoice = shellChoice,
-                    packageProfile = packageProfile,
-                    customPackages = customPackages,
+                    userName = "user",
+                    shellChoice = chosenShell,
+                    packageProfile = PackageProfile.Developer,
+                    customPackages = emptySet(),
                 )
             )
             onCompleted()
@@ -73,66 +56,7 @@ fun OnboardingScreen(
     }
 
     val advance: () -> Unit = {
-        val next = scene.next()
-        if (next == OnboardingSceneKind.ShellSetup && shellChoice != ShellChoice.Zsh) {
-            scene = OnboardingSceneKind.Security
-        } else if (next == OnboardingSceneKind.Security) {
-            scene = next
-        } else if (next != null) {
-            scene = next
-        } else {
-            finish()
-        }
-    }
-
-    val skip: () -> Unit = {
-        coroutineScope.launch {
-            viewModel.finishOnboarding(
-                SetupPreferences(
-                    userName = userName,
-                    shellChoice = shellChoice,
-                    packageProfile = packageProfile,
-                    customPackages = customPackages,
-                )
-            )
-            onCompleted()
-        }
-    }
-
-    val startPinSetup: (pin: String) -> Unit = { pin ->
-        coroutineScope.launch {
-            viewModel.setPin(pin)
-            viewModel.finishOnboarding(
-                SetupPreferences(
-                    userName = userName,
-                    shellChoice = shellChoice,
-                    packageProfile = packageProfile,
-                    customPackages = customPackages,
-                )
-            )
-            onCompleted()
-        }
-    }
-
-    val prefsState = remember(
-        userName, shellChoice, packageProfile, customPackages,
-    ) {
-        PreferencesState(
-            userName = userName,
-            shellChoice = shellChoice,
-            packageProfile = packageProfile,
-            customPackages = customPackages,
-            onUserNameChange = { userName = it },
-            onShellChoiceChange = { shellChoice = it },
-            onPackageProfileChange = { packageProfile = it },
-            onCustomPackageToggled = { pkg ->
-                customPackages = if (customPackages.contains(pkg)) {
-                    customPackages - pkg
-                } else {
-                    customPackages + pkg
-                }
-            },
-        )
+        scene.next()?.let { scene = it } ?: finish(shellChoice)
     }
 
     Box(
@@ -140,29 +64,65 @@ fun OnboardingScreen(
             .fillMaxSize()
             .background(DroshBackground),
     ) {
-        AnimatedContent(
+        androidx.compose.animation.AnimatedContent(
             targetState = scene,
             transitionSpec = {
-                (fadeIn(animationSpec = tween(220)) togetherWith
-                    fadeOut(animationSpec = tween(180)))
+                val slideDistance = 32
+                val tweenIn = tween(durationMillis = 280, easing = androidx.compose.animation.core.EaseInOut)
+                val tweenOut = tween(durationMillis = 250, easing = androidx.compose.animation.core.EaseInOut)
+
+                val isForward = targetState.ordinal > initialState.ordinal
+                val slideIn = if (isForward) {
+                    slideInHorizontally(
+                        animationSpec = tweenIn,
+                        initialOffsetX = { -slideDistance },
+                    )
+                } else {
+                    slideInHorizontally(
+                        animationSpec = tweenIn,
+                        initialOffsetX = { slideDistance },
+                    )
+                }
+                val slideOut = if (isForward) {
+                    slideOutHorizontally(
+                        animationSpec = tweenOut,
+                        targetOffsetX = { -slideDistance },
+                    )
+                } else {
+                    slideOutHorizontally(
+                        animationSpec = tweenOut,
+                        targetOffsetX = { slideDistance },
+                    )
+                }
+                val fadeIn = fadeIn(animationSpec = tweenIn)
+                val fadeOut = fadeOut(animationSpec = tweenOut)
+
+                (slideIn + fadeIn) togetherWith (slideOut + fadeOut)
             },
             label = "onboarding-scene",
         ) { current ->
             when (current) {
                 OnboardingSceneKind.Welcome ->
-                    WelcomeScene(onContinue = advance, onSkip = skip)
-                OnboardingSceneKind.DeviceCheck ->
-                    DeviceCheckScene(onContinue = advance, onSkip = skip)
-                OnboardingSceneKind.Preferences ->
-                    PreferencesScene(state = prefsState, onContinue = advance)
-                OnboardingSceneKind.ShellSetup ->
-                    ShellSetupScene(onContinue = advance)
-                OnboardingSceneKind.Security ->
-                    PinSetupScreen(
-                        onPinSet = startPinSetup,
-                        onSkip = skip,
+                    WelcomeScene(
+                        onNext = advance,
+                        hasAnimated = hasAnimated,
+                    )
+                OnboardingSceneKind.About ->
+                    AboutScene(
+                        onNext = advance,
+                    )
+                OnboardingSceneKind.PickShell ->
+                    PickShellScene(
+                        onStartSetup = { shell ->
+                            hasAnimated = true
+                            finish(shell)
+                        },
                     )
             }
+        }
+
+        LaunchedEffect(Unit) {
+            hasAnimated = true
         }
     }
 }

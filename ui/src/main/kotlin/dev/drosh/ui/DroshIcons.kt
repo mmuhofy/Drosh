@@ -16,11 +16,13 @@ import compose.icons.lucideicons.ChevronDown
 import compose.icons.lucideicons.ChevronUp
 import compose.icons.lucideicons.CircleUser
 import compose.icons.lucideicons.CircleX
+import compose.icons.lucideicons.Code
 import compose.icons.lucideicons.Copy
 import compose.icons.lucideicons.Download
 import compose.icons.lucideicons.EllipsisVertical
 import compose.icons.lucideicons.Gauge
 import compose.icons.lucideicons.Globe
+import compose.icons.lucideicons.Highlight
 import compose.icons.lucideicons.Info
 import compose.icons.lucideicons.Keyboard
 import compose.icons.lucideicons.KeyboardOff
@@ -29,6 +31,7 @@ import compose.icons.lucideicons.Maximize
 import compose.icons.lucideicons.Minimize
 import compose.icons.lucideicons.Minus
 import compose.icons.lucideicons.PanelLeft
+import compose.icons.lucideicons.Package
 import compose.icons.lucideicons.Pencil
 import compose.icons.lucideicons.Play
 import compose.icons.lucideicons.Plus
@@ -60,11 +63,13 @@ object DroshIcons {
     val ChevronDown: ImageVector get() = LucideIcons.ChevronDown
     val ChevronUp: ImageVector get() = LucideIcons.ChevronUp
     val CircleUser: ImageVector get() = LucideIcons.CircleUser
+    val Code: ImageVector get() = LucideIcons.Code
     val Copy: ImageVector get() = LucideIcons.Copy
     val Download: ImageVector get() = LucideIcons.Download
     val EllipsisVertical: ImageVector get() = LucideIcons.EllipsisVertical
     val Gauge: ImageVector get() = LucideIcons.Gauge
     val Globe: ImageVector get() = LucideIcons.Globe
+    val Highlight: ImageVector get() = LucideIcons.Highlight
     val Info: ImageVector get() = LucideIcons.Info
     val Keyboard: ImageVector get() = LucideIcons.Keyboard
     val KeyboardOff: ImageVector get() = LucideIcons.KeyboardOff
@@ -72,6 +77,7 @@ object DroshIcons {
     val Maximize: ImageVector get() = LucideIcons.Maximize
     val Minus: ImageVector get() = LucideIcons.Minus
     val Minimize: ImageVector get() = LucideIcons.Minimize
+    val Package: ImageVector get() = LucideIcons.Package
     val PanelLeft: ImageVector get() = LucideIcons.PanelLeft
     val Pencil: ImageVector get() = LucideIcons.Pencil
     val Play: ImageVector get() = LucideIcons.Play
