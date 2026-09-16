@@ -28,7 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -158,7 +157,6 @@ private fun ShellSelectorCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = backgroundColor,
-            contentColor = DroshText,
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -167,15 +165,7 @@ private fun ShellSelectorCard(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .background(
-                    brush = if (isSelected) Brush.horizontalGradient(
-                        colors = listOf(
-                            DroshPrimary.copy(alpha = 0.05f),
-                            Color.Transparent,
-                        ),
-                    ) else null,
-                ),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(

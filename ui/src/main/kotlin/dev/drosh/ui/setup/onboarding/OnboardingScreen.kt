@@ -9,6 +9,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,6 +60,10 @@ fun OnboardingScreen(
         scene.next()?.let { scene = it } ?: finish(shellChoice)
     }
 
+    val onBack: () -> Unit = {
+        scene = OnboardingSceneKind.Welcome
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -68,36 +73,32 @@ fun OnboardingScreen(
             targetState = scene,
             transitionSpec = {
                 val slideDistance = 32
-                val tweenIn = tween(durationMillis = 280, easing = androidx.compose.animation.core.EaseInOut)
-                val tweenOut = tween(durationMillis = 250, easing = androidx.compose.animation.core.EaseInOut)
-
                 val isForward = targetState.ordinal > initialState.ordinal
                 val slideIn = if (isForward) {
                     slideInHorizontally(
-                        animationSpec = tweenIn,
+                        animationSpec = tween(durationMillis = 280),
                         initialOffsetX = { -slideDistance },
                     )
                 } else {
                     slideInHorizontally(
-                        animationSpec = tweenIn,
+                        animationSpec = tween(durationMillis = 280),
                         initialOffsetX = { slideDistance },
                     )
                 }
                 val slideOut = if (isForward) {
                     slideOutHorizontally(
-                        animationSpec = tweenOut,
+                        animationSpec = tween(durationMillis = 250),
                         targetOffsetX = { -slideDistance },
                     )
                 } else {
                     slideOutHorizontally(
-                        animationSpec = tweenOut,
+                        animationSpec = tween(durationMillis = 250),
                         targetOffsetX = { slideDistance },
                     )
                 }
-                val fadeIn = fadeIn(animationSpec = tweenIn)
-                val fadeOut = fadeOut(animationSpec = tweenOut)
 
-                (slideIn + fadeIn) togetherWith (slideOut + fadeOut)
+                (slideIn + fadeIn(animationSpec = tween(durationMillis = 280))) togetherWith
+                    (slideOut + fadeOut(animationSpec = tween(durationMillis = 250)))
             },
             label = "onboarding-scene",
         ) { current ->
@@ -113,6 +114,7 @@ fun OnboardingScreen(
                     )
                 OnboardingSceneKind.PickShell ->
                     PickShellScene(
+                        onBack = onBack,
                         onStartSetup = { shell ->
                             hasAnimated = true
                             finish(shell)
