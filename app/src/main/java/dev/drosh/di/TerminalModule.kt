@@ -45,10 +45,12 @@ object TerminalModule {
     fun provideTerminalManager(
         application: Application,
         ubuntuBootstrap: UbuntuBootstrap,
+        bootstrapStatePort: BootstrapStatePort,
         blockEngineWire: BlockEngineWire,
         settingsRepository: SettingsRepository,
     ): TerminalManager = TerminalManager(
         ubuntuBootstrap = ubuntuBootstrap,
+        bootstrapStatePort = bootstrapStatePort,
         application = application,
         blockEngineWire = blockEngineWire,
         settingsRepository = settingsRepository,

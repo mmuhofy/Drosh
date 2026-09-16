@@ -7,6 +7,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import dev.drosh.core.TerminalConstants
@@ -37,6 +39,7 @@ import java.util.concurrent.TimeUnit
  */
 class TerminalManager(
     private val ubuntuBootstrap: UbuntuBootstrap,
+    private val bootstrapStatePort: BootstrapStatePort,
     application: Application,
     private val blockEngineWire: BlockEngineWire? = null,
     private val settingsRepository: SettingsRepository,
@@ -149,6 +152,12 @@ class TerminalManager(
                 terminalViewRef?.setTerminalCursorBlinkerRate(rate)
             }
             .launchIn(managerScope)
+
+        bootstrapStatePort.state
+            .filter { it is UbuntuSetupState.Ready }
+            .distinctUntilChanged()
+            .onEach { recoverFallbackSessions() }
+            .launchIn(managerScope)
     }
 
     fun updateProotStartCommand(command: String) {
@@ -168,10 +177,12 @@ class TerminalManager(
     fun addTab(): TerminalSession = addTabWithId(null, "")
 
     fun addTabWithId(persistentId: String?, name: String): TerminalSession {
+        val wasInstalled = ubuntuBootstrap.isInstalled
         val irisSession = DroshSession(
             terminalSession = createNewSession(),
             persistentId = persistentId,
             name = name,
+            isFallbackSession = !wasInstalled,
         )
         irisSessions.add(irisSession)
         val newIndex = irisSessions.size - 1
@@ -340,6 +351,35 @@ class TerminalManager(
             3000,
             sessionClient
         )
+    }
+
+    /**
+     * Automatically restores sessions that were started with the fallback
+     * `/system/bin/sh` shell (used before bootstrap completes). When bootstrap
+     * finishes, those sessions are seamlessly swapped for proper proot sessions
+     * without requiring the user to manually open a new tab.
+     */
+    private fun recoverFallbackSessions() {
+        if (!ubuntuBootstrap.isInstalled) return
+        val fallbackIndices = irisSessions.mapIndexedNotNull { idx, s ->
+            idx to s.isFallbackSession
+        }.filter { it.second }.map { it.first }
+        if (fallbackIndices.isEmpty()) return
+
+        for (idx in fallbackIndices) {
+            val old = irisSessions[idx]
+            old.terminalSession.finishIfRunning()
+            irisSessions[idx] = DroshSession(
+                terminalSession = createNewSession(),
+                persistentId = old.persistentId,
+                name = old.name,
+                pid = 0,
+                isFallbackSession = false,
+            )
+            if (idx == _activeTabIndex.value) {
+                terminalViewRef?.attachSession(irisSessions[idx].terminalSession)
+            }
+        }
     }
 
     private fun writeShellHooksFile(): Map<String, String> {

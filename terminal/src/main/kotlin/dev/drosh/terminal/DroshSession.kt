@@ -16,8 +16,9 @@ import com.termux.terminal.TerminalSession
  * Adapted for Drosh — dev.drosh
  */
 class DroshSession(
-    val terminalSession: TerminalSession,
+    var terminalSession: TerminalSession,
     val persistentId: String?,
     var name: String,
     var pid: Int = 0,
+    var isFallbackSession: Boolean = false,
 )
