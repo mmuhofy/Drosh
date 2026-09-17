@@ -2,12 +2,10 @@ package dev.drosh.ui.setup.onboarding.scenes
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -30,26 +28,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
+import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.setup.onboarding.components.TypewriterText
 import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 import kotlinx.coroutines.delay
 
@@ -82,7 +78,7 @@ fun WelcomeScene(
             Spacer(modifier = Modifier.height(32.dp))
 
             TerminalIconAnimated(
-                size = 80.dp,
+                size = 96.dp,
                 tint = DroshPrimary,
                 animateIn = !hasAnimated,
             )
@@ -100,25 +96,26 @@ fun WelcomeScene(
                         }
                     },
                     style = TextStyle(
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 22.sp,
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 28.sp,
                         letterSpacing = 0.5.sp,
                     ),
                     color = DroshText,
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 TypewriterText(
                     fullText = "Your phone is a Unix machine. Finally.",
                     charDelayMs = 28L,
                     onComplete = { },
                     textStyle = TextStyle(
-                        fontFamily = androidx.compose.ui.text.font.FontStyle.Italic,
+                        fontFamily = OutfitFontFamily,
+                        fontStyle = FontStyle.Italic,
                         fontWeight = FontWeight.Normal,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
                         letterSpacing = 0.2.sp,
                         textAlign = TextAlign.Center,
                     ),
@@ -128,7 +125,7 @@ fun WelcomeScene(
             Spacer(modifier = Modifier.weight(1f))
 
             PillButton(
-                text = "Next",
+                text = "Get started",
                 onClick = onNext,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -140,8 +137,8 @@ fun WelcomeScene(
 
 @Composable
 private fun TerminalIconAnimated(
-    size: Dp,
-    tint: androidx.compose.ui.graphics.Color,
+    size: androidx.compose.ui.unit.Dp,
+    tint: Color,
     animateIn: Boolean,
 ) {
     val scale = remember { Animatable(0.9f) }
@@ -160,73 +157,21 @@ private fun TerminalIconAnimated(
         }
     }
 
-    val scaleFloat = scale.value
-    val alphaFloat = alpha.value
-
     Box(
         modifier = Modifier
             .size(size)
-            .graphicsLayer(alpha = alphaFloat)
+            .graphicsLayer(alpha = alpha.value)
             .graphicsLayer {
-                scaleX = scaleFloat
-                scaleY = scaleFloat
+                scaleX = scale.value
+                scaleY = scale.value
             },
         contentAlignment = Alignment.Center,
     ) {
-        TerminalIconCanvas(
-            size = size,
+        Icon(
+            imageVector = DroshIcons.Terminal,
+            contentDescription = null,
             tint = tint,
-        )
-    }
-}
-
-@Composable
-private fun TerminalIconCanvas(
-    size: Dp,
-    tint: androidx.compose.ui.graphics.Color,
-) {
-    val density = LocalDensity.current
-    val sizePx = with(density) { size.toPx() }
-
-    Canvas(
-        modifier = Modifier.size(size),
-    ) {
-        val center = Offset(sizePx / 2f, sizePx / 2f)
-        val radius = sizePx * 0.30f
-        val strokeWidth = sizePx * 0.09f
-
-        for (i in 0..2) {
-            val r = radius - i * (strokeWidth + 2)
-            val path = Path().apply {
-                moveTo(center.x - r, center.y - r)
-                arcTo(
-                    rect = androidx.compose.ui.geometry.Rect(
-                        left = center.x - r,
-                        top = center.y - r,
-                        right = center.x + r,
-                        bottom = center.y + r,
-                    ),
-                    startAngleDegrees = 135f,
-                    sweepAngleDegrees = 270f,
-                    forceMoveTo = true,
-                )
-            }
-            drawPath(
-                path = path,
-                color = if (i == 0) tint else tint.copy(alpha = 0.3f),
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-            )
-        }
-
-        val cursorR = radius - 2 * (strokeWidth + 2)
-        val cursorAngle = Math.toRadians(270.0).toFloat()
-        val cursorX = center.x + (cursorR * kotlin.math.cos(cursorAngle)).toFloat()
-        val cursorY = center.y + (cursorR * kotlin.math.sin(cursorAngle)).toFloat()
-
-        drawRect(
-            color = tint,
-            topLeft = Offset(cursorX - strokeWidth * 0.3f, cursorY - strokeWidth * 0.3f),
-            size = Size(strokeWidth * 0.6f, strokeWidth * 0.6f),
+            modifier = Modifier.size(size),
         )
     }
 }
@@ -254,6 +199,7 @@ fun PillButton(
         Text(
             text = text,
             style = TextStyle(
+                fontFamily = OutfitFontFamily,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
             ),
@@ -285,6 +231,7 @@ fun PillButtonWithIcon(
         Text(
             text = text,
             style = TextStyle(
+                fontFamily = OutfitFontFamily,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
             ),
