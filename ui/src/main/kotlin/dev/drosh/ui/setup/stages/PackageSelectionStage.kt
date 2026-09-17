@@ -189,7 +189,7 @@ fun PackageSelectionStage(
                             .height(56.dp),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
-                        colors = TextFieldDefaults.textFieldColors(
+                        colors = TextFieldDefaults.colors(
                             containerColor = DroshSurfaceVariant,
                             focusedIndicatorColor = DroshPrimary,
                             unfocusedIndicatorColor = Color.Transparent,
