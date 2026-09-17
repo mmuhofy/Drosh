@@ -1,25 +1,25 @@
 package dev.drosh.ui.setup.onboarding.scenes
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,12 +29,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
@@ -42,10 +43,11 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.domain.terminal.ShellChoice
 import dev.drosh.ui.DroshIcons
-import androidx.compose.material3.TextButton
+import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 
 @Composable
 fun PickShellScene(
@@ -63,88 +65,89 @@ fun PickShellScene(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 28.dp),
+                .padding(horizontal = 28.dp)
+                .windowInsetsPadding(WindowInsets.statusBars),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(modifier = Modifier.height(100.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+
+            WormPageIndicator(
+                pageCount = 3,
+                currentPage = 2,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "Pick your shell. You can always change this later.",
+                text = "Pick your shell",
                 style = TextStyle(
                     fontFamily = OutfitFontFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 22.sp,
-                    lineHeight = 28.sp,
                     letterSpacing = 0.5.sp,
                 ),
                 color = DroshText,
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Zsh comes with Oh My Zsh and plugins. Bash is lightweight and familiar.",
+                style = TextStyle(
+                    fontFamily = OutfitFontFamily,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    textAlign = TextAlign.Center,
+                ),
+                color = DroshTextMuted,
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
 
             ShellSelectorCard(
-                shell = ShellChoice.Zsh,
+                icon = DroshIcons.Terminal,
+                label = "Zsh",
+                subtitle = "Oh My Zsh + plugins included",
                 isSelected = selectedShell == ShellChoice.Zsh,
                 onSelect = { selectedShell = ShellChoice.Zsh },
             )
             Spacer(modifier = Modifier.height(12.dp))
             ShellSelectorCard(
-                shell = ShellChoice.Bash,
+                icon = DroshIcons.SquareTerminal,
+                label = "Bash",
+                subtitle = "Lightweight, no extras",
                 isSelected = selectedShell == ShellChoice.Bash,
                 onSelect = { selectedShell = ShellChoice.Bash },
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
-            Row(
+            PillButton(
+                text = "Start setup",
+                onClick = { onStartSetup(selectedShell) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 32.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
-            ) {
-                PageIndicator(activeIndex = 2, pageCount = 3)
-
-                Spacer(
-                    modifier = Modifier
-                        .width(16.dp)
-                        .height(48.dp),
-                )
-
-                TextButton(
-                    onClick = { onStartSetup(selectedShell) },
-                    modifier = Modifier.height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Text(
-                        text = "Start setup",
-                        style = TextStyle(
-                            fontFamily = OutfitFontFamily,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
-                        ),
-                        color = DroshOnPrimary,
-                    )
-                }
-            }
+            )
         }
     }
 }
 
 @Composable
 private fun ShellSelectorCard(
-    shell: ShellChoice,
+    icon: ImageVector,
+    label: String,
+    subtitle: String,
     isSelected: Boolean,
     onSelect: () -> Unit,
 ) {
-    val backgroundColor = if (isSelected) DroshPrimary.copy(alpha = 0.08f) else DroshSurfaceVariant
-    val borderColor = if (isSelected) DroshPrimary else Color.Transparent
-
     Card(
         onClick = onSelect,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = backgroundColor,
+            containerColor = if (isSelected) DroshPrimary.copy(alpha = 0.08f) else DroshSurfaceVariant,
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -160,15 +163,15 @@ private fun ShellSelectorCard(
                 modifier = Modifier
                     .size(40.dp)
                     .background(
-                        color = if (isSelected) DroshPrimary.copy(alpha = 0.12f) else DroshSurface,
-                        shape = RoundedCornerShape(10.dp),
+                        color = DroshSurface,
+                        shape = CircleShape,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = if (shell == ShellChoice.Zsh) DroshIcons.Terminal else DroshIcons.SquareTerminal,
+                    imageVector = icon,
                     contentDescription = null,
-                    tint = if (isSelected) DroshPrimary else DroshTextMuted,
+                    tint = if (isSelected) DroshPrimary else DroshTextSecondary,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -179,10 +182,7 @@ private fun ShellSelectorCard(
                 modifier = Modifier.weight(1f),
             ) {
                 Text(
-                    text = when (shell) {
-                        ShellChoice.Zsh -> "Zsh"
-                        ShellChoice.Bash -> "Bash"
-                    },
+                    text = label,
                     style = TextStyle(
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.SemiBold,
@@ -191,47 +191,13 @@ private fun ShellSelectorCard(
                     color = if (isSelected) DroshPrimary else DroshText,
                 )
                 Text(
-                    text = when (shell) {
-                        ShellChoice.Zsh -> "Oh My Zsh + plugins included"
-                        ShellChoice.Bash -> "Lightweight, no extras"
-                    },
+                    text = subtitle,
                     style = TextStyle(
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.Normal,
                         fontSize = 12.sp,
                     ),
                     color = DroshTextMuted,
-                )
-            }
-
-            if (shell == ShellChoice.Zsh) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = DroshPrimary,
-                            shape = RoundedCornerShape(50),
-                        )
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                    Text(
-                        text = "Recommended",
-                        style = TextStyle(
-                            fontFamily = OutfitFontFamily,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 10.sp,
-                        ),
-                        color = DroshOnPrimary,
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            if (isSelected) {
-                Icon(
-                    imageVector = DroshIcons.Check,
-                    contentDescription = null,
-                    tint = DroshPrimary,
-                    modifier = Modifier.size(18.dp),
                 )
             }
         }
