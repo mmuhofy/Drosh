@@ -30,6 +30,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,20 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.setup.theme.SetupPalette
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-/**
- * Expandable live-log card.
- *
- * - Collapsed (default): a 44dp tall chip — status dot + label + line count + chevron.
- * - Expanded: a scrollable panel of mono-space log lines (max 320dp).
- *
- * Tail behavior: when new lines come in while expanded, we auto-scroll to
- * the bottom (unless the user has scrolled up — then we respect them).
- *
- * @param lines           Latest N lines from `BootstrapViewModel.liveLogs`.
- * @param expanded        Open / closed state (driven by `BootstrapViewModel.isLogDrawerOpen`).
- * @param onToggleOpen    Called when the user taps the header.
- */
 @Composable
 fun LiveLogCard(
     lines: List<String>,
@@ -62,8 +53,10 @@ fun LiveLogCard(
     onToggleOpen: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
     Column(modifier = modifier.fillMaxWidth()) {
-        // Header chip — always visible, 44dp tall.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -142,7 +135,11 @@ fun LiveLogCard(
                 if (lines.isEmpty()) {
                     EmptyLogHint()
                 } else {
-                    LogScrollable(lines)
+                    LogScrollable(
+                        lines = lines,
+                        listState = listState,
+                        coroutineScope = coroutineScope,
+                    )
                 }
             }
         }
@@ -169,12 +166,27 @@ private fun EmptyLogHint() {
 }
 
 @Composable
-private fun LogScrollable(lines: List<String>) {
-    val state = rememberLazyListState()
-
+private fun LogScrollable(
+    lines: List<String>,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+) {
     LaunchedEffect(lines.size) {
-        if (lines.isNotEmpty() && !state.canScrollBackward) {
-            state.animateScrollToItem(lines.size - 1)
+        coroutineScope.launch {
+            delay(50)
+            val visibleInfo = listState.layoutInfo.visibleItemsInfo
+            val atBottom = visibleInfo.isEmpty() ||
+                visibleInfo.last().index >= minOf(lines.lastIndex, listState.layoutInfo.totalItemsCount - 1)
+            if (atBottom && lines.isNotEmpty()) {
+                try {
+                    val targetIndex = minOf(lines.lastIndex, listState.layoutInfo.totalItemsCount - 1)
+                    if (targetIndex >= 0 && targetIndex < lines.size) {
+                        listState.animateScrollToItem(targetIndex)
+                    }
+                } catch (_: IllegalStateException) {
+                } catch (_: IndexOutOfBoundsException) {
+                }
+            }
         }
     }
 
@@ -182,10 +194,14 @@ private fun LogScrollable(lines: List<String>) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 10.dp),
-        state = state,
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        items(items = lines, key = { it.hashCode() }) { line ->
+        items(
+            count = lines.size,
+            key = { index -> "log_line_$index" },
+        ) { index ->
+            val line = lines[index]
             Text(
                 text = line,
                 color = when {
@@ -204,6 +220,3 @@ private fun LogScrollable(lines: List<String>) {
         }
     }
 }
-
-@Suppress("unused")
-private val ChevronSpacer: Modifier = Modifier

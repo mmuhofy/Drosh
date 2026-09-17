@@ -24,7 +24,7 @@ data class SetupPreferences(
         fun defaults(): SetupPreferences = SetupPreferences(
             userName = "user",
             shellChoice = ShellChoice.Zsh,
-            packageProfile = PackageProfile.Developer,
+            packageProfile = PackageProfile.Standard,
             customPackages = emptySet(),
         )
     }

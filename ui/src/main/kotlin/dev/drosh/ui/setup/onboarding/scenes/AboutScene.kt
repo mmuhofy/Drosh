@@ -35,8 +35,10 @@ import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.setup.components.PillButton
 import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
-import androidx.compose.ui.graphics.graphicsLayer
+import dev.drosh.ui.setup.components.PillButton
+import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 
 @Composable
 fun AboutScene(

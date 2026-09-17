@@ -47,6 +47,7 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.setup.onboarding.components.TypewriterText
+import dev.drosh.ui.setup.components.PillButton
 import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 import kotlinx.coroutines.delay
 
@@ -174,77 +175,5 @@ private fun TerminalIconAnimated(
             tint = tint,
             modifier = Modifier.size(size),
         )
-    }
-}
-
-@Composable
-fun PillButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(56.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = DroshPrimary,
-            contentColor = DroshOnPrimary,
-            disabledContainerColor = DroshPrimary.copy(alpha = 0.3f),
-            disabledContentColor = DroshOnPrimary.copy(alpha = 0.5f),
-        ),
-        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp),
-    ) {
-        Text(
-            text = text,
-            style = TextStyle(
-                fontFamily = OutfitFontFamily,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-            ),
-        )
-    }
-}
-
-@Composable
-fun PillButtonWithIcon(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(56.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = DroshPrimary,
-            contentColor = DroshOnPrimary,
-            disabledContainerColor = DroshPrimary.copy(alpha = 0.3f),
-            disabledContentColor = DroshOnPrimary.copy(alpha = 0.5f),
-        ),
-        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp),
-    ) {
-        Text(
-            text = text,
-            style = TextStyle(
-                fontFamily = OutfitFontFamily,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-            ),
-        )
-        if (icon != null) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = DroshOnPrimary,
-                modifier = Modifier.size(18.dp),
-            )
-        }
     }
 }

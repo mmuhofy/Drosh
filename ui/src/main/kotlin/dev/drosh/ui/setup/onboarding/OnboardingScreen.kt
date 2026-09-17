@@ -48,7 +48,7 @@ fun OnboardingScreen(
                 SetupPreferences(
                     userName = "user",
                     shellChoice = chosenShell,
-                    packageProfile = PackageProfile.Developer,
+                    packageProfile = PackageProfile.Standard,
                     customPackages = emptySet(),
                 )
             )

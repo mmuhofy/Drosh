@@ -42,9 +42,8 @@ import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.terminal.ExtraKeyState
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.UbuntuSetupState
-import dev.drosh.ui.setup.BootstrapStepperScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
-import dev.drosh.ui.setup.onboarding.OnboardingScreen
+import dev.drosh.ui.setup.SetupWizardScreen
 import dev.drosh.ui.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
@@ -116,7 +115,7 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
         ) {
             composable("splash") {
-                val destination = if (firstCompleted == true) "terminal" else "onboarding"
+                val destination = if (firstCompleted == true) "terminal" else "setup_wizard"
                 if (firstCompleted != null) {
                     LaunchedEffect(firstCompleted) {
                         navController.navigate(destination) {
@@ -127,26 +126,16 @@ class MainActivity : ComponentActivity() {
                 SplashScreen()
             }
 
-            composable("onboarding") {
-                OnboardingScreen(
-                    onCompleted = {
-                        navController.navigate("bootstrap") {
-                            popUpTo("onboarding") { inclusive = true }
-                        }
-                    },
-                )
-            }
-
-            composable("bootstrap") {
-                BootstrapStepperScreen(
+            composable("setup_wizard") {
+                SetupWizardScreen(
                     onReady = {
                         navController.navigate("terminal") {
-                            popUpTo("bootstrap") { inclusive = true }
+                            popUpTo("setup_wizard") { inclusive = true }
                         }
                     },
                     onSetupFailed = {
                         navController.navigate("recovery") {
-                            popUpTo("bootstrap") { inclusive = true }
+                            popUpTo("setup_wizard") { inclusive = true }
                         }
                     },
                 )
