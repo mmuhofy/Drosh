@@ -42,6 +42,7 @@ import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.terminal.ExtraKeyState
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.UbuntuSetupState
+import dev.drosh.ui.setup.onboarding.OnboardingScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
 import dev.drosh.ui.setup.SetupWizardScreen
 import dev.drosh.ui.terminal.TerminalScreen
@@ -115,7 +116,7 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
         ) {
             composable("splash") {
-                val destination = if (firstCompleted == true) "terminal" else "setup_wizard"
+                val destination = if (firstCompleted == true) "terminal" else "onboarding"
                 if (firstCompleted != null) {
                     LaunchedEffect(firstCompleted) {
                         navController.navigate(destination) {
@@ -124,6 +125,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 SplashScreen()
+            }
+
+            composable("onboarding") {
+                OnboardingScreen(
+                    onCompleted = {
+                        navController.navigate("setup_wizard") {
+                            popUpTo("onboarding") { inclusive = true }
+                        }
+                    },
+                )
             }
 
             composable("setup_wizard") {

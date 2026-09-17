@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
-import dev.drosh.domain.terminal.SetupPreferences
-import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,30 +16,23 @@ import javax.inject.Inject
  * Drives [OnboardingScreen].
  *
  * Persists [ObserveFirstLaunchUseCase.markCompleted] once the user finishes
- * the wizard. Before marking, it kicks off the real bootstrap via
- * [TriggerBootstrapUseCase.start] with the user's [SetupPreferences] so the
- * PRoot + Ubuntu rootfs pipeline honours the chosen shell, username, and
- * package profile.
- *
- * The bootstrap is started here (not deferred to MainActivity) so that the
- * user's preferences reach [BootstrapStatePort] → [UbuntuBootstrap] immediately
- * upon onboarding completion. MainActivity's auto-trigger is guarded by a
- * state check to avoid double-invocation.
+ * the walkthrough. The actual bootstrap is NOT started here — that's deferred
+ * to [SetupWizardViewModel] so the user can review and adjust their package
+ * profile and shell choice in the 3-stage setup wizard before PRoot + Ubuntu
+ * rootfs installation begins.
  */
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     private val firstLaunch: ObserveFirstLaunchUseCase,
-    private val triggerBootstrap: TriggerBootstrapUseCase,
     private val pinLock: PinLockRepository,
 ) : ViewModel() {
 
     val isCompleted: StateFlow<Boolean> = firstLaunch.isCompleted()
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    fun finishOnboarding(preferences: SetupPreferences) {
+    fun finishOnboarding() {
         viewModelScope.launch {
             try {
-                triggerBootstrap.start(preferences)
                 firstLaunch.markCompleted()
             } catch (t: Throwable) {
                 Log.e(TAG, "finishOnboarding: failed", t)

@@ -20,8 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import dev.drosh.design.system.DroshBackground
-import dev.drosh.domain.terminal.PackageProfile
-import dev.drosh.domain.terminal.SetupPreferences
 import dev.drosh.domain.terminal.ShellChoice
 import dev.drosh.ui.setup.OnboardingViewModel
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -44,14 +42,7 @@ fun OnboardingScreen(
 
     val finish: (ShellChoice) -> Unit = { chosenShell ->
         coroutineScope.launch {
-            viewModel.finishOnboarding(
-                SetupPreferences(
-                    userName = "user",
-                    shellChoice = chosenShell,
-                    packageProfile = PackageProfile.Standard,
-                    customPackages = emptySet(),
-                )
-            )
+            viewModel.finishOnboarding()
             onCompleted()
         }
     }
