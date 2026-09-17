@@ -4,7 +4,7 @@ package dev.drosh.domain.terminal
  * Captures the user's onboarding choices and threads them through the bootstrap
  * pipeline.
  *
- * Created from the local state collected in [OnboardingScreen], then passed to
+ * Created from the local state collected in SetupFlowScreen, then passed to
  * [TriggerBootstrapUseCase.start] so the bootstrap (PRoot + Ubuntu rootfs)
  * can honour:
  *   - the chosen shell (Zsh → install Oh My Zsh; Bash → skip it)

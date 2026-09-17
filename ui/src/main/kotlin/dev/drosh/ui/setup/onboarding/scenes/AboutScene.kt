@@ -36,9 +36,6 @@ import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.setup.components.PillButton
-import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
-import dev.drosh.ui.setup.components.PillButton
-import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 
 @Composable
 fun AboutScene(
@@ -58,12 +55,6 @@ fun AboutScene(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(modifier = Modifier.height(20.dp))
-
-            WormPageIndicator(
-                pageCount = 3,
-                currentPage = 1,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
 
             Spacer(modifier = Modifier.height(32.dp))
 

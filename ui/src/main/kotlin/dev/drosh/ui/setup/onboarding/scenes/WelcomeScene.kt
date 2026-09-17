@@ -48,7 +48,6 @@ import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.setup.onboarding.components.TypewriterText
 import dev.drosh.ui.setup.components.PillButton
-import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 import kotlinx.coroutines.delay
 
 @Composable
@@ -70,12 +69,6 @@ fun WelcomeScene(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(modifier = Modifier.height(20.dp))
-
-            WormPageIndicator(
-                pageCount = 3,
-                currentPage = 0,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
 
             Spacer(modifier = Modifier.height(32.dp))
 

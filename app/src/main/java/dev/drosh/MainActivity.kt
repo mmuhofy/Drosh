@@ -15,14 +15,11 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -42,9 +39,9 @@ import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.terminal.ExtraKeyState
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.UbuntuSetupState
-import dev.drosh.ui.setup.onboarding.OnboardingScreen
+import dev.drosh.ui.setup.SetupFlowScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
-import dev.drosh.ui.setup.SetupWizardScreen
+import dev.drosh.design.system.DroshBackground
 import dev.drosh.ui.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
@@ -112,41 +109,35 @@ class MainActivity : ComponentActivity() {
 
         NavHost(
             navController = navController,
-            startDestination = "splash",
+            startDestination = "loading",
             modifier = Modifier.fillMaxSize(),
         ) {
-            composable("splash") {
-                val destination = if (firstCompleted == true) "terminal" else "onboarding"
+            composable("loading") {
                 if (firstCompleted != null) {
                     LaunchedEffect(firstCompleted) {
+                        val destination = if (firstCompleted == true) "terminal" else "setup_flow"
                         navController.navigate(destination) {
-                            popUpTo("splash") { inclusive = true }
+                            popUpTo("loading") { inclusive = true }
                         }
                     }
                 }
-                SplashScreen()
-            }
-
-            composable("onboarding") {
-                OnboardingScreen(
-                    onCompleted = {
-                        navController.navigate("setup_wizard") {
-                            popUpTo("onboarding") { inclusive = true }
-                        }
-                    },
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(DroshBackground),
                 )
             }
 
-            composable("setup_wizard") {
-                SetupWizardScreen(
+            composable("setup_flow") {
+                SetupFlowScreen(
                     onReady = {
                         navController.navigate("terminal") {
-                            popUpTo("setup_wizard") { inclusive = true }
+                            popUpTo("setup_flow") { inclusive = true }
                         }
                     },
                     onSetupFailed = {
                         navController.navigate("recovery") {
-                            popUpTo("setup_wizard") { inclusive = true }
+                            popUpTo("setup_flow") { inclusive = true }
                         }
                     },
                 )
@@ -206,20 +197,5 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun SplashScreen() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF000000)),
-        contentAlignment = Alignment.Center,
-    ) {
-        CircularProgressIndicator(
-            color = Color(0xFF3B82F6),
-            strokeWidth = 2.dp,
-        )
     }
 }

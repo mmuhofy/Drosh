@@ -37,7 +37,6 @@ import dev.drosh.ui.setup.SetupWizardViewModel
 import dev.drosh.ui.setup.components.LiveLogCard
 import dev.drosh.ui.setup.components.PillButton
 import dev.drosh.ui.setup.components.StepHistoryStack
-import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 
 @Composable
 fun BootstrapStage(
@@ -67,12 +66,6 @@ fun BootstrapStage(
                 .windowInsetsPadding(WindowInsets.statusBars),
         ) {
             Spacer(modifier = Modifier.height(20.dp))
-
-            WormPageIndicator(
-                pageCount = 3,
-                currentPage = 2,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
 
             Spacer(modifier = Modifier.height(24.dp))
 

@@ -6,41 +6,54 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.ui.setup.onboarding.scenes.AboutScene
+import dev.drosh.ui.setup.onboarding.scenes.WelcomeScene
+import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 import dev.drosh.ui.setup.stages.BootstrapStage
 import dev.drosh.ui.setup.stages.PackageSelectionStage
-import dev.drosh.ui.setup.stages.SetupOverviewStage
 
 @Composable
-fun SetupWizardScreen(
+fun SetupFlowScreen(
     onReady: () -> Unit,
     onSetupFailed: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: SetupWizardViewModel = hiltViewModel(),
 ) {
-    var stage by rememberSaveable { mutableStateOf(SetupStage.Overview) }
+    var currentPage by rememberSaveable { mutableStateOf(0) }
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+
+    if (progress.isFailed) {
+        onSetupFailed()
+        return
+    }
 
     val slideDistance = 32
     val durationEnter = 280
     val durationExit = 250
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DroshBackground),
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = DroshBackground,
     ) {
         androidx.compose.animation.AnimatedContent(
-            targetState = stage,
+            targetState = currentPage,
             transitionSpec = {
-                val isForward = targetState.ordinal > initialState.ordinal
+                val isForward = targetState > initialState
                 val slideIn = slideInHorizontally(
                     animationSpec = tween(durationMillis = durationEnter),
                     initialOffsetX = { if (isForward) -slideDistance else slideDistance },
@@ -54,25 +67,34 @@ fun SetupWizardScreen(
 
                 (slideIn + fadeInSpec) togetherWith (slideOut + fadeOutSpec)
             },
-            label = "setup-wizard-stage",
-        ) { current ->
-            when (current) {
-                SetupStage.Overview ->
-                    SetupOverviewStage(
-                        onNext = { stage = SetupStage.PackageSelection },
-                    )
-
-                SetupStage.PackageSelection ->
-                    PackageSelectionStage(
-                        onNext = { stage = SetupStage.Bootstrap },
-                    )
-
-                SetupStage.Bootstrap ->
-                    BootstrapStage(
-                        onReady = onReady,
-                        onSetupFailed = onSetupFailed,
-                    )
+            label = "setup-flow",
+        ) { page ->
+            when (page) {
+                0 -> WelcomeScene(
+                    onNext = { currentPage = 1 },
+                    hasAnimated = true,
+                )
+                1 -> AboutScene(
+                    onNext = { currentPage = 2 },
+                )
+                2 -> PackageSelectionStage(
+                    onNext = { currentPage = 3 },
+                    viewModel = viewModel,
+                )
+                3 -> BootstrapStage(
+                    onReady = onReady,
+                    onSetupFailed = onSetupFailed,
+                    viewModel = viewModel,
+                )
             }
         }
+
+        WormPageIndicator(
+            pageCount = 4,
+            currentPage = currentPage,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 20.dp),
+        )
     }
 }

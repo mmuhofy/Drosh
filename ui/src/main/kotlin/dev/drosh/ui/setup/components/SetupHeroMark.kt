@@ -17,8 +17,7 @@ import androidx.compose.ui.unit.dp
 import dev.drosh.ui.setup.theme.SetupPalette
 
 /**
- * Hero mark used at the top of `BootstrapStepperScreen` and
- * `OnboardingScreen`.
+ * Hero mark used at the top of SetupFlowScreen.
  *
  * Renders a 64dp rounded square with an inner "P" stylized as a 3-axis
  * terminal — pure Compose Canvas, no icons-extended dep.

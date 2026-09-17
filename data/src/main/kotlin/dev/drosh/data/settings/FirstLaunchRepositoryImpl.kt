@@ -17,8 +17,7 @@ import javax.inject.Singleton
  * DataStore-backed implementation of [ObserveFirstLaunchUseCase].
  *
  * Persists the boolean under [KEY_FIRST_LAUNCH_COMPLETED]. The UI uses this flag
- * to decide whether to render OnboardingScreen or jump straight to the
- * bootstrap stepper / terminal.
+ * to decide whether to render SetupFlowScreen or jump straight to the terminal.
  */
 @Singleton
 class FirstLaunchRepositoryImpl @Inject constructor(
