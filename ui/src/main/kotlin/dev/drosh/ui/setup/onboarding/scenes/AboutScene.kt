@@ -71,7 +71,9 @@ fun AboutScene(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "A Unix environment on your phone — Zsh, Bash, and the tools you already know.",
+                text = "Drosh gives you a real Ubuntu environment on your Android phone — " +
+                    "not a simulation, the real thing. Install packages, run scripts, and " +
+                    "work the way you already know.",
                 style = TextStyle(
                     fontFamily = OutfitFontFamily,
                     fontWeight = FontWeight.Normal,
@@ -85,20 +87,20 @@ fun AboutScene(
             Spacer(modifier = Modifier.height(40.dp))
 
             FeatureItem(
-                icon = DroshIcons.Info,
-                label = "Full Zsh + Oh My Zsh",
+                icon = DroshIcons.Terminal,
+                label = "Full Ubuntu environment",
                 iconTint = DroshPrimary,
             )
             Spacer(modifier = Modifier.height(16.dp))
             FeatureItem(
                 icon = DroshIcons.Package,
-                label = "Install packages (apt)",
+                label = "Organized, block-based output",
                 iconTint = DroshPrimary,
             )
             Spacer(modifier = Modifier.height(16.dp))
             FeatureItem(
-                icon = DroshIcons.Code,
-                label = "vim, git, curl, and more",
+                icon = DroshIcons.Info,
+                label = "AI-powered agent",
                 iconTint = DroshTextSecondary,
                 comingSoon = true,
             )

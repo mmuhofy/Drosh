@@ -69,27 +69,15 @@ fun PickShellScene(
             Spacer(modifier = Modifier.height(100.dp))
 
             Text(
-                text = "Pick your shell",
+                text = "Pick your shell. You can always change this later.",
                 style = TextStyle(
                     fontFamily = OutfitFontFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 22.sp,
+                    lineHeight = 28.sp,
                     letterSpacing = 0.5.sp,
                 ),
                 color = DroshText,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Zsh comes with Oh My Zsh and plugins. Bash is lightweight and familiar.",
-                style = TextStyle(
-                    fontFamily = OutfitFontFamily,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                ),
-                color = DroshTextMuted,
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -214,6 +202,28 @@ private fun ShellSelectorCard(
                     ),
                     color = DroshTextMuted,
                 )
+            }
+
+            if (shell == ShellChoice.Zsh) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = DroshPrimary,
+                            shape = RoundedCornerShape(50),
+                        )
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = "Recommended",
+                        style = TextStyle(
+                            fontFamily = OutfitFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 10.sp,
+                        ),
+                        color = DroshOnPrimary,
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
             }
 
             if (isSelected) {
