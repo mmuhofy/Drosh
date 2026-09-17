@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -12,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -49,9 +51,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -74,32 +76,37 @@ import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSuccess
 import dev.drosh.design.system.DroshSurface
+import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 
 /**
- * Slide-in sol sidebar — iOS / Apple Settings tarzı layout (Stitch taslağı),
- * ama renkler tamamen projenin kendi paleti: dev.drosh.ui.theme.DroshTheme.kt.
+ * Slide-in sol sidebar — v2 "floating terminal frame" layout.
  *
- * ÖNEMLİ NOT (Muhofy'nin bilmesi gereken bir tutarsızlık):
- * MEMORYBANK.md §5 Primary = #E8C547 (warm gold) diyor, ama gerçek kodda
- * (DroshTheme.kt) Primary = #3B82F6 (mavi) tanımlı. Bu dosya gerçek kodu
- * (canonical, derlenen kaynak) esas alıyor — Memory Bank muhtemelen güncel
- * değil. Bunu ayrıca Memory Bank güncelleme adımında teyit etmen gerekir.
+ * Muhofy'nin son spec'i (konuşma tabanlı, bu dosyada kod yok kararı sonrası):
+ *  - Sidebar edge-to-edge tam yükseklik, %75-80 genişlik, sadece sağ köşeler yuvarlak.
+ *  - Sağda kalan terminal dilimi ARTIK düz siyah scrim değil: üstte ve altta
+ *    sidebar'ın surface rengiyle aynı ince bantlar + ortada aynı renkten düşük
+ *    opaklıklı bir dim katmanı — terminal, üstten/alttan aynı renkte
+ *    çerçevelenmiş yüzen bir kart gibi görünüyor.
+ *  - Açılış animasyonu: scale(0.94f→1f) + slide(-60dp'den) + fade, tek spring,
+ *    hafif overshoot (dampingRatio ~0.86f), transform origin sol-orta.
+ *  - Kapanış aynı eğrinin ~%20 daha hızlı, overshoot'suz (tween) versiyonu.
+ *  - Surface: sidebar gövdesi artık DroshSurfaceVariant (#252A30) — arkaplandan
+ *    (DroshBackground #14171B) daha net ayrışıyor. Session kart grupları bir
+ *    katman altı olan DroshSurface'te kalıyor → sidebar > kart grubu > satır
+ *    3 katmanlı derinlik.
+ *  - Search bar artık tam pill (RoundedCornerShape(50)), 40dp yükseklik, focus
+ *    state'i gerçekten yönetiliyor (ince primary border focus'ta beliriyor).
+ *  - "New" butonu artık press'te scale(0.94f) + spring geri sekme
+ *    micro-animasyonuna sahip (HoverIconButton'daki pattern'in aynısı).
  *
- * Kullanılan gerçek token'lar: DroshSurface, DroshPrimary, DroshOnPrimary,
- * DroshText, DroshTextSecondary, DroshTextMuted, DroshBorderSubtle, DroshError,
- * DroshSuccess. Hiçbir renk tahmin/icat edilmedi — hepsi DroshTheme.kt'den.
+ * Önceki not hâlâ geçerli: MEMORYBANK.md §5 Primary = #E8C547 (warm gold)
+ * diyor, gerçek kodda (DroshTheme.kt, canonical) Primary = #719FFF (mavi).
+ * Bu dosya gerçek kodu esas alır.
  *
  * Public API değişmedi: SessionSidebar(isOpen, onDismiss, onOpenSettings).
- * userDisplayName / userInitials opsiyonel, mevcut çağrı yerlerini bozmaz.
- *
- * Rename düzeltmesi: önceki versiyonda onFocusChanged, text field ekrana
- * gelir gelmez isFocused=false ile bir kez tetiklenip anında commit
- * ediyordu (kullanıcı hiçbir şey yazamadan rename modu kapanıyordu). Şimdi
- * sadece GERÇEKTEN focus alındıktan sonra kaybedilirse otomatik commit
- * ediliyor; ayrıca görünür bir onay (✓) butonu eklendi.
  */
 @Composable
 fun SessionSidebar(
@@ -113,53 +120,78 @@ fun SessionSidebar(
     val config = LocalConfiguration.current
     val sidebarW = remember(config) {
         val sw = config.screenWidthDp
-        if (sw > 0) (sw * 0.85f).coerceAtMost(390f).dp else 340.dp
+        if (sw > 0) (sw * 0.78f).coerceAtMost(360f).dp else 320.dp
     }
+
+    // Açılış: hafif overshoot'lu tek spring — "canlı" ama abartısız.
+    val openSpec = spring<Float>(
+        dampingRatio = 0.86f,
+        stiffness = 380f,
+    )
+    val openSpecInt = spring<androidx.compose.ui.unit.IntOffset>(
+        dampingRatio = 0.86f,
+        stiffness = 380f,
+    )
+    // Kapanış: overshoot yok, açılıştan ~20% daha hızlı — modern UI standardı.
+    val closeSpec = tween<Float>(durationMillis = 220)
+    val closeSpecInt = tween<androidx.compose.ui.unit.IntOffset>(durationMillis = 220)
 
     AnimatedVisibility(
         visible = isOpen,
-        enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
-        exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
+        enter = fadeIn(animationSpec = tween(260)),
+        exit = fadeOut(animationSpec = tween(180)),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.45f))
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = onDismiss,
-                )
                 .zIndex(1f),
         ) {
+            // Terminal frame — üst/alt bant + orta dim katmanı, sidebar
+            // surface rengiyle aynı aileden. Tıklayınca sidebar kapanır.
+            TerminalFrame(
+                sidebarWidth = sidebarW,
+                onClick = onDismiss,
+            )
+
             AnimatedVisibility(
                 visible = isOpen,
                 modifier = Modifier.align(Alignment.CenterStart),
-                enter = slideInHorizontally(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
+                enter = fadeIn(animationSpec = openSpec as androidx.compose.animation.core.FiniteAnimationSpec<Float>) +
+                    slideInHorizontally(
+                        animationSpec = openSpecInt,
+                        initialOffsetX = { fullWidth -> -(fullWidth * 0.20f).toInt() },
                     ),
-                    initialOffsetX = { fullWidth -> -fullWidth },
-                ),
-                exit = slideOutHorizontally(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
+                exit = fadeOut(animationSpec = closeSpec) +
+                    slideOutHorizontally(
+                        animationSpec = closeSpecInt,
+                        targetOffsetX = { fullWidth -> -(fullWidth * 0.20f).toInt() },
                     ),
-                    targetOffsetX = { fullWidth -> -fullWidth },
-                ),
             ) {
+                // Scale ayrıca graphicsLayer ile uygulanıyor çünkü
+                // AnimatedVisibility'nin kendi scale enter/exit'i tek eksende
+                // origin kontrolü vermiyor; burada sol-orta origin istiyoruz.
+                val scaleAnim = remember { androidx.compose.animation.core.Animatable(0.94f) }
+                LaunchedEffect(isOpen) {
+                    scaleAnim.animateTo(
+                        targetValue = if (isOpen) 1f else 0.94f,
+                        animationSpec = if (isOpen) openSpec else closeSpec,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .width(sidebarW)
-                        .clip(RoundedCornerShape(0.dp, 32.dp, 32.dp, 0.dp))
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClick = {},
-                    ),
+                        .graphicsLayer {
+                            scaleX = scaleAnim.value
+                            scaleY = scaleAnim.value
+                            transformOrigin = TransformOrigin(0f, 0.5f)
+                        }
+                        .clip(RoundedCornerShape(0.dp, 28.dp, 28.dp, 0.dp))
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = {},
+                        ),
                 ) {
                     SidebarContent(
                         viewModel = viewModel,
@@ -170,6 +202,54 @@ fun SessionSidebar(
                 }
             }
         }
+    }
+}
+
+/**
+ * Sağda kalan terminal dilimini "yüzen kart" gibi gösteren çerçeve: üstte ve
+ * altta sidebar'la aynı renkte ince bantlar (sidebar'a bakan iç köşeleri
+ * yuvarlak), ortada aynı aileden düşük opaklıklı bir dim katmanı. Düz siyah
+ * scrim'in yerini alıyor.
+ */
+@Composable
+private fun TerminalFrame(
+    sidebarWidth: Dp,
+    onClick: () -> Unit,
+) {
+    val frameColor = DroshSurfaceVariant
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = sidebarWidth)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = onClick,
+            ),
+    ) {
+        // Üst bant
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(18.dp)
+                .clip(RoundedCornerShape(topStart = 18.dp))
+                .background(frameColor),
+        )
+        // Orta — terminal'in gerçek görünen alanı, hafif dim
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(frameColor.copy(alpha = 0.30f)),
+        )
+        // Alt bant
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(18.dp)
+                .clip(RoundedCornerShape(bottomStart = 18.dp))
+                .background(frameColor),
+        )
     }
 }
 
@@ -202,253 +282,309 @@ private fun SidebarContent(
         renamingSessionId = null
     }
 
-    // Keep the sidebar surface behind the transparent status bar, while
-    // keeping its actual content below the system icons.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DroshSurface),
+            .background(DroshSurfaceVariant),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding(),
         ) {
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp),
-        )
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp),
+            )
 
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Drosh",
-                    color = DroshText,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp,
-                )
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(DroshSuccess),
-                )
-            }
+            // Header
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(DroshPrimary)
-                    .clickable { viewModel.createNew("shell") }
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .padding(top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Icon(
-                    imageVector = DroshIcons.Plus,
-                    contentDescription = "New session",
-                    tint = DroshOnPrimary,
-                    modifier = Modifier.size(14.dp),
-                )
-                Text(
-                    text = "New",
-                    color = DroshOnPrimary,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                )
-            }
-        }
-
-        // Search bar
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 14.dp)
-                .height(32.dp)
-                .border(
-                    width = 1.dp,
-                    color = DroshBorderSubtle.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(8.dp),
-                ),
-            shape = RoundedCornerShape(8.dp),
-            color = DroshSurface,
-            tonalElevation = 2.dp,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = DroshIcons.Search,
-                    contentDescription = null,
-                    tint = DroshTextSecondary,
-                    modifier = Modifier.size(14.dp),
-                )
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    if (searchQuery.isEmpty()) {
-                        Text(
-                            text = "Search sessions...",
-                            color = DroshTextMuted,
-                            fontSize = 13.sp,
-                        )
-                    }
-                    BasicTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        singleLine = true,
-                        textStyle = TextStyle(color = DroshText, fontSize = 13.sp),
-                        cursorBrush = SolidColor(DroshText),
-                        modifier = Modifier.fillMaxWidth(),
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Drosh",
+                        color = DroshText,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 17.sp,
                     )
-                }
-            }
-        }
-
-        // Body
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            if (activeSession != null) {
-                item(key = "active_header") { SectionHeader(label = "ACTIVE", trailing = "live") }
-                item(key = "active_${activeSession.id}") {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DroshSurface),
-                    ) {
-                        SessionRow(
-                            snapshot = activeSession,
-                            isActive = true,
-                            dotColor = DroshSuccess,
-                            trailingText = "now",
-                            trailingColor = DroshPrimary,
-                            rowBackground = DroshPrimary.copy(alpha = 0.12f),
-                            isRenaming = renamingSessionId == activeSession.id,
-                            renameValue = renameValue,
-                            onRenameValueChange = { renameValue = it },
-                            onRenameCommit = { commitRename() },
-                            onClick = { if (renamingSessionId == null) viewModel.activate(activeSession.id) },
-                            onStartRename = {
-                                renamingSessionId = activeSession.id
-                                renameValue = activeSession.name
-                            },
-                            onDelete = { viewModel.delete(activeSession.id) },
-                        )
-                    }
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(DroshSuccess),
+                    )
                 }
+                NewSessionButton(onClick = { viewModel.createNew("shell") })
             }
 
-            if (recentSessions.isNotEmpty()) {
-                item(key = "recent_header") { SectionHeader(label = "RECENT", trailing = null) }
-                item(key = "recent_list") {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DroshSurface.copy(alpha = 0.5f)),
-                    ) {
-                        recentSessions.forEachIndexed { index, snapshot ->
-                            if (index > 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(DroshBorderSubtle),
-                                )
-                            }
+            // Search bar — tam pill
+            PillSearchField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 12.dp),
+            )
+
+            // Body
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (activeSession != null) {
+                    item(key = "active_header") { SectionHeader(label = "ACTIVE", trailing = "live") }
+                    item(key = "active_${activeSession.id}") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DroshSurface),
+                        ) {
                             SessionRow(
-                                snapshot = snapshot,
-                                isActive = false,
-                                dotColor = DroshTextMuted,
-                                trailingText = null,
-                                trailingColor = DroshTextMuted,
-                                rowBackground = Color.Transparent,
-                                isRenaming = renamingSessionId == snapshot.id,
+                                snapshot = activeSession,
+                                isActive = true,
+                                dotColor = DroshSuccess,
+                                trailingText = "now",
+                                trailingColor = DroshPrimary,
+                                rowBackground = DroshPrimary.copy(alpha = 0.12f),
+                                isRenaming = renamingSessionId == activeSession.id,
                                 renameValue = renameValue,
                                 onRenameValueChange = { renameValue = it },
                                 onRenameCommit = { commitRename() },
-                                onClick = { if (renamingSessionId == null) viewModel.activate(snapshot.id) },
+                                onClick = { if (renamingSessionId == null) viewModel.activate(activeSession.id) },
                                 onStartRename = {
-                                    renamingSessionId = snapshot.id
-                                    renameValue = snapshot.name
+                                    renamingSessionId = activeSession.id
+                                    renameValue = activeSession.name
                                 },
-                                onDelete = { viewModel.delete(snapshot.id) },
+                                onDelete = { viewModel.delete(activeSession.id) },
                             )
                         }
                     }
                 }
+
+                if (recentSessions.isNotEmpty()) {
+                    item(key = "recent_header") { SectionHeader(label = "RECENT", trailing = null) }
+                    item(key = "recent_list") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DroshSurface.copy(alpha = 0.6f)),
+                        ) {
+                            recentSessions.forEachIndexed { index, snapshot ->
+                                if (index > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(DroshBorderSubtle),
+                                    )
+                                }
+                                SessionRow(
+                                    snapshot = snapshot,
+                                    isActive = false,
+                                    dotColor = DroshTextMuted,
+                                    trailingText = null,
+                                    trailingColor = DroshTextMuted,
+                                    rowBackground = Color.Transparent,
+                                    isRenaming = renamingSessionId == snapshot.id,
+                                    renameValue = renameValue,
+                                    onRenameValueChange = { renameValue = it },
+                                    onRenameCommit = { commitRename() },
+                                    onClick = { if (renamingSessionId == null) viewModel.activate(snapshot.id) },
+                                    onStartRename = {
+                                        renamingSessionId = snapshot.id
+                                        renameValue = snapshot.name
+                                    },
+                                    onDelete = { viewModel.delete(snapshot.id) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (filtered.isEmpty()) {
+                    item(key = "empty") {
+                        Text(
+                            text = if (searchQuery.isBlank()) "No active sessions" else "No results",
+                            color = DroshTextMuted,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 24.dp),
+                        )
+                    }
+                }
+
+                item(key = "bottom_spacer") { Spacer(Modifier.height(4.dp)) }
             }
 
-            if (filtered.isEmpty()) {
-                item(key = "empty") {
-                    Text(
-                        text = if (searchQuery.isBlank()) "No active sessions" else "No results",
-                        color = DroshTextMuted,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
+            // Bottom profile row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .padding(top = 8.dp, bottom = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onOpenSettings() }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 24.dp),
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(DroshSurface),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(text = userInitials, color = DroshText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    }
+                    Text(
+                        text = userDisplayName,
+                        color = DroshText,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-
-            item(key = "bottom_spacer") { Spacer(Modifier.height(4.dp)) }
-        }
-
-        // Bottom profile row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(top = 8.dp, bottom = 8.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { onOpenSettings() }
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(DroshSurface),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(text = userInitials, color = DroshText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                }
-                Text(
-                    text = userDisplayName,
-                    color = DroshText,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                HoverIconButton(
+                    onClick = onOpenSettings,
+                    contentDescription = "Settings",
+                    icon = DroshIcons.Settings,
+                    tint = DroshTextSecondary,
+                    iconSize = 18.dp,
+                    buttonSize = 24.dp,
                 )
             }
-            HoverIconButton(
-                onClick = onOpenSettings,
-                contentDescription = "Settings",
-                 icon = DroshIcons.Settings,
-                tint = DroshTextSecondary,
-                iconSize = 18.dp,
-                buttonSize = 24.dp,
-            )
         }
+    }
+}
+
+/**
+ * "New" butonu — pill CTA, press'te scale(0.94f) + spring geri sekme.
+ * HoverIconButton'daki press/hover interaction pattern'in aynısı, buraya
+ * taşındı çünkü artık dedicated bir composable'a ihtiyacı var (Row + Icon +
+ * Text birlikte scale'lenmeli).
+ */
+@Composable
+private fun NewSessionButton(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val hovered by interactionSource.collectIsHoveredAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else if (hovered) 1.03f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "newButtonScale",
+    )
+    Row(
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(50))
+            .background(DroshPrimary)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = DroshIcons.Plus,
+            contentDescription = "New session",
+            tint = DroshOnPrimary,
+            modifier = Modifier.size(14.dp),
+        )
+        Text(
+            text = "New",
+            color = DroshOnPrimary,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+        )
+    }
+}
+
+/**
+ * Tam pill search field. Focus state gerçekten yönetiliyor: boşta ince
+ * transparan border, focus'ta DroshPrimary border belirir (spring ile
+ * yumuşak geçiş).
+ */
+@Composable
+private fun PillSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor by animateFloatAsState(
+        targetValue = if (isFocused) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "searchBorder",
+    )
+
+    Surface(
+        modifier = modifier
+            .height(40.dp)
+            .border(
+                width = 1.dp,
+                color = DroshPrimary.copy(alpha = 0.35f * borderColor)
+                    .let { if (borderColor == 0f) DroshBorderSubtle.copy(alpha = 0.25f) else it },
+                shape = RoundedCornerShape(50),
+            ),
+        shape = RoundedCornerShape(50),
+        color = DroshSurface,
+        tonalElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = DroshIcons.Search,
+                contentDescription = null,
+                tint = DroshTextSecondary,
+                modifier = Modifier.size(14.dp),
+            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = "Search sessions...",
+                        color = DroshTextMuted,
+                        fontSize = 13.sp,
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = TextStyle(color = DroshText, fontSize = 13.sp),
+                    cursorBrush = SolidColor(DroshPrimary),
+                    interactionSource = interactionSource,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -608,7 +744,7 @@ private fun SessionRow(
             HoverIconButton(
                 onClick = onRenameCommit,
                 contentDescription = "Confirm rename",
-                 icon = DroshIcons.Check,
+                icon = DroshIcons.Check,
                 tint = DroshPrimary,
                 iconSize = 16.dp,
                 buttonSize = 24.dp,
@@ -629,14 +765,14 @@ private fun SessionRow(
             HoverIconButton(
                 onClick = onStartRename,
                 contentDescription = "Rename",
-                 icon = DroshIcons.Pencil,
+                icon = DroshIcons.Pencil,
                 iconSize = 14.dp,
                 buttonSize = 24.dp,
             )
             HoverIconButton(
                 onClick = onDelete,
                 contentDescription = "Delete",
-                 icon = DroshIcons.Trash2,
+                icon = DroshIcons.Trash2,
                 iconSize = 14.dp,
                 buttonSize = 24.dp,
             )
