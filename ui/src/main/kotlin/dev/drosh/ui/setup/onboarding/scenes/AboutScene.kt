@@ -52,7 +52,7 @@ fun AboutScene(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 28.dp)
-                .windowInsetsPadding(WindowInsets.statusBars),
+                .windowInsetsPadding(statusBars),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(modifier = Modifier.height(20.dp))
