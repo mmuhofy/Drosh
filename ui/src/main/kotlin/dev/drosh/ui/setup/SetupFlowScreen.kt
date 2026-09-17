@@ -6,10 +6,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,9 +46,10 @@ fun SetupFlowScreen(
     val durationEnter = 280
     val durationExit = 250
 
-    Surface(
-        modifier = modifier.fillMaxSize(),
-        color = DroshBackground,
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(DroshBackground),
     ) {
         androidx.compose.animation.AnimatedContent(
             targetState = currentPage,
