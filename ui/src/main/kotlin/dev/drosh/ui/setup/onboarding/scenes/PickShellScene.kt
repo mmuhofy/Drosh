@@ -66,7 +66,7 @@ fun PickShellScene(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 28.dp)
-                .windowInsetsPadding(statusBars),
+                .windowInsetsPadding(WindowInsets.statusBars),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(modifier = Modifier.height(20.dp))
