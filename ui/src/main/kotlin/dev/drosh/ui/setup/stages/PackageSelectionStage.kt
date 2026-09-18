@@ -1,6 +1,7 @@
 package dev.drosh.ui.setup.stages
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,9 +26,9 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.BorderStroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -148,13 +149,14 @@ private fun ShellOptionCard(
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) DroshPrimary.copy(alpha = 0.08f) else DroshSurfaceVariant,
         ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (isSelected) DroshPrimary else DroshBorderSubtle,
-        ),
         modifier = modifier
             .fillMaxWidth()
-            .height(80.dp),
+            .height(80.dp)
+            .border(
+                width = 1.dp,
+                color = if (isSelected) DroshPrimary else DroshBorderSubtle,
+                shape = RoundedCornerShape(16.dp),
+            ),
     ) {
         Row(
             modifier = Modifier
@@ -232,7 +234,7 @@ private fun ShellOptionCard(
             RadioButton(
                 selected = isSelected,
                 onClick = onSelect,
-                colors = RadioButtonDefaults.radioButtonColors(
+                colors = RadioButtonDefaults.colors(
                     selectedColor = DroshPrimary,
                     unselectedColor = DroshTextMuted,
                 ),
