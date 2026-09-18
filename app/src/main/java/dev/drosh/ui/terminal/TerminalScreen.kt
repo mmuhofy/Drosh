@@ -870,8 +870,8 @@ private fun TerminalViewHost(
                         override fun onGlobalLayout() {
                             if (width > 0 && height > 0 && isAttachedToWindow) {
                                 viewTreeObserver.removeOnGlobalLayoutListener(this)
-                                terminalViewRef.value = this
-                                this.requestFocus()
+                                terminalViewRef.value = this@apply
+                                this@apply.requestFocus()
                             }
                         }
                     }
