@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -38,7 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
-import dev.drosh.design.system.DroshBorderSubtle
+import dev.drosh.design.system.DroshError
+import dev.drosh.design.system.DroshPrimary
+import dev.drosh.design.system.DroshSurface
+import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
 import dev.drosh.design.system.DroshMenuItemStyle
@@ -50,17 +53,17 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  * Modern minimalist top bar — iOS/Obsidian-style floating pills.
  *
  * Değişiklik notları (önceki versiyona göre):
- *  - Pill butonlar artık gerçek bir surface'a sahip (önceden tamamen
- *    şeffaftı, sadece basılınca hafif alpha görünüyordu).
+ *  - Pill butonlar artık yarı şeffaf surface'lere sahip (önceden sadece
+ *    border ile sınırlıydlar). Surface: DroshSurfaceHigh @ 65% alpha.
+ *    Border kaldırıldı — terminal içeriği arkasından hafifçe görünüyor.
  *  - Boyutlar büyütüldü: buton 36/40dp → 44dp, ikon 18dp → 22dp (iOS ölçeği).
  *  - Session-name kutusu stadium (tam yuvarlak) pill'e çevrildi.
  *  - Basma anında hafif scale-down animasyonu (spring, bounce yok) —
  *    iOS tarzı dokunma geri bildirimi.
  *  - "Vibrancy" simülasyonu: gerçek backdrop blur DEĞİL (Compose'da bunun
- *    native karşılığı yok, bkz. sohbet notu). Bunun yerine yarı saydam
- *    surface + ince kenarlık + üstte hafif highlight gradyanı ile
- *    "buzlu cam" hissi veriliyor. Gerçek blur için Haze kütüphanesi
- *    gerekir — ayrı bir adım olarak ele alınmalı.
+ *    native karşılığı yok, bkz. sohbet notu). Bunun yerine yarı şeffaf
+ *    surface + hafif highlight gradyanı ile "buzlu cam" hissi veriliyor.
+ *    Gerçek blur için Haze kütüphanesi gerekir — ayrı bir adım.
  *  - MoreActionsDropdown: hardcoded offset kaldırıldı (anchor'a göre
  *    otomatik konumlanıyor), Divider → HorizontalDivider.
  *  - Icons now use DroshIcons ImageVector instead of painterResource XML drawables.
@@ -115,11 +118,7 @@ fun TerminalTopBar(
                  Box(
                      modifier = Modifier
                          .clip(RoundedCornerShape(percent = 50))
-                         .border(
-                             width = 1.dp,
-                             color = DroshBorderSubtle,
-                             shape = RoundedCornerShape(percent = 50),
-                         )
+                         .background(DroshSurfaceHigh.copy(alpha = 0.65f))
                          .padding(horizontal = 16.dp, vertical = 10.dp),
                  ) {
                     Text(
@@ -232,9 +231,9 @@ private fun MoreActionsDropdown(
  * iOS-style glass pill button.
  *
  * Gerçek backdrop blur uygulamaz (Compose'da native karşılığı yok).
- * Bunun yerine yarı saydam surface + ince kenarlık + üstte hafif
- * highlight gradyanı ile "buzlu cam" hissi simüle edilir. Basılınca
- * hafif scale-down (spring, bounce yok) ile dokunma geri bildirimi verir.
+ * Bunun yerine yarı şeffaf surface + hafif highlight gradyanı ile
+ * "buzlu cam" hissi simüle edilir. Basılınca hafif scale-down (spring,
+ * bounce yok) ile dokunma geri bildirimi verir.
  */
 @Composable
 private fun GlassPillButton(
@@ -258,11 +257,7 @@ private fun GlassPillButton(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = DroshBorderSubtle,
-                shape = CircleShape,
-            )
+            .background(DroshSurfaceHigh.copy(alpha = 0.65f))
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {

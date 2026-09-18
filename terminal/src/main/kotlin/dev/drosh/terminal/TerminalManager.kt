@@ -95,6 +95,20 @@ class TerminalManager(
      */
     var lifecycleCallbacks: SessionLifecycleCallbacks? = null
 
+    /**
+     * Emits a non-null [ProcessExitEvent] when a terminal session's subprocess
+     * exits, carrying the exit code. Collected by [TerminalScreen] to show
+     * the exit dialog. Call [clearProcessExitEvent] to dismiss.
+     */
+    private val _processExitEvent = MutableStateFlow<ProcessExitEvent?>(null)
+    val processExitEvent: StateFlow<ProcessExitEvent?> = _processExitEvent.asStateFlow()
+
+    data class ProcessExitEvent(val exitCode: Int)
+
+    fun clearProcessExitEvent() {
+        _processExitEvent.value = null
+    }
+
     private var terminalViewRef: TerminalView? = null
 
     private val prootRunner: ProotRunner by lazy {
@@ -518,6 +532,7 @@ class TerminalManager(
         }
 
         lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
+        _processExitEvent.value = ProcessExitEvent(exitCode)
     }
 
     /**

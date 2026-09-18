@@ -135,7 +135,7 @@ fun SessionSidebar(
                 translationX = (pushProgress - 1f) * sidebarWidthPx
             }
             .zIndex(1f)
-            .background(DroshSurfaceVariant)
+            .background(DroshSurfaceSidebar.copy(alpha = 0.92f))
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -183,7 +183,7 @@ private fun SidebarContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DroshSurfaceVariant),
+            .background(DroshSurfaceSidebar.copy(alpha = 0.92f)),
     ) {
         Column(
             modifier = Modifier

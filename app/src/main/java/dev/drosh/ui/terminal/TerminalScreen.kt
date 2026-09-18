@@ -19,10 +19,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,12 +45,19 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.LifecycleEventObserver
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.design.system.DroshError
+import dev.drosh.design.system.DroshPrimary
+import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
+import dev.drosh.design.system.DroshText
+import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.terminal.SearchHighlightOverlay
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
@@ -160,6 +169,7 @@ private fun ReadyScreen(
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
     val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
+    val processExitEvent by terminalManager.processExitEvent.collectAsState()
 
     var firstModeCheck by remember { mutableStateOf(true) }
     LaunchedEffect(useBlockEngine) {
@@ -644,6 +654,57 @@ private fun ReadyScreen(
                         interactionSource = remember { MutableInteractionSource() },
                         onClick = { sidebarOpen = false },
                     ),
+            )
+        }
+
+        if (processExitEvent != null) {
+            AlertDialog(
+                onDismissRequest = { terminalManager.clearProcessExitEvent() },
+                containerColor = DroshSurface,
+                shape = RoundedCornerShape(16.dp),
+                title = {
+                    Text(
+                        text = "Process exited",
+                        color = DroshText,
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                    )
+                },
+                titleContent = {
+                    Text(
+                        text = "exit code: ${processExitEvent!!.exitCode}",
+                        color = if (processExitEvent!!.exitCode == 0) DroshPrimary else DroshError,
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { onExit() }) {
+                        Text(
+                            text = "Exit",
+                            color = DroshError,
+                            fontFamily = OutfitFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        terminalManager.clearProcessExitEvent()
+                        terminalManager.addTab()
+                    }) {
+                        Text(
+                            text = "New session",
+                            color = DroshPrimary,
+                            fontFamily = OutfitFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
+                        )
+                    }
+                },
             )
         }
     }

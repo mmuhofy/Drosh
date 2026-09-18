@@ -11,8 +11,8 @@ import androidx.compose.ui.graphics.Color
  * hex values without duplicating them.
  *
  * Palette revision (this pass) — replaces the earlier blue-tinted dark
- * scheme (#14171B/#1C2025/#719FFF) with a neutral anthracite grayscale,
- * closer to how Kimi/Grok structure their dark UI layers:
+ * scheme (#14171B/#1C2025/#719FFF) with a neutral anthracite grayscale
+ * plus a cyan accent:
  *
  *   - Background #111111 (terminal floor — lowest layer)
  *   - Surface #1C1C1C (TopBar, App Actions strip, general cards)
@@ -29,12 +29,9 @@ import androidx.compose.ui.graphics.Color
  * with the near-zero-animation, minimal-chrome direction (Open Decision #8).
  *
  * Color is reserved for meaning only: Success/Warning/Error stay saturated
- * because they carry information (exit codes, alerts). Primary (#5B8DEF)
- * is the one deliberate exception to the "no color in chrome" rule — it
- * lives ONLY in the brand mark/mascot, never in buttons, toggles, or
- * selected-state fills. Selection/active state is expressed through the
- * gray elevation ladder (DroshSurfacePressed) or icon-level tinting, not
- * through filled color surfaces.
+ * because they carry information (exit codes, alerts). Cyan (#06B6D4)
+ * replaces the prior blue (#5B8DEF) as the brand accent — used for the
+ * Drosh logo/mascot, link underlines, and subtle selection tints.
  */
 val DroshBackground: Color = Color(0xFF111111)
 val DroshSurface: Color = Color(0xFF1C1C1C)
@@ -54,12 +51,11 @@ val DroshSurfaceHigh: Color = DroshSurfacePressed
 val DroshSurfaceContainerLowest: Color = Color(0xFF0A0A0A)
 
 /**
- * Brand mark accent — used EXCLUSIVELY for the Drosh logo/mascot mark.
- * Never applied to buttons, toggles, selected rows, or any functional
- * chrome. Selection/active states use the gray elevation ladder instead
- * (see DroshSurfacePressed).
+ * Cyan accent — replaces the prior blue (#5B8DEF) as the brand accent.
+ * Used for the Drosh logo/mascot, link underlines, and subtle selection
+ * tints in the classic terminal overlay.
  */
-val DroshPrimary: Color = Color(0xFF5B8DEF)
+val DroshPrimary: Color = Color(0xFF06B6D4)
 val DroshOnPrimary: Color = Color(0xFF111111)
 
 val DroshText: Color = Color(0xFFEDEDED)
@@ -70,4 +66,4 @@ val DroshTextDisabled: Color = Color(0xFF505050)
 val DroshSuccess: Color = Color(0xFF22C55E)
 val DroshError: Color = Color(0xFFEF4444)
 val DroshWarning: Color = Color(0xFFF59E0B)
-val DroshBuild: Color = Color(0xFF5B8DEF)
+val DroshBuild: Color = Color(0xFF06B6D4)
