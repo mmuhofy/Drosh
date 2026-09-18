@@ -358,15 +358,14 @@ private fun SegmentControl(
 
 @Composable
 fun CursorSegmentedControl(
-    selected: String,
+    selectedIndex: Int,
     options: List<String>,
-    onSelect: (String) -> Unit,
+    onSelect: (Int) -> Unit,
 ) {
-    val selectedIndex = options.indexOf(selected).coerceAtLeast(0)
     SegmentControl(
         options = options,
         selectedIndex = selectedIndex,
-        onSelect = { onSelect(options[it]) },
+        onSelect = { onSelect(it) },
         modifier = Modifier.widthIn(max = 220.dp),
     )
 }

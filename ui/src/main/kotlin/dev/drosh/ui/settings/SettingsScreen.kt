@@ -115,15 +115,18 @@ fun SettingsScreen(
                         stringResource(R.string.settings_cursor_style_beam),
                         stringResource(R.string.settings_cursor_style_underline),
                     )
+                    val selectedCursorIndex = CursorStyle.entries.indexOf(
+                        CursorStyle.fromString(cursorStyle)
+                    )
                     SettingsSubRow(
                         icon = DroshIcons.ALargeSmall,
                         label = stringResource(R.string.settings_cursor_style),
                     ) {
                         CursorSegmentedControl(
-                            selected = cursorStyle,
+                            selectedIndex = selectedCursorIndex,
                             options = cursorOptions,
-                            onSelect = {
-                                viewModel.setCursorStyle(CursorStyle.fromString(it))
+                            onSelect = { index ->
+                                viewModel.setCursorStyle(CursorStyle.entries[index])
                             },
                         )
                     }

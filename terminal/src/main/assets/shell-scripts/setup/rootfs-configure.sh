@@ -88,4 +88,14 @@ BASHP
 
 write_basic_zshrc
 
+# Add host (Android) group IDs to /etc/group so the shell doesn't print
+# "groups: Cannot find name for group ID XXXX" warnings at startup.
+# proot inherits Android GIDs (e.g. 3003=inet, 9997=net_bt_admin) which
+# have no entry in the Ubuntu rootfs.
+for gid in $(id -G); do
+    if ! getent group "$gid" >/dev/null 2>&1; then
+        echo "android_gid_${gid}:x:${gid}:" >> /etc/group
+    fi
+done
+
 echo "rootfs-configure: ok"
