@@ -112,8 +112,6 @@ fun AboutScene(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
             ) {
-                PageIndicator(activeIndex = 1, pageCount = 3)
-
                 TextButton(
                     onClick = onNext,
                     modifier = Modifier
