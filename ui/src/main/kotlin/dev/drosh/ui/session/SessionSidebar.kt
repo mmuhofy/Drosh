@@ -1,15 +1,9 @@
 package dev.drosh.ui.session
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -57,6 +51,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -70,7 +65,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.ui.DroshIcons
-import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
@@ -82,28 +76,42 @@ import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 
 /**
- * Slide-in sol sidebar — v3 "shrinking terminal card" layout.
- *
- * Muhofy'nin referansı: DeepSeek mobil app sidebar'ı. Kritik fark v2'ye göre:
- * terminal artık ince bantlarla ÇERÇEVELENMİYOR, gerçekten KÜÇÜLTÜLÜYOR — üstte
- * ~28dp, altta ~28dp, sağda ~10dp boşluk bırakılıyor (bu boşluklar sidebar'ın
- * surface rengiyle dolu), terminal'in 4 köşesi de yuvarlanıyor. Sonuç: sidebar
- * rengi sanki terminal'i içine "gömmüş" bir kart gibi duruyor.
- *
- *  - Sidebar: edge-to-edge tam yükseklik, %75-80 genişlik, köşesiz (tam ekran
- *    kenarında olduğu için yuvarlamaya gerek yok).
- *  - Terminal kartı: animateDpAsState ile padding'leri 0 → hedef değere geçiyor,
- *    yani "sıkışarak" küçülüyor — sidebar'ın slide'ıyla birebir eş zamanlı,
- *    tek bir "sürgü" hissi veriyor.
- *  - Açılış/kapanış animasyonu: v2'deki scale+overshoot spring kaldırıldı
- *    (kötü/sallantılı buldu). Artık sade slideInHorizontally + fadeIn, TEK
- *    tween, FastOutSlowInEasing, ~280ms açılış / ~220ms kapanış. Overshoot yok.
- *  - Surface: sidebar gövdesi DroshSurfaceVariant (#252A30) — v2'den değişmedi.
- *  - Search bar: tam pill, v2'den değişmedi.
- *  - "New" butonu: press micro-animasyonu, v2'den değişmedi.
- *
- * Public API değişmedi: SessionSidebar(isOpen, onDismiss, onOpenSettings).
+ * Slide-in sol sidebar — push/translate layout, DeepSeek referansı.
+ * Sidebar sabit genişlikte translateX ile kayıyor; terminal tarafı
+ * [rememberSidebarPushState] + [Modifier.sidebarPush] ile aynı ilerlemeyi
+ * kullanıp eş zamanlı kayıyor. Fade/scale/spring yok, sade tween.
  */
+@Composable
+fun rememberSidebarPushState(isOpen: Boolean): SidebarPushState {
+    val density = LocalDensity.current
+    val config = LocalConfiguration.current
+    val sidebarWidth = remember(config) {
+        val sw = config.screenWidthDp
+        if (sw > 0) (sw * 0.68f).coerceAtMost(320f).dp else 280.dp
+    }
+    val sidebarWidthPx = with(density) { sidebarWidth.toPx() }
+    val pushProgress by animateFloatAsState(
+        targetValue = if (isOpen) 1f else 0f,
+        animationSpec = tween(durationMillis = 300, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "sidebarPushProgress",
+    )
+    return remember(sidebarWidth) { SidebarPushState(sidebarWidth, sidebarWidthPx) }
+        .also { it.progress = pushProgress }
+}
+
+class SidebarPushState internal constructor(
+    val width: Dp,
+    val widthPx: Float,
+) {
+    var progress by androidx.compose.runtime.mutableFloatStateOf(0f)
+        internal set
+}
+
+/** Terminal tarafının uygulaması gereken translateX modifier'ı. */
+fun Modifier.sidebarPush(state: SidebarPushState): Modifier = this.graphicsLayer {
+    translationX = state.progress * state.widthPx
+}
+
 @Composable
 fun SessionSidebar(
     isOpen: Boolean,
@@ -111,150 +119,36 @@ fun SessionSidebar(
     onOpenSettings: () -> Unit,
     userDisplayName: String = "User",
     userInitials: String = userDisplayName.take(2).uppercase(),
+    pushState: SidebarPushState? = null,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
-    val config = LocalConfiguration.current
-    val sidebarW = remember(config) {
-        val sw = config.screenWidthDp
-        if (sw > 0) (sw * 0.78f).coerceAtMost(360f).dp else 320.dp
-    }
+    val internalState = rememberSidebarPushState(isOpen)
+    val state = pushState ?: internalState
+    val pushProgress = if (pushState != null) pushState.progress else internalState.progress
+    val sidebarWidthPx = state.widthPx
+    val sidebarW = state.width
 
-    // Sade tween — v2'deki spring+overshoot Muhofy tarafından "kötü/sallantılı"
-    // bulundu, kaldırıldı. Kapanış açılıştan ~%20 daha hızlı (modern UI norm).
-    val openEasing = androidx.compose.animation.core.FastOutSlowInEasing
-    val openDuration = 280
-    val closeDuration = 220
-
-    // Terminal kartının küçülme miktarı — sidebar tam açıkken hedef boşluklar.
-    val terminalTopInset by animateDpAsState(
-        targetValue = if (isOpen) 28.dp else 0.dp,
-        animationSpec = tween(if (isOpen) openDuration else closeDuration, easing = openEasing),
-        label = "terminalTopInset",
-    )
-    val terminalBottomInset by animateDpAsState(
-        targetValue = if (isOpen) 28.dp else 0.dp,
-        animationSpec = tween(if (isOpen) openDuration else closeDuration, easing = openEasing),
-        label = "terminalBottomInset",
-    )
-    val terminalEndInset by animateDpAsState(
-        targetValue = if (isOpen) 10.dp else 0.dp,
-        animationSpec = tween(if (isOpen) openDuration else closeDuration, easing = openEasing),
-        label = "terminalEndInset",
-    )
-    val terminalCorner by animateDpAsState(
-        targetValue = if (isOpen) 22.dp else 0.dp,
-        animationSpec = tween(if (isOpen) openDuration else closeDuration, easing = openEasing),
-        label = "terminalCorner",
-    )
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Terminal kartı: sidebar açıldıkça üstten/alttan/sağdan içeri
-        // "sıkışıyor", boşluklar sidebar rengiyle dolduğu için terminal
-        // sidebar'ın içine gömülü bir kart gibi görünüyor.
-        TerminalCard(
-            sidebarWidth = sidebarW,
-            isSidebarOpen = isOpen,
-            topInset = terminalTopInset,
-            bottomInset = terminalBottomInset,
-            endInset = terminalEndInset,
-            corner = terminalCorner,
-            onClick = onDismiss,
-        )
-
-        AnimatedVisibility(
-            visible = isOpen,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .zIndex(1f),
-            enter = fadeIn(animationSpec = tween(openDuration)) +
-                slideInHorizontally(
-                    animationSpec = tween(openDuration, easing = openEasing),
-                    initialOffsetX = { fullWidth -> -fullWidth },
-                ),
-            exit = fadeOut(animationSpec = tween(closeDuration)) +
-                slideOutHorizontally(
-                    animationSpec = tween(closeDuration, easing = openEasing),
-                    targetOffsetX = { fullWidth -> -fullWidth },
-                ),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(sidebarW)
-                    .background(DroshSurfaceVariant)
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClick = {},
-                    ),
-            ) {
-                SidebarContent(
-                    viewModel = viewModel,
-                    onOpenSettings = onOpenSettings,
-                    userDisplayName = userDisplayName,
-                    userInitials = userInitials,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Sağdaki terminal alanını gerçek anlamda küçültüp kart haline getiren katman.
- * Sidebar kapalıyken tüm insetler 0 — terminal tam ekran. Sidebar açıldıkça
- * insetler büyüyor, terminal içeri çekilip köşeleri yuvarlanıyor; boşta kalan
- * alan sidebar'ın surface rengiyle dolduruluyor (DeepSeek referansındaki gibi).
- *
- * Not: Burada terminal'in KENDİSİ render edilmiyor — bu, üstteki gerçek
- * terminal Composable'ının arkasında/altında yaşadığı varsayımıyla sadece
- * çerçeve + tıklama-ile-kapat katmanı sağlıyor. Gerçek entegrasyonda bu Box'ın
- * içeriği, mevcut ekranın terminal Composable'ıyla değiştirilmeli — bkz. not
- * aşağıda "// TODO(muhofy)".
- */
-@Composable
-private fun TerminalCard(
-    sidebarWidth: Dp,
-    isSidebarOpen: Boolean,
-    topInset: Dp,
-    bottomInset: Dp,
-    endInset: Dp,
-    corner: Dp,
-    onClick: () -> Unit,
-) {
     Box(
         modifier = Modifier
-            .fillMaxSize()
-            .background(DroshSurfaceVariant),
+            .fillMaxHeight()
+            .width(sidebarW)
+            .graphicsLayer {
+                translationX = (pushProgress - 1f) * sidebarWidthPx
+            }
+            .zIndex(1f)
+            .background(DroshSurfaceVariant)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = {},
+            ),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    start = sidebarWidth,
-                    top = topInset,
-                    bottom = bottomInset,
-                    end = endInset,
-                )
-                .clip(RoundedCornerShape(corner))
-                .background(DroshBackground)
-                .then(
-                    if (isSidebarOpen) {
-                        Modifier.clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                            onClick = onClick,
-                        )
-                    } else {
-                        Modifier
-                    },
-                ),
-        ) {
-            // TODO(muhofy): gerçek terminal Composable'ı burada render
-            // edilmeli (örn. TerminalScreen(...) çağrısı). Şu an sadece
-            // görsel yer tutucu — sidebar bu Box'ın ÜSTÜNDE overlay olarak
-            // duruyor, terminal kendi state'ini kaybetmeden bu inset'lerle
-            // küçülüp büyüyecek.
-        }
+        SidebarContent(
+            viewModel = viewModel,
+            onOpenSettings = onOpenSettings,
+            userDisplayName = userDisplayName,
+            userInitials = userInitials,
+        )
     }
 }
 
@@ -784,3 +678,4 @@ private fun SessionRow(
         }
     }
 }
+

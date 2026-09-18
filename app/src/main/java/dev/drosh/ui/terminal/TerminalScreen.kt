@@ -6,6 +6,7 @@ import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +62,8 @@ import dev.drosh.ui.search.DraggableSearchBar
 import dev.drosh.ui.search.SearchScope
 import dev.drosh.ui.session.SessionSidebar
 import dev.drosh.ui.session.SessionSwitcherViewModel
+import dev.drosh.ui.session.rememberSidebarPushState
+import dev.drosh.ui.session.sidebarPush
 import dev.drosh.ui.topbar.TerminalTopBar
 import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
@@ -138,6 +141,7 @@ private fun ReadyScreen(
     var fullscreen by remember { mutableStateOf(false) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
     var sidebarOpen by remember { mutableStateOf(false) }
+    val sidebarPush = rememberSidebarPushState(sidebarOpen)
     var browserUrl by remember { mutableStateOf<String?>(null) }
 
     var searchActive by remember { mutableStateOf(false) }
@@ -373,6 +377,18 @@ private fun ReadyScreen(
         modifier = Modifier
         .fillMaxSize()
         .background(DroshBackground)
+        .sidebarPush(sidebarPush)
+        .then(
+            if (sidebarOpen) {
+                Modifier.clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = { sidebarOpen = false },
+                )
+            } else {
+                Modifier
+            },
+        )
     ) {
                 	/*
          * Terminal content fills all available space.
@@ -557,20 +573,22 @@ private fun ReadyScreen(
         }
 
         // Slider overlay.
-        // Sidebar overlay.
+        // Sidebar overlay — v5: her zaman komposize (push animasyonu için
+        // şart), isOpen=false iken kendini translateX ile ekran dışına alır.
         if (sidebarOpen) {
             BackHandler {
                 sidebarOpen = false
             }
-
-            SessionSidebar(
-                isOpen = sidebarOpen,
-                onDismiss = {
-                    sidebarOpen = false
-                },
-                onOpenSettings = onOpenSettings,
-            )
         }
+
+        SessionSidebar(
+            isOpen = sidebarOpen,
+            onDismiss = {
+                sidebarOpen = false
+            },
+            onOpenSettings = onOpenSettings,
+            pushState = sidebarPush,
+        )
 
         if (browserUrl != null) {
             BackHandler {
