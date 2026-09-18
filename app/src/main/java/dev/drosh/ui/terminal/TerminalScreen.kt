@@ -381,17 +381,12 @@ private fun ReadyScreen(
         .fillMaxSize()
         .background(DroshBackground)
         .sidebarPush(sidebarPush)
-        .then(
-            if (sidebarOpen) {
-                Modifier.clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = { sidebarOpen = false },
-                )
-            } else {
-                Modifier
-            },
+        .background(DroshSurfaceVariant)
+        .padding(
+            top = 20.dp * sidebarPush.progress,
+            bottom = 20.dp * sidebarPush.progress,
         )
+        .background(DroshBackground)
     ) {
                 	/*
          * Terminal content fills all available space.
@@ -630,6 +625,21 @@ private fun ReadyScreen(
                     currentMatch = 1
                 },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
+            )
+        }
+
+        // Sidebar açıkken terminal'le HİÇBİR etkileşim olmasın — sadece
+        // tıklayıp kapatma değil, scroll/drag/tap dahil tüm pointer input'u
+        // burada tüketip terminal'e hiç ulaştırmıyoruz. Görünmez, tam kaplı.
+        if (sidebarOpen) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = { sidebarOpen = false },
+                    ),
             )
         }
     }
