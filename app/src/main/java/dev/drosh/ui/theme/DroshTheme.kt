@@ -5,36 +5,24 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshOnPrimary
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshSurfaceInputBox
-import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
 
 /**
  * Drosh design tokens.
  *
- * Token VALUES now live in `:design-system` (DroshColors.kt) — the single
- * source of truth every module (`:app`, `:ui`, future `:agent` HUDs) reads
- * from. This file only wires those tokens into the Material 3 color scheme;
- * it no longer redeclares hex values (previous revision duplicated the full
- * palette here, which had drifted out of sync with :design-system).
- *
- * Palette is a neutral anthracite grayscale (Background #111111 → Surface
- * #1C1C1C → SurfaceInputBox #292929 → Border #464646), replacing the earlier
- * blue-tinted scheme. See DroshColors.kt for the full elevation ladder and
- * the rationale (color reserved for meaning; brand blue #5B8DEF lives only
- * in the mark/mascot, never in chrome).
+ * Per MEMORYBANK.md §5 — Visual Identity:
+ *  - Background: #14171B (dark), Surface: #1C2025, SurfaceVariant: #252A30
+ *  - Primary (terminal blue): #719FFF, OnPrimary: #14171B
+ *  - Text: #F0F2F4, secondary #A8AEB6, muted #747B85, disabled #585F69
+ *  - Success: #22C55E, Error: #EF4444, Warning: #F59E0B
+ *  - Build/Compile: #719FFF (matches accent)
  *
  * Drosh is dark-only in v1.0 — we ignore the system dark/light switch so
- * the anthracite surfaces stay consistent regardless of device theme.
+ * the blue accent (#719FFF) and dark surfaces stay consistent.
  *
  * Typography is sourced from Outfit Regular (bundled TTF at
  * `res/font/outfit_regular.ttf`). Originally lifted from
@@ -43,13 +31,32 @@ import dev.drosh.design.system.OutfitFontFamily
  * setup story, terminal chrome — shares the same letterforms as the host
  * shell.
  */
+val DroshBackground: Color = Color(0xFF14171B)
+val DroshSurface: Color = Color(0xFF1C2025)
+val DroshSurfaceVariant: Color = Color(0xFF252A30)
+val DroshOutline: Color = Color(0xFF343A43)
+val DroshBorderSubtle: Color = Color(0xFF343A43)
+
+val DroshPrimary: Color = Color(0xFF719FFF)
+val DroshOnPrimary: Color = Color(0xFF14171B)
+
+val DroshText: Color = Color(0xFFF0F2F4)
+val DroshTextSecondary: Color = Color(0xFFA8AEB6)
+val DroshTextMuted: Color = Color(0xFF747B85)
+val DroshTextDisabled: Color = Color(0xFF585F69)
+
+val DroshSuccess: Color = Color(0xFF22C55E)
+val DroshError: Color = Color(0xFFEF4444)
+val DroshWarning: Color = Color(0xFFF59E0B)
+val DroshBuild: Color = Color(0xFF719FFF)
+
 private val DroshDarkColors = darkColorScheme(
     primary = DroshPrimary,
     onPrimary = DroshOnPrimary,
     secondary = DroshTextSecondary,
     background = DroshBackground,
     surface = DroshSurface,
-    surfaceVariant = DroshSurfaceInputBox,
+    surfaceVariant = DroshSurfaceVariant,
     outline = DroshOutline,
     error = DroshError,
     onError = DroshPrimary,
@@ -83,7 +90,7 @@ private val DroshTypography = Typography(
  * Compose theme for the entire app.
  *
  * Drosh is dark-only in v1.0 — we ignore the system dark/light switch so
- * the anthracite surfaces stay consistent regardless of device theme.
+ * the blue accent (#719FFF) and dark surfaces stay consistent.
  */
 @Composable
 fun DroshTheme(content: @Composable () -> Unit) {
