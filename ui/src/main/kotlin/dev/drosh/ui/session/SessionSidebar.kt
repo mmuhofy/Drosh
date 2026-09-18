@@ -122,9 +122,8 @@ fun SessionSidebar(
     pushState: SidebarPushState? = null,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
-    val internalState = rememberSidebarPushState(isOpen)
-    val state = pushState ?: internalState
-    val pushProgress = if (pushState != null) pushState.progress else internalState.progress
+    val state = pushState ?: rememberSidebarPushState(isOpen)
+    val pushProgress = state.progress
     val sidebarWidthPx = state.widthPx
     val sidebarW = state.width
 
