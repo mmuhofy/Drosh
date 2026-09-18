@@ -8,38 +8,66 @@ import androidx.compose.ui.graphics.Color
  * Originally defined inside `:app/.../ui/theme/DroshTheme.kt` (Phase 2), the
  * tokens are promoted to `:design-system` so every module that renders
  * Compose — `:app`, `:ui`, and future `:agent` HUDs — sees the exact same
- * hex values without duplicating them. Per MEMORYBANK.md §5 — Visual
- * Identity:
+ * hex values without duplicating them.
  *
- *   - Background #14171B (dark), Surface #1C2025, SurfaceVariant #252A30
- *   - Outline #343A43, BorderSubtle #343A43
- *   - Primary (terminal blue) #719FFF, OnPrimary #14171B
- *   - Text #F0F2F4, TextSecondary #A8AEB6, TextMuted #747B85, TextDisabled #585F69
- *   - Success #22C55E, Error #EF4444, Warning #F59E0B, Build #719FFF
+ * Palette revision (this pass) — replaces the earlier blue-tinted dark
+ * scheme (#14171B/#1C2025/#719FFF) with a neutral anthracite grayscale,
+ * closer to how Kimi/Grok structure their dark UI layers:
  *
- * Drosh is dark-only on v1.0 — dark mode (#14171B) is the default
- * background. Surface levels use subtle luminance steps for clear visual hierarchy.
- * The blue accent (#719FFF) replaces the previous gold, evoking terminal cursor cyan
- * and VS Code's professional dark theme.
+ *   - Background #111111 (terminal floor — lowest layer)
+ *   - Surface #1C1C1C (TopBar, App Actions strip, general cards)
+ *   - SurfaceSidebar #1F1F1F (session switcher / sidebar panel)
+ *   - SurfaceInputBox #292929 (the input box itself, and block dividers)
+ *   - SurfaceSheetCard #2A2A2A (cards/rows inside bottom sheets — agent
+ *     panel, overflow menu)
+ *   - SurfacePressed #333333 (transient pressed/hover state on any element)
+ *   - Border #464646 (all card/input edges)
+ *
+ * Elevation reads as luminance: the deeper a layer sits behind the terminal
+ * (background) the darker it is; the more a layer floats above it (sidebar,
+ * bottom sheet, pressed state) the lighter it is. No shadows — consistent
+ * with the near-zero-animation, minimal-chrome direction (Open Decision #8).
+ *
+ * Color is reserved for meaning only: Success/Warning/Error stay saturated
+ * because they carry information (exit codes, alerts). Primary (#5B8DEF)
+ * is the one deliberate exception to the "no color in chrome" rule — it
+ * lives ONLY in the brand mark/mascot, never in buttons, toggles, or
+ * selected-state fills. Selection/active state is expressed through the
+ * gray elevation ladder (DroshSurfacePressed) or icon-level tinting, not
+ * through filled color surfaces.
  */
-val DroshBackground: Color = Color(0xFF14171B)
-val DroshSurface: Color = Color(0xFF1C2025)
-val DroshSurfaceVariant: Color = Color(0xFF252A30)
-val DroshSurfaceLow: Color = Color(0xFF191C20)
-val DroshSurfaceHigh: Color = Color(0xFF272A2E)
-val DroshSurfaceContainerLowest: Color = Color(0xFF0B0E12)
-val DroshOutline: Color = Color(0xFF343A43)
-val DroshBorderSubtle: Color = Color(0xFF343A43)
+val DroshBackground: Color = Color(0xFF111111)
+val DroshSurface: Color = Color(0xFF1C1C1C)
+val DroshSurfaceSidebar: Color = Color(0xFF1F1F1F)
+val DroshSurfaceInputBox: Color = Color(0xFF292929)
+val DroshSurfaceSheetCard: Color = Color(0xFF2A2A2A)
+val DroshSurfacePressed: Color = Color(0xFF333333)
+val DroshOutline: Color = Color(0xFF464646)
+val DroshBorderSubtle: Color = Color(0xFF464646)
 
-val DroshPrimary: Color = Color(0xFF719FFF)
-val DroshOnPrimary: Color = Color(0xFF14171B)
+// Legacy aliases kept for call sites not yet migrated to the named tokens
+// above. Prefer the specific token (DroshSurfaceSidebar, DroshSurfaceSheetCard,
+// etc.) in new code; these will be removed once all usages are audited.
+val DroshSurfaceVariant: Color = DroshSurfaceInputBox
+val DroshSurfaceLow: Color = DroshBackground
+val DroshSurfaceHigh: Color = DroshSurfacePressed
+val DroshSurfaceContainerLowest: Color = Color(0xFF0A0A0A)
 
-val DroshText: Color = Color(0xFFF0F2F4)
-val DroshTextSecondary: Color = Color(0xFFA8AEB6)
-val DroshTextMuted: Color = Color(0xFF747B85)
-val DroshTextDisabled: Color = Color(0xFF585F69)
+/**
+ * Brand mark accent — used EXCLUSIVELY for the Drosh logo/mascot mark.
+ * Never applied to buttons, toggles, selected rows, or any functional
+ * chrome. Selection/active states use the gray elevation ladder instead
+ * (see DroshSurfacePressed).
+ */
+val DroshPrimary: Color = Color(0xFF5B8DEF)
+val DroshOnPrimary: Color = Color(0xFF111111)
+
+val DroshText: Color = Color(0xFFEDEDED)
+val DroshTextSecondary: Color = Color(0xFFA0A0A0)
+val DroshTextMuted: Color = Color(0xFF707070)
+val DroshTextDisabled: Color = Color(0xFF505050)
 
 val DroshSuccess: Color = Color(0xFF22C55E)
 val DroshError: Color = Color(0xFFEF4444)
 val DroshWarning: Color = Color(0xFFF59E0B)
-val DroshBuild: Color = Color(0xFF719FFF)
+val DroshBuild: Color = Color(0xFF5B8DEF)
