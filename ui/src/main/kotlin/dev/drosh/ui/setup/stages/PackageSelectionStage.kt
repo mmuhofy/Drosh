@@ -1,5 +1,11 @@
 package dev.drosh.ui.setup.stages
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -17,6 +23,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -25,8 +32,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,9 +58,12 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.domain.terminal.PackageProfile
 import dev.drosh.domain.terminal.ShellChoice
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.setup.SetupWizardViewModel
+import dev.drosh.ui.setup.components.PillButton
+import dev.drosh.ui.setup.components.PackageProfilePresetCard
 
 @Composable
 fun PackageSelectionStage(
@@ -56,7 +71,9 @@ fun PackageSelectionStage(
     modifier: Modifier = Modifier,
     viewModel: SetupWizardViewModel = hiltViewModel(),
 ) {
+    val profile by viewModel.packageProfile.collectAsStateWithLifecycle()
     val shellChoice by viewModel.shellChoice.collectAsStateWithLifecycle()
+    val customPackagesText by viewModel.customPackagesText.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -66,31 +83,133 @@ fun PackageSelectionStage(
             .windowInsetsPadding(WindowInsets.statusBars),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        ShellOptionCard(
-            icon = DroshIcons.Terminal,
-            title = "Zsh",
-            description = "Modern, feature-rich and highly customizable",
-            badgeText = "Recommended",
-            isSelected = shellChoice == ShellChoice.Zsh,
-            onSelect = { viewModel.selectShell(ShellChoice.Zsh) },
+        Text(
+            text = "Packages",
+            style = TextStyle(
+                fontFamily = OutfitFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 22.sp,
+                letterSpacing = 0.5.sp,
+            ),
+            color = DroshText,
         )
 
+        Text(
+            text = "Choose what to install during setup",
+            style = TextStyle(
+                fontFamily = OutfitFontFamily,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                textAlign = TextAlign.Center,
+            ),
+            color = DroshTextMuted,
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        PackageProfilePresetCard(
+            profile = PackageProfile.Minimal,
+            isSelected = profile == PackageProfile.Minimal,
+            onSelect = { viewModel.selectProfile(PackageProfile.Minimal) },
+        )
         Spacer(modifier = Modifier.height(12.dp))
-
-        ShellOptionCard(
-            icon = DroshIcons.SquareTerminal,
-            title = "Bash",
-            description = "Stable, reliable and widely compatible",
-            badgeText = null,
-            isSelected = shellChoice == ShellChoice.Bash,
-            onSelect = { viewModel.selectShell(ShellChoice.Bash) },
+        PackageProfilePresetCard(
+            profile = PackageProfile.Standard,
+            isSelected = profile == PackageProfile.Standard,
+            onSelect = {
+                viewModel.selectProfile(PackageProfile.Standard)
+                viewModel.setCustomPackagesText("")
+            },
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        PackageProfilePresetCard(
+            profile = PackageProfile.Full,
+            isSelected = profile == PackageProfile.Full,
+            onSelect = {
+                viewModel.selectProfile(PackageProfile.Full)
+                viewModel.setCustomPackagesText("")
+            },
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        PackageProfilePresetCard(
+            profile = PackageProfile.Custom,
+            isSelected = profile == PackageProfile.Custom,
+            onSelect = { viewModel.selectProfile(PackageProfile.Custom) },
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        AnimatedVisibility(
+            visible = profile == PackageProfile.Custom,
+            enter = fadeIn(animationSpec = tween(220)) +
+                expandVertically(animationSpec = tween(280)),
+            exit = fadeOut(animationSpec = tween(180)) +
+                shrinkVertically(animationSpec = tween(220)),
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Additional packages",
+                style = TextStyle(
+                    fontFamily = OutfitFontFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = DroshTextMuted,
+                modifier = Modifier.align(Alignment.Start),
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            var text by remember { mutableStateOf(customPackagesText) }
+            TextField(
+                value = text,
+                onValueChange = {
+                    text = it
+                    viewModel.setCustomPackagesText(it)
+                },
+                placeholder = {
+                    Text(
+                        text = "e.g. curl, jq, tmux",
+                        style = TextStyle(
+                            fontFamily = OutfitFontFamily,
+                            fontSize = 13.sp,
+                        ),
+                        color = DroshTextMuted,
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = DroshSurfaceVariant,
+                    unfocusedContainerColor = DroshSurfaceVariant,
+                    focusedTextColor = DroshText,
+                    unfocusedTextColor = DroshText,
+                    focusedIndicatorColor = DroshPrimary,
+                    unfocusedIndicatorColor = DroshBorderSubtle,
+                    cursorColor = DroshPrimary,
+                ),
+                textStyle = TextStyle(
+                    fontFamily = OutfitFontFamily,
+                    fontSize = 14.sp,
+                ),
+                supportingText = {
+                    Text(
+                        text = "Comma-separated apt package names",
+                        style = TextStyle(
+                            fontFamily = OutfitFontFamily,
+                            fontSize = 11.sp,
+                        ),
+                        color = DroshTextMuted,
+                    )
+                },
+                keyboardOptions = KeyboardOptions.Default,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "Shell",
@@ -103,33 +222,38 @@ fun PackageSelectionStage(
             color = DroshTextMuted,
             modifier = Modifier.align(Alignment.Start),
         )
+        Spacer(modifier = Modifier.height(10.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
+        ShellOptionCard(
+            icon = DroshIcons.Terminal,
+            title = "Zsh",
+            description = "Modern, feature-rich and highly customizable",
+            badgeText = "Recommended",
+            isSelected = shellChoice == ShellChoice.Zsh,
+            onSelect = { viewModel.selectShell(ShellChoice.Zsh) },
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        ShellOptionCard(
+            icon = DroshIcons.SquareTerminal,
+            title = "Bash",
+            description = "Stable, reliable and widely compatible",
+            badgeText = null,
+            isSelected = shellChoice == ShellChoice.Bash,
+            onSelect = { viewModel.selectShell(ShellChoice.Bash) },
+        )
 
-        Button(
+        Spacer(modifier = Modifier.weight(1f))
+
+        PillButton(
+            text = "Continue",
             onClick = {
                 viewModel.startBootstrap()
                 onNext()
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = DroshPrimary,
-            ),
-        ) {
-            Text(
-                text = "Continue",
-                style = TextStyle(
-                    fontFamily = OutfitFontFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                    textAlign = TextAlign.Center,
-                ),
-                color = DroshOnPrimary,
-            )
-            }
+                .padding(bottom = 32.dp),
+        )
     }
 }
 
@@ -146,7 +270,7 @@ private fun ShellOptionCard(
     Card(
         onClick = onSelect,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
+        colors = Card_defaults.cardColors(
             containerColor = if (isSelected) DroshPrimary.copy(alpha = 0.08f) else DroshSurfaceVariant,
         ),
         modifier = modifier

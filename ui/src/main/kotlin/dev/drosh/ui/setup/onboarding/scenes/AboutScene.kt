@@ -11,9 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -42,65 +43,60 @@ fun AboutScene(
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DroshBackground),
+            .background(DroshBackground)
+            .padding(horizontal = 28.dp)
+            .windowInsetsPadding(WindowInsets.statusBars),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Spacer(modifier = Modifier.height(25.dp))
+
+        Text(
+            text = "Drosh gives you a real Ubuntu environment on your Android phone — not a simulation, the real thing. Install packages, run scripts, and work the way you already know.",
+            style = TextStyle(
+                fontFamily = OutfitFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                textAlign = TextAlign.Center,
+            ),
+            color = DroshTextSecondary,
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        FeatureItem(
+            icon = DroshIcons.Globe,
+            title = "Full Ubuntu environment",
+            description = "A real Linux workspace, not a toy",
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        FeatureItem(
+            icon = DroshIcons.Code,
+            title = "Organized, block-based output",
+            description = "See every command and its result, clearly separated — not a wall of scrolling text",
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        FeatureItem(
+            icon = DroshIcons.Info,
+            title = "AI-powered agent",
+            description = null,
+            muted = true,
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        PillButton(
+            text = "Next",
+            onClick = onNext,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 28.dp)
-                .windowInsetsPadding(WindowInsets.statusBars),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = "Drosh gives you a real Ubuntu environment on your Android phone — not a simulation, the real thing. Install packages, run scripts, and work the way you already know.",
-                style = TextStyle(
-                    fontFamily = OutfitFontFamily,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp,
-                    textAlign = TextAlign.Center,
-                ),
-                color = DroshTextSecondary,
-            )
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            FeatureItem(
-                icon = DroshIcons.Globe,
-                title = "Full Ubuntu environment",
-                description = "A real Linux workspace, not a toy",
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            FeatureItem(
-                icon = DroshIcons.Code,
-                title = "Organized, block-based output",
-                description = "See every command and its result, clearly separated — not a wall of scrolling text",
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            FeatureItem(
-                icon = DroshIcons.Info,
-                title = "AI-powered agent",
-                description = null,
-                muted = true,
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            PillButton(
-                text = "Next",
-                onClick = onNext,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-            )
-        }
+                .fillMaxWidth()
+                .padding(bottom = 32.dp),
+        )
     }
 }
 
@@ -149,25 +145,27 @@ private fun FeatureItem(
                     ),
                     color = if (muted) DroshTextMuted else DroshText,
                 )
-                if (muted) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = DroshBorderSubtle,
-                                shape = RoundedCornerShape(4.dp),
+                muted.let { isMuted ->
+                    if (isMuted) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = DroshBorderSubtle,
+                                    shape = RoundedCornerShape(4.dp),
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                text = "Coming soon",
+                                style = TextStyle(
+                                    fontFamily = OutfitFontFamily,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 10.sp,
+                                ),
+                                color = DroshTextMuted,
                             )
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = "Coming soon",
-                            style = TextStyle(
-                                fontFamily = OutfitFontFamily,
-                                fontWeight = FontWeight.Normal,
-                                fontSize = 10.sp,
-                            ),
-                            color = DroshTextMuted,
-                        )
+                        }
                     }
                 }
             }
