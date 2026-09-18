@@ -374,6 +374,9 @@ private fun ReadyScreen(
     val appearAlpha = 1f
 
     Box(
+        modifier = Modifier.fillMaxSize(),
+    ) {
+    Box(
         modifier = Modifier
         .fillMaxSize()
         .background(DroshBackground)
@@ -572,23 +575,15 @@ private fun ReadyScreen(
             )
         }
 
-        // Slider overlay.
-        // Sidebar overlay — v5: her zaman komposize (push animasyonu için
-        // şart), isOpen=false iken kendini translateX ile ekran dışına alır.
+        // Slider overlay trigger — BackHandler kalıyor, SessionSidebar
+        // çağrısı bu transformlu Box'ın DIŞINA taşındı (aşağıda), çünkü bu
+        // Box zaten .sidebarPush() ile translateX alıyor ve sidebar bunu
+        // miras alıp yanlış konuma kayıyordu.
         if (sidebarOpen) {
             BackHandler {
                 sidebarOpen = false
             }
         }
-
-        SessionSidebar(
-            isOpen = sidebarOpen,
-            onDismiss = {
-                sidebarOpen = false
-            },
-            onOpenSettings = onOpenSettings,
-            pushState = sidebarPush,
-        )
 
         if (browserUrl != null) {
             BackHandler {
@@ -637,6 +632,16 @@ private fun ReadyScreen(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
             )
         }
+    }
+
+    SessionSidebar(
+        isOpen = sidebarOpen,
+        onDismiss = {
+            sidebarOpen = false
+        },
+        onOpenSettings = onOpenSettings,
+        pushState = sidebarPush,
+    )
     }
 }
 
