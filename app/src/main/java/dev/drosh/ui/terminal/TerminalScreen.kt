@@ -46,6 +46,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.LifecycleEventObserver
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.terminal.SearchHighlightOverlay
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
