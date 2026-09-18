@@ -180,11 +180,7 @@ private fun ReadyScreen(
     }
 
     LaunchedEffect(shouldExit) {
-        if (shouldExit) {
-            // Defer by one yield to give SessionManagerAdapter.reconcile()
-            // a chance to create a default session if Room is empty.
-            // This prevents exit when the app process is reused after
-            // the previous session was deleted.
+        if (shouldExit && processExitEvent == null) {
             yield()
 
             if (sessionSwitcherViewModel.allSessions.value.isNotEmpty()) {
@@ -661,7 +657,10 @@ private fun ReadyScreen(
             AlertDialog(
                 onDismissRequest = { terminalManager.clearProcessExitEvent() },
                 confirmButton = {
-                    TextButton(onClick = { onExit() }) {
+                    TextButton(onClick = {
+                        terminalManager.clearProcessExitEvent()
+                        onExit()
+                    }) {
                         Text(
                             text = "Exit",
                             color = DroshError,

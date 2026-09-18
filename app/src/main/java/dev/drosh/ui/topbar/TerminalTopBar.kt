@@ -203,10 +203,10 @@ private fun MoreActionsDropdown(
                 label = "Find in output",
                 icon = DroshIcons.Search,
             ),
-            DroshMenuItem(dividerBefore = true, label = ""),
             DroshMenuItem(
                 label = "Settings",
                 icon = DroshIcons.Settings,
+                dividerBefore = true,
             ),
             DroshMenuItem(
                 label = "Close session",
