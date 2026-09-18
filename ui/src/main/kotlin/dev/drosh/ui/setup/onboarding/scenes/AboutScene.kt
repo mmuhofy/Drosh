@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,7 +19,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
@@ -59,46 +58,36 @@ fun AboutScene(
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "More than a terminal",
-                style = TextStyle(
-                    fontFamily = OutfitFontFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 22.sp,
-                    letterSpacing = 0.5.sp,
-                ),
-                color = DroshText,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "A Unix environment on your phone — Zsh, Bash, and the tools you already know.",
+                text = "Drosh gives you a real Ubuntu environment on your Android phone — not a simulation, the real thing. Install packages, run scripts, and work the way you already know.",
                 style = TextStyle(
                     fontFamily = OutfitFontFamily,
                     fontWeight = FontWeight.Normal,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
                     textAlign = TextAlign.Center,
                 ),
-                color = DroshTextMuted,
+                color = DroshTextSecondary,
             )
 
             Spacer(modifier = Modifier.height(40.dp))
 
             FeatureItem(
-                icon = DroshIcons.Info,
-                label = "Full Zsh + Oh My Zsh",
+                icon = DroshIcons.Globe,
+                title = "Full Ubuntu environment",
+                description = "A real Linux workspace, not a toy",
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            FeatureItem(
-                icon = DroshIcons.Package,
-                label = "Install packages (apt)",
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             FeatureItem(
                 icon = DroshIcons.Code,
-                label = "vim, git, curl, and more",
-                comingSoon = true,
+                title = "Organized, block-based output",
+                description = "See every command and its result, clearly separated — not a wall of scrolling text",
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            FeatureItem(
+                icon = DroshIcons.Info,
+                title = "AI-powered agent",
+                description = null,
+                muted = true,
             )
 
             Spacer(modifier = Modifier.weight(1f))
@@ -117,14 +106,15 @@ fun AboutScene(
 @Composable
 private fun FeatureItem(
     icon: ImageVector,
-    label: String,
-    comingSoon: Boolean = false,
+    title: String,
+    description: String?,
+    muted: Boolean = false,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         Box(
             modifier = Modifier
@@ -138,34 +128,62 @@ private fun FeatureItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (comingSoon) DroshTextSecondary else DroshPrimary,
+                tint = if (muted) DroshTextMuted else DroshPrimary,
                 modifier = Modifier.size(20.dp),
             )
         }
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        Text(
-            text = label,
-            style = TextStyle(
-                fontFamily = OutfitFontFamily,
-                fontWeight = FontWeight.Normal,
-                fontSize = 15.sp,
-            ),
-            color = if (comingSoon) DroshTextMuted else DroshText,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    style = TextStyle(
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                    ),
+                    color = if (muted) DroshTextMuted else DroshText,
+                )
+                if (muted) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = DroshBorderSubtle,
+                                shape = RoundedCornerShape(4.dp),
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "Coming soon",
+                            style = TextStyle(
+                                fontFamily = OutfitFontFamily,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 10.sp,
+                            ),
+                            color = DroshTextMuted,
+                        )
+                    }
+                }
+            }
 
-        if (comingSoon) {
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = "Coming soon",
-                style = TextStyle(
-                    fontFamily = OutfitFontFamily,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 11.sp,
-                ),
-                color = DroshTextMuted,
-            )
+            description?.let { desc ->
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = desc,
+                    style = TextStyle(
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    color = DroshTextMuted,
+                )
+            }
         }
     }
 }
