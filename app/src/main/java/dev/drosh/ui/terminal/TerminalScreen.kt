@@ -660,26 +660,6 @@ private fun ReadyScreen(
         if (processExitEvent != null) {
             AlertDialog(
                 onDismissRequest = { terminalManager.clearProcessExitEvent() },
-                containerColor = DroshSurface,
-                shape = RoundedCornerShape(16.dp),
-                title = {
-                    Text(
-                        text = "Process exited",
-                        color = DroshText,
-                        fontFamily = OutfitFontFamily,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 18.sp,
-                    )
-                },
-                titleContent = {
-                    Text(
-                        text = "exit code: ${processExitEvent!!.exitCode}",
-                        color = if (processExitEvent!!.exitCode == 0) DroshPrimary else DroshError,
-                        fontFamily = OutfitFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                    )
-                },
                 confirmButton = {
                     TextButton(onClick = { onExit() }) {
                         Text(
@@ -705,6 +685,26 @@ private fun ReadyScreen(
                         )
                     }
                 },
+                title = {
+                    Text(
+                        text = "Process exited",
+                        color = DroshText,
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                    )
+                },
+                text = {
+                    Text(
+                        text = "exit code: ${processExitEvent!!.exitCode}",
+                        color = if (processExitEvent!!.exitCode == 0) DroshPrimary else DroshError,
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                    )
+                },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = DroshSurface,
             )
         }
     }
