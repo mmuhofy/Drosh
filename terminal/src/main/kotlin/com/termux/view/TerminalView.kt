@@ -41,6 +41,9 @@ import com.termux.terminal.TerminalColors
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.view.textselection.TextSelectionCursorController
+
+import dev.drosh.terminal.SearchHighlightOverlay
+
 import java.util.Properties
 
 /** View displaying and interacting with a [TerminalSession]. */
@@ -119,6 +122,8 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     private var mAutoFillHints: Array<String> = emptyArray()
 
     private val mAccessibilityEnabled: Boolean
+
+    var searchHighlightOverlay: SearchHighlightOverlay? = null
 
     init {
         mGestureRecognizer = GestureAndScaleRecognizer(context, object : GestureAndScaleRecognizer.Listener {
@@ -425,6 +430,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         mEmulator!!.clearScrollCounter()
 
         invalidate()
+        searchHighlightOverlay?.invalidate()
         if (mAccessibilityEnabled) contentDescription = text
     }
 

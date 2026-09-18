@@ -870,8 +870,8 @@ private fun TerminalViewHost(
                         override fun onGlobalLayout() {
                             if (width > 0 && height > 0 && isAttachedToWindow) {
                                 viewTreeObserver.removeOnGlobalLayoutListener(this)
-                                terminalViewRef.value = this@apply
-                                this@apply.requestFocus()
+                                terminalViewRef.value = this
+                                this.requestFocus()
                             }
                         }
                     }
@@ -884,14 +884,7 @@ private fun TerminalViewHost(
                 isFocusable = false
                 isFocusableInTouchMode = false
             }
-
-            tv.viewTreeObserver.addOnDrawListener(
-                object : ViewTreeObserver.OnDrawListener {
-                    override fun onDraw() {
-                        overlay.invalidate()
-                    }
-                }
-            )
+            tv.searchHighlightOverlay = overlay
 
             frameLayout.addView(tv)
             frameLayout.addView(overlay)
