@@ -270,7 +270,7 @@ private fun ShellOptionCard(
     Card(
         onClick = onSelect,
         shape = RoundedCornerShape(16.dp),
-        colors = Card_defaults.cardColors(
+            colors = CardDefaults.cardColors(
             containerColor = if (isSelected) DroshPrimary.copy(alpha = 0.08f) else DroshSurfaceVariant,
         ),
         modifier = modifier
