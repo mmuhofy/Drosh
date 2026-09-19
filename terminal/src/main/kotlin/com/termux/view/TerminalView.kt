@@ -95,6 +95,12 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     @JvmField
     var mScrollRemainder: Float = 0f
 
+    @JvmField
+    var spaceKeyDown: Boolean = false
+
+    private var spaceDragActive: Boolean = false
+    private var horizontalDragAccumulator: Float = 0f
+
     /** If non-zero, this is the last unicode code point received if that was a combining character. */
     @JvmField
     var mCombiningAccent: Int = 0
@@ -156,6 +162,28 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
             override fun onScroll(e: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
                 if (mEmulator == null) return true
+
+                if (spaceKeyDown) {
+                    spaceDragActive = true
+                    horizontalDragAccumulator += distanceX
+                    val fontWidth = mRenderer!!.mFontWidth
+                    val colsToMove = (horizontalDragAccumulator / fontWidth).toInt()
+                    if (colsToMove != 0) {
+                        horizontalDragAccumulator -= colsToMove * fontWidth
+                        val keyCode = if (distanceX > 0) {
+                            KeyEvent.KEYCODE_DPAD_LEFT
+                        } else {
+                            KeyEvent.KEYCODE_DPAD_RIGHT
+                        }
+                        repeat(Math.abs(colsToMove)) {
+                            handleKeyCode(keyCode, 0)
+                        }
+                        mEmulator!!.setCursorBlinkState(true)
+                        invalidate()
+                    }
+                    return true
+                }
+
                 if (mEmulator!!.isMouseTrackingActive() && e.isFromSource(InputDevice.SOURCE_MOUSE)) {
                     // If moving with mouse pointer while pressing button, report that instead of scroll.
                     sendMouseEventCode(e, TerminalEmulator.MOUSE_LEFT_BUTTON_MOVED, true)
@@ -618,6 +646,13 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
             mClient!!.logInfo(LOG_TAG, "onKeyDown(keyCode=$keyCode, isSystem()=${event.isSystem}, event=$event)")
         if (mEmulator == null) return true
+
+        if (keyCode == KeyEvent.KEYCODE_SPACE) {
+            spaceKeyDown = true
+            spaceDragActive = false
+            horizontalDragAccumulator = 0f
+            return true
+        }
         if (isSelectingText) {
             stopTextSelectionMode()
         }
@@ -785,6 +820,16 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
             mClient!!.logInfo(LOG_TAG, "onKeyUp(keyCode=$keyCode, event=$event)")
+
+        if (keyCode == KeyEvent.KEYCODE_SPACE) {
+            spaceKeyDown = false
+            if (!spaceDragActive) {
+                inputCodePoint(event.deviceId, ' '.code, false, false)
+            }
+            spaceDragActive = false
+            horizontalDragAccumulator = 0f
+            return true
+        }
 
         // Do not return for KEYCODE_BACK and send it to the client since user may be trying
         // to exit the activity.
