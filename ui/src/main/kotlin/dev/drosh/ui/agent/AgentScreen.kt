@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.border
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
@@ -44,8 +44,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.lucide.compose.icons.Send
-import com.lucide.compose.icons.X
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshPrimary
@@ -191,9 +189,11 @@ fun ProviderSelector(
                         else Color.Transparent
                     ),
                     border = if (currentProvider == provider)
-                        SuggestionChipDefaults.suggestionChipBorder(
+                        androidx.compose.material3.SuggestionChipDefaults.elevatedBorder(
                             enabled = true,
-                            color = DroshPrimary
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = DroshPrimary.copy(alpha = 0.15f)
+                            )
                         )
                     else null
                 )
@@ -294,11 +294,11 @@ fun InputArea(
                     containerColor = DroshPrimary.copy(alpha = 0.15f)
                 )
             ) {
-                Icon(
-                    imageVector = Send,
-                    contentDescription = "Send",
-                    tint = DroshPrimary,
-                    modifier = Modifier.size(20.dp)
+                Text(
+                    text = "Send",
+                    color = DroshPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
