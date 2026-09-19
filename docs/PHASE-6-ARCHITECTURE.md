@@ -500,12 +500,10 @@ Step 6: UI wiring (separate)    → Agent panel (bottom sheet) in Phase 5 UI wor
 **v1 scope (per TODO.md §17–26):**
 - Build: `AgentRuntime.kt`, `MultiStepStreamer.kt`, `ProviderAdapter.kt` + `GeminiAdapter.kt`
 - Tools: `shell`, `read_file`, `write_file`, `web_search`, `ask_user`, `update_todo`
-- UI: Simple inline rendering (thoughts → tool calls → results). No collapsible rows.
+- UI: Simple inline rendering (thoughts → tool calls → results), OpenCode style.
 - Work modes: PLAN / BUILD / AUTO (authority axis, independent of task-assignment axis)
 
 **v2 (TODO.md §57–63, AFTER v1):**
-- UI: Collapsible tool-call rows ("Edited 1 file", "Ran 1 command" with expand chevron) — from Codex Desktop UI research (#23868, #21131)
-- UI: Bottom status panel (Objective / Open work / Next closure) — from Codex issue #35848
 - Proaktif tetikleme (Error DNA / Output Intelligence banners)
 - Command DNA (Room FTS5 indexing of every command)
 - Ghost Text (separate from agent)
@@ -550,12 +548,11 @@ From GitHub issues analysis of Codex Desktop (closed-source binary, public issue
 
 | Pattern | Issue | v1 scope |
 |---|---|---|
-| **Collapsible tool-call rows** | #23868, #21131 | v2 — collapsed summary labels ("Edited 1 file", "Ran 1 command") with expand chevron |
 | **"Thinking" indicator** | #24850 | v1 — simple text indicator during model reasoning |
-| **Bottom status panel** | #35848 | v2 — deferred (Objective / Open work / Next closure) |
-| **Activity view** | #36300 | v2 — sidebar recency sorting |
+| **Activity view** | #36300 | v2 — sidebar recency sorting (if needed) |
+| **Collapsible tool-call rows** | #23868, #21131 | **REJECTED** — using standard OpenCode-style inline rendering instead |
 
-**v1 UI decision:** Simple inline rendering — thoughts, tool calls, tool results as they stream. No collapsing/expanders. Defer collapsible rows + bottom status panel to v2.
+**v1 UI decision:** Standard inline rendering — thoughts → tool calls → tool results as they stream, no collapsible/expand/chevron UI. Matches OpenCode's transcript style. Bottom status panel (#35848) also deferred to v2, not implemented.
 
 ---
 
