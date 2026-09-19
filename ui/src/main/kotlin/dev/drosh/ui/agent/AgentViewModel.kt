@@ -10,13 +10,11 @@ import dev.drosh.domain.agent.ChatUiState
 import dev.drosh.domain.agent.LlmStep
 import dev.drosh.domain.agent.ProviderConfig
 import dev.drosh.domain.agent.SessionState
-import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.agent.WorkMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -29,14 +27,10 @@ class AgentViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    private val _events = MutableStateFlow<List<AgentEvent>>(emptyList())
-    val events: StateFlow<List<AgentEvent>> = _events.asStateFlow()
-
     private val history = mutableListOf<LlmStep>()
     private var currentProvider: ProviderConfig? = null
     private var workMode: WorkMode = WorkMode.AUTO
-    private var currentAgentId: String? = null
-    private var bashEventCounters = mutableMapOf<String, Triple<StringBuilder, Int, Boolean>>()
+    private var bashOutputBuilders = mutableMapOf<String, StringBuilder>()
 
     init {
         val defaultProvider = ProviderConfig(
@@ -93,36 +87,30 @@ class AgentViewModel @Inject constructor(
             workingDirectory = "/storage/emulated/0/Android/data/dev.drosh/files/home"
         )
 
-        currentAgentId = UUID.randomUUID().toString()
         val agentMsgId = UUID.randomUUID().toString()
         val agentBuilder = StringBuilder()
         var hasToolCallSinceLastText = false
+        var thinkingMsgId: String? = null
+        var bashMsgId: String? = null
 
         viewModelScope.launch {
             agentSession.runTurn(config).collect { event ->
-                val currentList = _events.value.toMutableList()
-                currentList.add(event)
-                _events.value = currentList
-
                 when (event) {
                     is AgentEvent.TextChunk -> {
                         agentBuilder.append(event.text)
                         val existing = _uiState.value.messages.find { it.id == agentMsgId }
-                        val agentMsg = existing ?: ChatMessage.AgentText(
-                            id = agentMsgId,
-                            text = "",
-                            isStreaming = true
-                        )
                         if (existing == null) {
-                            addMessage(agentMsg)
-                        }
-                        replaceMessage(
-                            agentMsgId,
-                            agentMsg.copy(
-                                text = agentBuilder.toString(),
+                            addMessage(ChatMessage.AgentText(
+                                id = agentMsgId,
+                                text = "",
                                 isStreaming = true
-                            )
-                        )
+                            ))
+                        }
+                        replaceMessage(agentMsgId, ChatMessage.AgentText(
+                            id = agentMsgId,
+                            text = agentBuilder.toString(),
+                            isStreaming = true
+                        ))
                         _uiState.value = _uiState.value.copy(isTyping = true)
                         hasToolCallSinceLastText = false
                     }
@@ -130,27 +118,32 @@ class AgentViewModel @Inject constructor(
                     is AgentEvent.ThinkingChunk -> {
                         val existing = _uiState.value.messages.find { it.id == event.eventId }
                         if (existing is ChatMessage.Thinking) {
-                            val builder = StringBuilder(existing.text).append(event.text)
-                            replaceMessage(existing.copy(
-                                text = builder.toString(),
-                                elapsedMs = event.elapsedMs
-                            ))
+                            existing.apply {
+                                replaceMessage(id, copy(
+                                    text = text + event.text,
+                                    elapsedMs = event.elapsedMs
+                                ))
+                            }
                         } else {
-                            addMessage(ChatMessage.Thinking(
+                            val msg = ChatMessage.Thinking(
                                 id = event.eventId,
                                 text = event.text,
                                 elapsedMs = event.elapsedMs
-                            ))
+                            )
+                            thinkingMsgId = event.eventId
+                            addMessage(msg)
                         }
                     }
 
                     is AgentEvent.ThinkingComplete -> {
                         val existing = _uiState.value.messages.find { it.id == event.eventId }
                         if (existing is ChatMessage.Thinking) {
-                            replaceMessage(existing.copy(
-                                isThinking = false,
-                                elapsedMs = event.totalMs
-                            ))
+                            existing.apply {
+                                replaceMessage(id, copy(
+                                    isThinking = false,
+                                    elapsedMs = event.totalMs
+                                ))
+                            }
                         }
                     }
 
@@ -170,7 +163,7 @@ class AgentViewModel @Inject constructor(
                             .filterIsInstance<ChatMessage.ToolCall>()
                             .lastOrNull()
                         if (lastToolCall != null) {
-                            replaceMessage(lastToolCall.copy(isStreaming = false))
+                            replaceMessage(lastToolCall.id, lastToolCall.copy(isStreaming = false))
                         }
                         val resultMsg = ChatMessage.ToolResult(
                             id = UUID.randomUUID().toString(),
@@ -187,41 +180,47 @@ class AgentViewModel @Inject constructor(
                             output = "",
                             isRunning = true
                         )
+                        bashMsgId = event.eventId
                         addMessage(bashMsg)
-                        bashEventCounters[event.eventId] = Triple(StringBuilder(), 0, true)
+                        bashOutputBuilders[event.eventId] = StringBuilder()
                     }
 
                     is AgentEvent.BashOutput -> {
-                        val counter = bashEventCounters[event.eventId]
-                        if (counter != null) {
-                            val (builder, count) = counter
-                            builder.append(event.line)
-                            val current = _uiState.value.messages.find { it.id == event.eventId }
-                            if (current is ChatMessage.BashCommand) {
-                                replaceMessage(current.copy(
+                        val builder = bashOutputBuilders[event.eventId] ?: StringBuilder()
+                        builder.append(event.line)
+                        bashOutputBuilders[event.eventId] = builder
+                        val existing = _uiState.value.messages.find { it.id == event.eventId }
+                        if (existing is ChatMessage.BashCommand) {
+                            existing.apply {
+                                replaceMessage(id, copy(
                                     output = builder.toString(),
                                     isRunning = true
                                 ))
                             }
-                            bashEventCounters[event.eventId] = Triple(builder, count + 1, true)
                         }
                     }
 
                     is AgentEvent.BashCompleted -> {
-                        val counter = bashEventCounters.remove(event.eventId)
-                        val output = counter?.first?.toString() ?: ""
-                        val current = _uiState.value.messages.find { it.id == event.eventId }
-                        if (current is ChatMessage.BashCommand) {
-                            replaceMessage(current.copy(
-                                output = output + event.output,
-                                exitCode = event.exitCode,
-                                isRunning = false
-                            ))
+                        val builder = bashOutputBuilders.remove(event.eventId) ?: StringBuilder()
+                        builder.append(event.output)
+                        val existing = _uiState.value.messages.find { it.id == event.eventId }
+                        if (existing is ChatMessage.BashCommand) {
+                            existing.apply {
+                                replaceMessage(id, copy(
+                                    output = builder.toString(),
+                                    exitCode = event.exitCode,
+                                    isRunning = false
+                                ))
+                            }
                         }
                     }
 
                     is AgentEvent.FatalError -> {
-                        addError(event.message)
+                        addMessage(ChatMessage.Error(
+                            id = UUID.randomUUID().toString(),
+                            message = event.message,
+                            cause = event.cause
+                        ))
                     }
 
                     is AgentEvent.ProviderError -> {
@@ -242,14 +241,16 @@ class AgentViewModel @Inject constructor(
                         )
                     }
 
-                    is AgentEvent.ProgressUpdate -> {}
-                    is AgentEvent.TokenUsageUpdate -> {}
-                    is AgentEvent.DoomLoopDetected -> {}
                     is AgentEvent.SessionStateChanged -> {
                         _uiState.value = _uiState.value.copy(
                             isStreaming = event.state is SessionState.Busy
                         )
                     }
+
+                    is AgentEvent.ProgressUpdate -> {}
+                    is AgentEvent.TokenUsageUpdate -> {}
+                    is AgentEvent.TurnStarted -> {}
+                    is AgentEvent.DoomLoopDetected -> {}
                 }
             }
         }
