@@ -285,4 +285,8 @@ Be concise but thorough. Use the shell tool for git commands, builds, tests, and
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
+
+    fun cancel() {
+        agentSession.cancel()
+    }
 }
