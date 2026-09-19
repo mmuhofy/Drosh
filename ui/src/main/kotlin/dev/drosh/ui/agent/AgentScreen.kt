@@ -128,6 +128,7 @@ fun AgentScreen(
                     workMode = uiState.workMode,
                     onProviderSelected = { viewModel.setProvider(it) },
                     onProviderUpdated = { viewModel.updateCurrentProvider(it) },
+                    onAddProvider = { viewModel.addCustomProvider() },
                     onWorkModeSelected = { viewModel.setWorkMode(it) }
                 )
             }
@@ -216,6 +217,7 @@ fun ProviderSelector(
     workMode: dev.drosh.domain.agent.WorkMode,
     onProviderSelected: (ProviderConfig) -> Unit,
     onProviderUpdated: (ProviderConfig) -> Unit,
+    onAddProvider: () -> Unit,
     onWorkModeSelected: (dev.drosh.domain.agent.WorkMode) -> Unit,
 ) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -235,6 +237,16 @@ fun ProviderSelector(
                             DroshPrimary.copy(alpha = 0.15f)
                         else Color.Transparent
                     )
+                )
+            }
+            IconButton(
+                onClick = onAddProvider,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = DroshIcons.Plus,
+                    contentDescription = "Add provider",
+                    tint = DroshTextSecondary
                 )
             }
         }

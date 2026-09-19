@@ -33,18 +33,46 @@ class AgentViewModel @Inject constructor(
     private var bashOutputBuilders = mutableMapOf<String, StringBuilder>()
 
     init {
-        val defaultProvider = ProviderConfig(
+        _uiState.value = ChatUiState(
+            currentProvider = null,
+            providers = defaultProviders(),
+            workMode = workMode
+        )
+    }
+
+    private fun defaultProviders(): List<ProviderConfig> = listOf(
+        ProviderConfig(
             name = "OpenAI Compatible",
             endpoint = "https://api.openai.com/v1/chat/completions",
             apiKey = "",
             model = "gpt-4o-mini",
             isDefault = true
+        ),
+        ProviderConfig(
+            name = "OpenRouter",
+            endpoint = "https://openrouter.ai/api/v1/chat/completions",
+            apiKey = "",
+            model = "anthropic/claude-3.5-sonnet",
+        ),
+        ProviderConfig(
+            name = "Custom",
+            endpoint = "",
+            apiKey = "",
+            model = "",
         )
-        _uiState.value = ChatUiState(
-            currentProvider = null,
-            providers = listOf(defaultProvider),
-            workMode = workMode
+    )
+
+    fun addCustomProvider() {
+        val newProvider = ProviderConfig(
+            name = "Custom ${System.currentTimeMillis() % 10000}",
+            endpoint = "",
+            apiKey = "",
+            model = "",
         )
+        val updated = _uiState.value.providers + newProvider
+        _uiState.value = _uiState.value.copy(providers = updated)
+        currentProvider = newProvider
+        _uiState.value = _uiState.value.copy(currentProvider = newProvider)
     }
 
     fun setProvider(provider: ProviderConfig) {
