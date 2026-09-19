@@ -46,5 +46,11 @@ class ToolRegistry @Inject constructor(
 
 @javax.inject.Qualifier
 @Retention(AnnotationRetention.BINARY)
-@Target(AnnotationTarget.FIELD, AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.TYPE, AnnotationTarget.PROPERTY)
+@Target(
+    AnnotationTarget.FIELD,
+    AnnotationTarget.VALUE_PARAMETER,
+    AnnotationTarget.TYPE,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.FUNCTION
+)
 annotation class ToolKey
