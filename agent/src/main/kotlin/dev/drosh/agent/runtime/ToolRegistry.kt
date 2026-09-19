@@ -4,11 +4,8 @@ import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolDef
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.agent.WorkMode
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class ToolRegistry @Inject constructor(
+class ToolRegistry(
     private val tools: Set<Tool>
 ) {
     private val toolMap: Map<String, Tool> = tools.associateBy { it.name }

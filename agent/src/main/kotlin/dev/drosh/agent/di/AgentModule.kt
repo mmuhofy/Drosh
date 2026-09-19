@@ -2,28 +2,28 @@ package dev.drosh.agent.di
 
 import dev.drosh.agent.provider.OpenAiSseAdapter
 import dev.drosh.agent.provider.ProviderAdapter
+import dev.drosh.agent.runtime.ToolRegistry
 import dev.drosh.agent.tool.ShellTool
 import dev.drosh.domain.agent.Tool
-import dagger.Binds
+import dev.drosh.terminal.TerminalManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import dagger.multibindings.IntoSet
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class ToolModule {
+object AgentModule {
 
-    @Binds
-    @IntoSet
-    abstract fun bindShellTool(tool: ShellTool): Tool
-}
+    @Provides
+    @Singleton
+    fun provideShellTool(terminalManager: TerminalManager): ShellTool = ShellTool(terminalManager)
 
-@Module
-@InstallIn(SingletonComponent::class)
-object AdapterModule {
+    @Provides
+    @Singleton
+    fun provideToolRegistry(shellTool: ShellTool): ToolRegistry =
+        ToolRegistry(setOf<Tool>(shellTool))
 
     @Provides
     @Singleton
