@@ -127,6 +127,7 @@ fun TerminalScreen(
                 onOpenSettings = onOpenSettings,
                 extraKeyState = extraKeyState,
                 onExit = onExit,
+                onOpenAgent = onOpenAgent,
             )
         }
 
@@ -150,6 +151,7 @@ private fun ReadyScreen(
     blockEngineViewModel: BlockEngineViewModel = hiltViewModel(),
     inputBarViewModel: InputBarViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
+    onOpenAgent: () -> Unit = {},
 ) {
     var fullscreen by remember { mutableStateOf(false) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()

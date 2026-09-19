@@ -151,6 +151,12 @@ fun TerminalTopBar(
                 )
 
                 GlassPillButton(
+                    icon = DroshIcons.Code,
+                    contentDescription = "AI Agent",
+                    onClick = { onOpenAgent() },
+                )
+
+                GlassPillButton(
                     icon = DroshIcons.EllipsisVertical,
                     contentDescription = "More actions",
                     onClick = { moreExpanded = true },
@@ -167,7 +173,6 @@ fun TerminalTopBar(
                 onNewSession = { onNewSession(); moreExpanded = false },
                 onOpenSettings = { onOpenSettings(); moreExpanded = false },
                 onClose = { onClose(); moreExpanded = false },
-                onOpenAgent = { onOpenAgent(); moreExpanded = false },
             )
         }
     }
@@ -184,7 +189,6 @@ private fun MoreActionsDropdown(
     onNewSession: () -> Unit,
     onOpenSettings: () -> Unit,
     onClose: () -> Unit,
-    onOpenAgent: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
@@ -210,10 +214,6 @@ private fun MoreActionsDropdown(
                 label = "Settings",
                 icon = DroshIcons.Settings,
                 dividerBefore = true,
-            ),
-            DroshMenuItem(
-                label = "AI Agent",
-                icon = DroshIcons.Code,
             ),
             DroshMenuItem(
                 label = "Close session",
