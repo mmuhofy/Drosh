@@ -100,6 +100,11 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
     private var spaceDragActive: Boolean = false
     private var horizontalDragAccumulator: Float = 0f
+    private var pendingSpaceRunnable: Runnable? = null
+
+    companion object {
+        private const val SPACE_DRAG_TIMEOUT_MS: Long = 500
+    }
 
     /** If non-zero, this is the last unicode code point received if that was a combining character. */
     @JvmField
@@ -165,6 +170,8 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
                 if (spaceKeyDown) {
                     spaceDragActive = true
+                    pendingSpaceRunnable?.let { removeCallbacks(it) }
+                    pendingSpaceRunnable = null
                     horizontalDragAccumulator += distanceX
                     val fontWidth = mRenderer!!.mFontWidth
                     val colsToMove = (horizontalDragAccumulator / fontWidth).toInt()
@@ -356,6 +363,26 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
             fun sendTextToTerminal(text: CharSequence) {
                 stopTextSelectionMode()
+
+                if (text.length == 1 && text[0] == ' ') {
+                    if (spaceKeyDown) {
+                        return
+                    }
+                    spaceKeyDown = true
+                    spaceDragActive = false
+                    horizontalDragAccumulator = 0f
+                    pendingSpaceRunnable = Runnable {
+                        if (spaceKeyDown && !spaceDragActive) {
+                            mTermSession?.write(" ")
+                        }
+                        spaceKeyDown = false
+                        spaceDragActive = false
+                        horizontalDragAccumulator = 0f
+                    }
+                    postDelayed(pendingSpaceRunnable, SPACE_DRAG_TIMEOUT_MS)
+                    return
+                }
+
                 val textLengthInChars = text.length
                 var i = 0
                 while (i < textLengthInChars) {
@@ -648,6 +675,8 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         if (mEmulator == null) return true
 
         if (keyCode == KeyEvent.KEYCODE_SPACE) {
+            pendingSpaceRunnable?.let { removeCallbacks(it) }
+            pendingSpaceRunnable = null
             spaceKeyDown = true
             spaceDragActive = false
             horizontalDragAccumulator = 0f
@@ -822,6 +851,8 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             mClient!!.logInfo(LOG_TAG, "onKeyUp(keyCode=$keyCode, event=$event)")
 
         if (keyCode == KeyEvent.KEYCODE_SPACE) {
+            pendingSpaceRunnable?.let { removeCallbacks(it) }
+            pendingSpaceRunnable = null
             spaceKeyDown = false
             if (!spaceDragActive) {
                 inputCodePoint(event.deviceId, ' '.code, false, false)
