@@ -93,6 +93,7 @@ fun TerminalScreen(
     terminalViewModel: TerminalViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onExit: () -> Unit = {},
+    onOpenAgent: () -> Unit = {},
 ) {
     var showProgress by remember { mutableStateOf(false) }
 
@@ -577,6 +578,7 @@ private fun ReadyScreen(
                     terminalManager.currentSession?.finishIfRunning()
                 },
                 onOpenSettings = onOpenSettings,
+                onOpenAgent = onOpenAgent,
             )
         }
 

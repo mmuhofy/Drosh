@@ -83,6 +83,7 @@ fun TerminalTopBar(
     onNewSession: () -> Unit,
     onOpenSettings: () -> Unit,
     onClose: () -> Unit,
+    onOpenAgent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
@@ -166,6 +167,7 @@ fun TerminalTopBar(
                 onNewSession = { onNewSession(); moreExpanded = false },
                 onOpenSettings = { onOpenSettings(); moreExpanded = false },
                 onClose = { onClose(); moreExpanded = false },
+                onOpenAgent = { onOpenAgent(); moreExpanded = false },
             )
         }
     }
@@ -182,6 +184,7 @@ private fun MoreActionsDropdown(
     onNewSession: () -> Unit,
     onOpenSettings: () -> Unit,
     onClose: () -> Unit,
+    onOpenAgent: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
@@ -209,6 +212,10 @@ private fun MoreActionsDropdown(
                 dividerBefore = true,
             ),
             DroshMenuItem(
+                label = "AI Agent",
+                icon = DroshIcons.Code,
+            ),
+            DroshMenuItem(
                 label = "Close session",
                 icon = DroshIcons.XCircle,
                 style = DroshMenuItemStyle.Destructive,
@@ -221,6 +228,7 @@ private fun MoreActionsDropdown(
                 "Exit fullscreen", "Enter fullscreen" -> onToggleFullscreen()
                 "Find in output" -> onFindInOutput()
                 "Settings" -> onOpenSettings()
+                "AI Agent" -> onOpenAgent()
                 "Close session" -> onClose()
             }
         },

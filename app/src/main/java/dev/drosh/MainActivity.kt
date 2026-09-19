@@ -46,6 +46,8 @@ import dev.drosh.ui.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
 import dev.drosh.ui.settings.SettingsScreen
+import dev.drosh.ui.agent.AgentScreen
+import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -175,6 +177,7 @@ class MainActivity : ComponentActivity() {
                         onOpenSettings = { navController.navigate("settings") },
                         extraKeyState = extraKeyState,
                         onExit = { context.finish() },
+                        onOpenAgent = { navController.navigate("agent") },
                     )
                 }
             }
@@ -188,6 +191,16 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = { navController.navigate("settings") },
                     extraKeyState = extraKeyState,
                     onExit = { context.finish() },
+                    onOpenAgent = { navController.navigate("agent") },
+                )
+            }
+
+            composable("agent") {
+                val agentViewModel: AgentViewModel = hiltViewModel()
+                AgentScreen(
+                    viewModel = agentViewModel,
+                    modifier = Modifier.fillMaxSize(),
+                    onBack = { navController.popBackStack() },
                 )
             }
 

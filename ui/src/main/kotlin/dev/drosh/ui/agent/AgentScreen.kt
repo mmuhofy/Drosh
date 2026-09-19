@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedTextField
@@ -62,22 +63,59 @@ import dev.drosh.domain.agent.ToolResult
 fun AgentScreen(
     viewModel: AgentViewModel,
     modifier: Modifier = Modifier,
+    onBack: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DroshBackground)
-            .imePadding()
-    ) {
-        Column(
-            modifier = Modifier
+        Box(
+            modifier = modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .background(DroshBackground)
+                .imePadding()
         ) {
-            if (uiState.providers.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.IconButton(
+                        onClick = { onBack() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = DroshIcons.ArrowLeft,
+                            contentDescription = "Back",
+                            tint = DroshTextSecondary
+                        )
+                    }
+                    Text(
+                        text = "AI Agent",
+                        color = DroshText,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    androidx.compose.material3.IconButton(
+                        onClick = { },
+                        modifier = Modifier.size(36.dp),
+                        enabled = false
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = DroshIcons.EllipsisVertical,
+                            contentDescription = null,
+                            tint = DroshTextMuted
+                        )
+                    }
+                }
+
+                if (uiState.providers.isNotEmpty()) {
                 ProviderSelector(
                     providers = uiState.providers,
                     currentProvider = uiState.currentProvider,
