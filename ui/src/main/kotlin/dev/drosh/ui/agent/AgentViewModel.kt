@@ -52,6 +52,16 @@ class AgentViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(currentProvider = provider)
     }
 
+    fun updateCurrentProvider(provider: ProviderConfig) {
+        currentProvider = provider
+        _uiState.value = _uiState.value.copy(
+            currentProvider = provider,
+            providers = _uiState.value.providers.map {
+                if (it.name == provider.name) provider else it
+            }
+        )
+    }
+
     fun setWorkMode(mode: WorkMode) {
         workMode = mode
         _uiState.value = _uiState.value.copy(workMode = mode)

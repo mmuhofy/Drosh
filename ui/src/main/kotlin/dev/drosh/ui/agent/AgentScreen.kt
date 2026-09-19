@@ -29,8 +29,9 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.outlinedTextFieldColors
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -124,6 +125,7 @@ fun AgentScreen(
                     currentProvider = uiState.currentProvider,
                     workMode = uiState.workMode,
                     onProviderSelected = { viewModel.setProvider(it) },
+                    onProviderUpdated = { viewModel.updateCurrentProvider(it) },
                     onWorkModeSelected = { viewModel.setWorkMode(it) }
                 )
             }
@@ -211,6 +213,7 @@ fun ProviderSelector(
     currentProvider: ProviderConfig?,
     workMode: dev.drosh.domain.agent.WorkMode,
     onProviderSelected: (ProviderConfig) -> Unit,
+    onProviderUpdated: (ProviderConfig) -> Unit,
     onWorkModeSelected: (dev.drosh.domain.agent.WorkMode) -> Unit,
 ) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -229,6 +232,47 @@ fun ProviderSelector(
                         containerColor = if (currentProvider == provider)
                             DroshPrimary.copy(alpha = 0.15f)
                         else Color.Transparent
+                    )
+                )
+            }
+        }
+
+        currentProvider?.let { provider ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = provider.endpoint,
+                    onValueChange = { endpoint ->
+                        onProviderUpdated(
+                            provider.copy(endpoint = endpoint)
+                        )
+                    },
+                    label = { Text("Endpoint URL") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = outlinedTextFieldColors(
+                        focusedLabelColor = DroshPrimary,
+                        cursorColor = DroshPrimary,
+                    )
+                )
+                OutlinedTextField(
+                    value = provider.apiKey,
+                    onValueChange = { key ->
+                        onProviderUpdated(
+                            provider.copy(apiKey = key)
+                        )
+                    },
+                    label = { Text("API Key") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = outlinedTextFieldColors(
+                        focusedLabelColor = DroshPrimary,
+                        cursorColor = DroshPrimary,
                     )
                 )
             }
