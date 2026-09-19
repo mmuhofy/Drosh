@@ -1,6 +1,6 @@
 # Phase 6 Architecture — Agent Intelligence
 
-_Reference analysis of 10 agentic coding tools (OpenCode, Cline SDK, Codex, Aider, DeepSeek Harness, Qwen Code, Harness CLI, Claude Code, Kilo Code) conducted 2026-09-19 in `/root/projects/Drosh-sources-of-inspiration/`._
+_Reference analysis of 10 agentic coding tools (OpenCode, Cline SDK, Codex, Aider, DeepSeek Harness, Qwen Code, Harness CLI, Claude Code, Kilo Code) conducted 2026-09-19 by reading source files in `/root/projects/Drosh-sources-of-inspiration/`. Used as **inspiration for from-scratch design** — no direct code porting._
 
 ---
 
@@ -20,7 +20,7 @@ agent/                          ← Agent Intelligence module (Phase 6)
   │   ├── Tool.kt                  ← Interface (name, schema, execute)
   │   ├── ToolRegistry.kt          ← Provider tools + local tools
   │   └── impl/
-  │       ├── BashTool.kt          ← PRoot subprocess (uses TerminalManager.executeCommand)
+  │       ├── ShellTool.kt         ← PRoot subprocess (uses TerminalManager.executeCommand)
   │       ├── ReadFileTool.kt
   │   │   ├── WriteFileTool.kt      ← diff + approve flow (diff-utils dep)
   │       ├── AskUserTool.kt
@@ -53,7 +53,7 @@ data/                              ← Existing di/ + data layer
 | Component | File | Key insight |
 |---|---|---|
 | **Provider adapters** | `protocols/openai-chat.ts`, `protocols/gemini.ts`, `protocols/anthropic-messages.ts` | Each adapter converts provider-native SSE/JSON to normalized `LLMEvent`. **No proxy** — adapter owns the translation. |
-| **Normalized events** | `schema/events.ts` (618 lines, 14 event types) | `StepStart`, `TextStart`, `TextDelta`, `TextEnd`, `ReasoningDelta`, `ToolInputStart`, `ToolInputDelta`, `ToolInputEnd`, `ToolCall`, `ToolResult`, `ToolError`, `Finish`, `ProviderError` — this is the gold standard to port. |
+| **Normalized events** | `schema/events.ts` (618 lines, 14 event types) | `StepStart`, `TextStart`, `TextDelta`, `TextEnd`, `ReasoningDelta`, `ToolInputStart`, `ToolInputDelta`, `ToolInputEnd`, `ToolCall`, `ToolResult`, `ToolError`, `Finish`, `ProviderError` — this is the gold standard to port to Kotlin `StreamEvent`. |
 | **Provider routing** | `route/client.ts` (line 396: `stream()`) | `compile(request)` resolves provider → calls `compiled.route.streamPrepared(...)` → adapter streams events. |
 | **Agent loop** | `session/runner/llm.ts` (439 lines) | `while (shouldRun) { while (needsContinuation) { runTurn() } }`. Each turn: `llm.stream(request)` → `Stream.runForEach` → process events → dispatch tools via `FiberSet` → reload history → next turn. |
 | **Tool system** | `llm/src/tool.ts` (253 lines) | `Tool<Parameters, Success>` — bundles description, JSON Schema, `execute()` handler. `tool-runtime.ts:78` has `dispatch()` that decodes params, executes, catches errors. |
@@ -105,19 +105,20 @@ if (finishReason === "max-tokens" && toolCalls.length === 0) {
 
 **Ktlization for Drosh:** Wrap the loop in a coroutine with `repeatWhen` / `ensureActive` for abort. Use `kotlinx.coroutines.flow.retryWhen` for transient error handling.
 
-### 2.3 Codex (Rust) — Multi-agent + persistent state
+### 2.3 Codex (Rust) — Agent loop + persistent state + retry
 
-**Source:** `codex-rs/core/src/`
+**Source:** `codex/codex-rs/core/src/`
 
 | Component | File | Key insight |
 |---|---|---|
 | **Agent turn control** | `agent/control.rs` (966 lines) | `LocalAgentControl` — manages agent tree, sub-agent spawning, inter-agent communication. |
-| **SSE streaming** | `client.rs` (1260 lines, lines 1627-1809) | `loop {` reads SSE events from OpenAI Responses API, emits `Op`/items to thread store. |
+| **Main agent loop** | `session/turn.rs` (3084 lines, line 163: `run_turn()`) | `loop { ... }` at line 423 — streams SSE from OpenAI Responses API, executes tools via `ToolCallRuntime`, replays history. **This is the real turn loop** — NOT `client.rs`. |
+| **SSE streaming** | `client.rs` (1260 lines, lines 1627-1809) | `loop {}` reads SSE events from OpenAI Responses API with **auth recovery** — on 401, re-resolves credentials and retries from the top of the loop. |
 | **Thread persistence** | `codex-thread.rs` (1075 lines) | `start_turn_if_idle`, `continue_turn_if_idle`, `submit_with_trace` — SQLite-backed thread state. |
-| **Model provider** | `model-provider/src/` | `ModelProvider` trait, `ProviderCapabilities`, auth management. |
+| **Tool execution** | `tools/parallel.rs` | `ToolCallRuntime` — tokio-based parallel tool execution with `AbortOnDropHandle` for cleanup. |
 | **Sub-agent monitoring** | `control.rs:637` | `while !is_final(&status)` — polls sub-agent status until Completed/Failed. |
 
-**Key pattern — durable session state:** Codex persists every tool call + result in SQLite before execution begins. This enables crash recovery. For Drosh v1, we start with in-memory state; add SQLite persistence later (Phase 6 scope: "Agent Session visible in Session Switcher" implies in-memory lifecycle).
+**Key pattern — streaming + auth recovery loop:** Codex wraps the SSE streaming loop in a `loop {}` that retries on auth failure (401 → re-resolves credentials → re-creates client → resumes). This is valuable for `GeminiAdapter` auth. However, Codex uses **OpenAI Responses API format internally** for all tool calls and history — porting its `run_turn()` directly would require converting everything to OpenAI format, which conflicts with our multi-adapter decision.
 
 ### 2.4 DeepSeek Harness (TypeScript/Cordis) — State machine agent
 
@@ -184,16 +185,17 @@ This is the simplest correct agent loop and serves as a minimal validation targe
 
 ### 2.8 Claude Code
 
-The `@anthropic-ai/claude-code` NPM package is distributed as a **compiled/bundled binary** — the source code is not available in the GitHub repo (`claude-code/`). What we can observe:
+**Note:** The `@anthropic-ai/claude-code` GitHub repo **is public/open source** (source files are available), but the distributed **binary** is compiled/bundled — the TypeScript source seen in the repo's `mods/`, `plugins/`, and `scripts/` directories are **plugin examples and management utilities**, not the internal agent loop source. The core `claude-code` binary (which contains the agent loop, tool execution, and provider handling) is **compiled and minified** — not available as readable source in the repo.
 
+What we can observe from the open source portions:
 | Component | File | Key insight |
 |---|---|---|
-| **Plugin system** | `mods/` directory | Contains TypeScript plugin code (agents-md, diff, sec-default, telemetry). These are user-installed extensions, not core source. |
+| **Plugin system** | `mods/` directory | Plugin code (agents-md, diff, sec-default, telemetry) — user-installed extensions. |
 | **Type definitions** | `mods/types/claude-code.d.ts` | TypeScript declarations describing the Claude Code extension API — shows the surface area plugins interact with. |
 | **Commands** | `.claude/commands/*.md` | Command definition format (markdown with YAML frontmatter). |
 | **Scripts** | `scripts/*.ts` | Utility scripts for repo management (issue lifecycle, duplicate handling, badge management). |
 
-**Key insight:** Claude Code's internal architecture is opaque. The plugin API surface (from `.d.ts`) suggests it uses an event-driven model with hooks. For Drosh, we model the agent loop after OpenCode/Cline patterns, not Claude Code's internals.
+**Key insight:** Claude Code's internal agent loop architecture is **opaque** (compiled binary). GitHub issues (read via web) confirm it uses a collapsible action-log UI pattern (issue #23868, #21131) with "Thinking" state (issue #24850) — but the implementation is not source-available. For Drosh, we model the agent loop after OpenCode/Cline patterns, and optionally adopt the **collapsing action-log UI** as a v2 enhancement.
 
 ### 2.9 Kilo Code
 
@@ -379,26 +381,26 @@ data class ToolContext(
 
 ### 5.2 Existing Foundation Leveraged
 
-`TerminalManager.executeCommand()` (terminal/src/main/kotlin/dev/drosh/terminal/TerminalManager.kt:557) returns `ToolResult` — **this is the bash tool foundation.** It:
+`TerminalManager.executeCommand()` (terminal/src/main/kotlin/dev/drosh/terminal/TerminalManager.kt:557) returns `ToolResult` — **this is the shell tool foundation.** It:
 - Checks `ubuntuBootstrap.isInstalled`
 - Builds a PRoot bash command
 - Executes via `ProcessBuilder` with cleaned environment
 - Captures stdout/stderr via `inputStream.bufferedReader()`
 - Returns `ToolResult.Success(output)` or `ToolResult.Error(message)`
 
-The `BashTool` wraps this: maps LLM tool-call JSON args (`{ command: "...", timeout: ... }`) → `executeCommand()` call.
+The `ShellTool` wraps this: maps LLM tool-call JSON args (`{ command: "...", timeout: ... }`) → `executeCommand()` call.
 
 ### 5.3 Tool Visibility — Mutation vs. Read-Only (MEMORYBANK.md §127)
 
 | Tool | Visible in terminal? | Reason |
 |---|---|---|
-| `bash` | Yes (mutation heuristic) | Commands like `write`, `install`, `commit`, `push`, `rm`, `mv` → visible |
+| `shell` | Yes (mutation heuristic) | Commands like `write`, `install`, `commit`, `push`, `rm`, `mv` → visible |
 | `read_file` | No | Read-only inspection |
 | `write_file` | Yes | File mutation |
 | `web_search` | No | No terminal side effects |
 | `update_todo` | No | Internal state |
 
-**Implementation:** `Tool.requiresTerminalVisibility: Boolean` flag. Simple keyword heuristic (`bash` tool checks command against `write|install|commit|push|rm|mv|mkdir|touch|chmod|chown`) OR explicit flag per tool — not LLM-decided (MEMORYBANK.md §127).
+**Implementation:** `Tool.requiresTerminalVisibility: Boolean` flag. Simple keyword heuristic (`shell` tool checks command against `write|install|commit|push|rm|mv|mkdir|touch|chmod|chown`) OR explicit flag per tool — not LLM-decided (MEMORYBANK.md §127).
 
 ### 5.4 Approval Flow (MEMORYBANK.md §89, §127)
 
@@ -444,7 +446,7 @@ LLM emits tool_call → MultiStepStreamer dispatches → ToolRegistry.execute() 
 | `stream/MultiStepStreamer.kt` | NEW | Collects StreamEvents → tool calls, manages ToolStream accumulator |
 | `tool/Tool.kt` | NEW | (reuse domain interface) |
 | `tool/ToolRegistry.kt` | NEW | Registered tools, dispatch |
-| `tool/impl/BashTool.kt` | NEW | Wraps TerminalManager.executeCommand() |
+| `tool/impl/ShellTool.kt` | NEW | Wraps TerminalManager.executeCommand() |
 | `tool/impl/ReadFileTool.kt` | NEW | Read from PRoot filesystem |
 | `tool/impl/WriteFileTool.kt` | NEW | Write with diff + approve (diff-utils) |
 | `tool/impl/AskUserTool.kt` | NEW | Asks user via AgentEvent → UI |
@@ -489,18 +491,21 @@ abstract class BindingsModule {
 ```
 Step 1: Domain interfaces     → Tool.kt, ProviderAdapter.kt, StreamEvent.kt, AgentEvent.kt
 Step 2: Streaming + Adapter     → StreamEvent schema, GeminiAdapter (google-genai)
-Step 3: AgentRuntime loop       → Bounded loop, step counter, event emission
-Step 4: ToolRegistry + Tools    → BashTool (wrap TerminalManager), ReadFileTool, WriteFileTool
+Step 3: AgentRuntime loop       → Bounded loop, step counter, event emission (OpenCode pattern)
+Step 4: ToolRegistry + Tools    → ShellTool (wrap TerminalManager), ReadFileTool, WriteFileTool
 Step 5: DI + Orchestration      → Hilt @Binds in BindingsModule, AgentOrchestrator
 Step 6: UI wiring (separate)    → Agent panel (bottom sheet) in Phase 5 UI work
 ```
 
 **v1 scope (per TODO.md §17–26):**
-- Port: `AgentLoop.kt` (→ `AgentRuntime.kt`), `MultiStepStreamer.kt`, `OpenAiProviderAdapter.kt` (→ `ProviderAdapter.kt` + `GeminiAdapter.kt`)
-- Tools: `bash`, `read_file`, `write_file`, `web_search`, `ask_user`, `update_todo`
+- Build: `AgentRuntime.kt`, `MultiStepStreamer.kt`, `ProviderAdapter.kt` + `GeminiAdapter.kt`
+- Tools: `shell`, `read_file`, `write_file`, `web_search`, `ask_user`, `update_todo`
+- UI: Simple inline rendering (thoughts → tool calls → results). No collapsible rows.
 - Work modes: PLAN / BUILD / AUTO (authority axis, independent of task-assignment axis)
 
 **v2 (TODO.md §57–63, AFTER v1):**
+- UI: Collapsible tool-call rows ("Edited 1 file", "Ran 1 command" with expand chevron) — from Codex Desktop UI research (#23868, #21131)
+- UI: Bottom status panel (Objective / Open work / Next closure) — from Codex issue #35848
 - Proaktif tetikleme (Error DNA / Output Intelligence banners)
 - Command DNA (Room FTS5 indexing of every command)
 - Ghost Text (separate from agent)
@@ -513,24 +518,44 @@ Step 6: UI wiring (separate)    → Agent panel (bottom sheet) in Phase 5 UI wor
 
 ---
 
-## 9. Codex-Specific Notes (from `backend-client/src/client.rs`)
+### 9.2 Codex Auth Recovery Pattern (from `client.rs:1627`)
 
-The Codex `client.rs` streaming loop has a relevant pattern for retry/recovery:
+Codex wraps the SSE streaming loop in a `loop {}` that retries on auth failure:
 
 ```rust
-// Lines 1627-1809 — streaming loop with auth recovery
+// Lines 1627+ — streaming loop with auth recovery
 loop {
     let client_setup = self.client.current_client_setup(ClientRouting::Workspace).await?;
-    let transport = self.client.build_api_transport(...).await?;
-    let request = self.build_streaming_request(...).await?;
-    let response_stream = transport.execute(request).await?;
-
-    // process SSE events...
-    // on auth failure: retry from the top of the loop
+    let transport = self.client.build_api_transport(...)?;
+    let stream_result = client.stream_request(request, options).await;
+    match stream_result {
+        Ok(stream) => return Ok(stream),
+        Err(ApiError::Transport(unauthorized)) if is_recoverable => {
+            // re-resolve credentials, retry from top of loop
+        }
+        Err(_) => return Err(...),
+    }
 }
 ```
 
-**Ktlization:** Wrap the `GeminiAdapter.stream()` in a retry loop that re-resolves auth on `401` → re-creates the `GenerativeClient` → resumes streaming. Use `kotlinx.coroutines.flow.retryWhen` with exponential backoff.
+**Ktlization for Drosh `GeminiAdapter`:** Wrap `stream()` in a retry loop that re-resolves auth on `401` → re-creates the `GenerativeClient` → resumes streaming. Use `kotlinx.coroutines.flow.retryWhen` with exponential backoff for transient errors.
+
+**What NOT to port directly:** Codex's `session/turn.rs:3084` `run_turn()` uses OpenAI Responses API format internally (`ResponseItem`, `FunctionCall` types). Since we chose multi-adapter (Gemini + OpenAI + Anthropic), we use OpenCode's `stream(request)` pattern instead — provider-agnostic `LLMRequest` → `StreamEvent`.
+
+---
+
+### 2.10 UI Patterns from Web Research (2026-09-19)
+
+From GitHub issues analysis of Codex Desktop (closed-source binary, public issues):
+
+| Pattern | Issue | v1 scope |
+|---|---|---|
+| **Collapsible tool-call rows** | #23868, #21131 | v2 — collapsed summary labels ("Edited 1 file", "Ran 1 command") with expand chevron |
+| **"Thinking" indicator** | #24850 | v1 — simple text indicator during model reasoning |
+| **Bottom status panel** | #35848 | v2 — deferred (Objective / Open work / Next closure) |
+| **Activity view** | #36300 | v2 — sidebar recency sorting |
+
+**v1 UI decision:** Simple inline rendering — thoughts, tool calls, tool results as they stream. No collapsing/expanders. Defer collapsible rows + bottom status panel to v2.
 
 ---
 
@@ -540,7 +565,7 @@ loop {
 |---|---|---|
 | OpenCode | `opencode/packages/llm/src/` `packages/core/src/session/runner/` | `protocols/{openai-chat,gemini,anthropic-messages}.ts`, `schema/events.ts`, `tool.ts`, `tool-runtime.ts`, `session/runner/llm.ts:439` |
 | Cline SDK | `cline/sdk/packages/` | `agents/src/agent-runtime.ts:2454`, `shared/src/agent.ts`, `shared/src/llms/` |
-| Codex | `codex/codex-rs/core/src/` | `client.rs:1260`, `agent/control.rs:966`, `codex_thread.rs:1075`, `agent/control/execution.rs` |
+| Codex | `codex/codex-rs/core/src/` | `session/turn.rs:3084` (agent loop, `run_turn`), `client.rs:1260` (SSE + auth recovery), `agent/control.rs:966`, `codex_thread.rs:1075`, `tools/parallel.rs` (ToolCallRuntime) |
 | DeepSeek Harness | `deepseek-harness/packages/core/agent-loop/` | `src/agent.ts:620`, `src/tool-calls.ts:290` |
 | Qwen Code | `qwen-code/packages/core/src/agents/` | `runtime/agent-core.ts:2815`, `runtime/agent-core.ts:1007` (runReasoningLoop) |
 | Harness CLI | `harness-cli/src/agent/` | `agent.ts:137` |

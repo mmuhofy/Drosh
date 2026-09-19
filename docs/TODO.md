@@ -7,21 +7,20 @@ _Son güncelleme: 2026-09-19_
 
 ## Çalışma Prensibi — Önce Plan, Sonra Kod
 
-Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri içerir. Agent sistemi tasarlanırken Claude Code, Codex ve Warp gibi mevcut ürünlerden ilham alınıyor — bu ürünlerin çözdüğü problemler inceleniyor, Drosh'un kendi mobil/Android kısıtlarına uyarlanıyor, birebir kopyalanmıyor. İmplementasyon, plan tamamen netleşip onaylandıktan sonra başlayacak.
+Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri içerir. Agent sistemi tasarlanırken 10 agentic kodlama uygulamasının analizinden (OpenCode, Cline SDK, Codex, Aider, DeepSeek Harness, Qwen Code, Harness CLI, Claude Code, Kilo Code) ilham alınıyor — bu ürünlerin çözdüğü problemler inceleniyor, Drosh'un kendi mobil/Android kısıtlarına uyarlanıyor, birebir kopyalanmıyor. İmplementasyon, plan tamamen netleşip onaylandıktan sonra başlayacak.
 
 ---
 
 ## Phase 6 — Agent Intelligence
 *Goal: Terminal becomes intelligent. The Warp moment.*
 
-### Core Agent (Port from Iris Code)
-- [ ] Port `AgentLoop.kt` → **AgentRuntime.kt** (naming approved)
-- [ ] Port `MultiStepStreamer.kt`
-- [ ] Port `OpenAiProviderAdapter.kt` → **ProviderAdapter.kt** (interface) + **GeminiAdapter.kt** (default, v1.0) + OpenAiAdapter.kt + AnthropicAdapter.kt
+### Core Agent (sıfırdan tasarla — 10 tool analizinden sonra)
+- [ ] **AgentRuntime.kt** — bounded loop, step counter (OpenCode + Cline pattern)
+- [ ] **MultiStepStreamer.kt** — StreamEvent → ToolCall accumulation
+- [ ] **ProviderAdapter.kt** (interface) + **GeminiAdapter.kt** (default) + OpenAiAdapter.kt + AnthropicAdapter.kt
 - [ ] **RESOLVED (2026-09-19):** Per-provider adapters, NOT OpenAI proxy. Gemini uses `google-genai` lib directly. See MEMORYBANK.md §3 and PHASE-6-ARCHITECTURE.md §4.
-- [ ] Port API Vault — per provider key management
-- [ ] Port `WebSearchTool.kt`
-- [ ] Port `BashTool.kt`
+- [ ] API Vault — per provider key management
+- [ ] **ShellTool.kt** (was BashTool) — wraps TerminalManager.executeCommand
 - [ ] Work mode: PLAN / BUILD / AUTO
 
 ### Agent UI/Erişim (YENİ — v1.0 için netleşti)
@@ -34,7 +33,7 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 - [ ] **RESOLVED (2026-09-19):** Default mod = "Agent Session" (isolated PTY). Agent Session visible in Session Switcher as `🤖 <name>`. v1: tek görev, sıralı kuyruk. App fully dies → runtime killed, metadata persists. See MEMORYBANK.md §3.
 
 ### Tools
-- [ ] Tool: `bash` — PRoot subprocess
+- [ ] Tool: `shell` — PRoot subprocess (TerminalManager.executeCommand)
 - [ ] Tool: `read_file`
 - [ ] Tool: `write_file` — diff + approve
 - [ ] Tool: `ask_user`

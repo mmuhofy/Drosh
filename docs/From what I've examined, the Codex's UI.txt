@@ -1,0 +1,21 @@
+
+User: Selam, bana bir HTML oyunu yap.
+
+Working for ?    ↓
+
+---------------------------------
+Selam, sana mobil uyumlu, basit bir yılan oyunu hazırlıyorum, bitirdiğimde localhost://9999'e giderek oymayabilirsin.
+
+Thought 5s (Her toolda değişecek burdaki, sıraya göre. Thoughtan sonra mesela Create game.html sonra) (Tüm tool callar bittiğinde, agent görevi bitirdiğinde bu ekranda görünen tek tool callar gözükmeyecek, working for yazısına basınca düşünceler, tool callar vb hepsi gözükecek.)
+
+----------------------
+Tamam, yılan oyunu hazır. localhost:9999'e giderek oymayabilirsin. Değişiklik olursa söyle!
+
+
+User: Siyah ekran hatası var oyun gözükmüyor 
+
+Working 1m 1s ↓
+Edit game.html
+
+---------------------------------
+Tamam, düzelttim, test edebilirsin.

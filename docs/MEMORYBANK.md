@@ -21,10 +21,10 @@ Bu ürünlerin **çözdüğü problemler ve bulduğu çözümler** inceleniyor, 
 ## Agent Core
 
 ### Architecture
-Port of Iris Code's agent system. Same 3-layer architecture:
+Sıfırdan tasarlanacak. MEMORYBANK.md'nin altındaki tüm mimari kararlar, 10 agentic kodlama uygulamasının analizinden (docs/PHASE-6-ARCHITECTURE.md) çıkarılmıştır; hiçbir port işlemi yapılmaz.
 
 ```
-AgentLoop (submission)
+AgentRuntime (submission)
   └── Flow<AgentEvent> → UI
   └── Maps StreamEvent → AgentEvent
         ↓
@@ -34,8 +34,9 @@ MultiStepStreamer (multi-step engine)
   └── Tool execution inline
         ↓
 ProviderAdapter (interface)
-  └── OpenAiProviderAdapter (impl)
-  └── OpenAI-compatible /chat/completions
+  └── GeminiAdapter (impl) — google-genai lib
+  └── OpenAiAdapter (impl) — /chat/completions
+  └── AnthropicAdapter (impl) — /messages
 ```
 
 **RESOLVED (2026-09-19, architecture analysis session):**
