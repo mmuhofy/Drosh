@@ -31,7 +31,9 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -244,7 +246,7 @@ fun ProviderSelector(
                     .padding(top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
+                TextField(
                     value = provider.endpoint,
                     onValueChange = { endpoint ->
                         onProviderUpdated(
@@ -254,12 +256,15 @@ fun ProviderSelector(
                     label = { Text("Endpoint URL") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                    textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
                         focusedLabelColor = DroshPrimary,
                         cursorColor = DroshPrimary,
                     )
                 )
-                OutlinedTextField(
+                TextField(
                     value = provider.apiKey,
                     onValueChange = { key ->
                         onProviderUpdated(
@@ -270,7 +275,8 @@ fun ProviderSelector(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                    textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
+                    colors = TextFieldDefaults.colors(
                         focusedLabelColor = DroshPrimary,
                         cursorColor = DroshPrimary,
                     )
