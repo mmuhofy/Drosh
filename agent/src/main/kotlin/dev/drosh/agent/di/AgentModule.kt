@@ -10,16 +10,15 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
-import dev.drosh.terminal.TerminalManager
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object ToolModule {
+abstract class ToolModule {
 
-    @Provides
+    @Binds
     @IntoSet
-    fun provideShellTool(terminalManager: TerminalManager): Tool = ShellTool(terminalManager)
+    abstract fun bindShellTool(tool: ShellTool): Tool
 }
 
 @Module
