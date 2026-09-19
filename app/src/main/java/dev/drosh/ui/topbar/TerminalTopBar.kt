@@ -228,7 +228,6 @@ private fun MoreActionsDropdown(
                 "Exit fullscreen", "Enter fullscreen" -> onToggleFullscreen()
                 "Find in output" -> onFindInOutput()
                 "Settings" -> onOpenSettings()
-                "AI Agent" -> onOpenAgent()
                 "Close session" -> onClose()
             }
         },
