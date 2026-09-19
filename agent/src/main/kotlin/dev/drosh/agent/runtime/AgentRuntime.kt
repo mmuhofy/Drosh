@@ -206,21 +206,26 @@ class AgentRuntime @Inject constructor(
             val parser = Json {
                 ignoreUnknownKeys = true
                 isLenient = true
-                isNullable = true
             }
             val element = parser.parseToJsonElement(json)
             if (element is JsonObject) {
-                element.toMap().mapValues { (_, v) ->
-                    when (v) {
-                        is JsonPrimitive -> v.content
-                        else -> v.toString()
-                    }
+                val result = mutableMapOf<String, Any>()
+                for ((key, value) in element) {
+                    result[key] = jsonValueToString(value)
                 }
+                result
             } else {
                 emptyMap()
             }
         } catch (e: Exception) {
             emptyMap()
+        }
+    }
+
+    private fun jsonValueToString(value: kotlinx.serialization.json.JsonElement): String {
+        return when (value) {
+            is kotlinx.serialization.json.JsonPrimitive -> value.content
+            else -> value.toString()
         }
     }
 
