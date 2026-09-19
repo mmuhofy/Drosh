@@ -33,9 +33,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.border
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
@@ -187,15 +189,7 @@ fun ProviderSelector(
                         containerColor = if (currentProvider == provider)
                             DroshPrimary.copy(alpha = 0.15f)
                         else Color.Transparent
-                    ),
-                    border = if (currentProvider == provider)
-                        androidx.compose.material3.SuggestionChipDefaults.elevatedBorder(
-                            enabled = true,
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = DroshPrimary.copy(alpha = 0.15f)
-                            )
-                        )
-                    else null
+                    )
                 )
             }
         }
