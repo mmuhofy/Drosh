@@ -47,6 +47,7 @@ import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
 import dev.drosh.ui.settings.SettingsScreen
 import dev.drosh.ui.agent.AgentScreen
+import dev.drosh.ui.agent.AgentViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
