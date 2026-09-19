@@ -17,6 +17,7 @@ android {
 dependencies {
     api(project(":domain"))
     implementation(project(":core"))
+    implementation(project(":terminal"))
 
     // diff utilities — write_file diff/approve flow (AGENT.md §249)
     implementation(libs.diff.utils)
