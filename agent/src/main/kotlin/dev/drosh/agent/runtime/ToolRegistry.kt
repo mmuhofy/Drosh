@@ -9,7 +9,7 @@ import javax.inject.Singleton
 
 @Singleton
 class ToolRegistry @Inject constructor(
-    private val tools: Set<@ToolKey Tool>
+    private val tools: Set<Tool>
 ) {
     private val toolMap: Map<String, Tool> = tools.associateBy { it.name }
 
@@ -43,14 +43,3 @@ class ToolRegistry @Inject constructor(
         WorkMode.BUILD, WorkMode.AUTO -> true
     }
 }
-
-@javax.inject.Qualifier
-@Retention(AnnotationRetention.BINARY)
-@Target(
-    AnnotationTarget.FIELD,
-    AnnotationTarget.VALUE_PARAMETER,
-    AnnotationTarget.TYPE,
-    AnnotationTarget.PROPERTY,
-    AnnotationTarget.FUNCTION
-)
-annotation class ToolKey
