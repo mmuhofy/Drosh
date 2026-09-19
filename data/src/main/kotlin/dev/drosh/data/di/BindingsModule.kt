@@ -28,6 +28,7 @@ import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
 import dev.drosh.domain.terminal.SubmitBlockCommandUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
+import dev.drosh.domain.agent.AgentSession
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -128,4 +129,10 @@ abstract class BindingsModule {
     abstract fun bindHardwareKeyboardPresence(
         impl: HardwareKeyboardPresenceImpl,
     ): HardwareKeyboardPresence
+
+    @Binds
+    @Singleton
+    abstract fun bindAgentSession(
+        impl: dev.drosh.agent.runtime.AgentRuntime,
+    ): AgentSession
 }

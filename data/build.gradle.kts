@@ -28,6 +28,9 @@ dependencies {
     // The bootstrap port lives in :terminal — :data consumes it through this seam
     // so the UI never imports Android-specific types from :terminal.
     implementation(project(":terminal"))
+    // Phase 6: agent runtime bindings — :data wires agent/ implementations
+    // into domain/ interfaces via Hilt, keeping ui/ free of agent/ imports.
+    implementation(project(":agent"))
 
     // storage — DataStore
     implementation(libs.androidx.datastore.preferences)

@@ -2,19 +2,20 @@ package dev.drosh.agent.runtime
 
 import dev.drosh.agent.provider.ProviderAdapter
 import dev.drosh.domain.agent.AccumulatedToolCall
+import dev.drosh.domain.agent.AgentConfig
 import dev.drosh.domain.agent.AgentEvent
+import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmStep
 import dev.drosh.domain.agent.SessionState
 import dev.drosh.domain.agent.StreamEvent
 import dev.drosh.domain.agent.StreamRequest
 import dev.drosh.domain.agent.ToolResult
-import dev.drosh.domain.agent.WorkMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.toList
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -26,58 +27,50 @@ import kotlin.math.roundToInt
 class AgentRuntime @Inject constructor(
     private val providerAdapter: ProviderAdapter,
     private val toolRegistry: ToolRegistry
-) {
-    private val _sessionState = MutableSharedFlow<SessionState>(replay = 1)
-    val sessionState = _sessionState.asSharedFlow()
+) : AgentSession {
+
+    private val _sessionState = MutableStateFlow<SessionState>(SessionState.Idle)
+    override val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
 
     @Volatile
     private var cancelled = false
 
-    fun cancel() {
+    override fun cancel() {
         cancelled = true
-        _sessionState.tryEmit(SessionState.Cancelled)
+        _sessionState.value = SessionState.Cancelled
     }
 
-    suspend fun runTurn(
-        apiKey: String,
-        model: String,
-        userMessage: String,
-        history: MutableList<LlmStep>,
-        systemPrompt: String,
-        endpoint: String,
-        workMode: WorkMode,
-        workingDirectory: String
-    ): Flow<AgentEvent> = flow {
+    override suspend fun runTurn(config: AgentConfig): Flow<AgentEvent> = flow {
         cancelled = false
         var inputTokens = 0
         var outputTokens = 0
         var reasoningStartMs = 0L
         val reasoningEventId = "thinking"
 
-        _sessionState.tryEmit(SessionState.Busy(1))
+        _sessionState.value = SessionState.Busy(1)
         emit(AgentEvent.SessionStateChanged(SessionState.Busy(1)))
         emit(AgentEvent.TurnStarted(1))
 
-        history.add(LlmStep.User(userMessage))
+        config.history.add(LlmStep.User(config.userMessage))
 
         try {
-            for (step in 1..MAX_STEPS) {
+            for (step in 1..config.maxSteps) {
                 if (cancelled) {
-                    _sessionState.tryEmit(SessionState.Cancelled)
+                    _sessionState.value = SessionState.Cancelled
                     emit(AgentEvent.Cancelled)
                     return@flow
                 }
 
                 emit(AgentEvent.ProgressUpdate("Step $step: requesting LLM..."))
 
-                val toolDeclarations = toolRegistry.getToolDeclarations(workMode)
+                val toolDeclarations = toolRegistry.getToolDeclarations(config.workMode)
                 val request = StreamRequest(
-                    apiKey = apiKey,
-                    model = model,
-                    messages = history.toList(),
+                    apiKey = config.apiKey,
+                    model = config.model,
+                    messages = config.history.toList(),
                     tools = toolDeclarations,
-                    systemPrompt = systemPrompt,
-                    endpoint = endpoint
+                    systemPrompt = config.systemPrompt,
+                    endpoint = config.endpoint
                 )
 
                 val accumulatedText = StringBuilder()
@@ -149,13 +142,13 @@ class AgentRuntime @Inject constructor(
 
                         emit(AgentEvent.ToolCallStarted(call.name, args))
 
-                        val toolResult = toolRegistry.execute(call.name, args, workMode)
+                        val toolResult = toolRegistry.execute(call.name, args, config.workMode)
                         emit(AgentEvent.ToolCallCompleted(call.name, toolResult))
 
                         outputTokens += countTokens(toolResult.toResponseString())
 
-                        history.add(LlmStep.Assistant("", toolCalls = toolCallSteps))
-                        history.add(LlmStep.ToolResult(
+                        config.history.add(LlmStep.Assistant("", toolCalls = toolCallSteps))
+                        config.history.add(LlmStep.ToolResult(
                             callId = call.id,
                             name = call.name,
                             result = toolResult.toResponseString()
@@ -184,7 +177,7 @@ class AgentRuntime @Inject constructor(
 
             if (!cancelled) {
                 emit(AgentEvent.ProviderError(
-                    message = "Max steps ($MAX_STEPS) reached",
+                    message = "Max steps (${config.maxSteps}) reached",
                     retryable = false
                 ))
             }
@@ -193,7 +186,7 @@ class AgentRuntime @Inject constructor(
         } catch (e: Exception) {
             emit(AgentEvent.FatalError("Agent runtime error: ${e.message}", e))
         } finally {
-            _sessionState.tryEmit(SessionState.Idle)
+            _sessionState.value = SessionState.Idle
             emit(AgentEvent.SessionStateChanged(SessionState.Idle))
             emit(AgentEvent.TurnComplete)
         }
@@ -209,11 +202,12 @@ class AgentRuntime @Inject constructor(
             }
             val element = parser.parseToJsonElement(json)
             if (element is JsonObject) {
-                val result = mutableMapOf<String, Any>()
-                for ((key, value) in element) {
-                    result[key] = jsonValueToString(value)
+                element.mapValues { (_, v) ->
+                    when (v) {
+                        is JsonPrimitive -> v.content
+                        else -> v.toString()
+                    }
                 }
-                result
             } else {
                 emptyMap()
             }
@@ -222,28 +216,8 @@ class AgentRuntime @Inject constructor(
         }
     }
 
-    private fun jsonValueToString(value: kotlinx.serialization.json.JsonElement): String {
-        return when (value) {
-            is kotlinx.serialization.json.JsonPrimitive -> value.content
-            else -> value.toString()
-        }
-    }
-
     private fun countTokens(text: String): Int {
         if (text.isBlank()) return 0
         return (text.length / 4.0).roundToInt().coerceAtLeast(1)
     }
-
-    companion object {
-        const val MAX_STEPS = 20
-    }
-}
-
-private fun <T : Any> kotlinx.serialization.json.JsonObject.toMap(): Map<String, T> {
-    val result = mutableMapOf<String, T>()
-    for ((key, value) in this) {
-        @Suppress("UNCHECKED_CAST")
-        result[key] = value as T
-    }
-    return result
 }
