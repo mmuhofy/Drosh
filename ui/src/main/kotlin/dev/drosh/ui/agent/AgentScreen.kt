@@ -32,7 +32,7 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.outlinedTextFieldColors
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -254,7 +254,7 @@ fun ProviderSelector(
                     label = { Text("Endpoint URL") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = outlinedTextFieldColors(
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
                         focusedLabelColor = DroshPrimary,
                         cursorColor = DroshPrimary,
                     )
@@ -270,7 +270,7 @@ fun ProviderSelector(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
-                    colors = outlinedTextFieldColors(
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
                         focusedLabelColor = DroshPrimary,
                         cursorColor = DroshPrimary,
                     )
