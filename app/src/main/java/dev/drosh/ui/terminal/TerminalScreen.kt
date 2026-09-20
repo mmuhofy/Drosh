@@ -1005,7 +1005,7 @@ private fun humanReadableBytes(bytes: Long): String {
     if (bytes < unit) return "$bytes B"
     val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
     val prefix = "KMGTPE"[exp - 1]
-    val value = bytes.toDouble() / unit.pow(exp.toDouble())
+    val value = bytes.toDouble() / Math.pow(unit.toDouble(), exp.toDouble())
     return String.format("%.1f %cB", value, prefix)
 }
 
@@ -1015,8 +1015,8 @@ private fun buildSystemInfo(
 ): SystemInfo {
     val version = appInfo?.version ?: "—"
 
-    val ramTotal: String
-    val ramAvailable: String
+    var ramTotal: String
+    var ramAvailable: String
     try {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memInfo = ActivityManager.MemoryInfo()
@@ -1028,8 +1028,8 @@ private fun buildSystemInfo(
         ramAvailable = "—"
     }
 
-    val storageTotal: String
-    val storageAvailable: String
+    var storageTotal: String
+    var storageAvailable: String
     try {
         val sf = StatFs(context.filesDir.absolutePath)
         storageTotal = humanReadableBytes(sf.totalBytes)
