@@ -27,7 +27,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -307,7 +310,7 @@ fun TerminalModeRow(
 }
 
 @Composable
-private fun SegmentControl(
+fun SegmentControl(
     options: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
@@ -731,4 +734,80 @@ fun SettingsNavigationRow(
             )
         }
     }
+}
+
+@Composable
+fun MotdTextDialog(
+    initialText: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    onRestoreDefault: () -> Unit,
+) {
+    var text by rememberSaveable { mutableStateOf(initialText) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Edit Greeting Text",
+                color = DroshText,
+                fontFamily = OutfitFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Use \\n for new lines. This text is shown on shell connect.",
+                    color = DroshTextSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = OutfitFontFamily,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    textStyle = TextStyle(
+                        color = DroshText,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = DroshOutline,
+                        focusedBorderColor = DroshPrimary.copy(alpha = 0.4f),
+                        cursorColor = DroshPrimary,
+                        unfocusedTextColor = DroshText,
+                        focusedTextColor = DroshText,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    maxLines = 10,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(text)
+                onDismiss()
+            }) {
+                Text("Done", color = DroshPrimary, fontFamily = OutfitFontFamily)
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onRestoreDefault) {
+                    Text("Restore Default", color = DroshTextSecondary, fontSize = 12.sp, fontFamily = OutfitFontFamily)
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = DroshTextSecondary, fontSize = 12.sp, fontFamily = OutfitFontFamily)
+                }
+            }
+        },
+        shape = RoundedCornerShape(16.dp),
+        containerColor = DroshSurface,
+    )
 }

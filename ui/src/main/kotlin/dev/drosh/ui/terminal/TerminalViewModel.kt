@@ -2,6 +2,8 @@ package dev.drosh.ui.terminal
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,6 +45,17 @@ class TerminalViewModel @Inject constructor(
 
     val prootStartCommand: StateFlow<String> = settingsRepository.prootStartCommand
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    // ── MOTD ────────────────────────────────────────────────────────────────────
+
+    val motdMode: StateFlow<MotdMode> = settingsRepository.motdMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, MotdMode.PlainText)
+
+    val motdText: StateFlow<String> = settingsRepository.motdText
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    val appInfo: StateFlow<AboutInfo?> = settingsRepository.appInfo
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     /** Experimental: live color-scheme props pushed into the terminal view. */
     val colorProps: StateFlow<Properties> = combine(

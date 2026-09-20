@@ -48,6 +48,7 @@ import dev.drosh.core.LanguageCatalog
 import dev.drosh.core.LanguageOption
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.domain.settings.CursorStyle
+import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 import kotlinx.coroutines.launch
@@ -65,9 +66,12 @@ fun SettingsScreen(
     val cursorStyle       by viewModel.cursorStyle.collectAsStateWithLifecycle("Block")
     val cursorBlinkRateMs by viewModel.cursorBlinkRateMs.collectAsStateWithLifecycle(500)
     val aboutInfo         by viewModel.aboutInfo.collectAsStateWithLifecycle(null)
+    val motdMode          by viewModel.motdMode.collectAsStateWithLifecycle(MotdMode.PlainText)
+    val motdText          by viewModel.motdText.collectAsStateWithLifecycle("")
 
     val activityContext = LocalContext.current
     var showPinEntry by rememberSaveable { mutableStateOf(false) }
+    var showMotdDialog by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Box(
@@ -185,6 +189,49 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsSection(label = stringResource(R.string.settings_motd_section)) {
+                SettingsSectionContainer {
+                    val motdOptions = listOf(
+                        stringResource(R.string.settings_motd_mode_disabled),
+                        stringResource(R.string.settings_motd_mode_plaintext),
+                        stringResource(R.string.settings_motd_mode_compose),
+                    )
+                    val selectedMotdIndex = MotdMode.entries.indexOf(motdMode)
+                    SettingsSubRow(
+                        icon = DroshIcons.Terminal,
+                        label = stringResource(R.string.settings_motd_mode),
+                        description = when (motdMode) {
+                            MotdMode.Disabled  -> stringResource(R.string.settings_motd_mode_disabled)
+                            MotdMode.PlainText -> "Shell echoes the text"
+                            MotdMode.Compose   -> "Rendered as interactive UI widget"
+                        },
+                    ) {
+                        SegmentControl(
+                            options = motdOptions,
+                            selectedIndex = selectedMotdIndex,
+                            onSelect = { index ->
+                                viewModel.setMotdMode(MotdMode.entries[index])
+                            },
+                            modifier = Modifier.widthIn(max = 200.dp),
+                        )
+                    }
+
+                    if (motdMode != MotdMode.Disabled) {
+                        val defaultText = "  ╔══════════════════════════════════════╗\n  ║   Welcome to Drosh v1.0            ║\n  ╚══════════════════════════════════════╝"
+                        val displayText = if (motdText.isNotBlank()) motdText else defaultText
+                        val previewText = displayText.take(80) + if (displayText.length > 80) "..." else ""
+
+                        SettingsNavigationRow(
+                            icon = DroshIcons.Pencil,
+                            label = stringResource(R.string.settings_motd_text),
+                            trailingText = previewText.lines().firstOrNull() ?: "",
+                            showTrailingIcon = true,
+                            onClick = { showMotdDialog = true },
+                        )
+                    }
+                }
+            }
+
             SettingsSection(label = stringResource(R.string.settings_security_section)) {
                 SettingsSectionContainer {
                     SettingsSubRow(
@@ -255,6 +302,16 @@ fun SettingsScreen(
                 }
             },
             onCancel = { showPinEntry = false },
+        )
+    }
+
+    if (showMotdDialog) {
+        val defaultText = "  ╔══════════════════════════════════════╗\n  ║   Welcome to Drosh v1.0            ║\n  ╚══════════════════════════════════════╝"
+        MotdTextDialog(
+            initialText = if (motdText.isNotBlank()) motdText else defaultText,
+            onDismiss = { showMotdDialog = false },
+            onConfirm = { text -> viewModel.setMotdText(text) },
+            onRestoreDefault = { viewModel.setMotdText(defaultText) },
         )
     }
 }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
  *  - Terminal background color (hex string)
  *  - Accent color (hex string)
  *  - Terminal text color (hex string)
+ *  - MOTD mode (Disabled / PlainText / Compose) + custom text
  *
  * See MEMORYBANK.md §5 and §8.
  */
@@ -90,4 +91,25 @@ interface SettingsRepository {
 
     /** Persists the UI locale tag. Pass "" to follow the system locale. */
     suspend fun setLocale(tag: String)
+
+    // ── MOTD (Message of the Day) ─────────────────────────────────────────────
+
+    /**
+     * How the shell greeting (MOTD) is rendered when a PTY session connects.
+     * Default: [MotdMode.PlainText].
+     */
+    val motdMode: Flow<MotdMode>
+
+    /** Persists the MOTD rendering mode. */
+    suspend fun setMotdMode(mode: MotdMode)
+
+    /**
+     * Custom MOTD text shown when [motdMode] is [MotdMode.PlainText] (echoed by
+     * the shell) or [MotdMode.Compose] (rendered by the UI widget).
+     * Multi-line, ANSI-free. Default: the Drosh welcome banner.
+     */
+    val motdText: Flow<String>
+
+    /** Persists the MOTD text. */
+    suspend fun setMotdText(text: String)
 }

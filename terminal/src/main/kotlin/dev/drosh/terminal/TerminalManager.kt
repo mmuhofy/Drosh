@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import dev.drosh.core.TerminalConstants
 import dev.drosh.domain.agent.ToolResult
+import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -119,6 +120,9 @@ class TerminalManager(
 
     private var prootStartCommand: String = ""
 
+    private var motdMode: MotdMode = MotdMode.PlainText
+    private var motdText: String = TerminalConstants.DEFAULT_MOTD_TEXT
+
     var projectPath: String? = null
 
     /**
@@ -165,6 +169,14 @@ class TerminalManager(
             .onEach { rate ->
                 terminalViewRef?.setTerminalCursorBlinkerRate(rate)
             }
+            .launchIn(managerScope)
+
+        settingsRepository.motdMode
+            .onEach { mode -> motdMode = mode }
+            .launchIn(managerScope)
+
+        settingsRepository.motdText
+            .onEach { text -> motdText = text }
             .launchIn(managerScope)
 
         bootstrapStatePort.state
@@ -440,12 +452,24 @@ class TerminalManager(
 
     private fun ensureShellRc() {
         val d = "${'$'}"
-        val zshrc = File(ubuntuBootstrap.rootfsDir, "home/.zshrc")
-        val omzPath = File(ubuntuBootstrap.rootfsDir, "home/.oh-my-zsh")
+        val homeDir = File(ubuntuBootstrap.rootfsDir, "home")
+        val zshrc = File(homeDir, ".zshrc")
+        val omzPath = File(homeDir, ".oh-my-zsh")
 
         // If Oh My Zsh is present, a full .zshrc was already written by
         // zshrc-write.sh during bootstrap — don't clobber it.
         if (zshrc.exists() && omzPath.exists()) return
+
+        // ── MOTD file ──────────────────────────────────────────────────────────
+        // When mode is PlainText, write the custom MOTD text to a separate file
+        // that .zshrc sources on shell startup. For Compose/Disabled modes,
+        // remove any stale MOTD file so the shell stays clean.
+        val motdFile = File(homeDir, ".drosh_motd")
+        if (motdMode == MotdMode.PlainText) {
+            motdFile.writeText(motdText)
+        } else {
+            if (motdFile.exists()) motdFile.delete()
+        }
 
         val cleanTemplate = """
                 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -465,13 +489,8 @@ class TerminalManager(
 
                 PROMPT='%F{yellow}%n@drosh%f:%F{blue}%~%f${d} '
 
-                if [[ -z "${d}IRIS_WELCOME_SHOWN" ]]; then
-                    export IRIS_WELCOME_SHOWN=1
-                    echo ""
-                    echo "  ╔══════════════════════════════════════════╗"
-                    echo "  ║        Welcome to Drosh v1.0           ║"
-                    echo "  ║     Your phone is a Unix machine.     ║"
-                    echo "  ╚══════════════════════════════════════════╝"
+                if [[ -f "${d}HOME/.drosh_motd" ]]; then
+                    cat "${d}HOME/.drosh_motd"
                     echo ""
                 fi
         """.trimIndent() + "\n"

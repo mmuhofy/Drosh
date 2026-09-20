@@ -1,6 +1,8 @@
 package dev.drosh.ui.terminal
 
+import android.app.ActivityManager
 import android.content.Context
+import android.os.StatFs
 import android.util.Log
 import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
@@ -76,6 +78,10 @@ import dev.drosh.ui.session.SessionSidebar
 import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.session.rememberSidebarPushState
 import dev.drosh.ui.session.sidebarPush
+import dev.drosh.ui.terminal.MotdWidget
+import dev.drosh.ui.terminal.SystemInfo
+import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.TerminalTopBar
 import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
@@ -174,6 +180,19 @@ private fun ReadyScreen(
     val inputBarState by inputBarViewModel.uiState.collectAsState()
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
 
+    val motdMode by terminalViewModel.motdMode.collectAsState()
+    val motdText by terminalViewModel.motdText.collectAsState()
+    val appInfo by terminalViewModel.appInfo.collectAsState()
+    val blocks by blockEngineViewModel.blocks.collectAsState()
+
+    var motdDismissed by remember { mutableStateOf(false) }
+    LaunchedEffect(activeId) { motdDismissed = false }
+
+    val ctx = LocalContext.current
+    val systemInfo = remember(appInfo) {
+        buildSystemInfo(ctx, appInfo)
+    }
+
     var firstModeCheck by remember { mutableStateOf(true) }
     LaunchedEffect(useBlockEngine) {
         if (!firstModeCheck) {
@@ -209,7 +228,7 @@ private fun ReadyScreen(
                                 add(line to currentBlock.id)
                             }
                         }
-                    } else {
+            } else {
                         emptyList()
                     }
                 } else {
@@ -447,7 +466,7 @@ private fun ReadyScreen(
                 ) {
                     CompactFullscreenExit { fullscreen = false }
                 }
-            } else {
+             } else {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -457,6 +476,15 @@ private fun ReadyScreen(
                                 .calculateTopPadding()
                         ),
                 ) {
+                    if (motdMode == MotdMode.Compose && !motdDismissed) {
+                        MotdWidget(
+                            motdText = motdText,
+                            systemInfo = systemInfo,
+                            onAgentClick = { onOpenAgent() },
+                            onHelpClick = { /* TODO: open help */ },
+                            onDismiss = { motdDismissed = true },
+                        )
+                    }
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -969,5 +997,53 @@ private fun TerminalViewHost(
 
             overlay?.updateQuery(searchQuery)
         },
+    )
+}
+
+private fun humanReadableBytes(bytes: Long): String {
+    val unit = 1024L
+    if (bytes < unit) return "$bytes B"
+    val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
+    val prefix = "KMGTPE"[exp - 1]
+    val value = bytes.toDouble() / unit.pow(exp.toDouble())
+    return String.format("%.1f %cB", value, prefix)
+}
+
+private fun buildSystemInfo(
+    context: Context,
+    appInfo: AboutInfo?,
+): SystemInfo {
+    val version = appInfo?.version ?: "—"
+
+    val ramTotal: String
+    val ramAvailable: String
+    try {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memInfo = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(memInfo)
+        ramTotal = humanReadableBytes(memInfo.totalMem)
+        ramAvailable = humanReadableBytes(memInfo.availMem)
+    } catch (e: Exception) {
+        ramTotal = "—"
+        ramAvailable = "—"
+    }
+
+    val storageTotal: String
+    val storageAvailable: String
+    try {
+        val sf = StatFs(context.filesDir.absolutePath)
+        storageTotal = humanReadableBytes(sf.totalBytes)
+        storageAvailable = humanReadableBytes(sf.availableBytes)
+    } catch (e: Exception) {
+        storageTotal = "—"
+        storageAvailable = "—"
+    }
+
+    return SystemInfo(
+        version = version,
+        ramTotal = ramTotal,
+        ramAvailable = ramAvailable,
+        storageTotal = storageTotal,
+        storageAvailable = storageAvailable,
     )
 }

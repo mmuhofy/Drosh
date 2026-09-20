@@ -2,9 +2,10 @@ package dev.drosh.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.CursorStyle
-import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -76,6 +77,14 @@ class SettingsViewModel @Inject constructor(
     val autoLockTimeout: StateFlow<String> = settings.autoLockTimeout
         .stateIn(viewModelScope, SharingStarted.Eagerly, "Immediately")
 
+    // ── MOTD ────────────────────────────────────────────────────────────────────
+
+    val motdMode: StateFlow<MotdMode> = settings.motdMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, MotdMode.PlainText)
+
+    val motdText: StateFlow<String> = settings.motdText
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
     // ── Setters ───────────────────────────────────────────────────────────────
 
     fun setUseBlockEngine(enabled: Boolean) {
@@ -116,6 +125,16 @@ class SettingsViewModel @Inject constructor(
 
     fun setAutoLockTimeout(timeout: AutoLockTimeout) {
         viewModelScope.launch { settings.setAutoLockTimeout(timeout.name) }
+    }
+
+    // ── MOTD Setters ─────────────────────────────────────────────────────────────
+
+    fun setMotdMode(mode: MotdMode) {
+        viewModelScope.launch { settings.setMotdMode(mode) }
+    }
+
+    fun setMotdText(text: String) {
+        viewModelScope.launch { settings.setMotdText(text) }
     }
 
     // ── App Info ────────────────────────────────────────────────────────────────

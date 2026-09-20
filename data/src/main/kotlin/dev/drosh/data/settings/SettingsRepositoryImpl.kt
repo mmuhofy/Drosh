@@ -7,8 +7,10 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import dev.drosh.core.TerminalConstants
 import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -134,6 +136,24 @@ class SettingsRepositoryImpl @Inject constructor(
         dataStore.edit { prefs -> prefs[KEY_LOCALE] = tag }
     }
 
+    // ── MOTD ────────────────────────────────────────────────────────────────────
+
+    override val motdMode: Flow<MotdMode> =
+        dataStore.data.map { prefs ->
+            MotdMode.fromString(prefs[KEY_MOTD_MODE] ?: DEFAULT_MOTD_MODE)
+        }
+
+    override suspend fun setMotdMode(mode: MotdMode) {
+        dataStore.edit { prefs -> prefs[KEY_MOTD_MODE] = mode.name }
+    }
+
+    override val motdText: Flow<String> =
+        dataStore.data.map { prefs -> prefs[KEY_MOTD_TEXT] ?: DEFAULT_MOTD_TEXT }
+
+    override suspend fun setMotdText(text: String) {
+        dataStore.edit { prefs -> prefs[KEY_MOTD_TEXT] = text }
+    }
+
     // ── Keys & Defaults ───────────────────────────────────────────────────────
 
     private companion object {
@@ -148,6 +168,8 @@ class SettingsRepositoryImpl @Inject constructor(
         val KEY_CURSOR_BLINK_RATE_MS    = intPreferencesKey("cursor_blink_rate_ms")
         val KEY_AUTO_LOCK_TIMEOUT       = stringPreferencesKey("auto_lock_timeout")
         val KEY_LOCALE                  = stringPreferencesKey("locale")
+        val KEY_MOTD_MODE               = stringPreferencesKey("motd_mode")
+        val KEY_MOTD_TEXT               = stringPreferencesKey("motd_text")
 
         const val DEFAULT_USE_BLOCK_ENGINE       = false
         const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = true
@@ -160,5 +182,7 @@ class SettingsRepositoryImpl @Inject constructor(
         const val DEFAULT_CURSOR_BLINK_RATE_MS   = 500
         const val DEFAULT_AUTO_LOCK_TIMEOUT      = "Immediately"
         const val DEFAULT_LOCALE                 = ""
+        const val DEFAULT_MOTD_MODE              = "PlainText"
+        val DEFAULT_MOTD_TEXT                    = TerminalConstants.DEFAULT_MOTD_TEXT
     }
 }
