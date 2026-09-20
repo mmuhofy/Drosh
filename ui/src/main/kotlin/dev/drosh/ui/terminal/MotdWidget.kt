@@ -197,7 +197,7 @@ private fun ActionButton(
 
     Box(
         modifier = Modifier
-            .weight(1f)
+            .fillMaxWidth()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
