@@ -79,6 +79,8 @@ data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val currentProvider: ProviderConfig? = null,
     val providers: List<ProviderConfig> = emptyList(),
+    val availableModels: List<String> = emptyList(),
+    val isFetchingModels: Boolean = false,
     val workMode: WorkMode = WorkMode.AUTO,
     val isStreaming: Boolean = false,
     val isTyping: Boolean = false,

@@ -23,6 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.menuAnchor
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -33,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.Composable
@@ -61,9 +66,11 @@ import dev.drosh.design.system.DroshTextDisabled
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.domain.agent.ChatMessage
+import dev.drosh.domain.agent.ChatUiState
 import dev.drosh.domain.agent.ProviderConfig
 import dev.drosh.domain.agent.ToolResult
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AgentScreen(
     viewModel: AgentViewModel,
@@ -129,6 +136,9 @@ fun AgentScreen(
                     onProviderSelected = { viewModel.setProvider(it) },
                     onProviderUpdated = { viewModel.updateCurrentProvider(it) },
                     onAddProvider = { viewModel.addCustomProvider() },
+                    onFetchModels = { viewModel.fetchModels() },
+                    onModelSelected = { model -> viewModel.selectModel(model) },
+                    uiState = uiState,
                     onWorkModeSelected = { viewModel.setWorkMode(it) }
                 )
             }
@@ -218,6 +228,9 @@ fun ProviderSelector(
     onProviderSelected: (ProviderConfig) -> Unit,
     onProviderUpdated: (ProviderConfig) -> Unit,
     onAddProvider: () -> Unit,
+    onFetchModels: () -> Unit,
+    onModelSelected: (String) -> Unit,
+    uiState: ChatUiState,
     onWorkModeSelected: (dev.drosh.domain.agent.WorkMode) -> Unit,
 ) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -294,9 +307,74 @@ fun ProviderSelector(
                     )
                 )
             }
-        }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            if (uiState.isFetchingModels) {
+                Text(
+                    text = "Fetching models...",
+                    color = DroshTextSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                )
+            } else if (uiState.availableModels.isNotEmpty()) {
+                var expanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = provider.model.takeIf { it.isNotBlank() }
+                            ?: "Select model",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Model") },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = DroshIcons.ChevronDown,
+                                contentDescription = null,
+                                tint = DroshTextSecondary
+                            )
+                        },
+                        modifier = Modifier.menuAnchor(),
+                        textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedLabelColor = DroshPrimary,
+                            cursorColor = DroshPrimary,
+                        )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier.heightIn(max = 200.dp)
+                    ) {
+                        uiState.availableModels.forEach { model ->
+                            DropdownMenuItem(
+                                text = { Text(model, fontSize = 13.sp) },
+                                onClick = {
+                                    onModelSelected(model)
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (provider.endpoint.isNotBlank()) {
+                TextButton(
+                    onClick = onFetchModels,
+                ) {
+                    Text(
+                        text = "Fetch models",
+                        color = DroshPrimary,
+                        fontSize = 12.sp
+                    )
+                }
+            }
             dev.drosh.domain.agent.WorkMode.entries.forEach { mode ->
                 val isSelected = workMode == mode
                 SuggestionChip(

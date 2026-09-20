@@ -34,6 +34,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
 
+    // OkHttp + kotlinx-serialization — for LLM provider model fetching
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+
     // Hilt + ViewModel integration
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.lifecycle.viewmodel.compose)

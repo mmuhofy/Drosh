@@ -16,6 +16,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.util.UUID
 import javax.inject.Inject
 
@@ -78,6 +83,52 @@ class AgentViewModel @Inject constructor(
     fun setProvider(provider: ProviderConfig) {
         currentProvider = provider
         _uiState.value = _uiState.value.copy(currentProvider = provider)
+    }
+
+    fun fetchModels() {
+        val provider = currentProvider ?: return
+        val endpoint = provider.endpoint.takeIf { it.isNotBlank() } ?: return
+        val modelsUrl = endpoint.removeSuffix("/chat/completions") + "/models"
+
+        _uiState.value = _uiState.value.copy(isFetchingModels = true, errorMessage = null)
+
+        viewModelScope.launch {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder()
+                    .url(modelsUrl)
+                    .addHeader("Authorization", "Bearer ${provider.apiKey}")
+                    .build()
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: "{}"
+                    val modelIds = Json.parseToJsonElement(body).jsonObject["data"]
+                        ?.jsonArray?.mapNotNull {
+                            it.jsonObject["id"]?.jsonPrimitive?.content
+                        }
+                    _uiState.value = _uiState.value.copy(
+                        availableModels = modelIds ?: emptyList(),
+                        isFetchingModels = false
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isFetchingModels = false,
+                        errorMessage = "Failed to fetch models: HTTP ${response.code}"
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isFetchingModels = false,
+                    errorMessage = "Failed to fetch models: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun selectModel(model: String) {
+        val provider = currentProvider ?: return
+        val updated = provider.copy(model = model)
+        updateCurrentProvider(updated)
     }
 
     fun updateCurrentProvider(provider: ProviderConfig) {
