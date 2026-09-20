@@ -74,7 +74,6 @@ import dev.drosh.domain.agent.ProviderConfig
 import dev.drosh.domain.agent.ToolResult
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AgentScreen(
     viewModel: AgentViewModel,
