@@ -99,12 +99,10 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     var spaceKeyDown: Boolean = false
 
     private var spaceDragActive: Boolean = false
+    private var spaceDragMoved: Boolean = false
     private var horizontalDragAccumulator: Float = 0f
+    private var lastDragX: Float = 0f
     private var pendingSpaceRunnable: Runnable? = null
-
-    companion object {
-        private const val SPACE_DRAG_TIMEOUT_MS: Long = 500
-    }
 
     /** If non-zero, this is the last unicode code point received if that was a combining character. */
     @JvmField
@@ -167,29 +165,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
             override fun onScroll(e: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
                 if (mEmulator == null) return true
-
-                if (spaceKeyDown) {
-                    spaceDragActive = true
-                    pendingSpaceRunnable?.let { removeCallbacks(it) }
-                    pendingSpaceRunnable = null
-                    horizontalDragAccumulator += distanceX
-                    val fontWidth = mRenderer!!.mFontWidth
-                    val colsToMove = (horizontalDragAccumulator / fontWidth).toInt()
-                    if (colsToMove != 0) {
-                        horizontalDragAccumulator -= colsToMove * fontWidth
-                        val keyCode = if (distanceX > 0) {
-                            KeyEvent.KEYCODE_DPAD_LEFT
-                        } else {
-                            KeyEvent.KEYCODE_DPAD_RIGHT
-                        }
-                        repeat(Math.abs(colsToMove)) {
-                            handleKeyCode(keyCode, 0)
-                        }
-                        mEmulator!!.setCursorBlinkState(true)
-                        invalidate()
-                    }
-                    return true
-                }
 
                 if (mEmulator!!.isMouseTrackingActive() && e.isFromSource(InputDevice.SOURCE_MOUSE)) {
                     // If moving with mouse pointer while pressing button, report that instead of scroll.
@@ -370,14 +345,18 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                     }
                     spaceKeyDown = true
                     spaceDragActive = false
+                    spaceDragMoved = false
                     horizontalDragAccumulator = 0f
+                    lastDragX = 0f
                     pendingSpaceRunnable = Runnable {
-                        if (spaceKeyDown && !spaceDragActive) {
+                        if (spaceKeyDown && !spaceDragMoved) {
                             mTermSession?.write(" ")
                         }
                         spaceKeyDown = false
                         spaceDragActive = false
+                        spaceDragMoved = false
                         horizontalDragAccumulator = 0f
+                        lastDragX = 0f
                     }
                     postDelayed(pendingSpaceRunnable, SPACE_DRAG_TIMEOUT_MS)
                     return
@@ -602,10 +581,71 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         return false
     }
 
+    private fun handleSpaceDrag(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                if (!spaceDragActive) {
+                    spaceDragActive = true
+                    spaceDragMoved = false
+                    pendingSpaceRunnable?.let { removeCallbacks(it) }
+                    pendingSpaceRunnable = null
+                    horizontalDragAccumulator = 0f
+                    lastDragX = event.x
+                }
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (spaceDragActive) {
+                    val deltaX = event.x - lastDragX
+                    lastDragX = event.x
+                    horizontalDragAccumulator += deltaX
+                    val fontWidth = mRenderer?.mFontWidth ?: 0f
+                    if (fontWidth > 0) {
+                        val colsToMove = (horizontalDragAccumulator / fontWidth).toInt()
+                        if (colsToMove != 0) {
+                            horizontalDragAccumulator -= colsToMove * fontWidth
+                            spaceDragMoved = true
+                            val keyCode = if (colsToMove > 0) {
+                                KeyEvent.KEYCODE_DPAD_LEFT
+                            } else {
+                                KeyEvent.KEYCODE_DPAD_RIGHT
+                            }
+                            repeat(Math.abs(colsToMove)) {
+                                handleKeyCode(keyCode, 0)
+                            }
+                            mEmulator?.setCursorBlinkState(true)
+                            invalidate()
+                        }
+                    }
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                if (spaceDragActive) {
+                    if (!spaceDragMoved) {
+                        inputCodePoint(KEY_EVENT_SOURCE_SOFT_KEYBOARD, ' '.code, false, false)
+                    }
+                    spaceKeyDown = false
+                    spaceDragActive = false
+                    spaceDragMoved = false
+                    horizontalDragAccumulator = 0f
+                    lastDragX = 0f
+                }
+                return true
+            }
+        }
+        return true
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     @TargetApi(23)
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (mEmulator == null) return true
+
+        if (spaceKeyDown) {
+            return handleSpaceDrag(event)
+        }
+
         val action = event.action
 
         if (action == MotionEvent.ACTION_DOWN) {
@@ -679,7 +719,9 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             pendingSpaceRunnable = null
             spaceKeyDown = true
             spaceDragActive = false
+            spaceDragMoved = false
             horizontalDragAccumulator = 0f
+            lastDragX = 0f
             return true
         }
         if (isSelectingText) {
@@ -853,12 +895,14 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         if (keyCode == KeyEvent.KEYCODE_SPACE) {
             pendingSpaceRunnable?.let { removeCallbacks(it) }
             pendingSpaceRunnable = null
-            spaceKeyDown = false
-            if (!spaceDragActive) {
+            if (spaceKeyDown && !spaceDragMoved) {
                 inputCodePoint(event.deviceId, ' '.code, false, false)
             }
+            spaceKeyDown = false
             spaceDragActive = false
+            spaceDragMoved = false
             horizontalDragAccumulator = 0f
+            lastDragX = 0f
             return true
         }
 
@@ -1357,6 +1401,8 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         /** The [KeyEvent] is generated from a non-physical device, like if 0 value is returned by [KeyEvent.getDeviceId]. */
         const val KEY_EVENT_SOURCE_SOFT_KEYBOARD = 0
 
-        private const val LOG_TAG = "TerminalView"
-    }
+         private const val LOG_TAG = "TerminalView"
+
+        private const val SPACE_DRAG_TIMEOUT_MS: Long = 500
+     }
 }
