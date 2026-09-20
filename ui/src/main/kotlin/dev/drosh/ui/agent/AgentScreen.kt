@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package dev.drosh.ui.agent
 
 import androidx.compose.animation.animateContentSize
@@ -26,7 +27,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.menuAnchor
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -73,6 +73,7 @@ import dev.drosh.domain.agent.ChatUiState
 import dev.drosh.domain.agent.ProviderConfig
 import dev.drosh.domain.agent.ToolResult
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AgentScreen(
@@ -341,8 +342,7 @@ fun ProviderSelector(
                             )
                         },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .then(ExposedDropdownMenuDefaults.menuAnchor()),
+                            .fillMaxWidth(),
                         textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
