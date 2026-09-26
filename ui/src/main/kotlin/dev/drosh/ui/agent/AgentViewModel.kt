@@ -23,6 +23,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltViewModel
@@ -58,7 +59,7 @@ class AgentViewModel @Inject constructor(
             name = "OpenRouter",
             endpoint = "https://openrouter.ai/api/v1/chat/completions",
             apiKey = "",
-            model = "anthropic/claude-3.5-sonnet",
+            model = "meta-llama/llama-3-8b-instruct",
         ),
         ProviderConfig(
             name = "Custom",
@@ -87,26 +88,42 @@ class AgentViewModel @Inject constructor(
     }
 
     fun fetchModels() {
-        val provider = currentProvider ?: return
-        val endpoint = provider.endpoint.takeIf { it.isNotBlank() } ?: return
-        val modelsUrl = endpoint.removeSuffix("/chat/completions") + "/models"
+        val provider = currentProvider
+        if (provider == null || provider.endpoint.isBlank()) {
+            addError("Enter endpoint URL first")
+            return
+        }
 
+        val modelsUrl = provider.endpoint.removeSuffix("/chat/completions") + "/models"
         _uiState.value = _uiState.value.copy(isFetchingModels = true, errorMessage = null)
 
         viewModelScope.launch {
             try {
-                val client = OkHttpClient()
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .build()
                 val request = Request.Builder()
                     .url(modelsUrl)
-                    .addHeader("Authorization", "Bearer ${provider.apiKey}")
+                    .header("Authorization", "Bearer ${provider.apiKey}")
+                    .apply {
+                        if (provider.endpoint.contains("openrouter", ignoreCase = true)) {
+                            header("HTTP-Referer", "https://github.com/mmuhofy/IrisCode")
+                            header("X-Title", "Drosh")
+                        }
+                    }
                     .build()
                 val response = client.newCall(request).execute()
                 if (response.isSuccessful) {
-                    val body = response.body?.string() ?: "{}"
-                    val modelIds = Json.parseToJsonElement(body).jsonObject["data"]
-                        ?.jsonArray?.mapNotNull {
-                            it.jsonObject["id"]?.jsonPrimitive?.content
-                        }
+                    val body = response.body?.string()
+                    val modelIds = try {
+                        Json.parseToJsonElement(body ?: "{}").jsonObject["data"]
+                            ?.jsonArray?.mapNotNull {
+                                it.jsonObject["id"]?.jsonPrimitive?.content
+                            }
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
                     _uiState.value = _uiState.value.copy(
                         availableModels = modelIds ?: emptyList(),
                         isFetchingModels = false

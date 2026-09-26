@@ -35,17 +35,25 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
 
     override suspend fun stream(request: StreamRequest): Flow<StreamEvent> = callbackFlow {
         val body = buildRequestBody(request)
+        val isProviderUrl = request.endpoint.contains("openrouter", ignoreCase = true)
+
         val httpRequest = Request.Builder()
             .url(request.endpoint)
             .post(body.toString().toRequestBody(jsonMediaType))
             .addHeader("Authorization", "Bearer ${request.apiKey}")
             .addHeader("Content-Type", "application/json")
+            .apply {
+                if (isProviderUrl) {
+                    header("HTTP-Referer", "https://github.com/mmuhofy/IrisCode")
+                    header("X-Title", "Drosh")
+                }
+            }
             .build()
 
         val listener = object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 if (data == "[DONE]" || data.isEmpty()) return
-                trySend(data).isFailure
+                trySend(data)
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
@@ -125,6 +133,14 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
 
     private fun buildRequestBody(request: StreamRequest): JSONObject {
         val contents = JSONArray()
+
+        if (!request.systemPrompt.isNullOrBlank()) {
+            val systemMsg = JSONObject()
+            systemMsg.put("role", "system")
+            systemMsg.put("content", request.systemPrompt)
+            contents.put(systemMsg)
+        }
+
         request.messages.forEach { step ->
             val msg = JSONObject()
             when (step) {
@@ -193,9 +209,6 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
             put("messages", contents)
             put("stream", true)
             put("tools", toolsArray)
-            if (request.systemPrompt != null) {
-                put("system", request.systemPrompt)
-            }
         }
     }
 }
