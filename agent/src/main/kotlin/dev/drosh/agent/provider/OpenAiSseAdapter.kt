@@ -57,12 +57,16 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
-                if (t != null) {
-                    trySend("{\"error\":\"${t.message}\"}")
-                } else if (response != null && !response.isSuccessful) {
-                    val msg = response.body?.string() ?: "HTTP ${response.code}"
-                    trySend("{\"error\":\"$msg\"}")
+                val errorMsg = when {
+                    t != null -> t.message ?: "Unknown error"
+                    response != null -> {
+                        val body = response.body?.string()
+                        "HTTP ${response.code}: $body"
+                    }
+                    else -> "Unknown SSE failure"
                 }
+                val escaped = JSONObject.quote(errorMsg)
+                trySend("{\"error\":$escaped}")
                 close()
             }
 
@@ -82,7 +86,13 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
         return try {
             val obj = JSONObject(jsonLine)
             if (obj.has("error")) {
-                return StreamEvent.Error(obj.getString("error"))
+                val errorVal = obj.opt("error")
+                val errorMsg = when (errorVal) {
+                    is JSONObject -> errorVal.optString("message", errorVal.toString())
+                    is String -> errorVal
+                    else -> errorVal.toString()
+                }
+                return StreamEvent.Error(errorMsg)
             }
 
             val choices = obj.optJSONArray("choices") ?: return StreamEvent.StreamEnd
