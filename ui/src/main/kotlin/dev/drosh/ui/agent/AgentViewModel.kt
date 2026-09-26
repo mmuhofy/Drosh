@@ -95,13 +95,6 @@ class AgentViewModel @Inject constructor(
                     .build()
                 val request = Request.Builder()
                     .url(modelsUrl)
-                    .header("Authorization", "Bearer ${provider.apiKey}")
-                    .apply {
-                        if (provider.baseUrl.contains("openrouter", ignoreCase = true)) {
-                            header("HTTP-Referer", "https://github.com/mmuhofy/IrisCode")
-                            header("X-OpenRouter-Title", "Drosh")
-                        }
-                    }
                     .build()
                 val response = client.newCall(request).execute()
                 if (response.isSuccessful) {

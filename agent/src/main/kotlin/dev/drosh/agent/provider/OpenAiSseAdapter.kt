@@ -53,6 +53,8 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
         val listener = object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 if (data.isEmpty()) return
+                // OpenRouter SSE comments (e.g. ":ping") — ignore
+                if (data.startsWith(":")) return
                 if (data == "[DONE]") {
                     trySend("{\"choices\":[{\"finish_reason\":\"stop\"}]}")
                     return
@@ -61,16 +63,19 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
-                val errorMsg = when {
-                    t != null -> t.message ?: "Unknown error"
+                val errorData = when {
+                    t != null -> "{\"error\":\"${JSONObject.quote(t.message ?: "Unknown error")}\"}"
                     response != null -> {
                         val body = response.body?.string()
-                        "HTTP ${response.code}: $body"
+                        if (body?.startsWith("{") == true) {
+                            body  // Already JSON — pass through
+                        } else {
+                            "{\"error\":\"HTTP ${response.code}" + (body?.let { ": $it" } ?: "") + "\"}"
+                        }
                     }
-                    else -> "Unknown SSE failure"
+                    else -> "{\"error\":\"Unknown SSE failure\"}"
                 }
-                val escaped = JSONObject.quote(errorMsg)
-                trySend("{\"error\":$escaped}")
+                trySend(errorData)
                 close()
             }
 
@@ -135,8 +140,17 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
                 }
             }
 
-            choice.optString("finish_reason")?.takeIf { it.isNotBlank() }?.let {
-                return StreamEvent.StreamEnd
+            choice.optString("finish_reason")?.takeIf { it.isNotBlank() }?.let { reason ->
+                when (reason) {
+                    "error" -> {
+                        val errorObj = choice.optJSONObject("error")
+                        val msg = errorObj?.optString("message", "Stream error")
+                            ?: "Stream error: $reason"
+                        return StreamEvent.Error(msg)
+                    }
+                    "stop", "tool_calls", "length", "content_filter" -> return StreamEvent.StreamEnd
+                    else -> return StreamEvent.StreamEnd
+                }
             }
 
             StreamEvent.StreamEnd
