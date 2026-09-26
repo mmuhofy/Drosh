@@ -52,7 +52,11 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
 
         val listener = object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                if (data == "[DONE]" || data.isEmpty()) return
+                if (data.isEmpty()) return
+                if (data == "[DONE]") {
+                    trySend("{\"choices\":[{\"finish_reason\":\"stop\"}]}")
+                    return
+                }
                 trySend(data)
             }
 
@@ -132,7 +136,7 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
             }
 
             choice.optString("finish_reason")?.takeIf { it.isNotBlank() }?.let {
-                return StreamEvent.ReasoningComplete
+                return StreamEvent.StreamEnd
             }
 
             StreamEvent.StreamEnd

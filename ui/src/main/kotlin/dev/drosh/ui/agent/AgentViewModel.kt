@@ -16,12 +16,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -53,12 +50,6 @@ class AgentViewModel @Inject constructor(
             baseUrl = "https://openrouter.ai/api/v1",
             apiKey = "",
             model = "meta-llama/llama-3-8b-instruct",
-        ),
-        ProviderConfig(
-            name = "OpenAI",
-            baseUrl = "https://api.openai.com/v1",
-            apiKey = "",
-            model = "gpt-4o-mini",
         ),
         ProviderConfig(
             name = "Custom",
@@ -94,7 +85,7 @@ class AgentViewModel @Inject constructor(
         }
 
         val modelsUrl = "${provider.baseUrl.trimEnd('/')}/models"
-        _uiState.value = _uiState.value.copy(isFetchingModels = true, errorMessage = null)
+        _uiState.value = _uiState.value.copy(isFetchingModels = true, errorMessage = null, availableModels = emptyList())
 
         viewModelScope.launch {
             try {
@@ -116,15 +107,17 @@ class AgentViewModel @Inject constructor(
                 if (response.isSuccessful) {
                     val body = response.body?.string()
                     val modelIds = try {
-                        Json.parseToJsonElement(body ?: "{}").jsonObject["data"]
-                            ?.jsonArray?.mapNotNull {
-                                it.jsonObject["id"]?.jsonPrimitive?.content
-                            }
-                    } catch (_: Exception) {
+                        val obj = JSONObject(body ?: "{}")
+                        val data = obj.getJSONArray("data")
+                        (0 until data.length()).mapNotNull { i ->
+                            data.getJSONObject(i).optString("id", null)
+                        }
+                    } catch (e: Exception) {
+                        addError("Failed to parse models: ${e.message}")
                         emptyList()
                     }
                     _uiState.value = _uiState.value.copy(
-                        availableModels = modelIds ?: emptyList(),
+                        availableModels = modelIds,
                         isFetchingModels = false
                     )
                 } else {
@@ -165,8 +158,8 @@ class AgentViewModel @Inject constructor(
 
     fun sendMessage(message: String) {
         val provider = currentProvider
-        if (provider == null || provider.baseUrl.isBlank()) {
-            addError("No provider configured. Set base URL and API key first.")
+        if (provider == null || provider.baseUrl.isBlank() || provider.apiKey.isBlank()) {
+            addError("No API key set. Enter your OpenRouter API key first.")
             return
         }
 
