@@ -66,7 +66,7 @@ sealed class ChatMessage {
  */
 data class ProviderConfig(
     val name: String,
-    val endpoint: String,
+    val baseUrl: String,
     val apiKey: String,
     val model: String,
     val isDefault: Boolean = false

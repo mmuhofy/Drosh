@@ -50,6 +50,6 @@ data class StreamRequest(
     val messages: List<LlmStep>,
     val tools: List<ToolDef>,
     val systemPrompt: String?,
-    val endpoint: String,
+    val baseUrl: String,
     val timeoutSec: Long = 120L
 )

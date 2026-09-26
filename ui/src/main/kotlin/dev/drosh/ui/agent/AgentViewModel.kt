@@ -49,21 +49,20 @@ class AgentViewModel @Inject constructor(
 
     private fun defaultProviders(): List<ProviderConfig> = listOf(
         ProviderConfig(
-            name = "OpenAI Compatible",
-            endpoint = "https://api.openai.com/v1/chat/completions",
-            apiKey = "",
-            model = "gpt-4o-mini",
-            isDefault = true
-        ),
-        ProviderConfig(
             name = "OpenRouter",
-            endpoint = "https://openrouter.ai/api/v1/chat/completions",
+            baseUrl = "https://openrouter.ai/api/v1",
             apiKey = "",
             model = "meta-llama/llama-3-8b-instruct",
         ),
         ProviderConfig(
+            name = "OpenAI",
+            baseUrl = "https://api.openai.com/v1",
+            apiKey = "",
+            model = "gpt-4o-mini",
+        ),
+        ProviderConfig(
             name = "Custom",
-            endpoint = "",
+            baseUrl = "",
             apiKey = "",
             model = "",
         )
@@ -72,7 +71,7 @@ class AgentViewModel @Inject constructor(
     fun addCustomProvider() {
         val newProvider = ProviderConfig(
             name = "Custom ${System.currentTimeMillis() % 10000}",
-            endpoint = "",
+            baseUrl = "",
             apiKey = "",
             model = "",
         )
@@ -89,12 +88,12 @@ class AgentViewModel @Inject constructor(
 
     fun fetchModels() {
         val provider = currentProvider
-        if (provider == null || provider.endpoint.isBlank()) {
-            addError("Enter endpoint URL first")
+        if (provider == null || provider.baseUrl.isBlank()) {
+            addError("Enter base URL first")
             return
         }
 
-        val modelsUrl = provider.endpoint.removeSuffix("/chat/completions") + "/models"
+        val modelsUrl = "${provider.baseUrl.trimEnd('/')}/models"
         _uiState.value = _uiState.value.copy(isFetchingModels = true, errorMessage = null)
 
         viewModelScope.launch {
@@ -107,9 +106,9 @@ class AgentViewModel @Inject constructor(
                     .url(modelsUrl)
                     .header("Authorization", "Bearer ${provider.apiKey}")
                     .apply {
-                        if (provider.endpoint.contains("openrouter", ignoreCase = true)) {
+                        if (provider.baseUrl.contains("openrouter", ignoreCase = true)) {
                             header("HTTP-Referer", "https://github.com/mmuhofy/IrisCode")
-                            header("X-Title", "Drosh")
+                            header("X-OpenRouter-Title", "Drosh")
                         }
                     }
                     .build()
@@ -166,8 +165,8 @@ class AgentViewModel @Inject constructor(
 
     fun sendMessage(message: String) {
         val provider = currentProvider
-        if (provider == null || provider.endpoint.isBlank()) {
-            addError("No provider configured. Set endpoint and API key first.")
+        if (provider == null || provider.baseUrl.isBlank()) {
+            addError("No provider configured. Set base URL and API key first.")
             return
         }
 
@@ -189,7 +188,7 @@ class AgentViewModel @Inject constructor(
             userMessage = message,
             history = history,
             systemPrompt = systemPrompt,
-            endpoint = provider.endpoint,
+            baseUrl = provider.baseUrl,
             workMode = workMode,
             workingDirectory = "/storage/emulated/0/Android/data/dev.drosh/files/home"
         )

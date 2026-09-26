@@ -276,13 +276,13 @@ fun ProviderSelector(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 TextField(
-                    value = provider.endpoint,
-                    onValueChange = { endpoint ->
+                    value = provider.baseUrl,
+                    onValueChange = { base ->
                         onProviderUpdated(
-                            provider.copy(endpoint = endpoint)
+                            provider.copy(baseUrl = base)
                         )
                     },
-                    label = { Text("Endpoint URL") },
+                    label = { Text("Base URL") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
@@ -369,7 +369,7 @@ fun ProviderSelector(
                 }
             }
 
-            if (provider.endpoint.isNotBlank()) {
+            if (provider.baseUrl.isNotBlank()) {
                 TextButton(
                     onClick = onFetchModels,
                 ) {

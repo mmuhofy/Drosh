@@ -35,17 +35,17 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
 
     override suspend fun stream(request: StreamRequest): Flow<StreamEvent> = callbackFlow {
         val body = buildRequestBody(request)
-        val isProviderUrl = request.endpoint.contains("openrouter", ignoreCase = true)
+        val isOpenRouter = request.baseUrl.contains("openrouter", ignoreCase = true)
 
         val httpRequest = Request.Builder()
-            .url(request.endpoint)
+            .url("${request.baseUrl.trimEnd('/')}/chat/completions")
             .post(body.toString().toRequestBody(jsonMediaType))
             .addHeader("Authorization", "Bearer ${request.apiKey}")
             .addHeader("Content-Type", "application/json")
             .apply {
-                if (isProviderUrl) {
+                if (isOpenRouter) {
                     header("HTTP-Referer", "https://github.com/mmuhofy/IrisCode")
-                    header("X-Title", "Drosh")
+                    header("X-OpenRouter-Title", "Drosh")
                 }
             }
             .build()

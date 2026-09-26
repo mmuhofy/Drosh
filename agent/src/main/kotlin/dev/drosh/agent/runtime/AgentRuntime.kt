@@ -70,7 +70,7 @@ class AgentRuntime @Inject constructor(
                     messages = config.history.toList(),
                     tools = toolDeclarations,
                     systemPrompt = config.systemPrompt,
-                    endpoint = config.endpoint
+                    baseUrl = config.baseUrl
                 )
 
                 val accumulatedText = StringBuilder()

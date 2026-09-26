@@ -16,8 +16,9 @@ interface AgentSession {
 }
 
 /**
- * Configuration for a single agent turn — endpoint + name + model.
+ * Configuration for a single agent turn — base URL + model + standard fields.
  * Per user instruction: "endpoint girme, isim girme" — no per-LLM adapters.
+ * Mirrors IrisCode's ProviderConfig (AgentLoop.kt:194) — baseUrl + isOpenRouter.
  */
 data class AgentConfig(
     val apiKey: String,
@@ -25,7 +26,7 @@ data class AgentConfig(
     val userMessage: String,
     val history: MutableList<LlmStep>,
     val systemPrompt: String,
-    val endpoint: String,
+    val baseUrl: String,
     val workMode: WorkMode = WorkMode.AUTO,
     val workingDirectory: String = "",
     val maxSteps: Int = 20
