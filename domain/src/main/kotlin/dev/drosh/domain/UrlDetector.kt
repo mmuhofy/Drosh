@@ -20,7 +20,7 @@ package dev.drosh.domain
 object UrlDetector {
 
     private val urlPattern = Regex(
-        """(?imsx)(
+        """(?i)(?m)(?s)(?x)(
 (
 (?:
     dav|dict|dns|file|finger|ftps?|git|gemini|gopher|https?|imaps?|
