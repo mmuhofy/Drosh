@@ -201,11 +201,10 @@ fun WebViewSheet(
                         WebView(ctx).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
-                            settings.javaScriptCanOpenWindowsEnabled = false
                             settings.allowFileAccess = false
                             settings.allowContentAccess = true
-                            settings.useWideViewPort = true
                             settings.loadWithOverviewMode = true
+                            settings.useWideViewViewport = true
                             settings.offscreenPreRaster = true
                             settings.setCacheMode(WebSettings.LOAD_DEFAULT)
                             settings.safeBrowsingEnabled = true
