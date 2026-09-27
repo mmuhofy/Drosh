@@ -823,6 +823,13 @@ data class SshHost(
 - `ModalBottomSheetState(skipPartiallyExpanded = false)`; opens half-expanded, drag up to fill, down to dismiss; removed the WebView `detectDragGestures` consume so the handle thumb actually drags the sheet; larger circular tap targets (22dp/20dp icons).
 ```
 
+### URL Detection (TUI + Block)
+- `UrlDetector` regex ported from termux-app `TermuxUrlUtils.URL_MATCH_REGEX` (full scheme list + IPv4/host/port/path/query/fragment grammar), plus a bare `www.` pattern; matches sorted by position and normalised (`https://`).
+- Block-mod links: `SpanStyle(DroshPrimary, TextDecoration.Underline)` via `AnnotatedString` + tap→offset→`onUrlClick` in `BlockBody`.
+- Classic TUI links: `SearchHighlightOverlay` draws a **dashed** `DashPathEffect` underline (DroshPrimary) over URL cells; `TerminalViewClientImpl.onSingleTapUp` → `getWordAtLocation` → `findUrls` → `onUrlClick` → open in `WebViewSheet`.
+- TUI link algılama: **evet**, zaten aktif — overlay + tap handler.
+- Note: Compose `TextDecoration` only exposes a solid `Underline` constant (dashed ctor is internal), so dashed underlines are Canvas-only (TUI overlay); block-mod uses a solid primary underline.
+
 ---
 
 ## 16. Open Decisions
