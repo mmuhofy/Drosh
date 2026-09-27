@@ -204,7 +204,7 @@ fun WebViewSheet(
                             settings.allowFileAccess = false
                             settings.allowContentAccess = true
                             settings.loadWithOverviewMode = true
-                            settings.useWideViewViewport = true
+                            settings.useWideViewPort = true
                             settings.offscreenPreRaster = true
                             settings.setCacheMode(WebSettings.LOAD_DEFAULT)
                             settings.safeBrowsingEnabled = true
