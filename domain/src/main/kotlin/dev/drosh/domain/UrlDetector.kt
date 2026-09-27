@@ -20,7 +20,7 @@ package dev.drosh.domain
 object UrlDetector {
 
     private val urlPattern = Regex(
-        """(
+        """(?ims)(
 (
 (?:
     dav|dict|dns|file|finger|ftps?|git|gemini|gopher|https?|imaps?|
@@ -47,13 +47,11 @@ object UrlDetector {
 )
 )
 )""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE, RegexOption.DOTALL),
     )
 
     // Bare "www." hostnames (no scheme) — normalised to https:// on use.
     private val bareWwwPattern = Regex(
-        "(www\\.)[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]",
-        setOf(RegexOption.IGNORE_CASE),
+        """(?i)(www\.)[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]""",
     )
 
     data class UrlMatch(
