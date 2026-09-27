@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.drawRoundRect
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -280,15 +282,9 @@ private fun buildAnnotatedStringWithHighlights(
                 end++
             }
 
-            // Compose TextDecoration exposes only a solid Underline constant
-            // (dashed is not available via public API), so block-mod links use
-            // a solid DroshPrimary underline. The classic TUI overlay draws a
-            // dashed stroke separately via SearchHighlightOverlay (Paint+DashPathEffect).
-            val urlUnderline = TextDecoration.Underline
-
-    // URL link styling: no text-decoration underline; modern clickable
-    // surface is painted via drawBehind in OutputLineWithLinks (rounded bg
-    // that brightens on hover). Search highlight still uses a solid bg.
+            // URL link styling: no text-decoration underline; modern clickable
+            // surface is painted via drawBehind in OutputLineWithLinks (rounded bg
+            // that brightens on hover). Search highlight still uses a solid bg.
     val spanStyle = when {
         inUrl && inSearch -> SpanStyle(
             background = searchBg,
