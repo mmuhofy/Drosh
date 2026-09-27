@@ -1,5 +1,7 @@
 package dev.drosh.ui.browser
 
+import android.content.Intent
+import android.net.Uri
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -22,10 +24,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -40,7 +45,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import dev.drosh.design.system.DroshBackground
+import dev.drosh.core.copyToClipboard
+import dev.drosh.core.toast
+import dev.drosh.design.system.DroshBorderSubtle
+import dev.drosh.design.system.DroshDropdownMenu
+import dev.drosh.design.system.DroshMenuItem
+import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
@@ -52,9 +62,15 @@ fun WebViewSheet(
     url: String,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var currentUrl by remember { mutableStateOf(url) }
+    var progress by remember { mutableStateOf(0f) }
+    var canGoBack by remember { mutableStateOf(false) }
+    var canGoForward by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    val webView = remember { mutableStateOf<WebView?>(null) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -68,7 +84,7 @@ fun WebViewSheet(
                     .width(40.dp)
                     .height(3.dp)
                     .clip(CircleShape)
-                    .background(DroshText.copy(alpha = 0.15f)),
+                    .background(DroshBorderSubtle.copy(alpha = 0.4f)),
             )
         },
     ) {
@@ -81,9 +97,28 @@ fun WebViewSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(DroshSurface)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                ToolbarIcon(
+                    icon = DroshIcons.ArrowLeft,
+                    contentDescription = "Back",
+                    enabled = canGoBack,
+                    onClick = { webView.value?.goBack() },
+                )
+                ToolbarIcon(
+                    icon = DroshIcons.ArrowRight,
+                    contentDescription = "Forward",
+                    enabled = canGoForward,
+                    onClick = { webView.value?.goForward() },
+                )
+                ToolbarIcon(
+                    icon = DroshIcons.RotateCw,
+                    contentDescription = "Reload",
+                    enabled = true,
+                    onClick = { webView.value?.reload() },
+                )
+
                 Text(
                     text = currentUrl,
                     color = DroshTextSecondary,
@@ -93,11 +128,12 @@ fun WebViewSheet(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 12.dp),
+                        .padding(horizontal = 12.dp),
                 )
+
                 Box(
                     modifier = Modifier
-                        .background(DroshBackground.copy(alpha = 0.7f), CircleShape)
+                        .background(DroshSurface.copy(alpha = 0.7f), CircleShape)
                         .clickable { onDismiss() }
                         .padding(8.dp),
                 ) {
@@ -108,6 +144,56 @@ fun WebViewSheet(
                         modifier = Modifier.size(18.dp),
                     )
                 }
+
+                Box(
+                    modifier = Modifier
+                        .background(DroshSurface.copy(alpha = 0.7f), CircleShape)
+                        .clickable { showMenu = true }
+                        .padding(8.dp),
+                ) {
+                    Icon(
+                        imageVector = DroshIcons.EllipsisVertical,
+                        contentDescription = "Browser menu",
+                        tint = DroshText,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+
+                DroshDropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    items = listOf(
+                        DroshMenuItem(label = "Copy URL", icon = DroshIcons.Copy),
+                        DroshMenuItem(label = "Open in Browser", icon = DroshIcons.Globe, dividerBefore = true),
+                        DroshMenuItem(label = "Reload", icon = DroshIcons.RotateCw),
+                    ),
+                    onItemClick = { item ->
+                        showMenu = false
+                        when (item.label) {
+                            "Copy URL" -> {
+                                context.copyToClipboard("URL", currentUrl)
+                                context.toast("URL copied")
+                            }
+                            "Open in Browser" -> {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }
+                            "Reload" -> {
+                                webView.value?.reload()
+                            }
+                        }
+                    },
+                )
+            }
+
+            if (progress < 1f) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = DroshPrimary,
+                    trackColor = Color.Transparent,
+                )
             }
 
             Box(
@@ -132,6 +218,8 @@ fun WebViewSheet(
                                 WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                             settings.userAgentString = "Drosh/1.0"
 
+                            webView.value = this
+
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(
                                     view: WebView,
@@ -139,7 +227,6 @@ fun WebViewSheet(
                                 ): Boolean {
                                     val newUrl = request.url.toString()
                                     currentUrl = newUrl
-                                    view.loadUrl(newUrl)
                                     return true
                                 }
 
@@ -148,10 +235,23 @@ fun WebViewSheet(
                                     loadedUrl: String,
                                 ) {
                                     currentUrl = loadedUrl
+                                    canGoBack = view.canGoBack()
+                                    canGoForward = view.canGoForward()
+                                    progress = 1f
                                 }
                             }
 
-                            webChromeClient = WebChromeClient()
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onProgressChanged(
+                                    view: WebView,
+                                    newProgress: Int,
+                                ) {
+                                    progress = newProgress / 100f
+                                    canGoBack = view.canGoBack()
+                                    canGoForward = view.canGoForward()
+                                }
+                            }
+
                             setBackgroundColor(
                                 android.graphics.Color.parseColor("#000000"),
                             )
@@ -163,4 +263,30 @@ fun WebViewSheet(
             }
         }
     }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            webView.value?.destroy()
+        }
+    }
+}
+
+@Composable
+private fun ToolbarIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val tint = if (enabled) DroshTextSecondary else DroshTextSecondary.copy(alpha = 0.35f)
+    Icon(
+        imageVector = icon,
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = Modifier
+            .size(20.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled) { onClick() }
+            .padding(4.dp),
+    )
 }
