@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -28,11 +31,11 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshPrimary
+import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
@@ -181,6 +184,8 @@ private fun OutputLineWithLinks(
     )
 
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
 
     Text(
         text = annotated,
@@ -189,6 +194,27 @@ private fun OutputLineWithLinks(
         onTextLayout = { layoutResult = it },
         modifier = Modifier
             .fillMaxWidth()
+            .drawBehind {
+                val lr = layoutResult ?: return@drawBehind
+                val bg = if (isHovered)
+                    DroshPrimary.copy(alpha = 0.24f)
+                else
+                    DroshSurfaceHigh.copy(alpha = 0.55f)
+                for (m in urlMatches) {
+                    val start = m.start.coerceAtMost(text.length - 1)
+                    val end = minOf(m.end - 1, text.length - 1)
+                    val s = lr.getBoundingBox(start)
+                    val e = lr.getBoundingBox(end)
+                    drawRoundRect(
+                        color = bg,
+                        topLeft = Offset(s.left, s.top),
+                        size = Size(e.right - s.left, e.bottom - s.top),
+                        cornerRadiusX = 4f,
+                        cornerRadiusY = 4f,
+                    )
+                }
+            }
+            .hoverable(interactionSource = interactionSource)
             .pointerInput(Unit) {
                 detectTapGestures { tapPosition: Offset ->
                     val layout = layoutResult ?: return@detectTapGestures
@@ -260,20 +286,21 @@ private fun buildAnnotatedStringWithHighlights(
             // dashed stroke separately via SearchHighlightOverlay (Paint+DashPathEffect).
             val urlUnderline = TextDecoration.Underline
 
-            val spanStyle = when {
-                inUrl && inSearch -> SpanStyle(
-                    background = searchBg,
-                    color = DroshPrimary,
-                    textDecoration = urlUnderline,
-                )
-                inUrl -> SpanStyle(
-                    color = DroshPrimary,
-                    textDecoration = urlUnderline,
-                )
-                inSearch -> SpanStyle(
-                    background = searchBg,
-                    color = DroshTextSecondary,
-                )
+    // URL link styling: no text-decoration underline; modern clickable
+    // surface is painted via drawBehind in OutputLineWithLinks (rounded bg
+    // that brightens on hover). Search highlight still uses a solid bg.
+    val spanStyle = when {
+        inUrl && inSearch -> SpanStyle(
+            background = searchBg,
+            color = DroshPrimary,
+        )
+        inUrl -> SpanStyle(
+            color = DroshPrimary,
+        )
+        inSearch -> SpanStyle(
+            background = searchBg,
+            color = DroshTextSecondary,
+        )
                 else -> SpanStyle(color = DroshTextSecondary)
             }
 
