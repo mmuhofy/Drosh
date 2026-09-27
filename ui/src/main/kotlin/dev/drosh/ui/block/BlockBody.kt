@@ -27,6 +27,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.LineStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
@@ -254,15 +255,21 @@ private fun buildAnnotatedStringWithHighlights(
                 end++
             }
 
+            val urlUnderline = TextDecoration(
+                lineStyle = LineStyle.Dashed,
+                color = DroshPrimary,
+                style = TextDecoration.Underline,
+            )
+
             val spanStyle = when {
                 inUrl && inSearch -> SpanStyle(
                     background = searchBg,
                     color = DroshPrimary,
-                    textDecoration = TextDecoration.Underline,
+                    textDecoration = urlUnderline,
                 )
                 inUrl -> SpanStyle(
                     color = DroshPrimary,
-                    textDecoration = TextDecoration.Underline,
+                    textDecoration = urlUnderline,
                 )
                 inSearch -> SpanStyle(
                     background = searchBg,

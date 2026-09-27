@@ -8,6 +8,7 @@
 package dev.drosh.terminal
 
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Rect
 import android.view.View
@@ -29,8 +30,9 @@ class SearchHighlightOverlay(
 
     private val urlUnderlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        color = android.graphics.Color.parseColor("#FF3B82F6")
-        strokeWidth = 2f
+        color = android.graphics.Color.parseColor("#719FFF") // DroshPrimary
+        strokeWidth = 3f
+        pathEffect = DashPathEffect(floatArrayOf(9f, 6f), 0f)
     }
 
     private val rect = Rect()

@@ -3,18 +3,56 @@ package dev.drosh.domain
 /**
  * Shared URL detection utility used by both the block engine rendering path
  * (Compose UI in the `ui` module) and the classic Termux terminal view
- * (in the `terminal` module).
+ * (TUI overlay + tap handler in the `terminal` module).
  *
- * Detects URLs matching the pattern:
- * `((https?|ftp|file)://|www\.)[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]`
+ * Regex modelled on termux-app's `TermuxUrlUtils.URL_MATCH_REGEX`
+ * (termux/termux-app — `termux-shared/.../data/TermuxUrlUtils.java`),
+ * which recognises the full set of URI schemes Termux supports and an
+ * IPv4/host/path:port/query/fragment grammar. We add a bare `www.` pattern
+ * on top so non-schemed `www.` links are still matched (and normalised to
+ * `https://`).
  *
- * Supported URL schemes: http, https, ftp, file, and bare `www.`
- * (bare `www.` URLs are normalized to `https://` on click).
+ * Supported URI schemes: dav, dict, dns, file, finger, ftp(s), git, gemini,
+ * gopher, http(s), imap(s), irc(6|s), ipfs/ipns, ldap(s), pop3(s), redis(s),
+ * rsync, rtsp(s|u), sftp, smb(s), smtp(s), svn(+ssh), telnet, tftp, udp,
+ * vnc, ws(s). Plus bare `www.` hostnames.
  */
 object UrlDetector {
 
     private val urlPattern = Regex(
-        "((https?|ftp|file)://|www\\.)[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]",
+        """(
+(
+(?:
+    dav|dict|dns|file|finger|ftps?|git|gemini|gopher|https?|imaps?|
+    irc[6s]?|ip[fn]s|ldaps?|pop3s?|rediss?|rsync|rtsp[su]?|sftp|
+    smtps?|svn(?:\+ssh)?|telnet|tftp|udp|vnc|wss?
+)://
+(?:
+(?:\S+(?::\S*)?@)?
+(?:
+(?:
+(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.
+){3}
+(?:25[0-5]|2[0-4]\d|[01]?\d\d?)
+|
+(?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)
+(?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)
+*(?:\.(?:[a-z\u00a1-\uffff0-9]-*){1,}[a-z\u00a1-\uffff0-9]{1,})?
+|
+/(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+
+)
+(?::\d{1,5})?
+(?:/[a-zA-Z0-9:@%\-._~!$&()*+,;=?/]*)?
+(?:#[a-zA-Z0-9:@%\-._~!$&()*+,;=?/]*)?
+)
+)
+)""",
+        RegexOption.IGNORE_CASE or RegexOption.MULTILINE or RegexOption.DOTALL,
+    )
+
+    // Bare "www." hostnames (no scheme) — normalised to https:// on use.
+    private val bareWwwPattern = Regex(
+        """(www\.)[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -25,28 +63,29 @@ object UrlDetector {
     )
 
     /**
-     * Returns all URL matches in [text] with their positions.
+     * Returns all URL matches in [text] with their positions, sorted by
+     * position. Both schemed URLs and bare `www.` hostnames are matched.
      */
     fun findUrls(text: String): List<UrlMatch> {
-        return urlPattern.findAll(text).map { match ->
-            UrlMatch(
-                url = normalizeUrl(match.value),
-                start = match.range.first,
-                end = match.range.last + 1,
-            )
-        }.toList()
+        val result = mutableListOf<UrlMatch>()
+        urlPattern.findAll(text).forEach {
+            result.add(UrlMatch(normalizeUrl(it.value), it.range.first, it.range.last + 1))
+        }
+        bareWwwPattern.findAll(text).forEach {
+            result.add(UrlMatch(normalizeUrl(it.value), it.range.first, it.range.last + 1))
+        }
+        return result.sortedBy { it.start }
     }
 
     /**
-     * Checks if [word] matches the URL pattern (for word-level detection
-     * in the classic terminal tap handler).
+     * Checks if [word] contains a URL match (for word-level detection in the
+     * classic terminal tap handler).
      */
-    fun matches(word: String): Boolean = urlPattern.matches(word)
+    fun matches(word: String): Boolean =
+        urlPattern.containsMatchIn(word) || bareWwwPattern.containsMatchIn(word)
 
     /**
-     * Normalizes a bare domain/word into a full URL.
-     * Adds the appropriate scheme if missing (used by the classic
-     * terminal tap handler after [matches] returns true).
+     * Normalises a bare word into a clickable URL.
      */
     fun normalizeUrlFromWord(word: String): String = normalizeUrl(word)
 
