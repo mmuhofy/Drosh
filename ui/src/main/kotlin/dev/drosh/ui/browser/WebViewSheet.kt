@@ -2,6 +2,7 @@ package dev.drosh.ui.browser
 
 import android.content.Intent
 import android.net.Uri
+import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +65,7 @@ fun WebViewSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
     var currentUrl by remember { mutableStateOf(url) }
     var progress by remember { mutableStateOf(0f) }
@@ -97,7 +99,7 @@ fun WebViewSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(DroshSurface)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ToolbarIcon(
@@ -131,40 +133,27 @@ fun WebViewSheet(
                         .padding(horizontal = 12.dp),
                 )
 
-                Box(
-                    modifier = Modifier
-                        .background(DroshSurface.copy(alpha = 0.7f), CircleShape)
-                        .clickable { onDismiss() }
-                        .padding(8.dp),
-                ) {
-                    Icon(
-                        imageVector = DroshIcons.X,
-                        contentDescription = "Close browser",
-                        tint = DroshText,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .background(DroshSurface.copy(alpha = 0.7f), CircleShape)
-                        .clickable { showMenu = true }
-                        .padding(8.dp),
-                ) {
-                    Icon(
-                        imageVector = DroshIcons.EllipsisVertical,
-                        contentDescription = "Browser menu",
-                        tint = DroshText,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
+                IconButton(
+                    icon = DroshIcons.X,
+                    contentDescription = "Close browser",
+                    onClick = onDismiss,
+                )
+                IconButton(
+                    icon = DroshIcons.EllipsisVertical,
+                    contentDescription = "Browser menu",
+                    onClick = { showMenu = true },
+                )
 
                 DroshDropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
                     items = listOf(
                         DroshMenuItem(label = "Copy URL", icon = DroshIcons.Copy),
-                        DroshMenuItem(label = "Open in Browser", icon = DroshIcons.Globe, dividerBefore = true),
+                        DroshMenuItem(
+                            label = "Open in Browser",
+                            icon = DroshIcons.Globe,
+                            dividerBefore = true,
+                        ),
                         DroshMenuItem(label = "Reload", icon = DroshIcons.RotateCw),
                     ),
                     onItemClick = { item ->
@@ -175,7 +164,8 @@ fun WebViewSheet(
                                 context.toast("URL copied")
                             }
                             "Open in Browser" -> {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
+                                val intent =
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
                                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 context.startActivity(intent)
                             }
@@ -211,12 +201,22 @@ fun WebViewSheet(
                         WebView(ctx).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
+                            settings.javaScriptCanOpenWindows = false
+                            settings.allowFileAccess = false
+                            settings.allowContentAccess = true
+                            settings.useWideViewPort = true
+                            settings.loadWithOverviewMode = true
+                            settings.offscreenPreRaster = true
+                            settings.setCacheMode(WebSettings.LOAD_DEFAULT)
+                            settings.safeBrowsingEnabled = true
                             settings.builtInZoomControls = true
                             settings.displayZoomControls = false
-                            settings.loadWithOverviewMode = true
                             settings.mixedContentMode =
                                 WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                             settings.userAgentString = "Drosh/1.0"
+
+                            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
 
                             webView.value = this
 
@@ -227,6 +227,7 @@ fun WebViewSheet(
                                 ): Boolean {
                                     val newUrl = request.url.toString()
                                     currentUrl = newUrl
+                                    view.loadUrl(newUrl)
                                     return true
                                 }
 
@@ -252,9 +253,6 @@ fun WebViewSheet(
                                 }
                             }
 
-                            setBackgroundColor(
-                                android.graphics.Color.parseColor("#000000"),
-                            )
                             loadUrl(url)
                         }
                     },
@@ -273,12 +271,13 @@ fun WebViewSheet(
 
 @Composable
 private fun ToolbarIcon(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     contentDescription: String,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val tint = if (enabled) DroshTextSecondary else DroshTextSecondary.copy(alpha = 0.35f)
+    val tint =
+        if (enabled) DroshTextSecondary else DroshTextSecondary.copy(alpha = 0.35f)
     Icon(
         imageVector = icon,
         contentDescription = contentDescription,
@@ -286,7 +285,27 @@ private fun ToolbarIcon(
         modifier = Modifier
             .size(20.dp)
             .clip(CircleShape)
+            .background(DroshSurface.copy(alpha = 0.75f), CircleShape)
             .clickable(enabled = enabled) { onClick() }
-            .padding(4.dp),
+            .padding(6.dp),
+    )
+}
+
+@Composable
+private fun IconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Icon(
+        imageVector = icon,
+        contentDescription = contentDescription,
+        tint = DroshText,
+        modifier = Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(DroshSurface.copy(alpha = 0.75f), CircleShape)
+            .clickable { onClick() }
+            .padding(7.dp),
     )
 }
