@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -211,7 +211,7 @@ private fun OutputLineWithLinks(
                         color = bg,
                         topLeft = Offset(s.left, s.top),
                         size = Size(e.right - s.left, e.bottom - s.top),
-                        cornerRadius = CornerSize(4f),
+                        cornerRadius = CornerRadius(4f),
                     )
                 }
             }
