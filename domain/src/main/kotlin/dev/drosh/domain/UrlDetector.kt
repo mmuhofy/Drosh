@@ -14,39 +14,16 @@ package dev.drosh.domain
  *
  * Supported URI schemes: dav, dict, dns, file, finger, ftp(s), git, gemini,
  * gopher, http(s), imap(s), irc(6|s), ipfs/ipns, ldap(s), pop3(s), redis(s),
- * rsync, rtsp(s|u), sftp, smb(s), smtp(s), svn(+ssh), telnet, tftp, udp,
+ * rsync, rtsp(su), sftp, smb(s), smtp(s), svn(+ssh), telnet, tftp, udp,
  * vnc, ws(s). Plus bare `www.` hostnames.
  */
 object UrlDetector {
 
+    // `(?i)` only. Kotlin has no combined `(?imsx)` flags and `(?x)` x-mode is
+    // fragile with raw-string indentation, so the grammar is kept on a single
+    // line (no unescaped literal whitespace) to compile deterministically.
     private val urlPattern = Regex(
-        """(?i)(?m)(?s)(?x)(
-(
-(?:
-    dav|dict|dns|file|finger|ftps?|git|gemini|gopher|https?|imaps?|
-    irc[6s]?|ip[fn]s|ldaps?|pop3s?|rediss?|rsync|rtsp[su]?|sftp|
-    smtps?|svn(?:\+ssh)?|telnet|tftp|udp|vnc|wss?
-)://
-(?:
-(?:\S+(?::\S*)?@)?
-(?:
-(?:
-(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.
-){3}
-(?:25[0-5]|2[0-4]\d|[01]?\d\d?)
-|
-(?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)
-(?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)
-*(?:\.(?:[a-z\u00a1-\uffff0-9]-*){1,}[a-z\u00a1-\uffff0-9]{1,})?
-|
-/(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+
-)
-(?::\d{1,5})?
-(?:/[a-zA-Z0-9:@%\-._~!$&()*+,;=?/]*)?
-(?:#[a-zA-Z0-9:@%\-._~!$&()*+,;=?/]*)?
-)
-)
-)""",
+        """(?i)(dav|dict|dns|file|finger|ftps?|git|gemini|gopher|https?|imaps?|irc[6s]?|ip[fn]s|ldaps?|pop3s?|rediss?|rsync|rtsp[su]?|sftp|smtps?|svn(?:\+ssh)?|telnet|tftp|udp|vnc|wss?)://(?:\S+(?::\S*)?@)?(?:(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)|(?:(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)(?:\.(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)*(?:\.(?:[a-z\u00a1-\uffff0-9]-*){1,}[a-z\u00a1-\uffff0-9]{1,})?|/(?:[a-z\u00a1-\uffff0-9]-*)*[a-z\u00a1-\uffff0-9]+)(?::\d{1,5})?(?:/[a-zA-Z0-9:@%\\-._~!$&()*+,;=?/]*)?(?:#[a-zA-Z0-9:@%\\-._~!$&()*+,;=?/]*)?)""",
     )
 
     // Bare "www." hostnames (no scheme) — normalised to https:// on use.
