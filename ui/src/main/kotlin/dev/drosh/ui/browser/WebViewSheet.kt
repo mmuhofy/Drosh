@@ -201,7 +201,7 @@ fun WebViewSheet(
                         WebView(ctx).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
-                            settings.javaScriptCanOpenWindows = false
+                            settings.javaScriptCanOpenWindowsEnabled = false
                             settings.allowFileAccess = false
                             settings.allowContentAccess = true
                             settings.useWideViewPort = true
