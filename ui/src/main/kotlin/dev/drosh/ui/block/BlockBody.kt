@@ -30,7 +30,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.drawRoundRect
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -211,8 +210,7 @@ private fun OutputLineWithLinks(
                         color = bg,
                         topLeft = Offset(s.left, s.top),
                         size = Size(e.right - s.left, e.bottom - s.top),
-                        cornerRadiusX = 4f,
-                        cornerRadiusY = 4f,
+                        cornerRadius = 4f,
                     )
                 }
             }
