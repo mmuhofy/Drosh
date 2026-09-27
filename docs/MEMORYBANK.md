@@ -820,7 +820,7 @@ data class SshHost(
 - back/forward/reload toolbar icons (enabled via `canGoBack`/`canGoForward`); `WebChromeClient.onProgressChanged` → Material3 progress bar; 3-dot dropdown (`DroshDropdownMenu`: Copy URL / Open in Browser / Reload).
 - Bug fix: `shouldOverrideUrlLoading` must call `view.loadUrl(...)` — previously dropped, causing blank/black WebView on internal link clicks.
 - Optimizations: `LAYER_TYPE_HARDWARE` + transparent bg (SO black-screen fix), `useWideViewPort`, `offscreenPreRaster`, `LOAD_DEFAULT` cache, `safeBrowsingEnabled`; `destroy()` in `DisposableEffect`.
-- `ModalBottomSheetState(skipPartiallyExpanded = false)` for half/full drag presets; circular tap shape on close/menu icons.
+- `ModalBottomSheetState(skipPartiallyExpanded = false)`; opens half-expanded, drag up to fill, down to dismiss; removed the WebView `detectDragGestures` consume so the handle thumb actually drags the sheet; larger circular tap targets (22dp/20dp icons).
 ```
 
 ---
