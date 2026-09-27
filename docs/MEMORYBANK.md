@@ -817,7 +817,10 @@ data class SshHost(
    ⬜ WorkspaceManager.kt — project system
 
 ### WebViewSheet (browser)
-- Enriched with back/forward/reload nav, WebChromeClient progress bar, and a dropdown menu (Copy URL / Open in Browser / Reload). WebChromeClient progress + `DisposableEffect` WebView cleanup.
+- back/forward/reload toolbar icons (enabled via `canGoBack`/`canGoForward`); `WebChromeClient.onProgressChanged` → Material3 progress bar; 3-dot dropdown (`DroshDropdownMenu`: Copy URL / Open in Browser / Reload).
+- Bug fix: `shouldOverrideUrlLoading` must call `view.loadUrl(...)` — previously dropped, causing blank/black WebView on internal link clicks.
+- Optimizations: `LAYER_TYPE_HARDWARE` + transparent bg (SO black-screen fix), `useWideViewPort`, `offscreenPreRaster`, `LOAD_DEFAULT` cache, `safeBrowsingEnabled`; `destroy()` in `DisposableEffect`.
+- `ModalBottomSheetState(skipPartiallyExpanded = false)` for half/full drag presets; circular tap shape on close/menu icons.
 ```
 
 ---
