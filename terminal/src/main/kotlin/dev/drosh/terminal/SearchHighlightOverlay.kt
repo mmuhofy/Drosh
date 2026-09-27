@@ -28,6 +28,11 @@ class SearchHighlightOverlay(
         color = android.graphics.Color.parseColor("#803B82F6")
     }
 
+    private val urlBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = android.graphics.Color.parseColor("#33719FFF") // DroshPrimary 20%
+    }
+
     private val urlUnderlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         color = android.graphics.Color.parseColor("#719FFF") // DroshPrimary
@@ -96,6 +101,8 @@ class SearchHighlightOverlay(
                     val x1 = (colStart * fontWidth).toFloat()
                     val x2 = (colEnd * fontWidth).toFloat()
                     val baselineY = ((visRow + 1) * fontLineSpacing).toFloat()
+                    val top = baselineY + fontAscent
+                    canvas.drawRoundRect(x1, top, x2, baselineY, 4f, 4f, urlBackgroundPaint)
                     canvas.drawLine(x1, baselineY, x2, baselineY, urlUnderlinePaint)
                 }
             }
