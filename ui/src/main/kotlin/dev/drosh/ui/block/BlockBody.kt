@@ -27,7 +27,6 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.LineStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
@@ -255,11 +254,11 @@ private fun buildAnnotatedStringWithHighlights(
                 end++
             }
 
-            val urlUnderline = TextDecoration(
-                lineStyle = LineStyle.Dashed,
-                color = DroshPrimary,
-                style = TextDecoration.Underline,
-            )
+            // Compose TextDecoration exposes only a solid Underline constant
+            // (dashed is not available via public API), so block-mod links use
+            // a solid DroshPrimary underline. The classic TUI overlay draws a
+            // dashed stroke separately via SearchHighlightOverlay (Paint+DashPathEffect).
+            val urlUnderline = TextDecoration.Underline
 
             val spanStyle = when {
                 inUrl && inSearch -> SpanStyle(
