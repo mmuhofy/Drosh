@@ -47,12 +47,12 @@ object UrlDetector {
 )
 )
 )""",
-        RegexOption.IGNORE_CASE or RegexOption.MULTILINE or RegexOption.DOTALL,
+        RegexOption.IGNORE_CASE, RegexOption.MULTILINE, RegexOption.DOTALL,
     )
 
     // Bare "www." hostnames (no scheme) — normalised to https:// on use.
     private val bareWwwPattern = Regex(
-        """(www\.)[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]""",
+        "(www\\.)[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]",
         RegexOption.IGNORE_CASE,
     )
 
