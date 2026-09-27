@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -40,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,7 +65,10 @@ fun WebViewSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = false,
+        initialValue = SheetValue.PartiallyExpanded,
+    )
 
     var currentUrl by remember { mutableStateOf(url) }
     var progress by remember { mutableStateOf(0f) }
@@ -92,7 +95,7 @@ fun WebViewSheet(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .navigationBarsPadding(),
         ) {
             Row(
@@ -188,13 +191,7 @@ fun WebViewSheet(
 
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, _ ->
-                            change.consume()
-                        }
-                    },
+                    .fillMaxSize(),
             ) {
                 AndroidView(
                     factory = { ctx ->
@@ -282,11 +279,11 @@ private fun ToolbarIcon(
         contentDescription = contentDescription,
         tint = tint,
         modifier = Modifier
-            .size(20.dp)
             .clip(CircleShape)
             .background(DroshSurface.copy(alpha = 0.75f), CircleShape)
             .clickable(enabled = enabled) { onClick() }
-            .padding(6.dp),
+            .padding(10.dp)
+            .size(22.dp),
     )
 }
 
@@ -301,10 +298,10 @@ private fun IconButton(
         contentDescription = contentDescription,
         tint = DroshText,
         modifier = Modifier
-            .size(24.dp)
             .clip(CircleShape)
             .background(DroshSurface.copy(alpha = 0.75f), CircleShape)
             .clickable { onClick() }
-            .padding(7.dp),
+            .padding(10.dp)
+            .size(20.dp),
     )
 }
