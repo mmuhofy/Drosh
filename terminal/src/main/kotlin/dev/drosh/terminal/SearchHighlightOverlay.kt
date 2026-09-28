@@ -177,9 +177,9 @@ class SearchHighlightOverlay(
 
     /**
      * Joins rows [groupStart, groupEnd] into one logical line, detects URLs in
-     * it, and paints the cells of every row the match covers. Each row gets at
-     * most one rectangle; rows fully inside a URL are drawn square, the first
-     * and last rows keep the rounded shape.
+     * it, and paints the cells of every row the match covers. A link that stays
+     * on one row keeps its rounded chip; one the terminal split across rows is
+     * painted square per row.
      */
     private fun drawLogicalLineUrls(
         canvas: Canvas,
