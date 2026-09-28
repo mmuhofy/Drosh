@@ -501,6 +501,7 @@ private fun ReadyScreen(
                             onEditCommand = { cmd -> blockEngineViewModel.onEditCommand(cmd) },
                             onExportOutput = { blockEngineViewModel.onExportOutput(block) },
                             onDeleteBlock = { blockEngineViewModel.onDeleteBlock(block.id) },
+                            onUrlClick = { browserUrl = it },
                         )
                         if (block.id != blocks.lastOrNull()?.id) {
                             PromptDivider()
@@ -976,6 +977,9 @@ private fun TerminalViewHost(
                 isFocusableInTouchMode = false
             }
             tv.searchHighlightOverlay = overlay
+            // Let taps resolve against the overlay's logical lines so a URL the
+            // terminal wrapped across rows opens whole.
+            viewClient.urlHighlightOverlay = overlay
 
             frameLayout.addView(tv)
             frameLayout.addView(overlay)

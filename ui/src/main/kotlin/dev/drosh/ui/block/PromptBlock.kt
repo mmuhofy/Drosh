@@ -2,6 +2,7 @@ package dev.drosh.ui.block
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,10 +23,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBorderSubtle
@@ -36,6 +42,7 @@ import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.domain.UrlDetector
 import dev.drosh.domain.block.Block
 import dev.drosh.domain.block.BlockState
 import dev.drosh.ui.DroshIcons
@@ -51,6 +58,7 @@ fun PromptBlock(
     onEditCommand: (String) -> Unit = {},
     onExportOutput: () -> Unit = {},
     onDeleteBlock: () -> Unit = {},
+    onUrlClick: (String) -> Unit = {},
 ) {
     var showThreeDot by rememberSaveable { mutableStateOf(false) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
@@ -143,18 +151,96 @@ fun PromptBlock(
 
         if (block.outputLines.isNotEmpty()) {
             SelectionContainer {
-                Text(
+                LinkifiedOutput(
                     text = block.outputLines.joinToString("\n"),
                     color = outputColor,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
+                    onUrlClick = onUrlClick,
                 )
             }
         }
     }
 }
+
+/**
+ * Block output with detected URLs rendered in the accent colour.
+ *
+ * Links carry a colour and nothing else — no underline — so long output still
+ * reads as a terminal rather than a wall of decorated text. Pressing a link
+ * paints a background behind just that link, which is the only affordance
+ * that works on a touchscreen; hover does not exist there. On a pointer
+ * device the same interaction surface gives hover for free.
+ *
+ * A tap opens the link. Nothing here consumes the down event, so the enclosing
+ * [SelectionContainer] still owns long-press and drag for text selection.
+ */
+@Composable
+private fun LinkifiedOutput(
+    text: String,
+    color: Color,
+    onUrlClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 13.sp,
+    lineHeight: TextUnit = 18.sp,
+) {
+    val urlMatches = remember(text) { UrlDetector.findUrls(text) }
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var pressedUrl by remember { mutableStateOf<String?>(null) }
+
+    val urlAtPosition: (Offset) -> UrlMatch? = { position ->
+        val result = layout
+        if (result == null || urlMatches.isEmpty()) {
+            null
+        } else {
+            val offset = result.getOffsetForPosition(position)
+            urlMatches.firstOrNull { offset >= it.start && offset < it.end }
+        }
+    }
+
+    val annotated = remember(text, urlMatches, pressedUrl) {
+        buildAnnotatedString {
+            var cursor = 0
+            for (match in urlMatches) {
+                if (match.start > cursor) append(text.substring(cursor, match.start))
+                val isPressed = match.url == pressedUrl
+                withStyle(
+                    SpanStyle(
+                        color = DroshPrimary,
+                        background = if (isPressed) DroshPrimary.copy(alpha = PRESSED_TINT) else Color.Unspecified,
+                    ),
+                ) {
+                    append(match.url)
+                }
+                cursor = match.end
+            }
+            if (cursor < text.length) append(text.substring(cursor))
+        }
+    }
+
+    Text(
+        text = annotated,
+        color = color,
+        fontFamily = FontFamily.Monospace,
+        fontSize = fontSize,
+        lineHeight = lineHeight,
+        onTextLayout = { layout = it },
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 2.dp)
+            .pointerInput(text) {
+                detectTapGestures(
+                    onPress = { position ->
+                        pressedUrl = urlAtPosition(position)?.url
+                        tryAwaitRelease()
+                        pressedUrl = null
+                    },
+                    onTaps = { position -> urlAtPosition(position)?.let { onUrlClick(it.url) } },
+                )
+            },
+    )
+}
+
+/** Background opacity used behind a link while it is held down. */
+private const val PRESSED_TINT = 0.28f
 
 @Composable
 fun PromptDivider(

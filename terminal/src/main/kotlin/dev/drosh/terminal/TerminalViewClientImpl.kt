@@ -19,6 +19,13 @@ class TerminalViewClientImpl(
     var terminalView: TerminalView? = null
     var onCopyModeChanged: ((Boolean) -> Unit)? = null
 
+    /**
+     * Set once the highlight overlay exists. Resolves taps against the same
+     * logical lines the overlay paints, so a URL the terminal wrapped across
+     * rows opens whole. Until it is assigned, taps fall back to word matching.
+     */
+    var urlHighlightOverlay: SearchHighlightOverlay? = null
+
     override fun onScale(scale: Float): Float {
         return onScaleChange?.invoke(scale) ?: 1.0f
     }
@@ -30,6 +37,13 @@ class TerminalViewClientImpl(
         val col = colRow[0]
         val row = colRow[1]
         if (col < 0 || row < 0) return
+
+        val wrapped = urlHighlightOverlay?.urlAtCell(view.mTopRow + row, col)
+        if (wrapped != null) {
+            onUrlClick?.invoke(wrapped)
+            return
+        }
+
         val screen = emulator.getScreen() ?: return
         val word = screen.getWordAtLocation(col, row)
         if (word.isNullOrBlank()) return
