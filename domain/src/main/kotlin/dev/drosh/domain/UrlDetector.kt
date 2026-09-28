@@ -46,7 +46,7 @@ object UrlDetector {
         addAll('a'..'z')
         addAll('A'..'Z')
         addAll('0'..'9')
-        addAll("+-.")
+        addAll(listOf('+', '-', '.'))
     }
 
     private const val SCHEME_SEPARATOR = "://"
