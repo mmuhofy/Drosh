@@ -8,16 +8,18 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -31,17 +33,21 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -54,6 +60,11 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.ui.DroshIcons
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
+/** How far the toolbar must be dragged down before the sheet closes. */
+private const val DISMISS_DRAG_THRESHOLD = 96f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,9 +73,8 @@ fun WebViewSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    // Opens straight to full height. Dragging is wired to the toolbar alone,
-    // so there is no half-expanded resting state to land in.
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
 
     var currentUrl by remember { mutableStateOf(url) }
     var progress by remember { mutableStateOf(0f) }
@@ -73,6 +83,18 @@ fun WebViewSheet(
     var showMenu by remember { mutableStateOf(false) }
     val webView = remember { mutableStateOf<WebView?>(null) }
 
+    // Material3 keeps its AnchoredDraggableState internal, so the sheet cannot
+    // be handed a drag gesture from outside. The sheet's own drag is switched
+    // off and the toolbar drives a drag itself: the content follows the finger
+    // down, and releasing past the threshold dismisses.
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    val settleOffset by animateFloatAsState(
+        targetValue = if (dragging) dragOffset else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "sheetSettle",
+    )
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -80,22 +102,46 @@ fun WebViewSheet(
         containerColor = DroshSurface,
         tonalElevation = 0.dp,
         dragHandle = null,
+        sheetGesturesEnabled = false,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .offset { IntOffset(0, settleOffset.roundToInt()) }
                 .navigationBarsPadding(),
         ) {
             // The only drag surface. Scrolling a page or selecting text inside
-            // the WebView below must never resize the sheet.
+            // the WebView below must never move the sheet.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(DroshSurface)
-                    .draggable(
-                        orientation = Orientation.Vertical,
-                        state = sheetState.draggableState,
-                    )
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragStart = {
+                                dragging = true
+                                dragOffset = settleOffset
+                            },
+                            onVerticalDrag = { _, delta ->
+                                dragOffset = (dragOffset + delta).coerceAtLeast(0f)
+                            },
+                            onDragEnd = {
+                                dragging = false
+                                if (dragOffset > DISMISS_DRAG_THRESHOLD) {
+                                    scope.launch {
+                                        sheetState.hide()
+                                        onDismiss()
+                                    }
+                                } else {
+                                    dragOffset = 0f
+                                }
+                            },
+                            onDragCancel = {
+                                dragging = false
+                                dragOffset = 0f
+                            },
+                        )
+                    }
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
