@@ -222,12 +222,12 @@ class SearchHighlightOverlay(
 
                 val isFirstRow = segmentStart == match.start
                 val isLastRow = segmentEnd == match.end
+                // A match wholly inside one row keeps the rounded chip. A match
+                // the terminal split across rows is painted square per row; the
+                // per-corner Canvas overload that would round only the outer ends
+                // is not available at this platform level.
                 if (isFirstRow && isLastRow) {
                     canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint)
-                } else if (isFirstRow) {
-                    canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint, 4f, 4f, 0f, 0f)
-                } else if (isLastRow) {
-                    canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint, 0f, 0f, 4f, 4f)
                 } else {
                     canvas.drawRect(x1, topY, x2, bottomY, urlBackgroundPaint)
                 }
