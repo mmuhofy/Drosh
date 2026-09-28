@@ -100,7 +100,8 @@ class SearchHighlightOverlay(
                 val logicalText = joined.toString()
                 val targetRow = externalRow - topRow
                 if (targetRow in groupStart..groupEnd) {
-                    val rowOffset = texts[groupStart..targetRow].sumOf { (it ?: "").length }
+                    var rowOffset = 0
+                    for (visRow in groupStart until targetRow) rowOffset += texts[visRow]?.length ?: 0
                     val offset = rowOffset + col
                     UrlDetector.findUrls(logicalText)
                         .firstOrNull { offset >= it.start && offset < it.end }
@@ -149,7 +150,7 @@ class SearchHighlightOverlay(
                     val matchEnd = idx + query.length
                     val colStart = idx.coerceAtMost(columns - 1)
                     val colEnd = matchEnd.coerceAtMost(columns)
-                    val baselineY = ((visRow + 1) * fontLineSpacing).toFloat()
+                    val baselineY = (visRow + 1) * fontLineSpacing
                     rect.left = (colStart * fontWidth).toInt()
                     rect.right = (colEnd * fontWidth).toInt()
                     rect.top = baselineY + fontAscent
@@ -186,7 +187,7 @@ class SearchHighlightOverlay(
         groupStart: Int,
         groupEnd: Int,
         columns: Int,
-        fontWidth: Int,
+        fontWidth: Float,
         fontLineSpacing: Int,
         fontAscent: Int,
     ) {
@@ -213,9 +214,9 @@ class SearchHighlightOverlay(
                 val colEnd = (segmentEnd - rowStart).coerceIn(0, columns)
                 if (colStart >= colEnd) continue
 
-                val x1 = (colStart * fontWidth).toFloat()
-                val x2 = (colEnd * fontWidth).toFloat()
-                val baselineY = ((index + 1) * fontLineSpacing).toFloat()
+                val x1 = colStart * fontWidth
+                val x2 = colEnd * fontWidth
+                val baselineY = (index + 1) * fontLineSpacing
                 val top = baselineY + fontAscent
 
                 val isFirstRow = segmentStart == match.start
