@@ -220,7 +220,10 @@ class SearchHighlightOverlay(
                 val x2 = colEnd * fontWidth
                 val baselineY = (index + 1) * fontLineSpacing
                 val topY = (baselineY + fontAscent).toFloat()
-                val bottomY = baselineY.toFloat()
+                // The cell ends exactly on the baseline, which left the last
+                // pixel of the row uncovered. One physical pixel of padding,
+                // not one dp: the canvas here is in pixels.
+                val bottomY = baselineY + 1f
 
                 val isFirstRow = segmentStart == match.start
                 val isLastRow = segmentEnd == match.end

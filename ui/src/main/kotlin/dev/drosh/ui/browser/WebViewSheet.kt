@@ -10,17 +10,16 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,7 +47,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.drosh.core.copyToClipboard
 import dev.drosh.core.toast
-import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
 import dev.drosh.design.system.DroshPrimary
@@ -64,7 +62,9 @@ fun WebViewSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    // Opens straight to full height. Dragging is wired to the toolbar alone,
+    // so there is no half-expanded resting state to land in.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var currentUrl by remember { mutableStateOf(url) }
     var progress by remember { mutableStateOf(0f) }
@@ -79,41 +79,39 @@ fun WebViewSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         containerColor = DroshSurface,
         tonalElevation = 0.dp,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .width(40.dp)
-                    .height(3.dp)
-                    .clip(CircleShape)
-                    .background(DroshBorderSubtle.copy(alpha = 0.4f)),
-            )
-        },
+        dragHandle = null,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .navigationBarsPadding(),
         ) {
+            // The only drag surface. Scrolling a page or selecting text inside
+            // the WebView below must never resize the sheet.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(DroshSurface)
+                    .draggable(
+                        orientation = Orientation.Vertical,
+                        state = sheetState.draggableState,
+                    )
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ToolbarIcon(
+                SheetToolbarButton(
                     icon = DroshIcons.ArrowLeft,
                     contentDescription = "Back",
                     enabled = canGoBack,
                     onClick = { webView.value?.goBack() },
                 )
-                ToolbarIcon(
+                SheetToolbarButton(
                     icon = DroshIcons.ArrowRight,
                     contentDescription = "Forward",
                     enabled = canGoForward,
                     onClick = { webView.value?.goForward() },
                 )
-                ToolbarIcon(
+                SheetToolbarButton(
                     icon = DroshIcons.RotateCw,
                     contentDescription = "Reload",
                     enabled = true,
@@ -132,14 +130,16 @@ fun WebViewSheet(
                         .padding(horizontal = 12.dp),
                 )
 
-                IconButton(
+                SheetToolbarButton(
                     icon = DroshIcons.X,
                     contentDescription = "Close browser",
+                    enabled = true,
                     onClick = onDismiss,
                 )
-                IconButton(
+                SheetToolbarButton(
                     icon = DroshIcons.EllipsisVertical,
                     contentDescription = "Browser menu",
+                    enabled = true,
                     onClick = { showMenu = true },
                 )
 
@@ -261,43 +261,31 @@ fun WebViewSheet(
     }
 }
 
+/**
+ * The one toolbar button, used by back, forward, reload, close and the menu.
+ *
+ * These were two separate composables that had drifted apart: the navigation
+ * icons were 22dp inside 10dp of padding and the trailing icons 20dp, so the
+ * row showed two different circle sizes. All five now share one 40dp circle.
+ */
 @Composable
-private fun ToolbarIcon(
+private fun SheetToolbarButton(
     icon: ImageVector,
     contentDescription: String,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
     val tint =
-        if (enabled) DroshTextSecondary else DroshTextSecondary.copy(alpha = 0.35f)
+        if (enabled) DroshText else DroshTextSecondary.copy(alpha = 0.35f)
     Icon(
         imageVector = icon,
         contentDescription = contentDescription,
         tint = tint,
         modifier = Modifier
+            .size(40.dp)
             .clip(CircleShape)
             .background(DroshSurface.copy(alpha = 0.75f), CircleShape)
             .clickable(enabled = enabled) { onClick() }
-            .padding(10.dp)
-            .size(22.dp),
-    )
-}
-
-@Composable
-private fun IconButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-) {
-    Icon(
-        imageVector = icon,
-        contentDescription = contentDescription,
-        tint = DroshText,
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(DroshSurface.copy(alpha = 0.75f), CircleShape)
-            .clickable { onClick() }
-            .padding(10.dp)
-            .size(20.dp),
+            .padding(10.dp),
     )
 }
