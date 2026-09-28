@@ -192,7 +192,9 @@ class SearchHighlightOverlay(
         fontAscent: Int,
     ) {
         val builder = StringBuilder()
-        val rowOffsets = IntArray(groupEnd - groupStart + 1)
+        // One slot per row for its start offset, plus a trailing slot holding the
+        // end of the last row, so segmentEnd can be read for any row.
+        val rowOffsets = IntArray(groupEnd - groupStart + 2)
         for (visRow in groupStart..groupEnd) {
             rowOffsets[visRow - groupStart] = builder.length
             builder.append(rowTexts[visRow] ?: "")
