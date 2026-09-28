@@ -85,7 +85,7 @@ class ExtraKeyState : StickyModifierState {
 
     /**
      * Peek the sticky state WITHOUT consuming it. UI layer uses this to
-     * paint the sticky highlight on [ExtraKeyButton]s.
+     * paint the sticky highlight on the extra-key buttons.
      *
      * Pair: `readCtrl` consumes (auto-deactivates when not locked);
      * `peekCtrl` does NOT modify state.

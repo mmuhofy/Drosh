@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Holds the bootstrap state for `BootstrapStepperScreen` and `SetupRecoveryScreen`.
+ * Holds the bootstrap state for `SetupRecoveryScreen`.
  *
  * Exposes:
  *   - [progress]         : `StateFlow<BootstrapProgress>` — feeds the stepper + recovery UI

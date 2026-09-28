@@ -70,7 +70,6 @@ import dev.drosh.ui.block.PromptBlock
 import dev.drosh.ui.block.PromptDivider
 import dev.drosh.ui.browser.WebViewSheet
 import dev.drosh.ui.input.FlatKeyBar
-import dev.drosh.ui.input.InputBarHost
 import dev.drosh.ui.input.InputBarViewModel
 import dev.drosh.ui.search.DraggableSearchBar
 import dev.drosh.ui.search.SearchScope
@@ -524,8 +523,8 @@ private fun ReadyScreen(
             /*
              * CLASSIC TERMINAL PATH
              *
-             * terminalViewRef is shared with InputBarHost so the
-             * Liquid Glass surface can sample this exact TerminalView.
+             * terminalViewRef is handed to the caller so overlays (search
+             * highlight, WebView chrome) can sample this exact TerminalView.
              */
             TerminalViewHost(
                 terminalManager = terminalManager,

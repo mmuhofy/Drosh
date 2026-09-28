@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * UI state for [InputBarHost].
+ * UI state for the terminal input bar.
  *
  * `barVisible` is the user's toggle persisted in DataStore — false on
  * first launch. `hardwareKeyboardPresent` suppresses the bar even when
@@ -24,7 +24,7 @@ import javax.inject.Inject
  * `docs/MEMORYBANK.md` §8).
  *
  * `ctrlStuck` / `altStuck` mirror the current state of
- * [StickyModifierState] so [ExtraKeyButton]s can paint the sticky
+ * [StickyModifierState] so the extra-key buttons can paint the sticky
  * highlight. These values are pushed (not pulled) by
  * [InputBarViewModel] whenever a modifier is armed or consumed.
  */
