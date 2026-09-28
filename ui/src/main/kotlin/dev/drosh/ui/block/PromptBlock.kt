@@ -43,6 +43,7 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.domain.UrlDetector
+import dev.drosh.domain.UrlDetector.UrlMatch
 import dev.drosh.domain.block.Block
 import dev.drosh.domain.block.BlockState
 import dev.drosh.ui.DroshIcons
@@ -227,13 +228,17 @@ private fun LinkifiedOutput(
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 2.dp)
             .pointerInput(text) {
+                // Only onPress is used: its parameter name and tryAwaitRelease()
+                // are stable across Compose versions, and driving the click from
+                // the release is exactly the press-then-open behaviour wanted.
                 detectTapGestures(
                     onPress = { position ->
-                        pressedUrl = urlAtPosition(position)?.url
-                        tryAwaitRelease()
+                        val match = urlAtPosition(position)
+                        pressedUrl = match?.url
+                        val released = tryAwaitRelease()
                         pressedUrl = null
+                        if (released) match?.let { onUrlClick(it.url) }
                     },
-                    onTaps = { position -> urlAtPosition(position)?.let { onUrlClick(it.url) } },
                 )
             },
     )

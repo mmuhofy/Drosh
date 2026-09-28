@@ -217,18 +217,19 @@ class SearchHighlightOverlay(
                 val x1 = colStart * fontWidth
                 val x2 = colEnd * fontWidth
                 val baselineY = (index + 1) * fontLineSpacing
-                val top = baselineY + fontAscent
+                val topY = (baselineY + fontAscent).toFloat()
+                val bottomY = baselineY.toFloat()
 
                 val isFirstRow = segmentStart == match.start
                 val isLastRow = segmentEnd == match.end
                 if (isFirstRow && isLastRow) {
-                    canvas.drawRoundRect(x1, top, x2, baselineY, 4f, 4f, urlBackgroundPaint)
+                    canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint)
                 } else if (isFirstRow) {
-                    canvas.drawRoundRect(x1, top, x2, baselineY, 4f, 4f, urlBackgroundPaint, 4f, 4f, 0f, 0f)
+                    canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint, 4f, 4f, 0f, 0f)
                 } else if (isLastRow) {
-                    canvas.drawRoundRect(x1, top, x2, baselineY, 4f, 4f, 0f, 0f, 4f, 4f)
+                    canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint, 0f, 0f, 4f, 4f)
                 } else {
-                    canvas.drawRect(x1, top, x2, baselineY, urlBackgroundPaint)
+                    canvas.drawRect(x1, topY, x2, bottomY, urlBackgroundPaint)
                 }
             }
         }
