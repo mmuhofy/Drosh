@@ -46,6 +46,7 @@ fun DroshDropdownMenu(
     onItemClick: (DroshMenuItem) -> Unit,
     offset: DpOffset = DpOffset(0.dp, 4.dp),
     modifier: Modifier = Modifier,
+    width: Dp? = null,
 ) {
     DropdownMenu(
         expanded         = expanded,
@@ -55,7 +56,9 @@ fun DroshDropdownMenu(
         containerColor   = DroshSurfaceVariant,
         modifier         = modifier
             .background(DroshSurfaceVariant)
-            .widthIn(min = MIN_MENU_WIDTH, max = MAX_MENU_WIDTH),
+            .widthIn(min = MIN_MENU_WIDTH, max = MAX_MENU_WIDTH)
+            // Applied last so a caller pinning a width wins over the min/max range.
+            .then(if (width != null) Modifier.width(width) else Modifier),
     ) {
         items.forEachIndexed { index, item ->
             if (item.dividerBefore && index != 0) {

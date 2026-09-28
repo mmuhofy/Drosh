@@ -16,6 +16,7 @@ package dev.drosh.terminal
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
+import android.view.MotionEvent
 import android.view.View
 import com.termux.view.TerminalView
 import dev.drosh.domain.UrlDetector
@@ -24,9 +25,34 @@ class SearchHighlightOverlay(
     context: android.content.Context,
 ) : View(context, null) {
 
+    /** Physical pixels of bleed added above and below a URL highlight. */
+    private val urlHighlightPadding =
+        android.util.TypedValue.applyDimension(
+            android.util.TypedValue.COMPLEX_UNIT_PX,
+            1f,
+            context.resources.displayMetrics,
+        )
+
     var terminalView: TerminalView? = null
     var searchQuery: String? = null
     var showUrlHighlights: Boolean = true
+
+    /**
+     * The link currently held down, and the only one that gets a surface.
+     *
+     * The terminal has already painted each cell in whatever colour the running
+     * program chose, and a canvas overlay cannot recolour it, so a permanent
+     * highlight is the only decoration available. Painting it only while the
+     * link is pressed keeps resting output unmarked and matches how the block
+     * engine renders links: accent text, surface on press.
+     */
+    var pressedUrl: String? = null
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
 
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -118,6 +144,28 @@ class SearchHighlightOverlay(
         invalidate()
     }
 
+    /**
+     * Tracks which link a finger is holding. Returns false so the terminal
+     * still receives the event and keeps its own touch handling.
+     */
+    fun onTerminalTouch(event: MotionEvent): Boolean {
+        val view = terminalView ?: return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                val cell = view.getColumnAndRow(event, false) ?: return false
+                val col = cell[0]
+                val row = cell[1]
+                if (col < 0 || row < 0) {
+                    pressedUrl = null
+                    return false
+                }
+                pressedUrl = urlAtCell(view.mTopRow + row, col)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pressedUrl = null
+        }
+        return false
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
@@ -154,14 +202,15 @@ class SearchHighlightOverlay(
                     rect.left = (colStart * fontWidth).toInt()
                     rect.right = (colEnd * fontWidth).toInt()
                     rect.top = baselineY + fontAscent
-                    rect.bottom = baselineY + fontLineSpacing
+                    rect.bottom = rect.top + fontLineSpacing
                     canvas.drawRect(rect, highlightPaint)
                     start = matchEnd
                 }
             }
         }
 
-        if (!showUrlHighlights) return
+        val pressed = pressedUrl
+        if (!showUrlHighlights || pressed == null) return
 
         var groupStart = 0
         while (groupStart < rows) {
@@ -169,7 +218,7 @@ class SearchHighlightOverlay(
             while (groupEnd < rows && rowContinues[groupEnd] && rowTexts[groupEnd] != null) groupEnd++
 
             if (groupEnd > groupStart) {
-                drawLogicalLineUrls(canvas, rowTexts, groupStart, groupEnd, columns, fontWidth, fontLineSpacing, fontAscent)
+                drawLogicalLineUrls(canvas, rowTexts, groupStart, groupEnd, columns, fontWidth, fontLineSpacing, fontAscent, pressed)
             }
             groupStart = groupEnd + 1
         }
@@ -190,6 +239,7 @@ class SearchHighlightOverlay(
         fontWidth: Float,
         fontLineSpacing: Int,
         fontAscent: Int,
+        pressed: String,
     ) {
         val builder = StringBuilder()
         // One slot per row for its start offset, plus a trailing slot holding the
@@ -205,6 +255,7 @@ class SearchHighlightOverlay(
         if (logicalText.isEmpty()) return
 
         for (match in UrlDetector.findUrls(logicalText)) {
+            if (match.url != pressed) continue
             for (index in groupStart..groupEnd) {
                 val rowStart = rowOffsets[index - groupStart]
                 val rowEnd = rowOffsets[index - groupStart + 1]
@@ -219,11 +270,11 @@ class SearchHighlightOverlay(
                 val x1 = colStart * fontWidth
                 val x2 = colEnd * fontWidth
                 val baselineY = (index + 1) * fontLineSpacing
-                val topY = (baselineY + fontAscent).toFloat()
-                // The cell ends exactly on the baseline, which left the last
-                // pixel of the row uncovered. One physical pixel of padding,
-                // not one dp: the canvas here is in pixels.
-                val bottomY = baselineY + 1f
+                // The cell already has leading above the glyphs, so the surface
+                // looked padded at the top and flush at the bottom. One physical
+                // pixel (the canvas is in pixels) on each side evens that out.
+                val topY = (baselineY + fontAscent - urlHighlightPadding).toFloat()
+                val bottomY = baselineY + urlHighlightPadding
 
                 val isFirstRow = segmentStart == match.start
                 val isLastRow = segmentEnd == match.end

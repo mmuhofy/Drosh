@@ -980,6 +980,12 @@ private fun TerminalViewHost(
             // Let taps resolve against the overlay's logical lines so a URL the
             // terminal wrapped across rows opens whole.
             viewClient.urlHighlightOverlay = overlay
+            // Feed raw touches to the overlay so a held link can show its
+            // surface. Returning false leaves the terminal's own handling intact.
+            tv.setOnTouchListener { _, event ->
+                overlay.onTerminalTouch(event)
+                false
+            }
 
             frameLayout.addView(tv)
             frameLayout.addView(overlay)

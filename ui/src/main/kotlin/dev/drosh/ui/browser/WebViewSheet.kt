@@ -16,10 +16,10 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -42,12 +42,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -61,10 +64,23 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.ui.DroshIcons
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
-/** How far the toolbar must be dragged down before the sheet closes. */
-private const val DISMISS_DRAG_THRESHOLD = 96f
+/** Snapping points for the sheet, as a fraction of screen height. */
+private const val SHEET_HALF = 0.5f
+private const val SHEET_FULL = 1f
+
+/** Dragging down from the half point far enough closes the sheet. */
+private const val DISMISS_FRACTION = 0.25f
+
+/** Toolbar button circle size, used to right-align the overflow menu. */
+private val TOOLBAR_BUTTON_SIZE = 40.dp
+
+/** Overflow menu width, used to right-align it under the button. */
+private val MENU_WIDTH = 190.dp
+
+/** Nearest snap point to [fraction]. */
+private fun settleTarget(fraction: Float): Float =
+    if (fraction >= (SHEET_HALF + SHEET_FULL) / 2f) SHEET_FULL else SHEET_HALF
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,30 +100,35 @@ fun WebViewSheet(
     val webView = remember { mutableStateOf<WebView?>(null) }
 
     // Material3 keeps its AnchoredDraggableState internal, so the sheet cannot
-    // be handed a drag gesture from outside. The sheet's own drag is switched
-    // off and the toolbar drives a drag itself: the content follows the finger
-    // down, and releasing past the threshold dismisses.
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    // be handed a drag gesture from outside. Its own gesture is switched off
+    // and the toolbar drives the height instead: drag down and it rests at
+    // half, drag to the top and it goes full, drag down from half and it
+    // closes. The sheet stays transparent so the terminal shows through the
+    // gap the drag opens up.
+    val screenHeightPx = with(LocalDensity.current) {
+        LocalConfiguration.current.screenHeightDp.dp.toPx()
+    }
+    var dragFraction by remember { mutableFloatStateOf(SHEET_FULL) }
     var dragging by remember { mutableStateOf(false) }
-    val settleOffset by animateFloatAsState(
-        targetValue = if (dragging) dragOffset else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "sheetSettle",
+    val sheetFraction by animateFloatAsState(
+        targetValue = if (dragging) dragFraction else settleTarget(dragFraction),
+        animationSpec = tween(durationMillis = 200),
+        label = "sheetHeight",
     )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = DroshSurface,
+        containerColor = Color.Transparent,
         tonalElevation = 0.dp,
         dragHandle = null,
         sheetGesturesEnabled = false,
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .offset { IntOffset(0, settleOffset.roundToInt()) }
+                .fillMaxHeight(sheetFraction.coerceIn(0.05f, 1f))
+                .background(DroshSurface)
                 .navigationBarsPadding(),
         ) {
             // The only drag surface. Scrolling a page or selecting text inside
@@ -118,27 +139,27 @@ fun WebViewSheet(
                     .background(DroshSurface)
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(
-                            onDragStart = {
-                                dragging = true
-                                dragOffset = settleOffset
-                            },
+                            onDragStart = { dragging = true },
                             onVerticalDrag = { _, delta ->
-                                dragOffset = (dragOffset + delta).coerceAtLeast(0f)
+                                dragFraction =
+                                    (dragFraction - delta / screenHeightPx)
+                                        .coerceIn(0f, 1f)
                             },
                             onDragEnd = {
                                 dragging = false
-                                if (dragOffset > DISMISS_DRAG_THRESHOLD) {
-                                    scope.launch {
-                                        sheetState.hide()
-                                        onDismiss()
+                                when {
+                                    dragFraction < DISMISS_FRACTION -> {
+                                        scope.launch {
+                                            sheetState.hide()
+                                            onDismiss()
+                                        }
                                     }
-                                } else {
-                                    dragOffset = 0f
+                                    else -> dragFraction = settleTarget(dragFraction)
                                 }
                             },
                             onDragCancel = {
                                 dragging = false
-                                dragOffset = 0f
+                                dragFraction = settleTarget(dragFraction)
                             },
                         )
                     }
@@ -182,44 +203,54 @@ fun WebViewSheet(
                     enabled = true,
                     onClick = onDismiss,
                 )
-                SheetToolbarButton(
-                    icon = DroshIcons.EllipsisVertical,
-                    contentDescription = "Browser menu",
-                    enabled = true,
-                    onClick = { showMenu = true },
-                )
+                // The menu anchors to the button, not to the row, and is shifted
+                // left by the width difference so its right edge lines up with
+                // the button instead of hanging off the screen.
+                Box {
+                    SheetToolbarButton(
+                        icon = DroshIcons.EllipsisVertical,
+                        contentDescription = "Browser menu",
+                        enabled = true,
+                        onClick = { showMenu = true },
+                    )
 
-                DroshDropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    items = listOf(
-                        DroshMenuItem(label = "Copy URL", icon = DroshIcons.Copy),
-                        DroshMenuItem(
-                            label = "Open in Browser",
-                            icon = DroshIcons.Globe,
-                            dividerBefore = true,
+                    DroshDropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        width = MENU_WIDTH,
+                        offset = DpOffset(
+                            x = -(MENU_WIDTH - TOOLBAR_BUTTON_SIZE),
+                            y = 4.dp,
                         ),
-                        DroshMenuItem(label = "Reload", icon = DroshIcons.RotateCw),
-                    ),
-                    onItemClick = { item ->
-                        showMenu = false
-                        when (item.label) {
-                            "Copy URL" -> {
-                                context.copyToClipboard("URL", currentUrl)
-                                context.toast("URL copied")
+                        items = listOf(
+                            DroshMenuItem(label = "Copy URL", icon = DroshIcons.Copy),
+                            DroshMenuItem(
+                                label = "Open in Browser",
+                                icon = DroshIcons.Globe,
+                                dividerBefore = true,
+                            ),
+                            DroshMenuItem(label = "Reload", icon = DroshIcons.RotateCw),
+                        ),
+                        onItemClick = { item ->
+                            showMenu = false
+                            when (item.label) {
+                                "Copy URL" -> {
+                                    context.copyToClipboard("URL", currentUrl)
+                                    context.toast("URL copied")
+                                }
+                                "Open in Browser" -> {
+                                    val intent =
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(intent)
+                                }
+                                "Reload" -> {
+                                    webView.value?.reload()
+                                }
                             }
-                            "Open in Browser" -> {
-                                val intent =
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            }
-                            "Reload" -> {
-                                webView.value?.reload()
-                            }
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             }
 
             if (progress < 1f) {
@@ -254,7 +285,11 @@ fun WebViewSheet(
                             settings.userAgentString = "Drosh/1.0"
 
                             setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            // The sheet container is transparent so the terminal
+                            // shows through while the sheet is dragged down, so
+                            // the page needs its own opaque backdrop to stay
+                            // readable.
+                            setBackgroundColor(DroshSurface.toArgb())
 
                             webView.value = this
 
@@ -328,7 +363,7 @@ private fun SheetToolbarButton(
         contentDescription = contentDescription,
         tint = tint,
         modifier = Modifier
-            .size(40.dp)
+            .size(TOOLBAR_BUTTON_SIZE)
             .clip(CircleShape)
             .background(DroshSurface.copy(alpha = 0.75f), CircleShape)
             .clickable(enabled = enabled) { onClick() }
