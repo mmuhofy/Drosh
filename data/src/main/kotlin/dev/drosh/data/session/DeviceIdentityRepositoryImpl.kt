@@ -6,6 +6,7 @@ import android.provider.Settings
 import de.boehrsi.devicemarketingnames.DeviceMarketingNames
 import dev.drosh.domain.session.DeviceIdentity
 import dev.drosh.domain.session.DeviceIdentityRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import android.os.Build
@@ -33,7 +34,7 @@ import android.os.Build
  */
 @Singleton
 class DeviceIdentityRepositoryImpl @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
     private val visualRepository: WikidataDeviceVisualRepository,
 ) : DeviceIdentityRepository {
 
