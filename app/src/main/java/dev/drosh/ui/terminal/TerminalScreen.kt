@@ -59,6 +59,7 @@ import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
+import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.terminal.SearchHighlightOverlay
 import dev.drosh.terminal.TerminalManager
