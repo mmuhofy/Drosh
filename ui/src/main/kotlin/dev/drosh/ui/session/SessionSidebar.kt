@@ -1,20 +1,14 @@
 package dev.drosh.ui.session
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -41,6 +34,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,12 +58,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
@@ -513,7 +507,7 @@ private fun SessionRow(
         DropdownMenu(
             expanded = menuOpen,
             onDismissRequest = { menuOpen = false },
-            offset = androidx.compose.ui.unit.DpOffset(20.dp, 0.dp),
+            offset = DpOffset(20.dp, 0.dp),
             shape = RoundedCornerShape(20.dp),
             containerColor = DroshSurfaceVariant,
             tonalElevation = 0.dp,
@@ -625,7 +619,7 @@ private fun SearchField(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffectFocus(focusRequester)
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     Row(
         modifier = modifier
@@ -658,13 +652,6 @@ private fun SearchField(
                     .focusRequester(focusRequester),
             )
         }
-    }
-}
-
-@Composable
-private fun LaunchedEffectFocus(focusRequester: FocusRequester) {
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
     }
 }
 
