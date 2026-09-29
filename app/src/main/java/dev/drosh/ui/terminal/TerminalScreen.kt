@@ -773,6 +773,7 @@ private fun ReadyScreen(
             sidebarOpen = false
         },
         onOpenSettings = onOpenSettings,
+        onOpenAgent = onOpenAgent,
         pushState = sidebarPush,
     )
     }

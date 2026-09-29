@@ -4,12 +4,12 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -29,14 +30,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,8 +56,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -64,12 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.domain.session.SessionSnapshot
-import dev.drosh.domain.session.SessionState
-import dev.drosh.ui.DroshIcons
-import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSuccess
 import dev.drosh.design.system.DroshSurface
@@ -77,12 +71,24 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.domain.session.SessionSnapshot
+import dev.drosh.domain.session.SessionState
+import dev.drosh.ui.DroshIcons
 
 /**
- * Slide-in sol sidebar — push/translate layout, DeepSeek referansı.
- * Sidebar sabit genişlikte translateX ile kayıyor; terminal tarafı
- * [rememberSidebarPushState] + [Modifier.sidebarPush] ile aynı ilerlemeyi
- * kullanıp eş zamanlı kayıyor. Fade/scale/spring yok, sade tween.
+ * Slide-in sidebar — a push/translate layout, so the terminal behind slides
+ * by the same amount rather than being covered by a scrim.
+ *
+ * Visual structure follows the flat drawer that large chat and terminal apps
+ * converge on, and the colours were measured from a comparable app rather
+ * than picked: the panel sits one step *above* the content behind it, and
+ * only the interactive elements inside it step up again. The previous
+ * version put the panel on the second-highest surface, which left the whole
+ * drawer looking washed out and made the pills inside it disappear into it.
+ *
+ * Rows are flat — no card per session, no trailing action buttons. Rename
+ * and delete live behind a long press, which is the platform idiom for this
+ * and keeps the row itself clean.
  */
 @Composable
 fun rememberSidebarPushState(isOpen: Boolean): SidebarPushState {
@@ -90,7 +96,7 @@ fun rememberSidebarPushState(isOpen: Boolean): SidebarPushState {
     val config = LocalConfiguration.current
     val sidebarWidth = remember(config) {
         val sw = config.screenWidthDp
-        if (sw > 0) (sw * 0.68f).coerceAtMost(320f).dp else 280.dp
+        if (sw > 0) (sw * 0.78f).coerceIn(260f, 340f).dp else 300.dp
     }
     val sidebarWidthPx = with(density) { sidebarWidth.toPx() }
     val pushProgress by animateFloatAsState(
@@ -106,11 +112,11 @@ class SidebarPushState internal constructor(
     val width: Dp,
     val widthPx: Float,
 ) {
-    var progress by androidx.compose.runtime.mutableFloatStateOf(0f)
+    var progress by mutableFloatStateOf(0f)
         internal set
 }
 
-/** Terminal tarafının uygulaması gereken translateX modifier'ı. */
+/** The translate the terminal applies to stay in step with the drawer. */
 fun Modifier.sidebarPush(state: SidebarPushState): Modifier = this.graphicsLayer {
     translationX = state.progress * state.widthPx
 }
@@ -120,25 +126,19 @@ fun SessionSidebar(
     isOpen: Boolean,
     onDismiss: () -> Unit,
     onOpenSettings: () -> Unit,
-    userDisplayName: String = "User",
-    userInitials: String = userDisplayName.take(2).uppercase(),
+    onOpenAgent: () -> Unit = {},
     pushState: SidebarPushState? = null,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
     val state = pushState ?: rememberSidebarPushState(isOpen)
-    val pushProgress = state.progress
-    val sidebarWidthPx = state.widthPx
-    val sidebarW = state.width
 
     Box(
         modifier = Modifier
             .fillMaxHeight()
-            .width(sidebarW)
-            .graphicsLayer {
-                translationX = (pushProgress - 1f) * sidebarWidthPx
-            }
+            .width(state.width)
+            .graphicsLayer { translationX = (state.progress - 1f) * state.widthPx }
             .zIndex(1f)
-            .background(DroshSurfaceVariant)
+            .background(DroshSurface)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -148,8 +148,7 @@ fun SessionSidebar(
         SidebarContent(
             viewModel = viewModel,
             onOpenSettings = onOpenSettings,
-            userDisplayName = userDisplayName,
-            userInitials = userInitials,
+            onOpenAgent = onOpenAgent,
         )
     }
 }
@@ -158,8 +157,7 @@ fun SessionSidebar(
 private fun SidebarContent(
     viewModel: SessionSwitcherViewModel,
     onOpenSettings: () -> Unit,
-    userDisplayName: String,
-    userInitials: String,
+    onOpenAgent: () -> Unit,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
@@ -171,381 +169,419 @@ private fun SidebarContent(
     val filtered = remember(sessions, searchQuery) {
         if (searchQuery.isBlank()) sessions else sessions.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
-    val activeSession = filtered.firstOrNull { it.id == activeId }
-    val recentSessions = filtered.filter { it.id != activeId }
-    val endedCount = filtered.count { it.state == SessionState.Closed }
+    val live = filtered.filter { it.state != SessionState.Closed }
+    val ended = filtered.filter { it.state == SessionState.Closed }
+    val active = filtered.firstOrNull { it.id == activeId }
 
     fun commitRename() {
         val id = renamingSessionId
-        val newName = renameValue.trim()
-        if (id != null && newName.isNotEmpty()) {
-            viewModel.rename(id, newName)
-        }
+        val name = renameValue.trim()
+        if (id != null && name.isNotEmpty()) viewModel.rename(id, name)
         renamingSessionId = null
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DroshSurfaceVariant),
+            .statusBarsPadding(),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+        SidebarHeader(onNewSession = { viewModel.createNew("shell") })
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(bottom = 8.dp),
         ) {
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp),
-            )
+            item(key = "nav_new") {
+                NavRow(DroshIcons.Plus, "New session") {
+                    viewModel.createNew("shell")
+                }
+            }
+            item(key = "nav_agent") {
+                NavRow(DroshIcons.SquareTerminal, "Agent", onOpenAgent)
+            }
+            item(key = "nav_settings") {
+                NavRow(DroshIcons.Settings, "Settings", onOpenSettings)
+            }
 
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp)
-                    .padding(top = 10.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item(key = "sessions_header") {
+                SectionLabel("SESSIONS", sessions.size.takeIf { it > 0 }?.let { "$it" })
+            }
+
+            if (live.isEmpty()) {
+                item(key = "live_empty") {
                     Text(
-                        text = "Drosh",
-                        color = DroshText,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 17.sp,
-                    )
-                    Box(
+                        text = if (searchQuery.isBlank()) "No open sessions" else "No results",
+                        color = DroshTextMuted,
+                        fontSize = 13.sp,
                         modifier = Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(DroshSuccess),
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
                     )
                 }
-                NewSessionButton(onClick = { viewModel.createNew("shell") })
+            } else {
+                items(live.size, key = { "live_${live[it].id}" }) { index ->
+                    val snapshot = live[index]
+                    SessionRow(
+                        snapshot = snapshot,
+                        isActive = snapshot.id == activeId,
+                        isRenaming = renamingSessionId == snapshot.id,
+                        renameValue = renameValue,
+                        onRenameValueChange = { renameValue = it },
+                        onRenameCommit = { commitRename() },
+                        onClick = { viewModel.activate(snapshot.id) },
+                        onStartRename = {
+                            renamingSessionId = snapshot.id
+                            renameValue = snapshot.name
+                        },
+                        onDelete = { viewModel.delete(snapshot.id) },
+                    )
+                }
             }
 
-            // Search bar — tam pill
-            PillSearchField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp)
-                    .padding(bottom = 12.dp),
+            if (ended.isNotEmpty()) {
+                item(key = "ended_header") {
+                    SectionLabel("ENDED", null, "clear ${ended.size}") { viewModel.purgeEnded() }
+                }
+                items(ended.size, key = { "ended_${ended[it].id}" }) { index ->
+                    val snapshot = ended[index]
+                    SessionRow(
+                        snapshot = snapshot,
+                        isActive = false,
+                        isRenaming = renamingSessionId == snapshot.id,
+                        renameValue = renameValue,
+                        onRenameValueChange = { renameValue = it },
+                        onRenameCommit = { commitRename() },
+                        onClick = {},
+                        onStartRename = {
+                            renamingSessionId = snapshot.id
+                            renameValue = snapshot.name
+                        },
+                        onDelete = { viewModel.delete(snapshot.id) },
+                    )
+                }
+            }
+        }
+
+        SidebarFooter(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            onOpenSettings = onOpenSettings,
+        )
+    }
+}
+
+@Composable
+private fun SidebarHeader(onNewSession: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 14.dp)
+            .padding(top = 12.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(DroshSurfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = DroshIcons.Terminal,
+                contentDescription = null,
+                tint = DroshPrimary,
+                modifier = Modifier.size(17.dp),
             )
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "Drosh",
+            color = DroshText,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 17.sp,
+            modifier = Modifier.weight(1f),
+        )
+        CircleButton(
+            onClick = onNewSession,
+            contentDescription = "New session",
+            icon = DroshIcons.Plus,
+        )
+    }
+}
 
-            // Body
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                if (activeSession != null) {
-                    val activeEnded = activeSession.state == SessionState.Closed
-                    item(key = "active_header") {
-                        SectionHeader(
-                            label = "ACTIVE",
-                            // A session whose process is gone is not "live",
-                            // however it came to be the recorded active one.
-                            trailing = if (activeEnded) "ended" else "live",
-                            trailingColor = if (activeEnded) DroshTextMuted else DroshPrimary,
-                        )
-                    }
-                    item(key = "active_${activeSession.id}") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(DroshSurface),
-                        ) {
-                            SessionRow(
-                                snapshot = activeSession,
-                                isActive = !activeEnded,
-                                dotColor = if (activeEnded) DroshError.copy(alpha = 0.55f) else DroshSuccess,
-                                trailingText = if (activeEnded) "ended" else "now",
-                                trailingColor = if (activeEnded) DroshTextMuted else DroshPrimary,
-                                rowBackground = if (activeEnded) {
-                                    Color.Transparent
-                                } else {
-                                    DroshPrimary.copy(alpha = 0.12f)
-                                },
-                                isRenaming = renamingSessionId == activeSession.id,
-                                renameValue = renameValue,
-                                onRenameValueChange = { renameValue = it },
-                                onRenameCommit = { commitRename() },
-                                onClick = { if (renamingSessionId == null) viewModel.activate(activeSession.id) },
-                                onStartRename = {
-                                    renamingSessionId = activeSession.id
-                                    renameValue = activeSession.name
-                                },
-                                onDelete = { viewModel.delete(activeSession.id) },
-                            )
-                        }
-                    }
-                }
+/** A flat icon + label row. The whole 48dp band is the target. */
+@Composable
+private fun NavRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = onClick,
+            )
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = DroshTextSecondary,
+            modifier = Modifier.size(19.dp),
+        )
+        Text(
+            text = label,
+            color = DroshText,
+            fontSize = 15.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
-                if (recentSessions.isNotEmpty()) {
-                    item(key = "recent_header") {
-                        SectionHeader(
-                            label = "RECENT",
-                            trailing = null,
-                            // Rows for ended sessions are history, so they pile
-                            // up forever without an explicit way to clear them.
-                            action = if (endedCount > 0) "clear $endedCount ended" else null,
-                            onAction = { viewModel.purgeEnded() },
-                        )
-                    }
-                    item(key = "recent_list") {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(DroshSurface.copy(alpha = 0.6f)),
-                        ) {
-                            recentSessions.forEachIndexed { index, snapshot ->
-                                if (index > 0) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(1.dp)
-                                            .background(DroshBorderSubtle),
-                                    )
-                                }
-                                SessionRow(
-                                    snapshot = snapshot,
-                                    isActive = false,
-                                    dotColor = DroshTextMuted,
-                                    trailingText = null,
-                                    trailingColor = DroshTextMuted,
-                                    rowBackground = Color.Transparent,
-                                    isRenaming = renamingSessionId == snapshot.id,
-                                    renameValue = renameValue,
-                                    onRenameValueChange = { renameValue = it },
-                                    onRenameCommit = { commitRename() },
-                                    onClick = {
-                                        // An ended session has no process behind
-                                        // it, so activating it would be a silent
-                                        // no-op. Deleting it is the way out.
-                                        if (renamingSessionId == null &&
-                                            snapshot.state != SessionState.Closed
-                                        ) {
-                                            viewModel.activate(snapshot.id)
-                                        }
-                                    },
-                                    onStartRename = {
-                                        renamingSessionId = snapshot.id
-                                        renameValue = snapshot.name
-                                    },
-                                    onDelete = { viewModel.delete(snapshot.id) },
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (filtered.isEmpty()) {
-                    item(key = "empty") {
-                        Text(
-                            text = if (searchQuery.isBlank()) "No active sessions" else "No results",
-                            color = DroshTextMuted,
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 24.dp),
-                        )
-                    }
-                }
-
-                item(key = "bottom_spacer") { Spacer(Modifier.height(4.dp)) }
-            }
-
-            // Bottom profile row
-            Row(
+@Composable
+private fun SectionLabel(
+    label: String,
+    trailing: String?,
+    action: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp)
+            .padding(top = 20.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            color = DroshTextMuted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.8.sp,
+            modifier = Modifier.weight(1f),
+        )
+        if (action != null && onAction != null) {
+            Text(
+                text = action,
+                color = DroshPrimary,
+                fontSize = 11.sp,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp)
-                    .padding(top = 8.dp, bottom = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onOpenSettings() }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(DroshSurface),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(text = userInitials, color = DroshText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                    }
-                    Text(
-                        text = userDisplayName,
-                        color = DroshText,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = onAction,
                     )
-                }
-                HoverIconButton(
-                    onClick = onOpenSettings,
-                    contentDescription = "Settings",
-                    icon = DroshIcons.Settings,
-                    tint = DroshTextSecondary,
-                    iconSize = 18.dp,
-                    buttonSize = 24.dp,
-                )
-            }
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+            )
+        } else if (trailing != null) {
+            Text(text = trailing, color = DroshTextMuted, fontSize = 11.sp)
         }
     }
 }
 
-/**
- * "New" butonu — pill CTA, press'te scale(0.94f) + spring geri sekme.
- * HoverIconButton'daki press/hover interaction pattern'in aynısı, buraya
- * taşındı çünkü artık dedicated bir composable'a ihtiyacı var (Row + Icon +
- * Text birlikte scale'lenmeli).
- */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NewSessionButton(onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val hovered by interactionSource.collectIsHoveredAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.94f else if (hovered) 1.03f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
-        label = "newButtonScale",
-    )
+private fun SessionRow(
+    snapshot: SessionSnapshot,
+    isActive: Boolean,
+    isRenaming: Boolean,
+    renameValue: String,
+    onRenameValueChange: (String) -> Unit,
+    onRenameCommit: () -> Unit,
+    onClick: () -> Unit,
+    onStartRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val ended = snapshot.state == SessionState.Closed
+    val focusRequester = remember { FocusRequester() }
+    var hasFocusedOnce by remember(snapshot.id, isRenaming) { mutableStateOf(false) }
+
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .then(
+                    if (isRenaming) {
+                        Modifier
+                    } else {
+                        Modifier.combinedClickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onClick,
+                            onLongClick = { menuOpen = true },
+                        )
+                    }
+                )
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // Only live sessions carry a status dot; an ended one is already
+            // marked by being struck through and grouped under ENDED.
+            if (!ended) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(if (isActive) DroshSuccess else DroshTextMuted),
+                )
+            }
+            if (isRenaming) {
+                BasicTextField(
+                    value = renameValue,
+                    onValueChange = onRenameValueChange,
+                    singleLine = true,
+                    textStyle = TextStyle(color = DroshText, fontSize = 15.sp),
+                    cursorBrush = SolidColor(DroshPrimary),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { st ->
+                            if (st.isFocused) hasFocusedOnce = true
+                            else if (hasFocusedOnce) onRenameCommit()
+                        },
+                )
+            } else {
+                Text(
+                    text = snapshot.name,
+                    color = if (isActive) DroshText else DroshText.copy(alpha = 0.86f),
+                    fontSize = 15.sp,
+                    fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
+                    textDecoration = if (ended) TextDecoration.LineThrough else TextDecoration.None,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            containerColor = DroshSurfaceVariant,
+        ) {
+            DropdownMenuItem(
+                text = { Text("Rename", color = DroshText, fontSize = 14.sp) },
+                onClick = {
+                    menuOpen = false
+                    onStartRename()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Delete", color = DroshError, fontSize = 14.sp) },
+                onClick = {
+                    menuOpen = false
+                    onDelete()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SidebarFooter(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     Row(
         modifier = Modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(RoundedCornerShape(50))
-            .background(DroshPrimary)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .fillMaxWidth()
+            .background(DroshSurface)
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp)
+            .padding(top = 10.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(
-            imageVector = DroshIcons.Plus,
-            contentDescription = "New session",
-            tint = DroshOnPrimary,
-            modifier = Modifier.size(14.dp),
+        SearchPill(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
         )
-        Text(
-            text = "New",
-            color = DroshOnPrimary,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
+        CircleButton(
+            onClick = onOpenSettings,
+            contentDescription = "Settings",
+            icon = DroshIcons.Settings,
         )
     }
 }
 
-/**
- * Tam pill search field. Focus state gerçekten yönetiliyor: boşta ince
- * transparan border, focus'ta DroshPrimary border belirir (spring ile
- * yumuşak geçiş).
- */
 @Composable
-private fun PillSearchField(
+private fun SearchPill(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val borderColor by animateFloatAsState(
-        targetValue = if (isFocused) 1f else 0f,
-        animationSpec = spring(stiffness = Spring.StiffnessMedium),
-        label = "searchBorder",
-    )
+    val focused by interactionSource.collectIsFocusedAsState()
 
-    Surface(
+    Row(
         modifier = modifier
-            .height(40.dp)
-            .border(
-                width = 1.dp,
-                color = DroshPrimary.copy(alpha = 0.35f * borderColor)
-                    .let { if (borderColor == 0f) DroshBorderSubtle.copy(alpha = 0.25f) else it },
-                shape = RoundedCornerShape(50),
-            ),
-        shape = RoundedCornerShape(50),
-        color = DroshSurface,
-        tonalElevation = 2.dp,
+            .height(42.dp)
+            .clip(RoundedCornerShape(50))
+            .background(DroshSurfaceVariant)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                imageVector = DroshIcons.Search,
-                contentDescription = null,
-                tint = DroshTextSecondary,
-                modifier = Modifier.size(14.dp),
-            )
-            Box(modifier = Modifier.fillMaxWidth()) {
-                if (value.isEmpty()) {
-                    Text(
-                        text = "Search sessions...",
-                        color = DroshTextMuted,
-                        fontSize = 13.sp,
-                    )
-                }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    singleLine = true,
-                    textStyle = TextStyle(color = DroshText, fontSize = 13.sp),
-                    cursorBrush = SolidColor(DroshPrimary),
-                    interactionSource = interactionSource,
-                    modifier = Modifier.fillMaxWidth(),
+        Icon(
+            imageVector = DroshIcons.Search,
+            contentDescription = null,
+            tint = DroshTextMuted,
+            modifier = Modifier.size(16.dp),
+        )
+        Box(modifier = Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(
+                    text = "Search sessions",
+                    color = DroshTextMuted,
+                    fontSize = 14.sp,
                 )
             }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
+                cursorBrush = SolidColor(DroshPrimary),
+                interactionSource = interactionSource,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
 
 @Composable
-private fun HoverIconButton(
+private fun CircleButton(
     onClick: () -> Unit,
     contentDescription: String,
     icon: ImageVector,
-    tint: Color = DroshTextSecondary,
-    iconSize: Dp = 14.dp,
-    buttonSize: Dp = 24.dp,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val hovered by interactionSource.collectIsHoveredAsState()
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.9f else if (hovered) 1.2f else 1f,
+        targetValue = if (pressed) 0.9f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
         ),
-        label = "iconScale",
+        label = "circleButtonScale",
     )
     Box(
         modifier = Modifier
-            .size(buttonSize)
+            .size(42.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(CircleShape)
+            .background(DroshSurfaceVariant)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -556,183 +592,8 @@ private fun HoverIconButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier
-                .size(iconSize)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                },
+            tint = DroshTextSecondary,
+            modifier = Modifier.size(19.dp),
         )
     }
 }
-
-@Composable
-private fun SectionHeader(
-    label: String,
-    trailing: String?,
-    action: String? = null,
-    onAction: (() -> Unit)? = null,
-    trailingColor: Color = DroshPrimary,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            color = DroshTextMuted,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 0.6.sp,
-        )
-        if (action != null && onAction != null) {
-            Text(
-                text = action,
-                color = DroshPrimary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable(onClick = onAction),
-            )
-        } else if (trailing != null) {
-            Text(
-                text = trailing,
-                color = trailingColor,
-                fontSize = 11.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SessionRow(
-    snapshot: SessionSnapshot,
-    isActive: Boolean,
-    dotColor: Color,
-    trailingText: String?,
-    trailingColor: Color,
-    rowBackground: Color,
-    isRenaming: Boolean,
-    renameValue: String,
-    onRenameValueChange: (String) -> Unit,
-    onRenameCommit: () -> Unit,
-    onClick: () -> Unit,
-    onStartRename: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val focusRequester = remember { FocusRequester() }
-    // Gerçekten focus alındıktan sonra kaybedilirse commit et — ilk
-    // kompozisyondaki "henüz focus yok" (isFocused=false) sinyaliyle
-    // yanlışlıkla anında commit edilmesin diye bu bayrak tutuluyor.
-    var hasFocusedOnce by remember(snapshot.id, isRenaming) { mutableStateOf(false) }
-
-    LaunchedEffect(isRenaming) {
-        if (isRenaming) focusRequester.requestFocus()
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .background(rowBackground)
-            .then(
-                if (!isRenaming) Modifier.clickable(onClick = onClick) else Modifier,
-            )
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(dotColor),
-        )
-
-        if (isRenaming) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = DroshSurface,
-                tonalElevation = 2.dp,
-                modifier = Modifier
-                    .weight(1f)
-                    .border(
-                        width = 1.dp,
-                        color = DroshPrimary.copy(alpha = 0.4f),
-                        shape = RoundedCornerShape(8.dp),
-                    ),
-            ) {
-                BasicTextField(
-                    value = renameValue,
-                    onValueChange = onRenameValueChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { state ->
-                            if (state.isFocused) {
-                                hasFocusedOnce = true
-                            } else if (hasFocusedOnce) {
-                                onRenameCommit()
-                            }
-                        }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    singleLine = true,
-                    textStyle = TextStyle(
-                        color = DroshText,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.5.sp,
-                    ),
-                    cursorBrush = SolidColor(DroshPrimary),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { onRenameCommit() }),
-                )
-            }
-            HoverIconButton(
-                onClick = onRenameCommit,
-                contentDescription = "Confirm rename",
-                icon = DroshIcons.Check,
-                tint = DroshPrimary,
-                iconSize = 16.dp,
-                buttonSize = 24.dp,
-            )
-        } else {
-            // An ended session is struck through and dimmed, the way Termux and
-            // kitty mark one whose process is gone. It stays in the list because
-            // the row is also the session's history.
-            val ended = snapshot.state == SessionState.Closed
-            Text(
-                text = snapshot.name,
-                color = when {
-                    ended -> DroshTextMuted
-                    isActive -> DroshText
-                    else -> DroshText.copy(alpha = 0.9f)
-                },
-                textDecoration = if (ended) TextDecoration.LineThrough else TextDecoration.None,
-                fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
-                fontSize = 13.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            if (trailingText != null) {
-                Text(text = trailingText, color = trailingColor, fontSize = 11.sp)
-            }
-            HoverIconButton(
-                onClick = onStartRename,
-                contentDescription = "Rename",
-                icon = DroshIcons.Pencil,
-                iconSize = 14.dp,
-                buttonSize = 24.dp,
-            )
-            HoverIconButton(
-                onClick = onDelete,
-                contentDescription = "Delete",
-                icon = DroshIcons.Trash2,
-                iconSize = 14.dp,
-                buttonSize = 24.dp,
-            )
-        }
-    }
-}
-
