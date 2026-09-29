@@ -6,9 +6,7 @@ import compose.icons.lucideicons.Sun
 import compose.icons.lucideicons.Moon
 import compose.icons.lucideicons.Languages
 import compose.icons.lucideicons.Palette
-import compose.icons.lucideicons.Resize
 import compose.icons.lucideicons.Clock
-import compose.icons.lucideicons.CursorText
 import compose.icons.lucideicons.ShieldCheck
 import compose.icons.LucideIcons
 import compose.icons.lucideicons.ALargeSmall
@@ -76,9 +74,9 @@ object DroshIcons {
     val Moon: ImageVector get() = LucideIcons.Moon
     val Languages: ImageVector get() = LucideIcons.Languages
     val Palette: ImageVector get() = LucideIcons.Palette
-    val Resize: ImageVector get() = LucideIcons.Resize
+    val Resize: ImageVector get() = LucideIcons.Type
     val Clock: ImageVector get() = LucideIcons.Clock
-    val Cursor: ImageVector get() = LucideIcons.CursorText
+    val Cursor: ImageVector get() = LucideIcons.Terminal
     val ShieldCheck: ImageVector get() = LucideIcons.ShieldCheck
     val Check: ImageVector get() = LucideIcons.Check
     val ChevronDown: ImageVector get() = LucideIcons.ChevronDown

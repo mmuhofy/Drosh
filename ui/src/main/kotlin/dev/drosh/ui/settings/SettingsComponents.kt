@@ -62,7 +62,9 @@ import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
+import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshSurface
+import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshSurfaceContainerLowest
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText

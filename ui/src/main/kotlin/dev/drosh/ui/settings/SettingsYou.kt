@@ -31,8 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,7 +45,10 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -352,11 +358,9 @@ fun SettingsSlider(
 ) {
     val span = valueRange.endInclusive - valueRange.start
     val fraction = if (span <= 0f) 0f else ((value - valueRange.start) / span).coerceIn(0f, 1f)
-
-    var widthPx by remember { mutableFloatStateOf(1f) }
-    var dragging by remember { mutableFloatStateOf(false) }
     val currentOnValueChange by rememberUpdatedState(onValueChange)
 
+    var dragging by remember { mutableStateOf(false) }
     val dotSize by animateDpAsState(
         targetValue = if (dragging) 21.dp else 16.dp,
         animationSpec = spring(
@@ -366,32 +370,39 @@ fun SettingsSlider(
         label = "dotSize",
     )
 
+    // The measured width is needed to turn an x position into a fraction, and
+    // pointer input cannot read the layout size. Measured here and handed in.
+    var trackWidth by remember { mutableIntStateOf(1) }
+
+    val measure = Modifier.onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(36.dp)
+            .measure
             .drawBehind {
                 val cy = size.height / 2f
                 drawLine(
                     color = DroshTrack,
-                    start = androidx.compose.ui.geometry.Offset(0f, cy),
-                    end = androidx.compose.ui.geometry.Offset(size.width, cy),
+                    start = Offset(0f, cy),
+                    end = Offset(size.width, cy),
                     strokeWidth = 6.dp.toPx(),
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    cap = StrokeCap.Round,
                 )
                 val end = size.width * fraction
                 if (end > 0f) {
                     drawLine(
                         color = DroshPrimary,
-                        start = androidx.compose.ui.geometry.Offset(0f, cy),
-                        end = androidx.compose.ui.geometry.Offset(end, cy),
+                        start = Offset(0f, cy),
+                        end = Offset(end, cy),
                         strokeWidth = 6.dp.toPx(),
-                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                        cap = StrokeCap.Round,
                     )
                     drawCircle(
                         color = DroshPrimary,
                         radius = dotSize.toPx() / 2f,
-                        center = androidx.compose.ui.geometry.Offset(end, cy),
+                        center = Offset(end, cy),
                     )
                 }
             }
@@ -402,22 +413,15 @@ fun SettingsSlider(
                     onDragCancel = { dragging = false },
                     onHorizontalDrag = { change, _ ->
                         change.consume()
-                        widthPx = change.position.x
-                        val w = size.width.toFloat()
-                        if (w > 0f) {
-                            val f = (widthPx / w).coerceIn(0f, 1f)
-                            currentOnValueChange(valueRange.start + f * span)
-                        }
+                        val f = (change.position.x / trackWidth).coerceIn(0f, 1f)
+                        currentOnValueChange(valueRange.start + f * span)
                     },
                 )
             }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
-                    val w = size.width.toFloat()
-                    if (w > 0f) {
-                        val f = (offset.x / w).coerceIn(0f, 1f)
-                        currentOnValueChange(valueRange.start + f * span)
-                    }
+                    val f = (offset.x / trackWidth).coerceIn(0f, 1f)
+                    currentOnValueChange(valueRange.start + f * span)
                 }
             },
     )
