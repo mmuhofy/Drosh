@@ -304,7 +304,7 @@ fun WebViewSheet(
                             // shows through while the sheet is dragged down, so
                             // the page needs its own opaque backdrop to stay
                             // readable.
-                            setBackgroundColor(DroshSurface.toArgb())
+                            setBackgroundColor(sheetSurface.toArgb())
 
                             webView.value = this
 

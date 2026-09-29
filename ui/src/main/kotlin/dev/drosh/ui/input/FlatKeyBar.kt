@@ -87,13 +87,19 @@ fun FlatKeyBar(
 ) {
     val scrollState = rememberScrollState()
 
+    // Read out here: drawBehind and Canvas take lambdas that are not
+    // composable, so the palette cannot be read from inside them.
+    val barBorder = DroshBorderSubtle
+    val primaryKeyWash = DroshPrimary.copy(alpha = 0.10f)
+    val textKeyWash = DroshText.copy(alpha = 0.06f)
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
             .drawBehind {
                 drawLine(
-                    color = DroshBorderSubtle,
+                    color = barBorder,
                     start = Offset(0f, 0f),
                     end = Offset(size.width, 0f),
                     strokeWidth = 1.dp.toPx(),
@@ -320,10 +326,7 @@ private fun FlatKeyButton(
         if (hovered || pressed) {
             Canvas(modifier = Modifier.matchParentSize()) {
                 drawRoundRect(
-                    color = if (spec.style == FlatKeySpec.Primary)
-                        DroshPrimary.copy(alpha = 0.10f)
-                    else
-                        DroshText.copy(alpha = 0.06f),
+                    color = if (spec.style == FlatKeySpec.Primary) primaryKeyWash else textKeyWash,
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(
                         4.dp.toPx(),
                         4.dp.toPx(),

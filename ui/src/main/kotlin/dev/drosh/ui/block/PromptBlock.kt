@@ -198,7 +198,12 @@ private fun LinkifiedOutput(
         }
     }
 
-    val annotated = remember(text, urlMatches, pressedUrl) {
+    // Read out here: a composition-local read inside the remember block below
+    // is not allowed, and the colours are part of what the block recomputes on.
+    val linkColor = DroshPrimary
+    val pressedLinkColor = DroshPrimary.copy(alpha = PRESSED_TINT)
+
+    val annotated = remember(text, urlMatches, pressedUrl, linkColor, pressedLinkColor) {
         buildAnnotatedString {
             var cursor = 0
             for (match in urlMatches) {
@@ -206,9 +211,9 @@ private fun LinkifiedOutput(
                 val isPressed = match.url == pressedUrl
                 withStyle(
                     SpanStyle(
-                        color = DroshPrimary,
+                        color = linkColor,
                         textDecoration = TextDecoration.Underline,
-                        background = if (isPressed) DroshPrimary.copy(alpha = PRESSED_TINT) else Color.Unspecified,
+                        background = if (isPressed) pressedLinkColor else Color.Unspecified,
                     ),
                 ) {
                     append(match.url)

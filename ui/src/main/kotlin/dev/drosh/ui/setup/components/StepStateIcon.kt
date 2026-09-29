@@ -49,6 +49,15 @@ fun StepStateIcon(
         label = "pulse-alpha",
     )
 
+    // Canvas draws through a lambda that is not composable, so the palette has
+    // to be read here and captured rather than read inside the draw calls.
+    val pending = SetupPalette.TextDisabled
+    val pulseHalo = SetupPalette.PulseHalo
+    val primary = SetupPalette.Primary
+    val primaryFaint = SetupPalette.Primary.copy(alpha = 0.15f)
+    val error = SetupPalette.Error
+    val errorFaint = SetupPalette.Error.copy(alpha = 0.15f)
+
     Box(modifier = modifier.size(size + 8.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(size + 8.dp)) {
             val center = Offset(this.size.width / 2f, this.size.height / 2f)
@@ -57,7 +66,7 @@ fun StepStateIcon(
             when (state) {
                 StepState.Pending -> {
                     drawCircle(
-                        color = SetupPalette.TextDisabled,
+                        color = pending,
                         radius = size.toPx() / 2.6f,
                         center = center,
                         style = Stroke(
@@ -69,20 +78,20 @@ fun StepStateIcon(
                 }
                 StepState.Active -> {
                     drawCircle(
-                        color = SetupPalette.PulseHalo,
+                        color = pulseHalo,
                         radius = ringRadius * pulse,
                         center = center,
                         alpha = 0.2f * pulse,
                     )
                     drawCircle(
-                        color = SetupPalette.Primary,
+                        color = primary,
                         radius = size.toPx() / 2.2f,
                         center = center,
                     )
                 }
                 StepState.Done -> {
                     drawCircle(
-                        color = SetupPalette.Primary.copy(alpha = 0.15f),
+                        color = primaryFaint,
                         radius = size.toPx() / 1.9f,
                         center = center,
                     )
@@ -96,7 +105,7 @@ fun StepStateIcon(
                     }
                     drawPath(
                         path = path,
-                        color = SetupPalette.Primary,
+                        color = primary,
                         style = Stroke(
                             width = 2.5.dp.toPx(),
                             cap = StrokeCap.Round,
@@ -105,7 +114,7 @@ fun StepStateIcon(
                 }
                 StepState.Failed -> {
                     drawCircle(
-                        color = SetupPalette.Error.copy(alpha = 0.15f),
+                        color = errorFaint,
                         radius = size.toPx() / 1.9f,
                         center = center,
                     )
@@ -120,7 +129,7 @@ fun StepStateIcon(
                     }
                     drawPath(
                         path = path,
-                        color = SetupPalette.Error,
+                        color = error,
                         style = Stroke(
                             width = 2.5.dp.toPx(),
                             cap = StrokeCap.Round,
