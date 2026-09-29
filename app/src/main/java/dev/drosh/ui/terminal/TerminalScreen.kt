@@ -611,12 +611,6 @@ private fun ReadyScreen(
                 onToggleFullscreen = {
                     fullscreen = true
                 },
-                onNewSession = {
-                    terminalManager.addTab()
-                },
-                onClose = {
-                    terminalManager.closeCurrentTab()
-                },
                 onOpenSettings = onOpenSettings,
                 onOpenAgent = onOpenAgent,
             )
@@ -700,28 +694,33 @@ private fun ReadyScreen(
         // exiting while siblings remain is routine and says nothing here; the
         // user simply switches to another one. Nothing is replaced behind their
         // back — the dialog is the only way forward.
+        // The last session is gone. Either the user deletes it and the app goes
+        // with it, or they start over from a single new session. There is no
+        // third option: the dialog is not dismissible, because with nothing left
+        // to return to, swiping it away left a terminal that was not there and
+        // no way forward.
         val sessionEndEvent = processExitEvent
         if (noSessionsLeft) {
             val quit: () -> Unit = {
+                // Every shell is killed before the activity finishes, so none is
+                // left running behind a closed app.
+                terminalManager.closeAll()
                 terminalManager.clearProcessExitEvent()
                 terminalManager.clearNoSessionsLeft()
                 onExit()
             }
             val startNew: () -> Unit = {
+                terminalManager.closeAll()
                 terminalManager.clearProcessExitEvent()
                 terminalManager.clearNoSessionsLeft()
                 terminalManager.addTab()
             }
             AlertDialog(
-                // Not dismissible. With no session left there is nothing to go
-                // back to, so letting this be swiped away only produced a state
-                // with a terminal that is not there and no way forward. The
-                // user picks: a new session, or the app closes.
                 onDismissRequest = {},
                 confirmButton = {
                     TextButton(onClick = quit) {
                         Text(
-                            text = "Exit",
+                            text = "Delete",
                             color = DroshError,
                             fontFamily = OutfitFontFamily,
                             fontWeight = FontWeight.Medium,
@@ -742,7 +741,7 @@ private fun ReadyScreen(
                 },
                 title = {
                     Text(
-                        text = "No open sessions",
+                        text = "Delete the last session?",
                         color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.SemiBold,
@@ -752,9 +751,10 @@ private fun ReadyScreen(
                 text = {
                     val exitCode = sessionEndEvent?.exitCode
                     Text(
-                        text = when {
-                            exitCode != null -> "Last session ended (exit code: $exitCode). Start a new one, or close the app."
-                            else -> "Start a new session, or close the app."
+                        text = if (exitCode != null) {
+                            "It ended with exit code $exitCode. Deleting it closes the app; a new session starts from scratch."
+                        } else {
+                            "Deleting it closes the app; a new session starts from scratch."
                         },
                         color = DroshTextSecondary,
                         fontFamily = OutfitFontFamily,

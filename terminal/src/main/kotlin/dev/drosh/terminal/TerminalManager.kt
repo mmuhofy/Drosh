@@ -350,29 +350,6 @@ class TerminalManager(
         }
     }
 
-    /**
-     * Closes the session the UI is pointing at.
-     *
-     * The UI used to call `currentSession?.finishIfRunning()` on its own, which
-     * sent SIGKILL but left the session in [irisSessions]. The exit callback
-     * then found it still listed and raised the "process exited" dialog for a
-     * close the user had already performed. Removing it up front means the
-     * callback is a no-op, which is the same path as a session the shell
-     * exits on its own — that one still shows the dialog.
-     */
-    fun closeCurrentTab() {
-        closeTab(_activeTabIndex.value)
-    }
-
-    /**
-     * Restarts the active session in place.
-     *
-     * The previous version closed the session and called [addTab], which was
-     * not a restart: the new session landed at the end of the list, got a new
-     * Room id, and lost the block history keyed to the old one. Here the
-     * session keeps its identity, its position and its block history, and only
-     * the process behind it is replaced.
-     */
     fun restartCurrentTab() {
         val index = _activeTabIndex.value
         if (index !in irisSessions.indices) return
@@ -388,6 +365,29 @@ class TerminalManager(
         // diffed against the dead shell's transcript.
         blockEngineWire?.reanchor(replacement)
         terminalViewRef?.attachSession(replacement)
+    }
+
+    /**
+     * Kills every session and empties the list.
+     *
+     * The backstop behind "the last session did not actually close". Each
+     * individual close sends SIGKILL and returns immediately, so a process can
+     * still be alive for a moment after the list no longer mentions it. This is
+     * called on the two ways out of the last-session dialog, so neither of them
+     * can leave a shell running behind a finished app.
+     */
+    fun closeAll() {
+        irisSessions.forEach { it.terminalSession.finishIfRunning() }
+        irisSessions.clear()
+        idToIndex.clear()
+        _activeTabIndex.value = 0
+        _sessionCount.value = 0
+        _altBufferActive.value = false
+        _noSessionsLeft.value = false
+        _processExitEvent.value = null
+        // The view keeps painting the last screen until something else attaches;
+        // both callers either finish the app or attach a new session right away.
+        publishActiveId()
     }
 
     fun closeTab(index: Int) {

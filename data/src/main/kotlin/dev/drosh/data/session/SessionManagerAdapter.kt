@@ -84,7 +84,13 @@ class SessionManagerAdapter @Inject constructor(
         }
 
         reconcileJob = appScope.launch {
-            sessionRepository.observeAll().collectLatest { snapshots ->
+            // collect, not collectLatest: reconcile suspends inside its loops
+            // (every state update is a Room write), and closing a session writes
+            // to the database, which emits again. With collectLatest the new
+            // emission cancelled the in-flight pass, abandoning the rest of the
+            // sessions it was in the middle of closing — the terminal kept a PTY
+            // the sidebar no longer knew about.
+            sessionRepository.observeAll().collect { snapshots ->
                 reconcile(snapshots)
             }
         }

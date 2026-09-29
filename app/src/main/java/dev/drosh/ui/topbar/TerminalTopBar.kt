@@ -44,7 +44,6 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
-import dev.drosh.design.system.DroshMenuItemStyle
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.session.SessionSwitcherViewModel
@@ -80,9 +79,7 @@ fun TerminalTopBar(
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
     onToggleFullscreen: () -> Unit,
-    onNewSession: () -> Unit,
     onOpenSettings: () -> Unit,
-    onClose: () -> Unit,
     onOpenAgent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -170,9 +167,7 @@ fun TerminalTopBar(
                 onFindInOutput = { onFindInOutput(); moreExpanded = false },
                 onRefresh = { onRefresh(); moreExpanded = false },
                 onToggleFullscreen = { onToggleFullscreen(); moreExpanded = false },
-                onNewSession = { onNewSession(); moreExpanded = false },
                 onOpenSettings = { onOpenSettings(); moreExpanded = false },
-                onClose = { onClose(); moreExpanded = false },
             )
         }
     }
@@ -186,9 +181,7 @@ private fun MoreActionsDropdown(
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
     onToggleFullscreen: () -> Unit,
-    onNewSession: () -> Unit,
     onOpenSettings: () -> Unit,
-    onClose: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
@@ -197,10 +190,6 @@ private fun MoreActionsDropdown(
             DroshMenuItem(
                 label = "Refresh terminal",
                 icon = DroshIcons.RotateCw,
-            ),
-            DroshMenuItem(
-                label = "New session",
-                icon = DroshIcons.Plus,
             ),
             DroshMenuItem(
                 label = if (isFullscreen) "Exit fullscreen" else "Enter fullscreen",
@@ -215,20 +204,13 @@ private fun MoreActionsDropdown(
                 icon = DroshIcons.Settings,
                 dividerBefore = true,
             ),
-            DroshMenuItem(
-                label = "Close session",
-                icon = DroshIcons.XCircle,
-                style = DroshMenuItemStyle.Destructive,
-            ),
         ),
         onItemClick = { item ->
             when (item.label) {
                 "Refresh terminal" -> onRefresh()
-                "New session" -> onNewSession()
                 "Exit fullscreen", "Enter fullscreen" -> onToggleFullscreen()
                 "Find in output" -> onFindInOutput()
                 "Settings" -> onOpenSettings()
-                "Close session" -> onClose()
             }
         },
     )
