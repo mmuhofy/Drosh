@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.core.LanguageCatalog
 import dev.drosh.core.copyToClipboard
 import dev.drosh.core.toast
+import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.design.system.DroshOutline
@@ -72,12 +73,15 @@ fun SettingsScreen(
     val fontSizeSp       by viewModel.fontSizeSp.collectAsStateWithLifecycle(14)
     val prootStartCommand by viewModel.prootStartCommand.collectAsStateWithLifecycle("")
     val isPinLockEnabled by viewModel.isPinLockEnabled.collectAsStateWithLifecycle(false)
-    val cursorStyle      by viewModel.cursorStyle.collectAsStateWithLifecycle("Block")
+    val cursorStyleName  by viewModel.cursorStyle.collectAsStateWithLifecycle("Block")
     val cursorBlinkRateMs by viewModel.cursorBlinkRateMs.collectAsStateWithLifecycle(500)
     val aboutInfo        by viewModel.aboutInfo.collectAsStateWithLifecycle(null)
     val motdMode         by viewModel.motdMode.collectAsStateWithLifecycle(MotdMode.PlainText)
     val motdText         by viewModel.motdText.collectAsStateWithLifecycle("")
     val deviceIdentity   by deviceIdentityViewModel.identity.collectAsStateWithLifecycle()
+
+    // The store holds the name; the enum carries the meaning.
+    val cursorStyle = CursorStyle.fromString(cursorStyleName)
 
     val activityContext = LocalContext.current
     var showPinEntry by rememberSaveable { mutableStateOf(false) }
@@ -148,17 +152,25 @@ fun SettingsScreen(
                     )
                 }
                 SettingsDivider()
-                SettingsLink(
+                SettingsCustom(
                     title = "Cursor style",
                     supporting = when (cursorStyle) {
-                        "Block"  -> "A solid block"
-                        "Underline" -> "An underline"
-                        "Bar"    -> "A thin bar"
-                        else     -> cursorStyle
+                        CursorStyle.Block -> "A solid block"
+                        CursorStyle.Underline -> "An underline under the character"
+                        CursorStyle.Beam -> "A thin vertical bar"
                     },
                     icon = DroshIcons.Terminal,
-                    onClick = { viewModel.setCursorStyle("Block") },
-                )
+                ) {
+                    SettingsSegmented(
+                        options = listOf(
+                            CursorStyle.Block to "Block",
+                            CursorStyle.Underline to "Line",
+                            CursorStyle.Beam to "Bar",
+                        ),
+                        selected = cursorStyle,
+                        onSelect = viewModel::setCursorStyle,
+                    )
+                }
                 SettingsDivider()
                 SettingsCustom(
                     title = "Cursor blink",
