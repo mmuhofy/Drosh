@@ -89,10 +89,12 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = false
         }
 
-        val settingsViewModel: SettingsViewModel = hiltViewModel()
-        val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
-
         setContent {
+            // Read inside the composition: hiltViewModel and the state
+            // collection both need a composable scope.
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
+
             DroshTheme(
                 dark = when (themeMode) {
                     ThemeMode.System -> null
