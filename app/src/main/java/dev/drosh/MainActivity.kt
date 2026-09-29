@@ -33,6 +33,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
+import dev.drosh.data.session.SessionManagerAdapter
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var triggerBootstrap: TriggerBootstrapUseCase
     @Inject lateinit var extraKeyState: ExtraKeyState
     @Inject lateinit var pinLock: PinLockRepository
+    @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,6 +93,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // The session adapter is a process singleton started once from
+        // Application.onCreate, so anything it concluded about the previous
+        // Activity would still hold here. Telling it the UI is back lets it
+        // create a default session if the last one was closed.
+        sessionManagerAdapter.onUiForegrounded()
     }
 
     @Composable

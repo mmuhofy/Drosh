@@ -168,6 +168,29 @@ class SessionManagerAdapter @Inject constructor(
         }
     }
 
+    /**
+     * Called when the UI comes back to the foreground.
+     *
+     * The adapter is a process singleton, and start() only runs from
+     * Application.onCreate. Closing every session finished the Activity but
+     * left the foreground service — and so the process — alive, so the next
+     * launch reused this same instance with "a session has been alive" still
+     * set. The recovery ticker then declined to act and the app came up with no
+     * terminal at all, and only the sidebar could rescue it.
+     *
+     * A launch is a fresh start, so the flag and any leftover end-of-session
+     * state are cleared here. If nothing is alive the ticker then creates a
+     * default; if something is, it is left alone.
+     */
+    fun onUiForegrounded() {
+        sessionsEstablished = false
+        terminalManager.clearNoSessionsLeft()
+        terminalManager.clearProcessExitEvent()
+        // Straight away rather than waiting for the next tick, so a launch that
+        // finds no session does not show a black screen for half a second.
+        appScope.launch { ensureSessionExists() }
+    }
+
     fun stop() {
         terminalManager.lifecycleCallbacks = null
         reconcileJob?.cancel()
