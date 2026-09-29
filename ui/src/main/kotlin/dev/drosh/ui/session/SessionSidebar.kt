@@ -68,6 +68,7 @@ import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshBorderSubtle
+import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSuccess
