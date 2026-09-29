@@ -66,6 +66,7 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceContainerLowest
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
+import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextDisabled
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshWarning

@@ -42,13 +42,13 @@ class SettingsViewModel @Inject constructor(
     }
 
 
-    // ── Terminal mode & input ─────────────────────────────────────────────────
+    // ── Appearance ─────────────────────────────────────────────────────────────
 
-    val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode
+    val themeMode: StateFlow<ThemeMode> = settings.themeMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.System)
 
     fun setThemeMode(mode: ThemeMode) {
-        viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+        viewModelScope.launch { settings.setThemeMode(mode) }
     }
 
     val useBlockEngine: StateFlow<Boolean> = settings.useBlockEngine
