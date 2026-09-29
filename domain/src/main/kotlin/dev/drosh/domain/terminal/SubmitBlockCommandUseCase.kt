@@ -13,4 +13,14 @@ package dev.drosh.domain.terminal
  */
 interface SubmitBlockCommandUseCase {
     suspend fun submit(command: String)
+
+    /**
+     * Writes a line straight to the PTY without touching block bookkeeping.
+     *
+     * For interactive programs — a Python REPL, `psql`, an editor — where the
+     * line is not a shell command. [submit] would record it as a new command
+     * block and suppress the echo the program is about to print, both of which
+     * are wrong once something other than the shell owns the terminal.
+     */
+    suspend fun submitRaw(line: String)
 }

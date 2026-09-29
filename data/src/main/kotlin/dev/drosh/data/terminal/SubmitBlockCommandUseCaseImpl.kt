@@ -27,4 +27,12 @@ class SubmitBlockCommandUseCaseImpl @Inject constructor(
         val payload = (command + "\r").toByteArray()
         session.write(payload, 0, payload.size)
     }
+
+    override suspend fun submitRaw(line: String) {
+        if (line.isEmpty()) return
+        val session = terminalManager.currentSession ?: return
+        // No onCommandSubmitted, so no block is opened and no echo is pending.
+        val payload = (line + "\r").toByteArray()
+        session.write(payload, 0, payload.size)
+    }
 }

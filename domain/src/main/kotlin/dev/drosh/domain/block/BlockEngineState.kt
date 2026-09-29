@@ -21,4 +21,15 @@ interface BlockEngineState {
 
     /** Last directory inferred from the prompt (e.g. `~/Drosh` → `Drosh`). */
     val lastDir: String
+
+    /**
+     * True when the shell itself is at a prompt and waiting for a command.
+     *
+     * False once an interactive program has taken the terminal — a Python
+     * REPL's `>>>`, a `psql`, an editor. The block input bar is for shell
+     * commands: submitting through it there would record the line as a new
+     * command block and suppress the echo the program is about to print. The UI
+     * hides the bar in that state and the input goes to the program instead.
+     */
+    val awaitingShellInput: Boolean
 }

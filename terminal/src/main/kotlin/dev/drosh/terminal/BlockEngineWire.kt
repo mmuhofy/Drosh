@@ -40,6 +40,14 @@ class BlockEngineWire(
     override var lastDir: String = "~"
         private set
 
+    /**
+     * False while an interactive program owns the terminal. See
+     * [BlockEngineState.awaitingShellInput] for why the UI needs this.
+     */
+    @Volatile
+    override var awaitingShellInput: Boolean = true
+        private set
+
     private var pendingEcho: String? = null
 
     /** True while we are waiting for the echo of a `clear` command. */
@@ -90,6 +98,13 @@ class BlockEngineWire(
             current.substring(idx + anchor.length)
         }
         previousTranscript = current
+
+        // A program that has taken the terminal, such as a Python REPL, leaves a
+        // marker of its own instead of a shell prompt. Decided before the
+        // input-line handling below, because a line typed into a REPL is echoed
+        // back and must not be swallowed as a shell echo.
+        awaitingShellInput = !isProgramPrompt(current.substringAfterLast('\n').trimEnd())
+
         if (appended.isEmpty()) return
 
         val lines = appended.split('\n')
@@ -103,8 +118,13 @@ class BlockEngineWire(
         // character as appended output, and a command typed in classic mode
         // arrives at the block engine one character per block. The live input
         // line is pulled off here and kept as the pending echo instead.
+        //
+        // Skipped while a program owns the terminal: there the typed line is the
+        // program's own prompt and its echo belongs in the output.
         val liveLine = current.substringAfterLast('\n').trimEnd('\r')
-        val inputMatch = PROMPT_WITH_INPUT_REGEX.find(liveLine.trimEnd())
+        val inputMatch = if (awaitingShellInput) {
+            PROMPT_WITH_INPUT_REGEX.find(liveLine.trimEnd())
+        } else null
         val isEditing = inputMatch != null
 
         val firstIsEcho = pendingEcho?.let { echo ->
@@ -202,6 +222,25 @@ class BlockEngineWire(
         updateDirFromPrompt(prompt)
     }
 
+    /**
+     * True when the live line looks like a prompt belonging to an interactive
+     * program rather than to the shell.
+     *
+     * Deliberately a short, conservative list: a false positive hides the input
+     * bar, and a false negative sends REPL input through the command path. These
+     * are the markers a shell hands over with, and extending the set is a
+     * one-line change.
+     */
+    private fun isProgramPrompt(line: String): Boolean {
+        if (line.isEmpty()) return false
+        // A shell prompt always ends in one of these, so its presence means the
+        // shell still owns the terminal.
+        if (PROMPT_SUFFIX_REGEX.containsMatchIn(line) &&
+            PROMPT_WITH_INPUT_REGEX.matches(line)
+        ) return false
+        return PROGRAM_PROMPT_REGEX.containsMatchIn(line)
+    }
+
     private fun findRollingAnchor(previous: String, current: String): String? {
         val maxLen = minOf(previous.length, MAX_ANCHOR_BYTES)
         val minLen = minOf(maxLen, MIN_ANCHOR_BYTES)
@@ -231,6 +270,13 @@ class BlockEngineWire(
          * `100% $ 3 done` from being read as a prompt with an argument.
          */
         val PROMPT_WITH_INPUT_REGEX = Regex("""^(?=[^\s]*[@~/])([^\n]*?[$#❯➜])[ \t]+(\S.*)$""")
+
+        /**
+         * Prompts of interactive programs that take the terminal over from the
+         * shell: Python's `>>>` and its `...` continuation, psql's `=>`, node's
+         * `>`, irb's `>>`.
+         */
+        val PROGRAM_PROMPT_REGEX = Regex("""(>>>|\.\.\.|=>)\s*$""")
     }
 
     private fun updateDirFromPrompt(prompt: String) {

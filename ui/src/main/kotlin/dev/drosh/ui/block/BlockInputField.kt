@@ -31,12 +31,21 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.ui.DroshIcons
 
+/**
+ * The line editor at the bottom of block mode.
+ *
+ * [promptLabel] and [promptSuffix] show the shell prompt. When an interactive
+ * program owns the terminal the caller passes [programPrompt] instead, which
+ * swaps in that program's marker and drops the command wording: the line goes
+ * to the program, not to a shell.
+ */
 @Composable
 fun BlockInputField(
     onSubmit: (String) -> Unit,
     enabled: Boolean = true,
     promptLabel: String = "iris",
     promptSuffix: String = "$",
+    programPrompt: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var text by remember { mutableStateOf("") }
@@ -53,8 +62,13 @@ fun BlockInputField(
                 .defaultMinSize(minHeight = 44.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val marker = programPrompt
             Text(
-                text = if (focused) "$promptLabel$ ▸" else "$promptLabel$promptSuffix",
+                text = when {
+                    marker != null -> if (focused) "$marker " else "$marker "
+                    focused -> "$promptLabel$ ▸"
+                    else -> "$promptLabel$promptSuffix"
+                },
                 color = DroshPrimary,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 13.sp,
@@ -63,7 +77,11 @@ fun BlockInputField(
             Box(modifier = Modifier.weight(1f)) {
                 if (text.isEmpty()) {
                     Text(
-                        text = if (enabled) "type a command…" else "block mode disabled",
+                        text = when {
+                            !enabled -> "block mode disabled"
+                            programPrompt != null -> "input…"
+                            else -> "type a command…"
+                        },
                         color = DroshTextMuted,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,

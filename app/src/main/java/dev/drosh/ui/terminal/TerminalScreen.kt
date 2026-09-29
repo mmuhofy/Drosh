@@ -90,6 +90,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 
+/**
+ * Shown in place of the shell prompt while an interactive program owns the
+ * terminal. Block mode has no terminal view of its own, so the line editor at
+ * the bottom is the only way in; it is relabelled so it is clear that the input
+ * is going to the program rather than to a shell.
+ */
+private const val PROGRAM_PROMPT_MARKER = "›"
+
 @Composable
 fun TerminalScreen(
     terminalManager: TerminalManager,
@@ -185,6 +193,7 @@ private fun ReadyScreen(
     val motdText by terminalViewModel.motdText.collectAsState()
     val appInfo by terminalViewModel.appInfo.collectAsState()
     val blocks by blockEngineViewModel.blocks.collectAsState()
+    val awaitingShellInput by blockEngineViewModel.awaitingShellInput.collectAsState()
 
     var motdDismissed by remember { mutableStateOf(false) }
     LaunchedEffect(activeId) { motdDismissed = false }
@@ -503,12 +512,22 @@ private fun ReadyScreen(
 
                     PromptDivider()
 
+                    // While the shell is at its prompt this records a command
+                    // block. Once an interactive program takes the terminal the
+                    // line goes straight to the program instead, so the bar stops
+                    // labelling itself as a command prompt and its output is not
+                    // mistaken for one.
                     BlockInputField(
                         onSubmit = { cmd ->
-                            blockEngineViewModel.onCommandSubmitted("", cmd)
+                            if (awaitingShellInput) {
+                                blockEngineViewModel.onCommandSubmitted("", cmd)
+                            } else {
+                                blockEngineViewModel.onRawInput(cmd)
+                            }
                         },
                         promptLabel = promptDir,
                         promptSuffix = promptSuffix,
+                        programPrompt = if (awaitingShellInput) null else PROGRAM_PROMPT_MARKER,
                     )
                 }
             }

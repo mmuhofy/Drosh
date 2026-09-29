@@ -72,6 +72,19 @@ class BlockEngineViewModel @Inject constructor(
         }
     }.asStateFlow()
 
+    /**
+     * False while an interactive program (Python REPL, psql, an editor) owns the
+     * terminal. The input bar then talks to that program instead of the shell.
+     */
+    val awaitingShellInput: StateFlow<Boolean> = MutableStateFlow(blockEngineState.awaitingShellInput).also { sf ->
+        viewModelScope.launch {
+            while (true) {
+                sf.value = blockEngineState.awaitingShellInput
+                delay(500L)
+            }
+        }
+    }.asStateFlow()
+
     /** Prompt suffix character extracted from the latest prompt (e.g. "$", "#", "❯"). */
     val promptSuffix: StateFlow<String> = MutableStateFlow(
         blockEngineState.lastPrompt.extractSuffix()
@@ -123,6 +136,14 @@ class BlockEngineViewModel @Inject constructor(
         // network totals do not change, which would otherwise leave the
         // duration frozen on the UI.
         blockRepository.bumpRunningBlock(running.id)
+    }
+
+    /**
+     * Forwards a line to an interactive program that owns the terminal. Opens no
+     * block and sets no pending echo, unlike [onCommandSubmitted].
+     */
+    fun onRawInput(line: String) {
+        viewModelScope.launch { submitCommand.submitRaw(line) }
     }
 
     fun onCommandSubmitted(prompt: String, command: String) {
