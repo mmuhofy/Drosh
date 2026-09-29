@@ -1,6 +1,11 @@
 package dev.drosh.ui
 
 import androidx.compose.ui.graphics.vector.ImageVector
+import compose.icons.lucideicons.ChevronRight
+import compose.icons.lucideicons.Sun
+import compose.icons.lucideicons.Moon
+import compose.icons.lucideicons.Languages
+import compose.icons.lucideicons.Palette
 import compose.icons.LucideIcons
 import compose.icons.lucideicons.ALargeSmall
 import compose.icons.lucideicons.ArrowBigDown
@@ -62,6 +67,11 @@ object DroshIcons {
     val ArrowLeft: ImageVector get() = LucideIcons.ArrowLeft
     val ArrowRight: ImageVector get() = LucideIcons.ArrowRight
     val ArrowUp: ImageVector get() = LucideIcons.ArrowUp
+    val ChevronRight: ImageVector get() = LucideIcons.ChevronRight
+    val Sun: ImageVector get() = LucideIcons.Sun
+    val Moon: ImageVector get() = LucideIcons.Moon
+    val Languages: ImageVector get() = LucideIcons.Languages
+    val Palette: ImageVector get() = LucideIcons.Palette
     val Check: ImageVector get() = LucideIcons.Check
     val ChevronDown: ImageVector get() = LucideIcons.ChevronDown
     val ChevronUp: ImageVector get() = LucideIcons.ChevronUp
