@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="settings_title">Ayarlar</string>
     <string name="settings_section_appearance">Görünüm</string>
     <string name="settings_section_terminal">Terminal</string>
     <string name="settings_section_startup">Başlangıç</string>
@@ -32,7 +31,6 @@
 
     <string name="settings_motd_show_as">Gösterim</string>
     <string name="settings_motd_off">Kapalı</string>
-    <string name="settings_motd_text">Metin</string>
     <string name="settings_motd_card">Kart</string>
     <string name="settings_motd_disabled_desc">Gösterme</string>
     <string name="settings_motd_plain_desc">Kabuk metni yankılar</string>
