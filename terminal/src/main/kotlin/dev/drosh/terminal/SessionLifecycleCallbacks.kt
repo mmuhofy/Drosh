@@ -15,32 +15,4 @@ package dev.drosh.terminal
  * Adapted for Drosh — dev.drosh
  */
 interface SessionLifecycleCallbacks {
-    /**
-     * Called when a terminal session process exits.
-     *
-     * @param persistentId The Room session id, or null if the session
-     *                     was created without one (e.g. via [TerminalManager.addTab]).
-     * @param exitCode     The process exit code. -1 if killed by signal.
-     */
-    fun onSessionFinished(persistentId: String?, exitCode: Int)
-
-    /**
-     * Called when the shell pid is assigned for a session.
-     *
-     * @param persistentId The Room session id, or null if not id-keyed.
-     * @param pid          The OS process id of the shell.
-     */
-    fun onSessionPidChanged(persistentId: String?, pid: Int)
-
-    /**
-     * Called when the last live PTY session exits or is explicitly closed
-     * and [TerminalManager] has no sessions left.
-     *
-     * Following Termux's pattern (TermuxService.updateNotification →
-     * requestStopService), the data layer should signal the UI to exit
-     * rather than auto-creating a replacement session. Default session
-     * creation at app startup is handled separately by
-     * [SessionManagerAdapter.start].
-     */
-    fun onLastSessionExited()
 }

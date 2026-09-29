@@ -97,11 +97,11 @@ class SessionRepositoryImpl @Inject constructor(
             if (fallback != null) {
                 dataStore.edit { it[KEY_ACTIVE_SESSION_ID] = fallback.id }
             } else {
-                // Deleting the last session used to leave the active id unset,
-                // and the next launch had nothing to select. Replace it with a
-                // fresh default so there is always somewhere to land.
-                val replacement = create("Default")
-                dataStore.edit { it[KEY_ACTIVE_SESSION_ID] = replacement }
+                // No replacement. Deleting the last session is the user's call to
+                // make: the terminal raises the exit dialog, and creating a
+                // "Default" here silently undid the delete and made it look like
+                // the session could not be removed.
+                dataStore.edit { it.remove(KEY_ACTIVE_SESSION_ID) }
             }
         }
     }

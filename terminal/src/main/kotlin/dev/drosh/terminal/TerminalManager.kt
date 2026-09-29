@@ -106,8 +106,22 @@ class TerminalManager(
 
     data class ProcessExitEvent(val exitCode: Int)
 
+    /**
+     * True once the last session is gone, whether it was closed from the UI,
+     * deleted from the sidebar, or was the shell the user exited by typing
+     * `exit`. The UI turns this into the exit dialog so the user picks a new
+     * session or quits, instead of a session silently reappearing.
+     */
+    private val _noSessionsLeft = MutableStateFlow(false)
+    val noSessionsLeft: StateFlow<Boolean> = _noSessionsLeft.asStateFlow()
+
     fun clearProcessExitEvent() {
         _processExitEvent.value = null
+    }
+
+    /** Dismisses the no-sessions dialog. Called when a new session is created. */
+    fun clearNoSessionsLeft() {
+        _noSessionsLeft.value = false
     }
 
     private var terminalViewRef: TerminalView? = null
@@ -217,6 +231,8 @@ class TerminalManager(
         }
         _activeTabIndex.value = newIndex
         _sessionCount.value = irisSessions.size
+        // A session exists again, so the exit dialog no longer applies.
+        _noSessionsLeft.value = false
         terminalViewRef?.attachSession(irisSession.terminalSession)
         return irisSession.terminalSession
     }
@@ -345,7 +361,7 @@ class TerminalManager(
 
         if (irisSessions.isEmpty()) {
             lifecycleCallbacks?.onSessionFinished(persistentId, -1)
-            lifecycleCallbacks?.onLastSessionExited()
+            _noSessionsLeft.value = true
         }
     }
 
@@ -568,7 +584,11 @@ class TerminalManager(
         // closeTab, closes the app outright. Signalling a close here as well
         // would race the dialog away before the user could choose.
         lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
-        _processExitEvent.value = ProcessExitEvent(exitCode)
+        if (irisSessions.isEmpty()) {
+            _noSessionsLeft.value = true
+        } else {
+            _processExitEvent.value = ProcessExitEvent(exitCode)
+        }
     }
 
     /**

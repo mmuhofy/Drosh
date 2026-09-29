@@ -178,6 +178,7 @@ private fun ReadyScreen(
     val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
+    val noSessionsLeft by terminalManager.noSessionsLeft.collectAsState()
 
     val motdMode by terminalViewModel.motdMode.collectAsState()
     val motdText by terminalViewModel.motdText.collectAsState()
@@ -201,17 +202,6 @@ private fun ReadyScreen(
     }
 
     val sessionCount by terminalManager.sessionCountFlow.collectAsState()
-
-    // Closing the last session from the UI closes the app. The old guard
-    // checked whether Room still had rows, which is always true after a close
-    // because the row survives marked Closed, so the app never actually quit.
-    // Live session count is the honest signal.
-    LaunchedEffect(shouldExit) {
-        if (shouldExit && processExitEvent == null) {
-            yield()
-            if (sessionCount == 0) onExit()
-        }
-    }
 
     LaunchedEffect(searchActive, searchScope) {
         if (searchActive) {
@@ -685,14 +675,30 @@ private fun ReadyScreen(
             )
         }
 
-        if (processExitEvent != null) {
+        // One dialog for both ways a session can end. `processExitEvent` is a
+        // shell that exited on its own and still has a sibling to go back to;
+        // `noSessionsLeft` means the last one is gone — after `exit`, after a
+        // toolbar close, or after a sidebar delete — and nothing is replaced
+        // behind the user's back.
+        val sessionEndEvent = processExitEvent
+        if (sessionEndEvent != null || noSessionsLeft) {
+            val quit: () -> Unit = {
+                terminalManager.clearProcessExitEvent()
+                terminalManager.clearNoSessionsLeft()
+                onExit()
+            }
+            val startNew: () -> Unit = {
+                terminalManager.clearProcessExitEvent()
+                terminalManager.clearNoSessionsLeft()
+                terminalManager.addTab()
+            }
             AlertDialog(
-                onDismissRequest = { terminalManager.clearProcessExitEvent() },
+                onDismissRequest = {
+                    terminalManager.clearProcessExitEvent()
+                    terminalManager.clearNoSessionsLeft()
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        terminalManager.clearProcessExitEvent()
-                        onExit()
-                    }) {
+                    TextButton(onClick = quit) {
                         Text(
                             text = "Exit",
                             color = DroshError,
@@ -703,10 +709,7 @@ private fun ReadyScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = {
-                        terminalManager.clearProcessExitEvent()
-                        terminalManager.addTab()
-                    }) {
+                    TextButton(onClick = startNew) {
                         Text(
                             text = "New session",
                             color = DroshPrimary,
@@ -718,7 +721,7 @@ private fun ReadyScreen(
                 },
                 title = {
                     Text(
-                        text = "Process exited",
+                        text = if (noSessionsLeft) "No sessions left" else "Process exited",
                         color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.SemiBold,
@@ -726,9 +729,13 @@ private fun ReadyScreen(
                     )
                 },
                 text = {
+                    val exitCode = sessionEndEvent?.exitCode
                     Text(
-                        text = "exit code: ${processExitEvent!!.exitCode}",
-                        color = if (processExitEvent!!.exitCode == 0) DroshPrimary else DroshError,
+                        text = when {
+                            exitCode != null -> "exit code: $exitCode"
+                            else -> "Start a new session, or close the app."
+                        },
+                        color = if (exitCode == 0) DroshPrimary else DroshTextSecondary,
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp,
