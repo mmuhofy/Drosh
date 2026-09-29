@@ -15,4 +15,16 @@ package dev.drosh.terminal
  * Adapted for Drosh — dev.drosh
  */
 interface SessionLifecycleCallbacks {
+
+    /**
+     * A session's process has exited, either naturally or by being killed.
+     * [persistentId] is null for sessions that were never persisted.
+     */
+    fun onSessionFinished(persistentId: String?, exitCode: Int)
+
+    /**
+     * The shell pid has been assigned for a session. Room does not store pids
+     * yet, so this is currently a no-op; reserved for process monitoring.
+     */
+    fun onSessionPidChanged(persistentId: String?, pid: Int)
 }

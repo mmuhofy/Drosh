@@ -47,6 +47,141 @@ class SessionManagerAdapter @Inject constructor(
 
     private var lastNames: Map<String, String> = emptyMap()
 
+    /**
+     * Guards the one-off session revival in [reconcile]. Without it every
+     * reconcile tick with no live session would resurrect one, which is the
+     * silent replacement the exit dialog exists to avoid.
+     */
+    private var hasEnsuredSession: Boolean = false
+
+    private val _activeId = MutableStateFlow<String?>(null)
+    val activeIdFlow: StateFlow<String?> = _activeId.asStateFlow()
+
+    fun start() {
+        stop()
+
+        // Reset exit signal — covers fresh process launch where shouldExit
+        // might have been true from a previous run that was terminated.
+        appScope.launch { sessionRepository.setShouldExit(false) }
+
+        terminalManager.lifecycleCallbacks = this
+
+        reconcileJob = appScope.launch {
+            sessionRepository.observeAll().collectLatest { snapshots ->
+                reconcile(snapshots)
+            }
+        }
+
+        activeJob = appScope.launch {
+            sessionRepository.observeActiveId().collectLatest { id ->
+                _activeId.value = id
+                if (id != null) {
+                    withContext(Dispatchers.Main.immediate) {
+                        terminalManager.switchSessionById(id)
+                    }
+                }
+            }
+        }
+
+        tickerJob = appScope.launch {
+            while (true) {
+                delay(SNAPSHOT_TICK_MS)
+                // Live snapshot capture is deferred until TerminalBuffer API is stable.
+                // TODO: Implement captureLiveSnapshot() using emulator.getScreen()
+            }
+        }
+    }
+
+    fun stop() {
+        terminalManager.lifecycleCallbacks = null
+        reconcileJob?.cancel()
+        activeJob?.cancel()
+        tickerJob?.cancel()
+        reconcileJob = null
+        activeJob = null
+        tickerJob = null
+    }
+
+    /**
+     * Reconciles the persistent Room state with the live terminal sessions.
+     *
+     * Compares Room's session list against [TerminalManager.liveSessionIds] —
+     * the actual set of sessions currently in the PTY layer.
+     *  - Sessions restored from Closed → Idle get spawned.
+     *  - Sessions that exited (Closed in Room, removed from PTY) are not re-spawned.
+     *  - Sessions deleted from Room are closed in the terminal via [closeTab].
+     *
+     * Inspired by Termux's reconcile in TermuxService, which diffs the
+     * live session list against the desired state.
+     */
+    private suspend fun reconcile(snapshots: List<SessionSnapshot>) {
+        val currentIds = snapshots.map { it.id }.toSet()
+        val currentNames = snapshots.associate { it.id to it.name }
+
+        withContext(Dispatchers.Main.immediate) {
+            val liveIds = terminalManager.liveSessionIds()
+
+            val notLive = currentIds - liveIds
+            notLive.forEach { id ->
+                val snapshot = snapshots.firstOrNull { it.id == id }
+                if (snapshot?.state != SessionState.Closed) {
+                    terminalManager.addTabWithId(id, snapshot?.name ?: "")
+                    sessionRepository.updateState(id, SessionState.Running)
+                }
+            }
+
+            lastNames.forEach { (id, oldName) ->
+                val newName = currentNames[id]
+                if (newName != null && newName != oldName && id in liveIds) {
+                    val idx = terminalManager.getIndexForId(id)
+                    if (idx >= 0) terminalManager.renameTab(idx, newName)
+                }
+            }
+
+            val stale = liveIds - currentIds
+            stale.forEach { id ->
+                val idx = terminalManager.getIndexForId(id)
+                if (idx >= 0) {
+                    terminalManager.closeTab(idx)
+                    sessionRepository.updateState(id, SessionState.Closed)
+                }
+            }
+
+            // Rows survive a close marked Closed, and the loop above
+            // deliberately skips Closed rows, so nothing is spawned once every
+            // session is gone. That is what was asked for: no silent
+            // replacement, the exit dialog decides. A session is revived only
+            // on the first reconcile of a process, so launching after closing
+            // everything still lands on a working terminal instead of an empty
+            // one. Without the one-shot guard, any later tick would resurrect
+            // the session the user had just closed.
+            if (!hasEnsuredSession && terminalManager.liveSessionIds().isEmpty()) {
+                hasEnsuredSession = true
+                val resumable = snapshots.firstOrNull()
+                if (resumable != null) {
+                    sessionRepository.updateState(resumable.id, SessionState.Running)
+                    terminalManager.addTabWithId(resumable.id, resumable.name)
+                } else {
+                    val defaultId = sessionRepository.create(DEFAULT_SESSION_NAME)
+                    sessionRepository.setActiveId(defaultId)
+                }
+            }
+        }
+
+        lastNames = currentNames
+    }
+
+    /**
+     * Called by [TerminalManager] when a PTY process exits — either naturally
+     * or after a kill signal. Updates Room state to Closed so the session
+     * system stays consistent and [reconcile] won't try to re-spawn it.
+     */
+    override fun onSessionFinished(persistentId: String?, exitCode: Int) {
+        if (persistentId == null) return
+        appScope.launch {
+            sessionRepository.updateState(persistentId, SessionState.Closed)
+        }
+    }
 
     /**
      * Called when the shell pid is assigned. Currently a no-op — Room's
