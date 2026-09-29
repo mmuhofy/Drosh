@@ -14,3 +14,8 @@ enum class SessionState {
     Running,
     Closed,
 }
+/**
+ * Name given to the session a launch creates when there is nothing to bring
+ * back. Shared so the recovery path and the UI cannot drift apart on it.
+ */
+const val DEFAULT_SESSION_NAME = "Default"

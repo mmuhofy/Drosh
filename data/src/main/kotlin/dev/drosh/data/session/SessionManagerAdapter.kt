@@ -1,6 +1,7 @@
 package dev.drosh.data.session
 
 import com.termux.terminal.Logger
+import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.terminal.SessionLifecycleCallbacks
@@ -265,6 +266,5 @@ class SessionManagerAdapter @Inject constructor(
 
     private companion object {
         const val SNAPSHOT_TICK_MS = 500L
-        const val DEFAULT_SESSION_NAME = "Default"
     }
 }

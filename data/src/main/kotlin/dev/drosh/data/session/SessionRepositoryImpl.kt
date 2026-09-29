@@ -9,6 +9,7 @@ import dev.drosh.data.di.ApplicationScope
 import dev.drosh.data.local.DroshDatabase
 import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.session.SessionRepository
+import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dagger.hilt.android.qualifiers.ApplicationContext

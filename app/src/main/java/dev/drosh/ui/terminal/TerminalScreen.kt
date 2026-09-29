@@ -64,6 +64,7 @@ import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.terminal.SearchHighlightOverlay
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
+import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.terminal.UbuntuSetupState
 import dev.drosh.ui.block.BlockEngineViewModel
 import dev.drosh.ui.block.BlockInputField
