@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -224,7 +225,7 @@ fun SettingsTile(
     )
     val shape = tileShape(cap)
 
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 60.dp)
@@ -242,9 +243,11 @@ fun SettingsTile(
                 }
             )
             .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        val head: @Composable () -> Unit = {
+        // Built once so both arrangements share it. A control that fills its
+        // row cannot be a sibling of a weighted text column: in a Row it wins
+        // the width argument and the label collapses to one character per line.
+        val head: @Composable ColumnScope.() -> Unit = {
             if (icon != null) {
                 Icon(
                     imageVector = icon,
@@ -275,13 +278,15 @@ fun SettingsTile(
         }
 
         if (stacked) {
-            head()
-            if (control != null) {
-                Spacer(Modifier.height(16.dp))
-                Box(modifier = Modifier.fillMaxWidth()) { control() }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, content = head)
+                if (control != null) {
+                    Spacer(Modifier.height(16.dp))
+                    Box(modifier = Modifier.fillMaxWidth()) { control() }
+                }
             }
         } else {
-            head()
+            Row(verticalAlignment = Alignment.CenterVertically, content = head)
             if (control != null) {
                 Spacer(Modifier.width(8.dp))
                 control()
@@ -346,8 +351,13 @@ fun <T> SettingsSegmented(
 }
 
 /**
- * A thin bar with a small dot that grows while held. Deliberately not a chunky
- * ringed handle — that shape reads as a control from 2012.
+ * Material 3 Expressive slider: a thick rounded track with a wide handle that
+ * clears the track on both sides.
+ *
+ * The earlier version was a hairline with a small dot on it, which is the
+ * shape every Android app shipped for a decade. The gap around the handle is
+ * what makes this read as current — the track appears to pass behind it
+ * rather than the handle sitting on top of a painted line.
  */
 @Composable
 fun SettingsSlider(
@@ -363,13 +373,13 @@ fun SettingsSlider(
     val accent = DroshPrimary
 
     var dragging by remember { mutableStateOf(false) }
-    val dotSize by animateDpAsState(
-        targetValue = if (dragging) 21.dp else 16.dp,
+    val handleWidth by animateDpAsState(
+        targetValue = if (dragging) 26.dp else 20.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium,
         ),
-        label = "dotSize",
+        label = "handleWidth",
     )
 
     // Pointer input cannot read the layout size, and the draw pass needs the
@@ -379,33 +389,44 @@ fun SettingsSlider(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(44.dp)
             .onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
             .drawBehind {
-                val cy = size.height / 2f
                 val w = trackWidth.toFloat()
-                val end = w * fraction
-                drawLine(
-                    color = trackColor,
-                    start = Offset(0f, cy),
-                    end = Offset(w, cy),
-                    strokeWidth = 6.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-                if (end > 0f) {
+                val cy = size.height / 2f
+                val track = TRACK_THICKNESS.toPx()
+                val half = handleWidth.toPx() / 2f
+                val gap = HANDLE_GAP.toPx()
+                val handleCentre = w * fraction
+
+                // The track is split around the handle so the handle sits in a
+                // gap rather than on top of the paint.
+                val leftEnd = (handleCentre - half - gap).coerceAtLeast(0f)
+                if (leftEnd > 0f) {
                     drawLine(
                         color = accent,
                         start = Offset(0f, cy),
-                        end = Offset(end, cy),
-                        strokeWidth = 6.dp.toPx(),
+                        end = Offset(leftEnd, cy),
+                        strokeWidth = track,
                         cap = StrokeCap.Round,
                     )
-                    drawCircle(
-                        color = accent,
-                        radius = dotSize.toPx() / 2f,
-                        center = Offset(end, cy),
+                }
+                val rightStart = (handleCentre + half + gap).coerceAtMost(w)
+                if (w - rightStart > 0f) {
+                    drawLine(
+                        color = trackColor,
+                        start = Offset(rightStart, cy),
+                        end = Offset(w, cy),
+                        strokeWidth = track,
+                        cap = StrokeCap.Round,
                     )
                 }
+                drawRoundRect(
+                    color = accent,
+                    topLeft = Offset(handleCentre - half, cy - track / 2f),
+                    size = androidx.compose.ui.geometry.Size(handleWidth, track),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(track / 2f),
+                )
             }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
@@ -427,6 +448,9 @@ fun SettingsSlider(
             },
     )
 }
+
+private val TRACK_THICKNESS = 8.dp
+private val HANDLE_GAP = 3.dp
 
 /** Switch with the accent fill and a soft drop on the thumb. */
 @Composable

@@ -1,6 +1,7 @@
 package dev.drosh.ui.settings
 
 import android.app.Activity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.core.LanguageCatalog
 import dev.drosh.core.copyToClipboard
 import dev.drosh.core.toast
+import dev.drosh.design.system.DroshBackground
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.ThemeMode
@@ -72,7 +74,13 @@ fun SettingsScreen(
     var showStartupDialog by rememberSaveable { mutableStateOf(false) }
     var showLanguageSheet by rememberSaveable { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Stated rather than inherited: the sheet and the drawer sit on the same
+    // value, so the settings page cannot silently drift onto the window's.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DroshBackground),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

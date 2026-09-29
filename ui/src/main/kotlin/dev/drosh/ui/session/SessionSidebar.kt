@@ -358,7 +358,16 @@ fun DeviceBadge(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(DroshSurfaceVariant),
+            .background(
+                // Tinted with the accent rather than a flat grey, so the
+                // placeholder reads as deliberate instead of as a missing image.
+                brush = Brush.linearGradient(
+                    listOf(
+                        DroshPrimary.copy(alpha = 0.22f),
+                        DroshPrimary.copy(alpha = 0.10f),
+                    ),
+                ),
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (imageUrl != null) {
@@ -371,13 +380,14 @@ fun DeviceBadge(
         } else {
             Text(
                 text = fallbackLetter,
-                color = DroshTextSecondary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
+                color = DroshPrimary,
+                fontSize = (size.value * 0.42f).sp,
+                fontWeight = FontWeight.Bold,
             )
         }
     }
 }
+
 
 /**
  * A flat icon + label row. The whole 48dp band is the target, and holding it
