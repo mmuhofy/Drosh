@@ -2,7 +2,6 @@
 <resources>
 
     <!-- ── Settings: groups ─────────────────────────────────────────────── -->
-    <string name="settings_title">Settings</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_terminal">Terminal</string>
     <string name="settings_section_startup">Startup</string>
@@ -36,7 +35,6 @@
     <!-- ── Settings: motd ──────────────────────────────────────────────── -->
     <string name="settings_motd_show_as">Show as</string>
     <string name="settings_motd_off">Off</string>
-    <string name="settings_motd_text">Text</string>
     <string name="settings_motd_card">Card</string>
     <string name="settings_motd_disabled_desc">Do not show it</string>
     <string name="settings_motd_plain_desc">The shell echoes the text</string>
