@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,25 +86,38 @@ fun RenameSessionDialog(
         },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                BasicTextField(
-                    value = value,
-                    onValueChange = { value = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = DroshText, fontSize = 15.sp),
-                    cursorBrush = SolidColor(DroshPrimary),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        focusManager.clearFocus()
-                        confirm()
-                    }),
+                // The field's own surface is on the Box so the text can sit in
+                // the middle of it. Giving the field the height directly left
+                // the text pinned to the top of the field.
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(46.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(DroshSurface)
-                        .padding(horizontal = 14.dp)
-                        .focusRequester(focusRequester),
-                )
+                        .background(DroshSurface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BasicTextField(
+                        value = value,
+                        onValueChange = { value = it },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            color = DroshText,
+                            fontSize = 15.sp,
+                            textAlign = TextAlign.Center,
+                        ),
+                        cursorBrush = SolidColor(DroshPrimary),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            focusManager.clearFocus()
+                            confirm()
+                        }),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp)
+                            .focusRequester(focusRequester),
+                    )
+                }
                 if (value.isBlank()) {
                     Text(
                         text = "A name is required",

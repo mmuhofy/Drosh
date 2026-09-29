@@ -1,6 +1,14 @@
 package dev.drosh.ui.session
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -235,6 +243,7 @@ private fun SidebarContent(
                     SessionRow(
                         snapshot = snapshot,
                         isActive = snapshot.id == activeId,
+                        recencyRank = index,
                         onClick = { viewModel.activate(snapshot.id) },
                         onStartRename = { renamingSession = snapshot },
                         onDelete = { viewModel.delete(snapshot.id) },
@@ -251,6 +260,7 @@ private fun SidebarContent(
                     SessionRow(
                         snapshot = snapshot,
                         isActive = false,
+                        recencyRank = 0,
                         onClick = {},
                         onStartRename = { renamingSession = snapshot },
                         onDelete = { viewModel.delete(snapshot.id) },
@@ -463,6 +473,8 @@ private fun SectionLabel(
 private fun SessionRow(
     snapshot: SessionSnapshot,
     isActive: Boolean,
+    /** 0 is the session you were just in, higher means older. */
+    recencyRank: Int,
     onClick: () -> Unit,
     onStartRename: () -> Unit,
     onDelete: () -> Unit,
@@ -487,7 +499,7 @@ private fun SessionRow(
                 .fillMaxWidth()
                 // The active row tightens its left edge to make room for the
                 // mark, so the name column stays in one place for every row.
-                .padding(start = if (isActive) 3.dp else 12.dp, end = 12.dp)
+                .padding(start = 22.dp, end = 12.dp)
                 .height(44.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(DroshSurfaceVariant.copy(alpha = surface))
@@ -500,20 +512,24 @@ private fun SessionRow(
                 .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Marks the active session. Weight and a status dot were both tried
-            // and both read as decoration, and a dot sat exactly where this
-            // column wanted to stay quiet.
-            if (isActive) {
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .height(20.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(DroshPrimary),
-                )
+            // The mark fades with recency, the way a taskbar does for windows
+            // you touched recently and not at all for ones you have not. A
+            // fixed dot for every session carried no information; so did
+            // weight, which the first version used instead.
+            val (markHeight, markAlpha) = when {
+                isActive -> 20.dp to 1f
+                recencyRank == 0 -> 14.dp to 0.55f
+                recencyRank < 3 -> 10.dp to 0.3f
+                else -> 6.dp to 0.18f
             }
-            // Indent so a name lines up with the navigation labels above it.
-            Spacer(Modifier.width(30.dp))
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(markHeight)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(DroshPrimary.copy(alpha = markAlpha)),
+            )
+            Spacer(Modifier.width(10.dp))
             Text(
                 text = snapshot.name,
                 color = DroshText,
@@ -575,71 +591,94 @@ private fun SidebarFooter(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // The pill grows into the button's space and the button turns into the
-        // close control, so the row's width never jumps. A hard swap looked
-        // like the footer had been replaced rather than switched.
-        val pillWeight by animateFloatAsState(
-            targetValue = if (searchOpen) 1f else 0f,
-            animationSpec = tween(durationMillis = 220, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-            label = "searchWidth",
-        )
-
-        if (searchOpen) {
-            SearchField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.weight(pillWeight),
-            )
-            CircleButton(
-                onClick = {
-                    focusManager.clearFocus()
-                    onCloseSearch()
+        // The pill and the field occupy the same slot and keep the same width,
+        // so the row never jumps; what animates is the swap between them and
+        // the button turning into the close control. Animating a weight for
+        // this was the obvious approach and it is invalid — weight must be
+        // greater than zero, so the collapsed state crashed the moment the
+        // footer composed.
+        Box(modifier = Modifier.weight(1f)) {
+            AnimatedContent(
+                targetState = searchOpen,
+                transitionSpec = {
+                    (fadeIn(tween(200)) + slideInHorizontally { it / 8 }) togetherWith
+                        (fadeOut(tween(120)) + slideOutHorizontally { -it / 8 })
                 },
-                contentDescription = "Close search",
-                icon = DroshIcons.X,
-            )
-        } else {
-            // Collapsed it is a plain target, not a text field: a focused field
-            // here summons the keyboard, which resizes the drawer and fights
-            // the push animation.
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(42.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(DroshSurfaceVariant)
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClick = onOpenSearch,
+                label = "searchSwap",
+            ) { open ->
+                if (open) {
+                    SearchField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    Icon(
-                        imageVector = DroshIcons.Search,
-                        contentDescription = null,
-                        tint = DroshTextMuted,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = if (query.isBlank()) "Search sessions" else query,
-                        color = if (query.isBlank()) DroshTextMuted else DroshText,
-                        fontSize = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                } else {
+                    // Collapsed it is a plain target, not a text field: a focused
+                    // field here summons the keyboard, which resizes the drawer
+                    // and fights the push animation.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(DroshSurfaceVariant)
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() },
+                                onClick = onOpenSearch,
+                            )
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
+                        Icon(
+                            imageVector = DroshIcons.Search,
+                            contentDescription = null,
+                            tint = DroshTextMuted,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = "Search sessions",
+                            color = DroshTextMuted,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
-            CircleButton(
-                onClick = onOpenSettings,
-                contentDescription = "Settings",
-                icon = DroshIcons.Settings,
-            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(DroshSurfaceVariant.copy(alpha = 0.75f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = {
+                        focusManager.clearFocus()
+                        if (searchOpen) onCloseSearch() else onOpenSettings()
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            AnimatedContent(
+                targetState = searchOpen,
+                transitionSpec = {
+                    (fadeIn(tween(160)) + scaleIn()) togetherWith
+                        (fadeOut(tween(120)) + scaleOut())
+                },
+                label = "searchButton",
+            ) { open ->
+                Icon(
+                    imageVector = if (open) DroshIcons.X else DroshIcons.Settings,
+                    contentDescription = if (open) "Close search" else "Settings",
+                    tint = DroshTextSecondary,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
         }
     }
 }
