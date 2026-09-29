@@ -881,3 +881,47 @@ fun DeviceHeaderCard(
         }
     }
 }
+
+/**
+ * Single-field dialog for the startup command. Same panel as the rename dialog
+ * so the two do not read as different apps.
+ */
+@Composable
+fun StartupCommandDialog(
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var text by rememberSaveable { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DroshSurfaceVariant,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text("Startup command", color = DroshText, fontWeight = FontWeight.Bold) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                placeholder = { Text("\$shell --login", color = DroshTextMuted) },
+                textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = DroshPrimary,
+                    unfocusedBorderColor = DroshBorderSubtle,
+                    cursorColor = DroshPrimary,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text.trim()) }) {
+                Text("Save", color = DroshPrimary)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = DroshTextSecondary)
+            }
+        },
+    )
+}

@@ -38,6 +38,19 @@ data class DroshThemeColors(
     val error: Color,
     val warning: Color,
     val build: Color,
+    /**
+     * Item tile in a settings group. Deliberately not [surfaceVariant]: that is
+     * a fill for containers, and a tile is a different object. It has to be
+     * lighter than [background] in both themes, which surfaceVariant is in dark
+     * but not in light.
+     */
+    val tile: Color,
+    /** A tile that is the current choice. Carries a check and accent text too, so the tone is not the only signal. */
+    val tileSelected: Color,
+    /** A tile under a finger. */
+    val tilePressed: Color,
+    /** Unfilled end of a slider or a switch. */
+    val track: Color,
 )
 
 private val DarkColors = DroshThemeColors(
@@ -54,12 +67,17 @@ private val DarkColors = DroshThemeColors(
     // Near-white rather than pure white: pure #FFFFFF blooms on OLED panels.
     text = Color(0xFFF2F2F2),
     textSecondary = Color(0xFFB4B4B4),
-    textMuted = Color(0xFF7A7A7A),
+    // 4.5:1 on the tile, not just on the background — supporting text sits on tiles.
+    textMuted = Color(0xFF8A8A8A),
     textDisabled = Color(0xFF4D4D4D),
     success = Color(0xFF3DD68C),
     error = Color(0xFFF2555A),
     warning = Color(0xFFF0B429),
     build = Color(0xFF4C9EFF),
+    tile = Color(0xFF242424),
+    tileSelected = Color(0xFF2A2F38),
+    tilePressed = Color(0xFF2A2A2A),
+    track = Color(0xFF33363A),
 )
 
 private val LightColors = DroshThemeColors(
@@ -82,6 +100,10 @@ private val LightColors = DroshThemeColors(
     error = Color(0xFFC42B31),
     warning = Color(0xFF8A5A00),
     build = Color(0xFF0B6BCB),
+    tile = Color(0xFFFFFFFF),
+    tileSelected = Color(0xFFE4EEFC),
+    tilePressed = Color(0xFFF0F2F5),
+    track = Color(0xFFCFD5DE),
 )
 
 /**
@@ -157,3 +179,15 @@ val DroshWarning: Color
 
 val DroshBuild: Color
     @Composable @ReadOnlyComposable get() = LocalDroshColors.current.build
+
+val DroshTile: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.tile
+
+val DroshTileSelected: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.tileSelected
+
+val DroshTilePressed: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.tilePressed
+
+val DroshTrack: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.track

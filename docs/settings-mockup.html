@@ -9,15 +9,13 @@
   --bg:#0E0E0E; --group:#171717; --tile:#242424; --tile-on:#2A2F38; --tile-press:#2A2A2A;
   --text:#F2F2F2; --text-2:#B4B4B4; --text-3:#7A7A7A;
   --accent:#4C9EFF; --accent-dim:#4C9EFF26; --accent-glow:#4C9EFF40;
-  --track:#33363A; --thumb:#4C9EFF; --thumb-ring:#242424;
-  --scrim:rgba(0,0,0,.55); --sheet:#1C1C1C; --field:#252525;
+  --track:#33363A; --thumb:#4C9EFF;   --scrim:rgba(0,0,0,.55); --sheet:#1C1C1C; --field:#252525;
 }
 :root[data-theme="light"] {
   --bg:#F6F7F9; --group:#E9ECF0; --tile:#FFFFFF; --tile-on:#E4EEFC; --tile-press:#F0F2F5;
   --text:#14181D; --text-2:#4B535E; --text-3:#6C7480;
   --accent:#0B6BCB; --accent-dim:#0B6BCB1A; --accent-glow:#0B6BCB26;
-  --track:#D3D8E0; --thumb:#0B6BCB; --thumb-ring:#FFFFFF;
-  --scrim:rgba(15,20,30,.28); --sheet:#FFFFFF; --field:#EFF1F4;
+  --track:#D3D8E0; --thumb:#0B6BCB;   --scrim:rgba(15,20,30,.28); --sheet:#FFFFFF; --field:#EFF1F4;
 }
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -34,7 +32,7 @@ body{
    middle → minimal everywhere          (the list keeps flowing)
    last   → minimal top, wide bottom   (the group closes)
    only   → all four wide              (a one-item group is one pill)   */
-.group{background:var(--group);border-radius:28px;padding:4px;display:flex;flex-direction:column;gap:4px;margin-bottom:22px}
+.group{background:transparent;border-radius:0;padding:0;display:flex;flex-direction:column;gap:4px;margin-bottom:22px}
 .tile{background:var(--tile);border-radius:4px;padding:13px 16px;min-height:60px;display:flex;align-items:center;gap:14px;cursor:default;transition:background 140ms ease}
 .tile:first-child{border-top-left-radius:24px;border-top-right-radius:24px}
 .tile:last-child{border-bottom-left-radius:24px;border-bottom-right-radius:24px}
@@ -77,17 +75,16 @@ body{
 .seg button[aria-pressed="true"]{background:var(--accent-dim);color:var(--accent);font-weight:600}
 
 /* ── modern slider: soft glow, thin track, ringed thumb ─────────── */
-.slider{position:relative;height:36px;display:flex;align-items:center;cursor:pointer;touch-action:none}
+.slider{position:relative;height:34px;display:flex;align-items:center;cursor:pointer;touch-action:none}
 .slider .track{position:absolute;left:0;right:0;height:6px;border-radius:999px;background:var(--track)}
-.slider .glow{position:absolute;height:6px;border-radius:999px;background:var(--accent-glow);filter:blur(5px)}
 .slider .fill{position:absolute;left:0;height:6px;border-radius:999px;background:var(--accent)}
-.slider .thumb{
-  position:absolute;width:22px;height:22px;border-radius:999px;background:var(--thumb);
-  box-shadow:0 0 0 3px var(--thumb-ring),0 0 14px var(--accent-glow);
-  transform:translateX(-50%);transition:box-shadow 160ms ease;
+.slider .dot{
+  position:absolute;width:16px;height:16px;border-radius:999px;background:var(--accent);
+  transform:translateX(-50%);box-shadow:0 0 12px var(--accent-glow);
+  transition:width 150ms cubic-bezier(.2,.8,.2,1),height 150ms cubic-bezier(.2,.8,.2,1);
 }
-.slider:active .thumb{box-shadow:0 0 0 3px var(--thumb-ring),0 0 20px var(--accent-glow)}
-.slider .val{position:absolute;right:0;top:-16px;font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.slider:active .dot{width:21px;height:21px;box-shadow:0 0 22px var(--accent-glow)}
+.slider .val{position:absolute;right:0;top:-15px;font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
 
 /* ── switch ───────────────────────────────────────────────────── */
 .switch{width:50px;height:30px;border-radius:999px;background:var(--track);position:relative;flex:none;cursor:pointer;transition:background 180ms cubic-bezier(.2,.8,.2,1)}
@@ -301,12 +298,11 @@ function slider(id, onChange){
   const el = document.getElementById(id);
   const min = +el.dataset.min, max = +el.dataset.max;
   let val = +el.dataset.val;
-  el.innerHTML = '<div class="track"></div><div class="glow"></div><div class="fill"></div><div class="thumb"></div>';
+  el.innerHTML = '<div class="track"></div><div class="fill"></div><div class="dot"></div>';
   function render(){
     const pct = (val - min) / (max - min) * 100;
     el.querySelector('.fill').style.width = pct + '%';
-    el.querySelector('.glow').style.width = pct + '%';
-    el.querySelector('.thumb').style.left = pct + '%';
+    el.querySelector('.dot').style.left = pct + '%';
     onChange(val);
   }
   function setFromX(clientX){
