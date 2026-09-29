@@ -380,7 +380,7 @@ private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = if (isActive) 3.dp else 12.dp, end = 12.dp)
+            .padding(horizontal = 12.dp)
             .height(44.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(DroshSurfaceVariant.copy(alpha = surface))
