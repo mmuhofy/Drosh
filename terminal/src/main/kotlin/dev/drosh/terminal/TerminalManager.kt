@@ -562,14 +562,11 @@ class TerminalManager(
             currentSession?.let { view.attachSession(it) }
         }
 
-        // If no sessions remain, notify the data layer. Following Termux's
-        // pattern, this signals the UI to exit rather than auto-creating a
-        // replacement (default creation at startup is handled separately
-        // by SessionManagerAdapter.start()).
-        if (irisSessions.isEmpty()) {
-            lifecycleCallbacks?.onLastSessionExited()
-        }
-
+        // A shell that exited on its own is not the same as the user closing
+        // the last session from the UI. The former surfaces the exit dialog and
+        // lets the user pick a new session or quit; only the latter, handled in
+        // closeTab, closes the app outright. Signalling a close here as well
+        // would race the dialog away before the user could choose.
         lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
         _processExitEvent.value = ProcessExitEvent(exitCode)
     }

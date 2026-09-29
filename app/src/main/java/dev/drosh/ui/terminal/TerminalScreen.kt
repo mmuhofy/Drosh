@@ -200,15 +200,16 @@ private fun ReadyScreen(
         firstModeCheck = false
     }
 
+    val sessionCount by terminalManager.sessionCountFlow.collectAsState()
+
+    // Closing the last session from the UI closes the app. The old guard
+    // checked whether Room still had rows, which is always true after a close
+    // because the row survives marked Closed, so the app never actually quit.
+    // Live session count is the honest signal.
     LaunchedEffect(shouldExit) {
         if (shouldExit && processExitEvent == null) {
             yield()
-
-            if (sessionSwitcherViewModel.allSessions.value.isNotEmpty()) {
-                return@LaunchedEffect
-            }
-
-            onExit()
+            if (sessionCount == 0) onExit()
         }
     }
 

@@ -142,9 +142,14 @@ class SessionManagerAdapter @Inject constructor(
 
             // Closing every session from the UI leaves the rows behind in Room
             // marked Closed, and the loop above deliberately skips Closed rows —
-            // so nothing is spawned and the app comes back up with no terminal
-            // and no way to recover. Guarantee at least one live session.
-            if (terminalManager.liveSessionIds().isEmpty()) {
+            // so nothing is spawned. That is deliberate while the app is on its
+            // way out: closing the last session should close the app, not spawn
+            // a replacement. shouldExit is reset on the next launch, and then
+            // this revives a session so the app comes back up with a terminal
+            // instead of an empty, unusable one.
+            if (!sessionRepository.shouldExit.value &&
+                terminalManager.liveSessionIds().isEmpty()
+            ) {
                 val resumable = snapshots.firstOrNull()
                 if (resumable != null) {
                     sessionRepository.updateState(resumable.id, SessionState.Running)

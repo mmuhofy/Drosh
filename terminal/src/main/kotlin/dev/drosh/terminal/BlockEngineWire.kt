@@ -72,11 +72,36 @@ class BlockEngineWire(
             .filter { it.isNotEmpty() || lines.size == 1 }
         if (nonEmpty.isEmpty()) return
 
+        // The transcript is diffed, but the terminal *rewrites* the line the
+        // user is typing on every keystroke. Without this the diff sees each new
+        // character as appended output, and a command typed in classic mode
+        // arrives at the block engine one character per block. The live input
+        // line is pulled off here and kept as the pending echo instead.
+        val liveLine = current.substringAfterLast('\n').trimEnd('\r')
+        val inputMatch = PROMPT_WITH_INPUT_REGEX.find(liveLine.trimEnd())
+        val isEditing = inputMatch != null
+
         val firstIsEcho = pendingEcho?.let { echo ->
             nonEmpty.first().trimEnd() == echo || nonEmpty.first().trimEnd().endsWith(echo)
         } ?: false
         if (firstIsEcho) pendingEcho = null
         val linesAfterEcho = if (firstIsEcho) nonEmpty.drop(1) else nonEmpty
+
+        if (isEditing) {
+            // Whatever has been typed so far is the echo that will arrive when
+            // the command actually runs, so suppress it then. The prompt is
+            // group 1, the typed text group 2.
+            val typed = inputMatch!!.groupValues[2].trimEnd()
+            if (typed.isNotEmpty()) pendingEcho = typed
+            updatePromptFrom(inputMatch.groupValues[1])
+            if (linesAfterEcho.size == 1) {
+                // The only appended line is the input line being edited.
+                return
+            }
+            // Anything before it is real output; the input line is not.
+            blockRepository.onBootOutput(linesAfterEcho.dropLast(1).joinToString("\n"))
+            return
+        }
 
         // `clear` command — drop all blocks and skip output.
         if (pendingEchoWasClear) {
@@ -142,6 +167,14 @@ class BlockEngineWire(
         previousTranscript = current
     }
 
+    /** Records the prompt and directory from a line shaped `<prompt><typed>`. */
+    private fun updatePromptFrom(promptText: String) {
+        val prompt = promptText.trimEnd()
+        if (prompt.isBlank()) return
+        lastPrompt = prompt
+        updateDirFromPrompt(prompt)
+    }
+
     private fun findRollingAnchor(previous: String, current: String): String? {
         val maxLen = minOf(previous.length, MAX_ANCHOR_BYTES)
         val minLen = minOf(maxLen, MIN_ANCHOR_BYTES)
@@ -161,6 +194,16 @@ class BlockEngineWire(
         val PROMPT_SUFFIX_REGEX = Regex("""[#$❯➜]\s*$""")
         // Last `:`..suffix segment is the path: `user@host:~/path`.
         val PROMPT_DIR_REGEX = Regex(""":([^:$#❯➜]*)$""")
+
+        /**
+         * A prompt with the user mid-command: `~$ ls`, `muhofy@drosh:~/Drosh$ git s`,
+         * `~/Drosh git:(main) ❯ npm i`. Group 1 is the prompt, group 2 the typed text.
+         *
+         * The leading lookahead requires the line's first token to contain `@`,
+         * `/` or `~`, which is what keeps output such as `Total cost: $ 5.00` or
+         * `100% $ 3 done` from being read as a prompt with an argument.
+         */
+        val PROMPT_WITH_INPUT_REGEX = Regex("""^(?=[^\s]*[@~/])([^\n]*?[$#❯➜])[ \t]+(\S.*)$""")
     }
 
     private fun updateDirFromPrompt(prompt: String) {
