@@ -5,6 +5,7 @@ import android.content.Context
 import android.provider.Settings
 import de.boehrsi.devicemarketingnames.DeviceMarketingNames
 import dev.drosh.domain.session.DeviceIdentity
+import dev.drosh.domain.session.DeviceIdentityRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import android.os.Build

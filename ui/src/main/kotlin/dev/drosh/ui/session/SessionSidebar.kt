@@ -72,7 +72,7 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import dev.drosh.domain.session.DeviceIdentity
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState

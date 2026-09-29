@@ -42,9 +42,8 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.lifecycle.viewmodel.compose)
 
-    // Coil — image loading for theme store previews (MEMORYBANK.md §58).
-    // OMITTED in Phase 1 (no theme store surface yet). Re-add when the
-    // ThemeStore screen lands in Phase 2.
+    // Coil — the device photo in the drawer header. Was held back for a theme
+    // store that never landed; in use now for the device image.
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 
