@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Drosh — app icon foreground: aperture iris (hexagonal opening, six blades)
+  Palette: MEMORYBANK.md §5 — gold #E8C547 on background #0C0C0C
+  Adaptive icon: 108dp canvas, art stays inside the 72dp safe zone (20..88)
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- outer ring with hexagonal aperture cut out -->
+    <path
+        android:fillColor="#E8C547"
+        android:fillType="evenOdd"
+        android:pathData="M54,20 a34,34 0 1,0 0.01,0 Z
+                          M69,54 L61.5,66.99 L46.5,66.99 L39,54 L46.5,41.01 L61.5,41.01 Z" />
+
+    <!-- six blade seams, rotated 12° from each opening edge -->
+    <path
+        android:strokeColor="#E8C547"
+        android:strokeWidth="3"
+        android:pathData="M69,54 L87.3,61.1
+                          M61.5,66.99 L64.5,86.3
+                          M46.5,66.99 L31.3,79.2
+                          M39,54 L20.7,46.9
+                          M46.5,41.01 L43.5,21.7
+                          M61.5,41.01 L76.7,28.8" />
+</vector>
