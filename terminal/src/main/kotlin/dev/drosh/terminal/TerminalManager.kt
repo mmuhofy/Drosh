@@ -298,6 +298,26 @@ class TerminalManager(
         }
     }
 
+    /**
+     * Closes the session the UI is pointing at.
+     *
+     * The UI used to call `currentSession?.finishIfRunning()` on its own, which
+     * sent SIGKILL but left the session in [irisSessions]. The exit callback
+     * then found it still listed and raised the "process exited" dialog for a
+     * close the user had already performed. Removing it up front means the
+     * callback is a no-op, which is the same path as a session the shell
+     * exits on its own — that one still shows the dialog.
+     */
+    fun closeCurrentTab() {
+        closeTab(_activeTabIndex.value)
+    }
+
+    /** Closes the current session and opens a fresh one in its place. */
+    fun restartCurrentTab() {
+        closeTab(_activeTabIndex.value)
+        addTab()
+    }
+
     fun closeTab(index: Int) {
         if (index !in irisSessions.indices) return
         val irisSession = irisSessions[index]

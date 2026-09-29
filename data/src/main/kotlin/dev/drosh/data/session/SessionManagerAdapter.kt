@@ -139,18 +139,24 @@ class SessionManagerAdapter @Inject constructor(
                     sessionRepository.updateState(id, SessionState.Closed)
                 }
             }
+
+            // Closing every session from the UI leaves the rows behind in Room
+            // marked Closed, and the loop above deliberately skips Closed rows —
+            // so nothing is spawned and the app comes back up with no terminal
+            // and no way to recover. Guarantee at least one live session.
+            if (terminalManager.liveSessionIds().isEmpty()) {
+                val resumable = snapshots.firstOrNull()
+                if (resumable != null) {
+                    sessionRepository.updateState(resumable.id, SessionState.Running)
+                    terminalManager.addTabWithId(resumable.id, resumable.name)
+                } else {
+                    val defaultId = sessionRepository.create(DEFAULT_SESSION_NAME)
+                    sessionRepository.setActiveId(defaultId)
+                }
+            }
         }
 
         lastNames = currentNames
-
-        // If Room has no sessions at all, ensure a default exists.
-        // This runs on every observeAll() emission, covering both initial
-        // startup and relaunch after app exit (process may be reused,
-        // start() not called again). create() resets shouldExit to false.
-        if (currentIds.isEmpty()) {
-            val defaultId = sessionRepository.create("Default")
-            sessionRepository.setActiveId(defaultId)
-        }
     }
 
     /**
@@ -190,5 +196,6 @@ class SessionManagerAdapter @Inject constructor(
 
     private companion object {
         const val SNAPSHOT_TICK_MS = 500L
+        const val DEFAULT_SESSION_NAME = "Default"
     }
 }

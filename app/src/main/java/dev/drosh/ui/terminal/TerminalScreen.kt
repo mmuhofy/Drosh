@@ -595,8 +595,7 @@ private fun ReadyScreen(
                     searchActive = true
                 },
                 onRefresh = {
-                    terminalManager.currentSession?.finishIfRunning()
-                    terminalManager.addTab()
+                    terminalManager.restartCurrentTab()
                 },
                 onToggleFullscreen = {
                     fullscreen = true
@@ -605,7 +604,7 @@ private fun ReadyScreen(
                     terminalManager.addTab()
                 },
                 onClose = {
-                    terminalManager.currentSession?.finishIfRunning()
+                    terminalManager.closeCurrentTab()
                 },
                 onOpenSettings = onOpenSettings,
                 onOpenAgent = onOpenAgent,

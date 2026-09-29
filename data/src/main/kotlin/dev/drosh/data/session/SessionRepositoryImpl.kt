@@ -92,11 +92,16 @@ class SessionRepositoryImpl @Inject constructor(
         val activeId = dataStore.data.map { it[KEY_ACTIVE_SESSION_ID] }.first()
         dao.delete(id)
         if (activeId == id) {
-            dataStore.edit { it.remove(KEY_ACTIVE_SESSION_ID) }
             val remaining = dao.observeAll().first()
             val fallback = remaining.firstOrNull()
             if (fallback != null) {
                 dataStore.edit { it[KEY_ACTIVE_SESSION_ID] = fallback.id }
+            } else {
+                // Deleting the last session used to leave the active id unset,
+                // and the next launch had nothing to select. Replace it with a
+                // fresh default so there is always somewhere to land.
+                val replacement = create("Default")
+                dataStore.edit { it[KEY_ACTIVE_SESSION_ID] = replacement }
             }
         }
     }
