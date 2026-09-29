@@ -1,5 +1,6 @@
 package dev.drosh.data.session
 
+import com.termux.terminal.Logger
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.terminal.SessionLifecycleCallbacks
@@ -52,7 +53,7 @@ class SessionManagerAdapter @Inject constructor(
      * reconcile tick with no live session would resurrect one, which is the
      * silent replacement the exit dialog exists to avoid.
      */
-    private var hasEnsuredSession: Boolean = false
+    private var sessionsEstablished: Boolean = false
 
     private val _activeId = MutableStateFlow<String?>(null)
     val activeIdFlow: StateFlow<String?> = _activeId.asStateFlow()
@@ -86,9 +87,51 @@ class SessionManagerAdapter @Inject constructor(
         tickerJob = appScope.launch {
             while (true) {
                 delay(SNAPSHOT_TICK_MS)
+                ensureSessionExists()
                 // Live snapshot capture is deferred until TerminalBuffer API is stable.
                 // TODO: Implement captureLiveSnapshot() using emulator.getScreen()
             }
+        }
+    }
+
+    /**
+     * Launch recovery, retried until a session is actually alive.
+     *
+     * [reconcile] only runs when Room emits, so it cannot fix a launch that came
+     * up empty: nothing in the database changes afterwards, so no further
+     * emission ever arrives and the screen stays black. The ticker drives this
+     * instead, so a first attempt that lands before the PTY layer is ready is
+     * simply followed by another.
+     *
+     * It stops the moment any session has been live. From then on the user is in
+     * charge, so closing every session must not silently conjure a replacement —
+     * the exit dialog owns that decision.
+     */
+    private suspend fun ensureSessionExists() {
+        if (sessionsEstablished) return
+
+        if (terminalManager.liveSessionIds().isNotEmpty()) {
+            sessionsEstablished = true
+            return
+        }
+
+        val snapshots = sessionRepository.observeAll().first()
+        val resumable = snapshots.firstOrNull { it.state != SessionState.Closed }
+            ?: snapshots.firstOrNull()
+
+        // A failing spawn must not kill the ticker, or recovery stops for good.
+        runCatching {
+            withContext(Dispatchers.Main.immediate) {
+                if (resumable != null) {
+                    sessionRepository.updateState(resumable.id, SessionState.Running)
+                    terminalManager.addTabWithId(resumable.id, resumable.name)
+                } else {
+                    val defaultId = sessionRepository.create(DEFAULT_SESSION_NAME)
+                    sessionRepository.setActiveId(defaultId)
+                }
+            }
+        }.onFailure { error ->
+            Logger.logWarn(null, "Drosh", "Session recovery attempt failed: ${error.message}")
         }
     }
 
@@ -121,6 +164,8 @@ class SessionManagerAdapter @Inject constructor(
         withContext(Dispatchers.Main.immediate) {
             val liveIds = terminalManager.liveSessionIds()
 
+            if (liveIds.isNotEmpty()) sessionsEstablished = true
+
             val notLive = currentIds - liveIds
             notLive.forEach { id ->
                 val snapshot = snapshots.firstOrNull { it.id == id }
@@ -147,25 +192,6 @@ class SessionManagerAdapter @Inject constructor(
                 }
             }
 
-            // Rows survive a close marked Closed, and the loop above
-            // deliberately skips Closed rows, so nothing is spawned once every
-            // session is gone. That is what was asked for: no silent
-            // replacement, the exit dialog decides. A session is revived only
-            // on the first reconcile of a process, so launching after closing
-            // everything still lands on a working terminal instead of an empty
-            // one. Without the one-shot guard, any later tick would resurrect
-            // the session the user had just closed.
-            if (!hasEnsuredSession && terminalManager.liveSessionIds().isEmpty()) {
-                hasEnsuredSession = true
-                val resumable = snapshots.firstOrNull()
-                if (resumable != null) {
-                    sessionRepository.updateState(resumable.id, SessionState.Running)
-                    terminalManager.addTabWithId(resumable.id, resumable.name)
-                } else {
-                    val defaultId = sessionRepository.create(DEFAULT_SESSION_NAME)
-                    sessionRepository.setActiveId(defaultId)
-                }
-            }
         }
 
         lastNames = currentNames

@@ -584,16 +584,16 @@ class TerminalManager(
             currentSession?.let { view.attachSession(it) }
         }
 
-        // A shell that exited on its own is not the same as the user closing
-        // the last session from the UI. The former surfaces the exit dialog and
-        // lets the user pick a new session or quit; only the latter, handled in
-        // closeTab, closes the app outright. Signalling a close here as well
-        // would race the dialog away before the user could choose.
         lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
+
+        // Only the last session is worth interrupting for. One session exiting
+        // while siblings remain is routine — it just leaves the list, and the
+        // user can pick another from the sidebar. The dialog is reserved for
+        // the point where there is nothing left to switch to, so it appears when
+        // the user tries to exit the final session and not on every exit.
         if (irisSessions.isEmpty()) {
-            _noSessionsLeft.value = true
-        } else {
             _processExitEvent.value = ProcessExitEvent(exitCode)
+            _noSessionsLeft.value = true
         }
     }
 

@@ -695,13 +695,13 @@ private fun ReadyScreen(
             )
         }
 
-        // One dialog for both ways a session can end. `processExitEvent` is a
-        // shell that exited on its own and still has a sibling to go back to;
-        // `noSessionsLeft` means the last one is gone — after `exit`, after a
-        // toolbar close, or after a sidebar delete — and nothing is replaced
-        // behind the user's back.
+        // Only shown when the last session is gone, whether by typing `exit`, by
+        // closing from the toolbar, or by deleting from the sidebar. A session
+        // exiting while siblings remain is routine and says nothing here; the
+        // user simply switches to another one. Nothing is replaced behind their
+        // back — the dialog is the only way forward.
         val sessionEndEvent = processExitEvent
-        if (sessionEndEvent != null || noSessionsLeft) {
+        if (noSessionsLeft) {
             val quit: () -> Unit = {
                 terminalManager.clearProcessExitEvent()
                 terminalManager.clearNoSessionsLeft()
@@ -741,7 +741,7 @@ private fun ReadyScreen(
                 },
                 title = {
                     Text(
-                        text = if (noSessionsLeft) "No sessions left" else "Process exited",
+                        text = "No sessions left",
                         color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.SemiBold,
