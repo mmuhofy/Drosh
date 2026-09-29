@@ -67,6 +67,9 @@ lottie = "6.6.0"
 # Icons
 lucide-ardasoyturk = "2.0.7"
 
+# Device model codename -> marketing name. Offline, Apache-2.0.
+device-marketing-names = "1.0.10"
+
 # LLM providers — Phase 6
 googleGenai = "0.6.1"
 
@@ -160,6 +163,9 @@ lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", versio
 
 # Icons
 lucide-compose = { group = "io.github.ardasoyturk.compose.icons", name = "lucide-android", version.ref = "lucide-ardasoyturk" }
+
+# Device identity
+device-marketing-names = { group = "de.boehrsi", name = "devicemarketingnames", version.ref = "device-marketing-names" }
 
 # LLM (Phase 6)
 google-genai = { group = "com.google.genai", name = "google-genai", version.ref = "googleGenai" }

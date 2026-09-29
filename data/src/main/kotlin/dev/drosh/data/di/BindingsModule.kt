@@ -4,6 +4,7 @@ import dev.drosh.data.input.HardwareKeyboardPresenceImpl
 import dev.drosh.data.input.InputPreferencesRepositoryImpl
 import dev.drosh.data.input.SubmitRawByteUseCaseImpl
 import dev.drosh.data.session.ObserveActiveSessionUseCaseImpl
+import dev.drosh.data.session.DeviceIdentityRepositoryImpl
 import dev.drosh.data.session.SessionRepositoryImpl
 import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
@@ -20,6 +21,7 @@ import dev.drosh.domain.input.HardwareKeyboardPresence
 import dev.drosh.domain.input.InputPreferencesRepository
 import dev.drosh.domain.input.SubmitRawByteUseCase
 import dev.drosh.domain.session.ObserveActiveSessionUseCase
+import dev.drosh.domain.session.DeviceIdentityRepository
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
@@ -45,6 +47,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class BindingsModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindDeviceIdentityRepository(
+        impl: DeviceIdentityRepositoryImpl,
+    ): DeviceIdentityRepository
 
     @Binds
     @Singleton

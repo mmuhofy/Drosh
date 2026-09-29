@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,12 +47,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +72,8 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import coil.compose.AsyncImage
+import dev.drosh.domain.session.DeviceIdentity
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.ui.DroshIcons
@@ -129,6 +132,7 @@ fun SessionSidebar(
     pushState: SidebarPushState? = null,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
+    val deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel()
     val state = pushState ?: rememberSidebarPushState(isOpen)
 
     Box(
@@ -146,6 +150,7 @@ fun SessionSidebar(
     ) {
         SidebarContent(
             viewModel = viewModel,
+            deviceIdentityViewModel = deviceIdentityViewModel,
             onOpenSettings = onOpenSettings,
             onOpenAgent = onOpenAgent,
         )
@@ -155,12 +160,13 @@ fun SessionSidebar(
 @Composable
 private fun SidebarContent(
     viewModel: SessionSwitcherViewModel,
+    deviceIdentityViewModel: DeviceIdentityViewModel,
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
-    val identity = rememberDeviceIdentity()
+    val identity by deviceIdentityViewModel.identity.collectAsStateWithLifecycle()
 
     var searchQuery by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
@@ -189,7 +195,10 @@ private fun SidebarContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding(),
+            .statusBarsPadding()
+            // Without this the keyboard covers the footer, taking the search
+            // field and the close button with it while you are typing in it.
+            .imePadding(),
     ) {
         SidebarHeader(
             identity = identity,
@@ -280,9 +289,15 @@ private fun SidebarContent(
 
 @Composable
 private fun SidebarHeader(
-    identity: DeviceIdentity,
+    identity: DeviceIdentity?,
     onNewSession: () -> Unit,
 ) {
+    val name = identity?.marketingName.orEmpty().ifBlank { "This device" }
+    val subtitle = identity?.takeIf { it.marketingName != it.model }
+        ?.let { it.manufacturer + " " + it.model }
+        ?.takeIf { it.isNotBlank() }
+        ?: identity?.model.orEmpty()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -290,42 +305,67 @@ private fun SidebarHeader(
             .padding(top = 12.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(DroshSurfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = deviceVisualFor(identity.formFactor),
-                contentDescription = null,
-                tint = DroshTextSecondary,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+        DeviceAvatar(
+            imageUrl = identity?.visualUrl,
+            fallbackLetter = name.firstOrNull()?.uppercase() ?: "?",
+        )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = identity.label,
+                text = name,
                 color = DroshText,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = "Local sessions",
-                color = DroshTextMuted,
-                fontSize = 11.5.sp,
-                maxLines = 1,
-            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    text = subtitle,
+                    color = DroshTextMuted,
+                    fontSize = 11.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         CircleButton(
             onClick = onNewSession,
             contentDescription = "New session",
             icon = DroshIcons.Plus,
         )
+    }
+}
+
+/**
+ * The device in the circle: its product image once one has been looked up and
+ * cached, a monogram until then. Wikimedia may simply have nothing for the
+ * model, so the monogram is the resting state rather than a failure.
+ */
+@Composable
+private fun DeviceAvatar(imageUrl: String?, fallbackLetter: String) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(DroshSurfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (imageUrl != null) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text(
+                text = fallbackLetter,
+                color = DroshTextSecondary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
     }
 }
 
@@ -346,14 +386,16 @@ private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .padding(horizontal = 12.dp)
+            .height(44.dp)
+            .clip(RoundedCornerShape(10.dp))
             .background(DroshSurfaceVariant.copy(alpha = surface))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -469,7 +511,7 @@ private fun SessionRow(
                         )
                     }
                 )
-                .padding(start = 20.dp, end = 16.dp),
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (isRenaming) {
@@ -492,7 +534,7 @@ private fun SessionRow(
                     text = snapshot.name,
                     color = if (isActive) DroshText else DroshText.copy(alpha = 0.86f),
                     fontSize = 15.sp,
-                    fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
+                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
                     textDecoration = if (ended) TextDecoration.LineThrough else TextDecoration.None,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

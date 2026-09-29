@@ -44,7 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshPrimary
+import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshSurface
+import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.domain.input.ExtraKey
@@ -99,11 +101,13 @@ fun FlatKeyBar(
                 )
             },
     ) {
-        // Solid opaque background — 100% visible, no transparency.
+        // Opaque, and one step up from both the terminal behind it and the
+        // drawer frame. It used to be DroshSurface, the same value as the
+        // frame, so the bar merged into it and stopped reading as its own thing.
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(DroshSurface)
+                .background(DroshSurfaceVariant)
                 .clip(BAR_CORNER),
         )
 
@@ -348,9 +352,9 @@ private fun KeyDivider() {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        DroshSurface,
+                        DroshSurfaceVariant,
                         DroshBorderSubtle,
-                        DroshSurface,
+                        DroshSurfaceVariant,
                     ),
                 ),
             ),
@@ -402,7 +406,7 @@ private fun MoreKeysPanel(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(DroshSurface.copy(alpha = 0.85f)),
+                .background(DroshSurfaceVariant.copy(alpha = 0.85f)),
         )
 
         Row(

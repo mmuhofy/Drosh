@@ -45,8 +45,8 @@ dependencies {
     // Coil — image loading for theme store previews (MEMORYBANK.md §58).
     // OMITTED in Phase 1 (no theme store surface yet). Re-add when the
     // ThemeStore screen lands in Phase 2.
-    // implementation(libs.coil.compose)
-    // implementation(libs.coil.network.okhttp)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     // Lottie — onboarding animations (MEMORYBANK.md §59).
     // OMITTED in Phase 1 (boot splash + simple Compose start screen cover

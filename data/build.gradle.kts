@@ -40,6 +40,10 @@ dependencies {
 
     // networking — OkHttp + SSE for streaming LLM responses
     implementation(libs.okhttp)
+
+    // Build.MODEL is a codename; this turns it into the name the device is sold
+    // under. Offline, so it works in airplane mode and phones home to nobody.
+    implementation(libs.device.marketing.names)
     implementation(libs.okhttp.sse)
     implementation(libs.okhttp.logging)
 
