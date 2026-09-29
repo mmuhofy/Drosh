@@ -78,6 +78,16 @@ class BlockEngineWire(
         return AnsiStripper.strip(emulator.getScreen().getTranscriptTextWithoutJoinedLines())
     }
 
+    /**
+     * Re-seeds the diff anchor against [session]'s current transcript without
+     * changing which session is active. Used after a restart, where the id is
+     * unchanged but the process and everything on screen is new.
+     */
+    fun reanchor(session: TerminalSession) {
+        previousTranscript = snapshotOf(session)
+        pendingEcho = null
+    }
+
     fun onSessionTextChanged(session: TerminalSession, sessionId: String?) {
         if (sessionId != activeSessionId) return
         val emulator: TerminalEmulator = session.emulator ?: return

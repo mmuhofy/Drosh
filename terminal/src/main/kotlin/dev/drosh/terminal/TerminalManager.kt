@@ -65,6 +65,21 @@ class TerminalManager(
      */
     private val idToIndex: MutableMap<String, Int> = mutableMapOf()
 
+    /**
+     * Notified whenever the active session changes, with its persistent id or
+     * null when the active one is not persisted.
+     *
+     * [TerminalManager] owns "which session is active" and this is the only way
+     * that fact leaves it, so the persisted value cannot drift from the live
+     * one. The data layer persists it; it must not push a value back, or the
+     * two would argue.
+     */
+    var onActiveSessionChanged: ((String?) -> Unit)? = null
+
+    private fun publishActiveId() {
+        onActiveSessionChanged?.invoke(activePersistentId())
+    }
+
     private val _activeTabIndex = MutableStateFlow(0)
     val activeTabIndex: StateFlow<Int> = _activeTabIndex.asStateFlow()
 
@@ -239,6 +254,7 @@ class TerminalManager(
         // Block mode shares these sessions; point the block store at the new one.
         blockEngineWire?.onSessionChanged(persistentId, irisSession.terminalSession)
         terminalViewRef?.attachSession(irisSession.terminalSession)
+        publishActiveId()
         return irisSession.terminalSession
     }
 
@@ -288,6 +304,21 @@ class TerminalManager(
      * Used by [SessionManagerAdapter] to reconcile Room state with live
      * PTY sessions.
      */
+    /**
+     * Rebuilds the id→index entries from [index] onwards.
+     *
+     * Removing a session shifts every position after it, and each removal site
+     * used to redo that by hand. One site getting it wrong made
+     * [getIndexForId] return a stale index, which silently selected the wrong
+     * session.
+     */
+    private fun reindexFrom(index: Int) {
+        for (i in index until irisSessions.size) {
+            val id = irisSessions[i].persistentId ?: continue
+            idToIndex[id] = i
+        }
+    }
+
     fun liveSessionIds(): Set<String> =
         irisSessions.mapNotNull { it.persistentId }.toSet()
 
@@ -333,10 +364,30 @@ class TerminalManager(
         closeTab(_activeTabIndex.value)
     }
 
-    /** Closes the current session and opens a fresh one in its place. */
+    /**
+     * Restarts the active session in place.
+     *
+     * The previous version closed the session and called [addTab], which was
+     * not a restart: the new session landed at the end of the list, got a new
+     * Room id, and lost the block history keyed to the old one. Here the
+     * session keeps its identity, its position and its block history, and only
+     * the process behind it is replaced.
+     */
     fun restartCurrentTab() {
-        closeTab(_activeTabIndex.value)
-        addTab()
+        val index = _activeTabIndex.value
+        if (index !in irisSessions.indices) return
+        val irisSession = irisSessions[index]
+
+        val replacement = createNewSession()
+        irisSession.terminalSession.finishIfRunning()
+        irisSession.terminalSession = replacement
+
+        _sessionCount.value = irisSessions.size
+        // Same session id, so onSessionChanged would be a no-op. The diff anchor
+        // has to be re-seeded regardless, or the new shell's first output is
+        // diffed against the dead shell's transcript.
+        blockEngineWire?.reanchor(replacement)
+        terminalViewRef?.attachSession(replacement)
     }
 
     fun closeTab(index: Int) {
@@ -348,11 +399,7 @@ class TerminalManager(
         _sessionCount.value = irisSessions.size
 
         if (persistentId != null) idToIndex.remove(persistentId)
-
-        for (i in index until irisSessions.size) {
-            val id = irisSessions[i].persistentId
-            if (id != null) idToIndex[id] = i
-        }
+        reindexFrom(index)
 
         when {
             index < _activeTabIndex.value -> _activeTabIndex.value--
@@ -364,9 +411,17 @@ class TerminalManager(
             currentSession?.let { view.attachSession(it) }
         }
 
+        // The persistent row must be marked Closed for *every* close, not just
+        // when the list empties. reconcile deliberately skips Closed rows when
+        // spawning, and it only set the state itself for rows deleted from Room.
+        // A session closed from the toolbar kept a Running row, so the next tick
+        // saw it as not-live-but-openable and spawned it again.
+        lifecycleCallbacks?.onSessionFinished(persistentId, -1)
+
         if (irisSessions.isEmpty()) {
-            lifecycleCallbacks?.onSessionFinished(persistentId, -1)
             _noSessionsLeft.value = true
+        } else {
+            publishActiveId()
         }
     }
 
@@ -378,6 +433,7 @@ class TerminalManager(
         val target = irisSessions[index]
         blockEngineWire?.onSessionChanged(target.persistentId, target.terminalSession)
         currentSession?.let { terminalViewRef?.attachSession(it) }
+        publishActiveId()
     }
 
     fun createSession(): TerminalSession {
@@ -569,11 +625,7 @@ class TerminalManager(
             idToIndex.remove(persistentId)
         }
 
-        for (i in idx until irisSessions.size) {
-            val id = irisSessions[i].persistentId
-            if (id != null) idToIndex[id] = i
-        }
-
+        reindexFrom(idx)
         when {
             idx < _activeTabIndex.value -> _activeTabIndex.value--
             idx == _activeTabIndex.value && _activeTabIndex.value >= irisSessions.size ->
@@ -594,6 +646,8 @@ class TerminalManager(
         if (irisSessions.isEmpty()) {
             _processExitEvent.value = ProcessExitEvent(exitCode)
             _noSessionsLeft.value = true
+        } else {
+            publishActiveId()
         }
     }
 

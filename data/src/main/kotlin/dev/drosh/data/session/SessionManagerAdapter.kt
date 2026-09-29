@@ -53,7 +53,16 @@ class SessionManagerAdapter @Inject constructor(
      * reconcile tick with no live session would resurrect one, which is the
      * silent replacement the exit dialog exists to avoid.
      */
+    @Volatile
     private var sessionsEstablished: Boolean = false
+
+    /**
+     * Set once the persisted active id has been applied to the terminal
+     * manager. Until a session by that name is live the switch is a no-op, and
+     * the stored value would otherwise be lost for the rest of the process.
+     */
+    @Volatile
+    private var hasAppliedStoredActive: Boolean = false
 
     private val _activeId = MutableStateFlow<String?>(null)
     val activeIdFlow: StateFlow<String?> = _activeId.asStateFlow()
@@ -66,6 +75,13 @@ class SessionManagerAdapter @Inject constructor(
         appScope.launch { sessionRepository.setShouldExit(false) }
 
         terminalManager.lifecycleCallbacks = this
+        // TerminalManager owns which session is active; persist whatever it
+        // says. Nothing writes the active id back into the manager, so the
+        // stored value cannot drift from the live one — which is what made the
+        // sidebar highlight a different session than the one on screen.
+        terminalManager.onActiveSessionChanged = { id ->
+            appScope.launch { sessionRepository.setActiveId(id) }
+        }
 
         reconcileJob = appScope.launch {
             sessionRepository.observeAll().collectLatest { snapshots ->
@@ -108,20 +124,28 @@ class SessionManagerAdapter @Inject constructor(
      * the exit dialog owns that decision.
      */
     private suspend fun ensureSessionExists() {
+        // Cheap gate first. The flags are volatile because this runs on
+        // @ApplicationScope, which is Dispatchers.Default.
         if (sessionsEstablished) return
 
-        if (terminalManager.liveSessionIds().isNotEmpty()) {
-            sessionsEstablished = true
-            return
-        }
-
         val snapshots = sessionRepository.observeAll().first()
-        val resumable = snapshots.firstOrNull { it.state != SessionState.Closed }
-            ?: snapshots.firstOrNull()
 
-        // A failing spawn must not kill the ticker, or recovery stops for good.
-        runCatching {
-            withContext(Dispatchers.Main.immediate) {
+        // Everything below touches TerminalManager's session list, its
+        // id-to-index map and these flags. All of that now happens on the main
+        // thread only, which is the invariant the manager relies on and never
+        // states in its types. The scope this runs in is a thread pool.
+        withContext(Dispatchers.Main.immediate) {
+            if (sessionsEstablished) return@withContext
+            if (terminalManager.liveSessionIds().isNotEmpty()) {
+                sessionsEstablished = true
+                return@withContext
+            }
+
+            val resumable = snapshots.firstOrNull { it.state != SessionState.Closed }
+                ?: snapshots.firstOrNull()
+
+            // A failing spawn must not kill the ticker, or recovery stops for good.
+            runCatching {
                 if (resumable != null) {
                     sessionRepository.updateState(resumable.id, SessionState.Running)
                     terminalManager.addTabWithId(resumable.id, resumable.name)
@@ -129,9 +153,9 @@ class SessionManagerAdapter @Inject constructor(
                     val defaultId = sessionRepository.create(DEFAULT_SESSION_NAME)
                     sessionRepository.setActiveId(defaultId)
                 }
+            }.onFailure { error ->
+                Logger.logWarn(null, "Drosh", "Session recovery attempt failed: ${error.message}")
             }
-        }.onFailure { error ->
-            Logger.logWarn(null, "Drosh", "Session recovery attempt failed: ${error.message}")
         }
     }
 
@@ -172,6 +196,20 @@ class SessionManagerAdapter @Inject constructor(
                 if (snapshot?.state != SessionState.Closed) {
                     terminalManager.addTabWithId(id, snapshot?.name ?: "")
                     sessionRepository.updateState(id, SessionState.Running)
+                }
+            }
+
+            // The stored active id is applied once the session it names is
+            // actually live. Applying it earlier is a silent no-op, and nothing
+            // re-emits afterwards, so a relaunch would always land on tab 0
+            // instead of the session the user left on.
+            if (!hasAppliedStoredActive) {
+                val storedId = _activeId.value
+                if (storedId == null || storedId in terminalManager.liveSessionIds()) {
+                    // Nothing to restore, or it is finally live. Either way the
+                    // restore is settled and there is no reason to look again.
+                    hasAppliedStoredActive = true
+                    if (storedId != null) terminalManager.switchSessionById(storedId)
                 }
             }
 
