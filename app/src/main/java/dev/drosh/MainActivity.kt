@@ -129,22 +129,36 @@ class MainActivity : ComponentActivity() {
         ) {
             composable("loading") {
                 val destination = if (firstCompleted == true) "terminal" else "setup_flow"
-                // Was an empty background: a cold start on a slow device was a
-                // black rectangle with nothing to say anything was happening.
-                SplashScreen(
-                    onFinished = {
-                        if (firstCompleted != null) {
-                            navController.navigate(destination) {
-                                popUpTo("loading") { inclusive = true }
-                            }
+                var splashDone by rememberSaveable { mutableStateOf(false) }
+                var left by rememberSaveable { mutableStateOf(false) }
+
+                // Wait for both halves: the word to finish being drawn, and the
+                // stored flag to say where to go. Either alone races — leaving on
+                // the flag cuts the word short, waiting on the splash's timer
+                // can leave it waiting for a callback that already fired.
+                LaunchedEffect(splashDone, firstCompleted) {
+                    if (splashDone && firstCompleted != null && !left) {
+                        left = true
+                        navController.navigate(destination) {
+                            popUpTo("loading") { inclusive = true }
                         }
-                    },
-                )
+                    }
+                }
+
+                SplashScreen(onFinished = { splashDone = true })
             }
 
             composable("setup_flow") {
                 SetupFlowScreen(
                     onReady = {
+                        // The flag used to be set by the bootstrap launcher, which
+                        // only runs if the user reaches the bootstrap page by
+                        // pressing its button. They can also get there by
+                        // swiping through the pages, and then the flag was never
+                        // written and every later launch opened onboarding again.
+                        // Reaching the terminal is the actual signal that setup
+                        // is done, so mark it here.
+                        coroutineScope.launch { firstLaunchUseCase.markCompleted() }
                         navController.navigate("terminal") {
                             popUpTo("setup_flow") { inclusive = true }
                         }

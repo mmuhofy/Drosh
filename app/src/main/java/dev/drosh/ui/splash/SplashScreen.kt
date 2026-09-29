@@ -1,90 +1,77 @@
 package dev.drosh.ui.splash
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.ui.icons.DroshMark
-import dev.drosh.ui.setup.onboarding.components.TypewriterText
 import kotlinx.coroutines.delay
 
+private const val WORD = "Drosh"
+private const val CHAR_MS = 150L
+/** How long the newest letter stays lit before it settles. */
+private const val FLASH_MS = 420L
+private const val MINIMUM_HOLD_MS = 1500L
+private const val PUNCTUATION_PAUSE_MS = 90L
+
 /**
- * What the app shows while it works out where to go.
+ * The cold-start screen: the name, typed out one letter at a time with the
+ * newest letter lit.
  *
- * This replaced an empty background, so a cold start on a slow device was a
- * black rectangle with nothing to say that anything was happening.
+ * Everything else that was here — the mark, a glow, three rotating lines of
+ * copy, a filling hairline — is gone. There is one job and it is the word.
  *
- * The lines cycle rather than ending after one. The point is to show the app is
- * alive and say what it is, and on a fast launch there is not time to read a
- * sentence once, let alone type it. [onFinished] waits out a minimum hold, so
- * this is never a flash.
+ * [onFinished] waits out a minimum hold regardless of how much has been typed,
+ * so a quick launch is a brief word rather than a flash of a half-drawn one.
  */
-private val LINES = listOf(
-    "Your phone is a Unix machine.",
-    "A real shell, running on the device.",
-    "Terminal, editor and agent, together.",
-)
-
-private const val MINIMUM_HOLD_MS = 1100L
-private const val AFTER_TYPING_MS = 1500L
-private const val TYPED_CHAR_MS = 40L
-
 @Composable
 fun SplashScreen(
     onFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var lineIndex by remember { mutableIntStateOf(0) }
-    var typed by remember { mutableStateOf(false) }
+    var revealed by remember { mutableIntStateOf(0) }
+    var lit by remember { mutableIntStateOf(0) }
+    val shown = WORD.take(revealed)
 
     LaunchedEffect(Unit) {
-        delay(MINIMUM_HOLD_MS)
+        // A fixed floor, plus a little more the first time round so the word is
+        // never caught mid-draw on its only appearance.
+        val drawTime = WORD.length * CHAR_MS + FLASH_MS
+        delay(maxOf(MINIMUM_HOLD_MS, drawTime))
         onFinished()
     }
 
-    // Rotate through the lines.
-    LaunchedEffect(typed) {
-        if (!typed) return@LaunchedEffect
-        delay(AFTER_TYPING_MS)
-        typed = false
-        lineIndex = (lineIndex + 1) % LINES.size
+    LaunchedEffect(revealed) {
+        if (revealed == 0) return@LaunchedEffect
+        val char = WORD[revealed - 1]
+        lit = revealed
+        delay(if (char == ' ' || char == '.' || char == ',') PUNCTUATION_PAUSE_MS else CHAR_MS)
+        revealed += 1
+    }
+
+    // Hold the newest letter lit for a beat, then let it settle to the same
+    // colour as the letters before it.
+    LaunchedEffect(lit) {
+        if (lit == 0) return@LaunchedEffect
+        delay(FLASH_MS)
+        lit = 0
     }
 
     Box(
@@ -93,121 +80,32 @@ fun SplashScreen(
             .background(DroshBackground),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            modifier = Modifier.padding(horizontal = 44.dp),
-        ) {
-            BreathingMark()
-
-            Text(
-                text = "Drosh",
+        BasicTextField(
+            value = shown,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            cursorBrush = SolidColor(DroshPrimary),
+            textStyle = TextStyle(
                 color = DroshText,
-                fontSize = 26.sp,
+                fontSize = 34.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp,
-            )
-
-            // Fixed height so the block below does not dance while characters
-            // arrive, and the text sits left so it grows from one origin.
-            Box(
-                modifier = Modifier
-                    .height(20.dp)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                // Changing the text is enough to restart the typewriter: it keys
-                // its own effect on fullText.
-                TypewriterText(
-                    fullText = LINES[lineIndex],
-                    charDelayMs = TYPED_CHAR_MS,
-                    onComplete = { typed = true },
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        color = DroshTextMuted,
-                        fontSize = 12.sp,
-                    ),
-                )
-            }
-
-            ProgressHairline()
-        }
-    }
-}
-
-/**
- * The mark pulses inside a soft glow, and a hairline beneath it fills and
- * empties. Together they mean something is happening even during the first
- * second, before a single character is typed.
- */
-@Composable
-private fun BreathingMark() {
-    val transition = rememberInfiniteTransition(label = "splash")
-
-    val pulse by transition.animateFloat(
-        initialValue = 0.97f,
-        targetValue = 1.03f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1700, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "markScale",
-    )
-
-    val glow by transition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 0.65f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1700, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "markGlow",
-    )
-
-    Box(contentAlignment = Alignment.Center) {
-        Box(
-            modifier = Modifier
-                .size(104.dp)
-                .clip(RoundedCornerShape(30.dp))
-                .background(DroshPrimary.copy(alpha = glow * 0.16f)),
-        )
-        DroshMark(
-            modifier = Modifier
-                .size(72.dp)
-                .scale(pulse),
-            color = DroshPrimary,
-        )
-    }
-}
-
-@Composable
-private fun ProgressHairline() {
-    val transition = rememberInfiniteTransition(label = "hairline")
-    val fill by transition.animateFloat(
-        initialValue = 0.06f,
-        targetValue = 0.86f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "hairlineFill",
-    )
-
-    Spacer(modifier = Modifier.height(4.dp))
-
-    Box(
-        modifier = Modifier
-            .width(132.dp)
-            .height(2.dp)
-            .clip(RoundedCornerShape(1.dp))
-            .background(DroshBorderSubtle.copy(alpha = 0.5f)),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fill)
-                .height(2.dp)
-                .clip(RoundedCornerShape(1.dp))
-                .background(DroshPrimary.copy(alpha = 0.8f)),
+                letterSpacing = 2.sp,
+            ),
+            modifier = Modifier,
+            visualTransformation = { text ->
+                if (lit == 0 || lit > text.length) {
+                    text
+                } else {
+                    // Light the newest letter and leave the rest alone.
+                    val litChar = text[lit - 1]
+                    AnnotatedString.Builder().apply {
+                        append(text.substring(0, lit - 1))
+                        withStyle(SpanStyle(color = DroshPrimary)) { append(litChar) }
+                        if (lit < text.length) append(text.substring(lit))
+                    }.toAnnotatedString()
+                }
+            },
         )
     }
 }
