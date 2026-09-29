@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -80,8 +82,29 @@ fun SplashScreen(
             .background(DroshBackground),
         contentAlignment = Alignment.Center,
     ) {
+        // The lit letter is coloured through the value itself rather than a
+        // visual transformation: a transformation only moves glyphs, it cannot
+        // restyle part of the string.
+        val annotated = remember(shown, lit) {
+            if (lit == 0 || lit > shown.length) {
+                AnnotatedString(shown)
+            } else {
+                AnnotatedString.Builder().apply {
+                    append(shown.substring(0, lit - 1))
+                    withStyle(SpanStyle(color = DroshPrimary)) { append(shown[lit - 1]) }
+                    if (lit < shown.length) append(shown.substring(lit))
+                }.toAnnotatedString()
+            }
+        }
+        val fieldValue = remember(annotated) {
+            TextFieldValue(
+                annotatedString = annotated,
+                selection = TextRange(shown.length),
+            )
+        }
+
         BasicTextField(
-            value = shown,
+            value = fieldValue,
             onValueChange = {},
             readOnly = true,
             singleLine = true,
@@ -93,19 +116,6 @@ fun SplashScreen(
                 letterSpacing = 2.sp,
             ),
             modifier = Modifier,
-            visualTransformation = { text ->
-                if (lit == 0 || lit > text.length) {
-                    text
-                } else {
-                    // Light the newest letter and leave the rest alone.
-                    val litChar = text[lit - 1]
-                    AnnotatedString.Builder().apply {
-                        append(text.substring(0, lit - 1))
-                        withStyle(SpanStyle(color = DroshPrimary)) { append(litChar) }
-                        if (lit < text.length) append(text.substring(lit))
-                    }.toAnnotatedString()
-                }
-            },
         )
     }
 }
