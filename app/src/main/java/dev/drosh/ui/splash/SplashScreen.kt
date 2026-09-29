@@ -3,6 +3,7 @@ package dev.drosh.ui.splash
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +18,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -109,19 +111,28 @@ fun SplashScreen(
             )
         }
 
-        BasicTextField(
-            value = fieldValue,
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            cursorBrush = SolidColor(DroshPrimary),
-            textStyle = TextStyle(
-                color = restColor,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp,
-            ),
-            modifier = Modifier,
-        )
+        // Wrapped so the word is centred regardless of how wide the field
+        // measures: the field itself wraps its content, so left it alone it sits
+        // wherever its intrinsic width happens to fall.
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            BasicTextField(
+                value = fieldValue,
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                cursorBrush = SolidColor(DroshPrimary),
+                textStyle = TextStyle(
+                    color = restColor,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    textAlign = TextAlign.Center,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }

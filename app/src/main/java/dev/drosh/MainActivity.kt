@@ -43,6 +43,8 @@ import dev.drosh.terminal.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.domain.settings.ThemeMode
+import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.splash.SplashScreen
 import dev.drosh.ui.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
@@ -87,8 +89,17 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = false
         }
 
+        val settingsViewModel: SettingsViewModel = hiltViewModel()
+        val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
+
         setContent {
-            DroshTheme {
+            DroshTheme(
+                dark = when (themeMode) {
+                    ThemeMode.System -> null
+                    ThemeMode.Light -> false
+                    ThemeMode.Dark -> true
+                },
+            ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     DroshNavHost()
                 }

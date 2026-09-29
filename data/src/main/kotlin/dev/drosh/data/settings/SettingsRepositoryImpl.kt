@@ -12,6 +12,7 @@ import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.settings.ThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -33,6 +34,13 @@ class SettingsRepositoryImpl @Inject constructor(
     private val dataStore: DataStore<Preferences> = context.irisShellDataStore
 
     // ── Block Mode ────────────────────────────────────────────────────────────
+
+    override val themeMode: Flow<ThemeMode> =
+        dataStore.data.map { prefs -> ThemeMode.fromName(prefs[KEY_THEME_MODE]) }
+
+    override suspend fun setThemeMode(mode: ThemeMode) {
+        dataStore.edit { prefs -> prefs[KEY_THEME_MODE] = mode.name }
+    }
 
     override val useBlockEngine: Flow<Boolean> =
         dataStore.data.map { prefs -> prefs[KEY_USE_BLOCK_ENGINE] ?: DEFAULT_USE_BLOCK_ENGINE }
@@ -157,6 +165,7 @@ class SettingsRepositoryImpl @Inject constructor(
     // ── Keys & Defaults ───────────────────────────────────────────────────────
 
     private companion object {
+        val KEY_THEME_MODE             = stringPreferencesKey("theme_mode")
         val KEY_USE_BLOCK_ENGINE        = booleanPreferencesKey("use_block_engine")
         val KEY_EXTRA_KEYS_BAR_VISIBLE  = booleanPreferencesKey("extra_keys_bar_visible")
         val KEY_FONT_SIZE_SP            = intPreferencesKey("font_size_sp")

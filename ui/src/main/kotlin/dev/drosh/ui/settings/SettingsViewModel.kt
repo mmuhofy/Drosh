@@ -3,6 +3,7 @@ package dev.drosh.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.MotdMode
@@ -42,6 +43,13 @@ class SettingsViewModel @Inject constructor(
 
 
     // ── Terminal mode & input ─────────────────────────────────────────────────
+
+    val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.System)
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+    }
 
     val useBlockEngine: StateFlow<Boolean> = settings.useBlockEngine
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)

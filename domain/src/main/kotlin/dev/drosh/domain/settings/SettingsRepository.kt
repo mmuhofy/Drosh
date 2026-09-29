@@ -19,6 +19,11 @@ import kotlinx.coroutines.flow.Flow
 interface SettingsRepository {
 
     /** Hot stream of the Block Mode flag. Emits false on first launch. */
+    /** Follows the system unless the user pinned light or dark. */
+    val themeMode: Flow<ThemeMode>
+
+    suspend fun setThemeMode(mode: ThemeMode)
+
     val useBlockEngine: Flow<Boolean>
 
     /** Persists the Block Mode flag. */
@@ -112,4 +117,22 @@ interface SettingsRepository {
 
     /** Persists the MOTD text. */
     suspend fun setMotdText(text: String)
+}
+
+/**
+ * What the user asked for regarding appearance.
+ *
+ * [System] is the default and the right answer for most people: a terminal
+ * you cannot read outdoors is a problem, and one that never goes dark in a dark
+ * room is just as much of one.
+ */
+enum class ThemeMode {
+    System,
+    Light,
+    Dark;
+
+    companion object {
+        fun fromName(value: String?): ThemeMode =
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: System
+    }
 }
