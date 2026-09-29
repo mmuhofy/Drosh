@@ -9,6 +9,15 @@ interface SessionRepository {
     suspend fun create(name: String): String
     suspend fun rename(id: String, newName: String)
     suspend fun delete(id: String)
+
+    /**
+     * Removes every session that has already ended, keeping the active one.
+     *
+     * A closed session's row doubles as its history, so rows accumulate for as
+     * long as the app is used and nothing pruned them. This is the manual sweep;
+     * a retention policy would be a better answer but is a product decision.
+     */
+    suspend fun purgeEnded(keepActiveId: String?)
     suspend fun restoreSession(snapshot: SessionSnapshot, activate: Boolean = false)
     suspend fun touch(id: String)
     suspend fun updateLivePreview(id: String, lines: List<String>)

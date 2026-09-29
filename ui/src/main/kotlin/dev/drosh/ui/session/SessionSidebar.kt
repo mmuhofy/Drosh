@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,6 +65,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.session.SessionSnapshot
+import dev.drosh.domain.session.SessionState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshOnPrimary
@@ -170,6 +172,7 @@ private fun SidebarContent(
     }
     val activeSession = filtered.firstOrNull { it.id == activeId }
     val recentSessions = filtered.filter { it.id != activeId }
+    val endedCount = recentSessions.count { it.state == SessionState.Closed }
 
     fun commitRename() {
         val id = renamingSessionId
@@ -270,7 +273,16 @@ private fun SidebarContent(
                 }
 
                 if (recentSessions.isNotEmpty()) {
-                    item(key = "recent_header") { SectionHeader(label = "RECENT", trailing = null) }
+                    item(key = "recent_header") {
+                        SectionHeader(
+                            label = "RECENT",
+                            trailing = null,
+                            // Rows for ended sessions are history, so they pile
+                            // up forever without an explicit way to clear them.
+                            action = if (endedCount > 0) "clear $endedCount ended" else null,
+                            onAction = { viewModel.purgeEnded() },
+                        )
+                    }
                     item(key = "recent_list") {
                         Column(
                             modifier = Modifier
@@ -298,7 +310,16 @@ private fun SidebarContent(
                                     renameValue = renameValue,
                                     onRenameValueChange = { renameValue = it },
                                     onRenameCommit = { commitRename() },
-                                    onClick = { if (renamingSessionId == null) viewModel.activate(snapshot.id) },
+                                    onClick = {
+                                        // An ended session has no process behind
+                                        // it, so activating it would be a silent
+                                        // no-op. Deleting it is the way out.
+                                        if (renamingSessionId == null &&
+                                            snapshot.state != SessionState.Closed
+                                        ) {
+                                            viewModel.activate(snapshot.id)
+                                        }
+                                    },
                                     onStartRename = {
                                         renamingSessionId = snapshot.id
                                         renameValue = snapshot.name
@@ -533,7 +554,12 @@ private fun HoverIconButton(
 }
 
 @Composable
-private fun SectionHeader(label: String, trailing: String?) {
+private fun SectionHeader(
+    label: String,
+    trailing: String?,
+    action: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -546,7 +572,15 @@ private fun SectionHeader(label: String, trailing: String?) {
             fontWeight = FontWeight.Medium,
             letterSpacing = 0.6.sp,
         )
-        if (trailing != null) {
+        if (action != null && onAction != null) {
+            Text(
+                text = action,
+                color = DroshPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable(onClick = onAction),
+            )
+        } else if (trailing != null) {
             Text(
                 text = trailing,
                 color = DroshPrimary,
@@ -648,9 +682,18 @@ private fun SessionRow(
                 buttonSize = 24.dp,
             )
         } else {
+            // An ended session is struck through and dimmed, the way Termux and
+            // kitty mark one whose process is gone. It stays in the list because
+            // the row is also the session's history.
+            val ended = snapshot.state == SessionState.Closed
             Text(
                 text = snapshot.name,
-                color = if (isActive) DroshText else DroshText.copy(alpha = 0.9f),
+                color = when {
+                    ended -> DroshTextMuted
+                    isActive -> DroshText
+                    else -> DroshText.copy(alpha = 0.9f)
+                },
+                textDecoration = if (ended) TextDecoration.LineThrough else TextDecoration.None,
                 fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
                 fontSize = 13.5.sp,
                 maxLines = 1,

@@ -51,6 +51,11 @@ class SessionSwitcherViewModel @Inject constructor(
         viewModelScope.launch { sessionRepository.delete(id) }
     }
 
+    /** Clears out every session that has already ended. */
+    fun purgeEnded() {
+        viewModelScope.launch { sessionRepository.purgeEnded(activeId.value) }
+    }
+
     fun restoreSession(snapshot: SessionSnapshot, activate: Boolean = false) {
         viewModelScope.launch {
             sessionRepository.restoreSession(snapshot, activate)
