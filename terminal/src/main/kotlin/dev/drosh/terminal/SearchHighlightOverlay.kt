@@ -38,13 +38,13 @@ class SearchHighlightOverlay(
     var showUrlHighlights: Boolean = true
 
     /**
-     * The link currently held down, and the only one that gets a surface.
+     * The link currently held down, and the only one that gets a filled surface.
      *
      * The terminal has already painted each cell in whatever colour the running
-     * program chose, and a canvas overlay cannot recolour it, so a permanent
-     * highlight is the only decoration available. Painting it only while the
-     * link is pressed keeps resting output unmarked and matches how the block
-     * engine renders links: accent text, surface on press.
+     * program chose, and a canvas overlay cannot recolour it, so an underline is
+     * what marks a link at rest. The surface is held back for the press, which
+     * matches how the block engine renders links: accent text with an
+     * underline, plus a surface while pressed.
      */
     var pressedUrl: String? = null
         set(value) {
@@ -62,6 +62,18 @@ class SearchHighlightOverlay(
     private val urlBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         color = android.graphics.Color.parseColor("#33719FFF") // DroshPrimary 20%
+    }
+
+    /**
+     * The resting-state link marker. The terminal has already painted each cell
+     * in the running program's own colour and an overlay cannot recolour it, so
+     * an underline is the only way to say "this run of text is a link" without
+     * hiding the output. The surface is reserved for a held link.
+     */
+    private val urlUnderlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        color = android.graphics.Color.parseColor("#99719FFF") // DroshPrimary 60%
+        strokeWidth = 2f
     }
 
     private val rect = Rect()
@@ -209,8 +221,7 @@ class SearchHighlightOverlay(
             }
         }
 
-        val pressed = pressedUrl
-        if (!showUrlHighlights || pressed == null) return
+        if (!showUrlHighlights) return
 
         var groupStart = 0
         while (groupStart < rows) {
@@ -218,7 +229,7 @@ class SearchHighlightOverlay(
             while (groupEnd < rows && rowContinues[groupEnd] && rowTexts[groupEnd] != null) groupEnd++
 
             if (groupEnd > groupStart) {
-                drawLogicalLineUrls(canvas, rowTexts, groupStart, groupEnd, columns, fontWidth, fontLineSpacing, fontAscent, pressed)
+                drawLogicalLineUrls(canvas, rowTexts, groupStart, groupEnd, columns, fontWidth, fontLineSpacing, fontAscent)
             }
             groupStart = groupEnd + 1
         }
@@ -239,7 +250,6 @@ class SearchHighlightOverlay(
         fontWidth: Float,
         fontLineSpacing: Int,
         fontAscent: Int,
-        pressed: String,
     ) {
         val builder = StringBuilder()
         // One slot per row for its start offset, plus a trailing slot holding the
@@ -255,7 +265,7 @@ class SearchHighlightOverlay(
         if (logicalText.isEmpty()) return
 
         for (match in UrlDetector.findUrls(logicalText)) {
-            if (match.url != pressed) continue
+            val isPressed = match.url == pressedUrl
             for (index in groupStart..groupEnd) {
                 val rowStart = rowOffsets[index - groupStart]
                 val rowEnd = rowOffsets[index - groupStart + 1]
@@ -278,14 +288,18 @@ class SearchHighlightOverlay(
 
                 val isFirstRow = segmentStart == match.start
                 val isLastRow = segmentEnd == match.end
-                // A match wholly inside one row keeps the rounded chip. A match
-                // the terminal split across rows is painted square per row; the
-                // per-corner Canvas overload that would round only the outer ends
-                // is not available at this platform level.
-                if (isFirstRow && isLastRow) {
-                    canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint)
-                } else {
-                    canvas.drawRect(x1, topY, x2, bottomY, urlBackgroundPaint)
+
+                // Underline marks the link at rest, on every row it covers.
+                canvas.drawLine(x1, bottomY, x2, bottomY, urlUnderlinePaint)
+
+                // The surface is only for a link being held, so resting output
+                // stays unmarked apart from the underline.
+                if (isPressed) {
+                    if (isFirstRow && isLastRow) {
+                        canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint)
+                    } else {
+                        canvas.drawRect(x1, topY, x2, bottomY, urlBackgroundPaint)
+                    }
                 }
             }
         }

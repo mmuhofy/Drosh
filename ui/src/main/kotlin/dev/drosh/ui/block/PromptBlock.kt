@@ -30,6 +30,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -206,6 +207,7 @@ private fun LinkifiedOutput(
                 withStyle(
                     SpanStyle(
                         color = DroshPrimary,
+                        textDecoration = TextDecoration.Underline,
                         background = if (isPressed) DroshPrimary.copy(alpha = PRESSED_TINT) else Color.Unspecified,
                     ),
                 ) {

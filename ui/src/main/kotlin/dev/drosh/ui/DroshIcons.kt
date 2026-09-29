@@ -37,6 +37,7 @@ import compose.icons.lucideicons.Plus
 import compose.icons.lucideicons.RotateCw
 import compose.icons.lucideicons.Search
 import compose.icons.lucideicons.Settings
+import compose.icons.lucideicons.Share
 import compose.icons.lucideicons.Shield
 import compose.icons.lucideicons.Square
 import compose.icons.lucideicons.SquarePlus
@@ -83,6 +84,7 @@ object DroshIcons {
     val RotateCw: ImageVector get() = LucideIcons.RotateCw
     val Search: ImageVector get() = LucideIcons.Search
     val Settings: ImageVector get() = LucideIcons.Settings
+    val Share: ImageVector get() = LucideIcons.Share
     val Shield: ImageVector get() = LucideIcons.Shield
     val Square: ImageVector get() = LucideIcons.Square
     val SquarePlus: ImageVector get() = LucideIcons.SquarePlus

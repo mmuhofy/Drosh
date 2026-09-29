@@ -3,6 +3,7 @@ package dev.drosh.core
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.widget.Toast
 import androidx.annotation.StringRes
@@ -23,4 +24,13 @@ fun Context.toast(@StringRes res: Int) {
 
 fun Context.toast(text: CharSequence) {
     Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+}
+
+fun Context.shareText(text: CharSequence, subject: String? = null) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+        subject?.let { putExtra(Intent.EXTRA_SUBJECT, it) }
+    }
+    startActivity(Intent.createChooser(intent, null))
 }

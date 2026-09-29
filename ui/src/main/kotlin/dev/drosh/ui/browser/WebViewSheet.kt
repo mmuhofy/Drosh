@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -55,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.drosh.core.copyToClipboard
+import dev.drosh.core.shareText
 import dev.drosh.core.toast
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
@@ -124,6 +127,11 @@ fun WebViewSheet(
         tonalElevation = 0.dp,
         dragHandle = null,
         sheetGesturesEnabled = false,
+        // The activity is already edge to edge, and ModalBottomSheet would
+        // otherwise inset the sheet below the status bar, clipping the top of
+        // the browser. Insets are applied per region instead, so the surface
+        // runs under the status bar while its controls stay clear of it.
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
         Column(
             modifier = Modifier
@@ -163,7 +171,8 @@ fun WebViewSheet(
                             },
                         )
                     }
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .statusBarsPadding(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SheetToolbarButton(
@@ -225,6 +234,11 @@ fun WebViewSheet(
                         items = listOf(
                             DroshMenuItem(label = "Copy URL", icon = DroshIcons.Copy),
                             DroshMenuItem(
+                                label = "Share URL",
+                                icon = DroshIcons.Share,
+                                dividerBefore = true,
+                            ),
+                            DroshMenuItem(
                                 label = "Open in Browser",
                                 icon = DroshIcons.Globe,
                                 dividerBefore = true,
@@ -238,6 +252,7 @@ fun WebViewSheet(
                                     context.copyToClipboard("URL", currentUrl)
                                     context.toast("URL copied")
                                 }
+                                "Share URL" -> context.shareText(currentUrl, "Shared from Drosh")
                                 "Open in Browser" -> {
                                     val intent =
                                         Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
