@@ -203,13 +203,6 @@ private fun ReadyScreen(
         buildSystemInfo(ctx, appInfo)
     }
 
-    var firstModeCheck by remember { mutableStateOf(true) }
-    LaunchedEffect(useBlockEngine) {
-        if (!firstModeCheck) {
-            terminalManager.addTab()
-        }
-        firstModeCheck = false
-    }
 
     val sessionCount by terminalManager.sessionCountFlow.collectAsState()
 
@@ -713,7 +706,12 @@ private fun ReadyScreen(
                 terminalManager.closeAll()
                 terminalManager.clearProcessExitEvent()
                 terminalManager.clearNoSessionsLeft()
-                terminalManager.addTab()
+                // Through the repository, not addTab(). addTab opens a shell with
+                // no persistent id: no Room row, absent from liveSessionIds, never
+                // reconciled, and therefore invisible in the sidebar — a session
+                // the system cannot manage. This way the row is written and the
+                // normal reconcile spawns it a tick later.
+                sessionSwitcherViewModel.createNew(DEFAULT_SESSION_NAME)
             }
             AlertDialog(
                 onDismissRequest = {},

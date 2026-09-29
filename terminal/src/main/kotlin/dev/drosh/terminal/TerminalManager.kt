@@ -232,9 +232,16 @@ class TerminalManager(
         terminalViewRef = null
     }
 
-    fun addTab(): TerminalSession = addTabWithId(null, "")
-
-    fun addTabWithId(persistentId: String?, name: String): TerminalSession {
+    /**
+     * Opens a session bound to a Room row.
+     *
+     * [persistentId] is required rather than optional. A session opened without
+     * one has no row, is left out of [liveSessionIds] because that filters
+     * nulls, and so is never reconciled, never closed and never restored — the
+     * sidebar would list a session the system does not know it has. Every
+     * session now enters through the repository first.
+     */
+    fun addTabWithId(persistentId: String, name: String): TerminalSession {
         val wasInstalled = ubuntuBootstrap.isInstalled
         val irisSession = DroshSession(
             terminalSession = createNewSession(),
@@ -244,9 +251,7 @@ class TerminalManager(
         )
         irisSessions.add(irisSession)
         val newIndex = irisSessions.size - 1
-        if (persistentId != null) {
-            idToIndex[persistentId] = newIndex
-        }
+        idToIndex[persistentId] = newIndex
         _activeTabIndex.value = newIndex
         _sessionCount.value = irisSessions.size
         // A session exists again, so the exit dialog no longer applies.
@@ -314,13 +319,12 @@ class TerminalManager(
      */
     private fun reindexFrom(index: Int) {
         for (i in index until irisSessions.size) {
-            val id = irisSessions[i].persistentId ?: continue
-            idToIndex[id] = i
+            idToIndex[irisSessions[i].persistentId] = i
         }
     }
 
     fun liveSessionIds(): Set<String> =
-        irisSessions.mapNotNull { it.persistentId }.toSet()
+        irisSessions.map { it.persistentId }.toSet()
 
     fun renameTab(index: Int, name: String) {
         if (index in irisSessions.indices) {
@@ -337,7 +341,7 @@ class TerminalManager(
         val rebaseRange = if (from < to) (from + 1)..to else to until from
         rebaseRange.forEach { idx ->
             val id = irisSessions[idx].persistentId
-            if (id != null) idToIndex[id] = idx
+            idToIndex[id] = idx
         }
 
         if (_activeTabIndex.value == from) {
@@ -398,7 +402,7 @@ class TerminalManager(
         irisSessions.removeAt(index)
         _sessionCount.value = irisSessions.size
 
-        if (persistentId != null) idToIndex.remove(persistentId)
+        idToIndex.remove(persistentId)
         reindexFrom(index)
 
         when {
@@ -438,13 +442,6 @@ class TerminalManager(
         blockEngineWire?.onSessionChanged(target.persistentId, target.terminalSession)
         currentSession?.let { terminalViewRef?.attachSession(it) }
         publishActiveId()
-    }
-
-    fun createSession(): TerminalSession {
-        if (irisSessions.isEmpty()) {
-            return addTab()
-        }
-        return irisSessions[_activeTabIndex.value].terminalSession
     }
 
     private fun createNewSession(): TerminalSession {
@@ -625,9 +622,7 @@ class TerminalManager(
         irisSessions.removeAt(idx)
         _sessionCount.value = irisSessions.size
 
-        if (persistentId != null) {
-            idToIndex.remove(persistentId)
-        }
+        idToIndex.remove(persistentId)
 
         reindexFrom(idx)
         when {
