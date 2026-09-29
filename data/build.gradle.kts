@@ -43,7 +43,13 @@ dependencies {
 
     // Build.MODEL is a codename; this turns it into the name the device is sold
     // under. Offline, so it works in airplane mode and phones home to nobody.
-    implementation(libs.device.marketing.names)
+    // Its runtime code touches nothing but android.os.Build and its own lookup
+    // table, so the AppCompat and Material it declares — they are there for its
+    // sample app — are dropped rather than carried into our APK.
+    implementation(libs.device.marketing.names) {
+        exclude(group = "androidx.appcompat")
+        exclude(group = "com.google.android.material")
+    }
     implementation(libs.okhttp.sse)
     implementation(libs.okhttp.logging)
 
