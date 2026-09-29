@@ -141,8 +141,10 @@ class SessionManagerAdapter @Inject constructor(
                 return@withContext
             }
 
+            // Only a session that was left open is worth bringing back. When
+            // every row is Closed the user closed them on purpose, so a launch
+            // starts a fresh default rather than resurrecting one of them.
             val resumable = snapshots.firstOrNull { it.state != SessionState.Closed }
-                ?: snapshots.firstOrNull()
 
             // A failing spawn must not kill the ticker, or recovery stops for good.
             runCatching {

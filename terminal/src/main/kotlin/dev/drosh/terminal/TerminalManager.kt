@@ -418,10 +418,14 @@ class TerminalManager(
         // saw it as not-live-but-openable and spawned it again.
         lifecycleCallbacks?.onSessionFinished(persistentId, -1)
 
+        // Published unconditionally, including when the list has just emptied.
+        // Skipping it there left the active id pointing at the session that was
+        // closed, so the sidebar went on presenting a dead session as the live
+        // one — green dot, "now" and all — and refused to clear it.
+        publishActiveId()
+
         if (irisSessions.isEmpty()) {
             _noSessionsLeft.value = true
-        } else {
-            publishActiveId()
         }
     }
 
@@ -646,9 +650,10 @@ class TerminalManager(
         if (irisSessions.isEmpty()) {
             _processExitEvent.value = ProcessExitEvent(exitCode)
             _noSessionsLeft.value = true
-        } else {
-            publishActiveId()
         }
+        // Same reasoning as closeTab: never let the recorded active session be
+        // one that no longer exists.
+        publishActiveId()
     }
 
     /**

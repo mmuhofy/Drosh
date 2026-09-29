@@ -108,8 +108,13 @@ class SessionRepositoryImpl @Inject constructor(
 
     override suspend fun purgeEnded(keepActiveId: String?) {
         val ended = dao.observeAll().first()
-            .filter { it.state == SessionState.Closed.name && it.id != keepActiveId }
+            .filter { it.state == SessionState.Closed.name }
         ended.forEach { dao.delete(it.id) }
+        // The active row can be one of these when every session has ended, and
+        // leaving the pointer behind shows a session that no longer exists.
+        if (keepActiveId != null && ended.any { it.id == keepActiveId }) {
+            dataStore.edit { it.remove(KEY_ACTIVE_SESSION_ID) }
+        }
     }
 
     override suspend fun restoreSession(snapshot: SessionSnapshot, activate: Boolean) {

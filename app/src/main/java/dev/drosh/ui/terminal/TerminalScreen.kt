@@ -713,10 +713,11 @@ private fun ReadyScreen(
                 terminalManager.addTab()
             }
             AlertDialog(
-                onDismissRequest = {
-                    terminalManager.clearProcessExitEvent()
-                    terminalManager.clearNoSessionsLeft()
-                },
+                // Not dismissible. With no session left there is nothing to go
+                // back to, so letting this be swiped away only produced a state
+                // with a terminal that is not there and no way forward. The
+                // user picks: a new session, or the app closes.
+                onDismissRequest = {},
                 confirmButton = {
                     TextButton(onClick = quit) {
                         Text(
@@ -741,7 +742,7 @@ private fun ReadyScreen(
                 },
                 title = {
                     Text(
-                        text = "No sessions left",
+                        text = "No open sessions",
                         color = DroshText,
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.SemiBold,
@@ -752,10 +753,10 @@ private fun ReadyScreen(
                     val exitCode = sessionEndEvent?.exitCode
                     Text(
                         text = when {
-                            exitCode != null -> "exit code: $exitCode"
+                            exitCode != null -> "Last session ended (exit code: $exitCode). Start a new one, or close the app."
                             else -> "Start a new session, or close the app."
                         },
-                        color = if (exitCode == 0) DroshPrimary else DroshTextSecondary,
+                        color = DroshTextSecondary,
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp,

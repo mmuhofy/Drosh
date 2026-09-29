@@ -172,7 +172,7 @@ private fun SidebarContent(
     }
     val activeSession = filtered.firstOrNull { it.id == activeId }
     val recentSessions = filtered.filter { it.id != activeId }
-    val endedCount = recentSessions.count { it.state == SessionState.Closed }
+    val endedCount = filtered.count { it.state == SessionState.Closed }
 
     fun commitRename() {
         val id = renamingSessionId
@@ -242,7 +242,16 @@ private fun SidebarContent(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 if (activeSession != null) {
-                    item(key = "active_header") { SectionHeader(label = "ACTIVE", trailing = "live") }
+                    val activeEnded = activeSession.state == SessionState.Closed
+                    item(key = "active_header") {
+                        SectionHeader(
+                            label = "ACTIVE",
+                            // A session whose process is gone is not "live",
+                            // however it came to be the recorded active one.
+                            trailing = if (activeEnded) "ended" else "live",
+                            trailingColor = if (activeEnded) DroshTextMuted else DroshPrimary,
+                        )
+                    }
                     item(key = "active_${activeSession.id}") {
                         Box(
                             modifier = Modifier
@@ -252,11 +261,15 @@ private fun SidebarContent(
                         ) {
                             SessionRow(
                                 snapshot = activeSession,
-                                isActive = true,
-                                dotColor = DroshSuccess,
-                                trailingText = "now",
-                                trailingColor = DroshPrimary,
-                                rowBackground = DroshPrimary.copy(alpha = 0.12f),
+                                isActive = !activeEnded,
+                                dotColor = if (activeEnded) DroshError.copy(alpha = 0.55f) else DroshSuccess,
+                                trailingText = if (activeEnded) "ended" else "now",
+                                trailingColor = if (activeEnded) DroshTextMuted else DroshPrimary,
+                                rowBackground = if (activeEnded) {
+                                    Color.Transparent
+                                } else {
+                                    DroshPrimary.copy(alpha = 0.12f)
+                                },
                                 isRenaming = renamingSessionId == activeSession.id,
                                 renameValue = renameValue,
                                 onRenameValueChange = { renameValue = it },
@@ -559,6 +572,7 @@ private fun SectionHeader(
     trailing: String?,
     action: String? = null,
     onAction: (() -> Unit)? = null,
+    trailingColor: Color = DroshPrimary,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -583,7 +597,7 @@ private fun SectionHeader(
         } else if (trailing != null) {
             Text(
                 text = trailing,
-                color = DroshPrimary,
+                color = trailingColor,
                 fontSize = 11.sp,
             )
         }
