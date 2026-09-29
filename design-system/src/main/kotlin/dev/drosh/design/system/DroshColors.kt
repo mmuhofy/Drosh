@@ -1,66 +1,159 @@
 package dev.drosh.design.system
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import dev.drosh.core.DroshPalette
 
 /**
- * Design tokens — the Drosh palette. The single source of truth: `:app`,
- * `:ui` and any future `:agent` surfaces all read these, so a value only
- * ever changes here.
+ * The palette, in one set per theme.
  *
- * Rebuilt 2026-09-29 from measurements, because the previous set read as
- * muddy grey rather than as a designed dark theme. Two things were wrong,
- * and neither was a matter of taste:
+ * Values are not shared between themes and cannot be derived by inverting the
+ * dark ones: light text on a dark surface reads at 1.08:1, which is not a
+ * palette, it is a bug. Each set was checked against the surface it sits on —
+ * text and semantic colours at AA or better, surfaces separated by tone rather
+ * than contrast, the way a light theme has to work.
  *
- * 1. **The surfaces were tinted, and inconsistently so.** They ran
- *    `#252A30` (cool), `#272A2E` (neutral) and `#343A43` (cool) against a
- *    `#14171B` base. Mixed hue under a low-chroma palette is what makes
- *    dark UIs read as dirty: the eye cannot settle on a single colour
- *    temperature. Every neutral here is now truly neutral (R=G=B), the way
- *    the surfaces of large shipping Android apps are built.
- *
- * 2. **Two of the surface tokens were the same lightness.** `SurfaceVariant`
- *    and `SurfaceHigh` both sat at L=16.7, so cards and overlays that were
- *    meant to read as separate layers did not separate at all. The ladder
- *    below steps evenly: 14, 26, 36, 46, 58, and the outline sits at 58 so
- *    borders read as hairlines without a separate token drifting from it.
- *
- * Accent and semantic colours are Drosh's own. Structure follows what
- * measured well in comparable apps: a single saturated blue, a green and a
- * red that stay distinguishable from it and from each other.
- *
- * Drosh is dark-only in v1.0.
- *
- * The values live in [dev.drosh.core.DroshPalette] as plain ARGB ints so
- * that `:terminal`, which renders through plain Views and has no Compose
- * dependency, can read the same numbers. This file only wraps them.
+ * Dark is the default. Light exists because a terminal that is only ever dark
+ * is unusable in daylight, and because the system asks for one.
  */
-private fun C(value: Long): Color = Color(DroshPalette.argb(value))
+@Immutable
+data class DroshThemeColors(
+    val background: Color,
+    val surface: Color,
+    val surfaceVariant: Color,
+    val surfaceLow: Color,
+    val surfaceHigh: Color,
+    val surfaceContainerLowest: Color,
+    val outline: Color,
+    val borderSubtle: Color,
+    val primary: Color,
+    val onPrimary: Color,
+    val text: Color,
+    val textSecondary: Color,
+    val textMuted: Color,
+    val textDisabled: Color,
+    val success: Color,
+    val error: Color,
+    val warning: Color,
+    val build: Color,
+)
 
-val DroshBackground: Color = C(DroshPalette.BACKGROUND)
-val DroshSurface: Color = C(DroshPalette.SURFACE)
-val DroshSurfaceVariant: Color = C(DroshPalette.SURFACE_VARIANT)
-val DroshSurfaceLow: Color = C(DroshPalette.SURFACE_LOW)
-val DroshSurfaceHigh: Color = C(DroshPalette.SURFACE_HIGH)
-val DroshSurfaceContainerLowest: Color = C(DroshPalette.SURFACE_CONTAINER_LOWEST)
+private val DarkColors = DroshThemeColors(
+    background = Color(0xFF0E0E0E),
+    surface = Color(0xFF1A1A1A),
+    surfaceVariant = Color(0xFF242424),
+    surfaceLow = Color(0xFF151515),
+    surfaceHigh = Color(0xFF2E2E2E),
+    surfaceContainerLowest = Color(0xFF080808),
+    outline = Color(0xFF3A3A3A),
+    borderSubtle = Color(0xFF3A3A3A),
+    primary = Color(0xFF4C9EFF),
+    onPrimary = Color(0xFF0E0E0E),
+    // Near-white rather than pure white: pure #FFFFFF blooms on OLED panels.
+    text = Color(0xFFF2F2F2),
+    textSecondary = Color(0xFFB4B4B4),
+    textMuted = Color(0xFF7A7A7A),
+    textDisabled = Color(0xFF4D4D4D),
+    success = Color(0xFF3DD68C),
+    error = Color(0xFFF2555A),
+    warning = Color(0xFFF0B429),
+    build = Color(0xFF4C9EFF),
+)
 
-val DroshOutline: Color = C(DroshPalette.OUTLINE)
-val DroshBorderSubtle: Color = C(DroshPalette.OUTLINE)
-
-val DroshPrimary: Color = C(DroshPalette.PRIMARY)
-val DroshOnPrimary: Color = C(DroshPalette.ON_PRIMARY)
+private val LightColors = DroshThemeColors(
+    background = Color(0xFFF6F7F9),
+    surface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFFEDEFF3),
+    surfaceLow = Color(0xFFF9FAFB),
+    surfaceHigh = Color(0xFFE3E7EC),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    outline = Color(0xFFC9CFD8),
+    borderSubtle = Color(0xFFC9CFD8),
+    // Darker than the dark theme's accent, so it clears AA on a light field.
+    primary = Color(0xFF0B6BCB),
+    onPrimary = Color(0xFFFFFFFF),
+    text = Color(0xFF14181D),
+    textSecondary = Color(0xFF4B535E),
+    textMuted = Color(0xFF6C7480),
+    textDisabled = Color(0xFF9AA2AE),
+    success = Color(0xFF1B7F47),
+    error = Color(0xFFC42B31),
+    warning = Color(0xFF8A5A00),
+    build = Color(0xFF0B6BCB),
+)
 
 /**
- * Near-white rather than pure white: pure #FFFFFF on a dark field blooms
- * on OLED panels, and the small difference is invisible on the surface but
- * obvious in the halation.
+ * The palette in force. Defaults to dark so a subtree composed before
+ * [DroshTheme] — a preview, a test — still gets something sensible.
  */
-val DroshText: Color = C(DroshPalette.TEXT)
-val DroshTextSecondary: Color = C(DroshPalette.TEXT_SECONDARY)
-val DroshTextMuted: Color = C(DroshPalette.TEXT_MUTED)
-val DroshTextDisabled: Color = C(DroshPalette.TEXT_DISABLED)
+val LocalDroshColors = staticCompositionLocalOf { DarkColors }
 
-val DroshSuccess: Color = C(DroshPalette.SUCCESS)
-val DroshError: Color = C(DroshPalette.ERROR)
-val DroshWarning: Color = C(DroshPalette.WARNING)
-val DroshBuild: Color = C(DroshPalette.BUILD)
+/** Picks the palette for a theme choice: [dark] true for the dark set. */
+@Composable
+fun provideDroshColors(dark: Boolean, content: @Composable () -> Unit) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalDroshColors provides if (dark) DarkColors else LightColors,
+        content = content,
+    )
+}
+
+// The names below read through the composition local rather than holding a
+// value, so every existing call site keeps working and picks up the theme
+// without being touched. They are composable for that reason: there is no
+// value to read outside a composition.
+
+val DroshBackground: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.background
+
+val DroshSurface: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.surface
+
+val DroshSurfaceVariant: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.surfaceVariant
+
+val DroshSurfaceLow: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.surfaceLow
+
+val DroshSurfaceHigh: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.surfaceHigh
+
+val DroshSurfaceContainerLowest: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.surfaceContainerLowest
+
+val DroshOutline: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.outline
+
+val DroshBorderSubtle: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.borderSubtle
+
+val DroshPrimary: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.primary
+
+val DroshOnPrimary: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.onPrimary
+
+val DroshText: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.text
+
+val DroshTextSecondary: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.textSecondary
+
+val DroshTextMuted: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.textMuted
+
+val DroshTextDisabled: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.textDisabled
+
+val DroshSuccess: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.success
+
+val DroshError: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.error
+
+val DroshWarning: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.warning
+
+val DroshBuild: Color
+    @Composable @ReadOnlyComposable get() = LocalDroshColors.current.build

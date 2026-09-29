@@ -3,7 +3,9 @@ package dev.drosh.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -17,18 +19,33 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.provideDroshColors
 
-private val DroshDarkColors = darkColorScheme(
-    primary = DroshPrimary,
-    onPrimary = DroshOnPrimary,
-    secondary = DroshTextSecondary,
-    background = DroshBackground,
-    surface = DroshSurface,
-    surfaceVariant = DroshSurfaceVariant,
-    outline = DroshOutline,
-    error = DroshError,
-    onError = DroshPrimary,
-)
+private fun schemeFor(dark: Boolean): ColorScheme = if (dark) {
+    darkColorScheme(
+        primary = DroshPrimary,
+        onPrimary = DroshOnPrimary,
+        secondary = DroshTextSecondary,
+        background = DroshBackground,
+        surface = DroshSurface,
+        surfaceVariant = DroshSurfaceVariant,
+        outline = DroshOutline,
+        error = DroshError,
+        onError = DroshPrimary,
+    )
+} else {
+    lightColorScheme(
+        primary = DroshPrimary,
+        onPrimary = DroshOnPrimary,
+        secondary = DroshTextSecondary,
+        background = DroshBackground,
+        surface = DroshSurface,
+        surfaceVariant = DroshSurfaceVariant,
+        outline = DroshOutline,
+        error = DroshError,
+        onError = DroshPrimary,
+    )
+}
 
 /**
  * Full Material 3 typography table bound to Outfit. The shape mirrors the
@@ -64,13 +81,24 @@ private val DroshTypography = Typography(
  * Drosh is dark-only in v1.0 — the system dark/light switch is ignored so
  * the accent and dark surfaces stay consistent.
  */
+/**
+ * @param dark forced theme; null follows the system.
+ *
+ * The system setting used to be ignored outright. That made the app
+ * unusable in daylight, and it is not something a caller should have to
+ * argue for: the theme is a preference, so it gets a preference.
+ */
 @Composable
-fun DroshTheme(content: @Composable () -> Unit) {
-    // The system dark mode flag is intentionally ignored — Drosh mandate.
-    @Suppress("UNUSED_VARIABLE") val isDark = isSystemInDarkTheme()
-    MaterialTheme(
-        colorScheme = DroshDarkColors,
-        typography = DroshTypography,
-        content = content,
-    )
+fun DroshTheme(
+    dark: Boolean? = null,
+    content: @Composable () -> Unit,
+) {
+    val useDark = dark ?: isSystemInDarkTheme()
+    provideDroshColors(dark = useDark) {
+        MaterialTheme(
+            colorScheme = schemeFor(useDark),
+            typography = DroshTypography,
+            content = content,
+        )
+    }
 }
