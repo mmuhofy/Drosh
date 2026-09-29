@@ -19,11 +19,19 @@ import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.View
 import com.termux.view.TerminalView
+import dev.drosh.core.DroshPalette
 import dev.drosh.domain.UrlDetector
 
 class SearchHighlightOverlay(
     context: android.content.Context,
 ) : View(context, null) {
+
+    private companion object {
+        /** Search matches keep their own blue; it is not the accent. */
+        const val SEARCH_HIGHLIGHT_COLOR = 0x803B82F6.toInt()
+        const val URL_SURFACE_ALPHA = 0x33
+        const val URL_UNDERLINE_ALPHA = 0x99
+    }
 
     /** Physical pixels of bleed added above and below a URL highlight. */
     private val urlHighlightPadding =
@@ -56,12 +64,12 @@ class SearchHighlightOverlay(
 
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = android.graphics.Color.parseColor("#803B82F6")
+        color = SEARCH_HIGHLIGHT_COLOR
     }
 
     private val urlBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = android.graphics.Color.parseColor("#33719FFF") // DroshPrimary 20%
+        color = argbWithAlpha(DroshPalette.PRIMARY, URL_SURFACE_ALPHA)
     }
 
     /**
@@ -72,7 +80,7 @@ class SearchHighlightOverlay(
      */
     private val urlUnderlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        color = android.graphics.Color.parseColor("#99719FFF") // DroshPrimary 60%
+        color = argbWithAlpha(DroshPalette.PRIMARY, URL_UNDERLINE_ALPHA)
         strokeWidth = 2f
     }
 

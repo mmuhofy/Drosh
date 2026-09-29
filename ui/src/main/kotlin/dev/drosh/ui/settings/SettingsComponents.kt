@@ -56,6 +56,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOutline
+import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceContainerLowest
@@ -332,7 +333,7 @@ fun SegmentControl(
                 label = "segment_color_$index",
             )
             val animTextColor by animateColorAsState(
-                targetValue = if (isSelected) Color(0xFF14171B) else DroshTextSecondary,
+                targetValue = if (isSelected) DroshOnPrimary else DroshTextSecondary,
                 animationSpec = tween(200),
                 label = "segment_text_$index",
             )

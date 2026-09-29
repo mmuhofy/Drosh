@@ -129,32 +129,58 @@ Compose UI         → renders BlockList with animations
 
 | Element | Value |
 |---------|-------|
-| Background | `#0C0C0C` |
-| Surface | `#141414` |
-| Surface 2 | `#1A1A1A` |
-| Border | `#1E1E1E` |
-| Border subtle | `#232323` |
-| Primary accent | `#E8C547` (warm gold) |
-| Text primary | `#EEEEEE` |
-| Text secondary | `#888888` |
-| Text muted | `#666666` |
-| Text disabled | `#444444` |
-| Success | `#27AE60` |
-| Error | `#C0392B` |
-| Warning | `#C9A84C` |
+| Background | `#0E0E0E` |
+| Surface | `#1A1A1A` |
+| SurfaceLow | `#151515` |
+| SurfaceVariant | `#242424` |
+| SurfaceHigh | `#2E2E2E` |
+| SurfaceContainerLowest | `#080808` |
+| Border / Outline | `#3A3A3A` |
+| Primary accent | `#4C9EFF` |
+| OnPrimary | `#0E0E0E` |
+| Text primary | `#F2F2F2` |
+| Text secondary | `#B4B4B4` |
+| Text muted | `#7A7A7A` |
+| Text disabled | `#4D4D4D` |
+| Success | `#3DD68C` |
+| Error | `#F2555A` |
+| Warning | `#F0B429` |
+| Build | `#4C9EFF` |
 | Terminal font | JetBrains Mono |
-| UI font | Inter / system |
+| UI font | Outfit (bundled) |
 | Corner radius | 14dp cards, 12dp buttons, 8dp chips |
 | Theme | Dark only (v1.0) |
+
+**Source of truth:** the values live in `core/.../DroshPalette.kt` as plain
+ARGB ints; `design-system/.../DroshColors.kt` wraps them as Compose
+`Color`s. They are plain ints in `:core` because `:terminal` renders through
+Views and has no Compose dependency, and pulling Compose in to read a
+constant is the wrong trade. Change the value in `:core`.
+
+**Why the surfaces are neutral.** Every neutral is R=G=B. The previous set
+mixed a cool tint (`#252A30`, `#343A43`) with a neutral one (`#272A2E`),
+and a palette whose hue drifts between steps reads as dirty rather than
+designed — the eye cannot settle on one colour temperature. Steps run
+evenly: 8, 14, 21, 26, 36, 46, 58. The earlier set also had
+`SurfaceVariant` and `SurfaceHigh` at the same lightness, so layers meant to
+separate did not.
+
+**Accent.** One saturated blue, with a green and a red that stay
+distinguishable from it and from each other. This replaces the gold
+(#E8C547) this section previously specified, which had already drifted in
+code before it was written down.
 
 ### Semantic Highlight Colors
 | Token | Color |
 |-------|-------|
-| ERROR / FATAL | `#C0392B` red |
-| WARNING / WARN | `#C9A84C` gold |
-| SUCCESS / DONE | `#27AE60` green |
-| BUILD / COMPILE | `#4A90E2` blue |
-| INFO | `#888888` muted |
+| ERROR / FATAL | `#F2555A` red |
+| WARNING / WARN | `#F0B429` gold |
+| SUCCESS / DONE | `#3DD68C` green |
+| BUILD / COMPILE | `#4C9EFF` blue |
+| INFO | `#7A7A7A` muted |
+
+Not implemented yet — the semantic parser that would colour terminal
+output by these is still missing (§7). These are the intended values.
 
 ### Terminal Themes (v1.1+)
 - **Default** — Drosh dark, warm gold accents

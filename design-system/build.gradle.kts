@@ -20,6 +20,10 @@ android {
 dependencies {
     // design-system is pure presentation — It does NOT depend on domain/,
     // data/, agent/, terminal/, ssh/, or ui/.
+    //
+    // :core holds the palette as plain ARGB ints so :terminal can read the
+    // same numbers without gaining a Compose dependency.
+    implementation(project(":core"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
 
