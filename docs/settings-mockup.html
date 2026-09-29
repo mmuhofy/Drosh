@@ -5,417 +5,365 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Drosh — Settings</title>
 <style>
-/* ═══════════════════════════════════════════════════════════════
-   TOKENS
-   ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="dark"] {
-  --bg:        #0E0E0E;
-  --group:     #171717;   /* group container — darker */
-  --tile:      #242424;   /* item tile      — lighter, lifts off the group */
-  --tile-on:   #2C3038;   /* selected tile */
-  --hairline:  #3A3A3A;
-  --text:      #F2F2F2;
-  --text-2:    #B4B4B4;
-  --text-3:    #7A7A7A;
-  --accent:    #4C9EFF;
-  --accent-dim:#4C9EFF2E;
-  --track:     #33363A;
+  --bg:#0E0E0E; --group:#171717; --tile:#242424; --tile-on:#2A2F38; --tile-press:#2A2A2A;
+  --text:#F2F2F2; --text-2:#B4B4B4; --text-3:#7A7A7A;
+  --accent:#4C9EFF; --accent-dim:#4C9EFF26; --accent-glow:#4C9EFF40;
+  --track:#33363A; --thumb:#4C9EFF; --thumb-ring:#242424;
+  --scrim:rgba(0,0,0,.55); --sheet:#1C1C1C; --field:#252525;
 }
 :root[data-theme="light"] {
-  --bg:        #F6F7F9;
-  --group:     #E9ECF0;
-  --tile:      #FFFFFF;
-  --tile-on:   #E4EEFC;
-  --hairline:  #C9CFD8;
-  --text:      #14181D;
-  --text-2:    #4B535E;
-  --text-3:    #6C7480;
-  --accent:    #0B6BCB;
-  --accent-dim:#0B6BCB1F;
-  --track:     #C9CFD8;
+  --bg:#F6F7F9; --group:#E9ECF0; --tile:#FFFFFF; --tile-on:#E4EEFC; --tile-press:#F0F2F5;
+  --text:#14181D; --text-2:#4B535E; --text-3:#6C7480;
+  --accent:#0B6BCB; --accent-dim:#0B6BCB1A; --accent-glow:#0B6BCB26;
+  --track:#D3D8E0; --thumb:#0B6BCB; --thumb-ring:#FFFFFF;
+  --scrim:rgba(15,20,30,.28); --sheet:#FFFFFF; --field:#EFF1F4;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  display:flex;justify-content:center;padding:32px 20px 110px;
+}
+.phone{width:100%;max-width:420px}
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 15px;
-  line-height: 1.45;
-  -webkit-font-smoothing: antialiased;
-  display: flex;
-  justify-content: center;
-  padding: 32px 20px 96px;
+/* ── the shape system: radius by position in the group ──────────────
+   first  → wide top, minimal bottom   (the group opens)
+   middle → minimal everywhere          (the list keeps flowing)
+   last   → minimal top, wide bottom   (the group closes)
+   only   → all four wide              (a one-item group is one pill)   */
+.group{background:var(--group);border-radius:28px;padding:4px;display:flex;flex-direction:column;gap:4px;margin-bottom:22px}
+.tile{background:var(--tile);border-radius:4px;padding:13px 16px;min-height:60px;display:flex;align-items:center;gap:14px;cursor:default;transition:background 140ms ease}
+.tile:first-child{border-top-left-radius:24px;border-top-right-radius:24px}
+.tile:last-child{border-bottom-left-radius:24px;border-bottom-right-radius:24px}
+.tile:only-child{border-radius:24px}
+.tile.press{background:var(--tile-press)}
+
+/* ── top bar ──────────────────────────────────────────────────── */
+.topbar{display:flex;align-items:center;gap:10px;padding:0 4px 20px;margin-bottom:14px}
+.topbar h1{font-size:27px;font-weight:700;letter-spacing:-.3px}
+.backpill{
+  height:38px;width:38px;border-radius:999px;background:var(--tile);
+  display:grid;place-items:center;color:var(--text);flex:none;cursor:pointer;
+  transition:background 140ms ease,transform 140ms ease;
+}
+.backpill:active{transform:scale(.92);background:var(--tile-press)}
+.theme-toggle{
+  position:fixed;top:18px;right:18px;width:40px;height:40px;border-radius:999px;
+  background:var(--tile);color:var(--text-2);display:grid;place-items:center;cursor:pointer;font-size:15px;
 }
 
-.phone { width: 100%; max-width: 420px; }
+/* ── tile anatomy ─────────────────────────────────────────────── */
+.tile .glyph{flex:none;color:var(--text-2);display:grid;place-items:center;width:26px}
+.tile .label{flex:1;min-width:0}
+.tile .title{font-weight:600;letter-spacing:-.1px}
+.tile .sub{font-size:12.5px;color:var(--text-3);margin-top:2px}
+.tile .trail{flex:none;color:var(--text-3);display:flex;align-items:center;gap:8px}
+.tile .value{color:var(--text-2);font-size:14px}
+.tile .chev{color:var(--text-3)}
+.avatar{width:46px;height:46px;border-radius:999px;background:linear-gradient(150deg,#3A4A63,#1E2A3A);flex:none;display:grid;place-items:center;color:#9FB6D0;font-size:17px;font-weight:700}
+.tile.stack{display:block}
+.tile.stack .head{display:flex;align-items:center;gap:14px}
+.tile.stack .control{margin-top:16px}
 
-/* ═══════════════════════════════════════════════════════════════
-   THE SYSTEM — corner radius driven by position in the group.
-
-   first  : top wide, bottom minimal  → the group opens
-   middle : everything minimal       → the list keeps flowing
-   last   : top minimal, bottom wide → the group closes
-   only   : all four wide           → a one-item group is a single pill
-   ═══════════════════════════════════════════════════════════════ */
-.group {
-  background: var(--group);
-  border-radius: 28px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 22px;
+/* ── segmented ────────────────────────────────────────────────── */
+.seg{display:flex;gap:4px;background:var(--bg);border-radius:999px;padding:4px}
+.seg button{
+  flex:1;height:38px;border:0;border-radius:999px;background:transparent;color:var(--text-2);
+  font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;transition:background 160ms ease,color 160ms ease;
 }
+.seg button[aria-pressed="true"]{background:var(--accent-dim);color:var(--accent);font-weight:600}
 
-.tile {
-  background: var(--tile);
-  border-radius: 4px;                 /* middle elements: all minimal */
-  padding: 13px 16px;
-  min-height: 60px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  transition: background 140ms ease;
+/* ── modern slider: soft glow, thin track, ringed thumb ─────────── */
+.slider{position:relative;height:36px;display:flex;align-items:center;cursor:pointer;touch-action:none}
+.slider .track{position:absolute;left:0;right:0;height:6px;border-radius:999px;background:var(--track)}
+.slider .glow{position:absolute;height:6px;border-radius:999px;background:var(--accent-glow);filter:blur(5px)}
+.slider .fill{position:absolute;left:0;height:6px;border-radius:999px;background:var(--accent)}
+.slider .thumb{
+  position:absolute;width:22px;height:22px;border-radius:999px;background:var(--thumb);
+  box-shadow:0 0 0 3px var(--thumb-ring),0 0 14px var(--accent-glow);
+  transform:translateX(-50%);transition:box-shadow 160ms ease;
 }
+.slider:active .thumb{box-shadow:0 0 0 3px var(--thumb-ring),0 0 20px var(--accent-glow)}
+.slider .val{position:absolute;right:0;top:-16px;font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
 
-.tile:first-child { border-top-left-radius: 24px; border-top-right-radius: 24px; }
-.tile:last-child  { border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; }
-.tile:only-child  { border-radius: 24px; }
+/* ── switch ───────────────────────────────────────────────────── */
+.switch{width:50px;height:30px;border-radius:999px;background:var(--track);position:relative;flex:none;cursor:pointer;transition:background 180ms cubic-bezier(.2,.8,.2,1)}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:999px;background:#fff;transition:transform 200ms cubic-bezier(.2,.9,.25,1)}
+.switch[aria-checked="true"]{background:var(--accent)}
+.switch[aria-checked="true"]::after{transform:translateX(20px);box-shadow:0 1px 4px rgba(0,0,0,.28)}
 
-/* ═══════════════════════════════════════════════════════════════
-   TOP BAR
-   ═══════════════════════════════════════════════════════════════ */
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 0 20px 4px;
-  margin-bottom: 14px;
+/* ── sheet ────────────────────────────────────────────────────── */
+.scrim{position:fixed;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity 220ms ease;z-index:40}
+.scrim.open{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  background:var(--sheet);border-radius:28px 28px 0 0;
+  transform:translateY(102%);transition:transform 280ms cubic-bezier(.2,.9,.25,1);
+  max-width:420px;margin:0 auto;padding:10px 14px 20px;
+  box-shadow:0 -10px 40px rgba(0,0,0,.45);
+  max-height:76vh;display:flex;flex-direction:column;
 }
-.topbar h1 { font-size: 27px; font-weight: 700; letter-spacing: -0.3px; }
-.iconbtn {
-  width: 44px; height: 44px;
-  display: grid; place-items: center;
-  border-radius: 999px;
-  color: var(--text);
-  flex: none;
+.sheet.open{transform:translateY(0)}
+.grabber{width:38px;height:4px;border-radius:999px;background:var(--track);margin:0 auto 12px}
+.sheet h2{font-size:17px;font-weight:700;padding:2px 6px 12px}
+.searchfield{display:flex;align-items:center;gap:9px;height:44px;background:var(--field);border-radius:999px;padding:0 14px;margin-bottom:10px}
+.searchfield input{flex:1;background:transparent;border:0;outline:0;color:var(--text);font:inherit;font-size:14.5px}
+.searchfield input::placeholder{color:var(--text-3)}
+.opt{display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;border-radius:14px;cursor:pointer;transition:background 120ms ease}
+.opt:active{background:var(--tile-press)}
+.opt .code{
+  width:34px;height:34px;border-radius:999px;background:var(--tile);
+  display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--text-2);flex:none;
 }
-.theme-toggle {
-  position: fixed; top: 18px; right: 18px;
-  width: 40px; height: 40px;
-  border-radius: 999px;
-  border: 1px solid var(--hairline);
-  background: var(--tile);
-  color: var(--text-2);
-  display: grid; place-items: center;
-  cursor: pointer;
-  font-size: 15px;
-}
+.opt.sel{background:var(--accent-dim)}
+.opt.sel .code{background:var(--accent);color:var(--bg)}
+.opt .nm{flex:1}
+.opt .nm b{font-weight:600}
+.opt .nm span{display:block;font-size:12px;color:var(--text-3)}
+.opt .tick{color:var(--accent)}
 
-/* ═══════════════════════════════════════════════════════════════
-   TILE ANATOMY
-   ═══════════════════════════════════════════════════════════════ */
-.tile .glyph { flex: none; color: var(--text-2); display: grid; place-items: center; width: 26px; }
-.tile .label { flex: 1; min-width: 0; }
-.tile .title { font-weight: 600; letter-spacing: -0.1px; }
-.tile .sub { font-size: 12.5px; color: var(--text-3); margin-top: 2px; }
-.tile .trail { flex: none; color: var(--text-3); display: grid; place-items: center; }
-.tile.on { background: var(--tile-on); }
-.tile.on .title { color: var(--accent); }
-.tile .check { color: var(--accent); }
-
-.avatar {
-  width: 46px; height: 46px; border-radius: 999px;
-  background: linear-gradient(150deg, #3A4A63, #1E2A3A);
-  flex: none;
-  display: grid; place-items: center;
-  color: #9FB6D0; font-size: 17px; font-weight: 700;
-}
-
-/* Wide controls live BELOW the label, never beside it. */
-.tile.stack { display: block; }
-.tile.stack .head { display: flex; align-items: center; gap: 14px; }
-.tile.stack .control { margin-top: 14px; }
-
-/* ═══════════════════════════════════════════════════════════════
-   CONTROLS
-   ═══════════════════════════════════════════════════════════════ */
-.seg {
-  display: flex; gap: 4px;
-  background: var(--bg);
-  border-radius: 999px;
-  padding: 4px;
-}
-.seg button {
-  flex: 1;
-  height: 38px;
-  border: 0; border-radius: 999px;
-  background: transparent;
-  color: var(--text-2);
-  font: inherit; font-size: 13.5px; font-weight: 500;
-  cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
-}
-.seg button[aria-pressed="true"] { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
-
-.slider { position: relative; height: 34px; display: flex; align-items: center; }
-.slider .track { position: absolute; inset-inline: 0; height: 5px; border-radius: 999px; background: var(--track); }
-.slider .fill  { position: absolute; left: 0; height: 5px; border-radius: 999px; background: var(--accent); }
-.slider .knob  { position: absolute; width: 20px; height: 20px; border-radius: 999px; background: var(--accent); border: 3px solid var(--tile); }
-.slider .ticks { position: absolute; inset-inline: 0; display: flex; justify-content: space-between; }
-.slider .ticks i { width: 3px; height: 3px; border-radius: 999px; background: var(--bg); }
-
-.switch {
-  width: 50px; height: 30px; border-radius: 999px;
-  background: var(--track); position: relative; flex: none;
-  transition: background 160ms ease;
-}
-.switch::after {
-  content: ""; position: absolute; top: 3px; left: 3px;
-  width: 24px; height: 24px; border-radius: 999px;
-  background: #fff; transition: transform 160ms cubic-bezier(.2,.8,.2,1);
-}
-.switch[aria-checked="true"] { background: var(--accent); }
-.switch[aria-checked="true"]::after { transform: translateX(20px); }
-
-.badge {
-  font-size: 12px; font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-dim);
-  padding: 4px 10px; border-radius: 999px;
-}
-
-.section-label {
-  font-size: 12px; font-weight: 600;
-  letter-spacing: 0.9px; text-transform: uppercase;
-  color: var(--text-3);
-  padding: 0 0 9px 6px;
-}
-.group:first-of-type { margin-top: 4px; }
+.section-label{font-size:12px;font-weight:600;letter-spacing:.9px;text-transform:uppercase;color:var(--text-3);padding:0 0 9px 6px}
+.hidden{display:none}
 </style>
 </head>
 <body>
 
-<button class="theme-toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme==='dark' ? 'light' : 'dark'" title="Toggle theme">◐</button>
+<button class="theme-toggle" onclick="flip()">◐</button>
+<div class="scrim" id="scrim" onclick="closeSheet()"></div>
 
 <div class="phone">
-
   <div class="topbar">
-    <div class="iconbtn">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    <div class="backpill" onclick="back()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
     </div>
     <h1>Settings</h1>
   </div>
 
-  <!-- ── device ─────────────────────────────────────────── -->
+  <!-- device -->
   <div class="group">
-    <div class="tile">
+    <div class="tile" data-press>
       <div class="avatar">P</div>
-      <div class="label">
-        <div class="title">Pixel 9 Pro</div>
-        <div class="sub">Google Pixel 9 Pro</div>
-      </div>
+      <div class="label"><div class="title">Pixel 9 Pro</div><div class="sub">Google Pixel 9 Pro</div></div>
     </div>
   </div>
 
-  <!-- ── appearance ──────────────────────────────────────── -->
+  <!-- appearance -->
   <div class="section-label">Appearance</div>
   <div class="group">
-    <div class="tile stack">
+    <div class="tile stack" data-press>
       <div class="head">
-        <div class="glyph">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.1 2.5-.3-1.2-1.2-2-2.8-2-4.7 0-3.9 3.1-7 7-7 .5 0 1 .1 1.5.2C20.1 6.7 16.6 2 12 2z"/></svg>
-        </div>
-        <div class="label">
-          <div class="title">Theme</div>
-          <div class="sub">Follows the system setting</div>
-        </div>
+        <div class="glyph" data-icon="palette"></div>
+        <div class="label"><div class="title">Theme</div><div class="sub" id="themeSub">Follows the system setting</div></div>
       </div>
       <div class="control">
-        <div class="seg" role="group">
-          <button aria-pressed="true">Auto</button>
-          <button aria-pressed="false">Light</button>
-          <button aria-pressed="false">Dark</button>
+        <div class="seg" id="seg">
+          <button data-v="auto" aria-pressed="true">Auto</button>
+          <button data-v="light" aria-pressed="false">Light</button>
+          <button data-v="dark" aria-pressed="false">Dark</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ── terminal ────────────────────────────────────────── -->
+  <!-- terminal -->
   <div class="section-label">Terminal</div>
   <div class="group">
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">Block mode</div>
-        <div class="sub">Show each command and its output as a block</div>
-      </div>
-      <div class="trail"><div class="switch" role="switch" aria-checked="true"></div></div>
+    <div class="tile" data-press>
+      <div class="glyph" data-icon="terminal"></div>
+      <div class="label"><div class="title">Block mode</div><div class="sub">Show each command and its output as a block</div></div>
+      <div class="trail"><div class="switch" id="sw1" role="switch" aria-checked="true"></div></div>
     </div>
 
-    <div class="tile stack">
+    <div class="tile stack" data-press>
       <div class="head">
-        <div class="glyph">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
-        </div>
-        <div class="label">
-          <div class="title">Font size</div>
-          <div class="sub">14sp</div>
-        </div>
+        <div class="glyph" data-icon="resize"></div>
+        <div class="label"><div class="title">Font size</div><div class="sub" id="fsVal">14sp</div></div>
       </div>
-      <div class="control">
-        <div class="slider">
-          <div class="track"></div>
-          <div class="fill" style="width:38%"></div>
-          <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="knob" style="left:calc(38% - 10px)"></div>
-        </div>
-      </div>
+      <div class="control"><div class="slider" id="s1" data-min="8" data-max="24" data-val="14"></div></div>
     </div>
 
-    <div class="tile stack">
+    <div class="tile stack" data-press>
       <div class="head">
-        <div class="glyph">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        </div>
-        <div class="label">
-          <div class="title">Cursor blink</div>
-          <div class="sub">500ms</div>
-        </div>
+        <div class="glyph" data-icon="clock"></div>
+        <div class="label"><div class="title">Cursor blink</div><div class="sub" id="cbVal">500ms</div></div>
       </div>
-      <div class="control">
-        <div class="slider">
-          <div class="track"></div>
-          <div class="fill" style="width:42%"></div>
-          <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="knob" style="left:calc(42% - 10px)"></div>
-        </div>
-      </div>
+      <div class="control"><div class="slider" id="s2" data-min="0" data-max="1200" data-val="500"></div></div>
     </div>
 
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">Startup command</div>
-        <div class="sub">$shell --login</div>
-      </div>
-      <div class="trail">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
+    <div class="tile" data-press>
+      <div class="glyph" data-icon="chevrons"></div>
+      <div class="label"><div class="title">Startup command</div><div class="sub">$shell --login</div></div>
+      <div class="trail"><span class="chev" data-icon="right"></span></div>
     </div>
   </div>
 
-  <!-- ── language ────────────────────────────────────────── -->
+  <!-- language: one row, opens the sheet -->
   <div class="section-label">Language</div>
   <div class="group">
-    <div class="tile on">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.8 3.8 9S14.5 18.3 12 21c-2.5-2.7-3.8-5.8-3.8-9S9.5 5.7 12 3z"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">System</div>
-        <div class="sub">System</div>
-      </div>
-      <div class="trail check">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-      </div>
-    </div>
-
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.8 3.8 9S14.5 18.3 12 21c-2.5-2.7-3.8-5.8-3.8-9S9.5 5.7 12 3z"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">English</div>
-        <div class="sub">English</div>
-      </div>
-    </div>
-
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.8 3.8 9S14.5 18.3 12 21c-2.5-2.7-3.8-5.8-3.8-9S9.5 5.7 12 3z"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">Türkçe</div>
-        <div class="sub">Türkçe</div>
-      </div>
-    </div>
-
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.8 3.8 9S14.5 18.3 12 21c-2.5-2.7-3.8-5.8-3.8-9S9.5 5.7 12 3z"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">Deutsch</div>
-        <div class="sub">Deutsch</div>
-      </div>
+    <div class="tile" data-press onclick="openSheet()">
+      <div class="glyph" data-icon="globe"></div>
+      <div class="label"><div class="title">Language</div><div class="sub" id="langSub">System</div></div>
+      <div class="trail"><span class="chev" data-icon="right"></span></div>
     </div>
   </div>
 
-  <!-- ── security ────────────────────────────────────────── -->
+  <!-- security -->
   <div class="section-label">Security</div>
   <div class="group">
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.4-3 8.3-7 9-4-.7-7-4.6-7-9V6l7-3z"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">PIN lock</div>
-        <div class="sub">Ask for a PIN before opening a session</div>
-      </div>
-      <div class="trail"><div class="switch" role="switch" aria-checked="false"></div></div>
+    <div class="tile" data-press>
+      <div class="glyph" data-icon="shield"></div>
+      <div class="label"><div class="title">PIN lock</div><div class="sub">Ask for a PIN before opening a session</div></div>
+      <div class="trail"><div class="switch" id="sw2" role="switch" aria-checked="false"></div></div>
     </div>
   </div>
 
-  <!-- ── about ───────────────────────────────────────────── -->
+  <!-- about -->
   <div class="section-label">About</div>
   <div class="group">
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">Version</div>
-        <div class="sub">0.1.0</div>
-      </div>
-      <div class="trail">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
+    <div class="tile" data-press>
+      <div class="glyph" data-icon="info"></div>
+      <div class="label"><div class="title">Version</div><div class="sub">0.1.0</div></div>
+      <div class="trail"><span class="chev" data-icon="right"></span></div>
     </div>
-
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">Build</div>
-        <div class="sub">dev</div>
-      </div>
-      <div class="trail">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
+    <div class="tile" data-press>
+      <div class="glyph" data-icon="terminal"></div>
+      <div class="label"><div class="title">Build</div><div class="sub">dev</div></div>
+      <div class="trail"><span class="chev" data-icon="right"></span></div>
     </div>
-
-    <div class="tile">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.4-3 8.3-7 9-4-.7-7-4.6-7-9V6l7-3z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg>
-      </div>
-      <div class="label">
-        <div class="title">License</div>
-        <div class="sub">GPLv3</div>
-      </div>
-      <div class="trail">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
+    <div class="tile" data-press>
+      <div class="glyph" data-icon="shieldok"></div>
+      <div class="label"><div class="title">License</div><div class="sub">GPLv3</div></div>
+      <div class="trail"><span class="chev" data-icon="right"></span></div>
     </div>
   </div>
-
 </div>
+
+<!-- language sheet -->
+<div class="sheet" id="sheet">
+  <div class="grabber"></div>
+  <h2>Language</h2>
+  <div class="searchfield">
+    <span data-icon="search" style="color:var(--text-3)"></span>
+    <input id="q" placeholder="Search languages" oninput="filter()">
+  </div>
+  <div id="opts" style="overflow-y:auto"></div>
+</div>
+
+<script>
+const ICONS = {
+  palette:'<circle cx="12" cy="12" r="9"/><circle cx="9" cy="9" r="1.1"/><circle cx="15" cy="9" r="1.1"/><path d="M12 3a9 9 0 0 0 0 18c1 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.4-.6-.4-1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4.1-4-7.5-9-7.5z"/>',
+  terminal:'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9l3 3-3 3M13 15h4"/>',
+  resize:'<path d="M4 7V4h16v3M9 20h6M12 4v16"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  chevrons:'<path d="M4 17l6-5-6-5M12 17l6-5-6-5"/>',
+  right:'<path d="M9 18l6-6-6-6"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.8 3.8 9S14.5 18.3 12 21c-2.5-2.7-3.8-5.8-3.8-9S9.5 5.7 12 3z"/>',
+  shield:'<path d="M12 3l7 3v6c0 4.4-3 8.3-7 9-4-.7-7-4.6-7-9V6l7-3z"/>',
+  shieldok:'<path d="M12 3l7 3v6c0 4.4-3 8.3-7 9-4-.7-7-4.6-7-9V6l7-3z"/><path d="M9.3 12.2l1.9 1.9 3.5-3.8"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.6"/>',
+  search:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>'
+};
+const wrap = s => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+s+'</svg>';
+
+document.querySelectorAll('[data-icon]').forEach(el => {
+  const key = el.dataset.icon;
+  if (ICONS[key]) el.innerHTML = wrap(ICONS[key]);
+});
+
+/* press feedback */
+document.querySelectorAll('[data-press]').forEach(el => {
+  el.addEventListener('pointerdown', () => el.classList.add('press'));
+  ['pointerup','pointerleave','pointercancel'].forEach(e => el.addEventListener(e, () => el.classList.remove('press')));
+});
+
+/* switches */
+function sw(id){
+  const el = document.getElementById(id);
+  el.addEventListener('click', () => el.setAttribute('aria-checked', el.getAttribute('aria-checked')==='true'?'false':'true'));
+}
+sw('sw1'); sw('sw2');
+
+/* segmented + theme */
+const SUB = {auto:'Follows the system setting', light:'Always light', dark:'Always dark'};
+document.getElementById('seg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#seg button').forEach(x => x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  document.getElementById('themeSub').textContent = SUB[b.dataset.v];
+  if (b.dataset.v !== 'auto') document.documentElement.dataset.theme = b.dataset.v;
+});
+
+/* sliders */
+function slider(id, onChange){
+  const el = document.getElementById(id);
+  const min = +el.dataset.min, max = +el.dataset.max;
+  let val = +el.dataset.val;
+  el.innerHTML = '<div class="track"></div><div class="glow"></div><div class="fill"></div><div class="thumb"></div>';
+  function render(){
+    const pct = (val - min) / (max - min) * 100;
+    el.querySelector('.fill').style.width = pct + '%';
+    el.querySelector('.glow').style.width = pct + '%';
+    el.querySelector('.thumb').style.left = pct + '%';
+    onChange(val);
+  }
+  function setFromX(clientX){
+    const r = el.getBoundingClientRect();
+    const pct = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    val = Math.round(min + pct * (max - min));
+    render();
+  }
+  el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); setFromX(e.clientX); });
+  el.addEventListener('pointermove', e => { if (el.hasPointerCapture(e.pointerId)) setFromX(e.clientX); });
+  render();
+}
+slider('s1', v => document.getElementById('fsVal').textContent = v + 'sp');
+slider('s2', v => document.getElementById('cbVal').textContent = v === 0 ? 'Off' : v + 'ms');
+
+/* language sheet */
+const LANGS = [
+  {t:'',        n:'System',   c:'SY', native:'System'},
+  {t:'en',       n:'English',  c:'EN', native:'English'},
+  {t:'tr',       n:'Turkish',  c:'TR', native:'Türkçe'},
+  {t:'de',       n:'German',   c:'DE', native:'Deutsch'},
+  {t:'fr',       n:'French',   c:'FR', native:'Français'},
+  {t:'es',       n:'Spanish',  c:'ES', native:'Español'},
+  {t:'it',       n:'Italian',  c:'IT', native:'Italiano'},
+  {t:'pt',       n:'Portuguese',c:'PT',native:'Português'},
+  {t:'ru',       n:'Russian',  c:'RU', native:'Русский'},
+  {t:'ja',       n:'Japanese', c:'JA', native:'日本語'},
+  {t:'zh',       n:'Chinese',  c:'ZH', native:'中文'},
+  {t:'ar',       n:'Arabic',   c:'AR', native:'العربية'},
+  {t:'fil',      n:'Filipino', c:'FL', native:'Filipino'}
+];
+let cur = '';
+
+function renderList(){
+  const q = document.getElementById('q').value.toLowerCase();
+  const box = document.getElementById('opts');
+  box.innerHTML = '';
+  LANGS.filter(l => !q || l.n.toLowerCase().includes(q) || l.native.toLowerCase().includes(q) || l.c.toLowerCase().includes(q))
+    .forEach(l => {
+      const d = document.createElement('div');
+      d.className = 'opt' + (l.t === cur ? ' sel' : '');
+      d.innerHTML = '<div class="code">'+l.c+'</div>'+
+                    '<div class="nm"><b>'+l.n+'</b><span>'+l.native+'</span></div>'+
+                    (l.t === cur ? '<div class="tick">'+wrap('<path d="M20 6L9 17l-5-5"/>').replace('22','20').replace('22','20')+'</div>' : '');
+      d.onclick = () => { cur = l.t; document.getElementById('langSub').textContent = l.n; closeSheet(); renderList(); };
+      box.appendChild(d);
+    });
+}
+function filter(){ renderList(); }
+function openSheet(){ document.getElementById('q').value=''; renderList(); document.getElementById('sheet').classList.add('open'); document.getElementById('scrim').classList.add('open'); }
+function closeSheet(){ document.getElementById('sheet').classList.remove('open'); document.getElementById('scrim').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+
+function flip(){ document.documentElement.dataset.theme = document.documentElement.dataset.theme==='dark' ? 'light' : 'dark'; }
+function back(){ alert('Back — closes settings'); }
+
+renderList();
+</script>
 </body>
 </html>
