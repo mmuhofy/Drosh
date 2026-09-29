@@ -65,6 +65,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
+import dev.drosh.design.system.DroshMenuItemStyle
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
@@ -169,13 +170,16 @@ private fun SidebarContent(
 
     var searchQuery by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
-    var renamingSessionId by remember { mutableStateOf<String?>(null) }
-    var renameValue by remember { mutableStateOf("") }
+    var renamingSession by remember { mutableStateOf<SessionSnapshot?>(null) }
 
     val filtered = remember(sessions, searchQuery) {
         if (searchQuery.isBlank()) sessions else sessions.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
-    val live = filtered.filter { it.state != SessionState.Closed }
+    // Most recently used first, so the session you were just in is the one at
+    // the top rather than wherever it happened to be created.
+    val live = filtered
+        .filter { it.state != SessionState.Closed }
+        .sortedByDescending { it.lastUsedAtMs }
     val ended = filtered.filter { it.state == SessionState.Closed }
     val active = filtered.firstOrNull { it.id == activeId }
 
@@ -184,12 +188,6 @@ private fun SidebarContent(
         searchQuery = ""
     }
 
-    fun commitRename() {
-        val id = renamingSessionId
-        val name = renameValue.trim()
-        if (id != null && name.isNotEmpty()) viewModel.rename(id, name)
-        renamingSessionId = null
-    }
 
     Column(
         modifier = Modifier
@@ -237,15 +235,8 @@ private fun SidebarContent(
                     SessionRow(
                         snapshot = snapshot,
                         isActive = snapshot.id == activeId,
-                        isRenaming = renamingSessionId == snapshot.id,
-                        renameValue = renameValue,
-                        onRenameValueChange = { renameValue = it },
-                        onRenameCommit = { commitRename() },
                         onClick = { viewModel.activate(snapshot.id) },
-                        onStartRename = {
-                            renamingSessionId = snapshot.id
-                            renameValue = snapshot.name
-                        },
+                        onStartRename = { renamingSession = snapshot },
                         onDelete = { viewModel.delete(snapshot.id) },
                     )
                 }
@@ -260,19 +251,23 @@ private fun SidebarContent(
                     SessionRow(
                         snapshot = snapshot,
                         isActive = false,
-                        isRenaming = renamingSessionId == snapshot.id,
-                        renameValue = renameValue,
-                        onRenameValueChange = { renameValue = it },
-                        onRenameCommit = { commitRename() },
                         onClick = {},
-                        onStartRename = {
-                            renamingSessionId = snapshot.id
-                            renameValue = snapshot.name
-                        },
+                        onStartRename = { renamingSession = snapshot },
                         onDelete = { viewModel.delete(snapshot.id) },
                     )
                 }
             }
+        }
+
+        renamingSession?.let { target ->
+            RenameSessionDialog(
+                initialValue = target.name,
+                onConfirm = { newName ->
+                    viewModel.rename(target.id, newName)
+                    renamingSession = null
+                },
+                onDismiss = { renamingSession = null },
+            )
         }
 
         SidebarFooter(
@@ -385,7 +380,7 @@ private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+            .padding(start = if (isActive) 3.dp else 12.dp, end = 12.dp)
             .height(44.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(DroshSurfaceVariant.copy(alpha = surface))
@@ -468,18 +463,12 @@ private fun SectionLabel(
 private fun SessionRow(
     snapshot: SessionSnapshot,
     isActive: Boolean,
-    isRenaming: Boolean,
-    renameValue: String,
-    onRenameValueChange: (String) -> Unit,
-    onRenameCommit: () -> Unit,
     onClick: () -> Unit,
     onStartRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val ended = snapshot.state == SessionState.Closed
-    val focusRequester = remember { FocusRequester() }
-    var hasFocusedOnce by remember(snapshot.id, isRenaming) { mutableStateOf(false) }
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -496,64 +485,48 @@ private fun SessionRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+                // The active row tightens its left edge to make room for the
+                // mark, so the name column stays in one place for every row.
+                .padding(start = if (isActive) 3.dp else 12.dp, end = 12.dp)
                 .height(44.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(DroshSurfaceVariant.copy(alpha = surface))
-                .then(
-                    if (isRenaming) {
-                        Modifier
-                    } else {
-                        Modifier.combinedClickable(
-                            interactionSource = interactionSource,
-                            indication = null,
-                            onClick = onClick,
-                            onLongClick = { menuOpen = true },
-                        )
-                    }
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick,
+                    onLongClick = { menuOpen = true },
                 )
                 .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Indent so a name lines up with the navigation labels above it.
-            // Without it the text hugs the drawer edge while every other row
-            // starts further in, and the column has no shared left edge.
-            Spacer(Modifier.width(33.dp))
-            if (isRenaming) {
-                BasicTextField(
-                    value = renameValue,
-                    onValueChange = onRenameValueChange,
-                    singleLine = true,
-                    textStyle = TextStyle(
-                        color = DroshText,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    cursorBrush = SolidColor(DroshPrimary),
+            // Marks the active session. Weight and a status dot were both tried
+            // and both read as decoration, and a dot sat exactly where this
+            // column wanted to stay quiet.
+            if (isActive) {
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { st ->
-                            if (st.isFocused) hasFocusedOnce = true
-                            else if (hasFocusedOnce) onRenameCommit()
-                        },
-                )
-            } else {
-                Text(
-                    text = snapshot.name,
-                    color = DroshText,
-                    fontSize = 15.sp,
-                    // Every name reads the same weight. Making the active one
-                    // heavier made the list look like it held two kinds of
-                    // thing, and the active row is already the one with a
-                    // surface under it when the menu is open.
-                    fontWeight = FontWeight.SemiBold,
-                    textDecoration = if (ended) TextDecoration.LineThrough else TextDecoration.None,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                        .width(3.dp)
+                        .height(20.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(DroshPrimary),
                 )
             }
+            // Indent so a name lines up with the navigation labels above it.
+            Spacer(Modifier.width(30.dp))
+            Text(
+                text = snapshot.name,
+                color = DroshText,
+                fontSize = 15.sp,
+                // Every name reads the same weight. Making the active one
+                // heavier made the list look like it held two kinds of thing;
+                // the active row carries a mark and a surface instead.
+                fontWeight = FontWeight.SemiBold,
+                textDecoration = if (ended) TextDecoration.LineThrough else TextDecoration.None,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
         }
 
         // The same menu the terminal's overflow button uses, so the two cannot
@@ -565,7 +538,11 @@ private fun SessionRow(
             offset = DpOffset(20.dp, 0.dp),
             items = listOf(
                 DroshMenuItem(label = "Rename", icon = DroshIcons.Pencil),
-                DroshMenuItem(label = "Delete", icon = DroshIcons.Trash2),
+                DroshMenuItem(
+                    label = "Delete",
+                    icon = DroshIcons.Trash2,
+                    style = DroshMenuItemStyle.Destructive,
+                ),
             ),
             onItemClick = { item ->
                 when (item.label) {
@@ -598,11 +575,20 @@ private fun SidebarFooter(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        // The pill grows into the button's space and the button turns into the
+        // close control, so the row's width never jumps. A hard swap looked
+        // like the footer had been replaced rather than switched.
+        val pillWeight by animateFloatAsState(
+            targetValue = if (searchOpen) 1f else 0f,
+            animationSpec = tween(durationMillis = 220, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            label = "searchWidth",
+        )
+
         if (searchOpen) {
             SearchField(
                 value = query,
                 onValueChange = onQueryChange,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(pillWeight),
             )
             CircleButton(
                 onClick = {
@@ -613,9 +599,9 @@ private fun SidebarFooter(
                 icon = DroshIcons.X,
             )
         } else {
-            // Collapsed it is a plain target, not a text field: a focused
-            // field here summons the keyboard, which resizes the drawer and
-            // fights the push animation.
+            // Collapsed it is a plain target, not a text field: a focused field
+            // here summons the keyboard, which resizes the drawer and fights
+            // the push animation.
             Box(
                 modifier = Modifier
                     .weight(1f)
