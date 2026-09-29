@@ -15,8 +15,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -247,7 +247,7 @@ fun SettingsTile(
         // Built once so both arrangements share it. A control that fills its
         // row cannot be a sibling of a weighted text column: in a Row it wins
         // the width argument and the label collapses to one character per line.
-        val head: @Composable ColumnScope.() -> Unit = {
+        val head: @Composable RowScope.() -> Unit = {
             if (icon != null) {
                 Icon(
                     imageVector = icon,
@@ -424,7 +424,7 @@ fun SettingsSlider(
                 drawRoundRect(
                     color = accent,
                     topLeft = Offset(handleCentre - half, cy - track / 2f),
-                    size = androidx.compose.ui.geometry.Size(handleWidth, track),
+                    size = androidx.compose.ui.geometry.Size(handleWidth.toPx(), track),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(track / 2f),
                 )
             }
