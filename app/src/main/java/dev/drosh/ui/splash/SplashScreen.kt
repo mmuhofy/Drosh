@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
+import android.os.SystemClock
 import kotlinx.coroutines.delay
 
 private const val WORD = "Drosh"
@@ -52,28 +53,28 @@ fun SplashScreen(
     var lit by remember { mutableIntStateOf(0) }
     val shown = WORD.take(revealed)
 
+    // One coroutine drives the whole thing, in order. This was two effects
+    // watching two pieces of state: the effect that revealed a character only
+    // ran once something had already been revealed, so it never started, and
+    // each one restarting the other meant the letter never stayed lit. Driving
+    // it from a single sequence removes the coordination entirely.
     LaunchedEffect(Unit) {
-        // A fixed floor, plus a little more the first time round so the word is
-        // never caught mid-draw on its only appearance.
-        val drawTime = WORD.length * CHAR_MS + FLASH_MS
-        delay(maxOf(MINIMUM_HOLD_MS, drawTime))
-        onFinished()
-    }
+        val started = SystemClock.elapsedRealtime()
+        for (index in 1..WORD.length) {
+            val char = WORD[index - 1]
+            revealed = index
+            lit = index
+            delay(if (char == ' ' || char == '.' || char == ',') PUNCTUATION_PAUSE_MS else CHAR_MS)
+        }
 
-    LaunchedEffect(revealed) {
-        if (revealed == 0) return@LaunchedEffect
-        val char = WORD[revealed - 1]
-        lit = revealed
-        delay(if (char == ' ' || char == '.' || char == ',') PUNCTUATION_PAUSE_MS else CHAR_MS)
-        revealed += 1
-    }
-
-    // Hold the newest letter lit for a beat, then let it settle to the same
-    // colour as the letters before it.
-    LaunchedEffect(lit) {
-        if (lit == 0) return@LaunchedEffect
+        // Let the last letter sit lit before it settles.
         delay(FLASH_MS)
         lit = 0
+
+        // Never flash: hold the remainder of the minimum however quick the typing.
+        val remaining = MINIMUM_HOLD_MS - (SystemClock.elapsedRealtime() - started).toInt()
+        if (remaining > 0) delay(remaining.toLong())
+        onFinished()
     }
 
     Box(
