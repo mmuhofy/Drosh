@@ -83,16 +83,21 @@ fun SplashScreen(
             .background(DroshBackground),
         contentAlignment = Alignment.Center,
     ) {
+        // Read out here: a remember block is not composable, and these are
+        // part of what it recomputes on.
+        val restColor = DroshText
+        val litColor = DroshPrimary
+
         // The lit letter is coloured through the value itself rather than a
         // visual transformation: a transformation only moves glyphs, it cannot
         // restyle part of the string.
-        val annotated = remember(shown, lit) {
+        val annotated = remember(shown, lit, restColor, litColor) {
             if (lit == 0 || lit > shown.length) {
                 AnnotatedString(shown)
             } else {
                 AnnotatedString.Builder().apply {
                     append(shown.substring(0, lit - 1))
-                    withStyle(SpanStyle(color = DroshPrimary)) { append(shown[lit - 1]) }
+                    withStyle(SpanStyle(color = litColor)) { append(shown[lit - 1]) }
                     if (lit < shown.length) append(shown.substring(lit))
                 }.toAnnotatedString()
             }
@@ -111,7 +116,7 @@ fun SplashScreen(
             singleLine = true,
             cursorBrush = SolidColor(DroshPrimary),
             textStyle = TextStyle(
-                color = DroshText,
+                color = restColor,
                 fontSize = 34.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp,

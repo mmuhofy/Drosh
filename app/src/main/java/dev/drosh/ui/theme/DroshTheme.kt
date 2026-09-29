@@ -21,6 +21,7 @@ import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.design.system.provideDroshColors
 
+@Composable
 private fun schemeFor(dark: Boolean): ColorScheme = if (dark) {
     darkColorScheme(
         primary = DroshPrimary,
