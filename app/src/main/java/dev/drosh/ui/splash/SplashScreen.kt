@@ -79,8 +79,7 @@ fun SplashScreen(
         onFinished()
     }
 
-    // Rotate through the lines. Keyed on the index so the field remounts and the
-    // typewriter restarts for each one.
+    // Rotate through the lines.
     LaunchedEffect(typed) {
         if (!typed) return@LaunchedEffect
         delay(AFTER_TYPING_MS)
@@ -117,8 +116,9 @@ fun SplashScreen(
                     .fillMaxWidth(),
                 contentAlignment = Alignment.CenterStart,
             ) {
+                // Changing the text is enough to restart the typewriter: it keys
+                // its own effect on fullText.
                 TypewriterText(
-                    key = lineIndex,
                     fullText = LINES[lineIndex],
                     charDelayMs = TYPED_CHAR_MS,
                     onComplete = { typed = true },
