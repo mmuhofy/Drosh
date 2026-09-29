@@ -1,6 +1,7 @@
 package dev.drosh.core
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.core.os.ConfigurationCompat
 import java.util.Locale
 
