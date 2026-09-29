@@ -45,7 +45,33 @@ class BlockEngineWire(
     /** True while we are waiting for the echo of a `clear` command. */
     private var pendingEchoWasClear: Boolean = false
 
-    fun onSessionTextChanged(session: TerminalSession) {
+    /**
+     * The session whose output is being ingested. Block mode renders the same
+     * sessions classic mode does, so a background session printing something
+     * must not append to whatever the user is looking at.
+     */
+    private var activeSessionId: String? = null
+
+    /**
+     * Rebinds to another session without discarding its history. The diff anchor
+     * is re-seeded from the new session's own transcript so the first poll
+     * cannot mistake its backlog for fresh output.
+     */
+    fun onSessionChanged(sessionId: String?, session: TerminalSession?) {
+        if (activeSessionId == sessionId) return
+        activeSessionId = sessionId
+        previousTranscript = session?.let { snapshotOf(it) } ?: ""
+        pendingEcho = null
+        blockRepository.setActiveSession(sessionId)
+    }
+
+    private fun snapshotOf(session: TerminalSession): String {
+        val emulator = session.emulator ?: return ""
+        return AnsiStripper.strip(emulator.getScreen().getTranscriptTextWithoutJoinedLines())
+    }
+
+    fun onSessionTextChanged(session: TerminalSession, sessionId: String?) {
+        if (sessionId != activeSessionId) return
         val emulator: TerminalEmulator = session.emulator ?: return
         val raw = emulator.getScreen().getTranscriptTextWithoutJoinedLines()
         val current = AnsiStripper.strip(raw)
@@ -157,6 +183,7 @@ class BlockEngineWire(
         if (command.trim() == "clear") pendingEchoWasClear = true
     }
 
+    /** Clears only the active session's blocks and re-anchors the diff. */
     fun reset() {
         previousTranscript = ""
         pendingEcho = null

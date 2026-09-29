@@ -19,6 +19,13 @@ interface BlockRepository {
     /** Current block list for the active session. In-memory only. */
     fun observe(): StateFlow<List<Block>>
 
+    /**
+     * Points the repository at another session's block list. Sessions keep their
+     * own blocks, so switching between them swaps the view instead of dropping
+     * the previous session's history.
+     */
+    fun setActiveSession(sessionId: String?)
+
     /** Currently-running block, or null if none. */
     fun observeRunningBlock(): StateFlow<Block?>
 
@@ -76,6 +83,9 @@ interface BlockRepository {
      */
     fun bumpRunningBlock(blockId: String)
 
-    /** Drop all blocks (e.g. on session close). */
+    /** Clears the active session's blocks. */
     fun clear()
+
+    /** Drops every session's blocks. */
+    fun clearAll()
 }

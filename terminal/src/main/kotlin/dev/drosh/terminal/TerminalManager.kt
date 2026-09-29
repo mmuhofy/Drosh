@@ -153,7 +153,10 @@ class TerminalManager(
         sessionClient.onSessionFinished = { session -> onSessionFinished(session) }
         sessionClient.onTextChanged = { session ->
             terminalViewRef?.onScreenUpdated()
-            blockEngineWire?.onSessionTextChanged(session)
+            val persistentId = getIndexOfSession(session)
+                .takeIf { it >= 0 }
+                ?.let { irisSessions[it].persistentId }
+            blockEngineWire?.onSessionTextChanged(session, persistentId)
         }
         sessionClient.onAltBufferChanged = { isActive ->
             _altBufferActive.value = isActive
@@ -233,6 +236,8 @@ class TerminalManager(
         _sessionCount.value = irisSessions.size
         // A session exists again, so the exit dialog no longer applies.
         _noSessionsLeft.value = false
+        // Block mode shares these sessions; point the block store at the new one.
+        blockEngineWire?.onSessionChanged(persistentId, irisSession.terminalSession)
         terminalViewRef?.attachSession(irisSession.terminalSession)
         return irisSession.terminalSession
     }
@@ -368,9 +373,10 @@ class TerminalManager(
     fun switchTab(index: Int) {
         if (index < 0 || index >= irisSessions.size || index == _activeTabIndex.value) return
         _activeTabIndex.value = index
-        // Block engine state is per-session; reset so the next snapshot
-        // is anchored against the new buffer.
-        blockEngineWire?.reset()
+        // Blocks are stored per session, so switching shows that session's
+        // history instead of clearing the engine.
+        val target = irisSessions[index]
+        blockEngineWire?.onSessionChanged(target.persistentId, target.terminalSession)
         currentSession?.let { terminalViewRef?.attachSession(it) }
     }
 
