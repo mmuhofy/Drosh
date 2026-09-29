@@ -90,8 +90,6 @@ fun FlatKeyBar(
     // Read out here: drawBehind and Canvas take lambdas that are not
     // composable, so the palette cannot be read from inside them.
     val barBorder = DroshBorderSubtle
-    val primaryKeyWash = DroshPrimary.copy(alpha = 0.10f)
-    val textKeyWash = DroshText.copy(alpha = 0.06f)
 
     Box(
         modifier = modifier
@@ -323,6 +321,11 @@ private fun FlatKeyButton(
                 onLongClick = if (!isRepetitive) onLongPress.takeIf { it != {} } else null,
             ),
     ) {
+        // The key's own wash colours, read here rather than inside the Canvas:
+        // a draw lambda is not composable.
+        val primaryKeyWash = DroshPrimary.copy(alpha = 0.10f)
+        val textKeyWash = DroshText.copy(alpha = 0.06f)
+
         if (hovered || pressed) {
             Canvas(modifier = Modifier.matchParentSize()) {
                 drawRoundRect(

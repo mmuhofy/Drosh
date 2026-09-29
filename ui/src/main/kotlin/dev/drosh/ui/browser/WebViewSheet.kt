@@ -281,6 +281,9 @@ fun WebViewSheet(
                 modifier = Modifier
                     .fillMaxSize(),
             ) {
+                // The AndroidView factory is not composable, so the sheet's
+                // surface is read before it.
+                val sheetSurface = DroshSurface
                 AndroidView(
                     factory = { ctx ->
                         WebView(ctx).apply {
