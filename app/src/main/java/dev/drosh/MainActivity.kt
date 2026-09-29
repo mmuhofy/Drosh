@@ -43,6 +43,7 @@ import dev.drosh.terminal.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.ui.splash.SplashScreen
 import dev.drosh.ui.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
@@ -127,18 +128,17 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
         ) {
             composable("loading") {
-                if (firstCompleted != null) {
-                    LaunchedEffect(firstCompleted) {
-                        val destination = if (firstCompleted == true) "terminal" else "setup_flow"
-                        navController.navigate(destination) {
-                            popUpTo("loading") { inclusive = true }
+                val destination = if (firstCompleted == true) "terminal" else "setup_flow"
+                // Was an empty background: a cold start on a slow device was a
+                // black rectangle with nothing to say anything was happening.
+                SplashScreen(
+                    onFinished = {
+                        if (firstCompleted != null) {
+                            navController.navigate(destination) {
+                                popUpTo("loading") { inclusive = true }
+                            }
                         }
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(DroshBackground),
+                    },
                 )
             }
 
