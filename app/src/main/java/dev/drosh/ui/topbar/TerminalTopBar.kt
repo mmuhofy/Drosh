@@ -225,7 +225,6 @@ private fun MoreActionsDropdown(
  * bounce yok) ile dokunma geri bildirimi verir.
  */
 @Composable
-@Composable
 private fun GlassPillButton(
     drawableRes: Int,
     contentDescription: String,
