@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_section_appearance">Görünüm</string>
+    <string name="settings_section_terminal">Terminal</string>
+    <string name="settings_section_startup">Başlangıç</string>
+    <string name="settings_section_motd">Karşılama mesajı</string>
+    <string name="settings_section_language">Dil</string>
+    <string name="settings_section_security">Güvenlik</string>
+    <string name="settings_section_about">Hakkında</string>
+
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_auto">Otomatik</string>
+    <string name="settings_theme_light">Açık</string>
+    <string name="settings_theme_dark">Koyu</string>
+    <string name="settings_theme_system_desc">Sistem ayarını izler</string>
+    <string name="settings_theme_light_desc">Her zaman açık</string>
+    <string name="settings_theme_dark_desc">Her zaman koyu</string>
+
+    <string name="settings_block_mode">Blok modu</string>
+    <string name="settings_block_mode_desc">Her komutu ve çıktısını bir blok olarak gösterir</string>
+    <string name="settings_font_size">Yazı tipi boyutu</string>
+    <string name="settings_font_size_value">%1$ds</string>
+    <string name="settings_cursor_blink">İmleç yanıp sönmesi</string>
+    <string name="settings_cursor_blink_off">Kapalı</string>
+    <string name="settings_cursor_blink_value">%1$dms</string>
+    <string name="settings_cursor_style">İmleç biçimi</string>
+    <string name="settings_cursor_style_block_desc">Dolu bir blok</string>
+    <string name="settings_cursor_style_underline_desc">Karakterin altında çizgi</string>
+    <string name="settings_cursor_style_beam_desc">İnce dikey çubuk</string>
+    <string name="settings_startup_command">Başlangıç komutu</string>
+    <string name="settings_startup_default">$shell --login</string>
+
+    <string name="settings_motd_show_as">Gösterim</string>
+    <string name="settings_motd_off">Kapalı</string>
+    <string name="settings_motd_text">Metin</string>
+    <string name="settings_motd_card">Kart</string>
+    <string name="settings_motd_disabled_desc">Gösterme</string>
+    <string name="settings_motd_plain_desc">Kabuk metni yankılar</string>
+    <string name="settings_motd_compose_desc">Etkileşimli kart olarak çizilir</string>
+    <string name="settings_motd_message">Mesaj</string>
+    <string name="settings_motd_empty">Düzenlemek için dokun</string>
+    <string name="settings_motd_default">Drosh\'a hoş geldin</string>
+
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_system">Sistem</string>
+    <string name="settings_language_search">Dillerde ara</string>
+
+    <string name="settings_pin_lock">PIN kilidi</string>
+    <string name="settings_pin_lock_desc">Bir oturum açmadan önce PIN istesin</string>
+    <string name="settings_pin_title">PIN belirle</string>
+    <string name="settings_pin_subtitle">Bir oturum açmadan önce sorulacak.</string>
+
+    <string name="settings_version">Sürüm</string>
+    <string name="settings_build">Derleme</string>
+    <string name="settings_build_copied">Derleme kopyalandı</string>
+    <string name="settings_license">GPLv3</string>
+
+    <string name="this_device">Bu cihaz</string>
+    <string name="action_save">Kaydet</string>
+    <string name="action_cancel">İptal</string>
+    <string name="action_back">Geri</string>
+
+    <string name="topbar_show_keyboard">Klavyeyi göster</string>
+    <string name="topbar_hide_keyboard">Klavyeyi gizle</string>
+    <string name="topbar_open_agent">Yapay zekâ ajanı</string>
+    <string name="topbar_more_actions">Daha fazla</string>
+    <string name="topbar_refresh">Terminali yenile</string>
+    <string name="topbar_enter_fullscreen">Tam ekran</string>
+    <string name="topbar_exit_fullscreen">Tam ekrandan çık</string>
+    <string name="topbar_find">Çıktıda ara</string>
+    <string name="topbar_new_session">Yeni oturum</string>
+    <string name="topbar_close_session">Oturumu kapat</string>
+
+</resources>

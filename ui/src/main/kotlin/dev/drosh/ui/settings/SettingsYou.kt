@@ -209,6 +209,9 @@ fun SettingsTile(
     stacked: Boolean = false,
     selected: Boolean = false,
     onClick: (() -> Unit)? = null,
+    /** Sits to the left of the label, where an avatar or a device image goes. */
+    leading: @Composable (() -> Unit)? = null,
+    /** Sits to the right, for a switch, a value or a chevron. */
     control: @Composable (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -248,6 +251,10 @@ fun SettingsTile(
         // row cannot be a sibling of a weighted text column: in a Row it wins
         // the width argument and the label collapses to one character per line.
         val head: @Composable RowScope.() -> Unit = {
+            if (leading != null) {
+                leading()
+                Spacer(Modifier.width(14.dp))
+            }
             if (icon != null) {
                 Icon(
                     imageVector = icon,
@@ -351,13 +358,15 @@ fun <T> SettingsSegmented(
 }
 
 /**
- * Material 3 Expressive slider: a thick rounded track with a wide handle that
- * clears the track on both sides.
+ * Slider with detents.
  *
- * The earlier version was a hairline with a small dot on it, which is the
- * shape every Android app shipped for a decade. The gap around the handle is
- * what makes this read as current — the track appears to pass behind it
- * rather than the handle sitting on top of a painted line.
+ * Two things were wrong with the plain version. It had no stops, so a font
+ * size could land on 13.7sp and nobody could hit a round number by dragging
+ * to it; and the handle snapped between values with no transition, so it read
+ * as jumpy rather than as a control that responds.
+ *
+ * [steps] gives evenly spaced detents across the range. The value is
+ * quantised to the nearest one, and the drawn handle eases toward it.
  */
 @Composable
 fun SettingsSlider(
@@ -365,16 +374,34 @@ fun SettingsSlider(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
+    steps: Int = 0,
+    onValueChangeFinished: (() -> Unit)? = null,
 ) {
     val span = valueRange.endInclusive - valueRange.start
-    val fraction = if (span <= 0f) 0f else ((value - valueRange.start) / span).coerceIn(0f, 1f)
+    val divisions = steps + 1
+    val step = if (steps > 0 && divisions > 0) span / divisions else 0f
     val onChange by rememberUpdatedState(onValueChange)
+    val onFinished by rememberUpdatedState(onValueChangeFinished)
     val trackColor = DroshTrack
     val accent = DroshPrimary
 
+    // The drawn position eases toward the value, so a detent reads as being
+    // pulled in rather than as a jump.
+    val targetFraction = if (span <= 0f) 0f else ((value - valueRange.start) / span).coerceIn(0f, 1f)
+    var drawnFraction by remember { mutableFloatStateOf(targetFraction) }
+    val smoothFraction by animateFloatAsState(
+        targetValue = targetFraction,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "sliderPos",
+    )
+    LaunchedEffect(targetFraction) { drawnFraction = targetFraction }
+
     var dragging by remember { mutableStateOf(false) }
     val handleWidth by animateDpAsState(
-        targetValue = if (dragging) 26.dp else 20.dp,
+        targetValue = if (dragging) 30.dp else 22.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium,
@@ -382,14 +409,22 @@ fun SettingsSlider(
         label = "handleWidth",
     )
 
-    // Pointer input cannot read the layout size, and the draw pass needs the
-    // width, so it is measured here and read by both.
+    // Pointer input cannot read the layout size, and the draw pass needs it,
+    // so it is measured here and read by both.
     var trackWidth by remember { mutableIntStateOf(1) }
+
+    fun quantise(raw: Float): Float {
+        if (step <= 0f) return raw.coerceIn(valueRange.start, valueRange.endInclusive)
+        val snapped = valueRange.start + ((raw - valueRange.start) / step).let {
+            Math.round(it.toDouble()).toFloat()
+        } * step
+        return snapped.coerceIn(valueRange.start, valueRange.endInclusive)
+    }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(48.dp)
             .onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
             .drawBehind {
                 val w = trackWidth.toFloat()
@@ -397,11 +432,9 @@ fun SettingsSlider(
                 val track = TRACK_THICKNESS.toPx()
                 val half = handleWidth.toPx() / 2f
                 val gap = HANDLE_GAP.toPx()
-                val handleCentre = w * fraction
+                val centre = w * smoothFraction
 
-                // The track is split around the handle so the handle sits in a
-                // gap rather than on top of the paint.
-                val leftEnd = (handleCentre - half - gap).coerceAtLeast(0f)
+                val leftEnd = (centre - half - gap).coerceAtLeast(0f)
                 if (leftEnd > 0f) {
                     drawLine(
                         color = accent,
@@ -411,7 +444,7 @@ fun SettingsSlider(
                         cap = StrokeCap.Round,
                     )
                 }
-                val rightStart = (handleCentre + half + gap).coerceAtMost(w)
+                val rightStart = (centre + half + gap).coerceAtMost(w)
                 if (w - rightStart > 0f) {
                     drawLine(
                         color = trackColor,
@@ -423,34 +456,43 @@ fun SettingsSlider(
                 }
                 drawRoundRect(
                     color = accent,
-                    topLeft = Offset(handleCentre - half, cy - track / 2f),
+                    topLeft = Offset(centre - half, cy - track / 2f),
                     size = androidx.compose.ui.geometry.Size(handleWidth.toPx(), track),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(track / 2f),
                 )
             }
-            .pointerInput(Unit) {
+            .pointerInput(steps) {
                 detectHorizontalDragGestures(
                     onDragStart = { dragging = true },
-                    onDragEnd = { dragging = false },
-                    onDragCancel = { dragging = false },
+                    onDragEnd = {
+                        dragging = false
+                        onFinished?.invoke()
+                    },
+                    onDragCancel = {
+                        dragging = false
+                        onFinished?.invoke()
+                    },
                     onHorizontalDrag = { change, _ ->
                         change.consume()
                         val f = (change.position.x / trackWidth).coerceIn(0f, 1f)
-                        onChange(valueRange.start + f * span)
+                        val raw = valueRange.start + f * span
+                        onChange(quantise(raw))
                     },
                 )
             }
-            .pointerInput(Unit) {
+            .pointerInput(steps) {
                 detectTapGestures { offset ->
                     val f = (offset.x / trackWidth).coerceIn(0f, 1f)
-                    onChange(valueRange.start + f * span)
+                    onChange(quantise(valueRange.start + f * span))
+                    onFinished?.invoke()
                 }
             },
     )
 }
 
-private val TRACK_THICKNESS = 8.dp
-private val HANDLE_GAP = 3.dp
+private val TRACK_THICKNESS = 10.dp
+private val HANDLE_GAP = 4.dp
+
 
 /** Switch with the accent fill and a soft drop on the thumb. */
 @Composable

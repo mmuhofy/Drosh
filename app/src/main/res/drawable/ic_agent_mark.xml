@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Agent mark.
+
+  Drawn on a 2048 viewport because the source artwork is drawn at that size.
+  Android scales the drawable to the size asked of it, so a 108dp intrinsic
+  here only sets the default; every call site sets its own size to match the
+  24dp icon grid the rest of the toolbar uses.
+
+  The two eye slots are cut out in the fill colour rather than punched through
+  as a separate path, so a single tint colour recolours the whole mark.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="2048"
+    android:viewportHeight="2048"
+    android:tint="?attr/colorControlNormal">
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M1001.69,404.443
+            C1007.67,404.181 1013.65,404.026 1019.63,403.978
+            C1145.46,403.124 1260.91,448.366 1350.8,537.115
+            C1426.92,612.46 1475.27,711.371 1487.97,817.721
+            C1492.09,854.256 1491.11,887.369 1491.13,924.005
+            L1491.26,1057.69
+            L1491.72,1403.47
+            L1305.92,1403.8
+            L1306.13,1526.87
+            C1242.69,1527.81 1177.08,1526.97 1113.46,1527
+            C1112.82,1565.69 1113.8,1608.26 1113.99,1647.2
+            L1045.75,1647.25
+            C1008.85,1647.07 971.945,1647.28 935.047,1647.9
+            L935.228,1526.85
+            L741.729,1526.98
+            L741.844,1403.28
+            L557.652,1403.61
+            C556.906,1367.36 557.635,1328.69 557.606,1292.23
+            L557.602,1074.18
+            L557.672,934.607
+            C557.654,897.231 556.523,858.644 560.224,821.587
+            C571.056,721.09 613.935,626.745 682.523,552.498
+            C764.904,462.546 879.813,409.243 1001.69,404.443Z" />
+
+    <path
+        android:fillColor="#FF101010"
+        android:pathData="M1110.32,798.864
+            L1332.21,798.845
+            C1332.08,810.854 1333.12,862.555 1331.62,870.576
+            C1309.3,869.683 1280.26,870.672 1257.27,870.712
+            L1110.24,870.764
+            L1110.32,798.864Z" />
+
+    <path
+        android:fillColor="#FF101010"
+        android:pathData="M717.107,798.97
+            L938.326,798.734
+            L938.378,870.668
+            C913.408,869.877 884.903,870.556 859.729,870.606
+            L717.025,870.943
+            L717.107,798.97Z" />
+</vector>

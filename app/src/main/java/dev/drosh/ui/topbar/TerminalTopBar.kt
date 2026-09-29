@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import dev.drosh.R
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -148,8 +150,11 @@ fun TerminalTopBar(
                 )
 
                 GlassPillButton(
-                    icon = DroshIcons.Code,
+                    drawableRes = R.drawable.ic_agent_mark,
                     contentDescription = "AI Agent",
+                    // The mark has a lot of fine detail, so it sits a little
+                    // smaller than the glyphs next to it or it reads as a smudge.
+                    iconSize = 20.dp,
                     onClick = { onOpenAgent() },
                 )
 
@@ -167,7 +172,6 @@ fun TerminalTopBar(
                 onFindInOutput = { onFindInOutput(); moreExpanded = false },
                 onRefresh = { onRefresh(); moreExpanded = false },
                 onToggleFullscreen = { onToggleFullscreen(); moreExpanded = false },
-                onOpenSettings = { onOpenSettings(); moreExpanded = false },
             )
         }
     }
@@ -181,7 +185,6 @@ private fun MoreActionsDropdown(
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
     onToggleFullscreen: () -> Unit,
-    onOpenSettings: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
@@ -199,18 +202,15 @@ private fun MoreActionsDropdown(
                 label = "Find in output",
                 icon = DroshIcons.Search,
             ),
-            DroshMenuItem(
-                label = "Settings",
-                icon = DroshIcons.Settings,
-                dividerBefore = true,
-            ),
+            // Settings is gone from here. It is reachable from the drawer, and
+            // an overflow entry that duplicates a drawer item gives two ways to
+            // open the same screen.
         ),
         onItemClick = { item ->
             when (item.label) {
                 "Refresh terminal" -> onRefresh()
                 "Exit fullscreen", "Enter fullscreen" -> onToggleFullscreen()
                 "Find in output" -> onFindInOutput()
-                "Settings" -> onOpenSettings()
             }
         },
     )
@@ -225,12 +225,49 @@ private fun MoreActionsDropdown(
  * bounce yok) ile dokunma geri bildirimi verir.
  */
 @Composable
+@Composable
+private fun GlassPillButton(
+    drawableRes: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+    size: Dp = 44.dp,
+    iconSize: Dp = 22.dp,
+) {
+    GlassPillBody(contentDescription, onClick, size, iconSize) { tint ->
+        Icon(
+            painter = painterResource(drawableRes),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+@Composable
 private fun GlassPillButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
     size: Dp = 44.dp,
     iconSize: Dp = 22.dp,
+) {
+    GlassPillBody(contentDescription, onClick, size, iconSize) { tint ->
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+@Composable
+private fun GlassPillBody(
+    contentDescription: String,
+    onClick: () -> Unit,
+    size: Dp,
+    iconSize: Dp,
+    content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
     var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -259,16 +296,14 @@ private fun GlassPillButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = DroshText,
+        Box(
             modifier = Modifier
                 .size(iconSize)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                 },
-        )
+            contentAlignment = Alignment.Center,
+        ) { content(DroshText) }
     }
 }

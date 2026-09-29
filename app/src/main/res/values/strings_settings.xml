@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ── Settings: groups ─────────────────────────────────────────────── -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_terminal">Terminal</string>
+    <string name="settings_section_startup">Startup</string>
+    <string name="settings_section_motd">Message of the day</string>
+    <string name="settings_section_language">Language</string>
+    <string name="settings_section_security">Security</string>
+    <string name="settings_section_about">About</string>
+
+    <!-- ── Settings: appearance ────────────────────────────────────────── -->
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_auto">Auto</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_system_desc">Follows the system setting</string>
+    <string name="settings_theme_light_desc">Always light</string>
+    <string name="settings_theme_dark_desc">Always dark</string>
+
+    <!-- ── Settings: terminal ──────────────────────────────────────────── -->
+    <string name="settings_block_mode">Block mode</string>
+    <string name="settings_block_mode_desc">Show each command and its output as a block</string>
+    <string name="settings_font_size">Font size</string>
+    <string name="settings_font_size_value">%1$dsp</string>
+    <string name="settings_cursor_blink">Cursor blink</string>
+    <string name="settings_cursor_blink_off">Off</string>
+    <string name="settings_cursor_blink_value">%1$dms</string>
+    <string name="settings_cursor_style">Cursor style</string>
+    <string name="settings_cursor_style_block_desc">A solid block</string>
+    <string name="settings_cursor_style_underline_desc">An underline under the character</string>
+    <string name="settings_cursor_style_beam_desc">A thin vertical bar</string>
+    <string name="settings_startup_command">Startup command</string>
+    <string name="settings_startup_default">$shell --login</string>
+
+    <!-- ── Settings: motd ──────────────────────────────────────────────── -->
+    <string name="settings_motd_show_as">Show as</string>
+    <string name="settings_motd_off">Off</string>
+    <string name="settings_motd_text">Text</string>
+    <string name="settings_motd_card">Card</string>
+    <string name="settings_motd_disabled_desc">Do not show it</string>
+    <string name="settings_motd_plain_desc">The shell echoes the text</string>
+    <string name="settings_motd_compose_desc">Rendered as an interactive card</string>
+    <string name="settings_motd_message">Message</string>
+    <string name="settings_motd_empty">Tap to edit</string>
+    <string name="settings_motd_default">Welcome to Drosh</string>
+
+    <!-- ── Settings: language ──────────────────────────────────────────── -->
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_language_search">Search languages</string>
+
+    <!-- ── Settings: security ──────────────────────────────────────────── -->
+    <string name="settings_pin_lock">PIN lock</string>
+    <string name="settings_pin_lock_desc">Ask for a PIN before opening a session</string>
+    <string name="settings_pin_title">Set a PIN</string>
+    <string name="settings_pin_subtitle">You will be asked for it before a session opens.</string>
+
+    <!-- ── Settings: about ─────────────────────────────────────────────── -->
+    <string name="settings_version">Version</string>
+    <string name="settings_build">Build</string>
+    <string name="settings_build_copied">Build copied</string>
+    <string name="settings_license">GPLv3</string>
+
+    <!-- ── Common ──────────────────────────────────────────────────────── -->
+    <string name="this_device">This device</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_back">Back</string>
+
+    <!-- ── Terminal top bar ────────────────────────────────────────────── -->
+    <string name="topbar_show_keyboard">Show keyboard</string>
+    <string name="topbar_hide_keyboard">Hide keyboard</string>
+    <string name="topbar_open_agent">AI Agent</string>
+    <string name="topbar_more_actions">More actions</string>
+    <string name="topbar_refresh">Refresh terminal</string>
+    <string name="topbar_enter_fullscreen">Enter fullscreen</string>
+    <string name="topbar_exit_fullscreen">Exit fullscreen</string>
+    <string name="topbar_find">Find in output</string>
+    <string name="topbar_new_session">New session</string>
+    <string name="topbar_close_session">Close session</string>
+
+</resources>

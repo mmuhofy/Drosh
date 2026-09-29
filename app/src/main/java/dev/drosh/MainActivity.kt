@@ -45,6 +45,11 @@ import dev.drosh.ui.setup.SetupRecoveryScreen
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.ui.settings.SettingsViewModel
+import android.content.res.Configuration
+import androidx.compose.runtime.CompositionLocalProvider
+import dev.drosh.core.LocalDroshActivity
+import dev.drosh.core.ProvideLocale
+import java.util.Locale
 import dev.drosh.ui.splash.SplashScreen
 import dev.drosh.ui.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
@@ -90,20 +95,41 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            // Read inside the composition: hiltViewModel and the state
-            // collection both need a composable scope.
+            // Captured before the locale provider replaces the context, because
+            // the localized wrapper is not an Activity and the routes below cast
+            // the ambient context to one.
+            val activity = LocalContext.current as ComponentActivity
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
+            val language by settingsViewModel.locale.collectAsStateWithLifecycle()
 
-            DroshTheme(
-                dark = when (themeMode) {
-                    ThemeMode.System -> null
-                    ThemeMode.Light -> false
-                    ThemeMode.Dark -> true
-                },
-            ) {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    DroshNavHost()
+            // A language change is applied to the activity's own resources too,
+            // so anything reading them outside the composition — the service,
+            // the notification, a toaster — sees the same language. No
+            // recreate: that tore down every screen and threw away scroll and
+            // state, and the change was not visible until it finished.
+            LaunchedEffect(language) {
+                Locale.setDefault(language.toLocaleOrNull() ?: Locale.getDefault())
+                val config = Configuration(resources.configuration).apply {
+                    language.toLocaleOrNull()?.let { setLocale(it) }
+                }
+                @Suppress("DEPRECATION")
+                resources.updateConfiguration(config, resources.displayMetrics)
+            }
+
+            CompositionLocalProvider(LocalDroshActivity provides activity) {
+                ProvideLocale(language) {
+                    DroshTheme(
+                        dark = when (themeMode) {
+                            ThemeMode.System -> null
+                            ThemeMode.Light -> false
+                            ThemeMode.Dark -> true
+                        },
+                    ) {
+                        Surface(modifier = Modifier.fillMaxSize()) {
+                            DroshNavHost()
+                        }
+                    }
                 }
             }
         }
@@ -191,7 +217,7 @@ class MainActivity : ComponentActivity() {
             }
 
             composable("terminal") {
-                val context = LocalContext.current as ComponentActivity
+                val context = LocalDroshActivity.current
                 val isPinLockEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
 
                 if (isPinLockEnabled) {
@@ -222,7 +248,7 @@ class MainActivity : ComponentActivity() {
             }
 
             composable("terminal_home") {
-                val context = LocalContext.current as ComponentActivity
+                val context = LocalDroshActivity.current
                 TerminalScreen(
                     terminalManager = terminalManager,
                     ubuntuSetupState = UbuntuSetupState.Ready,
@@ -251,3 +277,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** Blank means "follow the system", where no override applies. */
+private fun String.toLocaleOrNull() =
+    takeIf { it.isNotBlank() }?.let { java.util.Locale.forLanguageTag(it) }
