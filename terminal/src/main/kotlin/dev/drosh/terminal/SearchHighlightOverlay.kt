@@ -33,6 +33,10 @@ class SearchHighlightOverlay(
         const val URL_UNDERLINE_ALPHA = 0x99
     }
 
+    /** An accent tint at [alpha] out of 255, for `Paint.color`. */
+    private fun accentAt(alpha: Int): Int =
+        (alpha shl 24) or (DroshPalette.PRIMARY.toInt() and 0x00FFFFFF)
+
     /** Physical pixels of bleed added above and below a URL highlight. */
     private val urlHighlightPadding =
         android.util.TypedValue.applyDimension(
@@ -69,7 +73,7 @@ class SearchHighlightOverlay(
 
     private val urlBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = argbWithAlpha(DroshPalette.PRIMARY, URL_SURFACE_ALPHA)
+        color = accentAt(URL_SURFACE_ALPHA)
     }
 
     /**
@@ -80,7 +84,7 @@ class SearchHighlightOverlay(
      */
     private val urlUnderlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        color = argbWithAlpha(DroshPalette.PRIMARY, URL_UNDERLINE_ALPHA)
+        color = accentAt(URL_UNDERLINE_ALPHA)
         strokeWidth = 2f
     }
 
