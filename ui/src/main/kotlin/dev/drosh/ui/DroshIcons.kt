@@ -26,6 +26,7 @@ import compose.icons.lucideicons.Info
 import compose.icons.lucideicons.Keyboard
 import compose.icons.lucideicons.KeyboardOff
 import compose.icons.lucideicons.Lock
+import compose.icons.lucideicons.Monitor
 import compose.icons.lucideicons.Maximize
 import compose.icons.lucideicons.Minimize
 import compose.icons.lucideicons.Minus
@@ -41,8 +42,10 @@ import compose.icons.lucideicons.Share
 import compose.icons.lucideicons.Shield
 import compose.icons.lucideicons.Square
 import compose.icons.lucideicons.SquarePlus
+import compose.icons.lucideicons.Smartphone
 import compose.icons.lucideicons.SquareTerminal
 import compose.icons.lucideicons.Terminal
+import compose.icons.lucideicons.Tablet
 import compose.icons.lucideicons.Timer
 import compose.icons.lucideicons.Trash2
 import compose.icons.lucideicons.Type
@@ -76,6 +79,7 @@ object DroshIcons {
     val Maximize: ImageVector get() = LucideIcons.Maximize
     val Minus: ImageVector get() = LucideIcons.Minus
     val Minimize: ImageVector get() = LucideIcons.Minimize
+    val Monitor: ImageVector get() = LucideIcons.Monitor
     val Package: ImageVector get() = LucideIcons.Package
     val PanelLeft: ImageVector get() = LucideIcons.PanelLeft
     val Pencil: ImageVector get() = LucideIcons.Pencil
@@ -88,8 +92,10 @@ object DroshIcons {
     val Shield: ImageVector get() = LucideIcons.Shield
     val Square: ImageVector get() = LucideIcons.Square
     val SquarePlus: ImageVector get() = LucideIcons.SquarePlus
+    val Smartphone: ImageVector get() = LucideIcons.Smartphone
     val SquareTerminal: ImageVector get() = LucideIcons.SquareTerminal
     val Terminal: ImageVector get() = LucideIcons.Terminal
+    val Tablet: ImageVector get() = LucideIcons.Tablet
     val Timer: ImageVector get() = LucideIcons.Timer
     val Trash2: ImageVector get() = LucideIcons.Trash2
     val Type: ImageVector get() = LucideIcons.Type

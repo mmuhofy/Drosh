@@ -57,7 +57,6 @@ import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
@@ -404,9 +403,13 @@ private fun ReadyScreen(
     Box(
         modifier = Modifier
         .fillMaxSize()
-        .background(DroshBackground)
         .sidebarPush(sidebarPush)
-        .background(DroshSurfaceVariant)
+        // The frame the terminal sits inside was a different surface from the
+        // drawer, so the seam between them showed as a step of grey. Same
+        // surface as the panel, so the two read as one. The first
+        // .background(DroshBackground) was also dead — the next line covered
+        // it entirely.
+        .background(DroshSurface)
         .padding(
             top = 20.dp * sidebarPush.progress,
             bottom = 20.dp * sidebarPush.progress,
@@ -769,9 +772,6 @@ private fun ReadyScreen(
 
     SessionSidebar(
         isOpen = sidebarOpen,
-        onDismiss = {
-            sidebarOpen = false
-        },
         onOpenSettings = onOpenSettings,
         onOpenAgent = onOpenAgent,
         pushState = sidebarPush,
