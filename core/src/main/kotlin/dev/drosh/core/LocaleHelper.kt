@@ -20,3 +20,12 @@ object LocaleHelper {
             ?.get(0)
             ?.toLanguageTag() ?: ""
 }
+
+/** A context already set to [languageTag], for callers outside the composition. */
+fun localizedContext(base: Context, languageTag: String): Context {
+    if (languageTag.isBlank()) return base
+    val config = Configuration(base.resources.configuration).apply {
+        setLocale(java.util.Locale.forLanguageTag(languageTag))
+    }
+    return base.createConfigurationContext(config)
+}

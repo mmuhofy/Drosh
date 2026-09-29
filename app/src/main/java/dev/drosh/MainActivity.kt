@@ -47,8 +47,8 @@ import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.ui.settings.SettingsViewModel
 import android.content.res.Configuration
 import androidx.compose.runtime.CompositionLocalProvider
-import dev.drosh.core.LocalDroshActivity
-import dev.drosh.core.ProvideLocale
+import dev.drosh.ui.LocalDroshActivity
+import dev.drosh.ui.ProvideLocale
 import java.util.Locale
 import dev.drosh.ui.splash.SplashScreen
 import dev.drosh.ui.terminal.TerminalScreen

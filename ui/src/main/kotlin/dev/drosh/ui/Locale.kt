@@ -1,5 +1,6 @@
-package dev.drosh.core
+package dev.drosh.ui
 
+import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.runtime.Composable
@@ -7,7 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import android.app.Activity
+import dev.drosh.core.localizedContext
 import java.util.Locale
 
 /**
@@ -59,22 +60,3 @@ fun ProvideLocale(languageTag: String, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalContext provides localized, content = content)
 }
 
-/** A context already set to [languageTag], for callers outside the composition. */
-fun localizedContext(base: Context, languageTag: String): Context {
-    if (languageTag.isBlank()) return base
-    val locale = Locale.forLanguageTag(languageTag)
-    val config = Configuration(base.resources.configuration).apply { setLocale(locale) }
-    return base.createConfigurationContext(config)
-}
-
-object LocaleHelper {
-    fun applyLocale(context: Context, language: String): Context = localizedContext(context, language)
-
-    val Context.currentLanguageTag: String
-        get() = androidx.core.os.ConfigurationCompat
-            .getLocales(resources.configuration)
-            .takeUnless { it.isEmpty }
-            ?.get(0)
-            ?.toLanguageTag()
-            ?: ""
-}
