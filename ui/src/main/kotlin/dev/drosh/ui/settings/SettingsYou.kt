@@ -358,7 +358,9 @@ fun SettingsSlider(
 ) {
     val span = valueRange.endInclusive - valueRange.start
     val fraction = if (span <= 0f) 0f else ((value - valueRange.start) / span).coerceIn(0f, 1f)
-    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val onChange by rememberUpdatedState(onValueChange)
+    val trackColor = DroshTrack
+    val accent = DroshPrimary
 
     var dragging by remember { mutableStateOf(false) }
     val dotSize by animateDpAsState(
@@ -370,37 +372,36 @@ fun SettingsSlider(
         label = "dotSize",
     )
 
-    // The measured width is needed to turn an x position into a fraction, and
-    // pointer input cannot read the layout size. Measured here and handed in.
+    // Pointer input cannot read the layout size, and the draw pass needs the
+    // width, so it is measured here and read by both.
     var trackWidth by remember { mutableIntStateOf(1) }
-
-    val measure = Modifier.onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(36.dp)
-            .measure
+            .onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
             .drawBehind {
                 val cy = size.height / 2f
+                val w = trackWidth.toFloat()
+                val end = w * fraction
                 drawLine(
-                    color = DroshTrack,
+                    color = trackColor,
                     start = Offset(0f, cy),
-                    end = Offset(size.width, cy),
+                    end = Offset(w, cy),
                     strokeWidth = 6.dp.toPx(),
                     cap = StrokeCap.Round,
                 )
-                val end = size.width * fraction
                 if (end > 0f) {
                     drawLine(
-                        color = DroshPrimary,
+                        color = accent,
                         start = Offset(0f, cy),
                         end = Offset(end, cy),
                         strokeWidth = 6.dp.toPx(),
                         cap = StrokeCap.Round,
                     )
                     drawCircle(
-                        color = DroshPrimary,
+                        color = accent,
                         radius = dotSize.toPx() / 2f,
                         center = Offset(end, cy),
                     )
@@ -414,14 +415,14 @@ fun SettingsSlider(
                     onHorizontalDrag = { change, _ ->
                         change.consume()
                         val f = (change.position.x / trackWidth).coerceIn(0f, 1f)
-                        currentOnValueChange(valueRange.start + f * span)
+                        onChange(valueRange.start + f * span)
                     },
                 )
             }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
                     val f = (offset.x / trackWidth).coerceIn(0f, 1f)
-                    currentOnValueChange(valueRange.start + f * span)
+                    onChange(valueRange.start + f * span)
                 }
             },
     )
