@@ -23,12 +23,10 @@
     <!-- ── Settings: terminal ──────────────────────────────────────────── -->
     <string name="settings_block_mode">Block mode</string>
     <string name="settings_block_mode_desc">Show each command and its output as a block</string>
-    <string name="settings_font_size">Font size</string>
     <string name="settings_font_size_value">%1$dsp</string>
     <string name="settings_cursor_blink">Cursor blink</string>
     <string name="settings_cursor_blink_off">Off</string>
     <string name="settings_cursor_blink_value">%1$dms</string>
-    <string name="settings_cursor_style">Cursor style</string>
     <string name="settings_cursor_style_block_desc">A solid block</string>
     <string name="settings_cursor_style_underline_desc">An underline under the character</string>
     <string name="settings_cursor_style_beam_desc">A thin vertical bar</string>
@@ -49,7 +47,6 @@
 
     <!-- ── Settings: language ──────────────────────────────────────────── -->
     <string name="settings_language">Language</string>
-    <string name="settings_language_system">System</string>
     <string name="settings_language_search">Search languages</string>
 
     <!-- ── Settings: security ──────────────────────────────────────────── -->
@@ -59,10 +56,8 @@
     <string name="settings_pin_subtitle">You will be asked for it before a session opens.</string>
 
     <!-- ── Settings: about ─────────────────────────────────────────────── -->
-    <string name="settings_version">Version</string>
     <string name="settings_build">Build</string>
     <string name="settings_build_copied">Build copied</string>
-    <string name="settings_license">GPLv3</string>
 
     <!-- ── Common ──────────────────────────────────────────────────────── -->
     <string name="this_device">This device</string>

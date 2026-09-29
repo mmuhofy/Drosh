@@ -20,12 +20,10 @@
 
     <string name="settings_block_mode">Blok modu</string>
     <string name="settings_block_mode_desc">Her komutu ve çıktısını bir blok olarak gösterir</string>
-    <string name="settings_font_size">Yazı tipi boyutu</string>
     <string name="settings_font_size_value">%1$ds</string>
     <string name="settings_cursor_blink">İmleç yanıp sönmesi</string>
     <string name="settings_cursor_blink_off">Kapalı</string>
     <string name="settings_cursor_blink_value">%1$dms</string>
-    <string name="settings_cursor_style">İmleç biçimi</string>
     <string name="settings_cursor_style_block_desc">Dolu bir blok</string>
     <string name="settings_cursor_style_underline_desc">Karakterin altında çizgi</string>
     <string name="settings_cursor_style_beam_desc">İnce dikey çubuk</string>
@@ -44,7 +42,6 @@
     <string name="settings_motd_default">Drosh\'a hoş geldin</string>
 
     <string name="settings_language">Dil</string>
-    <string name="settings_language_system">Sistem</string>
     <string name="settings_language_search">Dillerde ara</string>
 
     <string name="settings_pin_lock">PIN kilidi</string>
@@ -52,10 +49,8 @@
     <string name="settings_pin_title">PIN belirle</string>
     <string name="settings_pin_subtitle">Bir oturum açmadan önce sorulacak.</string>
 
-    <string name="settings_version">Sürüm</string>
     <string name="settings_build">Derleme</string>
     <string name="settings_build_copied">Derleme kopyalandı</string>
-    <string name="settings_license">GPLv3</string>
 
     <string name="this_device">Bu cihaz</string>
     <string name="action_save">Kaydet</string>
