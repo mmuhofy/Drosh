@@ -44,9 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshBorderSubtle
 import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.domain.input.ExtraKey
@@ -101,14 +99,25 @@ fun FlatKeyBar(
                 )
             },
     ) {
-        // Opaque, and one step up from both the terminal behind it and the
-        // drawer frame. It used to be DroshSurface, the same value as the
-        // frame, so the bar merged into it and stopped reading as its own thing.
+        // Same surface as the drawer frame, with a hairline along the top
+        // instead of a lighter fill. A distinct fill was tried and read as a
+        // bright bar bolted onto the terminal; the line separates just as well
+        // and keeps the bottom of the screen calm.
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(DroshSurfaceVariant)
+                .background(DroshSurface)
                 .clip(BAR_CORNER),
+        )
+
+        // Hairline along the top edge: this, not a lighter fill, is what tells
+        // the bar apart from the terminal above it.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(DroshBorderSubtle.copy(alpha = 0.6f)),
         )
 
         // Foreground content — keys rendered sharp, no blur applied.
@@ -352,9 +361,9 @@ private fun KeyDivider() {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        DroshSurfaceVariant,
+                        DroshSurface,
                         DroshBorderSubtle,
-                        DroshSurfaceVariant,
+                        DroshSurface,
                     ),
                 ),
             ),
@@ -406,7 +415,7 @@ private fun MoreKeysPanel(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(DroshSurfaceVariant.copy(alpha = 0.85f)),
+                .background(DroshSurface.copy(alpha = 0.85f)),
         )
 
         Row(

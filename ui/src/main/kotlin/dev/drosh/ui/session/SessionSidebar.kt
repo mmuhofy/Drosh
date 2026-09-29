@@ -30,8 +30,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,7 +63,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.design.system.DroshError
+import dev.drosh.design.system.DroshDropdownMenu
+import dev.drosh.design.system.DroshMenuItem
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
@@ -484,8 +483,11 @@ private fun SessionRow(
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    // Stays raised while the menu is open, not only while a finger is down:
+    // the row is still the thing the menu belongs to. Dismissing the menu —
+    // including by tapping empty space — puts it back.
     val surface by animateFloatAsState(
-        targetValue = if (pressed) 1f else 0f,
+        targetValue = if (pressed || menuOpen) 1f else 0f,
         animationSpec = tween(durationMillis = 120),
         label = "sessionPress",
     )
@@ -494,11 +496,10 @@ private fun SessionRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .background(
-                    DroshSurfaceVariant.copy(alpha = surface),
-                    RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 0.dp, bottomEnd = 0.dp),
-                )
+                .padding(horizontal = 12.dp)
+                .height(44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(DroshSurfaceVariant.copy(alpha = surface))
                 .then(
                     if (isRenaming) {
                         Modifier
@@ -511,15 +512,23 @@ private fun SessionRow(
                         )
                     }
                 )
-                .padding(horizontal = 8.dp),
+                .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Indent so a name lines up with the navigation labels above it.
+            // Without it the text hugs the drawer edge while every other row
+            // starts further in, and the column has no shared left edge.
+            Spacer(Modifier.width(33.dp))
             if (isRenaming) {
                 BasicTextField(
                     value = renameValue,
                     onValueChange = onRenameValueChange,
                     singleLine = true,
-                    textStyle = TextStyle(color = DroshText, fontSize = 15.sp),
+                    textStyle = TextStyle(
+                        color = DroshText,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
                     cursorBrush = SolidColor(DroshPrimary),
                     modifier = Modifier
                         .weight(1f)
@@ -532,9 +541,13 @@ private fun SessionRow(
             } else {
                 Text(
                     text = snapshot.name,
-                    color = if (isActive) DroshText else DroshText.copy(alpha = 0.86f),
+                    color = DroshText,
                     fontSize = 15.sp,
-                    fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
+                    // Every name reads the same weight. Making the active one
+                    // heavier made the list look like it held two kinds of
+                    // thing, and the active row is already the one with a
+                    // surface under it when the menu is open.
+                    fontWeight = FontWeight.SemiBold,
                     textDecoration = if (ended) TextDecoration.LineThrough else TextDecoration.None,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -543,32 +556,24 @@ private fun SessionRow(
             }
         }
 
-        // Anchored to the row, but nudged to the row's own content edge. Left
-        // alone it sits flush against the screen edge, which reads as detached
-        // from the thing it belongs to.
-        DropdownMenu(
+        // The same menu the terminal's overflow button uses, so the two cannot
+        // drift apart visually. Nudged to the row's content edge because left
+        // alone it sits flush against the screen.
+        DroshDropdownMenu(
             expanded = menuOpen,
             onDismissRequest = { menuOpen = false },
             offset = DpOffset(20.dp, 0.dp),
-            shape = RoundedCornerShape(20.dp),
-            containerColor = DroshSurfaceVariant,
-            tonalElevation = 0.dp,
-        ) {
-            DropdownMenuItem(
-                text = { Text("Rename", color = DroshText, fontSize = 14.sp) },
-                onClick = {
-                    menuOpen = false
-                    onStartRename()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text("Delete", color = DroshError, fontSize = 14.sp) },
-                onClick = {
-                    menuOpen = false
-                    onDelete()
-                },
-            )
-        }
+            items = listOf(
+                DroshMenuItem(label = "Rename", icon = DroshIcons.Pencil),
+                DroshMenuItem(label = "Delete", icon = DroshIcons.Trash2),
+            ),
+            onItemClick = { item ->
+                when (item.label) {
+                    "Rename" -> onStartRename()
+                    "Delete" -> onDelete()
+                }
+            },
+        )
     }
 }
 
