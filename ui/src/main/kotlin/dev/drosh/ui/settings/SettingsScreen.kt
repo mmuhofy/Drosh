@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import dev.drosh.ui.session.DeviceIdentityViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
@@ -58,6 +59,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
+    deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel(),
 ) {
     val locale            by viewModel.locale.collectAsStateWithLifecycle("")
     val useBlockEngine    by viewModel.useBlockEngine.collectAsStateWithLifecycle(false)
@@ -70,6 +72,7 @@ fun SettingsScreen(
     val motdMode          by viewModel.motdMode.collectAsStateWithLifecycle(MotdMode.PlainText)
     val motdText          by viewModel.motdText.collectAsStateWithLifecycle("")
 
+    val deviceIdentity by deviceIdentityViewModel.identity.collectAsStateWithLifecycle()
     val activityContext = LocalContext.current
     var showPinEntry by rememberSaveable { mutableStateOf(false) }
     var showMotdDialog by rememberSaveable { mutableStateOf(false) }
@@ -89,6 +92,9 @@ fun SettingsScreen(
                 .testTag("settings_content"),
         ) {
             SettingsTopBar(onBack = onBack)
+
+            // What you are reading this on, before any of the switches.
+            DeviceHeaderCard(identity = deviceIdentity)
 
             SettingsSection(label = stringResource(R.string.settings_language_title)) {
                 SettingsSectionContainer {

@@ -28,6 +28,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +42,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -49,6 +52,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,7 +71,10 @@ import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshWarning
 import dev.drosh.design.system.OutfitFontFamily
 import androidx.compose.ui.graphics.Color
+import coil3.compose.AsyncImage
+import dev.drosh.domain.session.DeviceIdentity
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.session.DeviceBadge
 
 @Composable
 fun SettingsSection(
@@ -811,4 +818,65 @@ fun MotdTextDialog(
         shape = RoundedCornerShape(16.dp),
         containerColor = DroshSurface,
     )
+}
+
+/**
+ * The device, at the top of settings.
+ *
+ * Settings is the screen people open to answer "what am I running this on",
+ * and the answer was buried in an About row at the bottom. The product image
+ * is the one this app can look up for itself; a monogram stands in until it
+ * has one, or for good if the lookup has nothing.
+ */
+@Composable
+fun DeviceHeaderCard(
+    identity: DeviceIdentity?,
+    modifier: Modifier = Modifier,
+) {
+    val name = identity?.marketingName.orEmpty().ifBlank { "This device" }
+    val detail = identity?.takeIf { it.marketingName != it.model }
+        ?.let { "${it.manufacturer} ${it.model}" }
+        ?.takeIf { it.isNotBlank() }
+        ?: identity?.model.orEmpty()
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = DroshSurface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DeviceBadge(
+                imageUrl = identity?.visualUrl,
+                fallbackLetter = name.firstOrNull()?.uppercase() ?: "?",
+                size = 60.dp,
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    color = DroshText,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (detail.isNotBlank()) {
+                    Text(
+                        text = detail,
+                        color = DroshTextMuted,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
 }

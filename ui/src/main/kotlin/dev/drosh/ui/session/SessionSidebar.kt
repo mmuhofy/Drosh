@@ -309,7 +309,7 @@ private fun SidebarHeader(
             .padding(top = 12.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DeviceAvatar(
+        DeviceBadge(
             imageUrl = identity?.visualUrl,
             fallbackLetter = name.firstOrNull()?.uppercase() ?: "?",
         )
@@ -345,12 +345,18 @@ private fun SidebarHeader(
  * The device in the circle: its product image once one has been looked up and
  * cached, a monogram until then. Wikimedia may simply have nothing for the
  * model, so the monogram is the resting state rather than a failure.
+ *
+ * Shared with the settings header, which asks the same question.
  */
 @Composable
-private fun DeviceAvatar(imageUrl: String?, fallbackLetter: String) {
+fun DeviceBadge(
+    imageUrl: String?,
+    fallbackLetter: String,
+    size: Dp = 36.dp,
+) {
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(size)
             .clip(CircleShape)
             .background(DroshSurfaceVariant),
         contentAlignment = Alignment.Center,
