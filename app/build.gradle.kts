@@ -135,8 +135,9 @@ dependencies {
     // TerminalView inside an AndroidView, which Modifier.blur() cannot sample:
     // a RenderEffect only ever blurs a composable's own content, never what is
     // behind it. Haze captures the source and blurs that.
-    implementation(libs.haze.core)
-    implementation(libs.haze.blur)
+    //
+    // Pinned to 1.7.3 deliberately — see the version catalog comment.
+    implementation(libs.haze)
 
     // Splash screen + exported launcher theme (Material You launch).
     debugImplementation(libs.compose.ui.tooling)
