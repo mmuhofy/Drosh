@@ -226,15 +226,6 @@ private fun ReadyScreen(
     // contained animation on a 44dp row.
     val immersive = immersiveSetting
 
-    // Only the classic path has a View to sample; the block engine is a
-    // LazyColumn and the alt buffer is a TUI, neither of which needs this.
-    val backdrop by rememberTerminalBackdrop(
-        terminalView = terminalViewRef.value,
-        stripHeight = BACKDROP_STRIP,
-        // In the band there is no terminal behind the row at all.
-        active = immersive && atLiveEdge,
-    )
-
 
     val activity = LocalDroshActivity.current
     LaunchedEffect(immersive) {
@@ -353,6 +344,16 @@ private fun ReadyScreen(
     val terminalViewRef = remember {
         mutableStateOf<TerminalView?>(null)
     }
+
+
+    // Only the classic path has a View to sample; the block engine is a
+    // LazyColumn and the alt buffer is a TUI, neither of which needs this.
+    val backdrop by rememberTerminalBackdrop(
+        terminalView = terminalViewRef.value,
+        stripHeight = BACKDROP_STRIP,
+        // In the band there is no terminal behind the row at all.
+        active = immersive && atLiveEdge,
+    )
 
     val searchOverlayRef = remember {
         mutableStateOf<SearchHighlightOverlay?>(null)

@@ -86,6 +86,12 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
 private const val BAR_ROW_HEIGHT_DP = 44
 private const val BAR_TOP_OFFSET_DP = 10
 private const val BAR_BOTTOM_OFFSET_DP = 6
+/**
+ * Over the blurred slice, so the terminal shows through as a smudge rather
+ * than as glyphs. This is the prototype's 0.72.
+ */
+private const val PILL_SURFACE_ALPHA = 0.72f
+
 /** Wider than it is tall, so the ends read as a stadium and not a disc. */
 private const val PILL_WIDTH_DP = 52
 

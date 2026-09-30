@@ -12,6 +12,7 @@ import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
@@ -58,18 +59,22 @@ fun rememberTerminalBackdrop(
     /** False while the row sits in the band above the terminal — nothing to sample there. */
     active: Boolean,
     refreshMillis: Long = 100L,
-): State<ImageBitmap?> = produceState<ImageBitmap?>(
-    initialValue = null,
-    terminalView, stripHeight, active,
-) {
-    if (terminalView == null || !active) {
-        value = null
-        return@produceState
-    }
-    val density = LocalDensity.current
-    while (true) {
-        capture(terminalView, stripHeight.toPx(density))?.let { value = it.asImageBitmap() }
-        delay(refreshMillis)
+): State<ImageBitmap?> {
+    // Read outside produceState: its block is not a composable context, and
+    // Dp.toPx needs one.
+    val stripPx = with(LocalDensity.current) { stripHeight.toPx() }
+    return produceState<ImageBitmap?>(
+        initialValue = null,
+        terminalView, stripPx, active,
+    ) {
+        if (terminalView == null || !active) {
+            value = null
+            return@produceState
+        }
+        while (true) {
+            capture(terminalView, stripPx)?.let { value = it.asImageBitmap() }
+            delay(refreshMillis)
+        }
     }
 }
 
@@ -117,7 +122,8 @@ fun TerminalBackdropSlice(
             image = backdrop,
             srcOffset = sourceOffset,
             srcSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-            dstSize = size,
+            dstOffset = Offset.Zero,
+            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
         )
     }
 }
