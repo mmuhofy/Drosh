@@ -1,9 +1,9 @@
 package dev.drosh.ui
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathData
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathData
 import androidx.compose.ui.unit.dp
 import compose.icons.lucideicons.ChevronRight
 import compose.icons.lucideicons.Sun
