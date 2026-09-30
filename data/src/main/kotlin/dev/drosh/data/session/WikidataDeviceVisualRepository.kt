@@ -139,7 +139,9 @@ class WikidataDeviceVisualRepository @Inject constructor(
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
-            val body = response.body?.string() ?: return null
+            // body is non-null from OkHttp 5, so the null guard is gone. An
+            // empty body still has to bail out rather than reach the parser.
+            val body = response.body.string().takeIf { it.isNotBlank() } ?: return null
             json.parseToJsonElement(body).jsonObject
         }
     } catch (_: IOException) {

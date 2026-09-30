@@ -106,7 +106,7 @@ class AgentViewModel @Inject constructor(
                 // closed, so the connection stayed checked out of the pool.
                 modelsClient.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
-                        val body = response.body?.string()
+                        val body = response.body.string()
                         val modelIds = try {
                             val obj = JSONObject(body ?: "{}")
                             val data = obj.getJSONArray("data")

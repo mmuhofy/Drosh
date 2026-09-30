@@ -66,8 +66,12 @@ class OpenAiSseAdapter @Inject constructor() : ProviderAdapter {
                 val errorData = when {
                     t != null -> "{\"error\":\"${JSONObject.quote(t.message ?: "Unknown error")}\"}"
                     response != null -> {
-                        val body = response.body?.string()
-                        if (body?.startsWith("{") == true) {
+                        // The response itself is still nullable in the SSE
+                        // listener signature; only the body became non-null in
+                        // OkHttp 5. An empty body is a legitimate "no detail"
+                        // case, so the blank check replaces the null check.
+                        val body = response.body.string().takeIf { it.isNotBlank() }
+                        if (body != null && body.startsWith("{")) {
                             body  // Already JSON — pass through
                         } else {
                             "{\"error\":\"HTTP ${response.code}" + (body?.let { ": $it" } ?: "") + "\"}"

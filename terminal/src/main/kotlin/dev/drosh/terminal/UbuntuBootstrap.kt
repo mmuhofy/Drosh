@@ -337,7 +337,7 @@ class UbuntuBootstrap(private val context: Context) {
             response.close()
             throw RuntimeException("Download failed: ${response.code} for $url")
         }
-        return response.body!!.byteStream()
+        return response.body.byteStream()
     }
 
     fun retry() {
