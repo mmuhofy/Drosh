@@ -17,8 +17,6 @@
     <string name="settings_theme_light_desc">Her zaman açık</string>
     <string name="settings_theme_dark_desc">Her zaman koyu</string>
 
-    <string name="settings_block_mode">Blok modu</string>
-    <string name="settings_block_mode_desc">Her komutu ve çıktısını bir blok olarak gösterir</string>
     <string name="settings_font_size_value">%1$ds</string>
     <string name="settings_cursor_blink">İmleç yanıp sönmesi</string>
     <string name="settings_cursor_blink_off">Kapalı</string>
@@ -66,4 +64,11 @@
     <string name="topbar_new_session">Yeni oturum</string>
     <string name="topbar_close_session">Oturumu kapat</string>
 
+    <string name="settings_cursor_style_block">Blok</string>
+    <string name="settings_cursor_style_thin">İnce blok</string>
+    <string name="settings_cursor_style_underline">Alt çizgi</string>
+    <string name="settings_terminal_mode">Terminal modu</string>
+    <string name="settings_terminal_mode_desc">Bir komut ve çıktısının nasıl yerleştiği</string>
+    <string name="settings_mode_terminal">Terminal</string>
+    <string name="settings_mode_block">Blok</string>
 </resources>

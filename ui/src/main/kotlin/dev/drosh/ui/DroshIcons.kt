@@ -1,6 +1,10 @@
 package dev.drosh.ui
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathData
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import compose.icons.lucideicons.ChevronRight
 import compose.icons.lucideicons.Sun
 import compose.icons.lucideicons.Moon
@@ -76,7 +80,7 @@ object DroshIcons {
     val Palette: ImageVector get() = LucideIcons.Palette
     val Resize: ImageVector get() = LucideIcons.Type
     val Clock: ImageVector get() = LucideIcons.Clock
-    val Cursor: ImageVector get() = LucideIcons.Terminal
+    val Cursor: ImageVector get() = CursorVector
     val ShieldCheck: ImageVector get() = LucideIcons.ShieldCheck
     val Check: ImageVector get() = LucideIcons.Check
     val ChevronDown: ImageVector get() = LucideIcons.ChevronDown
@@ -119,3 +123,40 @@ object DroshIcons {
     val X: ImageVector get() = LucideIcons.X
     val XCircle: ImageVector get() = LucideIcons.CircleX
 }
+
+/**
+ * A text cursor, drawn here rather than pulled from the lucide set.
+ *
+ * This was aliased to `LucideIcons.Terminal`, which is a prompt chevron — a
+ * `>` — so the cursor-style row was wearing the same glyph as the startup
+ * command and build rows, and stacked on top of a chevron that was being
+ * drawn at the wrong corner. Three identical prompt marks on one screen.
+ *
+ * Lucide has no I-beam at the weight the other toolbar glyphs use, so this is
+ * a 24x24 path on the same grid: 12x2 serif bars top and bottom with a 3x14
+ * stem. `Icon()` tints it like any other vector.
+ */
+private val CursorVector: ImageVector = ImageVector.Builder(
+    name = "DroshTextCursor",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).addPath(
+    pathData = PathData {
+        moveTo(6f, 3f)
+        horizontalLineTo(18f)
+        verticalLineToRelative(2f)
+        horizontalLineTo(13.5f)
+        verticalLineTo(19f)
+        horizontalLineTo(18f)
+        verticalLineToRelative(2f)
+        horizontalLineTo(6f)
+        verticalLineTo(19f)
+        horizontalLineTo(10.5f)
+        verticalLineTo(5f)
+        horizontalLineTo(6f)
+        close()
+    },
+    fill = SolidColor(Color.Black),
+).build()

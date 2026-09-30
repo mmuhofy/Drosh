@@ -144,18 +144,22 @@ fun TerminalTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 GlassPillButton(
-                    icon = if (keyboardFocused) DroshIcons.KeyboardOff else DroshIcons.Keyboard,
-                    contentDescription = if (keyboardFocused) "Hide keyboard" else "Show keyboard",
-                    onClick = onToggleKeyboard,
+                    drawableRes = R.drawable.ic_agent_mark,
+                    contentDescription = "AI Agent",
+                    // Sized on the same 24dp grid as the lucide glyphs next to
+                    // it. It used to sit at 20dp on the theory that the fine
+                    // detail would smear — but at 20dp the eyes are sub-pixel
+                    // and the mark reads as a blank blob, which is worse than a
+                    // little detail. The eyes are cut as holes now, so they
+                    // survive the downscale.
+                    iconSize = 24.dp,
+                    onClick = { onOpenAgent() },
                 )
 
                 GlassPillButton(
-                    drawableRes = R.drawable.ic_agent_mark,
-                    contentDescription = "AI Agent",
-                    // The mark has a lot of fine detail, so it sits a little
-                    // smaller than the glyphs next to it or it reads as a smudge.
-                    iconSize = 20.dp,
-                    onClick = { onOpenAgent() },
+                    icon = if (keyboardFocused) DroshIcons.KeyboardOff else DroshIcons.Keyboard,
+                    contentDescription = if (keyboardFocused) "Hide keyboard" else "Show keyboard",
+                    onClick = onToggleKeyboard,
                 )
 
                 GlassPillButton(

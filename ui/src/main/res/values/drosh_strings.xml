@@ -20,8 +20,6 @@
     <string name="settings_theme_dark_desc">Always dark</string>
 
     <!-- ── Settings: terminal ──────────────────────────────────────────── -->
-    <string name="settings_block_mode">Block mode</string>
-    <string name="settings_block_mode_desc">Show each command and its output as a block</string>
     <string name="settings_font_size_value">%1$dsp</string>
     <string name="settings_cursor_blink">Cursor blink</string>
     <string name="settings_cursor_blink_off">Off</string>
@@ -75,4 +73,11 @@
     <string name="topbar_new_session">New session</string>
     <string name="topbar_close_session">Close session</string>
 
+    <string name="settings_cursor_style_block">Block</string>
+    <string name="settings_cursor_style_thin">Thin block</string>
+    <string name="settings_cursor_style_underline">Underline</string>
+    <string name="settings_terminal_mode">Terminal mode</string>
+    <string name="settings_terminal_mode_desc">How a command and its output are laid out</string>
+    <string name="settings_mode_terminal">Terminal</string>
+    <string name="settings_mode_block">Block</string>
 </resources>

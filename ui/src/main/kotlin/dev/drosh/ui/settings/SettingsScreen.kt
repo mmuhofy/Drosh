@@ -65,10 +65,15 @@ fun SettingsScreen(
     val prootStartCommand by viewModel.prootStartCommand.collectAsStateWithLifecycle("")
     val isPinLockEnabled  by viewModel.isPinLockEnabled.collectAsStateWithLifecycle(false)
     val cursorBlinkRateMs by viewModel.cursorBlinkRateMs.collectAsStateWithLifecycle(500)
+    val cursorStyle      by viewModel.cursorStyle.collectAsStateWithLifecycle("Block")
     val aboutInfo         by viewModel.aboutInfo.collectAsStateWithLifecycle(null)
     val motdMode          by viewModel.motdMode.collectAsStateWithLifecycle(MotdMode.PlainText)
     val motdText          by viewModel.motdText.collectAsStateWithLifecycle("")
     val deviceIdentity    by deviceIdentityViewModel.identity.collectAsStateWithLifecycle()
+
+    // The flow carries the stored name; the UI works in the enum, and an
+    // unrecognised or missing value has to land on Block rather than throw.
+    val currentCursorStyle = CursorStyle.fromString(cursorStyle)
 
     val context = LocalContext.current
     val activity = LocalDroshActivity.current
@@ -141,11 +146,15 @@ fun SettingsScreen(
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
-                        title = stringResource(R.string.settings_block_mode),
+                        stacked = true,
+                        title = stringResource(R.string.settings_terminal_mode),
                         icon = DroshIcons.SquareTerminal,
-                        supporting = stringResource(R.string.settings_block_mode_desc),
+                        supporting = stringResource(R.string.settings_terminal_mode_desc),
                     ) {
-                        SettingsSwitch(useBlockEngine, viewModel::setUseBlockEngine)
+                        SettingsTerminalModePicker(
+                            blockSelected = useBlockEngine,
+                            onSelect = { block -> viewModel.setUseBlockEngine(block) },
+                        )
                     }
 
                     1 -> SettingsTile(
@@ -181,11 +190,30 @@ fun SettingsScreen(
 
                     else -> SettingsTile(
                         cap = cap,
+                        stacked = true,
                         title = stringResource(R.string.settings_cursor_style),
                         icon = DroshIcons.Cursor,
-                        supporting = stringResource(R.string.settings_cursor_style_block_desc),
-                        onClick = { viewModel.setCursorStyle(CursorStyle.Underline) },
-                    ) { SettingsChevron() }
+                        // Was a chevron row that hard-coded Underline and
+                        // ignored the stored value, so tapping it set the same
+                        // thing every time and the label never changed.
+                        supporting = stringResource(
+                            when (currentCursorStyle) {
+                                CursorStyle.Block -> R.string.settings_cursor_style_block_desc
+                                CursorStyle.Beam -> R.string.settings_cursor_style_beam_desc
+                                CursorStyle.Underline -> R.string.settings_cursor_style_underline_desc
+                            }
+                        ),
+                    ) {
+                        SettingsSegmented(
+                            options = listOf(
+                                CursorStyle.Block to stringResource(R.string.settings_cursor_style_block),
+                                CursorStyle.Beam to stringResource(R.string.settings_cursor_style_thin),
+                                CursorStyle.Underline to stringResource(R.string.settings_cursor_style_underline),
+                            ),
+                            selected = currentCursorStyle,
+                            onSelect = viewModel::setCursorStyle,
+                        )
+                    }
                 }
             }
 
