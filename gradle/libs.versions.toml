@@ -34,7 +34,11 @@ composeBom = "2026.04.01"
 composeMaterialIcons = "1.7.8"
 
 # DI
-hilt = "2.59"            # 2.59.1+ plugin demands AGP 9.0.0; Tur 2
+# 2.58 is the ceiling on AGP 8.13. 2.59+ declares "AGP >= 8.4.0" in its own
+# check but its plugin class references ScopedArtifact.POST_COMPILATION_CLASSES,
+# which AGP 8.13 does not have, so it dies with a NoClassDefFoundError inside
+# AGP's onVariants. 2.59.1+ additionally hard-fails demanding AGP 9.0.0.
+hilt = "2.58"
 hiltNavigationCompose = "1.3.0"   # 1.4.0 wants compileSdk 37; Tur 2
 hiltLifecycleVmCompose = "1.3.0"
 hiltWork = "1.3.0"
