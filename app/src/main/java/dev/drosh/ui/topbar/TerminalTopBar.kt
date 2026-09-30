@@ -77,11 +77,23 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  * Public API değişmedi: TerminalTopBar(...) imzası aynı.
  */
 private const val BAR_ROW_HEIGHT_DP = 40
-private const val BAR_TOP_OFFSET_DP = 60
+private const val BAR_TOP_OFFSET_DP = 0
 private const val BAR_BOTTOM_OFFSET_DP = 6
 private const val PILL_SURFACE_ALPHA = 0.72f
-private val PILL_HAIRLINE = Color.White.copy(alpha = 0.08f)
-private val PILL_BLUR_RADIUS = 8.dp
+
+/** Wider than it is tall, so the ends read as a stadium and not a disc. */
+private const val PILL_WIDTH_DP = 48
+
+/**
+ * Strong enough that terminal text behind a pill is a smear, not text.
+ *
+ * The prototype blurs 6px in CSS. 6dp of Haze blur is visibly weaker than
+ * 6px of a browser blur on the same content, and at 12sp monospace the glyphs
+ * stayed legible through it — the pill read as a grey window onto the output
+ * rather than as glass. Terminal text is small and high-contrast, so it needs
+ * more blur than a UI panel does, not less.
+ */
+private val PILL_BLUR_RADIUS = 16.dp
 
 /**
  * A pill: real backdrop blur, a tint over it, then a hairline.
@@ -107,10 +119,10 @@ private fun Modifier.pillGlass(
 ): Modifier = this
     .hazeEffect(state = hazeState, style = style)
     .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
-    .border(1.dp, PILL_HAIRLINE, shape)
 
 /** The bar is a position, not a surface. Nothing is drawn behind the buttons. */
 private val BAR_ROW_HEIGHT = BAR_ROW_HEIGHT_DP.dp
+private val PILL_WIDTH = PILL_WIDTH_DP.dp
 private val BAR_TOP_OFFSET = BAR_TOP_OFFSET_DP.dp
 private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 
@@ -205,13 +217,15 @@ fun TerminalTopBar(
                     hazeStyle = hazeStyle,
                     drawableRes = R.drawable.ic_agent_mark,
                     contentDescription = "AI Agent",
-                    // Sized on the same 24dp grid as the lucide glyphs next to
-                    // it. It used to sit at 20dp on the theory that the fine
-                    // detail would smear — but at 20dp the eyes are sub-pixel
-                    // and the mark reads as a blank blob, which is worse than a
-                    // little detail. The eyes are cut as holes now, so they
-                    // survive the downscale.
-                    iconSize = 24.dp,
+                    // Same 22dp as every lucide glyph beside it. It was
+                    // briefly set to 24dp on the theory that the mark needed
+                    // extra room for its detail, but the real reason it looked
+                    // small was the vector itself: the artwork fills only 46%
+                    // of its 2048 viewport, so at any iconSize the visible
+                    // mark was about half the size of its neighbours. The
+                    // drawable now scales the artwork to fill the box, and at
+                    // the same 22dp it matches the rest of the row.
+                    iconSize = 22.dp,
                     onClick = { onOpenAgent() },
                 )
 
@@ -298,11 +312,12 @@ private fun GlassPillButton(
     icon: ImageVector? = null,
     contentDescription: String,
     onClick: () -> Unit,
-    size: Dp = BAR_ROW_HEIGHT,
+    width: Dp = PILL_WIDTH,
+    height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
     hazeStyle: HazeStyle = remember { HazeStyle.Unspecified.copy(blurRadius = PILL_BLUR_RADIUS) },
 ) {
-    GlassPillBody(contentDescription, onClick, size, iconSize, hazeState, hazeStyle) { tint ->
+    GlassPillBody(contentDescription, onClick, width, height, iconSize, hazeState, hazeStyle) { tint ->
         when {
             drawableRes != null -> Icon(
                 painter = painterResource(drawableRes),
@@ -325,7 +340,8 @@ private fun GlassPillButton(
 private fun GlassPillBody(
     contentDescription: String,
     onClick: () -> Unit,
-    size: Dp = BAR_ROW_HEIGHT,
+    width: Dp = PILL_WIDTH,
+    height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
     hazeState: HazeState? = null,
     hazeStyle: HazeStyle? = null,
@@ -343,11 +359,12 @@ private fun GlassPillBody(
 
     Box(
         modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
+            .width(width)
+            .height(height)
+            .clip(RoundedCornerShape(percent = 50))
             .then(
                 if (hazeState != null && hazeStyle != null) {
-                    Modifier.pillGlass(hazeState, CircleShape, hazeStyle)
+                    Modifier.pillGlass(hazeState, RoundedCornerShape(percent = 50), hazeStyle)
                 } else {
                     Modifier
                 }

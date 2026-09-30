@@ -4,22 +4,24 @@
 
   Drawn on a 2048 viewport because the source artwork is drawn at that size.
   Android scales the drawable to the size asked of it, so this only sets the
-  default; every call site sets its own size to match the icon grid the rest of
-  the toolbar uses.
+  default; every call site sets its own size.
 
-  Two things here are deliberate and were both wrong before:
+  The <group> is the whole reason the mark looked undersized. The artwork
+  occupies x 548..1492 and y 403..1648 of a 2048 square — 46% of the width
+  and 61% of the height — so at a 24dp call site the visible mark was 11 x
+  14.6dp while the lucide glyphs beside it filled their 22dp box. The mark was
+  drawn at half the size of its neighbours and no amount of iconSize fiddling
+  fixes that, because the empty viewport, not the size, was the problem.
 
-  1. There is no android:tint on the vector, and the eyes are holes rather than
-     a second colour. Compose's Icon() applies its own ColorFilter over the
-     whole drawable, so any two-tone artwork collapses to one flat colour the
-     moment it is tinted — the eyes were drawn in #101010 inside a #FFFFFF
-     body, both got the toolbar tint, and the eyes disappeared into the
-     silhouette. A hole cannot be filled by a tint, so the eyes survive on any
-     background and the mark stays recolourable from the call site.
+  The group scales the artwork to fill the box with a 6% margin and re-centres
+  it, so it now matches the optical weight of the icons next to it. The centre
+  is the centre of the artwork's own bounds including the eyes, not of the
+  viewport, which is why the two translate values differ.
 
-  2. The eyes are ellipses with a radius that reads at 24dp. The originals were
-     72 units tall in a 2048 viewport — about 0.35dp on screen at toolbar size,
-     which is sub-pixel and rendered as nothing at all. These are 176 units.
+  The eyes are cut as holes with evenOdd rather than painted in a second
+  colour. Compose's Icon() applies its own ColorFilter over the whole drawable,
+  so a two-tone path collapses to one flat colour the moment it is tinted and
+  the eyes vanish into the body. A hole cannot be filled by a tint.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
@@ -27,40 +29,47 @@
     android:viewportWidth="2048"
     android:viewportHeight="2048">
 
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:fillType="evenOdd"
-        android:pathData="M1001.69,404.443
-            C1007.67,404.181 1013.65,404.026 1019.63,403.978
-            C1145.46,403.124 1260.91,448.366 1350.8,537.115
-            C1426.92,612.46 1475.27,711.371 1487.97,817.721
-            C1492.09,854.256 1491.11,887.369 1491.13,924.005
-            L1491.26,1057.69
-            L1491.72,1403.47
-            L1305.92,1403.8
-            L1306.13,1526.87
-            C1242.69,1527.81 1177.08,1526.97 1113.46,1527
-            C1112.82,1565.69 1113.8,1608.26 1113.99,1647.2
-            L1045.75,1647.25
-            C1008.85,1647.07 971.945,1647.28 935.047,1647.9
-            L935.228,1526.85
-            L741.729,1526.98
-            L741.844,1403.28
-            L557.652,1403.61
-            C556.906,1367.36 557.635,1328.69 557.606,1292.23
-            L557.602,1074.18
-            L557.672,934.607
-            C557.654,897.231 556.523,858.644 560.224,821.587
-            C571.056,721.09 613.935,626.745 682.523,552.498
-            C764.904,462.546 879.813,409.243 1001.69,404.443Z
+    <group
+        android:scaleX="1.4478"
+        android:scaleY="1.4478"
+        android:translateX="-452.6"
+        android:translateY="-460.8">
 
-            M687.7,834.8
-            a140,88 0 1,0 280,0
-            a140,88 0 1,0 -280,0
-            Z
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M1001.69,404.443
+                C1007.67,404.181 1013.65,404.026 1019.63,403.978
+                C1145.46,403.124 1260.91,448.366 1350.8,537.115
+                C1426.92,612.46 1475.27,711.371 1487.97,817.721
+                C1492.09,854.256 1491.11,887.369 1491.13,924.005
+                L1491.26,1057.69
+                L1491.72,1403.47
+                L1305.92,1403.8
+                L1306.13,1526.87
+                C1242.69,1527.81 1177.08,1526.97 1113.46,1527
+                C1112.82,1565.69 1113.8,1608.26 1113.99,1647.2
+                L1045.75,1647.25
+                C1008.85,1647.07 971.945,1647.28 935.047,1647.9
+                L935.228,1526.85
+                L741.729,1526.98
+                L741.844,1403.28
+                L557.652,1403.61
+                C556.906,1367.36 557.635,1328.69 557.606,1292.23
+                L557.602,1074.18
+                L557.672,934.607
+                C557.654,897.231 556.523,858.644 560.224,821.587
+                C571.056,721.09 613.935,626.745 682.523,552.498
+                C764.904,462.546 879.813,409.243 1001.69,404.443Z
 
-            M1081.3,834.8
-            a140,88 0 1,0 280,0
-            a140,88 0 1,0 -280,0
-            Z" />
+                M687.7,834.8
+                a140,88 0 1,0 280,0
+                a140,88 0 1,0 -280,0
+                Z
+
+                M1081.3,834.8
+                a140,88 0 1,0 280,0
+                a140,88 0 1,0 -280,0
+                Z" />
+    </group>
 </vector>
