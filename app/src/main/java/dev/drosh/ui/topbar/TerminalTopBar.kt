@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,6 +72,37 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  *
  * Public API değişmedi: TerminalTopBar(...) imzası aynı.
  */
+private const val BAR_ROW_HEIGHT_DP = 40
+private const val BAR_TOP_OFFSET_DP = 8
+private const val BAR_BOTTOM_OFFSET_DP = 6
+private const val PILL_SURFACE_ALPHA = 0.72f
+private val PILL_HAIRLINE = Color.White.copy(alpha = 0.08f)
+
+/** The bar is a position, not a surface. Nothing is drawn behind the buttons. */
+private val BAR_ROW_HEIGHT = BAR_ROW_HEIGHT_DP.dp
+private val BAR_TOP_OFFSET = BAR_TOP_OFFSET_DP.dp
+private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
+
+/**
+ * The band the top bar reserves above the terminal's first row.
+ *
+ * The bar is an overlay and takes no layout height, so the terminal has to be
+ * told about the band explicitly — otherwise the opening line of output renders
+ * underneath the buttons and the first thing you see is half-covered text. That
+ * gap is the whole point of the spacing in the HTML prototype.
+ *
+ * Fullscreen has no bar, so it falls back to the status bar alone.
+ */
+@Composable
+internal fun topBarInset(barVisible: Boolean): Dp {
+    val statusBarH = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    return if (barVisible) {
+        statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET
+    } else {
+        statusBarH
+    }
+}
+
 @Composable
 fun TerminalTopBar(
     viewModel: SessionSwitcherViewModel,
@@ -89,11 +121,16 @@ fun TerminalTopBar(
 
     val statusBarH = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
+    // The bar reserves a band of height and draws nothing in it. The buttons
+    // sit a little below the status bar and a little above the first terminal
+    // row, so the bar never lands on top of a line of output — in the HTML
+    // prototype the terminal's first row starts under the band, and that gap is
+    // what makes the opening line readable.
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp + statusBarH)
-            .padding(top = statusBarH),
+            .height(statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET)
+            .padding(top = statusBarH + BAR_TOP_OFFSET),
     ) {
         var moreExpanded by remember { mutableStateOf(false) }
 
@@ -118,7 +155,8 @@ fun TerminalTopBar(
                  Box(
                      modifier = Modifier
                          .clip(RoundedCornerShape(percent = 50))
-                         .background(DroshSurfaceHigh.copy(alpha = 0.65f))
+                         .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
+                         .border(1.dp, PILL_HAIRLINE, RoundedCornerShape(percent = 50))
                          .padding(horizontal = 16.dp, vertical = 10.dp),
                  ) {
                     Text(
@@ -230,37 +268,29 @@ private fun MoreActionsDropdown(
  */
 @Composable
 private fun GlassPillButton(
-    drawableRes: Int,
+    drawableRes: Int? = null,
+    icon: ImageVector? = null,
     contentDescription: String,
     onClick: () -> Unit,
-    size: Dp = 44.dp,
+    size: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
 ) {
     GlassPillBody(contentDescription, onClick, size, iconSize) { tint ->
-        Icon(
-            painter = painterResource(drawableRes),
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(iconSize),
-        )
-    }
-}
+        when {
+            drawableRes != null -> Icon(
+                painter = painterResource(drawableRes),
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(iconSize),
+            )
 
-@Composable
-private fun GlassPillButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    size: Dp = 44.dp,
-    iconSize: Dp = 22.dp,
-) {
-    GlassPillBody(contentDescription, onClick, size, iconSize) { tint ->
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(iconSize),
-        )
+            icon != null -> Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(iconSize),
+            )
+        }
     }
 }
 
@@ -268,8 +298,8 @@ private fun GlassPillButton(
 private fun GlassPillBody(
     contentDescription: String,
     onClick: () -> Unit,
-    size: Dp,
-    iconSize: Dp,
+    size: Dp = BAR_ROW_HEIGHT,
+    iconSize: Dp = 22.dp,
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
     var pressed by remember { mutableStateOf(false) }
@@ -286,7 +316,8 @@ private fun GlassPillBody(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(DroshSurfaceHigh.copy(alpha = 0.65f))
+            .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
+            .border(1.dp, PILL_HAIRLINE, CircleShape)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {

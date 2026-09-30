@@ -83,6 +83,7 @@ import dev.drosh.ui.terminal.SystemInfo
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.TerminalTopBar
+import dev.drosh.ui.topbar.topBarInset
 import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
 import java.util.Properties
@@ -467,11 +468,7 @@ private fun ReadyScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(
-                            top = WindowInsets.statusBars
-                                .asPaddingValues()
-                                .calculateTopPadding()
-                        ),
+                        .padding(top = topBarInset(!fullscreen)),
                 ) {
                     if (motdMode == MotdMode.Compose && !motdDismissed) {
                         MotdWidget(
@@ -547,11 +544,10 @@ private fun ReadyScreen(
                 searchOverlayRef = searchOverlayRef,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(
-                        top = WindowInsets.statusBars
-                            .asPaddingValues()
-                            .calculateTopPadding()
-                    )
+                    // The bar is an overlay, so the band it sits in has to be
+                    // reserved here or the first line of output lands under
+                    // the buttons.
+                    .padding(top = topBarInset(!fullscreen))
                     .graphicsLayer {
                         scaleX = appearScale
                         scaleY = appearScale

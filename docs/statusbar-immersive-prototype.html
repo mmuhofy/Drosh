@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drosh — Status Bar Prototip</title>
+<style>
+  :root {
+    --sbh: 44px;          /* sistem status bar yüksekliği */
+    --barh: 56px;         /* Drosh üst bar yüksekliği */
+    --accent: #E8C547;
+    --bg: #0B0B0F;
+    --term-bg: #0B0B0F;
+    --term-fg: #D8D8DE;
+    --term-dim: #6E6E78;
+    --pill: rgba(38, 38, 46, 0.72);
+    --pill-border: rgba(255,255,255,0.08);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #16161A;
+    color: #E6E6EA;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 32px 20px 80px;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -0.2px; }
+  .lede { color: #9A9AA4; margin: 0 0 28px; font-size: 14px; }
+  .lede b { color: var(--accent); font-weight: 600; }
+
+  .cols { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
+
+  /* ---------- telefon ---------- */
+  .phone {
+    width: 372px; flex: 0 0 372px;
+    border: 9px solid #2A2A32;
+    border-radius: 42px;
+    background: #000;
+    box-shadow: 0 24px 70px rgba(0,0,0,.6);
+    overflow: hidden;
+  }
+  .screen {
+    position: relative;
+    height: 760px;
+    background: var(--bg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- terminal ---------- */
+  .term {
+    position: absolute; inset: 0;
+    overflow-y: scroll; overflow-x: hidden;
+    padding: calc(var(--sbh) + var(--barh) + 8px) 14px 120px;
+    font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--term-fg);
+    scrollbar-width: none;
+    z-index: 1;
+  }
+  .term::-webkit-scrollbar { width: 0; }
+  .term p { margin: 0 0 2px; white-space: pre-wrap; word-break: break-word; }
+  .term .dim { color: var(--term-dim); }
+  .term .ok  { color: #7BD88F; }
+  .term .err { color: #E86A6A; }
+  .term .acc { color: var(--accent); }
+
+  .prompt { display: flex; gap: 7px; align-items: baseline; margin-top: 2px; }
+  .prompt .sigil { color: var(--accent); }
+
+  /* ---------- Drosh üst bar ---------- */
+  .dbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: calc(var(--sbh) + var(--barh));
+    padding-top: var(--sbh);
+    display: flex; align-items: center;
+    z-index: 20;
+    pointer-events: none;
+    transform: translateY(0);
+    transition: transform 280ms cubic-bezier(.2,.8,.2,1);
+  }
+  .dbar .row {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; padding: 0 12px;
+  }
+  .dbar.left { flex: 0 0 auto; }
+  .dbar .gap { flex: 1 1 auto; }
+
+  .pill {
+    height: 40px; min-width: 40px;
+    padding: 0 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px;
+    background: var(--pill);
+    border: 1px solid var(--pill-border);
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    font-size: 14px;
+    color: #E6E6EA;
+    white-space: nowrap;
+  }
+  .pill.name { padding: 0 16px; font-size: 14.5px; }
+  .pill svg { width: 20px; height: 20px; display: block; }
+  .pill.icon svg { width: 21px; height: 21px; }
+
+  /* ---------- sistem status bar ---------- */
+  .sysbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: var(--sbh);
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 0 22px 0 26px;
+    z-index: 30;
+    pointer-events: none;
+    transition: opacity 220ms ease;
+    font-size: 13.5px; font-weight: 600;
+    letter-spacing: .2px;
+  }
+  .sysbar .r { display: flex; align-items: center; gap: 5px; }
+  .sysbar svg { width: 16px; height: 16px; display: block; }
+
+  /* ---------- klavye çubuğu ---------- */
+  .keybar {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 58px; z-index: 25;
+    background: #141418;
+    border-top: 1px solid #26262E;
+    display: flex; align-items: center; justify-content: center; gap: 22px;
+    font-size: 17px; color: #8A8A94;
+  }
+  .keybar b { color: var(--accent); font-weight: 600; }
+
+  /* ---------- kontrol paneli ---------- */
+  .panel { flex: 1 1 340px; min-width: 300px; }
+  .panel h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .9px;
+    color: #7A7A86; margin: 0 0 12px; font-weight: 600;
+  }
+  .state {
+    border: 1px solid #2E2E38; border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 22px;
+    font-size: 14px;
+  }
+  .state .lbl { color: #7A7A86; font-size: 11.5px; text-transform: uppercase; letter-spacing: .8px; }
+  .state .val { font-size: 17px; font-weight: 600; margin-top: 3px; }
+  .state .val.live   { color: var(--accent); }
+  .state .val.history{ color: #6EA8FE; }
+  .state .why { color: #9A9AA4; font-size: 12.5px; margin-top: 8px; line-height: 1.5; }
+
+  .ctl { margin-bottom: 16px; }
+  .ctl > label { display: block; font-size: 13px; color: #B8B8C2; margin-bottom: 7px; }
+  .seg { display: inline-flex; background: #1E1E26; border-radius: 999px; padding: 3px; gap: 3px; }
+  .seg button {
+    border: 0; background: transparent; color: #8A8A94;
+    font: inherit; font-size: 13px; padding: 7px 15px;
+    border-radius: 999px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] {
+    background: rgba(232,197,71,.15); color: var(--accent); font-weight: 600;
+  }
+  input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; vertical-align: -2px; }
+  .chk { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: #B8B8C2; cursor: pointer; }
+
+  .note {
+    margin-top: 26px; padding: 14px 16px;
+    border-left: 2px solid #34343E; color: #9A9AA4; font-size: 13px; line-height: 1.6;
+  }
+  .note b { color: #C8C8D2; font-weight: 600; }
+  .hint { color: #6E6E78; font-size: 12.5px; margin-top: 10px; }
+
+  /* işaretlemeler */
+  .ann {
+    position: absolute; z-index: 40;
+    font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase;
+    color: #FFF; background: #E8C547; color: #14140F;
+    padding: 2px 7px; border-radius: 5px; font-weight: 700;
+    pointer-events: none; white-space: nowrap;
+  }
+  .ann.sys { background: #6EA8FE; }
+  .ann.hidden { display: none; }
+  .ann.out { left: 100%; margin-left: 12px; }
+  .ann.outl { right: 100%; margin-right: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Drosh — status bar davranış prototipi</h1>
+  <p class="lede">
+    Yukarıdaki terminali <b>kaydır</b>. En altta (prompt'tayken) Android status bar'ı gizlenir ve
+    Drosh'un düğmeleri o banta geçer. <b>Yukarı</b> kaydırdıkça status bar'ı geri gelir.
+  </p>
+
+  <div class="cols">
+    <!-- ---------- telefon ---------- -->
+    <div class="phone">
+      <div class="screen" id="screen">
+
+        <div class="term" id="term"></div>
+
+        <div class="dbar" id="dbar">
+          <div class="row">
+            <span class="pill icon" title="Oturumlar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>
+              </svg>
+            </span>
+            <span class="pill name">drosh</span>
+
+            <span class="gap"></span>
+
+            <span class="pill icon" title="Agent">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3c4 0 6.5 3.5 6.5 8v10H5.5V11C5.5 6.5 8 3 12 3Z"/>
+              </svg>
+            </span>
+            <span class="pill icon" title="Klavye">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="6" width="20" height="12" rx="2"/>
+                <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>
+              </svg>
+            </span>
+            <span class="pill icon" title="Daha fazla">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+
+        <div class="sysbar" id="sysbar">
+          <span>9:41</span>
+          <span class="r">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h3v4H2zM7 13h3v8H7zM12 9h3v12h-3zM17 5h3v16h-3z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5.5 5.5 0 0 1 7 0"/>
+            </svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="2" y="7" width="17" height="10" rx="2.5"/><path d="M21 10.5v3" stroke-linecap="round"/>
+              <rect x="3.5" y="8.5" width="12" height="7" rx="1" fill="currentColor" stroke="none"/>
+            </svg>
+          </span>
+        </div>
+
+        <div class="keybar"><b>esc</b><span>ctrl</span><span>tab</span><span>│</span></div>
+
+        <div class="ann out"  id="annS" style="top:12px">Sistem status bar</div>
+        <div class="ann outl" id="annD" style="top:60px">Drosh üst bar</div>
+      </div>
+    </div>
+
+    <!-- ---------- panel ---------- -->
+    <div class="panel">
+      <div class="state">
+        <div class="lbl">Şu anki durum</div>
+        <div class="val" id="stVal">—</div>
+        <div class="why" id="stWhy"></div>
+      </div>
+
+      <h2>Senaryo</h2>
+      <div class="ctl seg" id="modeSeg">
+        <button data-mode="live" aria-pressed="false">Normal terminal</button>
+        <button data-mode="tui"  aria-pressed="false">TUI app açık</button>
+      </div>
+
+      <h2>Ayar</h2>
+      <div class="ctl">
+        <label class="chk">
+          <input type="checkbox" id="autoHide" checked>
+          Scrollback'e girince status bar'ı gizle
+        </label>
+        <div class="hint">
+          Kapalıyken status bar yerinde kalır, Drosh bar'ı da alttaki yerinde — hiçbir şey değişmez.
+        </div>
+      </div>
+
+      <h2>İşaretlemeler</h2>
+      <div class="ctl">
+        <label class="chk">
+          <input type="checkbox" id="annOn" checked>
+          Bantları etiketle
+        </label>
+      </div>
+
+      <h2>Ölü bölge</h2>
+      <div class="ctl">
+        <div class="seg" id="dzSeg">
+          <button data-dz="0"  aria-pressed="true">Kapalı</button>
+          <button data-dz="24" aria-pressed="false">24 px</button>
+          <button data-dz="80" aria-pressed="false">80 px</button>
+        </div>
+        <div class="hint">
+          En alttan kaç piksel yukarıdaysan durum değişsin. Sıfırken <span style="color:#6EA8FE">en</span>
+          küçük hareket bile çubuğu oynatır; biraz açıkken son satırları okurken çubuk sabit durur.
+        </div>
+      </div>
+
+      <div class="note">
+        <b>Karartı / scrim yok.</b> Sistem barı gerçekten gizleniyor (saat, pil, bildirim
+        ikonlarıyla birlikte), üzerine hiçbir şey çizilmiyor. Drosh'un düğmeleri boşalan banda
+        <b>translateY</b> ile gidiyor — katman değil, sadece yer değiştirme.
+        <br><br>
+        TUI modunda davranış aynı: TUI tam ekran çizdiği için status bar gizli kalmaya devam eder.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const term    = document.getElementById('term');
+  const dbar    = document.getElementById('dbar');
+  const sysbar  = document.getElementById('sysbar');
+  const stVal   = document.getElementById('stVal');
+  const stWhy   = document.getElementById('stWhy');
+  const annOn   = document.getElementById('annOn');
+  const autoHide= document.getElementById('autoHide');
+  const annS    = document.getElementById('annS');
+  const annD    = document.getElementById('annD');
+
+  const SBH = 44;
+
+  let mode = 'live';
+  let deadzone = 0;
+  let immersive = false;
+
+  // ---- sahte terminal çıktısı ----
+  const lines = [
+    ['dim', 'Drosh 1.0 — PRoot / Ubuntu 24.04'],
+    ['dim', 'session  drosh-0f2a'],
+    ['',     ''],
+    ['acc',  'drosh@drosh:~$ uname -a'],
+    ['ok',   'Linux localhost 6.1.0-13-android14-4 #1 SMP PREEMPT'],
+    ['dim',  'aarch64 GNU/Linux'],
+    ['',     ''],
+    ['acc',  'drosh@drosh:~$ ls -la'],
+    ['',     'total 24'],
+    ['',     'drwxr-xr-x  2 root root 4096 Aug 30 09:12 .'],
+    ['',     'drwxr-xr-x  3 root root 4096 Aug 28 21:40 ..'],
+    ['',     '-rw-r--r--  1 root root  220 Aug 30 09:12 .bashrc'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ df -h /'],
+    ['',     'Filesystem      Size  Used Avail Use% Mounted on'],
+    ['',     '/dev/block/dm-0   58G   12G   43G  22% /'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ git log --oneline -5'],
+    ['',     'a1b2c3d  fix(ui): controls were siblings of the row'],
+    ['',     'e4f5a6b  chore: bump terminal to 0.42'],
+    ['',     'c7d8e9f  feat(terminal): add search highlight overlay'],
+    ['',     '0f1a2b3  refactor: split settings tiles'],
+    ['',     '9c8b7a6  docs: update readme'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ npm run build'],
+    ['',     '> drosh@1.0.0 build'],
+    ['',     '> vite build'],
+    ['dim',  'transforming...'],
+    ['ok',   '✓ 214 modules transformed.'],
+    ['ok',   '✓ built in 8.42s'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ cat /etc/os-release'],
+    ['',     'PRETTY_NAME="Ubuntu 24.04.1 LTS"'],
+    ['',     'VERSION_ID="24.04"'],
+    ['',     'VERSION_CODENAME=noble'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ python3 -c "print(2**10)"'],
+    ['',     '1024'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ ls ~/projects'],
+    ['',     'drosh-shell'],
+    ['',     'notes'],
+    ['',     'scratch'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ cargo build --release'],
+    ['',     '   Compiling drosh-core v0.1.0'],
+    ['',     '   Compiling drosh-term v0.1.0'],
+    ['',     '    Finished release [optimized] target(s) in 41.08s'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ ./run --profile dev'],
+    ['',     'proot  : spawned pid 4821'],
+    ['',     'distro : ubuntu 24.04 (cached)'],
+    ['',     'term   : xterm-256color, 80x24'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ adb devices'],
+    ['',     'List of devices attached'],
+    ['',     'emulator-5554   device'],
+    ['dim',  ''],
+    ['acc',  'drosh@drosh:~$ git status --short'],
+    ['',     ' M src/terminal/manager.rs'],
+    ['',     '?? scratch/notes.md'],
+    ['dim',  '']
+  ];
+
+  function renderTerm() {
+    term.innerHTML = '';
+    if (mode === 'tui') {
+      // TUI tam ekran çizer: dolgu yok, padding yok, kaydırma yok.
+      term.style.padding = '0';
+      term.style.overflow = 'hidden';
+      term.innerHTML = '';
+      for (let r = 0; r < 34; r++) {
+        const p = document.createElement('p');
+        p.style.color = '#B9F6CA';
+        if (r === 0) p.textContent = '';
+        else if (r % 2 === 1) p.textContent = '  ' + ((r + 1) / 2) + ' ' + '~'.repeat(30);
+        else p.textContent = '';
+        term.appendChild(p);
+      }
+      const last = term.lastElementChild;
+      last.textContent = '~';
+      last.style.display = 'inline-block';
+      last.style.background = '#B9F6CA';
+      last.style.color = '#0B0B0F';
+      return;
+    }
+
+    term.style.height = '';
+    term.style.overflowY = 'scroll';
+    term.style.padding = '';
+
+    for (const [cls, text] of lines) {
+      const p = document.createElement('p');
+      if (cls) p.className = cls;
+      p.textContent = text;
+      term.appendChild(p);
+    }
+    const pr = document.createElement('div');
+    pr.className = 'prompt';
+    pr.innerHTML = '<span class="sigil">drosh@drosh:~$</span><span>▉</span>';
+    term.appendChild(pr);
+  }
+
+  // ---- durum hesabı ----
+  function compute() {
+    if (mode === 'tui') return true;             // TUI hep immersive
+    if (!autoHide.checked) return false;
+    const distFromBottom = term.scrollHeight - (term.scrollTop + term.clientHeight);
+    return distFromBottom <= deadzone;            // canlı kenar
+  }
+
+  function apply() {
+    immersive = compute();
+
+    dbar.style.transform = 'translateY(' + (immersive ? -SBH : 0) + 'px)';
+    sysbar.style.opacity = immersive ? '0' : '1';
+
+    if (mode === 'tui') {
+      stVal.textContent = 'TUI — sürekli gizli';
+      stVal.className = 'val live';
+      stWhy.textContent = 'TUI tam ekran çiziyor. Kaydırma yok, dolayısıyla hep canlı kenar sayılır — status bar gizli kalır.';
+    } else if (!autoHide.checked) {
+      stVal.textContent = 'Ayar kapalı — sabit';
+      stVal.className = 'val';
+      stWhy.textContent = '"Scrollback\'e girince status bar\'ı gizle" kapalı. Nerede olursan ol bar yerinde, geçiş yok.';
+    } else if (immersive) {
+      stVal.textContent = 'Canlı kenar — gizli';
+      stVal.className = 'val live';
+      stWhy.textContent = 'Prompt görünüyor, mTopRow == 0. Sistem status bar\'ı gizlendi, düğmeler ' + SBH + 'px yukarıda.';
+    } else {
+      stVal.textContent = 'Geçmişte — görünür';
+      stVal.className = 'val history';
+      stWhy.textContent = 'mTopRow < 0. Sistem status bar\'ı geri geldi (saat, pil, bildirim), düğmeler normal yerine indi.';
+    }
+
+    annS.classList.toggle('hidden', !annOn.checked || immersive);
+    annD.style.top = (immersive ? 14 : 60) + 'px';
+  }
+
+  // ---- olaylar ----
+  term.addEventListener('scroll', apply, { passive: true });
+
+  document.getElementById('modeSeg').addEventListener('click', function (e) {
+    const b = e.target.closest('button'); if (!b) return;
+    this.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    mode = b.dataset.mode;
+    renderTerm();
+    term.scrollTop = term.scrollHeight;
+    apply();
+  });
+
+  document.getElementById('dzSeg').addEventListener('click', function (e) {
+    const b = e.target.closest('button'); if (!b) return;
+    this.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    deadzone = parseInt(b.dataset.dz, 10);
+    apply();
+  });
+
+  autoHide.addEventListener('change', apply);
+  annOn.addEventListener('change', apply);
+
+  window.addEventListener('resize', apply);
+
+  renderTerm();
+  term.scrollTop = term.scrollHeight;
+  apply();
+})();
+</script>
+</body>
+</html>
