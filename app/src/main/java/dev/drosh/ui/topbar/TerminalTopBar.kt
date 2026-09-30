@@ -32,25 +32,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import dev.drosh.R
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Shape
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.hazeEffect
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshError
+import kotlin.math.roundToInt
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
@@ -74,7 +76,7 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  *  - "Vibrancy" simülasyonu: gerçek backdrop blur DEĞİL (Compose'da bunun
  *    native karşılığı yok, bkz. sohbet notu). Bunun yerine yarı şeffaf
  *    surface + hafif highlight gradyanı ile "buzlu cam" hissi veriliyor.
- *    Gerçek blur için Haze kütüphanesi gerekir — ayrı bir adım.
+ *    Gerçek blur TerminalBackdrop.kt'den gelir.
  *  - MoreActionsDropdown: hardcoded offset kaldırıldı (anchor'a göre
  *    otomatik konumlanıyor), Divider → HorizontalDivider.
  *  - Icons now use DroshIcons ImageVector instead of painterResource XML drawables.
@@ -84,50 +86,14 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
 private const val BAR_ROW_HEIGHT_DP = 44
 private const val BAR_TOP_OFFSET_DP = 10
 private const val BAR_BOTTOM_OFFSET_DP = 6
-/**
- * A pill: nothing but the blur of whatever is behind it.
- *
- * There is no fill and no border. An earlier version had a 72% surface and then
- * a 90% one over the top, both working around the fact that the blur was not
- * covering the button. Now that it does, a fill would only tint the smear, and
- * the ask was for the blur on its own.
- *
- * blurredEdgeTreatment is the whole fix for the square. Haze clips its captured
- * backdrop to `blurredEdgeTreatment.shape` and nothing else — `Modifier.clip`
- * is not consulted. The default is BlurredEdgeTreatment.Rectangle, which carries
- * RectangleShape, so the blur filled the button's bounding box while the tint
- * filled the rounded shape. In the four corners between the two, the terminal
- * showed through at full strength: that was the square, and that was why the
- * text was still readable at 90% opacity. Passing the pill's own shape clips
- * the blur to exactly the region the icon sits in.
- *
- * The blur samples [hazeState] rather than this node's own content, which is
- * the one thing Modifier.blur() cannot do: a RenderEffect blurs the layer it is
- * attached to and has no access to anything behind it, and behind a pill is a
- * TerminalView inside an AndroidView, so there is nothing to re-draw.
- *
- * Below API 31 Haze substitutes a translucent scrim for the blur — minSdk is
- * 26, so older devices get a flat panel and newer ones get the real effect.
- */
-@Composable
-private fun Modifier.pillGlass(
-    hazeState: HazeState,
-    shape: Shape,
-    style: HazeStyle,
-): Modifier = this
-    .hazeEffect(state = hazeState, style = style) {
-        blurredEdgeTreatment = BlurredEdgeTreatment(shape)
-    }
-    .clip(shape)
-
 /** Wider than it is tall, so the ends read as a stadium and not a disc. */
 private const val PILL_WIDTH_DP = 52
 
 /**
  * 14dp at 12sp monospace leaves the output behind a button as a light and dark
- * smudge with no legible glyphs. Haze does not downscale by default
- * (HazeInputScale.Default is None, not Auto), so this is the radius that
- * actually gets applied rather than a third of it.
+ * smudge with no legible glyphs. Applied through Modifier.blur, so this is a
+ * real RenderEffect on a real layer, and below API 31 the caller falls back to
+ * a plain surface.
  */
 private val PILL_BLUR_RADIUS = 14.dp
 
@@ -138,11 +104,14 @@ private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 
 @Composable
 fun TerminalTopBar(
-    hazeState: HazeState,
     /** System status bar hidden outright. Follows the setting, not the scroll. */
     immersive: Boolean,
     /** Row has moved up into the band the status bar used to occupy. */
     rowInBand: Boolean,
+    /** Strip sampled from the terminal, or null when there is nothing to sample. */
+    backdrop: ImageBitmap?,
+    /** Where the terminal sits in root space, so a pill can find its slice. */
+    terminalBounds: Rect?,
     viewModel: SessionSwitcherViewModel,
     isFullscreen: Boolean,
     keyboardFocused: Boolean,
@@ -166,10 +135,6 @@ fun TerminalTopBar(
     // the real height.
     val statusBarH = remember { statusBarNow }
 
-    // Built once and shared by every pill. HazeStyle is immutable, so a fresh
-    // instance each recomposition would only hand the effect a new object for
-    // no reason.
-    val hazeStyle = remember { HazeStyle.Unspecified.copy(blurRadius = PILL_BLUR_RADIUS) }
 
     // The system status bar is hidden whenever immersive mode is on, so when
     // the user scrolls back into the scrollback the row moves up into the band
@@ -213,17 +178,18 @@ fun TerminalTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 GlassPillButton(
-                    hazeState = hazeState,
-                    hazeStyle = hazeStyle,
+                    backdrop = backdrop,
+                    terminalBounds = terminalBounds,
                     icon = DroshIcons.PanelLeft,
                     contentDescription = "Open sessions",
                     onClick = onOpenSidebar,
                 )
 
+                 val nameShape = RoundedCornerShape(percent = 50)
                  Box(
                      modifier = Modifier
-                         .clip(RoundedCornerShape(percent = 50))
-                         .pillGlass(hazeState, RoundedCornerShape(percent = 50), hazeStyle)
+                         .clip(nameShape)
+                         .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
                          .padding(horizontal = 16.dp, vertical = 10.dp),
                  ) {
                     Text(
@@ -249,8 +215,8 @@ fun TerminalTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 GlassPillButton(
-                    hazeState = hazeState,
-                    hazeStyle = hazeStyle,
+                    backdrop = backdrop,
+                    terminalBounds = terminalBounds,
                     drawableRes = R.drawable.ic_agent_mark,
                     contentDescription = "AI Agent",
                     // Same 22dp as every lucide glyph beside it. It was
@@ -266,16 +232,16 @@ fun TerminalTopBar(
                 )
 
                 GlassPillButton(
-                    hazeState = hazeState,
-                    hazeStyle = hazeStyle,
+                    backdrop = backdrop,
+                    terminalBounds = terminalBounds,
                     icon = if (keyboardFocused) DroshIcons.KeyboardOff else DroshIcons.Keyboard,
                     contentDescription = if (keyboardFocused) "Hide keyboard" else "Show keyboard",
                     onClick = onToggleKeyboard,
                 )
 
                 GlassPillButton(
-                    hazeState = hazeState,
-                    hazeStyle = hazeStyle,
+                    backdrop = backdrop,
+                    terminalBounds = terminalBounds,
                     icon = DroshIcons.EllipsisVertical,
                     contentDescription = "More actions",
                     onClick = { moreExpanded = true },
@@ -343,7 +309,8 @@ private fun MoreActionsDropdown(
  */
 @Composable
 private fun GlassPillButton(
-    hazeState: HazeState,
+    backdrop: ImageBitmap?,
+    terminalBounds: Rect?,
     drawableRes: Int? = null,
     icon: ImageVector? = null,
     contentDescription: String,
@@ -351,9 +318,10 @@ private fun GlassPillButton(
     width: Dp = PILL_WIDTH,
     height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
-    hazeStyle: HazeStyle = remember { HazeStyle.Unspecified.copy(blurRadius = PILL_BLUR_RADIUS) },
 ) {
-    GlassPillBody(contentDescription, onClick, width, height, iconSize, hazeState, hazeStyle) { tint ->
+    GlassPillBody(
+        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds,
+    ) { tint ->
         when {
             drawableRes != null -> Icon(
                 painter = painterResource(drawableRes),
@@ -379,10 +347,12 @@ private fun GlassPillBody(
     width: Dp = PILL_WIDTH,
     height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
-    hazeState: HazeState? = null,
-    hazeStyle: HazeStyle? = null,
+    backdrop: ImageBitmap?,
+    terminalBounds: Rect?,
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
+    val shape = RoundedCornerShape(percent = 50)
+    var sliceOffset by remember { mutableStateOf(IntOffset.Zero) }
     var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.88f else 1f,
@@ -397,13 +367,17 @@ private fun GlassPillBody(
         modifier = Modifier
             .width(width)
             .height(height)
-            .then(
-                if (hazeState != null && hazeStyle != null) {
-                    Modifier.pillGlass(hazeState, RoundedCornerShape(percent = 50), hazeStyle)
-                } else {
-                    Modifier.clip(RoundedCornerShape(percent = 50))
+            .clip(shape)
+            .onGloballyPositioned { coords ->
+                val term = terminalBounds
+                if (term != null && backdrop != null) {
+                    val r = coords.boundsInRoot()
+                    sliceOffset = IntOffset(
+                        (r.left - term.left).roundToInt(),
+                        (r.top - term.top).roundToInt(),
+                    )
                 }
-            )
+            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -416,6 +390,21 @@ private fun GlassPillBody(
             },
         contentAlignment = Alignment.Center,
     ) {
+        // Blurred terminal first, then the tint over it, then the icon. The
+        // order is the prototype's: the tint sits on top of the backdrop, so
+        // putting it on the Box as a background would hide the blur entirely.
+        TerminalBackdropSlice(
+            backdrop = backdrop,
+            sourceOffset = sliceOffset,
+            blurRadius = PILL_BLUR_RADIUS,
+            shape = shape,
+            modifier = Modifier.matchParentSize(),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA)),
+        )
         Box(
             modifier = Modifier
                 .size(iconSize)
@@ -427,3 +416,4 @@ private fun GlassPillBody(
         ) { content(DroshText) }
     }
 }
+

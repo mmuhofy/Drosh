@@ -43,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.drosh.ui.LocalDroshActivity
@@ -84,12 +85,11 @@ import dev.drosh.ui.terminal.SystemInfo
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.TerminalTopBar
+import dev.drosh.ui.topbar.rememberTerminalBackdrop
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import dev.drosh.domain.settings.SettingsRepository
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
 import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
 import java.util.Properties
@@ -97,6 +97,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 
 /**
@@ -106,6 +108,9 @@ import androidx.compose.ui.platform.LocalContext
  * is going to the program rather than to a shell.
  */
 private const val PROGRAM_PROMPT_MARKER = "›"
+
+/** How much of the terminal's top edge the top bar backdrop samples. */
+private val BACKDROP_STRIP = 72.dp
 
 @Composable
 fun TerminalScreen(
@@ -181,17 +186,16 @@ private fun ReadyScreen(
 ) {
     var fullscreen by remember { mutableStateOf(false) }
 
-    // Shared with the top bar: the pills sample this source so they can blur
-    // the terminal output behind them.
-    val hazeState = rememberHazeState()
+    // Haze is gone. It records Compose's own draw commands, and the terminal is
+    // a View inside an AndroidView, so it is not in the display list Haze sees
+    // and the blur over the top bar had nothing to sample. The backdrop is
+    // taken from the view directly now — see TerminalBackdrop.kt.
+    var terminalBounds by remember { mutableStateOf<Rect?>(null) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
 
-    // The status bar band is inside this frame, not inside the terminal, so
-    // whatever paints this frame is what shows through where the system status
-    // bar used to be. With the app background there it read as a black strip
-    // above the terminal, which is the thing that made immersive mode look
-    // wrong. Painting the terminal's own background here makes the band
-    // continuous with the output instead of a seam.
+    // The status bar band belongs to this frame, not to the terminal, so what
+    // paints this frame is what shows where the system status bar used to be.
+    // With the app background there it read as a black strip above the output.
     val terminalBg by settingsRepository.terminalBgColor
         .collectAsStateWithLifecycle(initialValue = "#0B0B0F")
     // DroshBackground is @Composable, so it has to be read here rather than
@@ -212,6 +216,7 @@ private fun ReadyScreen(
     // time, and the bar translates on the first row of scrollback, so without
     // one the bar would strobe while the user reads the last few lines.
     val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
+
     val immersiveSetting by settingsRepository.autoHideStatusBar
         .collectAsStateWithLifecycle(initialValue = true)
     // The system status bar is hidden outright when the setting is on, rather
@@ -220,6 +225,16 @@ private fun ReadyScreen(
     // system bars animated with it. The buttons still move, and that is a small
     // contained animation on a 44dp row.
     val immersive = immersiveSetting
+
+    // Only the classic path has a View to sample; the block engine is a
+    // LazyColumn and the alt buffer is a TUI, neither of which needs this.
+    val backdrop by rememberTerminalBackdrop(
+        terminalView = terminalViewRef.value,
+        stripHeight = BACKDROP_STRIP,
+        // In the band there is no terminal behind the row at all.
+        active = immersive && atLiveEdge,
+    )
+
 
     val activity = LocalDroshActivity.current
     LaunchedEffect(immersive) {
@@ -498,10 +513,7 @@ private fun ReadyScreen(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .weight(1f)
-            // Everything in here is what the top bar's pills blur: the block
-            // engine list, the TUI host and the classic TerminalView alike.
-            .hazeSource(hazeState),
+            .weight(1f),
     ) {
         if (useBlockEngine) {
             val blocks by blockEngineViewModel.blocks.collectAsState()
@@ -614,6 +626,7 @@ private fun ReadyScreen(
                 onUrlClick = { browserUrl = it },
                 searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
                 searchOverlayRef = searchOverlayRef,
+                onBoundsChanged = { terminalBounds = it },
                 modifier = Modifier
                     .fillMaxSize()
                     // Only the status bar. The buttons float further down, so
@@ -659,9 +672,10 @@ private fun ReadyScreen(
         // Top bar overlay — floats on terminal, takes no layout space.
         if (!fullscreen) {
             TerminalTopBar(
-                hazeState = hazeState,
                 immersive = immersive,
                 rowInBand = !atLiveEdge,
+                backdrop = backdrop,
+                terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
                 isFullscreen = fullscreen,
                 keyboardFocused = keyboardFocused,
@@ -999,6 +1013,8 @@ private fun TerminalViewHost(
     searchOverlayRef: MutableState<SearchHighlightOverlay?>,
     modifier: Modifier = Modifier,
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
+    /** Root-space bounds, for sampling the terminal as the top bar's backdrop. */
+    onBoundsChanged: (androidx.compose.ui.geometry.Rect) -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
@@ -1040,7 +1056,9 @@ private fun TerminalViewHost(
     }
 
     AndroidView(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) },
 
         factory = { ctx ->
             val frameLayout = android.widget.FrameLayout(ctx).apply {
