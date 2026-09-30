@@ -131,6 +131,10 @@ dependencies {
     // WorkManager — cron / agent watch scheduled background work.
     implementation(libs.androidx.work.runtime.ktx)
 
+    // Real backdrop blur for the top bar pills. See the catalog comment for
+    // why this is pinned to 1.7.2 rather than the latest.
+    implementation(libs.haze)
+
 
     // Splash screen + exported launcher theme (Material You launch).
     debugImplementation(libs.compose.ui.tooling)

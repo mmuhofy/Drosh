@@ -70,6 +70,21 @@ lottie = "6.7.1"
 # Icons
 lucide-ardasoyturk = "2.0.7"
 
+# Haze gives the top bar pills a real backdrop blur. Modifier.blur() cannot:
+# a RenderEffect blurs the layer it is attached to and never sees what is
+# behind it, and what sits behind a pill is a TerminalView inside an
+# AndroidView, so there is nothing cheap to re-capture.
+#
+# 1.7.2 specifically, and the version is not a preference:
+#   1.7.2   wants compose 1.10.0, no lifecycle dependency
+#   1.7.3   wants compose 1.12.0  -> minCompileSdk 37, minAgp 9.1.0
+#   2.0.x   wants compose 1.12.1 + lifecycle 2.11.0 -> same walls
+# This project is on compose 1.11.0 / AGP 8.13.0 / compileSdk 36, so
+# anything from 1.7.3 up is rejected by checkDebugAarMetadata before a
+# single file compiles. 1.7.2 asks for less than the project already has,
+# so Gradle leaves the graph untouched.
+haze = "1.7.2"
+
 # Device model codename -> marketing name. Offline, Apache-2.0.
 # Pinned to 1.0.0: 1.0.10 requires compiling against SDK 37, this project is on 36.
 device-marketing-names = "1.0.0"
@@ -167,6 +182,7 @@ lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", versio
 
 # Icons
 lucide-compose = { group = "io.github.ardasoyturk.compose.icons", name = "lucide-android", version.ref = "lucide-ardasoyturk" }
+haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 
 # Device identity
 device-marketing-names = { group = "de.boehrsi", name = "devicemarketingnames", version.ref = "device-marketing-names" }

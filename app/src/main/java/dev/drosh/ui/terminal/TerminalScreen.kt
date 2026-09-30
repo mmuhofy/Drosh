@@ -83,6 +83,8 @@ import dev.drosh.ui.terminal.SystemInfo
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.TerminalTopBar
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
 import java.util.Properties
@@ -168,6 +170,10 @@ private fun ReadyScreen(
     onOpenAgent: () -> Unit = {},
 ) {
     var fullscreen by remember { mutableStateOf(false) }
+
+    // Shared with the top bar: the pills sample this source so they can blur
+    // the terminal output behind them.
+    val hazeState = rememberHazeState()
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
     var sidebarOpen by remember { mutableStateOf(false) }
     val sidebarPush = rememberSidebarPushState(sidebarOpen)
@@ -432,7 +438,10 @@ private fun ReadyScreen(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .weight(1f),
+            .weight(1f)
+            // Everything in here is what the top bar's pills blur: the block
+            // engine list, the TUI host and the classic TerminalView alike.
+            .hazeSource(hazeState),
     ) {
         if (useBlockEngine) {
             val blocks by blockEngineViewModel.blocks.collectAsState()
@@ -590,6 +599,7 @@ private fun ReadyScreen(
         // Top bar overlay — floats on terminal, takes no layout space.
         if (!fullscreen) {
             TerminalTopBar(
+                hazeState = hazeState,
                 viewModel = sessionSwitcherViewModel,
                 isFullscreen = fullscreen,
                 keyboardFocused = keyboardFocused,
