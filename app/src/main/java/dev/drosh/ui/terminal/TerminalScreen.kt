@@ -194,9 +194,12 @@ private fun ReadyScreen(
     // continuous with the output instead of a seam.
     val terminalBg by settingsRepository.terminalBgColor
         .collectAsStateWithLifecycle(initialValue = "#0B0B0F")
-    val terminalBgColor = remember(terminalBg) {
+    // DroshBackground is @Composable, so it has to be read here rather than
+    // inside the remember block, which is not a composable context.
+    val fallbackTerminalBg = DroshBackground
+    val terminalBgColor = remember(terminalBg, fallbackTerminalBg) {
         runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
-            .getOrDefault(DroshBackground)
+            .getOrDefault(fallbackTerminalBg)
     }
 
     // ── Immersive status bar ───────────────────────────────────────────────
