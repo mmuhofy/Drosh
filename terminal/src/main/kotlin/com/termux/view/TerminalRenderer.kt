@@ -58,10 +58,18 @@ class TerminalRenderer(
     /** Render the terminal to a canvas with at a specified row scroll, and an optional rectangular selection. */
     fun render(
         mEmulator: TerminalEmulator, canvas: Canvas, topRow: Int,
-        selectionY1: Int, selectionY2: Int, selectionX1: Int, selectionX2: Int
+        selectionY1: Int, selectionY2: Int, selectionX1: Int, selectionX2: Int,
+        /** Sub-line scroll offset in pixels; the whole grid is shifted by it. */
+        scrollOffsetPx: Float = 0f,
     ) {
         val reverseVideo = mEmulator.isReverseVideo()
-        val endRow = topRow + mEmulator.mRows
+        // A fractional offset leaves a partial row showing at one edge, so one
+        // extra row is drawn on each side. Only possible once there is history:
+        // at the live edge the offset is pinned to zero, because a row above
+        // row 0 does not exist to draw.
+        val partial = scrollOffsetPx != 0f && topRow < 0
+        val firstRow = if (partial) topRow - 1 else topRow
+        val endRow = if (partial) topRow + mEmulator.mRows + 1 else topRow + mEmulator.mRows
         val columns = mEmulator.mColumns
         val cursorCol = mEmulator.getCursorCol()
         val cursorRow = mEmulator.getCursorRow()
@@ -73,8 +81,13 @@ class TerminalRenderer(
         if (reverseVideo)
             canvas.drawColor(palette[TextStyle.COLOR_INDEX_FOREGROUND], PorterDuff.Mode.SRC)
 
-        var heightOffset = mFontLineSpacingAndAscent.toFloat()
-        for (row in topRow until endRow) {
+        // The offset moves the grid once, here. heightOffset must not include
+        // it as well, or the shift is applied twice.
+        if (scrollOffsetPx != 0f) canvas.translate(0f, scrollOffsetPx)
+
+        // Starting a row earlier means starting one line higher.
+        var heightOffset = if (partial) mFontAscent.toFloat() else mFontLineSpacingAndAscent.toFloat()
+        for (row in firstRow until endRow) {
             heightOffset += mFontLineSpacing
 
             val cursorX = if (row == cursorRow && cursorVisible) cursorCol else -1

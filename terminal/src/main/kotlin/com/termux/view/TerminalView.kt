@@ -93,6 +93,21 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
     /** What was left in from scrolling movement. */
     @JvmField
+    /**
+     * Sub-line scroll position, in pixels, always within one line spacing.
+     *
+     * Scrolling used to move by whole rows: onScroll kept the leftover pixels in
+     * mScrollRemainder and discarded them at the end, so a slow drag advanced
+     * one line at a time in visible jumps however little the finger moved. That
+     * remainder is kept here instead and the whole grid is drawn shifted by it,
+     * so the motion tracks the finger. When the offset crosses a full line,
+     * mTopRow moves by one and the offset wraps.
+     *
+     * A terminal is a grid, so this is motion of the existing rows only. No row
+     * is ever half-created and every row stays on its baseline.
+     */
+    @JvmField var mScrollOffsetPx: Float = 0f
+
     var mScrollRemainder: Float = 0f
 
     @JvmField
@@ -183,10 +198,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                     sendMouseEventCode(e, TerminalEmulator.MOUSE_LEFT_BUTTON_MOVED, true)
                 } else {
                     scrolledWithFinger = true
-                    val adjustedDistanceY = distanceY + mScrollRemainder
-                    val deltaRows = (adjustedDistanceY / mRenderer!!.mFontLineSpacing).toInt()
-                    mScrollRemainder = adjustedDistanceY - deltaRows * mRenderer!!.mFontLineSpacing
-                    doScroll(e, deltaRows)
+                    scrollByPixels(e, distanceY)
                 }
                 return true
             }
@@ -219,9 +231,25 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                             mScroller.abortAnimation()
                             return
                         }
-                        if (mScroller.isFinished) return
+                        if (mScroller.isFinished) { snapToWholeRow(); return }
                         val more = mScroller.computeScrollOffset()
                         val newY = mScroller.currY
+                        // Momentum now runs through the same pixel path as a
+                        // drag, so it carries a sub-line remainder instead of
+                        // jumping a row per frame.
+                        if (!mouseTrackingAtStartOfFling) {
+                            val target = Math.min(0, Math.max(-mEmulator!!.getScreen().activeTranscriptRows, newY))
+                            val step = target - mTopRow
+                            if (step != 0) {
+                                mTopRow = target
+                                if (mScrollOffsetPx != 0f) { mScrollOffsetPx = 0f; snapToWholeRow() }
+                                if (!awakenScrollBars()) invalidate()
+                                onScrollPositionChanged?.invoke(mTopRow)
+                            }
+                            mLastY = newY
+                            if (more) post(this)
+                            return
+                        }
                         val diff = if (mouseTrackingAtStartOfFling) (newY - mLastY) else (newY - mTopRow)
                         doScroll(e2, diff)
                         mLastY = newY
@@ -565,6 +593,86 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         mEmulator!!.sendMouseEvent(button, x, y, pressed)
     }
 
+    /**
+     * Moves the viewport by a pixel delta, carrying the sub-line remainder.
+     *
+     * A drag down is a request to go back towards the live edge, so a positive
+     * distanceY decreases the offset. The offset is what actually gets drawn;
+     * mTopRow only moves when a whole line has accumulated, which is what keeps
+     * every row on its baseline while the pixels between them move freely.
+     */
+    fun scrollByPixels(event: MotionEvent, distanceYPx: Float) {
+        if (mEmulator == null) return
+        val spacing = mRenderer?.mFontLineSpacing?.toFloat() ?: return
+        if (spacing <= 0f) return
+
+        // Mouse tracking and the alternate buffer want discrete events; they
+        // cannot use a sub-line offset.
+        if (mEmulator!!.isMouseTrackingActive() || mEmulator!!.isAlternateBufferActive()) {
+            val rows = (distanceYPx / spacing).toInt()
+            if (rows != 0) doScroll(event, rows)
+            return
+        }
+
+        val minTopRow = -mEmulator!!.getScreen().activeTranscriptRows
+        // A positive offset means the grid has been dragged down, which is a
+        // request to reveal older output, so the row index decreases.
+        var offset = mScrollOffsetPx + distanceYPx
+        var topRow = mTopRow
+
+        while (offset >= spacing) {
+            if (topRow > minTopRow) { topRow--; offset -= spacing } else { offset = 0f; break }
+        }
+        while (offset <= -spacing) {
+            if (topRow < 0) { topRow++; offset += spacing } else { offset = 0f; break }
+        }
+        // At the live edge there is nothing older to reveal and at the far end
+        // nothing newer, so the remainder is parked rather than piling up
+        // against a wall. A positive offset at the live edge in particular
+        // would need a row above row 0, which does not exist.
+        if (topRow == 0 && offset > 0f) offset = 0f
+        if (topRow == minTopRow && offset < 0f) offset = 0f
+
+        if (topRow != mTopRow || offset != mScrollOffsetPx) {
+            mTopRow = topRow
+            mScrollOffsetPx = offset
+            if (!awakenScrollBars()) invalidate()
+            onScrollPositionChanged?.invoke(mTopRow)
+        }
+    }
+
+    /**
+     * Eases the sub-line remainder back to a whole row. Called when a fling
+     * ends, so momentum does not leave the grid sitting between baselines.
+     */
+    private var mScrollSettle: Runnable? = null
+
+    fun snapToWholeRow() {
+        val spacing = mRenderer?.mFontLineSpacing?.toFloat() ?: return
+        val from = mScrollOffsetPx
+        val to = if (Math.abs(from) < spacing * 0.02f) 0f else 0f
+        mScrollSettle?.let { removeCallbacks(it) }
+        if (from == to) return
+        val start = SystemClock.uptimeMillis()
+        val runnable = object : Runnable {
+            override fun run() {
+                val t = Math.min(1f, (SystemClock.uptimeMillis() - start) / 140f)
+                val eased = 1f - (1f - t) * (1f - t)
+                mScrollOffsetPx = from + (to - from) * eased
+                if (t < 1f) {
+                    postDelayed(this, 16)
+                } else {
+                    mScrollSettle = null
+                    mScrollOffsetPx = to
+                    if (!awakenScrollBars()) invalidate()
+                    onScrollPositionChanged?.invoke(mTopRow)
+                }
+            }
+        }
+        mScrollSettle = runnable
+        post(runnable)
+    }
+
     /** Perform a scroll, either from dragging the screen or by scrolling a mouse wheel. */
     fun doScroll(event: MotionEvent, rowsDown: Int) {
         val up = rowsDown < 0
@@ -578,6 +686,9 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 handleKeyCode(if (up) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN, 0)
             } else {
                 mTopRow = Math.min(0, Math.max(-mEmulator!!.getScreen().activeTranscriptRows, mTopRow + if (up) -1 else 1))
+                // A wheel notch or a PageUp is a whole-line request; there is
+                // no sub-line position to preserve across one.
+                if (mScrollOffsetPx != 0f) { mScrollOffsetPx = 0f; snapToWholeRow() }
                 if (!awakenScrollBars()) invalidate()
                 onScrollPositionChanged?.invoke(mTopRow)
             }
@@ -977,7 +1088,7 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             val sel = mDefaultSelectors
             mTextSelectionCursorController?.getSelectors(sel)
 
-            mRenderer!!.render(mEmulator!!, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3])
+            mRenderer!!.render(mEmulator!!, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3], mScrollOffsetPx)
 
             // render the text selection handles
             renderTextSelection()
