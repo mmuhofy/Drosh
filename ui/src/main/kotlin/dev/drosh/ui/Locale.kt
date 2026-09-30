@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.LocalResources
 import androidx.compose.ui.platform.LocalContext
 import dev.drosh.core.localizedContext
 import java.util.Locale
@@ -14,17 +16,20 @@ import java.util.Locale
 /**
  * Language selection that takes effect immediately.
  *
- * The previous approach called `Activity.recreate()`, which is the standard
- * trick and also a full teardown: every screen loses its scroll, every
- * `remember` is thrown away, and the switch takes long enough to read as a
- * stutter. Worse, the language only appeared after the recreate finished, so
- * tapping a language looked like nothing had happened.
+ * The previous approach called `Activity.recreate()`: a full teardown, so
+ * every screen loses its scroll, every `remember` is discarded, and the new
+ * language only appeared once it finished — tapping a language looked like
+ * nothing had happened.
  *
- * Here the locale rides in the composition instead. A localized context is
- * derived once per selection and provided through [LocalLocaleContext];
- * `stringResource` and `painterResource` both read the ambient context, so
- * every string on screen re-resolves on the next frame. The activity is not
- * recreated and no state is lost.
+ * The locale now rides in the composition. [LocalResources] is overridden
+ * with the localized resources, which is what `stringResource` resolves
+ * against, so every string re-resolves on the next frame with no state lost.
+ *
+ * [LocalContext] is deliberately left alone. An earlier version replaced it
+ * with the localized context instead, which reads well and crashes on the
+ * first `hiltViewModel()` in the tree: `createConfigurationContext` returns
+ * a plain ContextImpl, and Hilt needs an Activity to build a ViewModel
+ * factory. Resources carry the language; the context stays the activity.
  */
 /**
  * The hosting activity.
@@ -54,9 +59,12 @@ fun ProvideLocale(languageTag: String, content: @Composable () -> Unit) {
             base.createConfigurationContext(config)
         }
     }
-    // LocalContext itself is overridden, not a custom local: stringResource and
-    // painterResource both read the ambient context, so replacing it is what
-    // makes every string on screen re-resolve on the next frame.
-    CompositionLocalProvider(LocalContext provides localized, content = content)
+    // LocalResources, not LocalContext: this is what stringResource reads, and
+    // replacing the context instead breaks every hiltViewModel() below.
+    CompositionLocalProvider(
+        LocalResources provides localized.resources,
+        LocalConfiguration provides localized.resources.configuration,
+        content = content,
+    )
 }
 
