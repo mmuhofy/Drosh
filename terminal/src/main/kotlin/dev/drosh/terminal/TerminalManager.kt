@@ -155,6 +155,21 @@ class TerminalManager(
      */
     val scrollTopRow: StateFlow<Int> = _scrollTopRow.asStateFlow()
 
+    private val _isAtLiveEdge = MutableStateFlow(true)
+
+    /**
+     * True while the viewport is at the live edge. This, not [scrollTopRow], is
+     * what the UI collects.
+     *
+     * scrollTopRow changes once per row, and a fling through 30 rows emitted 30
+     * updates, each one recomposing the whole terminal screen on the frame it
+     * landed. The only thing the UI actually needs is which side of the live
+     * edge it is on, so this flips at the boundary and is silent the rest of
+     * the time. That is the difference between the bar gliding and the bar
+     * stuttering along with your thumb.
+     */
+    val isAtLiveEdge: StateFlow<Boolean> = _isAtLiveEdge.asStateFlow()
+
     private val prootRunner: ProotRunner by lazy {
         ProotRunner(ubuntuBootstrap, application.applicationInfo.nativeLibraryDir)
     }
@@ -244,7 +259,11 @@ class TerminalManager(
         // into the middle of its scrollback would otherwise start with a stale
         // zero and only correct itself on the next scroll.
         _scrollTopRow.value = view.mTopRow
-        view.onScrollPositionChanged = { topRow -> _scrollTopRow.value = topRow }
+        view.onScrollPositionChanged = { topRow ->
+            _scrollTopRow.value = topRow
+            val atEdge = topRow == 0
+            if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
+        }
     }
 
     fun unregisterTerminalView() {

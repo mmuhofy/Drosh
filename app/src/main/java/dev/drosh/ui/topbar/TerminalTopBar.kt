@@ -80,13 +80,20 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  *
  * Public API değişmedi: TerminalTopBar(...) imzası aynı.
  */
-private const val BAR_ROW_HEIGHT_DP = 40
-private const val BAR_TOP_OFFSET_DP = 0
+private const val BAR_ROW_HEIGHT_DP = 44
+private const val BAR_TOP_OFFSET_DP = 10
 private const val BAR_BOTTOM_OFFSET_DP = 6
-private const val PILL_SURFACE_ALPHA = 0.72f
+/**
+ * High on purpose. The prototype gets away with 0.72 because a CSS
+ * backdrop-filter blurs 6px of real content; at 0.72 with no working blur the
+ * terminal text simply reads straight through the pill. The requirement is that
+ * the output behind a button is never legible, only a light or dark smudge, so
+ * the surface now carries most of the hiding and the blur carries the rest.
+ */
+private const val PILL_SURFACE_ALPHA = 0.90f
 
 /** Wider than it is tall, so the ends read as a stadium and not a disc. */
-private const val PILL_WIDTH_DP = 48
+private const val PILL_WIDTH_DP = 52
 
 /**
  * Strong enough that terminal text behind a pill is a smear, not text.
@@ -121,7 +128,11 @@ private fun Modifier.pillGlass(
     shape: Shape,
     style: HazeStyle,
 ): Modifier = this
+    // Order is Haze's documented one: effect, then clip, then surface. A clip
+    // applied *before* the effect constrains the node the effect draws into,
+    // and the captured backdrop does not survive it.
     .hazeEffect(state = hazeState, style = style)
+    .clip(shape)
     .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
 
 /** The bar is a position, not a surface. Nothing is drawn behind the buttons. */
@@ -376,12 +387,11 @@ private fun GlassPillBody(
         modifier = Modifier
             .width(width)
             .height(height)
-            .clip(RoundedCornerShape(percent = 50))
             .then(
                 if (hazeState != null && hazeStyle != null) {
                     Modifier.pillGlass(hazeState, RoundedCornerShape(percent = 50), hazeStyle)
                 } else {
-                    Modifier
+                    Modifier.clip(RoundedCornerShape(percent = 50))
                 }
             )
             .pointerInput(Unit) {

@@ -43,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.drosh.ui.LocalDroshActivity
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -185,6 +186,19 @@ private fun ReadyScreen(
     val hazeState = rememberHazeState()
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
 
+    // The status bar band is inside this frame, not inside the terminal, so
+    // whatever paints this frame is what shows through where the system status
+    // bar used to be. With the app background there it read as a black strip
+    // above the terminal, which is the thing that made immersive mode look
+    // wrong. Painting the terminal's own background here makes the band
+    // continuous with the output instead of a seam.
+    val terminalBg by settingsRepository.terminalBgColor
+        .collectAsStateWithLifecycle(initialValue = "#0B0B0F")
+    val terminalBgColor = remember(terminalBg) {
+        runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
+            .getOrDefault(DroshBackground)
+    }
+
     // ── Immersive status bar ───────────────────────────────────────────────
     // At the live edge the system status bar is hidden and the Drosh bar's
     // pills move up into the band it leaves. Scrolling back into the scrollback
@@ -194,10 +208,10 @@ private fun ReadyScreen(
     // The dead zone matters. mTopRow is an integer that changes one row at a
     // time, and the bar translates on the first row of scrollback, so without
     // one the bar would strobe while the user reads the last few lines.
-    val scrollTopRow by terminalManager.scrollTopRow.collectAsStateWithLifecycle()
+    val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
     val immersiveSetting by settingsRepository.autoHideStatusBar
         .collectAsStateWithLifecycle(initialValue = true)
-    val immersive = immersiveSetting && (scrollTopRow == 0 || altBufferActive)
+    val immersive = immersiveSetting && (atLiveEdge || altBufferActive)
 
     val activity = LocalDroshActivity.current
     LaunchedEffect(immersive) {
@@ -459,7 +473,7 @@ private fun ReadyScreen(
             bottom = 20.dp * sidebarPush.progress,
         )
         .clip(RoundedCornerShape(20.dp * sidebarPush.progress))
-        .background(DroshBackground)
+        .background(terminalBgColor)
     ) {
                 	/*
          * Terminal content fills all available space.
