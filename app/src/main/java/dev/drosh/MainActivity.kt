@@ -35,6 +35,7 @@ import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import dev.drosh.data.session.SessionManagerAdapter
 import dev.drosh.domain.settings.PinLockRepository
+import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.terminal.ExtraKeyState

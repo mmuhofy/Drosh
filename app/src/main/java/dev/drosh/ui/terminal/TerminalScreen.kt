@@ -83,7 +83,6 @@ import dev.drosh.ui.terminal.SystemInfo
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.TerminalTopBar
-import dev.drosh.ui.LocalDroshActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
