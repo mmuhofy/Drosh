@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import dev.drosh.R
@@ -84,43 +85,29 @@ private const val BAR_ROW_HEIGHT_DP = 44
 private const val BAR_TOP_OFFSET_DP = 10
 private const val BAR_BOTTOM_OFFSET_DP = 6
 /**
- * High on purpose. The prototype gets away with 0.72 because a CSS
- * backdrop-filter blurs 6px of real content; at 0.72 with no working blur the
- * terminal text simply reads straight through the pill. The requirement is that
- * the output behind a button is never legible, only a light or dark smudge, so
- * the surface now carries most of the hiding and the blur carries the rest.
- */
-private const val PILL_SURFACE_ALPHA = 0.90f
-
-/** Wider than it is tall, so the ends read as a stadium and not a disc. */
-private const val PILL_WIDTH_DP = 52
-
-/**
- * Strong enough that terminal text behind a pill is a smear, not text.
+ * A pill: nothing but the blur of whatever is behind it.
  *
- * The prototype blurs 6px in CSS. 6dp of Haze blur is visibly weaker than
- * 6px of a browser blur on the same content, and at 12sp monospace the glyphs
- * stayed legible through it — the pill read as a grey window onto the output
- * rather than as glass. Terminal text is small and high-contrast, so it needs
- * more blur than a UI panel does, not less.
- */
-private val PILL_BLUR_RADIUS = 16.dp
-
-/**
- * A pill: real backdrop blur, a tint over it, then a hairline.
+ * There is no fill and no border. An earlier version had a 72% surface and then
+ * a 90% one over the top, both working around the fact that the blur was not
+ * covering the button. Now that it does, a fill would only tint the smear, and
+ * the ask was for the blur on its own.
  *
- * The blur samples [hazeState] rather than this node's own content. That is the
- * whole reason it cannot be `Modifier.blur()` — a RenderEffect blurs the layer
- * it is attached to and has no access to anything behind it, and the content
- * behind a pill is a TerminalView inside an AndroidView, so there is nothing to
- * re-draw. Haze captures the source instead.
+ * blurredEdgeTreatment is the whole fix for the square. Haze clips its captured
+ * backdrop to `blurredEdgeTreatment.shape` and nothing else — `Modifier.clip`
+ * is not consulted. The default is BlurredEdgeTreatment.Rectangle, which carries
+ * RectangleShape, so the blur filled the button's bounding box while the tint
+ * filled the rounded shape. In the four corners between the two, the terminal
+ * showed through at full strength: that was the square, and that was why the
+ * text was still readable at 90% opacity. Passing the pill's own shape clips
+ * the blur to exactly the region the icon sits in.
  *
- * The order matches the prototype's CSS: blur first, then the translucent
- * background on top, then the border. Tinting before blurring would blur the
- * tint along with the content and wash the pill out.
+ * The blur samples [hazeState] rather than this node's own content, which is
+ * the one thing Modifier.blur() cannot do: a RenderEffect blurs the layer it is
+ * attached to and has no access to anything behind it, and behind a pill is a
+ * TerminalView inside an AndroidView, so there is nothing to re-draw.
  *
  * Below API 31 Haze substitutes a translucent scrim for the blur — minSdk is
- * 26, so older devices get the flat look and newer ones get the real effect.
+ * 26, so older devices get a flat panel and newer ones get the real effect.
  */
 @Composable
 private fun Modifier.pillGlass(
@@ -128,14 +115,22 @@ private fun Modifier.pillGlass(
     shape: Shape,
     style: HazeStyle,
 ): Modifier = this
-    // Order is Haze's documented one: effect, then clip, then surface. A clip
-    // applied *before* the effect constrains the node the effect draws into,
-    // and the captured backdrop does not survive it.
-    .hazeEffect(state = hazeState, style = style)
+    .hazeEffect(state = hazeState, style = style) {
+        blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+    }
     .clip(shape)
-    .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
 
-/** The bar is a position, not a surface. Nothing is drawn behind the buttons. */
+/** Wider than it is tall, so the ends read as a stadium and not a disc. */
+private const val PILL_WIDTH_DP = 52
+
+/**
+ * 14dp at 12sp monospace leaves the output behind a button as a light and dark
+ * smudge with no legible glyphs. Haze does not downscale by default
+ * (HazeInputScale.Default is None, not Auto), so this is the radius that
+ * actually gets applied rather than a third of it.
+ */
+private val PILL_BLUR_RADIUS = 14.dp
+
 private val BAR_ROW_HEIGHT = BAR_ROW_HEIGHT_DP.dp
 private val PILL_WIDTH = PILL_WIDTH_DP.dp
 private val BAR_TOP_OFFSET = BAR_TOP_OFFSET_DP.dp
@@ -144,7 +139,10 @@ private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 @Composable
 fun TerminalTopBar(
     hazeState: HazeState,
+    /** System status bar hidden outright. Follows the setting, not the scroll. */
     immersive: Boolean,
+    /** Row has moved up into the band the status bar used to occupy. */
+    rowInBand: Boolean,
     viewModel: SessionSwitcherViewModel,
     isFullscreen: Boolean,
     keyboardFocused: Boolean,
@@ -159,18 +157,30 @@ fun TerminalTopBar(
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
 
-    val statusBarH = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusBarNow = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    // Captured once, deliberately. Hiding the system status bar drops this
+    // inset to zero on Android 15+, so reading it per frame would collapse the
+    // offset at the exact moment immersive mode turned on and the buttons
+    // would never move. The first composition runs before the hide, so this is
+    // the real height.
+    val statusBarH = remember { statusBarNow }
 
     // Built once and shared by every pill. HazeStyle is immutable, so a fresh
     // instance each recomposition would only hand the effect a new object for
     // no reason.
     val hazeStyle = remember { HazeStyle.Unspecified.copy(blurRadius = PILL_BLUR_RADIUS) }
 
-    // Immersive: the system status bar is hidden at the live edge, so the row
-    // moves up into the band it left rather than being covered by it. Nothing
-    // is drawn over the band — the row simply goes there.
+    // The system status bar is hidden whenever immersive mode is on, so when
+    // the user scrolls back into the scrollback the row moves up into the band
+    // it left rather than sitting under it. Nothing is drawn over the band —
+    // the row simply goes there.
     val rowOffset by animateDpAsState(
-        targetValue = if (immersive) -statusBarH else 0.dp,
+        // The Box already pads by statusBarH + BAR_TOP_OFFSET, so the row's
+        // origin is below the band. Reaching the band means undoing both, not
+        // just the inset — which is why subtracting only statusBarH left the
+        // buttons sitting 10dp down instead of moving at all.
+        targetValue = if (rowInBand) -(statusBarH + BAR_TOP_OFFSET) else 0.dp,
         animationSpec = tween(durationMillis = 280),
         label = "immersiveRowOffset",
     )

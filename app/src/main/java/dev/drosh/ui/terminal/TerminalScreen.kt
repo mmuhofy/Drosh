@@ -214,7 +214,12 @@ private fun ReadyScreen(
     val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
     val immersiveSetting by settingsRepository.autoHideStatusBar
         .collectAsStateWithLifecycle(initialValue = true)
-    val immersive = immersiveSetting && (atLiveEdge || altBufferActive)
+    // The system status bar is hidden outright when the setting is on, rather
+    // than coming and going with scroll. Hiding and showing it was the visible
+    // part of the jitter: every row of scroll crossed the boundary and the
+    // system bars animated with it. The buttons still move, and that is a small
+    // contained animation on a 44dp row.
+    val immersive = immersiveSetting
 
     val activity = LocalDroshActivity.current
     LaunchedEffect(immersive) {
@@ -656,6 +661,7 @@ private fun ReadyScreen(
             TerminalTopBar(
                 hazeState = hazeState,
                 immersive = immersive,
+                rowInBand = !atLiveEdge,
                 viewModel = sessionSwitcherViewModel,
                 isFullscreen = fullscreen,
                 keyboardFocused = keyboardFocused,
