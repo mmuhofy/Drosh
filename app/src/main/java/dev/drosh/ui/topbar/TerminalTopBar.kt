@@ -136,7 +136,7 @@ fun TerminalTopBar(
     // Built once and shared by every pill. HazeStyle is immutable, so a fresh
     // instance each recomposition would only hand the effect a new object for
     // no reason.
-    val hazeStyle = remember { HazeStyle(blurRadius = PILL_BLUR_RADIUS) }
+    val hazeStyle = remember { HazeStyle.Unspecified.copy(blurRadius = PILL_BLUR_RADIUS) }
 
 
     // The bar reserves a band of height and draws nothing in it. The buttons
@@ -300,7 +300,7 @@ private fun GlassPillButton(
     onClick: () -> Unit,
     size: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
-    hazeStyle: HazeStyle = remember { HazeStyle(blurRadius = PILL_BLUR_RADIUS) },
+    hazeStyle: HazeStyle = remember { HazeStyle.Unspecified.copy(blurRadius = PILL_BLUR_RADIUS) },
 ) {
     GlassPillBody(contentDescription, onClick, size, iconSize, hazeState, hazeStyle) { tint ->
         when {
