@@ -12,7 +12,7 @@ import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.geometry.Offset
+
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
@@ -122,7 +122,7 @@ fun TerminalBackdropSlice(
             image = backdrop,
             srcOffset = sourceOffset,
             srcSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-            dstOffset = Offset.Zero,
+            dstOffset = IntOffset.Zero,
             dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
         )
     }
