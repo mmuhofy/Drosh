@@ -107,7 +107,8 @@ private fun capture(view: View, stripHeightPx: Float): Bitmap? {
 @Composable
 fun TerminalBackdropSlice(
     backdrop: ImageBitmap?,
-    sourceOffset: IntOffset,
+    /** Read at draw time, not during composition — the pill's position is only final after layout. */
+    sourceOffset: () -> IntOffset,
     blurRadius: Dp,
     shape: Shape,
     modifier: Modifier = Modifier,
@@ -120,7 +121,7 @@ fun TerminalBackdropSlice(
     ) {
         drawImage(
             image = backdrop,
-            srcOffset = sourceOffset,
+            srcOffset = sourceOffset(),
             srcSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
             dstOffset = IntOffset.Zero,
             dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),

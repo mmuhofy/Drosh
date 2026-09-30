@@ -68,8 +68,17 @@ class TerminalRenderer(
         // at the live edge the offset is pinned to zero, because a row above
         // row 0 does not exist to draw.
         val partial = scrollOffsetPx != 0f && topRow < 0
-        val firstRow = if (partial) topRow - 1 else topRow
-        val endRow = if (partial) topRow + mEmulator.mRows + 1 else topRow + mEmulator.mRows
+        var firstRow = if (partial) topRow - 1 else topRow
+        var endRow = if (partial) topRow + mEmulator.mRows + 1 else topRow + mEmulator.mRows
+        // The transcript is a ring buffer and activeTranscriptRows shrinks as
+        // it trims, so a row that was in range when the drag started can be out
+        // of range by the time it is drawn. externalToInternalRow throws on
+        // anything past either end, which is a hard crash in onDraw.
+        val buffer = mEmulator.getScreen()
+        val minRow = -buffer.activeTranscriptRows
+        if (firstRow < minRow) firstRow = minRow
+        if (endRow > mEmulator.mScreenRows) endRow = mEmulator.mScreenRows
+        if (endRow < firstRow) endRow = firstRow
         val columns = mEmulator.mColumns
         val cursorCol = mEmulator.getCursorCol()
         val cursorRow = mEmulator.getCursorRow()

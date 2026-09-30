@@ -674,7 +674,11 @@ private fun ReadyScreen(
         if (!fullscreen) {
             TerminalTopBar(
                 immersive = immersive,
-                rowInBand = !atLiveEdge,
+                // Both the status bar and the row's position follow the
+                // setting. Scrolling no longer moves anything: when fullscreen
+                // is on the bar is gone and the pills sit where it was; when it
+                // is off the status bar is there and the pills sit below it.
+                rowInBand = immersive,
                 backdrop = backdrop,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,

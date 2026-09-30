@@ -358,7 +358,12 @@ private fun GlassPillBody(
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
     val shape = RoundedCornerShape(percent = 50)
-    var sliceOffset by remember { mutableStateOf(IntOffset.Zero) }
+    // Deliberately a plain holder, not Compose state. Writing state from
+    // onGloballyPositioned invalidates layout, which re-runs the callback,
+    // which writes again — and the two leftmost buttons visibly climbed the
+    // screen during a scroll. The offset is only needed at draw time, so it is
+    // read there instead.
+    val slice = remember { PillSlice() }
     var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.88f else 1f,
@@ -374,16 +379,7 @@ private fun GlassPillBody(
             .width(width)
             .height(height)
             .clip(shape)
-            .onGloballyPositioned { coords ->
-                val term = terminalBounds
-                if (term != null && backdrop != null) {
-                    val r = coords.boundsInRoot()
-                    sliceOffset = IntOffset(
-                        (r.left - term.left).roundToInt(),
-                        (r.top - term.top).roundToInt(),
-                    )
-                }
-            }
+            .onGloballyPositioned { slice.pillBounds = it.boundsInRoot() }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -401,7 +397,7 @@ private fun GlassPillBody(
         // putting it on the Box as a background would hide the blur entirely.
         TerminalBackdropSlice(
             backdrop = backdrop,
-            sourceOffset = sliceOffset,
+            sourceOffset = { slice.offsetIn(terminalBounds) },
             blurRadius = PILL_BLUR_RADIUS,
             shape = shape,
             modifier = Modifier.matchParentSize(),

@@ -614,9 +614,11 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         }
 
         val minTopRow = -mEmulator!!.getScreen().activeTranscriptRows
-        // A positive offset means the grid has been dragged down, which is a
-        // request to reveal older output, so the row index decreases.
-        var offset = mScrollOffsetPx + distanceYPx
+        // GestureDetector reports distanceY as lastY - currentY, so dragging
+        // the finger *down* is negative — and that is the gesture for revealing
+        // older output. The offset therefore moves opposite to the raw delta,
+        // which is what the old whole-row path did too via doScroll's `up` flag.
+        var offset = mScrollOffsetPx - distanceYPx
         var topRow = mTopRow
 
         while (offset >= spacing) {
