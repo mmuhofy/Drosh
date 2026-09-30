@@ -64,9 +64,7 @@
     <string name="topbar_new_session">Yeni oturum</string>
     <string name="topbar_close_session">Oturumu kapat</string>
 
-    <string name="settings_cursor_style_block">Blok</string>
     <string name="settings_cursor_style_thin">İnce blok</string>
-    <string name="settings_cursor_style_underline">Alt çizgi</string>
     <string name="settings_terminal_mode">Terminal modu</string>
     <string name="settings_terminal_mode_desc">Bir komut ve çıktısının nasıl yerleştiği</string>
     <string name="settings_mode_terminal">Terminal</string>

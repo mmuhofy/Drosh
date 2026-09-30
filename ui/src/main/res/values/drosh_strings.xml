@@ -73,9 +73,7 @@
     <string name="topbar_new_session">New session</string>
     <string name="topbar_close_session">Close session</string>
 
-    <string name="settings_cursor_style_block">Block</string>
     <string name="settings_cursor_style_thin">Thin block</string>
-    <string name="settings_cursor_style_underline">Underline</string>
     <string name="settings_terminal_mode">Terminal mode</string>
     <string name="settings_terminal_mode_desc">How a command and its output are laid out</string>
     <string name="settings_mode_terminal">Terminal</string>
