@@ -32,8 +32,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import dev.drosh.design.system.StatusBarStrip
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -199,14 +201,12 @@ private fun SidebarContent(
     }
 
 
-    // The drawer is an overlay, so without this the strip shows the terminal
-    // underneath it rather than the drawer's own background.
-    StatusBarStrip(color = DroshSurface)
-
+    // Background runs behind the system bar, content is pushed clear of it, so
+    // the drawer does not read as having a strip of its own.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
+            .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
             // Without this the keyboard covers the footer, taking the search
             // field and the close button with it while you are typing in it.
             .imePadding(),

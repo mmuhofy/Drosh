@@ -44,7 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.drosh.ui.LocalDroshActivity
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -56,7 +55,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.LifecycleEventObserver
 import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.StatusBarStrip
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
@@ -192,14 +190,6 @@ private fun ReadyScreen(
     // and the blur over the top bar had nothing to sample. The backdrop is
     // taken from the view directly now — see TerminalBackdrop.kt.
     //
-    // The strip is the only part of the frame that takes the terminal's own
-    // background: the frame itself stays on the app background.
-    val terminalBg by settingsRepository.terminalBgColor
-        .collectAsStateWithLifecycle(initialValue = "#0B0B0F")
-    val terminalBgColor = remember(terminalBg) {
-        runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
-            .getOrDefault(Color.Black)
-    }
     var terminalBounds by remember { mutableStateOf<Rect?>(null) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
 
@@ -497,9 +487,6 @@ private fun ReadyScreen(
         .clip(RoundedCornerShape(20.dp * sidebarPush.progress))
         .background(DroshBackground)
     ) {
-        // Under the frame's own background, so the strip matches the terminal
-        // it sits above without tinting the rest of the frame.
-        StatusBarStrip(color = terminalBgColor)
                 	/*
          * Terminal content fills all available space.
          *
@@ -542,11 +529,7 @@ private fun ReadyScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(
-                            top = WindowInsets.statusBars
-                                .asPaddingValues()
-                                .calculateTopPadding()
-                        ),
+                        .padding(top = 0.dp),
                 ) {
                     if (motdMode == MotdMode.Compose && !motdDismissed) {
                         MotdWidget(
@@ -623,14 +606,11 @@ private fun ReadyScreen(
                 onBoundsChanged = { terminalBounds = it },
                 modifier = Modifier
                     .fillMaxSize()
-                    // Only the status bar. The buttons float further down, so
-                    // the first line of output starts right under the status
-                    // bar and stays clear of them.
-                    .padding(
-                        top = WindowInsets.statusBars
-                            .asPaddingValues()
-                            .calculateTopPadding()
-                    )
+                    // No inset: the output starts at the top of the window and
+                    // runs behind the system bar, the same as every other
+                    // screen. The bar was previously leaving a strip that
+                    // belonged to no screen at all.
+                    .padding(top = 0.dp)
                     .graphicsLayer {
                         scaleX = appearScale
                         scaleY = appearScale

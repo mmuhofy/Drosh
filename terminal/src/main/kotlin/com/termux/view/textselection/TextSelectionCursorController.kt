@@ -167,8 +167,12 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
             override fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {
                 var x1 = (mSelX1 * terminalView.mRenderer!!.mFontWidth).toInt()
                 var x2 = (mSelX2 * terminalView.mRenderer!!.mFontWidth).toInt()
-                val y1 = (mSelY1 - 1 - terminalView.getTopRow()) * terminalView.mRenderer!!.mFontLineSpacing
-                val y2 = (mSelY2 + 1 - terminalView.getTopRow()) * terminalView.mRenderer!!.mFontLineSpacing
+                // The selection's own rectangle is drawn by the renderer and
+                // moves with the grid already; this is only the popup anchor, and
+                // it needs the same sub-line offset applied by hand.
+                val offset = terminalView.mScrollOffsetPx
+                val y1 = (mSelY1 - 1 - terminalView.getTopRow()) * terminalView.mRenderer!!.mFontLineSpacing + offset.toInt()
+                val y2 = (mSelY2 + 1 - terminalView.getTopRow()) * terminalView.mRenderer!!.mFontLineSpacing + offset.toInt()
 
                 if (x1 > x2) {
                     val tmp = x1

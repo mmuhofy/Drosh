@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -20,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import dev.drosh.ui.R
 import dev.drosh.ui.LocalDroshActivity
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -38,6 +38,11 @@ import dev.drosh.ui.session.DeviceIdentityViewModel
 import kotlinx.coroutines.launch
 
 private val GROUP_GAP = 22.dp
+
+/** Content clearance for the system bar, without insetting the background. */
+@Composable
+private fun statusBarInset(): Dp =
+    WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
 /**
  * Settings.
@@ -91,12 +96,14 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(DroshBackground),
     ) {
+        // The background runs behind the system bar; only the content is
+        // pushed clear of it, so there is no separate strip.
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .statusBarsPadding()
-                .testTag("settings_content"),
+                .testTag("settings_content")
+                .padding(top = statusBarInset()),
         ) {
             SettingsTopBar(title = stringResource(R.string.settings_title), onBack = onBack)
 

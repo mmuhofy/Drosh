@@ -144,12 +144,19 @@ class SearchHighlightOverlay(
         while (groupStart < texts.size) {
             var groupEnd = groupStart
             while (groupEnd < texts.size && continues[groupEnd] && texts[groupEnd] != null) groupEnd++
-            if (groupEnd > groupStart) {
+            // The loop above stops *at* texts.size when a wrapped run reaches the
+            // bottom row, so groupEnd can be one past the last valid index. Using
+            // it directly in an inclusive range reads texts[texts.size] and
+            // throws ArrayIndexOutOfBoundsException — which is what happened
+            // whenever a soft-wrapped line ran to the last visible row and the
+            // screen was touched, i.e. constantly during a download.
+            val lastVis = minOf(groupEnd, texts.size - 1)
+            if (lastVis > groupStart) {
                 val joined = StringBuilder()
-                for (visRow in groupStart..groupEnd) joined.append(texts[visRow] ?: "")
+                for (visRow in groupStart..lastVis) joined.append(texts[visRow] ?: "")
                 val logicalText = joined.toString()
                 val targetRow = externalRow - topRow
-                if (targetRow in groupStart..groupEnd) {
+                if (targetRow in groupStart..lastVis) {
                     var rowOffset = 0
                     for (visRow in groupStart until targetRow) rowOffset += texts[visRow]?.length ?: 0
                     val offset = rowOffset + col
@@ -158,7 +165,7 @@ class SearchHighlightOverlay(
                         ?.let { return it.url }
                 }
             }
-            groupStart = groupEnd + 1
+            groupStart = lastVis + 1
         }
         return null
     }

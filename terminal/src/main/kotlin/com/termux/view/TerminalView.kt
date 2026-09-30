@@ -242,24 +242,20 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                         if (mScroller.isFinished) { snapToWholeRow(); return }
                         val more = mScroller.computeScrollOffset()
                         val newY = mScroller.currY
-                        // Momentum now runs through the same pixel path as a
-                        // drag, so it carries a sub-line remainder instead of
-                        // jumping a row per frame.
-                        if (!mouseTrackingAtStartOfFling) {
-                            val target = Math.min(0, Math.max(-mEmulator!!.getScreen().activeTranscriptRows, newY))
-                            val step = target - mTopRow
-                            if (step != 0) {
-                                mTopRow = target
-                                if (mScrollOffsetPx != 0f) { mScrollOffsetPx = 0f; snapToWholeRow() }
-                                if (!awakenScrollBars()) invalidate()
-                                onScrollPositionChanged?.invoke(mTopRow)
-                            }
-                            mLastY = newY
-                            if (more) post(this)
-                            return
+                        if (mouseTrackingAtStartOfFling) {
+                            doScroll(e2, newY - mLastY)
+                        } else {
+                            // Momentum goes through the same pixel path as a
+                            // drag. Assigning mTopRow from the scroller's currY
+                            // advanced a whole number of rows per frame — which
+                            // is precisely the jitter at the ends: the scroller
+                            // eases, but the viewport jumped several lines at a
+                            // time and slammed into the limit. Converting the
+                            // row delta to pixels lets it carry a sub-line
+                            // remainder like everything else.
+                            val spacing = mRenderer?.mFontLineSpacing ?: return
+                            scrollByPixels(e2, (newY - mTopRow) * spacing)
                         }
-                        val diff = if (mouseTrackingAtStartOfFling) (newY - mLastY) else (newY - mTopRow)
-                        doScroll(e2, diff)
                         mLastY = newY
                         if (more) post(this)
                     }
@@ -575,9 +571,29 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
      * position into account.
      * @return Array with the column and row.
      */
+    /**
+     * Corrects a touch y for the sub-line scroll offset.
+     *
+     * While an offset is live the grid is drawn shifted by it and, because a
+     * partial row shows at the top, one line higher than usual. Every
+     * y-to-row conversion has to undo both or it names the wrong row — which
+     * puts URL taps and text selection on a line the finger is not on, and at
+     * the bottom edge produces an out-of-range row entirely.
+     *
+     * At offset zero this returns y unchanged, so the legacy mappings
+     * (including getCursorY's hardcoded 40) keep behaving exactly as they did.
+     */
+    private fun yForRowLookup(y: Float): Float {
+        val offset = mScrollOffsetPx
+        if (offset == 0f) return y
+        val spacing = mRenderer?.mFontLineSpacing ?: return y
+        return y - offset - spacing
+    }
+
     fun getColumnAndRow(event: MotionEvent, relativeToScroll: Boolean): IntArray {
+        val y = yForRowLookup(event.y)
         val column = (event.x / mRenderer!!.mFontWidth).toInt()
-        var row = ((event.y - mRenderer!!.mFontLineSpacingAndAscent) / mRenderer!!.mFontLineSpacing).toInt()
+        var row = ((y - mRenderer!!.mFontLineSpacingAndAscent) / mRenderer!!.mFontLineSpacing).toInt()
         if (relativeToScroll) {
             row += mTopRow
         }
@@ -666,11 +682,13 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     private var mScrollSettle: Runnable? = null
 
     fun snapToWholeRow() {
-        val spacing = mRenderer?.mFontLineSpacing?.toFloat() ?: return
         val from = mScrollOffsetPx
-        val to = if (Math.abs(from) < spacing * 0.02f) 0f else 0f
+        // Nothing to settle, and importantly: do not cancel a running settle
+        // before deciding, or a mid-flight animation would be stranded at
+        // whatever offset it had reached.
+        if (from == 0f) return
         mScrollSettle?.let { removeCallbacks(it) }
-        if (from == to) return
+        val to = 0f
         val start = SystemClock.uptimeMillis()
         val runnable = object : Runnable {
             override fun run() {
@@ -706,7 +724,9 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 mTopRow = Math.min(0, Math.max(-mEmulator!!.getScreen().activeTranscriptRows, mTopRow + if (up) -1 else 1))
                 // A wheel notch or a PageUp is a whole-line request; there is
                 // no sub-line position to preserve across one.
-                if (mScrollOffsetPx != 0f) { mScrollOffsetPx = 0f; snapToWholeRow() }
+                // Ease it back rather than zeroing it: snapping the offset
+                // while the viewport is still mid-line is a visible jump.
+                if (mScrollOffsetPx != 0f) snapToWholeRow()
                 if (!awakenScrollBars()) invalidate()
                 onScrollPositionChanged?.invoke(mTopRow)
             }
@@ -1124,7 +1144,7 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
     }
 
     fun getCursorY(y: Float): Int {
-        return (((y - 40) / mRenderer!!.mFontLineSpacing) + mTopRow).toInt()
+        return (((yForRowLookup(y) - 40) / mRenderer!!.mFontLineSpacing) + mTopRow).toInt()
     }
 
     fun getPointX(cx: Int): Int {
@@ -1142,6 +1162,14 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
 
     fun setTopRow(topRow: Int) {
         this.mTopRow = topRow
+        // A programmatic row change (text selection auto-scroll) invalidates the
+        // sub-line position: the offset was measured against the old row and
+        // would now be applied against a different one, shifting the grid.
+        if (mScrollOffsetPx != 0f) {
+            mScrollSettle?.let { removeCallbacks(it); mScrollSettle = null }
+            mScrollOffsetPx = 0f
+            if (!awakenScrollBars()) invalidate()
+        }
     }
 
 
