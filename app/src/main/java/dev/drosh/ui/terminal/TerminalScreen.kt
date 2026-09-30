@@ -98,6 +98,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -1009,6 +1010,9 @@ private fun TerminalViewHost(
     AndroidView(
         modifier = modifier
             .fillMaxSize()
+            // Compose does not clip children to layout bounds the way a
+            // ViewGroup does, and TerminalView draws a full-bleed background.
+            .clipToBounds()
             .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) },
 
         factory = { ctx ->

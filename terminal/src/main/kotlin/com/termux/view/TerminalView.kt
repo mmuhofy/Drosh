@@ -160,6 +160,15 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
      */
     var onScrollPositionChanged: ((Int) -> Unit)? = null
 
+    /**
+     * Bumped every time the screen content changes. Used by the top bar to
+     * resample its backdrop only when there is something new behind it, rather
+     * than on a blind timer — resampling draws the whole terminal a second
+     * time, which is not something to do for no reason.
+     */
+    @Volatile var contentGeneration: Int = 0
+        private set
+
     init {
         mGestureRecognizer = GestureAndScaleRecognizer(context, object : GestureAndScaleRecognizer.Listener {
             var scrolledWithFinger = false
@@ -502,6 +511,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
         mEmulator!!.clearScrollCounter()
 
+        contentGeneration++
         invalidate()
         searchHighlightOverlay?.invalidate()
         onScrollPositionChanged?.invoke(mTopRow)

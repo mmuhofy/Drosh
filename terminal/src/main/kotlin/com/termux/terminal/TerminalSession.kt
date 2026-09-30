@@ -47,7 +47,17 @@ class TerminalSession(
 
     /** A queue written to from a separate thread when the process outputs, and read by main thread to process by terminal emulator. */
     @JvmField
-    internal val mProcessToTerminalIOQueue = ByteQueue(4096)
+    /**
+     * Upstream termux raised this from 4KB to 64KB in ef4775b, citing "serious
+     * lags in large content use cases like scrolling on terminal multiplexers".
+     *
+     * It is the read chunk that sets how often the main thread is interrupted:
+     * one MSG_NEW_INPUT per read, and every one of those calls append() and
+     * requests a redraw. At 4KB a fast download or a `yes` is thousands of main
+     * thread messages a second, and the queue is emptied and refilled that many
+     * times too. 64KB is sixteen times fewer of each, for two numbers changed.
+     */
+    internal val mProcessToTerminalIOQueue = ByteQueue(64 * 1024)
 
     /** A queue written to from the main thread due to user interaction, and read by another thread which forwards by writing to the [mTerminalFileDescriptor]. */
     @JvmField
@@ -278,7 +288,7 @@ class TerminalSession(
     @SuppressLint("HandlerLeak")
     inner class MainThreadHandler : Handler() {
 
-        val mReceiveBuffer = ByteArray(4 * 1024)
+        val mReceiveBuffer = ByteArray(64 * 1024)
 
         override fun handleMessage(msg: Message) {
             val bytesRead = mProcessToTerminalIOQueue.read(mReceiveBuffer, false)

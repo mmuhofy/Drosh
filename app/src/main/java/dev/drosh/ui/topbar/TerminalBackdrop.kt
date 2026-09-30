@@ -58,7 +58,8 @@ fun rememberTerminalBackdrop(
     stripHeight: Dp,
     /** False while the row sits in the band above the terminal — nothing to sample there. */
     active: Boolean,
-    refreshMillis: Long = 100L,
+    /** How often to look for new content. Not how often to capture. */
+    pollMillis: Long = 48L,
 ): State<ImageBitmap?> {
     // Read outside produceState: its block is not a composable context, and
     // Dp.toPx needs one.
@@ -71,9 +72,18 @@ fun rememberTerminalBackdrop(
             value = null
             return@produceState
         }
+        var seen = -1
         while (true) {
-            capture(terminalView, stripPx)?.let { value = it.asImageBitmap() }
-            delay(refreshMillis)
+            // Only resample when the terminal has actually produced something.
+            // A capture redraws the whole view, so running it on a plain timer
+            // spends a second terminal render per interval on output that has
+            // not moved — which is precisely the cost this is meant to avoid.
+            val generation = terminalView.contentGeneration
+            if (generation != seen) {
+                seen = generation
+                capture(terminalView, stripPx)?.let { value = it.asImageBitmap() }
+            }
+            delay(pollMillis)
         }
     }
 }
