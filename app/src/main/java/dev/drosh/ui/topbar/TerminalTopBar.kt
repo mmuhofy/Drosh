@@ -92,6 +92,28 @@ private const val BAR_BOTTOM_OFFSET_DP = 6
  */
 private const val PILL_SURFACE_ALPHA = 0.72f
 
+/**
+ * Where a pill sits inside the sampled terminal strip.
+ *
+ * A plain mutable holder on purpose. This is written during layout and read
+ * during draw, and routing it through Compose state makes layout invalidate
+ * itself: onGloballyPositioned wrote state, which re-ran layout, which called
+ * it again, and the leftmost buttons visibly climbed the screen during a
+ * scroll.
+ */
+private class PillSlice {
+    var pillBounds: Rect? = null
+
+    fun offsetIn(terminal: Rect?): IntOffset {
+        val p = pillBounds ?: return IntOffset.Zero
+        if (terminal == null) return IntOffset.Zero
+        return IntOffset(
+            (p.left - terminal.left).roundToInt(),
+            (p.top - terminal.top).roundToInt(),
+        )
+    }
+}
+
 /** Wider than it is tall, so the ends read as a stadium and not a disc. */
 private const val PILL_WIDTH_DP = 52
 
