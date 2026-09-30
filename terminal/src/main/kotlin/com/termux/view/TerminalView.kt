@@ -91,8 +91,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
     lateinit var mScroller: Scroller
 
-    /** What was left in from scrolling movement. */
-    @JvmField
     /**
      * Sub-line scroll position, in pixels, always within one line spacing.
      *
@@ -108,7 +106,8 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
      */
     @JvmField var mScrollOffsetPx: Float = 0f
 
-    var mScrollRemainder: Float = 0f
+    /** What was left in from scrolling movement. */
+    @JvmField var mScrollRemainder: Float = 0f
 
     @JvmField
     var spaceKeyDown: Boolean = false
