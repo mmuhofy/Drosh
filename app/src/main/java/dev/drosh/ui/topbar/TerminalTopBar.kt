@@ -141,13 +141,11 @@ fun TerminalTopBar(
     /** Where the terminal sits in root space, so a pill can find its slice. */
     terminalBounds: Rect?,
     viewModel: SessionSwitcherViewModel,
-    isFullscreen: Boolean,
     keyboardFocused: Boolean,
     onToggleKeyboard: () -> Unit,
     onOpenSidebar: () -> Unit,
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
-    onToggleFullscreen: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
     modifier: Modifier = Modifier,
@@ -216,9 +214,10 @@ fun TerminalTopBar(
                  val nameShape = RoundedCornerShape(percent = 50)
                  Box(
                      modifier = Modifier
+                         .height(BAR_ROW_HEIGHT)
                          .clip(nameShape)
-                         .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
-                         .padding(horizontal = 16.dp, vertical = 10.dp),
+                         .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA)),
+                     contentAlignment = Alignment.Center,
                  ) {
                     Text(
                         text = activeName ?: "Drosh",
@@ -226,18 +225,21 @@ fun TerminalTopBar(
                         fontFamily = OutfitFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 16.dp),
                     )
-                }
+                 }
             }
-        }
 
-        // ── Right: two pill buttons ────────────────────────────────────────
-        Box(
-            Modifier
-                .wrapContentSize()
-                .align(Alignment.CenterEnd)
-                .padding(horizontal = 12.dp),
-        ) {
+            Spacer(Modifier.weight(1f))
+
+
+            // ── Right: pill buttons ────────────────────────────────────────
+            // Same Row as the left group rather than a sibling Box aligned by
+            // hand. Two separate parents let the clusters settle on different
+            // baselines whenever their content differed in height, which is why
+            // the left and right buttons looked vertically offset.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -275,16 +277,14 @@ fun TerminalTopBar(
                     onClick = { moreExpanded = true },
                 )
             }
-
-            MoreActionsDropdown(
-                expanded = moreExpanded,
-                onDismiss = { moreExpanded = false },
-                isFullscreen = isFullscreen,
-                onFindInOutput = { onFindInOutput(); moreExpanded = false },
-                onRefresh = { onRefresh(); moreExpanded = false },
-                onToggleFullscreen = { onToggleFullscreen(); moreExpanded = false },
-            )
         }
+
+        MoreActionsDropdown(
+            expanded = moreExpanded,
+            onDismiss = { moreExpanded = false },
+            onFindInOutput = { onFindInOutput(); moreExpanded = false },
+            onRefresh = { onRefresh(); moreExpanded = false },
+        )
     }
 }
 
@@ -292,10 +292,8 @@ fun TerminalTopBar(
 private fun MoreActionsDropdown(
     expanded: Boolean,
     onDismiss: () -> Unit,
-    isFullscreen: Boolean,
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
-    onToggleFullscreen: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
@@ -304,10 +302,6 @@ private fun MoreActionsDropdown(
             DroshMenuItem(
                 label = "Refresh terminal",
                 icon = DroshIcons.RotateCw,
-            ),
-            DroshMenuItem(
-                label = if (isFullscreen) "Exit fullscreen" else "Enter fullscreen",
-                icon = if (isFullscreen) DroshIcons.Minimize else DroshIcons.Maximize,
             ),
             DroshMenuItem(
                 label = "Find in output",
@@ -320,7 +314,6 @@ private fun MoreActionsDropdown(
         onItemClick = { item ->
             when (item.label) {
                 "Refresh terminal" -> onRefresh()
-                "Exit fullscreen", "Enter fullscreen" -> onToggleFullscreen()
                 "Find in output" -> onFindInOutput()
             }
         },

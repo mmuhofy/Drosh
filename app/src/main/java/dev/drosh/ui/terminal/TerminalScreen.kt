@@ -56,6 +56,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.LifecycleEventObserver
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.design.system.StatusBarStrip
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
@@ -184,27 +185,23 @@ private fun ReadyScreen(
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onOpenAgent: () -> Unit = {},
 ) {
-    var fullscreen by remember { mutableStateOf(false) }
 
     // Haze is gone. It records Compose's own draw commands, and the terminal is
     // a View inside an AndroidView, so it is not in the display list Haze sees
     // and the blur over the top bar had nothing to sample. The backdrop is
     // taken from the view directly now — see TerminalBackdrop.kt.
+    //
+    // The strip is the only part of the frame that takes the terminal's own
+    // background: the frame itself stays on the app background.
+    val terminalBg by settingsRepository.terminalBgColor
+        .collectAsStateWithLifecycle(initialValue = "#0B0B0F")
+    val terminalBgColor = remember(terminalBg) {
+        runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
+            .getOrDefault(Color.Black)
+    }
     var terminalBounds by remember { mutableStateOf<Rect?>(null) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
 
-    // The status bar band belongs to this frame, not to the terminal, so what
-    // paints this frame is what shows where the system status bar used to be.
-    // With the app background there it read as a black strip above the output.
-    val terminalBg by settingsRepository.terminalBgColor
-        .collectAsStateWithLifecycle(initialValue = "#0B0B0F")
-    // DroshBackground is @Composable, so it has to be read here rather than
-    // inside the remember block, which is not a composable context.
-    val fallbackTerminalBg = DroshBackground
-    val terminalBgColor = remember(terminalBg, fallbackTerminalBg) {
-        runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
-            .getOrDefault(fallbackTerminalBg)
-    }
 
     // ── Immersive status bar ───────────────────────────────────────────────
     // At the live edge the system status bar is hidden and the Drosh bar's
@@ -497,8 +494,11 @@ private fun ReadyScreen(
             bottom = 20.dp * sidebarPush.progress,
         )
         .clip(RoundedCornerShape(20.dp * sidebarPush.progress))
-        .background(terminalBgColor)
+        .background(DroshBackground)
     ) {
+        // Under the frame's own background, so the strip matches the terminal
+        // it sits above without tinting the rest of the frame.
+        StatusBarStrip(color = terminalBgColor)
                 	/*
          * Terminal content fills all available space.
          *
@@ -521,9 +521,9 @@ private fun ReadyScreen(
             val promptDir by blockEngineViewModel.lastDir.collectAsState()
             val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()
 
-            // When a TUI app runs (nano, vim, htop, etc.) it enters the
-            // alternate screen buffer — switch to terminal fullscreen so the
-            // raw terminal view is visible.
+            // A TUI (nano, vim, htop) takes over the alternate screen buffer,
+            // so the raw terminal view has to be shown rather than the block
+            // list — the shell is not producing line output to block up.
             if (altBufferActive) {
                 TerminalViewHost(
                     terminalManager = terminalManager,
@@ -537,15 +537,7 @@ private fun ReadyScreen(
                     searchOverlayRef = searchOverlayRef,
                     modifier = Modifier.fillMaxSize(),
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp),
-                    contentAlignment = Alignment.TopStart,
-                ) {
-                    CompactFullscreenExit { fullscreen = false }
-                }
-             } else {
+            } else {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -646,21 +638,9 @@ private fun ReadyScreen(
             )
         }
 
-        if (fullscreen) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp),
-                        contentAlignment = Alignment.TopStart,
-                    ) {
-                        CompactFullscreenExit {
-                            fullscreen = false
-                    }
-                }
-            }
         }
 
-        if (!fullscreen && !inputBarState.hardwareKeyboardPresent) {
+        if (!inputBarState.hardwareKeyboardPresent) {
             FlatKeyBar(
                 ctrlStuck = inputBarState.ctrlStuck,
                 altStuck = inputBarState.altStuck,
@@ -671,8 +651,7 @@ private fun ReadyScreen(
     }
 
         // Top bar overlay — floats on terminal, takes no layout space.
-        if (!fullscreen) {
-            TerminalTopBar(
+        TerminalTopBar(
                 immersive = immersive,
                 // Both the status bar and the row's position follow the
                 // setting. Scrolling no longer moves anything: when fullscreen
@@ -682,8 +661,7 @@ private fun ReadyScreen(
                 backdrop = backdrop,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
-                isFullscreen = fullscreen,
-                keyboardFocused = keyboardFocused,
+                            keyboardFocused = keyboardFocused,
                 onToggleKeyboard = ::toggleKeyboard,
                 onOpenSidebar = {
                     hideKeyboard()
@@ -699,13 +677,9 @@ private fun ReadyScreen(
                 onRefresh = {
                     terminalManager.restartCurrentTab()
                 },
-                onToggleFullscreen = {
-                    fullscreen = true
-                },
                 onOpenSettings = onOpenSettings,
                 onOpenAgent = onOpenAgent,
-            )
-        }
+        )
 
         // Slider overlay trigger — BackHandler kalıyor, SessionSidebar
         // çağrısı bu transformlu Box'ın DIŞINA taşındı (aşağıda), çünkü bu
@@ -873,34 +847,6 @@ private fun ReadyScreen(
     }
 }
 
-@Composable
-private fun CompactFullscreenExit(
-    onExitFullscreen: () -> Unit,
-) {
-    androidx.compose.material3.Surface(
-        color = dev.drosh.design.system.DroshSurface.copy(
-            alpha = 0.85f,
-        ),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-    ) {
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier
-                .padding(
-                    horizontal = 12.dp,
-                    vertical = 6.dp,
-                )
-                .clickable(
-                    onClick = onExitFullscreen,
-                ),
-        ) {
-            Text(
-                text = "Tap to exit fullscreen",
-                color = dev.drosh.design.system.DroshTextSecondary,
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-    }
-}
 
 @Composable
 private fun SetupProgress(

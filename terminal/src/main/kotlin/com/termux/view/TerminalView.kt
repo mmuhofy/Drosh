@@ -627,12 +627,19 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         while (offset <= -spacing) {
             if (topRow < 0) { topRow++; offset += spacing } else { offset = 0f; break }
         }
-        // At the live edge there is nothing older to reveal and at the far end
-        // nothing newer, so the remainder is parked rather than piling up
-        // against a wall. A positive offset at the live edge in particular
-        // would need a row above row 0, which does not exist.
-        if (topRow == 0 && offset > 0f) offset = 0f
-        if (topRow == minTopRow && offset < 0f) offset = 0f
+        // Hard stop at the ends. The offset is only meaningful in the
+        // direction that has content: positive means the grid has been pulled
+        // down to show older rows, which needs topRow < 0; negative means
+        // pushed up towards the live edge, which needs topRow > minTopRow.
+        //
+        // Clamping directionally rather than only at whole-line crossings is
+        // what removes the jitter at the limits. Before, a partial drag past
+        // the edge accumulated an offset that the renderer then applied —
+        // the content moved 10px with nothing to scroll — and the next event
+        // reset it to zero, so it juddered and needed another 10px of reverse
+        // movement to settle. At a limit the viewport must not move at all.
+        if (topRow == 0) offset = offset.coerceAtMost(0f)
+        if (topRow == minTopRow) offset = offset.coerceAtLeast(0f)
 
         if (topRow != mTopRow || offset != mScrollOffsetPx) {
             mTopRow = topRow

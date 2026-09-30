@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import dev.drosh.design.system.StatusBarStrip
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -197,6 +198,10 @@ private fun SidebarContent(
         searchQuery = ""
     }
 
+
+    // The drawer is an overlay, so without this the strip shows the terminal
+    // underneath it rather than the drawer's own background.
+    StatusBarStrip(color = DroshSurface)
 
     Column(
         modifier = Modifier
