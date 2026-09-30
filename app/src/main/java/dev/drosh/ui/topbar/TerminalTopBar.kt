@@ -39,7 +39,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Shape
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.hazeBlur
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshPrimary
@@ -73,38 +78,46 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  * Public API değişmedi: TerminalTopBar(...) imzası aynı.
  */
 private const val BAR_ROW_HEIGHT_DP = 40
-private const val BAR_TOP_OFFSET_DP = 8
+private const val BAR_TOP_OFFSET_DP = 60
 private const val BAR_BOTTOM_OFFSET_DP = 6
 private const val PILL_SURFACE_ALPHA = 0.72f
 private val PILL_HAIRLINE = Color.White.copy(alpha = 0.08f)
+private val PILL_BLUR_RADIUS = 8.dp
+
+/**
+ * A pill: real backdrop blur, a tint over it, then a hairline.
+ *
+ * The blur samples [hazeState] rather than the composable's own content. That
+ * is the whole reason this cannot be `Modifier.blur()` — a RenderEffect blurs
+ * the layer it is attached to and has no access to anything behind it. The
+ * content behind a pill is a TerminalView inside an AndroidView, so there is
+ * nothing to re-draw; it has to be captured.
+ *
+ * Order matters and matches the prototype's CSS: `backdrop-filter` first, then
+ * the translucent background on top, then the border. Tinting before blurring
+ * would blur the tint along with the content and wash the pill out.
+ *
+ * On API < 31 Haze draws a translucent scrim in place of the blur — minSdk is
+ * 26, so older devices get the flat look and newer ones get the real effect.
+ */
+@Composable
+private fun Modifier.pillGlass(
+    hazeState: HazeState,
+    shape: Shape,
+    style: HazeBlurStyle,
+): Modifier = this
+    .hazeBlur(input = HazeInput.Sources(hazeState), style = style)
+    .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
+    .border(1.dp, PILL_HAIRLINE, shape)
 
 /** The bar is a position, not a surface. Nothing is drawn behind the buttons. */
 private val BAR_ROW_HEIGHT = BAR_ROW_HEIGHT_DP.dp
 private val BAR_TOP_OFFSET = BAR_TOP_OFFSET_DP.dp
 private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 
-/**
- * The band the top bar reserves above the terminal's first row.
- *
- * The bar is an overlay and takes no layout height, so the terminal has to be
- * told about the band explicitly — otherwise the opening line of output renders
- * underneath the buttons and the first thing you see is half-covered text. That
- * gap is the whole point of the spacing in the HTML prototype.
- *
- * Fullscreen has no bar, so it falls back to the status bar alone.
- */
-@Composable
-internal fun topBarInset(barVisible: Boolean): Dp {
-    val statusBarH = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    return if (barVisible) {
-        statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET
-    } else {
-        statusBarH
-    }
-}
-
 @Composable
 fun TerminalTopBar(
+    hazeState: HazeState,
     viewModel: SessionSwitcherViewModel,
     isFullscreen: Boolean,
     keyboardFocused: Boolean,
@@ -120,6 +133,11 @@ fun TerminalTopBar(
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
 
     val statusBarH = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    // Built once. HazeBlurStyle is immutable and shared by every pill, so
+    // rebuilding it on each recomposition would hand the effect a new style
+    // object every frame for no benefit.
+    val blurStyle = remember { HazeBlurStyle { blurRadius(PILL_BLUR_RADIUS) } }
 
     // The bar reserves a band of height and draws nothing in it. The buttons
     // sit a little below the status bar and a little above the first terminal
@@ -147,6 +165,8 @@ fun TerminalTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 GlassPillButton(
+                    hazeState = hazeState,
+                    blurStyle = blurStyle,
                     icon = DroshIcons.PanelLeft,
                     contentDescription = "Open sessions",
                     onClick = onOpenSidebar,
@@ -155,8 +175,7 @@ fun TerminalTopBar(
                  Box(
                      modifier = Modifier
                          .clip(RoundedCornerShape(percent = 50))
-                         .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
-                         .border(1.dp, PILL_HAIRLINE, RoundedCornerShape(percent = 50))
+                         .pillGlass(hazeState, RoundedCornerShape(percent = 50), blurStyle)
                          .padding(horizontal = 16.dp, vertical = 10.dp),
                  ) {
                     Text(
@@ -182,6 +201,8 @@ fun TerminalTopBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 GlassPillButton(
+                    hazeState = hazeState,
+                    blurStyle = blurStyle,
                     drawableRes = R.drawable.ic_agent_mark,
                     contentDescription = "AI Agent",
                     // Sized on the same 24dp grid as the lucide glyphs next to
@@ -195,12 +216,16 @@ fun TerminalTopBar(
                 )
 
                 GlassPillButton(
+                    hazeState = hazeState,
+                    blurStyle = blurStyle,
                     icon = if (keyboardFocused) DroshIcons.KeyboardOff else DroshIcons.Keyboard,
                     contentDescription = if (keyboardFocused) "Hide keyboard" else "Show keyboard",
                     onClick = onToggleKeyboard,
                 )
 
                 GlassPillButton(
+                    hazeState = hazeState,
+                    blurStyle = blurStyle,
                     icon = DroshIcons.EllipsisVertical,
                     contentDescription = "More actions",
                     onClick = { moreExpanded = true },
@@ -268,14 +293,16 @@ private fun MoreActionsDropdown(
  */
 @Composable
 private fun GlassPillButton(
+    hazeState: HazeState,
     drawableRes: Int? = null,
     icon: ImageVector? = null,
     contentDescription: String,
     onClick: () -> Unit,
     size: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
+    blurStyle: HazeBlurStyle = remember { HazeBlurStyle { blurRadius(PILL_BLUR_RADIUS) } },
 ) {
-    GlassPillBody(contentDescription, onClick, size, iconSize) { tint ->
+    GlassPillBody(contentDescription, onClick, size, iconSize, hazeState, blurStyle) { tint ->
         when {
             drawableRes != null -> Icon(
                 painter = painterResource(drawableRes),
@@ -300,6 +327,8 @@ private fun GlassPillBody(
     onClick: () -> Unit,
     size: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
+    hazeState: HazeState? = null,
+    blurStyle: HazeBlurStyle? = null,
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
     var pressed by remember { mutableStateOf(false) }
@@ -316,8 +345,13 @@ private fun GlassPillBody(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
-            .border(1.dp, PILL_HAIRLINE, CircleShape)
+            .then(
+                if (hazeState != null && blurStyle != null) {
+                    Modifier.pillGlass(hazeState, CircleShape, blurStyle)
+                } else {
+                    Modifier
+                }
+            )
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {

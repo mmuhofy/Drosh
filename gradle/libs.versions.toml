@@ -66,6 +66,9 @@ lottie = "6.6.0"
 
 # Icons
 lucide-ardasoyturk = "2.0.7"
+# Haze: background blur that samples what is behind a composable.
+# 2.0 is the first stable line with the modular haze/haze-blur split.
+haze = "2.0.1"
 
 # Device model codename -> marketing name. Offline, Apache-2.0.
 # Pinned to 1.0.0: 1.0.10 requires compiling against SDK 37, this project is on 36.
@@ -164,6 +167,9 @@ lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", versio
 
 # Icons
 lucide-compose = { group = "io.github.ardasoyturk.compose.icons", name = "lucide-android", version.ref = "lucide-ardasoyturk" }
+# Keep every Haze artifact on one version — they are built together.
+haze-core = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
+haze-blur = { group = "dev.chrisbanes.haze", name = "haze-blur", version.ref = "haze" }
 
 # Device identity
 device-marketing-names = { group = "de.boehrsi", name = "devicemarketingnames", version.ref = "device-marketing-names" }
