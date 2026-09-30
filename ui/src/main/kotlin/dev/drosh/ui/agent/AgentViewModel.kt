@@ -32,6 +32,16 @@ class AgentViewModel @Inject constructor(
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private val history = mutableListOf<LlmStep>()
+
+    // Built once. This was constructed inside fetchModels(), so every tap on
+    // the model dropdown allocated a fresh Dispatcher, ConnectionPool and
+    // thread pool and then dropped them with their idle sockets still open.
+    private val modelsClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
     private var currentProvider: ProviderConfig? = null
     private var workMode: WorkMode = WorkMode.AUTO
     private var bashOutputBuilders = mutableMapOf<String, StringBuilder>()
@@ -89,35 +99,34 @@ class AgentViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .build()
                 val request = Request.Builder()
                     .url(modelsUrl)
                     .build()
-                val response = client.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    val modelIds = try {
-                        val obj = JSONObject(body ?: "{}")
-                        val data = obj.getJSONArray("data")
-                        (0 until data.length()).mapNotNull { i ->
-                            data.getJSONObject(i).optString("id", null)
+                // use {} was missing here: the response was read but never
+                // closed, so the connection stayed checked out of the pool.
+                modelsClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string()
+                        val modelIds = try {
+                            val obj = JSONObject(body ?: "{}")
+                            val data = obj.getJSONArray("data")
+                            (0 until data.length()).mapNotNull { i ->
+                                data.getJSONObject(i).optString("id", null)
+                            }
+                        } catch (e: Exception) {
+                            addError("Failed to parse models: ${e.message}")
+                            emptyList()
                         }
-                    } catch (e: Exception) {
-                        addError("Failed to parse models: ${e.message}")
-                        emptyList()
+                        _uiState.value = _uiState.value.copy(
+                            availableModels = modelIds,
+                            isFetchingModels = false
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            isFetchingModels = false,
+                            errorMessage = "Failed to fetch models: HTTP ${response.code}"
+                        )
                     }
-                    _uiState.value = _uiState.value.copy(
-                        availableModels = modelIds,
-                        isFetchingModels = false
-                    )
-                } else {
-                    _uiState.value = _uiState.value.copy(
-                        isFetchingModels = false,
-                        errorMessage = "Failed to fetch models: HTTP ${response.code}"
-                    )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

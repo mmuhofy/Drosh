@@ -312,13 +312,31 @@ class UbuntuBootstrap(private val context: Context) {
 
     // ─── Download ──────────────────────────────────────────────────
 
+    // One client for the class, not one per download. Building a client
+    // allocates a Dispatcher, a ConnectionPool and a thread pool, and a
+    // throwaway one gets garbage collected with its idle sockets still open.
+    // Downloads are rare and large; a per-download client was pure overhead.
+    private val downloadClient: okhttp3.OkHttpClient by lazy {
+        okhttp3.OkHttpClient.Builder().followRedirects(true).build()
+    }
+
+    /**
+     * Streams the rootfs tarball.
+     *
+     * The [okhttp3.Response] is deliberately not closed here: the returned
+     * stream is the body, and closing the response would close it. The caller
+     * wraps this in `use { }`, which is what actually releases the connection.
+     */
     private fun downloadRootfs(): InputStream {
         val arch = android.os.Build.SUPPORTED_ABIS[0]
         val rootfsArch = ROOTFS_ARCH_MAP[arch] ?: "arm64"
         val url = "https://cdimage.ubuntu.com/ubuntu-base/releases/$UBUNTU_VERSION/release/ubuntu-base-$UBUNTU_VERSION-base-$rootfsArch.tar.gz"
         val request = okhttp3.Request.Builder().url(url).addHeader("User-Agent", "IrisCode/1.0").build()
-        val response = okhttp3.OkHttpClient.Builder().followRedirects(true).build().newCall(request).execute()
-        if (!response.isSuccessful) throw RuntimeException("Download failed: ${response.code} for $url")
+        val response = downloadClient.newCall(request).execute()
+        if (!response.isSuccessful) {
+            response.close()
+            throw RuntimeException("Download failed: ${response.code} for $url")
+        }
         return response.body!!.byteStream()
     }
 

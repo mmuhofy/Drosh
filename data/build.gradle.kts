@@ -50,8 +50,8 @@ dependencies {
         exclude(group = "androidx.appcompat")
         exclude(group = "com.google.android.material")
     }
-    implementation(libs.okhttp.sse)
-    implementation(libs.okhttp.logging)
+    // Removed: okhttp-sse, unused — the only SSE code in the project is
+    // OpenAiSseAdapter in :agent. This module has none.
 
     // coroutines
     implementation(libs.kotlinx.coroutines.android)

@@ -27,7 +27,8 @@ dependencies {
     implementation(libs.androidx.biometric)
 
     // networking bounce path (not used directly — SSHJ handles transports)
-    implementation(libs.okhttp)
+    // OkHttp removed: SSHJ's own POM depends on BouncyCastle only, so this
+    // was never on the classpath of anything in this module.
 
     // coroutines
     implementation(libs.kotlinx.coroutines.android)

@@ -25,7 +25,6 @@ dependencies {
     // networking — for web_search tool (Tavily) and direct LLM streaming
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
-    implementation(libs.okhttp.logging)
 
     // serialization for tool args (JSON object schema — AGENT.md §234)
     implementation(libs.kotlinx.serialization.json)
