@@ -77,7 +77,7 @@ class TerminalRenderer(
         val buffer = mEmulator.getScreen()
         val minRow = -buffer.activeTranscriptRows
         if (firstRow < minRow) firstRow = minRow
-        if (endRow > mEmulator.mScreenRows) endRow = mEmulator.mScreenRows
+        if (endRow > buffer.mScreenRows) endRow = buffer.mScreenRows
         if (endRow < firstRow) endRow = firstRow
         val columns = mEmulator.mColumns
         val cursorCol = mEmulator.getCursorCol()
