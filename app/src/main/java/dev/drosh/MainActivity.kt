@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var extraKeyState: ExtraKeyState
     @Inject lateinit var pinLock: PinLockRepository
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
+    @Inject lateinit var settingsRepository: SettingsRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -237,6 +238,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     TerminalScreen(
                         terminalManager = terminalManager,
+                        settingsRepository = settingsRepository,
                         ubuntuSetupState = UbuntuSetupState.Ready,
                         onRetry = { triggerBootstrap.retry() },
                         onOpenSettings = { navController.navigate("settings") },
@@ -251,6 +253,7 @@ class MainActivity : ComponentActivity() {
                 val context = LocalDroshActivity.current
                 TerminalScreen(
                     terminalManager = terminalManager,
+                    settingsRepository = settingsRepository,
                     ubuntuSetupState = UbuntuSetupState.Ready,
                     onRetry = { triggerBootstrap.retry() },
                     onOpenSettings = { navController.navigate("settings") },

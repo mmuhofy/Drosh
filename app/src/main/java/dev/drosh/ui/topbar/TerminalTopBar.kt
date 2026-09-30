@@ -6,6 +6,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -130,6 +133,7 @@ private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 @Composable
 fun TerminalTopBar(
     hazeState: HazeState,
+    immersive: Boolean,
     viewModel: SessionSwitcherViewModel,
     isFullscreen: Boolean,
     keyboardFocused: Boolean,
@@ -151,6 +155,15 @@ fun TerminalTopBar(
     // no reason.
     val hazeStyle = remember { HazeStyle.Unspecified.copy(blurRadius = PILL_BLUR_RADIUS) }
 
+    // Immersive: the system status bar is hidden at the live edge, so the row
+    // moves up into the band it left rather than being covered by it. Nothing
+    // is drawn over the band — the row simply goes there.
+    val rowOffset by animateDpAsState(
+        targetValue = if (immersive) -statusBarH else 0.dp,
+        animationSpec = tween(durationMillis = 280),
+        label = "immersiveRowOffset",
+    )
+
 
     // The bar reserves a band of height and draws nothing in it. The buttons
     // sit a little below the status bar and a little above the first terminal
@@ -168,6 +181,7 @@ fun TerminalTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .offset(y = rowOffset)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start,

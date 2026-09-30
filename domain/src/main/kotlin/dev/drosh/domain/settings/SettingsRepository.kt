@@ -24,6 +24,15 @@ interface SettingsRepository {
 
     suspend fun setThemeMode(mode: ThemeMode)
 
+    /**
+     * Immersive top bar. On, the system status bar hides at the live edge and
+     * the Drosh bar's buttons take over that band; scrolling back into the
+     * scrollback brings the status bar back. See docs/IMMERSIVE-STATUSBAR.md.
+     */
+    val autoHideStatusBar: Flow<Boolean>
+
+    suspend fun setAutoHideStatusBar(enabled: Boolean)
+
     val useBlockEngine: Flow<Boolean>
 
     /** Persists the Block Mode flag. */

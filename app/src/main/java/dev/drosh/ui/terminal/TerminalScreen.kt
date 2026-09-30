@@ -44,7 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
+import dev.drosh.ui.LocalDroshActivity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
@@ -83,6 +83,11 @@ import dev.drosh.ui.terminal.SystemInfo
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.TerminalTopBar
+import dev.drosh.ui.LocalDroshActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import dev.drosh.domain.settings.SettingsRepository
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import com.termux.view.TerminalView
@@ -103,6 +108,7 @@ private const val PROGRAM_PROMPT_MARKER = "›"
 @Composable
 fun TerminalScreen(
     terminalManager: TerminalManager,
+    settingsRepository: SettingsRepository,
     ubuntuSetupState: UbuntuSetupState,
     onRetry: () -> Unit,
     onOpenSettings: () -> Unit = {},
@@ -140,6 +146,7 @@ fun TerminalScreen(
             ReadyScreen(
                 terminalManager = terminalManager,
                 terminalViewModel = terminalViewModel,
+                settingsRepository = settingsRepository,
                 onOpenSettings = onOpenSettings,
                 extraKeyState = extraKeyState,
                 onExit = onExit,
@@ -161,6 +168,7 @@ fun TerminalScreen(
 private fun ReadyScreen(
     terminalManager: TerminalManager,
     terminalViewModel: TerminalViewModel,
+    settingsRepository: SettingsRepository,
     onOpenSettings: () -> Unit,
     onExit: () -> Unit,
     sessionSwitcherViewModel: SessionSwitcherViewModel = hiltViewModel(),
@@ -175,6 +183,35 @@ private fun ReadyScreen(
     // the terminal output behind them.
     val hazeState = rememberHazeState()
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
+
+    // ── Immersive status bar ───────────────────────────────────────────────
+    // At the live edge the system status bar is hidden and the Drosh bar's
+    // pills move up into the band it leaves. Scrolling back into the scrollback
+    // puts it back, because that is when the row of controls is actually
+    // wanted. Nothing is drawn over the band: the pills simply move.
+    //
+    // The dead zone matters. mTopRow is an integer that changes one row at a
+    // time, and the bar translates on the first row of scrollback, so without
+    // one the bar would strobe while the user reads the last few lines.
+    val scrollTopRow by terminalManager.scrollTopRow.collectAsStateWithLifecycle()
+    val immersiveSetting by settingsRepository.autoHideStatusBar
+        .collectAsStateWithLifecycle(initialValue = true)
+    val immersive = immersiveSetting && (scrollTopRow == 0 || altBufferActive)
+
+    val activity = LocalDroshActivity.current
+    LaunchedEffect(immersive) {
+        val window = (activity as? android.app.Activity)?.window ?: return@LaunchedEffect
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        // BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE: a swipe from the top edge can
+        // still summon the bars, so the user is never trapped out of them.
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (immersive) {
+            controller.hide(WindowInsetsCompat.Type.statusBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.statusBars())
+        }
+    }
     var sidebarOpen by remember { mutableStateOf(false) }
     val sidebarPush = rememberSidebarPushState(sidebarOpen)
     var browserUrl by remember { mutableStateOf<String?>(null) }
@@ -600,6 +637,7 @@ private fun ReadyScreen(
         if (!fullscreen) {
             TerminalTopBar(
                 hazeState = hazeState,
+                immersive = immersive,
                 viewModel = sessionSwitcherViewModel,
                 isFullscreen = fullscreen,
                 keyboardFocused = keyboardFocused,

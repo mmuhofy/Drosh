@@ -134,6 +134,18 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
     var searchHighlightOverlay: SearchHighlightOverlay? = null
 
+    /**
+     * Notified whenever [mTopRow] changes, with the new value. 0 means the live
+     * edge — the prompt. Negative means the viewport has been scrolled back
+     * into the transcript.
+     *
+     * Drosh-added, following the same shape as [searchHighlightOverlay] above:
+     * a field the app sets and the view calls into. Do not read the value on a
+     * timer instead — onTextChanged only fires when the PTY produces output, so
+     * a user scrolling an idle shell would never be observed.
+     */
+    var onScrollPositionChanged: ((Int) -> Unit)? = null
+
     init {
         mGestureRecognizer = GestureAndScaleRecognizer(context, object : GestureAndScaleRecognizer.Listener {
             var scrolledWithFinger = false
@@ -465,6 +477,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
         invalidate()
         searchHighlightOverlay?.invalidate()
+        onScrollPositionChanged?.invoke(mTopRow)
         if (mAccessibilityEnabled) contentDescription = text
     }
 
@@ -566,6 +579,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             } else {
                 mTopRow = Math.min(0, Math.max(-mEmulator!!.getScreen().activeTranscriptRows, mTopRow + if (up) -1 else 1))
                 if (!awakenScrollBars()) invalidate()
+                onScrollPositionChanged?.invoke(mTopRow)
             }
         }
     }

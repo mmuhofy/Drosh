@@ -141,6 +141,20 @@ class TerminalManager(
 
     private var terminalViewRef: TerminalView? = null
 
+    private val _scrollTopRow = MutableStateFlow(0)
+
+    /**
+     * The terminal's first visible transcript row. 0 is the live edge, where
+     * the prompt is; negative means the viewport has been scrolled back into
+     * the scrollback.
+     *
+     * Fed by [TerminalView.onScrollPositionChanged], which fires on touch,
+     * fling, wheel and keyboard scrolling, and again when new output snaps the
+     * viewport back to the live edge. The UI uses it to collapse the top bar
+     * while the user is reading history.
+     */
+    val scrollTopRow: StateFlow<Int> = _scrollTopRow.asStateFlow()
+
     private val prootRunner: ProotRunner by lazy {
         ProotRunner(ubuntuBootstrap, application.applicationInfo.nativeLibraryDir)
     }
@@ -226,9 +240,17 @@ class TerminalManager(
         terminalViewRef = view
         sessionClient.clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         sessionClient.terminalView = view
+        // Report the current position immediately: a session restored straight
+        // into the middle of its scrollback would otherwise start with a stale
+        // zero and only correct itself on the next scroll.
+        _scrollTopRow.value = view.mTopRow
+        view.onScrollPositionChanged = { topRow -> _scrollTopRow.value = topRow }
     }
 
     fun unregisterTerminalView() {
+        // Drop the callback before the reference, or the view keeps a strong
+        // reference to this manager after the screen is gone.
+        terminalViewRef?.onScrollPositionChanged = null
         terminalViewRef = null
     }
 
