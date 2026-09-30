@@ -254,7 +254,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                             // row delta to pixels lets it carry a sub-line
                             // remainder like everything else.
                             val spacing = mRenderer?.mFontLineSpacing ?: return
-                            scrollByPixels(e2, (newY - mTopRow) * spacing)
+                            scrollByPixels(e2, ((newY - mTopRow) * spacing).toFloat())
                         }
                         mLastY = newY
                         if (more) post(this)
