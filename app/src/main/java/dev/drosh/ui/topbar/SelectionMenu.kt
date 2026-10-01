@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import com.termux.view.TerminalView
+import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
@@ -144,15 +145,15 @@ fun SelectionMenuSurface(
                     image = backdrop,
                     srcOffset = IntOffset.Zero,
                     srcSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                    dstSize = size,
+                    dstOffset = IntOffset.Zero,
+                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
                 )
             }
         }
         content()
     }
 }
-private const val MENU_SHAPE_RADIUS = 16.dp
-private val MenuShape = RoundedCornerShape(MENU_SHAPE_RADIUS)
+private val MenuShape = RoundedCornerShape(16.dp)
 
 /**
  * The menu row itself.
@@ -208,12 +209,12 @@ private fun MenuAction(
             .clickable(indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Column(icon = icon, label = label)
+        MenuLabel(icon = icon, label = label)
     }
 }
 
 @Composable
-private fun Column(
+private fun MenuLabel(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
 ) {
