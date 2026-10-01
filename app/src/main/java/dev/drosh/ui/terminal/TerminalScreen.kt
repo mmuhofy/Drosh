@@ -99,7 +99,6 @@ import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.SelectionMenuSurface
 import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
-import androidx.compose.ui.unit.roundToPx
 import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
