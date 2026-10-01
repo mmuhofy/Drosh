@@ -68,16 +68,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     private var mTextSelectionCursorController: TextSelectionCursorController? = null
 
     /**
-     * Notified with the selection's bounds in this view's own coordinates, or
-     * null when there is no selection.
-     *
-     * Exists because the selection menu is drawn by Compose now rather than by
-     * a platform ActionMode, and ActionMode's own positioning hook only exists
-     * while an ActionMode is alive.
-     */
-    var onSelectionChanged: ((Rect?) -> Unit)? = null
-
-    /**
      * The selected region in view pixels, or null if nothing is selected.
      *
      * Rows are resolved through the same [TextSelectionCursorController.getPointY]
@@ -92,8 +82,8 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         val r = mRenderer ?: return null
         val left = minOf(c.selX1, c.selX2) * r.mFontWidth
         val right = maxOf(c.selX1, c.selX2) * r.mFontWidth
-        val top = c.getPointY(y1).toFloat()
-        val bottom = c.getPointY(y2 + 1).toFloat()
+        val top = getPointY(y1).toFloat()
+        val bottom = getPointY(y2 + 1).toFloat()
         if (right <= left || bottom <= top) return null
         return Rect(left.roundToInt(), top.roundToInt(), right.roundToInt(), bottom.roundToInt())
     }
@@ -128,12 +118,11 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         val c = mTextSelectionCursorController ?: return
         c.usePlatformActionMode = enabled
         c.onChanged = if (enabled) null else listener
-        onSelectionChanged = if (enabled) null else { notifySelectionChanged() }
     }
 
-    /** Re-publishes the selection geometry; for when the menu first appears. */
+    /** Re-publishes the selection once, for when the menu first appears. */
     fun notifySelectionChanged() {
-        onSelectionChanged?.invoke(if (isSelectingText()) selectionBounds() else null)
+        mTextSelectionCursorController?.onChanged?.invoke()
     }
 
     private var mTerminalCursorBlinkerHandler: Handler? = null
