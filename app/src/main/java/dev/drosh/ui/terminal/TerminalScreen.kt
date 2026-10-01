@@ -372,10 +372,10 @@ private fun ReadyScreen(
         mutableStateOf<TerminalView?>(null)
     }
 
-    // Text selection menu. The platform ActionMode is switched off in the
-    // controller and this draws it instead, so it can use the app's own
-    // surface and a real blur of the output behind it.
-    LaunchedEffect(Unit) { terminalManager.bindSelectionMenu() }
+    // Text selection menu. The platform ActionMode is switched off when the
+    // view registers — see TerminalManager.bindSelectionMenu — and this draws
+    // the replacement, so it can use the app's own surface and a real blur of
+    // the output behind it.
     val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
     val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
     val context = LocalContext.current

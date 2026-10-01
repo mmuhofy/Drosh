@@ -108,10 +108,30 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     }
 
     /** Points the selection menu at whoever is drawing it. */
+    private var selectionMenuListener: (() -> Unit)? = null
+    private var usePlatformSelectionMenu = true
+
+    /**
+     * Points the selection menu at whoever is drawing it.
+     *
+     * The settings are held here as well as pushed to the controller, because
+     * the controller is built lazily on first use — long after the view is
+     * registered — so an install that only touched the controller found nothing
+     * to touch and the platform ActionMode stayed on.
+     */
     fun installSelectionMenu(enabled: Boolean, listener: (() -> Unit)?) {
-        val c = mTextSelectionCursorController ?: return
-        c.usePlatformActionMode = enabled
-        c.onChanged = if (enabled) null else listener
+        usePlatformSelectionMenu = enabled
+        selectionMenuListener = if (enabled) null else listener
+        mTextSelectionCursorController?.apply {
+            usePlatformActionMode = enabled
+            onChanged = if (enabled) null else listener
+        }
+    }
+
+    /** Applies a pending menu install to a controller that has just been built. */
+    private fun applySelectionMenuTo(controller: TextSelectionCursorController) {
+        controller.usePlatformActionMode = usePlatformSelectionMenu
+        controller.onChanged = selectionMenuListener
     }
 
     /** Re-publishes the selection once, for when the menu first appears. */
@@ -1515,6 +1535,7 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
     fun getTextSelectionCursorController(): TextSelectionCursorController {
         if (mTextSelectionCursorController == null) {
             mTextSelectionCursorController = TextSelectionCursorController(this)
+            applySelectionMenuTo(mTextSelectionCursorController!!)
 
             val observer = viewTreeObserver
             observer?.addOnTouchModeChangeListener(mTextSelectionCursorController)

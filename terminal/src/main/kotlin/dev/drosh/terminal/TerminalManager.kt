@@ -257,9 +257,16 @@ class TerminalManager(
     private val _hasSelection = MutableStateFlow(false)
     val hasSelection: StateFlow<Boolean> = _hasSelection.asStateFlow()
 
-    /** Routes the selection controller's changes out to Compose. */
-    fun bindSelectionMenu() {
-        val view = terminalViewRef ?: return
+    /**
+     * Routes the selection controller's changes out to Compose.
+     *
+     * Called from registerTerminalView rather than from a composable effect:
+     * a LaunchedEffect on first composition runs before the AndroidView factory
+     * has registered the view, so it returned early and the platform
+     * ActionMode stayed on. Binding it where the view is actually attached
+     * cannot miss.
+     */
+    private fun bindSelectionMenu(view: TerminalView) {
         view.installSelectionMenu(enabled = false) {
             val bounds = view.selectionBounds()
             _selectionBounds.value = bounds
@@ -281,6 +288,7 @@ class TerminalManager(
             val atEdge = topRow == 0
             if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
         }
+        bindSelectionMenu(view)
     }
 
     fun unregisterTerminalView() {
