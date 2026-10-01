@@ -7,6 +7,7 @@ import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -206,7 +207,11 @@ private fun MenuAction(
         modifier = Modifier
             .size(46.dp)
             .clip(RoundedCornerShape(11.dp))
-            .clickable(indication = null, onClick = onClick),
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         MenuLabel(icon = icon, label = label)
