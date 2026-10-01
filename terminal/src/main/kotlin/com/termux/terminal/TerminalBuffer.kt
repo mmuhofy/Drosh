@@ -580,25 +580,23 @@ class TerminalBuffer(
  * Whether a code point separates words for selection purposes.
  *
  * Selection used to expand across anything that was not a space, which on a
- * TUI screen means a run of box-drawing characters is one enormous "word" —
- * tapping near a border selected eleven glyphs of frame. The frame is drawing,
+ * TUI screen means a run of box-drawing characters becomes one enormous word:
+ * tapping near a border selected eleven glyphs of frame. A frame is drawing,
  * not text.
  *
- * The ranges cover what full-screen programs actually draw with:
- *   U+2500..U+257F  box drawing
- *   U+2580..U+259F  block elements
- *   U+25A0..U+25FF  geometric shapes
- *   U+E0B0..U+E0BF  powerline separators, private use area
+ * The ranges cover what full-screen programs actually draw with. Written as
+ * escapes on purpose: spelled as literals these are invisible in a diff and
+ * two of them are indistinguishable from an ordinary space.
  *
  * Punctuation is deliberately *not* a separator, so `ls -la` stays two words
  * and `http://a.b/c` stays one. Making punctuation a boundary reads tidier but
- * breaks selecting paths and URLs, which is what you mostly select in a shell.
+ * breaks selecting the paths and URLs you actually want in a shell.
  */
 internal fun isSelectionSeparator(cp: Char): Boolean = when (cp) {
-    ' ', '\t', ' ' -> true
-    in '─'..'╿' -> true
-    in '▀'..'▟' -> true
-    in '■'..'◿' -> true
-    in ''..'' -> true
+    ' ', '\t', '\u000B', '\u000C', '\u00A0' -> true
+    in '\u2500'..'\u257F' -> true   // box drawing
+    in '\u2580'..'\u259F' -> true   // block elements
+    in '\u25A0'..'\u25FF' -> true   // geometric shapes
+    in '\uE0B0'..'\uE0BF' -> true   // powerline separators
     else -> false
 }

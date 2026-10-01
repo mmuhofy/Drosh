@@ -11,6 +11,7 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 
+import com.termux.terminal.TerminalBuffer
 import com.termux.terminal.isSelectionSeparator
 import com.termux.terminal.WcWidth
 import dev.drosh.terminal.R
