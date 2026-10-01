@@ -113,8 +113,9 @@ import androidx.compose.ui.platform.LocalContext
 private const val PROGRAM_PROMPT_MARKER = "›"
 
 /** Clearance for the system bar, without insetting the background behind it. */
-private val statusBarInset: Dp
-    @Composable get() = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+@Composable
+private fun statusBarInset(): Dp =
+    WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
 /** How much of the terminal's top edge the top bar backdrop samples. */
 private val BACKDROP_STRIP = 72.dp
