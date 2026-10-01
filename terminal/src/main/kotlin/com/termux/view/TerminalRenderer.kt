@@ -166,7 +166,7 @@ class TerminalRenderer(
                         drawTextRun(
                             canvas, line, palette, heightOffset, lastRunStartColumn, columnWidthSinceLastRun,
                             lastRunStartIndex, charsSinceLastRun, measuredWidthForRun,
-                            cursorColor, cursorShape, lastRunStyle, reverseVideo || invertCursorTextColor || lastRunInsideSelection
+                            cursorColor, cursorShape, lastRunStyle, reverseVideo || invertCursorTextColor, lastRunInsideSelection
                         )
                     }
                     measuredWidthForRun = 0f
@@ -196,7 +196,7 @@ class TerminalRenderer(
             }
             drawTextRun(
                 canvas, line, palette, heightOffset, lastRunStartColumn, columnWidthSinceLastRun, lastRunStartIndex, charsSinceLastRun,
-                measuredWidthForRun, cursorColor, cursorShape, lastRunStyle, reverseVideo || invertCursorTextColor || lastRunInsideSelection
+                measuredWidthForRun, cursorColor, cursorShape, lastRunStyle, reverseVideo || invertCursorTextColor, lastRunInsideSelection
             )
         }
     }
@@ -205,7 +205,15 @@ class TerminalRenderer(
     private fun drawTextRun(
         canvas: Canvas, text: CharArray, palette: IntArray, y: Float, startColumn: Int, runWidthColumns: Int,
         startCharIndex: Int, runWidthChars: Int, mes: Float, cursor: Int, cursorStyle: Int,
-        textStyle: Long, reverseVideo: Boolean
+        textStyle: Long, reverseVideo: Boolean,
+        /**
+         * True when the run is inside the text selection. Kept separate from
+         * reverseVideo because the two invert for different reasons: reverse
+         * video should swap fore and back, selection should paint its own pair.
+         * Folding them into one boolean is why a selection on a dark scheme
+         * looked like whatever the inverse video happened to resolve to.
+         */
+        selection: Boolean = false,
     ) {
         var foreColor = TextStyle.decodeForeColor(textStyle)
         val effect = TextStyle.decodeEffect(textStyle)
@@ -229,9 +237,14 @@ class TerminalRenderer(
         // Reverse video here if _one and only one_ of the reverse flags are set:
         val reverseVideoHere = reverseVideo xor ((effect and TextStyle.CHARACTER_ATTRIBUTE_INVERSE) != 0)
         if (reverseVideoHere) {
-            val tmp = foreColor
-            foreColor = backColor
-            backColor = tmp
+            if (selection) {
+                foreColor = palette[TextStyle.COLOR_INDEX_SELECTION_FOREGROUND]
+                backColor = palette[TextStyle.COLOR_INDEX_SELECTION_BACKGROUND]
+            } else {
+                val tmp = foreColor
+                foreColor = backColor
+                backColor = tmp
+            }
         }
 
         var left = startColumn * mFontWidth

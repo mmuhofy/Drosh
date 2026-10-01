@@ -36,8 +36,16 @@ object TextStyle {
     const val COLOR_INDEX_BACKGROUND = 257
     const val COLOR_INDEX_CURSOR = 258
 
-    /** The 256 standard color entries and the three special (foreground, background and cursor) ones. */
-    const val NUM_INDEXED_COLORS = 259
+    /**
+     * Selection is drawn by swapping fore and back, so today it inherits
+     * whatever the terminal happens to be using and can end up unreadable.
+     * These two give it its own pair.
+     */
+    const val COLOR_INDEX_SELECTION_BACKGROUND = 259
+    const val COLOR_INDEX_SELECTION_FOREGROUND = 260
+
+    /** The 256 standard colour entries plus the five special ones. */
+    const val NUM_INDEXED_COLORS = 261
 
     /** Normal foreground and background colors and no effects. */
     @JvmField

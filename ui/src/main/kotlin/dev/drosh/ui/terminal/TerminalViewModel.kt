@@ -57,7 +57,16 @@ class TerminalViewModel @Inject constructor(
     val appInfo: StateFlow<AboutInfo?> = settingsRepository.appInfo
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    /** Experimental: live color-scheme props pushed into the terminal view. */
+    /**
+     * Terminal colours, including a pair reserved for the text selection.
+     *
+     * Selection used to be drawn by swapping fore and back, so it had no colour
+     * of its own and inherited whatever the scheme happened to resolve to.
+     * TerminalColorScheme reads these as separate keys.
+     *
+     * The terminal module cannot see the design system, so these travel the same
+     * channel background and foreground already use rather than a new one.
+     */
     val colorProps: StateFlow<Properties> = combine(
         settingsRepository.terminalBgColor,
         settingsRepository.terminalTextColor,
@@ -67,6 +76,13 @@ class TerminalViewModel @Inject constructor(
             setProperty("background", bg)
             setProperty("foreground", fg)
             setProperty("color6", accent)
+            // TerminalColors.parse drops the alpha channel, so a translucent
+            // colour cannot travel this channel — an 8-digit hex reads as an
+            // invalid colour and update() throws. The tint is therefore mixed
+            // here, which also means it follows whatever background the user
+            // picked instead of assuming the default.
+            setProperty("selectionBackground", mixOver(accent, bg, 0.38f))
+            setProperty("selectionForeground", SELECTION_FOREGROUND)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, Properties())
 
@@ -124,4 +140,31 @@ class TerminalViewModel @Inject constructor(
         const val MAX_FONT_SP: Int = 32
         const val DEFAULT_FONT_SP: Int = 14
     }
+}
+
+/** Near-black, so selected text keeps its contrast on the tinted accent. */
+private const val SELECTION_FOREGROUND = "#101014"
+
+/**
+ * Mixes [fg2] over [bg2] by [amount], returning an opaque #RRGGBB.
+ *
+ * The terminal's colour channel is opaque-only, so a translucent selection
+ * tint has to arrive pre-mixed. Returns the background unchanged if either
+ * colour is unparseable rather than throwing mid-composition.
+ */
+private fun mixOver(fg2: String, bg2: String, amount: Float): String {
+    val a = parseHex(fg2) ?: return bg2
+    val b = parseHex(bg2) ?: return fg2
+    fun mix(shift: Int): Int {
+        val hi = (a shr shift) and 0xFF
+        val lo = (b shr shift) and 0xFF
+        return (hi * amount + lo * (1f - amount)).toInt().coerceIn(0, 255)
+    }
+    return "#%02X%02X%02X".format(mix(16), mix(8), mix(0))
+}
+
+private fun parseHex(value: String): Int? {
+    val hex = value.removePrefix("#")
+    if (hex.length != 6) return null
+    return hex.toIntOrNull(16)
 }

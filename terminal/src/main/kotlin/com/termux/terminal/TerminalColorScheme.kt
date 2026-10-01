@@ -36,6 +36,10 @@ class TerminalColorScheme {
                     colorIndex = TextStyle.COLOR_INDEX_CURSOR
                     cursorPropExists = true
                 }
+                keyStr == "selectionBackground" ->
+                    colorIndex = TextStyle.COLOR_INDEX_SELECTION_BACKGROUND
+                keyStr == "selectionForeground" ->
+                    colorIndex = TextStyle.COLOR_INDEX_SELECTION_FOREGROUND
                 keyStr.startsWith("color") -> {
                     colorIndex = try {
                         keyStr.substring(5).toInt()
@@ -144,8 +148,12 @@ class TerminalColorScheme {
             0xff808080.toInt(), 0xff8a8a8a.toInt(), 0xff949494.toInt(), 0xff9e9e9e.toInt(), 0xffa8a8a8.toInt(), 0xffb2b2b2.toInt(),
             0xffbcbcbc.toInt(), 0xffc6c6c6.toInt(), 0xffd0d0d0.toInt(), 0xffdadada.toInt(), 0xffe4e4e4.toInt(), 0xffeeeeee.toInt(),
 
-            // COLOR_INDEX_DEFAULT_FOREGROUND, COLOR_INDEX_DEFAULT_BACKGROUND and COLOR_INDEX_DEFAULT_CURSOR:
-            0xffffffff.toInt(), 0xff000000.toInt(), 0xffffffff.toInt()
+            // foreground, background, cursor, selectionBackground, selectionForeground:
+            // The selection pair defaults to the app accent rather than a plain
+            // swap, so a selection on a dark scheme reads as a highlight instead
+            // of looking like the inverse video happened to be.
+            0xffffffff.toInt(), 0xff000000.toInt(), 0xffffffff.toInt(),
+            0x66e8c547.toInt(), 0xff101014.toInt()
         )
     }
 }
