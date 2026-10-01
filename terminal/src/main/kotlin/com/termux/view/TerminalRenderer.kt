@@ -34,12 +34,14 @@ class TerminalRenderer(
     /** The [Paint.ascent]. See http://www.fampennings.nl/maarten/android/08numgrid/font.png */
     private val mFontAscent: Int
 
-    /** Selection corner radius as a fraction of a line, so it scales with font size. */
-    private const val SELECTION_CORNER_FRACTION = 0.34f
-
     /** The [mFontLineSpacing] + [mFontAscent]. */
     @JvmField
     val mFontLineSpacingAndAscent: Int
+
+    private companion object {
+        /** Selection corner radius as a fraction of a line, so it scales with font size. */
+        const val SELECTION_CORNER_FRACTION = 0.34f
+    }
 
     private val asciiMeasures = FloatArray(127)
 
@@ -128,7 +130,7 @@ class TerminalRenderer(
             for (row in selFirstRow..selLastRow) {
                 val left = (if (row == selFirstRow) selectionX1 else 0) * cell
                 val right = (if (row == selLastRow) selectionX2 else mEmulator.mColumns) * cell
-                val top = baseOffset + (row - firstRow + 1) * mFontLineSpacing
+                val top = (baseOffset + (row - firstRow + 1) * mFontLineSpacing).toFloat()
                 selPath.addSelectionRow(
                     left, top, right, top + mFontLineSpacing,
                     topLeft = if (row == selFirstRow) radius else 0f,
