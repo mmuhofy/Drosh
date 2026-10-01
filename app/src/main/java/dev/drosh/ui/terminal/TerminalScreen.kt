@@ -524,6 +524,30 @@ private fun ReadyScreen(
         }
     }
 
+    /**
+     * Opens the keyboard when the screen appears.
+     *
+     * Since the window no longer opens it on focus, something has to, and the
+     * terminal is a typing surface first — arriving to a dead keyboard is the
+     * wrong default. Tapping no longer opens it, and the toolbar button
+     * toggles it.
+     *
+     * Waits for the view rather than firing blind: on first composition the
+     * AndroidView factory has not attached it yet, and showKeyboard bails out
+     * silently if the view has no size.
+     */
+    LaunchedEffect(Unit) {
+        repeat(30) {
+            val view = terminalViewRef.value
+            if (view != null && view.isAttachedToWindow && view.width > 0) {
+                showKeyboard()
+                return@LaunchedEffect
+            }
+            delay(60)
+        }
+        Log.w("TerminalScreen", "Terminal view never became ready; keyboard not opened")
+    }
+
     // Terminal content is always fully visible.
     val appearScale = 1f
     val appearAlpha = 1f

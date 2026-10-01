@@ -86,6 +86,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // The terminal reports itself as a text editor, so Android opened the
+        // keyboard every time the view took focus — and the terminal takes focus
+        // on every tap. ALWAYS_HIDDEN stops focus from implying the keyboard;
+        // an explicit showSoftInput still works, which is how the toolbar
+        // button and entering the screen drive it. adjustResize is kept so
+        // imePadding() keeps shrinking the terminal when the keyboard is up.
+        window.setSoftInputMode(
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN,
+        )
+
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
