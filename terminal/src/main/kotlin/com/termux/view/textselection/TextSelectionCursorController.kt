@@ -96,7 +96,7 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
         fun isSeparatorAt(x: Int): Boolean {
             if (x < 0 || x >= terminalView.mEmulator!!.mColumns) return true
             val cell = screen.getSelectedText(x, mSelY1, x, mSelY1)
-            return cell.isEmpty() || cell[0].isSelectionSeparator()
+            return cell.isEmpty() || isSelectionSeparator(cell[0])
         }
 
         if (!isSeparatorAt(mSelX2)) {

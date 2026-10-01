@@ -120,8 +120,8 @@ class TerminalBuffer(
                 // Trim frame characters and padding from both edges. What is
                 // left in the middle is untouched, so a TUI's own column
                 // layout survives the copy.
-                while (from <= to && (line[from].isSelectionSeparator() || line[from] == ' ')) from++
-                while (to >= from && (line[to].isSelectionSeparator() || line[to] == ' ')) to--
+                while (from <= to && isSelectionSeparator(line[from])) from++
+                while (to >= from && isSelectionSeparator(line[to])) to--
             }
 
             val len = to - from + 1
