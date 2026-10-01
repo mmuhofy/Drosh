@@ -80,19 +80,28 @@ fun SelectionMenuBackdrop(
         value = null
         return@produceState
     }
+    // Clamped to the view: sampling past its edge yields empty pixels, which the
+    // blur then smears into the menu.
     val src = AndroidRect(
-        bounds.left + MENU_MENU_DROP_PX,
-        bounds.top + MENU_MENU_DROP_PX,
-        bounds.left + MENU_MENU_DROP_PX + sizePx.width,
-        bounds.top + MENU_MENU_DROP_PX + sizePx.height,
-    )
+        bounds.left,
+        bounds.top,
+        bounds.left + sizePx.width,
+        bounds.top + sizePx.height,
+    ).also {
+        it.left = it.left.coerceAtLeast(0)
+        it.top = it.top.coerceAtLeast(0)
+        it.right = it.right.coerceAtMost(terminalView.width)
+        it.bottom = it.bottom.coerceAtMost(terminalView.height)
+    }
+    if (src.width() <= 0 || src.height() <= 0) {
+        value = null
+        return@produceState
+    }
     while (true) {
         value = sampleRegion(terminalView, src, sizePx)
         delay(captureMillis)
     }
 }
-
-private const val MENU_MENU_DROP_PX = 0
 
 private fun sampleRegion(view: View, src: AndroidRect, size: IntSize): ImageBitmap? {
     if (view.width <= 0 || view.height <= 0) return null
@@ -127,21 +136,16 @@ fun SelectionMenuSurface(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .then(
-                if (backdrop != null) {
-                    Modifier.blur(radius = blurRadius).clip(shape)
-                } else {
-                    Modifier
-                }
-            )
-            .background(DroshSurfaceHigh.copy(alpha = 0.55f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), shape),
-    ) {
+    Box(modifier = modifier.clip(shape)) {
+        // The blur belongs to the backdrop alone. Applied to the Box it would
+        // blur every child, including the labels, which is the opposite of what
+        // glass is for — the surface goes soft, the text stays crisp.
         if (backdrop != null) {
-            androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+            androidx.compose.foundation.Canvas(
+                Modifier
+                    .matchParentSize()
+                    .blur(radius = blurRadius)
+            ) {
                 drawImage(
                     image = backdrop,
                     srcOffset = IntOffset.Zero,
@@ -151,10 +155,34 @@ fun SelectionMenuSurface(
                 )
             }
         }
+        // A light tint so the labels hold contrast against whatever is behind
+        // them; without it, text on a blurred light patch disappears.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(DroshSurfaceHigh.copy(alpha = 0.42f))
+        )
         content()
     }
 }
 private val MenuShape = RoundedCornerShape(16.dp)
+
+/** Width of one action cell, including the gaps around it. */
+private const val MENU_ACTION_DP = 46
+private const val MENU_ACTION_GAP_DP = 2
+private const val MENU_EDGE_DP = 6
+
+/**
+ * The width the menu will occupy for a given number of actions.
+ *
+ * Measuring the menu and then sampling that measured size is circular: until
+ * it has been measured there is no backdrop, and once it shrinks from five
+ * actions to three the previous width is sampled. Deriving it from the action
+ * count means the first frame already asks for the right region.
+ */
+fun menuWidthFor(actionCount: Int): Dp =
+    (actionCount * MENU_ACTION_DP + (actionCount - 1).coerceAtLeast(0) * MENU_ACTION_GAP_DP +
+        MENU_EDGE_DP * 2).dp
 
 /**
  * The menu row itself.

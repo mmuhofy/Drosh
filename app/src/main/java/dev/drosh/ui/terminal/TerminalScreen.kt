@@ -98,6 +98,8 @@ import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.SelectionMenuSurface
 import dev.drosh.ui.topbar.SelectionMenuBackdrop
+import dev.drosh.ui.topbar.menuWidthFor
+import androidx.compose.ui.unit.roundToPx
 import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
@@ -137,6 +139,8 @@ private val MENU_MIN_WIDTH = 210.dp
 
 /** Light blur, not an Apple-style frosted slab. */
 private val MENU_BLUR = 10.dp
+
+private val MENU_HEIGHT_PX = 64.dp
 
 /** How much of the terminal's top edge the top bar backdrop samples. */
 private val BACKDROP_STRIP = 72.dp
@@ -708,16 +712,22 @@ private fun ReadyScreen(
         selectionBounds?.let { bounds ->
             val density = LocalDensity.current
             val screenDp = LocalConfiguration.current.screenWidthDp
-            var menuSize by remember { mutableStateOf(IntSize.Zero) }
+            // Derived from how many actions are actually showing, so the first
+            // frame samples the right region instead of waiting to be measured.
+            val actionCount = 2 + (if (hasClipboardText) 1 else 0) + (if (selectionUrl != null) 1 else 0)
+            val densityPx = with(density) { menuWidthFor(actionCount).roundToPx() }
+            val menuHeightPx = with(density) { MENU_HEIGHT_PX.roundToPx() }
+            var measured by remember { mutableStateOf(IntSize.Zero) }
             val backdrop by SelectionMenuBackdrop(
                 terminalView = terminalViewRef.value,
                 bounds = bounds,
-                sizePx = menuSize,
+                sizePx = if (measured.width > 0) measured else IntSize(densityPx, menuHeightPx),
             )
             val inset = statusBarInset()
+            val menuWidth = with(density) { menuWidthFor(actionCount) }
             val anchorX = with(density) {
                 (bounds.left.toDp() - MENU_GUTTER)
-                    .coerceIn(MENU_GUTTER, (screenDp.dp - MENU_MIN_WIDTH).coerceAtLeast(MENU_GUTTER))
+                    .coerceIn(MENU_GUTTER, (screenDp.dp - menuWidth).coerceAtLeast(MENU_GUTTER))
             }
             val belowSelection = with(density) { bounds.bottom.toDp() } + MENU_GAP + inset
 
@@ -740,7 +750,7 @@ private fun ReadyScreen(
                 onShare = { selectionText?.let { context.shareText(it) } },
                 modifier = Modifier
                     .offset(x = anchorX, y = belowSelection)
-                    .onSizeChanged { menuSize = it },
+                    .onSizeChanged { measured = it },
             )
         }
 

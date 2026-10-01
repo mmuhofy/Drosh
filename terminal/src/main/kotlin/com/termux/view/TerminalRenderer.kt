@@ -239,7 +239,12 @@ class TerminalRenderer(
 
         // Reverse video here if _one and only one_ of the reverse flags are set:
         val reverseVideoHere = reverseVideo xor ((effect and TextStyle.CHARACTER_ATTRIBUTE_INVERSE) != 0)
-        if (reverseVideoHere) {
+        // A selected run has to reach this branch on its own account. Selection
+        // no longer comes through reverseVideo — it carries its own colour pair —
+        // so gating on reverseVideoHere alone meant a selected cell with no
+        // inverse attribute was painted as ordinary text and the highlight was
+        // invisible.
+        if (reverseVideoHere || selection) {
             if (selection) {
                 foreColor = palette[TextStyle.COLOR_INDEX_SELECTION_FOREGROUND]
                 backColor = palette[TextStyle.COLOR_INDEX_SELECTION_BACKGROUND]
