@@ -142,7 +142,7 @@ class TerminalRenderer(
         // is defined to be, which is identically zero, so a partial draw stacked
         // its rows at the top of the screen and left the rest unpainted.
         val baseOffset = if (partial) mFontAscent else mFontLineSpacingAndAscent
-        var heightOffset = baseOffset + (damageStart - firstRow) * mFontLineSpacing
+        var heightOffset = (baseOffset + (damageStart - firstRow) * mFontLineSpacing).toFloat()
         for (row in damageStart until damageEnd) {
             heightOffset += mFontLineSpacing
 
