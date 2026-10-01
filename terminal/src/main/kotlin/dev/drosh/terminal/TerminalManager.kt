@@ -268,6 +268,11 @@ class TerminalManager(
      */
     private fun bindSelectionMenu(view: TerminalView) {
         view.installSelectionMenu(enabled = false) {
+            // The highlight is painted inside TerminalView.onDraw, so the view
+            // has to be invalidated for a selection change to be visible. The
+            // handles reposition themselves, which is why select-all appeared
+            // to do nothing: nothing moved the pixel content.
+            view.invalidate()
             val bounds = view.selectionBounds()
             _selectionBounds.value = bounds
             _hasSelection.value = bounds != null

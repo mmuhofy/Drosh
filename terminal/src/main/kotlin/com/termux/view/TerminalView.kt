@@ -639,8 +639,21 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         invalidate()
     }
 
+    /**
+     * Whether taking focus should raise the keyboard.
+     *
+     * Android opens the keyboard when the served view that gains focus reports
+     * itself as a text editor. The terminal always did, and it also takes focus
+     * on every touch down, so a tap anywhere raised the keyboard.
+     *
+     * This is what the toolbar button and entering the screen turn on, and what
+     * a touch turns off. It gates focus only; an explicit showSoftInput still
+     * works while it is false, which is what makes the button authoritative.
+     */
+    private var raiseKeyboardOnFocus = true
+
     override fun onCheckIsTextEditor(): Boolean {
-        return true
+        return raiseKeyboardOnFocus
     }
 
     override fun isOpaque(): Boolean {
@@ -914,6 +927,9 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         val action = event.action
 
         if (action == MotionEvent.ACTION_DOWN) {
+            // Focus still matters — the hardware keyboard needs it — but the
+            // soft one must not come up just because a finger landed.
+            raiseKeyboardOnFocus = false
             requestFocusFromTouch()
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -1661,6 +1677,7 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
 
     fun showKeyboard() {
         try {
+            raiseKeyboardOnFocus = true
             requestFocusFromTouch()
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -1671,6 +1688,7 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
 
     fun hideKeyboard() {
         try {
+            raiseKeyboardOnFocus = false
             if (!isAttachedToWindow) {
                 Log.w("TerminalView", "View is not attached to window, cannot hide keyboard")
                 return
