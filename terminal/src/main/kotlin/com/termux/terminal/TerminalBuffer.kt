@@ -67,7 +67,13 @@ class TerminalBuffer(
         selX2: Int,
         selY2: Int,
         joinBackLines: Boolean,
-        joinFullLines: Boolean
+        joinFullLines: Boolean,
+        /**
+         * True when the screen belongs to a full-screen program. Frame lines are
+         * stripped in that case: a TUI's borders are drawing, not text, and
+         * copying them gives you `|| CPU 12% ||` instead of the content.
+         */
+        stripFrame: Boolean = false,
     ): String {
         val builder = StringBuilder()
         val columns = mColumns
@@ -108,12 +114,24 @@ class TerminalBuffer(
                 }
             }
 
-            val len = lastPrintingCharIndex - x1Index + 1
-            if (lastPrintingCharIndex != -1 && len > 0)
-                builder.append(line, x1Index, len)
+            var from = x1Index
+            var to = lastPrintingCharIndex
+            if (stripFrame && to >= from) {
+                // Trim frame characters and padding from both edges. What is
+                // left in the middle is untouched, so a TUI's own column
+                // layout survives the copy.
+                while (from <= to && (line[from].isSelectionSeparator() || line[from] == ' ')) from++
+                while (to >= from && (line[to].isSelectionSeparator() || line[to] == ' ')) to--
+            }
+
+            val len = to - from + 1
+            val isBlankFrame = stripFrame && len <= 0
+            if (len > 0)
+                builder.append(line, from, len)
 
             val lineFillsWidth = lastPrintingCharIndex == finalX2Index - 1
-            if ((!joinBackLines || !rowLineWrap) && (!joinFullLines || !lineFillsWidth)
+            if (!isBlankFrame &&
+                (!joinBackLines || !rowLineWrap) && (!joinFullLines || !lineFillsWidth)
                 && row < y2 && row < mScreenRows - 1
             ) builder.append('\n')
         }
@@ -556,4 +574,31 @@ class TerminalBuffer(
         }
         mActiveTranscriptRows = 0
     }
+}
+
+/**
+ * Whether a code point separates words for selection purposes.
+ *
+ * Selection used to expand across anything that was not a space, which on a
+ * TUI screen means a run of box-drawing characters is one enormous "word" —
+ * tapping near a border selected eleven glyphs of frame. The frame is drawing,
+ * not text.
+ *
+ * The ranges cover what full-screen programs actually draw with:
+ *   U+2500..U+257F  box drawing
+ *   U+2580..U+259F  block elements
+ *   U+25A0..U+25FF  geometric shapes
+ *   U+E0B0..U+E0BF  powerline separators, private use area
+ *
+ * Punctuation is deliberately *not* a separator, so `ls -la` stays two words
+ * and `http://a.b/c` stays one. Making punctuation a boundary reads tidier but
+ * breaks selecting paths and URLs, which is what you mostly select in a shell.
+ */
+internal fun isSelectionSeparator(cp: Char): Boolean = when (cp) {
+    ' ', '\t', ' ' -> true
+    in '─'..'╿' -> true
+    in '▀'..'▟' -> true
+    in '■'..'◿' -> true
+    in ''..'' -> true
+    else -> false
 }

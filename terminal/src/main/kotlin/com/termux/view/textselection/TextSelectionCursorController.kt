@@ -11,7 +11,7 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 
-import com.termux.terminal.TerminalBuffer
+import com.termux.terminal.isSelectionSeparator
 import com.termux.terminal.WcWidth
 import dev.drosh.terminal.R
 import com.termux.view.TerminalView
@@ -86,14 +86,21 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
         mSelY1 = mSelY2
 
         val screen = terminalView.mEmulator!!.getScreen()
-        if (" " != screen.getSelectedText(mSelX1, mSelY1, mSelX1, mSelY1)) {
-            // Selecting something other than whitespace. Expand to word.
-            while (mSelX1 > 0 && "" != screen.getSelectedText(mSelX1 - 1, mSelY1, mSelX1 - 1, mSelY1)) {
-                mSelX1--
-            }
-            while (mSelX2 < terminalView.mEmulator!!.mColumns - 1 && "" != screen.getSelectedText(mSelX2 + 1, mSelY1, mSelX2 + 1, mSelY1)) {
-                mSelX2++
-            }
+
+        // Expand to the word around the touch. The boundary test is
+        // isSelectionSeparator, not "is not a space": a TUI draws its frames
+        // with box and block characters, none of which is a space, so the old
+        // test made a whole border one word and a tap near it selected the
+        // frame instead of the label inside it.
+        fun isSeparatorAt(x: Int): Boolean {
+            if (x < 0 || x >= terminalView.mEmulator!!.mColumns) return true
+            val cell = screen.getSelectedText(x, mSelY1, x, mSelY1)
+            return cell.isEmpty() || cell[0].isSelectionSeparator()
+        }
+
+        if (!isSeparatorAt(mSelX2)) {
+            while (mSelX1 > 0 && !isSeparatorAt(mSelX1 - 1)) mSelX1--
+            while (mSelX2 < terminalView.mEmulator!!.mColumns - 1 && !isSeparatorAt(mSelX2 + 1)) mSelX2++
         }
     }
 
@@ -215,21 +222,17 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
             }
 
             if (!terminalView.mEmulator!!.isAlternateBufferActive()) {
-                var topRow = terminalView.getTopRow()
-
-                if (mSelY1 <= topRow) {
-                    topRow--
-                    if (topRow < -scrollRows) {
-                        topRow = -scrollRows
-                    }
-                } else if (mSelY1 >= topRow + terminalView.mEmulator!!.mRows) {
-                    topRow++
-                    if (topRow > 0) {
-                        topRow = 0
-                    }
+                val topRow = terminalView.getTopRow()
+                val wanted = when {
+                    mSelY1 <= topRow -> maxOf(topRow - 1, -scrollRows)
+                    mSelY1 >= topRow + terminalView.mEmulator!!.mRows -> minOf(topRow + 1, 0)
+                    else -> topRow
                 }
-
-                terminalView.setTopRow(topRow)
+                // Only when it actually has to move. setTopRow discards the
+                // sub-line scroll offset, so calling it on every drag event
+                // meant simply grabbing a handle snapped the grid onto a whole
+                // row. Dragging inside the viewport must not touch it.
+                if (wanted != topRow) terminalView.setTopRow(wanted)
             }
 
             mSelX1 = getValidCurX(screen, mSelY1, mSelX1)
@@ -254,21 +257,13 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
             }
 
             if (!terminalView.mEmulator!!.isAlternateBufferActive()) {
-                var topRow = terminalView.getTopRow()
-
-                if (mSelY2 <= topRow) {
-                    topRow--
-                    if (topRow < -scrollRows) {
-                        topRow = -scrollRows
-                    }
-                } else if (mSelY2 >= topRow + terminalView.mEmulator!!.mRows) {
-                    topRow++
-                    if (topRow > 0) {
-                        topRow = 0
-                    }
+                val topRow = terminalView.getTopRow()
+                val wanted = when {
+                    mSelY2 <= topRow -> maxOf(topRow - 1, -scrollRows)
+                    mSelY2 >= topRow + terminalView.mEmulator!!.mRows -> minOf(topRow + 1, 0)
+                    else -> topRow
                 }
-
-                terminalView.setTopRow(topRow)
+                if (wanted != topRow) terminalView.setTopRow(wanted)
             }
 
             mSelX2 = getValidCurX(screen, mSelY2, mSelX2)

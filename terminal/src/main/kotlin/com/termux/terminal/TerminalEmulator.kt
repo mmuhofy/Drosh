@@ -1788,7 +1788,9 @@ class TerminalEmulator(
     }
 
     fun getSelectedText(x1: Int, y1: Int, x2: Int, y2: Int): String {
-        return mScreen.getSelectedText(x1, y1, x2, y2)
+        // A full-screen program is drawing its own layout, so its frame lines
+        // are part of the picture rather than part of the text.
+        return mScreen.getSelectedText(x1, y1, x2, y2, stripFrame = isAlternateBufferActive())
     }
 
     /** Get the terminal session's title (null if not set). */

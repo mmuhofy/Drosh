@@ -487,7 +487,12 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             if (-mTopRow + rowShift > rowsInHistory) {
                 // .. unless we're hitting the end of history transcript, in which
                 // case we abort text selection and scroll to end.
-                if (isSelectingText)
+                //
+                // Not on the alternate buffer. A TUI has no transcript at all,
+                // so rowsInHistory is 0 and *any* line feed it emits reads as
+                // having run off the end — which killed the selection the moment
+                // you scrolled in vim. There is nothing to run off into.
+                if (isSelectingText && !mEmulator!!.isAlternateBufferActive())
                     stopTextSelectionMode()
 
                 if (mEmulator!!.isAutoScrollDisabled()) {
@@ -1169,8 +1174,19 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         return (x / mRenderer!!.mFontWidth).toInt()
     }
 
+    /**
+     * The row under a touch y.
+     *
+     * This is the same formula getColumnAndRow uses, deliberately: the two used
+     * different constants, so the row chosen when a long press started a
+     * selection was not the row the first drag event then landed on. The old
+     * value here was a hardcoded 40 standing in for
+     * mFontLineSpacingAndAscent, which is 4 at the default 14sp — roughly two
+     * rows out at every font size, and different again for every other size.
+     */
     fun getCursorY(y: Float): Int {
-        return (((yForRowLookup(y) - 40) / mRenderer!!.mFontLineSpacing) + mTopRow).toInt()
+        val r = mRenderer ?: return 0
+        return (((yForRowLookup(y) - r.mFontLineSpacingAndAscent) / r.mFontLineSpacing) + mTopRow).toInt()
     }
 
     fun getPointX(cx: Int): Int {
@@ -1178,8 +1194,21 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         return (col * mRenderer!!.mFontWidth).toInt()
     }
 
+    /**
+     * Inverse of [getCursorY], for placing the selection handles.
+     *
+     * Only the offset term is new. While a sub-line scroll is live the grid is
+     * drawn shifted by mScrollOffsetPx and one line higher, because a partial
+     * offset draws an extra row above the viewport; without adding both back the
+     * handles were drawn over text that was not selected. The remaining origin
+     * quirk — getPointY returning the row top rather than its baseline, which
+     * TextSelectionHandleView compensates for by passing cy + 1 — is upstream
+     * behaviour and left alone.
+     */
     fun getPointY(cy: Int): Int {
-        return (cy - mTopRow) * mRenderer!!.mFontLineSpacing
+        val r = mRenderer ?: return 0
+        val shift = if (mScrollOffsetPx != 0f) (r.mFontLineSpacing + mScrollOffsetPx).toInt() else 0
+        return (cy - mTopRow) * r.mFontLineSpacing + shift
     }
 
     fun getTopRow(): Int {
