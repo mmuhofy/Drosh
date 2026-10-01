@@ -71,8 +71,11 @@ fun rememberTerminalBackdrop(
     // effect block is not one.
     val stripPx = with(LocalDensity.current) { stripHeight.toPx() }
     val backdrop = remember { mutableStateOf<ImageBitmap?>(null) }
+    // Read in the composable body: LaunchedEffect's block is not a composable
+    // context, so LocalLifecycleOwner cannot be read inside it.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
 
-    LaunchedEffect(terminalView, stripPx, active) {
+    LaunchedEffect(terminalView, stripPx, active, lifecycle) {
         if (terminalView == null || !active) {
             backdrop.value = null
             return@LaunchedEffect
@@ -82,7 +85,6 @@ fun rememberTerminalBackdrop(
         // app is main-thread work for a window nobody is looking at — and on
         // resume that backlog is exactly when the app is least able to absorb
         // it.
-        val lifecycle = LocalLifecycleOwner.current.lifecycle
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var seen = -1
             while (true) {
