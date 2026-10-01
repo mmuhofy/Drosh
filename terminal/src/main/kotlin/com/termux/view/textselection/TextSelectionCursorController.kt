@@ -31,6 +31,27 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
     private var mSelY1 = -1
     private var mSelY2 = -1
 
+    // Exposed so the view can report where the selection is for a menu that is
+    // not a platform ActionMode.
+    val selX1: Int get() = mSelX1
+    val selX2: Int get() = mSelX2
+    val selY1: Int get() = mSelY1
+    val selY2: Int get() = mSelY2
+
+    /** Fires whenever the selection moves or changes size. */
+    var onChanged: (() -> Unit)? = null
+
+    /** Selects a whole rectangle of the visible grid. */
+    fun selectAll(x1: Int, y1: Int, x2: Int, y2: Int) {
+        if (!isActive()) return
+        mSelX1 = x1
+        mSelY1 = y1
+        mSelX2 = x2
+        mSelY2 = y2
+        render()
+        onChanged?.invoke()
+    }
+
     private var mActionMode: ActionMode? = null
     val ACTION_COPY = 1
     val ACTION_PASTE = 2
@@ -44,6 +65,7 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
         setActionModeCallBacks()
         mShowStartTime = System.currentTimeMillis()
         mIsSelectingText = true
+        onChanged?.invoke()
     }
 
     override fun hide(): Boolean {
@@ -66,6 +88,7 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
         mSelY1 = mSelX2
         mSelX1 = mSelY1
         mIsSelectingText = false
+        onChanged?.invoke()
 
         return true
     }
@@ -77,6 +100,7 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
         mEndHandle.positionAtCursor(mSelX2 + 1, mSelY2, false)
 
         mActionMode?.invalidate()
+        onChanged?.invoke()
     }
 
     fun setInitialTextSelectionPosition(event: MotionEvent) {
@@ -105,7 +129,20 @@ class TextSelectionCursorController(private val terminalView: TerminalView) : Cu
         }
     }
 
+    /**
+     * False when the app supplies its own selection menu.
+     *
+     * A platform ActionMode draws Android's own floating toolbar, which cannot
+     * carry the app's design system or a blur, and its positioning is only
+     * reachable while the mode is alive.
+     */
+    var usePlatformActionMode: Boolean = true
+
     fun setActionModeCallBacks() {
+        if (!usePlatformActionMode) {
+            mActionMode = null
+            return
+        }
         val callback = object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
                 val show = MenuItem.SHOW_AS_ACTION_IF_ROOM or MenuItem.SHOW_AS_ACTION_WITH_TEXT

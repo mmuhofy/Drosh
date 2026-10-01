@@ -5,6 +5,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathData
 import androidx.compose.ui.unit.dp
+import compose.icons.lucideicons.ClipboardPaste
+import compose.icons.lucideicons.ExternalLink
 import compose.icons.lucideicons.ChevronRight
 import compose.icons.lucideicons.Sun
 import compose.icons.lucideicons.Moon
@@ -83,6 +85,8 @@ object DroshIcons {
     val Cursor: ImageVector get() = CursorVector
     val ShieldCheck: ImageVector get() = LucideIcons.ShieldCheck
     val Check: ImageVector get() = LucideIcons.Check
+    val ClipboardPaste: ImageVector get() = LucideIcons.ClipboardPaste
+    val ExternalLink: ImageVector get() = LucideIcons.ExternalLink
     val ChevronDown: ImageVector get() = LucideIcons.ChevronDown
     val ChevronUp: ImageVector get() = LucideIcons.ChevronUp
     val CircleUser: ImageVector get() = LucideIcons.CircleUser

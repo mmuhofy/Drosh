@@ -1,6 +1,7 @@
 package dev.drosh.ui.terminal
 
 import android.app.ActivityManager
+import android.content.ClipboardManager
 import android.content.Context
 import android.os.StatFs
 import android.util.Log
@@ -34,6 +35,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
@@ -86,6 +88,9 @@ import dev.drosh.ui.terminal.MotdWidget
 import dev.drosh.ui.terminal.SystemInfo
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
+import dev.drosh.ui.topbar.SelectionMenuSurface
+import dev.drosh.ui.topbar.SelectionMenuBackdrop
+import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
 import androidx.core.view.WindowCompat
@@ -116,6 +121,14 @@ private const val PROGRAM_PROMPT_MARKER = "›"
 @Composable
 private fun statusBarInset(): Dp =
     WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+/** Selection menu metrics. */
+private val MENU_GUTTER = 12.dp
+private val MENU_GAP = 10.dp
+private val MENU_MIN_WIDTH = 210.dp
+
+/** Light blur, not an Apple-style frosted slab. */
+private val MENU_BLUR = 10.dp
 
 /** How much of the terminal's top edge the top bar backdrop samples. */
 private val BACKDROP_STRIP = 72.dp
@@ -200,6 +213,25 @@ private fun ReadyScreen(
     //
     var terminalBounds by remember { mutableStateOf<Rect?>(null) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
+
+    // Text selection menu. The platform ActionMode is switched off in the
+    // controller and this draws it instead, so it can use the app's own
+    // surface and a real blur of the output behind it.
+    LaunchedEffect(Unit) { terminalManager.bindSelectionMenu() }
+    val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
+    val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
+    val selectionText by remember(hasSelection, selectionBounds) {
+        derivedStateOf { if (hasSelection) terminalViewRef.value?.selectedTextOrNull() else null }
+    }
+    val selectionUrl = remember(selectionText) {
+        selectionText?.let { UrlDetector.findUrls(it).singleOrNull()?.url }
+    }
+
+    val hasClipboardText = remember(hasSelection) {
+        if (!hasSelection) return@remember false
+        context.getSystemService(ClipboardManager::class.java)
+            ?.hasPrimaryClip() == true
+    }
 
     // The band above the grid, in the terminal's own background. Without it the
     // gap showed the app background and read as a black bar sitting on top of
@@ -661,6 +693,49 @@ private fun ReadyScreen(
             )
         }
     }
+
+        // Selection menu. Anchored to the selection, whose bounds are in
+        // terminal view coordinates; the host sits in this same Box, so the only
+        // thing between the two is the status bar inset.
+        selectionBounds?.let { bounds ->
+            val density = LocalDensity.current
+            val screenDp = LocalConfiguration.current.screenWidthDp
+            var menuSize by remember { mutableStateOf(IntSize.Zero) }
+            val backdrop by SelectionMenuBackdrop(
+                terminalView = terminalViewRef.value,
+                bounds = bounds,
+                sizePx = menuSize,
+            )
+            val inset = statusBarInset()
+            val anchorX = with(density) {
+                (bounds.left.toDp() - MENU_GUTTER)
+                    .coerceIn(MENU_GUTTER, (screenDp.dp - MENU_MIN_WIDTH).coerceAtLeast(MENU_GUTTER))
+            }
+            val belowSelection = with(density) { bounds.bottom.toDp() } + MENU_GAP + inset
+
+            SelectionMenuRow(
+                backdrop = backdrop,
+                selectedText = selectionText,
+                url = selectionUrl,
+                canPaste = hasClipboardText,
+                blurRadius = MENU_BLUR,
+                onCopy = {
+                    selectionText?.let { context.copyToClipboard("terminal", it) }
+                    terminalViewRef.value?.dismissSelection()
+                },
+                onPaste = { terminalViewRef.value?.pasteFromClipboard() },
+                onOpenUrl = { url ->
+                    browserUrl = url
+                    terminalViewRef.value?.dismissSelection()
+                },
+                onSelectAll = { terminalViewRef.value?.selectAll() },
+                onShare = { selectionText?.let { context.shareText(it) } },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = anchorX, y = belowSelection)
+                    .onSizeChanged { menuSize = it },
+            )
+        }
 
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(

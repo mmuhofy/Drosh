@@ -251,6 +251,23 @@ class TerminalManager(
         prootStartCommand = command
     }
 
+    private val _selectionBounds = MutableStateFlow<android.graphics.Rect?>(null)
+    val selectionBounds: StateFlow<android.graphics.Rect?> = _selectionBounds.asStateFlow()
+
+    private val _hasSelection = MutableStateFlow(false)
+    val hasSelection: StateFlow<Boolean> = _hasSelection.asStateFlow()
+
+    /** Routes the selection controller's changes out to Compose. */
+    fun bindSelectionMenu() {
+        val view = terminalViewRef ?: return
+        view.installSelectionMenu(enabled = false) {
+            val bounds = view.selectionBounds()
+            _selectionBounds.value = bounds
+            _hasSelection.value = bounds != null
+        }
+        view.notifySelectionChanged()
+    }
+
     fun registerTerminalView(view: TerminalView, context: Context) {
         terminalViewRef = view
         sessionClient.clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager

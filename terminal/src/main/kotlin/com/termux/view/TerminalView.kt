@@ -6,11 +6,13 @@ import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import kotlin.math.roundToInt
 import android.text.InputType
 import android.text.TextUtils
 import android.util.AttributeSet
@@ -64,6 +66,75 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     var mClient: TerminalViewClient? = null
 
     private var mTextSelectionCursorController: TextSelectionCursorController? = null
+
+    /**
+     * Notified with the selection's bounds in this view's own coordinates, or
+     * null when there is no selection.
+     *
+     * Exists because the selection menu is drawn by Compose now rather than by
+     * a platform ActionMode, and ActionMode's own positioning hook only exists
+     * while an ActionMode is alive.
+     */
+    var onSelectionChanged: ((Rect?) -> Unit)? = null
+
+    /**
+     * The selected region in view pixels, or null if nothing is selected.
+     *
+     * Rows are resolved through the same [TextSelectionCursorController.getPointY]
+     * the handles use, so the menu cannot disagree with them about where the
+     * selection is.
+     */
+    fun selectionBounds(): Rect? {
+        val c = mTextSelectionCursorController ?: return null
+        val y1 = c.selY1
+        val y2 = c.selY2
+        if (y1 < 0 || y2 < y1) return null
+        val r = mRenderer ?: return null
+        val left = minOf(c.selX1, c.selX2) * r.mFontWidth
+        val right = maxOf(c.selX1, c.selX2) * r.mFontWidth
+        val top = c.getPointY(y1).toFloat()
+        val bottom = c.getPointY(y2 + 1).toFloat()
+        if (right <= left || bottom <= top) return null
+        return Rect(left.roundToInt(), top.roundToInt(), right.roundToInt(), bottom.roundToInt())
+    }
+
+    /** The text currently selected, trimmed the way the menu shows it. */
+    fun selectedTextOrNull(): String? =
+        mTextSelectionCursorController?.takeIf { it.isActive() }?.getSelectedText()
+
+    /** Ends the selection, as if the user had tapped away. */
+    fun dismissSelection() = stopTextSelectionMode()
+
+    fun pasteFromClipboard() {
+        mTermSession?.onPasteTextFromClipboard()
+    }
+
+    /**
+     * Selects the whole visible screen.
+     *
+     * A grid has no document, so this is the honest equivalent of select-all:
+     * everything the terminal is currently showing.
+     */
+    fun selectAll() {
+        val c = mTextSelectionCursorController ?: return
+        val emu = mEmulator ?: return
+        c.selectAll(0, emu.mRows - 1, 0, emu.mColumns - 1)
+    }
+
+    fun isSelectingText(): Boolean = mTextSelectionCursorController?.isActive() == true
+
+    /** Points the selection menu at whoever is drawing it. */
+    fun installSelectionMenu(enabled: Boolean, listener: (() -> Unit)?) {
+        val c = mTextSelectionCursorController ?: return
+        c.usePlatformActionMode = enabled
+        c.onChanged = if (enabled) null else listener
+        onSelectionChanged = if (enabled) null else { notifySelectionChanged() }
+    }
+
+    /** Re-publishes the selection geometry; for when the menu first appears. */
+    fun notifySelectionChanged() {
+        onSelectionChanged?.invoke(if (isSelectingText()) selectionBounds() else null)
+    }
 
     private var mTerminalCursorBlinkerHandler: Handler? = null
     private var mTerminalCursorBlinkerRunnable: TerminalCursorBlinkerRunnable? = null
