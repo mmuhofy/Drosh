@@ -50,6 +50,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.drosh.ui.LocalDroshActivity
+import dev.drosh.domain.UrlDetector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
+import dev.drosh.core.copyToClipboard
+import dev.drosh.core.shareText
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
@@ -214,25 +221,6 @@ private fun ReadyScreen(
     var terminalBounds by remember { mutableStateOf<Rect?>(null) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
 
-    // Text selection menu. The platform ActionMode is switched off in the
-    // controller and this draws it instead, so it can use the app's own
-    // surface and a real blur of the output behind it.
-    LaunchedEffect(Unit) { terminalManager.bindSelectionMenu() }
-    val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
-    val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
-    val selectionText by remember(hasSelection, selectionBounds) {
-        derivedStateOf { if (hasSelection) terminalViewRef.value?.selectedText else null }
-    }
-    val selectionUrl = remember(selectionText) {
-        selectionText?.let { UrlDetector.findUrls(it).singleOrNull()?.url }
-    }
-
-    val hasClipboardText = remember(hasSelection) {
-        if (!hasSelection) return@remember false
-        context.getSystemService(ClipboardManager::class.java)
-            ?.hasPrimaryClip() == true
-    }
-
     // The band above the grid, in the terminal's own background. Without it the
     // gap showed the app background and read as a black bar sitting on top of
     // the output; with it there is no seam at all.
@@ -381,6 +369,25 @@ private fun ReadyScreen(
      */
     val terminalViewRef = remember {
         mutableStateOf<TerminalView?>(null)
+    }
+
+    // Text selection menu. The platform ActionMode is switched off in the
+    // controller and this draws it instead, so it can use the app's own
+    // surface and a real blur of the output behind it.
+    LaunchedEffect(Unit) { terminalManager.bindSelectionMenu() }
+    val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
+    val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val selectionText by remember(hasSelection, selectionBounds) {
+        derivedStateOf { if (hasSelection) terminalViewRef.value?.selectedText else null }
+    }
+    val selectionUrl = remember(selectionText) {
+        selectionText?.let { UrlDetector.findUrls(it).singleOrNull()?.url }
+    }
+    val hasClipboardText = remember(hasSelection) {
+        if (!hasSelection) return@remember false
+        context.getSystemService(ClipboardManager::class.java)
+            ?.hasPrimaryClip() == true
     }
 
 
@@ -731,7 +738,6 @@ private fun ReadyScreen(
                 onSelectAll = { terminalViewRef.value?.selectAll() },
                 onShare = { selectionText?.let { context.shareText(it) } },
                 modifier = Modifier
-                    .align(Alignment.TopStart)
                     .offset(x = anchorX, y = belowSelection)
                     .onSizeChanged { menuSize = it },
             )
