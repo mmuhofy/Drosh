@@ -15,6 +15,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -49,6 +51,7 @@ import dev.drosh.ui.LocalDroshActivity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -108,6 +111,10 @@ import androidx.compose.ui.platform.LocalContext
  * is going to the program rather than to a shell.
  */
 private const val PROGRAM_PROMPT_MARKER = "›"
+
+/** Clearance for the system bar, without insetting the background behind it. */
+private val statusBarInset: Dp
+    @Composable get() = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
 /** How much of the terminal's top edge the top bar backdrop samples. */
 private val BACKDROP_STRIP = 72.dp
@@ -192,6 +199,16 @@ private fun ReadyScreen(
     //
     var terminalBounds by remember { mutableStateOf<Rect?>(null) }
     val altBufferActive by terminalManager.altBufferActive.collectAsState()
+
+    // The band above the grid, in the terminal's own background. Without it the
+    // gap showed the app background and read as a black bar sitting on top of
+    // the output; with it there is no seam at all.
+    val terminalBg by settingsRepository.terminalBgColor
+        .collectAsStateWithLifecycle(initialValue = "#0B0B0F")
+    val terminalBgColor = remember(terminalBg) {
+        runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
+            .getOrDefault(Color.Black)
+    }
 
 
     // ── Immersive status bar ───────────────────────────────────────────────
@@ -504,6 +521,16 @@ private fun ReadyScreen(
             .fillMaxWidth()
             .weight(1f),
     ) {
+        // Behind the frame's own background, so the strip matches the terminal
+        // it sits above without tinting anything else.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(statusBarInset())
+                .background(terminalBgColor),
+        )
+
         if (useBlockEngine) {
             val blocks by blockEngineViewModel.blocks.collectAsState()
             val promptDir by blockEngineViewModel.lastDir.collectAsState()
@@ -529,7 +556,7 @@ private fun ReadyScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 0.dp),
+                        .padding(top = statusBarInset()),
                 ) {
                     if (motdMode == MotdMode.Compose && !motdDismissed) {
                         MotdWidget(
@@ -606,11 +633,14 @@ private fun ReadyScreen(
                 onBoundsChanged = { terminalBounds = it },
                 modifier = Modifier
                     .fillMaxSize()
-                    // No inset: the output starts at the top of the window and
-                    // runs behind the system bar, the same as every other
-                    // screen. The bar was previously leaving a strip that
-                    // belonged to no screen at all.
-                    .padding(top = 0.dp)
+                    // The grid still starts below the system bar. Letting the
+                    // first row run behind it puts the prompt under the clock,
+                    // which is unreadable — a fixed grid is not scrolling
+                    // content, so there is nothing to gain from it passing
+                    // underneath. The band itself is painted with the
+                    // terminal's own background just above, so it reads as part
+                    // of the terminal rather than as a strip of its own.
+                    .padding(top = statusBarInset())
                     .graphicsLayer {
                         scaleX = appearScale
                         scaleY = appearScale

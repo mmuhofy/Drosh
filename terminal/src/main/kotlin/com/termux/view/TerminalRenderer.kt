@@ -131,10 +131,18 @@ class TerminalRenderer(
             damageEnd = minOf(hi + 1, endRow)
         }
 
-        // Starting a row earlier means starting one line higher. Same again when
-        // the draw is partial: the skipped rows still consume line height.
-        var heightOffset = (if (partial) mFontAscent else mFontLineSpacingAndAscent).toFloat() +
-            (firstRow - (if (partial) topRow - 1 else topRow)) * mFontLineSpacing
+        // Starting a row earlier means starting one line higher, and rows before
+        // damageStart still consume line height even though they are not drawn.
+        // Both offsets are measured from firstRow, the top of the visible grid:
+        //
+        //   partial  -> the base row is one line above the live edge
+        //   damage   -> however many rows the dirty range skipped
+        //
+        // The second term used to be written as firstRow minus the row firstRow
+        // is defined to be, which is identically zero, so a partial draw stacked
+        // its rows at the top of the screen and left the rest unpainted.
+        val baseOffset = if (partial) mFontAscent else mFontLineSpacingAndAscent
+        var heightOffset = baseOffset + (damageStart - firstRow) * mFontLineSpacing
         for (row in damageStart until damageEnd) {
             heightOffset += mFontLineSpacing
 
