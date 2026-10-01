@@ -221,7 +221,7 @@ private fun ReadyScreen(
     val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
     val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
     val selectionText by remember(hasSelection, selectionBounds) {
-        derivedStateOf { if (hasSelection) terminalViewRef.value?.selectedTextOrNull() else null }
+        derivedStateOf { if (hasSelection) terminalViewRef.value?.selectedText else null }
     }
     val selectionUrl = remember(selectionText) {
         selectionText?.let { UrlDetector.findUrls(it).singleOrNull()?.url }

@@ -88,10 +88,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         return Rect(left.roundToInt(), top.roundToInt(), right.roundToInt(), bottom.roundToInt())
     }
 
-    /** The text currently selected, trimmed the way the menu shows it. */
-    fun selectedTextOrNull(): String? =
-        mTextSelectionCursorController?.takeIf { it.isActive() }?.getSelectedText()
-
     /** Ends the selection, as if the user had tapped away. */
     fun dismissSelection() = stopTextSelectionMode()
 
@@ -110,8 +106,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         val emu = mEmulator ?: return
         c.selectAll(0, emu.mRows - 1, 0, emu.mColumns - 1)
     }
-
-    fun isSelectingText(): Boolean = mTextSelectionCursorController?.isActive() == true
 
     /** Points the selection menu at whoever is drawing it. */
     fun installSelectionMenu(enabled: Boolean, listener: (() -> Unit)?) {
