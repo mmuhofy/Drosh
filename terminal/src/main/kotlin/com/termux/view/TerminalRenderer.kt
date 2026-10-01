@@ -2,6 +2,8 @@ package com.termux.view
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.PorterDuff
 import android.graphics.Typeface
 import com.termux.terminal.TerminalBuffer
@@ -32,11 +34,17 @@ class TerminalRenderer(
     /** The [Paint.ascent]. See http://www.fampennings.nl/maarten/android/08numgrid/font.png */
     private val mFontAscent: Int
 
+    /** Selection corner radius as a fraction of a line, so it scales with font size. */
+    private const val SELECTION_CORNER_FRACTION = 0.34f
+
     /** The [mFontLineSpacing] + [mFontAscent]. */
     @JvmField
     val mFontLineSpacingAndAscent: Int
 
     private val asciiMeasures = FloatArray(127)
+
+    /** Backs the text selection block; colour comes from the palette each frame. */
+    private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
 
     init {
@@ -107,6 +115,32 @@ class TerminalRenderer(
         // it occupies when nothing is offset.
         val baseOffset = mFontLineSpacingAndAscent - (topRow - firstRow) * mFontLineSpacing
         var heightOffset = baseOffset.toFloat()
+
+        // The selection is one soft-edged block behind the text rather than a
+        // hard rectangle per run. Only the block's outer corners are rounded —
+        // rounding every row would notch the background at each boundary.
+        val selFirstRow = selectionY1
+        val selLastRow = minOf(selectionY2, mEmulator.mRows - 1)
+        if (selFirstRow >= 0 && selLastRow >= selFirstRow) {
+            val radius = mFontLineSpacing * SELECTION_CORNER_FRACTION
+            val cell = mFontWidth
+            val selPath = Path()
+            for (row in selFirstRow..selLastRow) {
+                val left = (if (row == selFirstRow) selectionX1 else 0) * cell
+                val right = (if (row == selLastRow) selectionX2 else mEmulator.mColumns) * cell
+                val top = baseOffset + (row - firstRow + 1) * mFontLineSpacing
+                selPath.addSelectionRow(
+                    left, top, right, top + mFontLineSpacing,
+                    topLeft = if (row == selFirstRow) radius else 0f,
+                    topRight = if (row == selFirstRow) radius else 0f,
+                    bottomRight = if (row == selLastRow) radius else 0f,
+                    bottomLeft = if (row == selLastRow) radius else 0f,
+                )
+            }
+            selectionPaint.color = palette[TextStyle.COLOR_INDEX_SELECTION_BACKGROUND]
+            canvas.drawPath(selPath, selectionPaint)
+        }
+
         for (row in firstRow until endRow) {
             heightOffset += mFontLineSpacing
 
@@ -239,7 +273,12 @@ class TerminalRenderer(
         if (reverseVideoHere) {
             if (selection) {
                 foreColor = palette[TextStyle.COLOR_INDEX_SELECTION_FOREGROUND]
-                backColor = palette[TextStyle.COLOR_INDEX_SELECTION_BACKGROUND]
+                // Left as the terminal background on purpose: it is the guard
+                // below for whether a run paints its own rectangle. The
+                // selection's background is already the soft-edged block drawn
+                // behind the grid, and a per-run rect on top of it would undo
+                // the corners.
+                backColor = palette[TextStyle.COLOR_INDEX_BACKGROUND]
             } else {
                 val tmp = foreColor
                 foreColor = backColor
@@ -308,4 +347,30 @@ class TerminalRenderer(
     fun getFontLineSpacing(): Int {
         return mFontLineSpacing
     }
+}
+
+/**
+ * Appends a rectangle with independently rounded corners.
+ *
+ * Canvas.drawRoundRect rounds all four or none, and the selection needs the
+ * block's outer corners rounded while the joins between rows stay square —
+ * otherwise every row boundary picks up a notch of background.
+ */
+private fun Path.addSelectionRow(
+    left: Float, top: Float, right: Float, bottom: Float,
+    topLeft: Float, topRight: Float, bottomRight: Float, bottomLeft: Float,
+) {
+    moveTo(left + topLeft, top)
+    lineTo(right - topRight, top)
+    if (topRight > 0f) arcTo(RectF(right - topRight, top, right, top + topRight), 0f, 90f, false)
+    else lineTo(right, top)
+    lineTo(right, bottom - bottomRight)
+    if (bottomRight > 0f) arcTo(RectF(right - bottomRight, bottom - bottomRight, right, bottom), 90f, 90f, false)
+    else lineTo(right, bottom)
+    lineTo(left + bottomLeft, bottom)
+    if (bottomLeft > 0f) arcTo(RectF(left, bottom - bottomLeft, left + bottomLeft, bottom), 180f, 90f, false)
+    else lineTo(left, bottom)
+    lineTo(left, top + topLeft)
+    if (topLeft > 0f) arcTo(RectF(left, top, left + topLeft, top + topLeft), 270f, 90f, false)
+    close()
 }
