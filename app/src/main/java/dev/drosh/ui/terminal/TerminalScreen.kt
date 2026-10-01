@@ -430,6 +430,10 @@ private fun ReadyScreen(
                 return
             }
 
+            // The view only accepts showSoftInput while it reports itself as a
+            // text editor, and that flag is off the rest of the time so that
+            // focus alone cannot raise the keyboard.
+            view.raiseKeyboardOnFocus = true
             view.requestFocusFromTouch()
 
             val imm = view.context.getSystemService(
@@ -453,6 +457,7 @@ private fun ReadyScreen(
 
     fun hideKeyboard() {
         try {
+            terminalViewRef.value?.raiseKeyboardOnFocus = false
             val view = terminalViewRef.value ?: run {
                 Log.w(
                     "TerminalScreen",

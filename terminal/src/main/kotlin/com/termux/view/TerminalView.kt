@@ -650,7 +650,19 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
      * a touch turns off. It gates focus only; an explicit showSoftInput still
      * works while it is false, which is what makes the button authoritative.
      */
-    private var raiseKeyboardOnFocus = true
+    /**
+     * Whether the IME should treat this view as a text editor right now.
+     *
+     * False by default, and that is the whole design: no focus path can raise
+     * the keyboard, because focus is not what asks for it. Only an explicit
+     * showKeyboard does, which is what the toolbar button and entering the
+     * screen go through.
+     *
+     * It was true by default, and the terminal takes focus on touch-down, on
+     * single tap, on the first layout and at the start of a text selection —
+     * four ways to raise the keyboard by tapping instead of asking for it.
+     */
+    var raiseKeyboardOnFocus = false
 
     override fun onCheckIsTextEditor(): Boolean {
         return raiseKeyboardOnFocus
@@ -1595,6 +1607,10 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         get() = mTextSelectionCursorController?.getActionMode()
 
     fun startTextSelectionMode(event: MotionEvent) {
+        // Selecting is not typing. A long press is often the first thing that
+        // touches the screen, so with the default on this would have raised the
+        // keyboard on exactly the gesture that has nothing to do with it.
+        raiseKeyboardOnFocus = false
         if (!requestFocus()) {
             return
         }
