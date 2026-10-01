@@ -77,11 +77,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     @JvmField
     var mDefaultSelectors: IntArray = intArrayOf(-1, -1, -1, -1)
 
-    // Selectors as last drawn, so a change can be turned into full damage.
-    private var mLastSelY1 = -2
-    private var mLastSelY2 = -2
-    private var mLastSelX1 = -2
-    private var mLastSelX2 = -2
 
     @JvmField
     var mScaleFactor: Float = 1f
@@ -1131,20 +1126,6 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             // render the terminal view and highlight any selected text
             val sel = mDefaultSelectors
             mTextSelectionCursorController?.getSelectors(sel)
-
-            // The renderer paints the selection highlight inside the same loop
-            // as the text, so a changed selection invalidates rows the dirty
-            // range knows nothing about. Comparing here rather than instrumenting
-            // every place a selector can change means there is one chokepoint to
-            // get right.
-            val screen = mEmulator!!.getScreen()
-            if (sel[0] != mLastSelY1 || sel[1] != mLastSelY2 ||
-                sel[2] != mLastSelX1 || sel[3] != mLastSelX2
-            ) {
-                screen.markFullDamage()
-                mLastSelY1 = sel[0]; mLastSelY2 = sel[1]
-                mLastSelX1 = sel[2]; mLastSelX2 = sel[3]
-            }
 
             mRenderer!!.render(mEmulator!!, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3], mScrollOffsetPx)
 

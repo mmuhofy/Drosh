@@ -195,12 +195,10 @@ class TerminalBuffer(
 
     fun setLineWrap(row: Int) {
         mLines[externalToInternalRow(row)]!!.mLineWrap = true
-        markDirtyScreenRow(row)
     }
 
     fun setLineUnwrap(row: Int) {
         mLines[externalToInternalRow(row)]!!.mLineWrap = false
-        markDirtyScreenRow(row)
     }
 
     fun getLineWrap(row: Int): Boolean {
@@ -228,7 +226,6 @@ class TerminalBuffer(
         altScreen: Boolean
     ) {
         // Every row is reflowed into a new width and height.
-        markFullDamage()
 
         // newRows > mTotalRows should not normally happen since mTotalRows is TRANSCRIPT_ROWS (10000):
         if (newColumns == mColumns && newRows <= mTotalRows) {
@@ -427,8 +424,6 @@ class TerminalBuffer(
         // position:
         blockCopyLinesDown(externalToInternalRow(bottomMargin), mScreenRows - bottomMargin)
 
-        // A scroll relocates every visible row, so the dirty range is void.
-        markFullDamage()
 
         // Update the screen location in the ring buffer:
         mScreenFirstRow = (mScreenFirstRow + 1) % mTotalRows
@@ -460,7 +455,6 @@ class TerminalBuffer(
         // Region copies are how the terminal implements insert/delete line and
         // character, and every scrolling region shift. They relocate rows, so
         // the per-row range cannot describe the result.
-        markFullDamage()
         if (w == 0) return
         if (sx < 0 || sx + w > mColumns || sy < 0 || sy + h > mScreenRows || dx < 0 || dx + w > mColumns || dy < 0 || dy + h > mScreenRows)
             throw IllegalArgumentException()
@@ -497,45 +491,22 @@ class TerminalBuffer(
             throw IllegalArgumentException("TerminalBuffer.setChar(): row=$row, column=$column, mScreenRows=$mScreenRows, mColumns=$mColumns")
         val internalRow = externalToInternalRow(row)
         allocateFullLineIfNecessary(internalRow).setChar(column, codePoint, style)
-        markDirtyScreenRow(row)
     }
 
-    // ── Damage tracking ────────────────────────────────────────────────────
-    // The renderer walks every visible row on every frame. During a download
-    // that is a progress bar rewriting one line thousands of times, and each
-    // rewrite currently costs a full re-render of the grid. Tracking which
-    // screen rows actually changed lets render() skip the rest.
+    // Damage tracking was tried here and removed. The reasoning is worth keeping
+    // because it is not obvious: Android's hardware-accelerated View model
+    // rebuilds the view's display list from whatever onDraw emits on every
+    // frame. Drawing fewer rows does not leave the other rows alone — they
+    // simply stop being in the list, and the pixels behind them go black.
+    // invalidate(l,t,r,b) does not rescue this either: it limits which pixels
+    // are re-rasterised, not what the new display list contains, and a later
+    // full redraw loses the rows that were skipped.
     //
-    // A range rather than kitty's per-line bitfield: a range is two ints and
-    // covers the overwhelmingly common case, which is a program rewriting one
-    // line at a time. Anything that moves every row at once — a scroll, a
-    // region clear, a resize — sets full damage and costs exactly what it did
-    // before, so this is additive and cannot make anything slower.
-
-    /** First screen row changed since the last render, or [Int.MAX_VALUE]. */
-    @JvmField var mDirtyRowStart: Int = Int.MAX_VALUE
-
-    /** Last screen row changed since the last render, or [Int.MIN_VALUE]. */
-    @JvmField var mDirtyRowEnd: Int = Int.MIN_VALUE
-
-    /** Set when every row may have changed; the range is then meaningless. */
-    @JvmField var mFullDamage: Boolean = true
-
-    fun markDirtyScreenRow(row: Int) {
-        if (row < mDirtyRowStart) mDirtyRowStart = row
-        if (row > mDirtyRowEnd) mDirtyRowEnd = row
-    }
-
-    fun markFullDamage() {
-        mFullDamage = true
-    }
-
-    /** Called by the renderer once it has drawn, so the next frame starts clean. */
-    fun clearDamage() {
-        mDirtyRowStart = Int.MAX_VALUE
-        mDirtyRowEnd = Int.MIN_VALUE
-        mFullDamage = false
-    }
+    // Terminals that do this properly (kitty, Alacritty, Ghostty) own their
+    // compositor and composite layers themselves, which is why a dirty line
+    // works there and cannot here. The real win for a busy terminal is cutting
+    // the frequency of frames, not the work inside one — see the 64KB read
+    // buffer in TerminalSession.
 
     fun getStyleAt(externalRow: Int, column: Int): Long {
         return allocateFullLineIfNecessary(externalToInternalRow(externalRow)).getStyle(column)

@@ -5,8 +5,12 @@ import android.graphics.Canvas as AndroidCanvas
 import android.view.View
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
@@ -16,6 +20,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -58,34 +65,42 @@ fun rememberTerminalBackdrop(
     stripHeight: Dp,
     /** False while the row sits in the band above the terminal — nothing to sample there. */
     active: Boolean,
-    /** How often to look for new content. Not how often to capture. */
-    pollMillis: Long = 48L,
+    captureMillis: Long = 500L,
 ): State<ImageBitmap?> {
-    // Read outside produceState: its block is not a composable context, and
-    // Dp.toPx needs one.
+    // Read outside the effect: Dp.toPx needs a composable context and the
+    // effect block is not one.
     val stripPx = with(LocalDensity.current) { stripHeight.toPx() }
-    return produceState<ImageBitmap?>(
-        initialValue = null,
-        terminalView, stripPx, active,
-    ) {
+    val backdrop = remember { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(terminalView, stripPx, active) {
         if (terminalView == null || !active) {
-            value = null
-            return@produceState
+            backdrop.value = null
+            return@LaunchedEffect
         }
-        var seen = -1
-        while (true) {
-            // Only resample when the terminal has actually produced something.
-            // A capture redraws the whole view, so running it on a plain timer
-            // spends a second terminal render per interval on output that has
-            // not moved — which is precisely the cost this is meant to avoid.
-            val generation = terminalView.contentGeneration
-            if (generation != seen) {
-                seen = generation
-                capture(terminalView, stripPx)?.let { value = it.asImageBitmap() }
+        // Suspended while the app is not resumed. A capture draws the whole
+        // terminal view, so running one per output chunk behind a backgrounded
+        // app is main-thread work for a window nobody is looking at — and on
+        // resume that backlog is exactly when the app is least able to absorb
+        // it.
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var seen = -1
+            while (true) {
+                // The generation gate alone is not a rate limit. contentGeneration
+                // advances once per PTY chunk, and a download produces thousands
+                // of those a second, so gating on it meant a full extra terminal
+                // render for every chunk on the main thread. The interval is the
+                // real limit; the generation check just avoids resampling when
+                // nothing has changed.
+                if (terminalView.contentGeneration != seen) {
+                    seen = terminalView.contentGeneration
+                    capture(terminalView, stripPx)?.let { backdrop.value = it.asImageBitmap() }
+                }
+                delay(captureMillis)
             }
-            delay(pollMillis)
         }
     }
+    return backdrop
 }
 
 private fun capture(view: View, stripHeightPx: Float): Bitmap? {

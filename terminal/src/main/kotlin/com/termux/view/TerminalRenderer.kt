@@ -38,8 +38,6 @@ class TerminalRenderer(
 
     private val asciiMeasures = FloatArray(127)
 
-    /** External row the cursor was last painted on, so its old row can be undone. */
-    private var mLastCursorRow: Int = -1
 
     init {
         mTextPaint.typeface = mTypeface
@@ -97,53 +95,8 @@ class TerminalRenderer(
         // it as well, or the shift is applied twice.
         if (scrollOffsetPx != 0f) canvas.translate(0f, scrollOffsetPx)
 
-        // ── Damage ────────────────────────────────────────────────────────
-        // Every frame used to walk every visible row. A download is a progress
-        // bar rewriting one line thousands of times, so almost all of that work
-        // redrew rows that had not changed. The buffer records which screen
-        // rows were written since the last draw; the rest can be skipped.
-        //
-        // Two things the dirty range does not know about, so they widen it:
-        // the cursor, which the renderer inverts per row and which therefore
-        // has to be redrawn on both its old row (to undo the inversion) and its
-        // new one, and the selection, whose highlight is painted in the same
-        // loop. Selection changes set full damage from TerminalView.
-        val damageStart: Int
-        val damageEnd: Int
-        if (screen.mFullDamage) {
-            damageStart = firstRow
-            damageEnd = endRow
-        } else {
-            // Screen rows to external rows, via topRow.
-            var lo = topRow + screen.mDirtyRowStart
-            var hi = topRow + screen.mDirtyRowEnd
-            if (cursorVisible) {
-                val cur = cursorRow
-                if (cur < lo) lo = cur
-                if (cur > hi) hi = cur
-                val prev = mLastCursorRow
-                if (prev >= 0) {
-                    if (prev < lo) lo = prev
-                    if (prev > hi) hi = prev
-                }
-            }
-            damageStart = maxOf(lo, firstRow)
-            damageEnd = minOf(hi + 1, endRow)
-        }
-
-        // Starting a row earlier means starting one line higher, and rows before
-        // damageStart still consume line height even though they are not drawn.
-        // Both offsets are measured from firstRow, the top of the visible grid:
-        //
-        //   partial  -> the base row is one line above the live edge
-        //   damage   -> however many rows the dirty range skipped
-        //
-        // The second term used to be written as firstRow minus the row firstRow
-        // is defined to be, which is identically zero, so a partial draw stacked
-        // its rows at the top of the screen and left the rest unpainted.
-        val baseOffset = if (partial) mFontAscent else mFontLineSpacingAndAscent
-        var heightOffset = (baseOffset + (damageStart - firstRow) * mFontLineSpacing).toFloat()
-        for (row in damageStart until damageEnd) {
+        var heightOffset = (if (partial) mFontAscent else mFontLineSpacingAndAscent).toFloat()
+        for (row in firstRow until endRow) {
             heightOffset += mFontLineSpacing
 
             val cursorX = if (row == cursorRow && cursorVisible) cursorCol else -1
@@ -235,11 +188,6 @@ class TerminalRenderer(
                 measuredWidthForRun, cursorColor, cursorShape, lastRunStyle, reverseVideo || invertCursorTextColor || lastRunInsideSelection
             )
         }
-
-        // Only now: the dirty range has been consumed. Clearing it earlier would
-        // let writes that happen during rendering be lost.
-        screen.clearDamage()
-        if (cursorVisible) mLastCursorRow = cursorRow
     }
 
     @Suppress("NewApi")

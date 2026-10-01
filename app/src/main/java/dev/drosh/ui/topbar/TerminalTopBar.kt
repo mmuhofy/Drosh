@@ -281,12 +281,19 @@ fun TerminalTopBar(
             }
         }
 
-        MoreActionsDropdown(
-            expanded = moreExpanded,
-            onDismiss = { moreExpanded = false },
-            onFindInOutput = { onFindInOutput(); moreExpanded = false },
-            onRefresh = { onRefresh(); moreExpanded = false },
-        )
+        // Material's DropdownMenu anchors to the position of the composable it is
+        // called on. This one sat directly in the full-width bar Box, so it
+        // opened at the far left. A zero-width box aligned to the end puts the
+        // anchor under the overflow button on the right without the menu
+        // inheriting a width from its parent.
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            MoreActionsDropdown(
+                expanded = moreExpanded,
+                onDismiss = { moreExpanded = false },
+                onFindInOutput = { onFindInOutput(); moreExpanded = false },
+                onRefresh = { onRefresh(); moreExpanded = false },
+            )
+        }
     }
 }
 
