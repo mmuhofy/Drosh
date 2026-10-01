@@ -313,6 +313,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     fun attachSession(session: TerminalSession): Boolean {
         if (session == mTermSession) return false
         mTopRow = 0
+        mScrollOffsetPx = 0f
 
         mTermSession = session
         mEmulator = null
@@ -475,7 +476,10 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         if (mEmulator == null) return
 
         val rowsInHistory = mEmulator!!.getScreen().activeTranscriptRows
-        if (mTopRow < -rowsInHistory) mTopRow = -rowsInHistory
+        if (mTopRow < -rowsInHistory) {
+            mTopRow = -rowsInHistory
+            mScrollOffsetPx = legalScrollOffset(mTopRow, mScrollOffsetPx)
+        }
 
         if (isSelectingText || mEmulator!!.isAutoScrollDisabled()) {
             // Do not scroll when selecting text.
@@ -488,6 +492,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
                 if (mEmulator!!.isAutoScrollDisabled()) {
                     mTopRow = -rowsInHistory
+                    mScrollOffsetPx = legalScrollOffset(mTopRow, mScrollOffsetPx)
                     skipScroll = true
                 }
             } else {
@@ -627,6 +632,29 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
      * mTopRow only moves when a whole line has accumulated, which is what keeps
      * every row on its baseline while the pixels between them move freely.
      */
+    /**
+     * Restricts a sub-line offset to one the current position can actually show.
+     *
+     * The offset translates the grid, so the row it opens has to exist:
+     *
+     *   offset > 0  grid moves down, opens the row *above* topRow
+     *               -> needs topRow > minTopRow
+     *   offset < 0  grid moves up, opens the row *below* the last visible row
+     *               -> needs topRow < 0
+     *
+     * Everything that moves the viewport has to go through this, not just the
+     * drag. A drag can leave a few pixels of offset at the live edge, and if the
+     * next batch of output snaps mTopRow back to zero underneath it, those
+     * pixels become an over-scroll with no finger involved to explain it.
+     */
+    private fun legalScrollOffset(topRow: Int, offset: Float): Float {
+        val minTopRow = if (mEmulator == null) 0 else -mEmulator!!.getScreen().activeTranscriptRows
+        var out = offset
+        if (topRow <= minTopRow) out = Math.min(out, 0f)
+        if (topRow >= 0) out = Math.max(out, 0f)
+        return out
+    }
+
     fun scrollByPixels(event: MotionEvent, distanceYPx: Float) {
         if (mEmulator == null) return
         val spacing = mRenderer?.mFontLineSpacing?.toFloat() ?: return
@@ -654,19 +682,13 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         while (offset <= -spacing) {
             if (topRow < 0) { topRow++; offset += spacing } else { offset = 0f; break }
         }
-        // Hard stop at the ends. The offset is only meaningful in the
-        // direction that has content: positive means the grid has been pulled
-        // down to show older rows, which needs topRow < 0; negative means
-        // pushed up towards the live edge, which needs topRow > minTopRow.
-        //
-        // Clamping directionally rather than only at whole-line crossings is
-        // what removes the jitter at the limits. Before, a partial drag past
-        // the edge accumulated an offset that the renderer then applied —
-        // the content moved 10px with nothing to scroll — and the next event
-        // reset it to zero, so it juddered and needed another 10px of reverse
-        // movement to settle. At a limit the viewport must not move at all.
-        if (topRow == 0) offset = offset.coerceAtMost(0f)
-        if (topRow == minTopRow) offset = offset.coerceAtLeast(0f)
+        // The clamps live in legalScrollOffset, shared with every other place
+        // that moves the viewport. Writing them inline here — and, worse, on
+        // "topRow == 0" rather than "topRow >= 0" — is what let the grid be
+        // dragged past the boundary: a positive offset at the live edge is
+        // exactly the over-scroll, yet the check permitted it, and releasing
+        // the finger ran snapToWholeRow() to animate the grid back.
+        offset = legalScrollOffset(topRow, offset)
 
         if (topRow != mTopRow || offset != mScrollOffsetPx) {
             mTopRow = topRow
@@ -1114,6 +1136,9 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             mTerminalCursorBlinkerRunnable?.setEmulator(mEmulator!!)
 
             mTopRow = 0
+            // The grid is about to be rebuilt at a new size; a sub-line offset
+            // measured against the old metrics means nothing against the new.
+            mScrollOffsetPx = 0f
             scrollTo(0, 0)
             invalidate()
         }
@@ -1165,10 +1190,10 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         this.mTopRow = topRow
         // A programmatic row change (text selection auto-scroll) invalidates the
         // sub-line position: the offset was measured against the old row and
-        // would now be applied against a different one, shifting the grid.
+        // would now point past the new one.
         if (mScrollOffsetPx != 0f) {
             mScrollSettle?.let { removeCallbacks(it); mScrollSettle = null }
-            mScrollOffsetPx = 0f
+            mScrollOffsetPx = legalScrollOffset(topRow, 0f)
             if (!awakenScrollBars()) invalidate()
         }
     }
