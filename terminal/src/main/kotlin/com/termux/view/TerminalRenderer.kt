@@ -227,6 +227,11 @@ class TerminalRenderer(
                 measuredWidthForRun, cursorColor, cursorShape, lastRunStyle, reverseVideo || invertCursorTextColor || lastRunInsideSelection
             )
         }
+
+        // Only now: the dirty range has been consumed. Clearing it earlier would
+        // let writes that happen during rendering be lost.
+        screen.clearDamage()
+        if (cursorVisible) mLastCursorRow = cursorRow
     }
 
     @Suppress("NewApi")
@@ -314,9 +319,6 @@ class TerminalRenderer(
         }
 
         if (savedMatrix) canvas.restore()
-
-        screen.clearDamage()
-        if (cursorVisible) mLastCursorRow = cursorRow
     }
 
     fun getFontWidth(): Float {
