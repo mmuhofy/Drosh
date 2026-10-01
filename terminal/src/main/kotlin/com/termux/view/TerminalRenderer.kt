@@ -64,12 +64,18 @@ class TerminalRenderer(
         scrollOffsetPx: Float = 0f,
     ) {
         val reverseVideo = mEmulator.isReverseVideo()
-        // A fractional offset leaves a partial row showing at one edge, so one
-        // extra row is drawn on each side. Only possible once there is history:
-        // at the live edge the offset is pinned to zero, because a row above
-        // row 0 does not exist to draw.
-        val partial = scrollOffsetPx != 0f && topRow < 0
-        var firstRow = if (partial) topRow - 1 else topRow
+        // A fractional offset pulls the whole grid by the offset, so whichever
+        // edge it moves towards loses a strip at the opposite edge and needs one
+        // extra row on the side it came from.
+        //
+        // Which side that is depends on the sign, and getting it wrong is what
+        // left a gap at the top when scrolling out of the live edge: the row
+        // being revealed was drawn, but the row *above* it — the one filling the
+        // gap — was not. Reaching a full line then snapped the grid up by one
+        // line, which read as a stutter at the limit.
+        val partial = scrollOffsetPx != 0f
+        val extraAbove = scrollOffsetPx > 0f
+        var firstRow = if (partial) if (extraAbove) topRow - 2 else topRow - 1 else topRow
         var endRow = if (partial) topRow + mEmulator.mRows + 1 else topRow + mEmulator.mRows
         // The transcript is a ring buffer and activeTranscriptRows shrinks as
         // it trims, so a row that was in range when the drag started can be out
@@ -95,7 +101,12 @@ class TerminalRenderer(
         // it as well, or the shift is applied twice.
         if (scrollOffsetPx != 0f) canvas.translate(0f, scrollOffsetPx)
 
-        var heightOffset = (if (partial) mFontAscent else mFontLineSpacingAndAscent).toFloat()
+        // Worked out from firstRow rather than special-cased on partial, so any
+        // number of extra rows stays correct: row firstRow + k is drawn at
+        // base + (k + 1) * spacing, and row topRow has to land on the position
+        // it occupies when nothing is offset.
+        val baseOffset = mFontLineSpacingAndAscent - (topRow - firstRow) * mFontLineSpacing
+        var heightOffset = baseOffset.toFloat()
         for (row in firstRow until endRow) {
             heightOffset += mFontLineSpacing
 

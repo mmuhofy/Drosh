@@ -8,6 +8,16 @@ internal class ByteQueue(size: Int) {
     private var mStoredBytes = 0
     private var mOpen = true
 
+    /**
+     * Whether anything is queued.
+     *
+     * The reader thread uses this to send one wake-up per *transition* from empty
+     * rather than one per write, which is what keeps the main thread's message
+     * queue bounded.
+     */
+    @Synchronized
+    fun hasBytes(): Boolean = mStoredBytes > 0
+
     @Synchronized
     fun close() {
         mOpen = false

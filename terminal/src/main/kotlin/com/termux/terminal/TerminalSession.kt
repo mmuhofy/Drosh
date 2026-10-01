@@ -132,8 +132,18 @@ class TerminalSession(
                         while (true) {
                             val read = termIn.read(buffer)
                             if (read == -1) return
+                            // One wake-up per transition from empty, not one per
+                            // write. Sending per read meant a busy process queued
+                            // a main-thread message for every 4KB it produced,
+                            // and a backgrounded app accumulated all of them:
+                            // coming back drained the whole backlog through
+                            // append() on the main thread, which is why the
+                            // terminal froze on resume. Now at most one message
+                            // is ever pending, and the handler re-arms itself for
+                            // whatever arrived while it was parsing.
+                            val wasEmpty = !mProcessToTerminalIOQueue.hasBytes()
                             if (!mProcessToTerminalIOQueue.write(buffer, 0, read)) return
-                            mMainThreadHandler.sendEmptyMessage(MSG_NEW_INPUT)
+                            if (wasEmpty) mMainThreadHandler.sendEmptyMessage(MSG_NEW_INPUT)
                         }
                     }
                 } catch (e: Exception) {
@@ -295,6 +305,13 @@ class TerminalSession(
             if (bytesRead > 0) {
                 mEmulator?.append(mReceiveBuffer, bytesRead)
                 notifyScreenUpdate()
+            }
+
+            // More may have landed while this chunk was being parsed. Re-arm
+            // rather than waiting for the next write's empty-transition, or a
+            // burst could leave the tail unprocessed.
+            if (mProcessToTerminalIOQueue.hasBytes()) {
+                mMainThreadHandler.sendEmptyMessage(MSG_NEW_INPUT)
             }
 
             if (msg.what == MSG_PROCESS_EXITED) {
