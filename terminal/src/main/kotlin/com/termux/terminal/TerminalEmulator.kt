@@ -1793,6 +1793,7 @@ class TerminalEmulator(
         return mScreen.getSelectedText(
             x1, y1, x2, y2,
             joinBackLines = true,
+            joinFullLines = false,
             stripFrame = isAlternateBufferActive(),
         )
     }
