@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import dev.drosh.ui.keyboard.droshImePadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -88,7 +88,7 @@ fun AgentScreen(
             modifier = modifier
                 .fillMaxSize()
                 .background(DroshBackground)
-                .imePadding()
+                .droshImePadding()
                 .statusBarsPadding()
         ) {
             Column(

@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.imePadding
+import dev.drosh.ui.keyboard.droshImePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -209,7 +209,7 @@ private fun SidebarContent(
             .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
             // Without this the keyboard covers the footer, taking the search
             // field and the close button with it while you are typing in it.
-            .imePadding(),
+            .droshImePadding(),
     ) {
         SidebarHeader(
             identity = identity,

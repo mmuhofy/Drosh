@@ -61,6 +61,11 @@ import dev.drosh.ui.agent.AgentViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import android.content.BroadcastReceiver
+
+import android.content.IntentFilter
+import dev.drosh.ui.keyboard.KeyboardWindowModeState
+
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -156,6 +161,47 @@ class MainActivity : ComponentActivity() {
         // Activity would still hold here. Telling it the UI is back lets it
         // create a default session if the last one was closed.
         sessionManagerAdapter.onUiForegrounded()
+        registerKeyboardModeReceiver()
+    }
+
+    override fun onStop() {
+        keyboardModeReceiver?.let {
+            runCatching { unregisterReceiver(it) }
+            keyboardModeReceiver = null
+        }
+        // A keyboard we cannot see may have gone away with another app.
+        KeyboardWindowModeState.reset()
+        super.onStop()
+    }
+
+    /**
+     * Listens for Drosh Keyboard telling us where it is docked.
+     *
+     * Only that app can send this, and only while Drosh is in the foreground:
+     * a floating keyboard must not push the layout around, a docked one must.
+     */
+    private fun registerKeyboardModeReceiver() {
+        if (keyboardModeReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != KeyboardWindowModeState.ACTION_WINDOW_MODE) return
+                KeyboardWindowModeState.onBroadcast(
+                    intent.getStringExtra(KeyboardWindowModeState.EXTRA_MODE),
+                )
+            }
+        }
+        keyboardModeReceiver = receiver
+        val filter = IntentFilter(KeyboardWindowModeState.ACTION_WINDOW_MODE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // NOT_EXPORTED would reject Drosh Keyboard, which is a separate app
+            // and therefore a different uid. The action is only protected
+            // because nothing in this app acts on it blindly — it just records
+            // a placement mode — so a foreign sender can do no harm.
+            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receiver, filter)
+        }
     }
 
     @Composable

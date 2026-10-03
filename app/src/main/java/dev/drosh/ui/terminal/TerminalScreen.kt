@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
+import dev.drosh.ui.keyboard.droshImePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
@@ -587,7 +587,7 @@ private fun ReadyScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .imePadding(),
+                .droshImePadding(),
         ) {
     Box(
         modifier = Modifier
