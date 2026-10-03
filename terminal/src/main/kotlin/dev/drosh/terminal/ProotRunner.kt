@@ -32,6 +32,7 @@ class ProotRunner(
         ptyMode: Boolean = true,
         startCommand: String = "",
         environmentHooks: Map<String, String> = emptyMap(),
+        shellArgs: List<String> = emptyList(),
     ): ProotCommand {
         File(tmpPath).mkdirs()
 
@@ -60,11 +61,12 @@ class ProotRunner(
                 startCommand.split(" ").filter { it.isNotBlank() }.forEach { add(it) }
             } else {
                 add(shell)
+                addAll(shellArgs)
                 add("--login")
             }
         }
 
-        val env = buildEnvironment() + environmentHooks.map { "${it.key}=${it.value}" }
+        val env = buildEnvironment(shell) + environmentHooks.map { "${it.key}=${it.value}" }
 
         return ProotCommand(
             executable = linkerPath,
@@ -151,13 +153,16 @@ class ProotRunner(
         return binds
     }
 
-    private fun buildEnvironment(): List<String> {
+    private fun buildEnvironment(shell: String): List<String> {
         val env = mutableListOf<String>().apply {
             add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
             add("HOME=/home")
             add("TERM=xterm-256color")
             add("LANG=C.UTF-8")
-            add("SHELL=/bin/bash")
+            // Must be the shell actually launched. Tools read $SHELL to decide
+            // behaviour, and it was hardcoded to bash while the session ran
+            // zsh whenever oh-my-zsh was installed.
+            add("SHELL=$shell")
             add("TMPDIR=/tmp")
             add("PROOT_TMP_DIR=$tmpPath")
             add("LD_LIBRARY_PATH=$libPath")

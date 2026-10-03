@@ -523,11 +523,15 @@ class TerminalManager(
                 "/sdcard/dev.drosh/${File(projectPath!!).name}"
             } else null
 
+            val shell = effectiveShellPath()
+            val integration = DroshShellIntegration.install(appContext, shell)
+
             val cmd = prootRunner.build(
             guestWd,
-            shell = effectiveShellPath(),
+            shell = shell,
             startCommand = prootStartCommand,
-            environmentHooks = writeShellHooksFile()
+            environmentHooks = integration.environment,
+            shellArgs = integration.shellArgs,
             )
             return TerminalSession(
                 cmd.executable,
@@ -547,77 +551,6 @@ class TerminalManager(
             3000,
             sessionClient
         )
-    }
-
-    /**
-     * Automatically restores sessions that were started with the fallback
-     * `/system/bin/sh` shell (used before bootstrap completes). When bootstrap
-     * finishes, those sessions are seamlessly swapped for proper proot sessions
-     * without requiring the user to manually open a new tab.
-     */
-    private fun recoverFallbackSessions() {
-        if (!ubuntuBootstrap.isInstalled) return
-        val fallbackIndices = irisSessions.mapIndexedNotNull { idx, s ->
-            idx to s.isFallbackSession
-        }.filter { it.second }.map { it.first }
-        if (fallbackIndices.isEmpty()) return
-
-        for (idx in fallbackIndices) {
-            val old = irisSessions[idx]
-            old.terminalSession.finishIfRunning()
-            irisSessions[idx] = DroshSession(
-                terminalSession = createNewSession(),
-                persistentId = old.persistentId,
-                name = old.name,
-                pid = 0,
-                isFallbackSession = false,
-            )
-            if (idx == _activeTabIndex.value) {
-                terminalViewRef?.attachSession(irisSessions[idx].terminalSession)
-            }
-        }
-    }
-
-    private fun writeShellHooksFile(): Map<String, String> {
-        val d = "${'$'}"
-        val hooksFile = File(appContext.filesDir, TerminalConstants.HOOKS_FILE_NAME)
-
-        // Pre-create completion file to prevent race condition where
-        // precmd fires before file exists (causes "no such file" error)
-        val completionFile = File(appContext.filesDir, TerminalConstants.COMPLETION_FILE_NAME)
-        appContext.filesDir.mkdirs()
-        if (!completionFile.exists()) completionFile.createNewFile()
-
-        val completionPath = completionFile.absolutePath
-
-        val hooksContent = """
-            # ── Command completion tracking (ENV injection) ───────────────────────
-            # preexec/precmd hooks write "command|elapsed_sec|exit_code" to a
-            # file the foreground service monitors. Injected via ${d}ENV variable
-            # so user's .zshrc is never modified. Path is app-controlled.
-            local __drosh_cf="${completionPath}"
-            __drosh_cmd=""
-            __drosh_start=0
-
-            preexec() {
-              __drosh_cmd="${d}1"
-              __drosh_start=${d}(date +%s)
-            }
-
-            precmd() {
-              local __drosh_code=${d}?
-              if [[ -n "${d}__drosh_cmd" && ${d}__drosh_start -gt 0 ]]; then
-                local __drosh_elapsed=$(( ${d}(date +%s) - ${d}__drosh_start ))
-                { echo "${d}__drosh_cmd|${d}__drosh_elapsed|${d}__drosh_code" >> "${d}__drosh_cf" } 2>/dev/null
-                __drosh_cmd=""
-                __drosh_start=0
-              fi
-            }
-        """.trimIndent()
-
-        hooksFile.writeText(hooksContent)
-
-        return mapOf("ENV" to hooksFile.absolutePath)
     }
 
     private fun ensureShellRc() {

@@ -13,10 +13,6 @@
     <string name="notification_action_exit">Salir</string>
 
     <!-- Command completion notifications -->
-    <string name="command_complete_channel_name">Finalizaciones de comandos</string>
-    <string name="notification_command_completed">%1$s — Completado</string>
-    <string name="notification_command_error">%1$s — Error (salida %2$d)</string>
-    <string name="notification_command_cancelled">%1$s — Cancelado</string>
 
     <!-- Settings screen -->
     <string name="settings_language_title">Idioma</string>

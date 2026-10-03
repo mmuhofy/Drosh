@@ -13,10 +13,6 @@
     <string name="notification_action_exit">Lumabas</string>
 
     <!-- Command completion notifications -->
-    <string name="command_complete_channel_name">Mga Pagkumpleto ng Command</string>
-    <string name="notification_command_completed">%1$s — Nakumpleto</string>
-    <string name="notification_command_error">%1$s — Error (exit %2$d)</string>
-    <string name="notification_command_cancelled">%1$s — Nakansela</string>
 
     <!-- Settings screen -->
     <string name="settings_language_title">Wika</string>

@@ -13,10 +13,6 @@
     <string name="notification_action_exit">退出</string>
 
     <!-- Command completion notifications -->
-    <string name="command_complete_channel_name">命令完成通知</string>
-    <string name="notification_command_completed">%1$s — 已完成</string>
-    <string name="notification_command_error">%1$s — 错误（退出代码 %2$d）</string>
-    <string name="notification_command_cancelled">%1$s — 已取消</string>
 
     <!-- Settings screen -->
     <string name="settings_language_title">语言</string>
