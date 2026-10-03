@@ -188,6 +188,29 @@ class TerminalManager(
      * otherwise fall back to bash. This handles the case where zsh was chosen
      * but the OMZ install failed during bootstrap.
      */
+    private fun recoverFallbackSessions() {
+        if (!ubuntuBootstrap.isInstalled) return
+        val fallbackIndices = irisSessions.mapIndexedNotNull { idx, s ->
+            idx to s.isFallbackSession
+        }.filter { it.second }.map { it.first }
+        if (fallbackIndices.isEmpty()) return
+
+        for (idx in fallbackIndices) {
+            val old = irisSessions[idx]
+            old.terminalSession.finishIfRunning()
+            irisSessions[idx] = DroshSession(
+                terminalSession = createNewSession(),
+                persistentId = old.persistentId,
+                name = old.name,
+                pid = 0,
+                isFallbackSession = false,
+            )
+            if (idx == _activeTabIndex.value) {
+                terminalViewRef?.attachSession(irisSessions[idx].terminalSession)
+            }
+        }
+    }
+
     private fun effectiveShellPath(): String {
         val omzDir = File(ubuntuBootstrap.rootfsDir, "home/.oh-my-zsh")
         return if (omzDir.exists()) "/bin/zsh" else "/bin/bash"
