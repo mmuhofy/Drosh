@@ -48,14 +48,13 @@ object CommandStateBus {
     // ── Encoding ────────────────────────────────────────────────────────────
     // Single letters so a reader can never mis-parse a value added later.
 
-    // Compared by equality: `is` over an object or enum entry is prohibited,
-    // and every entry here is a singleton or a data class, so equality is
-    // exact.
+    // Singletons are matched by equality — `is` over an object entry is
+    // prohibited. Failure carries an exit code, so it is matched as a type.
     fun statusCode(status: CommandStatus): String = when (status) {
         CommandStatus.Idle -> "i"
         CommandStatus.Running -> "r"
         CommandStatus.Success -> "s"
-        CommandStatus.Failure -> "f"
+        is CommandStatus.Failure -> "f"
         CommandStatus.Indeterminate -> "n"
     }
 
