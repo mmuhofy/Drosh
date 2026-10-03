@@ -43,8 +43,10 @@ class TerminalSession(
      *
      * Per session, so several terminals are tracked independently. Exposed to
      * [TerminalEmulator] so marks can be reported as they stream in.
+     *
+     * No @JvmField: it cannot be applied to an override, and every consumer
+     * is Kotlin.
      */
-    @JvmField
     override val shellIntegration: ShellIntegrationState = ShellIntegrationState()
 
     @JvmField
