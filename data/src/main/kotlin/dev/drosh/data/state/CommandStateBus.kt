@@ -48,17 +48,20 @@ object CommandStateBus {
     // ── Encoding ────────────────────────────────────────────────────────────
     // Single letters so a reader can never mis-parse a value added later.
 
+    // Compared by equality: `is` over an object or enum entry is prohibited,
+    // and every entry here is a singleton or a data class, so equality is
+    // exact.
     fun statusCode(status: CommandStatus): String = when (status) {
-        is CommandStatus.Idle -> "i"
-        is CommandStatus.Running -> "r"
-        is CommandStatus.Success -> "s"
-        is CommandStatus.Failure -> "f"
-        is CommandStatus.Indeterminate -> "n"
+        CommandStatus.Idle -> "i"
+        CommandStatus.Running -> "r"
+        CommandStatus.Success -> "s"
+        CommandStatus.Failure -> "f"
+        CommandStatus.Indeterminate -> "n"
     }
 
     fun levelCode(level: ShellIntegrationLevel): String = when (level) {
-        is ShellIntegrationLevel.FULL -> "f"
-        is ShellIntegrationLevel.PROMPT_ONLY -> "p"
-        is ShellIntegrationLevel.NONE -> "n"
+        ShellIntegrationLevel.FULL -> "f"
+        ShellIntegrationLevel.PROMPT_ONLY -> "p"
+        ShellIntegrationLevel.NONE -> "n"
     }
 }
