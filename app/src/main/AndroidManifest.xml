@@ -18,6 +18,17 @@
 
     <!-- Minimal baseline permissions — Phase 1 only. -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Lets Drosh Keyboard read the terminal's command state. Signature-level
+      means only a build signed with the same key qualifies, which both apps
+      are — that shared identity is the whole reason this is possible.
+    -->
+    <permission
+        android:name="dev.drosh.permission.READ_COMMAND_STATE"
+        android:protectionLevel="signature"
+        android:label="@string/permission_read_command_state_label"
+        android:description="@string/permission_read_command_state_description" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
@@ -62,6 +73,18 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+
+        <!--
+          Read-only command state for Drosh Keyboard. exported so the keyboard
+          can query it, and gated by the signature permission above so that
+          only the same-signed keyboard gets through.
+        -->
+        <provider
+            android:name="dev.drosh.data.state.CommandStateProvider"
+            android:authorities="dev.drosh.state"
+            android:exported="true"
+            android:grantUriPermissions="false"
+            android:permission="dev.drosh.permission.READ_COMMAND_STATE" />
     </application>
 
 </manifest>

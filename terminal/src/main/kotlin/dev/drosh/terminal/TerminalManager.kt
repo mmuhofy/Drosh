@@ -78,7 +78,17 @@ class TerminalManager(
 
     private fun publishActiveId() {
         onActiveSessionChanged?.invoke(activePersistentId())
+        // Command marks are per session, so the flow follows the active tab.
+        commandState.bind(irisSessions.getOrNull(_activeTabIndex.value)?.terminalSession)
     }
+
+    /**
+     * Command lifecycle of the active terminal, derived from OSC 133 marks.
+     *
+     * Consumed by the command state provider and, through it, by Drosh
+     * Keyboard.
+     */
+    val commandState: CommandStatePublisher = CommandStatePublisher()
 
     private val _activeTabIndex = MutableStateFlow(0)
     val activeTabIndex: StateFlow<Int> = _activeTabIndex.asStateFlow()
@@ -692,6 +702,7 @@ class TerminalManager(
     }
 
     fun destroy() {
+        commandState.unbind()
         irisSessions.forEach { it.terminalSession.finishIfRunning() }
         irisSessions.clear()
         idToIndex.clear()

@@ -39,4 +39,6 @@
     <string name="settings_back_content_description">Back</string>
     <string name="pin_entry_title">Set PIN</string>
     <string name="pin_entry_subtitle">Enter a new 4-digit PIN</string>
+    <string name="permission_read_command_state_label">Read terminal command state</string>
+    <string name="permission_read_command_state_description">Allows Drosh Keyboard to see whether a terminal command is running and how it ended.</string>
 </resources>

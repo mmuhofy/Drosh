@@ -21,6 +21,12 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import android.net.Uri
+
+import dev.drosh.data.state.CommandStateBus
+
+import dev.drosh.data.state.CommandStateProvider
+
 
 @AndroidEntryPoint
 class TerminalService : LifecycleService() {
@@ -45,6 +51,28 @@ class TerminalService : LifecycleService() {
         super.onCreate()
         setupNotificationChannel()
         observeSessionCount()
+        publishCommandState()
+    }
+
+    /**
+     * Feeds the command lifecycle to [CommandStateBus], which
+     * `CommandStateProvider` serves to Drosh Keyboard.
+     *
+     * Written here rather than collected by the provider because the provider
+     * is created by the framework and has no access to the terminal. The
+     * notification on every change is what lets the keyboard observe instead
+     * of polling; it fires at most a few times per command.
+     */
+    private fun publishCommandState() {
+        lifecycleScope.launch {
+            terminalManager.commandState.state.collectLatest { snapshot ->
+                CommandStateBus.publish(
+                    terminalManager.activePersistentId().orEmpty(),
+                    snapshot,
+                )
+                contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_COMMAND), null)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -73,6 +101,10 @@ class TerminalService : LifecycleService() {
     override fun onBind(intent: Intent): IBinder = binder
 
     override fun onDestroy() {
+        // Leave nothing stale behind: a keyboard querying afterwards would
+        // otherwise see the last command of a session that no longer exists.
+        CommandStateBus.clear()
+        contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_COMMAND), null)
         terminalManager.destroy()
         super.onDestroy()
     }
