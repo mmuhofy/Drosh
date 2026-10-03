@@ -38,6 +38,15 @@ class TerminalSession(
     @JvmField
     val mHandle: String = UUID.randomUUID().toString()
 
+    /**
+     * Command lifecycle derived from OSC 133 shell integration marks.
+     *
+     * Per session, so several terminals are tracked independently. Exposed to
+     * [TerminalEmulator] so marks can be reported as they stream in.
+     */
+    @JvmField
+    override val shellIntegration: ShellIntegrationState = ShellIntegrationState()
+
     @JvmField
     var mEmulator: TerminalEmulator? = null
     

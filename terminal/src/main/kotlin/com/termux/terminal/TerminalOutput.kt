@@ -28,4 +28,12 @@ abstract class TerminalOutput {
     abstract fun onBell()
 
     abstract fun onColorsChanged()
+
+    /**
+     * Command lifecycle from OSC 133 shell integration marks.
+     *
+     * Null for outputs that are not a real session (tests, replay), in which
+     * case OSC 133 marks are parsed and discarded rather than reported.
+     */
+    open val shellIntegration: ShellIntegrationState? get() = null
 }

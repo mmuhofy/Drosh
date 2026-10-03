@@ -1325,6 +1325,116 @@ class TerminalEmulator(
         }
     }
 
+    /**
+     * OSC 7 — current working directory, as a `file://` URI.
+     *
+     * Part of the same shell-integration family as OSC 133 and understood by
+     * iTerm2, WezTerm, Kitty and Windows Terminal. This replaces a `chpwd`
+     * hook: the shell reports where it is, rather than a hook guessing it.
+     */
+    private fun handleOscCurrentDirectory(uri: String) {
+        val path = when {
+            uri.startsWith("file://") -> uri.removePrefix("file://")
+            else -> return
+        }
+        val decoded = try {
+            java.net.URLDecoder.decode(path, "UTF-8")
+        } catch (e: Exception) {
+            path
+        }
+        if (decoded.isNotEmpty()) mSession.shellIntegration?.onCwd(decoded)
+    }
+
+    /**
+     * OSC 133 — FinalTerm shell integration marks.
+     *
+     * | Mark | Meaning                                                        |
+     * |------|----------------------------------------------------------------|
+     * | `A`  | prompt starts here                                             |
+     * | `B`  | prompt ended, user input begins                                |
+     * | `C`  | command is about to execute                                    |
+     * | `D`  | command finished, optionally followed by `;exit-code`           |
+     *
+     * `C` may carry `cmdline=<percent-encoded>`; kitty uses `%q` and fish
+     * uses url-style escaping. When present the command line is taken from
+     * there rather than reconstructed from the screen, which avoids any
+     * escaping question entirely. `C` after `A`/`B` but with no `C` seen
+     * first means the user aborted at the prompt, per the FinalTerm spec.
+     *
+     * A `D` with no exit code means either an abort or a shell that cannot
+     * report status; both are reported as indeterminate rather than as
+     * success or failure.
+     */
+    private fun handleOscShellIntegration(textParameter: String) {
+        val integration = mSession.shellIntegration ?: return
+        val separator = textParameter.indexOf(';')
+        val mark = if (separator >= 0) textParameter.substring(0, separator) else textParameter
+        val arguments = if (separator >= 0) textParameter.substring(separator + 1) else ""
+
+        when (mark) {
+            "A" -> integration.onPromptStart(mCursorRow, mCursorCol)
+            "B" -> integration.onPromptStart(mCursorRow, mCursorCol)
+            "C" -> {
+                val cmdline = extractCmdline(arguments)
+                integration.onCommandStart(
+                    cmdline ?: recoverCommandLine(),
+                )
+            }
+            "D" -> {
+                val exitCode = if (separator >= 0) arguments.trim().toIntOrNull() else null
+                if (exitCode != null && exitCode >= 0) {
+                    integration.onCommandFinished(exitCode)
+                } else {
+                    integration.onCommandFinishedWithoutStatus()
+                }
+            }
+            else -> Logger.logWarn(
+                mClient, LOG_TAG,
+                "Unknown shell integration mark OSC 133;$mark",
+            )
+        }
+    }
+
+    /**
+     * Pulls `cmdline=` or `cmdline_url=` out of an OSC 133;C argument list.
+     *
+     * Both forms are percent-encoded so that a command containing `;`, a
+     * quote or a newline cannot break the sequence. Anything unrecognised
+     * returns null and the caller falls back to reading the screen.
+     */
+    private fun extractCmdline(arguments: String): String? {
+        for (key in arrayOf("cmdline=", "cmdline_url=")) {
+            val at = arguments.indexOf(key)
+            if (at < 0) continue
+            var raw = arguments.substring(at + key.length)
+            val next = raw.indexOf(';')
+            if (next >= 0) raw = raw.substring(0, next)
+            return try {
+                java.net.URLDecoder.decode(raw, "UTF-8")
+            } catch (e: Exception) {
+                raw
+            }
+        }
+        return null
+    }
+
+    /**
+     * Recovers the typed command from the screen when the shell did not send
+     * `cmdline=`.
+     *
+     * FinalTerm semantics: the command is whatever was drawn between the B
+     * mark and the C mark. This only handles the common case of a command
+     * that starts on the prompt line; a wrapped or multi-line command is
+     * reported empty rather than approximated.
+     */
+    private fun recoverCommandLine(): String? {
+        val row = mSession.shellIntegration?.promptStartRow ?: -1
+        val col = mSession.shellIntegration?.promptStartCol ?: -1
+        if (row < 0 || col < 0 || row != mCursorRow) return null
+        val line = mScreen.getSelectedText(col, row, mCursorCol, row, false)
+        return line.trim().takeIf { it.isNotEmpty() }
+    }
+
     /** An Operating System Controls (OSC) Set Text Parameters. */
     private fun doOscSetTextParameters(bellOrStringTerminator: String) {
         var value = -1
@@ -1344,6 +1454,8 @@ class TerminalEmulator(
 
         when (value) {
             0, 1, 2 -> setTitle(textParameter)
+            7 -> handleOscCurrentDirectory(textParameter)
+            133 -> handleOscShellIntegration(textParameter)
             4 -> {
                 var colorIndex = -1
                 var parsingPairStart = -1
