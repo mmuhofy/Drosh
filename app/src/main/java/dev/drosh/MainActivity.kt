@@ -65,6 +65,7 @@ import android.content.BroadcastReceiver
 
 import android.content.IntentFilter
 import dev.drosh.ui.keyboard.KeyboardWindowModeState
+import android.content.Intent
 
 
 @AndroidEntryPoint
@@ -153,6 +154,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /**
+     * Non-null while listening for Drosh Keyboard's placement broadcast.
+     * Registered per onStart so it cannot outlive a visible window.
+     */
+    private var keyboardModeReceiver: BroadcastReceiver? = null
 
     override fun onStart() {
         super.onStart()
