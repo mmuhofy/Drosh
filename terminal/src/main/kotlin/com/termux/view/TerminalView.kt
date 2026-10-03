@@ -423,6 +423,39 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
         return object : BaseInputConnection(this, true) {
 
+            /*
+             * A terminal has no notion of a composing region: there is nothing
+             * to pre-edit and then commit, the bytes have to reach the PTY as
+             * they are typed.
+             *
+             * These two are deliberately no-ops, and that is load-bearing.
+             * `editable` is a local mirror that commitText() hands to the PTY
+             * and then clears. If an IME calls setComposingRegion()/setComposingText()
+             * in between, BaseInputConnection stores a composing region that
+             * keeps referring to offsets in that mirror. Once the mirror is
+             * cleared the markers dangle, and the next finishComposingText()
+             * resolves them against mutated content and puts already-sent text
+             * back into the editable — which commitText() then sends to the PTY
+             * a second time. Symptom: typing one character re-inserts several
+             * characters, including ones typed earlier.
+             *
+             * Keyboards that compose regardless of inputType trigger this.
+             * Gboard does not, so it never showed up before Drosh Keyboard.
+             */
+            override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) {
+                    mClient!!.logInfo(LOG_TAG, "IME: setComposingText() ignored")
+                }
+                return true
+            }
+
+            override fun setComposingRegion(start: Int, end: Int): Boolean {
+                if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) {
+                    mClient!!.logInfo(LOG_TAG, "IME: setComposingRegion($start, $end) ignored")
+                }
+                return true
+            }
+
             override fun finishComposingText(): Boolean {
                 if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) mClient!!.logInfo(LOG_TAG, "IME: finishComposingText()")
                 super.finishComposingText()
