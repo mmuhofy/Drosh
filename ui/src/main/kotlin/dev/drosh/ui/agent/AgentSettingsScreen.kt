@@ -78,7 +78,7 @@ fun AgentSettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: AgentSettingsViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.providerState.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
