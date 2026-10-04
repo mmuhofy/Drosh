@@ -211,9 +211,11 @@ fun CollapsibleRow(
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(modifier = Modifier.weight(1f)) {
-                summary()
-            }
+            // Invoked directly in the Row rather than inside a nested Box: the
+            // summary is declared against RowScope so callers can use weight() on
+            // their own children, and a nested composable would not carry the
+            // receiver through.
+            summary()
             Icon(
                 imageVector = DroshIcons.ChevronDown,
                 contentDescription = null,

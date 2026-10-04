@@ -96,18 +96,13 @@ class AgentHomeViewModel @Inject constructor(
         }
     }
 
-    private fun List<AgentChat>.toGrouped(): GroupedChats {
-        val (busy, waiting, rest) = triple(
-            filter { it.status == ChatStatus.Running },
-            filter { it.status == ChatStatus.WaitingApproval },
-            filter { it.status != ChatStatus.Running && it.status != ChatStatus.WaitingApproval },
-        )
-        return GroupedChats(
-            running = busy,
-            waiting = waiting,
-            recent = rest,
-        )
-    }
+    private fun List<AgentChat>.toGrouped(): GroupedChats = GroupedChats(
+        running = filter { it.status == ChatStatus.Running },
+        waiting = filter { it.status == ChatStatus.WaitingApproval },
+        recent = filter {
+            it.status != ChatStatus.Running && it.status != ChatStatus.WaitingApproval
+        },
+    )
 
     data class GroupedChats(
         val running: List<AgentChat> = emptyList(),

@@ -433,9 +433,10 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                     color = DroshTextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
             }
+            // Pushes the status pill to the far end. weight only once, or the row
+            // divides the slack between two spacers and the pill sits mid-row.
             Spacer(Modifier.weight(1f))
             ToolStatus(message)
         },
