@@ -17,6 +17,7 @@ package dev.drosh.editor
 import android.graphics.Typeface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -28,6 +29,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.EventReceiver
+import io.github.rosemoe.sora.lang.EmptyLanguage
+import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
+import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
+import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.widget.CodeEditor
 
 /**
@@ -106,10 +111,11 @@ fun rememberSoraEditorHandle(): SoraEditorHandle = remember { SoraEditorHandle()
 fun SoraCodeEditor(
     initialText: String,
     modifier: Modifier = Modifier,
+    fileName: String = "",
     handle: SoraEditorHandle = rememberSoraEditorHandle(),
 ) {
     val context = LocalContext.current
-    val editor = remember(context) {
+    val editor = remember {
         CodeEditor(context).apply {
             setText(initialText)
             setTypefaceText(Typeface.MONOSPACE)
@@ -119,6 +125,30 @@ fun SoraCodeEditor(
     }
 
     SideEffect { handle.editor = editor }
+
+    // Grammar and colour scheme, once per file.
+    //
+    // A separate effect rather than part of `remember` because the scope depends
+    // on the *filename*, which arrives with the loaded document — and a document
+    // that has not loaded yet would otherwise decide the language from an empty
+    // name and never correct it.
+    //
+    // The TextMate colour scheme replaces the plain one rather than layering on
+    // top: TextMate owns every token colour, and sora paints the background and
+    // gutter from the scheme, so mixing the two leaves the token colours applied
+    // over the wrong background.
+    LaunchedEffect(editor, fileName) {
+        val scope = EditorLanguage.scopeFor(fileName)
+        if (scope != null && TextMateSetup.ensure(context)) {
+            editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
+            // `true` enables completion from the grammar. It is only offered
+            // once a grammar is actually loaded, because sora's completion
+            // reads the grammar and would otherwise have nothing to suggest.
+            editor.setEditorLanguage(TextMateLanguage.create(scope, true))
+        } else {
+            editor.setEditorLanguage(EmptyLanguage())
+        }
+    }
 
     // Unsubscribe before release: the receipt holds a reference into the
     // editor's event manager, and releasing the editor underneath a live

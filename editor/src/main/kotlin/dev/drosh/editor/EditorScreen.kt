@@ -133,6 +133,7 @@ fun EditorScreen(
                     SoraCodeEditor(
                         initialText = current.text,
                         modifier = Modifier.fillMaxSize(),
+                        fileName = current.fileName,
                         handle = handle,
                     )
                     DocumentHeader(

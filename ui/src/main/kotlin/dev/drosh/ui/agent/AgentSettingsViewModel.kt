@@ -6,6 +6,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.drosh.domain.agent.LlmModel
 import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.domain.agent.LlmProviderRepository
+import dev.drosh.domain.agent.ToolCredentialRepository
+import dev.drosh.domain.agent.ToolService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +31,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AgentSettingsViewModel @Inject constructor(
     private val providers: LlmProviderRepository,
+    private val toolCredentials: ToolCredentialRepository,
 ) : ViewModel() {
 
     data class State(
@@ -36,6 +39,8 @@ class AgentSettingsViewModel @Inject constructor(
         val selectedModelId: String = "",
         val models: List<LlmModel> = emptyList(),
         val hasKey: Boolean = false,
+        /** Whether an Exa key is stored, so the tool can search the web. */
+        val hasSearchKey: Boolean = false,
         val loadingModels: Boolean = false,
         /** Non-null while something failed; shown next to the field that caused it. */
         val error: String? = null,
@@ -58,6 +63,27 @@ class AgentSettingsViewModel @Inject constructor(
         load()
     }
 
+    /**
+     * Store the web-search key.
+     *
+     * Same read-back as the provider key: the screen's indicator is derived from
+     * what is stored, not from what was typed, so it cannot claim a key that a
+     * blank or whitespace-only submission removed.
+     */
+    fun saveSearchKey(key: String) {
+        viewModelScope.launch {
+            toolCredentials.setCredential(ToolService.EXA, key.trim())
+            _state.value = _state.value.copy(hasSearchKey = toolCredentials.credential(ToolService.EXA) != null)
+        }
+    }
+
+    fun clearSearchKey() {
+        viewModelScope.launch {
+            toolCredentials.clearCredential(ToolService.EXA)
+            _state.value = _state.value.copy(hasSearchKey = false)
+        }
+    }
+
     fun load() {
         viewModelScope.launch {
             val provider = providers.provider(DEFAULT_PROVIDER_ID)
@@ -69,6 +95,7 @@ class AgentSettingsViewModel @Inject constructor(
             _state.value = _state.value.copy(
                 provider = provider,
                 hasKey = providers.credential(provider.id) != null,
+                hasSearchKey = toolCredentials.credential(ToolService.EXA) != null,
                 selectedModelId = providers.selectedModel(provider.id).orEmpty(),
             )
         }

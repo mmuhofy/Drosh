@@ -20,109 +20,85 @@ import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
+import org.eclipse.tm4e.core.registry.IThemeSource
 import timber.log.Timber
+import java.nio.charset.StandardCharsets
 
 /**
- * Loads the TextMate grammars and Drosh's theme.
+ * Loads the bundled TextMate grammars and Drosh's colour theme.
  *
- * ### Idempotent, and load-once by design
+ * ### Once per process
  *
- * Both registries are process-wide singletons, so this runs once per process and
- * every later call is a no-op. That matters: parsing eleven grammars costs
- * hundreds of milliseconds and would be paid again on every editor screen if
- * this were per-instance.
+ * Both registries are process-wide singletons and parsing eleven grammars costs
+ * real time, so this runs once and later calls are free. Without the guard, every
+ * time the editor screen opened it would re-parse the whole set.
  *
- * ### Total, by design
+ * ### Total on purpose
  *
- * Everything returns a null/empty result instead of throwing. A grammar that
- * fails to parse costs one file its colours, not the editor its text — the user
- * would rather edit an unhighlighted file than not edit it. tm4e's registries
- * are also known to throw on a malformed grammar, so the whole load is wrapped.
+ * Returns false rather than throwing. A grammar that fails to parse should cost
+ * one file its colours, not the user their editor — an unhighlighted file that
+ * saves correctly beats a crash. `Throwable` and not `Exception` because tm4e
+ * parses generated code and a malformed grammar surfaces as
+ * `NoClassDefFoundError` or an index exception depending on where it gives up.
  *
- * ### What is bundled, and under what licence
+ * ### Bundled grammars
  *
- * Grammars are TextMate definitions taken from the MIT-licensed microsoft/vscode
- * repository at a pinned commit (except Kotlin, from the MIT-licensed
- * fwcd/vscode-kotlin). See `textmate/PROVENANCE.md`.
+ * TextMate definitions from the MIT-licensed microsoft/vscode at a pinned
+ * commit, plus Kotlin from the MIT-licensed fwcd/vscode-kotlin. Provenance and
+ * licences: `assets/textmate/PROVENANCE.md`.
  */
 object TextMateSetup {
 
     private const val GRAMMAR_INDEX = "textmate/languages.json"
-    private const val THEME = "textmate/drosh-dark.json"
+    private const val THEME_ASSET = "textmate/drosh-dark.json"
     private const val THEME_NAME = "drosh-dark"
 
-    @Volatile
-    private var loaded = false
-
     /** True once the grammars and theme are in the registries. */
-    val isReady: Boolean get() = loaded
+    @Volatile
+    var isReady: Boolean = false
+        private set
 
     /**
-     * Loads grammars and theme, once.
+     * Loads grammars and theme, once per process.
      *
-     * @return true when highlighting is available, false when the editor should
-     *   fall back to plain text.
+     * @return true when highlighting is available; false tells the caller to
+     *   fall back to [droshEditorColorScheme] and no language.
      */
     @Synchronized
     fun ensure(context: Context): Boolean {
-        if (loaded) return true
+        if (isReady) return true
 
-        val appContext = context.applicationContext
+        // The application context, not the screen's: the resolver is held in a
+        // singleton that outlives any context it is handed.
+        val assets = context.applicationContext.assets
+
         return try {
-            // AssetsFileResolver needs the application context: it is stored in a
-            // singleton that outlives any screen.
-            FileProviderRegistry.getInstance().addFileProvider(
-                AssetsFileResolver(appContext.assets),
-            )
+            FileProviderRegistry.getInstance().addFileProvider(AssetsFileResolver(assets))
+
+            val stream = FileProviderRegistry.getInstance().tryGetInputStream(THEME_ASSET)
+                ?: throw java.io.FileNotFoundException(THEME_ASSET)
 
             ThemeRegistry.getInstance().loadTheme(
                 ThemeModel(
-                    IThemeSourceOf(appContext, THEME),
+                    IThemeSource.fromInputStream(stream, THEME_ASSET, StandardCharsets.UTF_8),
                     THEME_NAME,
                 ),
             )
-            // setTheme, not just loadTheme: TextMate colors come from whichever
-            // theme is *selected*, and a loaded-but-unselected theme leaves
-            // every span transparent — the editor looks like plain white-on-black
-            // with no error to show for it.
-            ThemeRegistry.getInstance().setTheme(THEME_NAME)
+            // setTheme, not only loadTheme: TextMate resolves span colours from
+            // whichever theme is *selected*. A loaded-but-unselected theme leaves
+            // every span transparent, which looks like a broken editor rather than
+            // a missing one.
+            if (!ThemeRegistry.getInstance().setTheme(THEME_NAME)) {
+                Timber.w("textmate: theme '$THEME_NAME' did not become current")
+            }
 
             GrammarRegistry.getInstance().loadGrammars(GRAMMAR_INDEX)
 
-            loaded = true
+            isReady = true
             true
         } catch (e: Throwable) {
-            // Throwable, not Exception: tm4e reaches into generated parsing code
-            // and a grammar defect surfaces as NoClassDefFoundError or
-            // ArrayIndexOutOfBoundsException depending on the input.
-            Timber.e(e, "textmate: load failed; the editor will stay plain text")
+            Timber.e(e, "textmate: load failed; the editor stays plain text")
             false
         }
-    }
-
-    /**
-     * Wraps an asset as a theme source.
-     *
-     * A named class rather than inlined, because the constructor takes an
-     * InputStream and the stream has to stay open until [ThemeModel.load]
-     * reads it — the call order inside [ensure] depends on that.
-     */
-    private class IThemeSourceOf(context: Context, path: String) :
-        org.eclipse.tm4e.core.registry.IThemeSource {
-
-        private val resolver = FileProviderRegistry.getInstance()
-        private val path = path
-
-        init {
-            // Touching the stream early surfaces a missing asset here rather
-            // than as a null theme later.
-            resolver.tryGetInputStream(path)?.close()
-        }
-
-        override fun getInputStream(): java.io.InputStream =
-            FileProviderRegistry.getInstance().tryGetInputStream(path)
-                ?: throw java.io.FileNotFoundException(path)
-
-        override fun getFileReference(): String? = path
     }
 }

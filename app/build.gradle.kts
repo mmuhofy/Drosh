@@ -54,6 +54,14 @@ android {
         buildConfig = true
     }
 
+    compileOptions {
+        // Required by :editor, which depends on sora-editor's TextMate module:
+        // it uses java.time APIs that do not exist below API 33, and this app
+        // supports API 26. The version must match the one in :editor or the two
+        // modules desugar against different libraries.
+        isCoreLibraryDesugaringEnabled = true
+    }
+
     buildTypes {
         getByName("debug") {
             if (keystoreProperties.isNotEmpty()) {
@@ -103,6 +111,9 @@ android {
 }
 
 dependencies {
+    // Must match :editor's coordinate — see the compileOptions comment above.
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
     // Module dependencies — see AGENT.md data flow diagram (§149-163).
     implementation(project(":core"))
     implementation(project(":domain"))
