@@ -164,7 +164,6 @@ fun SessionSidebar(
             viewModel = viewModel,
             deviceIdentityViewModel = deviceIdentityViewModel,
             onOpenSettings = onOpenSettings,
-            onOpenAgent = onOpenAgent,
         )
     }
 }
@@ -293,7 +292,6 @@ private fun SidebarContent(
             onOpenSearch = { searchOpen = true },
             onCloseSearch = ::closeSearch,
             onOpenSettings = onOpenSettings,
-            onOpenAgent = onOpenAgent,
         )
     }
 }

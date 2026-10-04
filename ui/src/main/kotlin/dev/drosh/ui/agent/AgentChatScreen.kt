@@ -488,7 +488,7 @@ private fun ToolIcon(name: String) {
         "shell" -> DroshIcons.Terminal
         "read_file" -> DroshIcons.Code
         "write_file" -> DroshIcons.Pencil
-        "ask_user" -> DroshIcons.CircleHelp
+        "ask_user" -> DroshIcons.Info
         "update_todo" -> DroshIcons.ListChecks
         else -> DroshIcons.SquareTerminal
     }

@@ -69,7 +69,6 @@ import compose.icons.lucideicons.EyeOff
 import compose.icons.lucideicons.Eye
 import compose.icons.lucideicons.Send
 import compose.icons.lucideicons.ListChecks
-import compose.icons.lucideicons.CircleHelp
 
 object DroshIcons {
     val ALargeSmall: ImageVector get() = LucideIcons.ALargeSmall
@@ -129,7 +128,6 @@ object DroshIcons {
     val Eye: ImageVector get() = LucideIcons.Eye
     val Send: ImageVector get() = LucideIcons.Send
     val ListChecks: ImageVector get() = LucideIcons.ListChecks
-    val CircleHelp: ImageVector get() = LucideIcons.CircleHelp
     val RotateCcw: ImageVector get() = LucideIcons.RotateCcw
     val Tablet: ImageVector get() = LucideIcons.Tablet
     val Timer: ImageVector get() = LucideIcons.Timer
