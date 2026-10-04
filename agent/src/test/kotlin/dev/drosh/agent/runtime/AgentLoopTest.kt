@@ -443,7 +443,12 @@ class AgentLoopTest {
         val approval = run.awaitApproval(loop)
 
         // Only meaningful once the run has actually parked.
-        val waiting = loop.state.value as AgentRunState.WaitingApproval
+        val observed = loop.state.value
+        assertTrue(
+            "expected WaitingApproval, saw $observed (pending=${loop.pendingApprovalIds()})",
+            observed is AgentRunState.WaitingApproval,
+        )
+        val waiting = observed as AgentRunState.WaitingApproval
         assertEquals(setOf("chat-1"), waiting.chatIds)
 
         loop.answerApproval(approval.id, ApprovalDecision.Approve)
