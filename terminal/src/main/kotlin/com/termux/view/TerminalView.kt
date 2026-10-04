@@ -507,15 +507,18 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 return true
             }
 
-            override fun getTextBeforeCursor(n: Int): CharSequence? {
+            override fun getTextBeforeCursor(n: Int, flags: Int): CharSequence? {
                 if (n <= 0) return ""
                 val length = minOf(n, typedMirror.length)
                 if (length == 0) return ""
                 return typedMirror.substring(typedMirror.length - length, typedMirror.length)
             }
 
-            override fun getTextAfterCursor(n: Int): CharSequence? = ""
+            // Nothing follows the caret in a terminal: the shell owns that line,
+            // not this connection.
+            override fun getTextAfterCursor(n: Int, flags: Int): CharSequence? = ""
 
+            // A terminal cannot represent a selection through the IME.
             override fun getSelectedText(n: Int): CharSequence? = ""
 
             private fun moveCursor(delta: Int) {
