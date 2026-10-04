@@ -55,6 +55,9 @@ import dev.drosh.ui.splash.SplashScreen
 import dev.drosh.ui.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
+import dev.drosh.ui.agent.AgentChatScreen
+import dev.drosh.ui.agent.AgentHomeScreen
+import dev.drosh.ui.agent.AgentSettingsScreen
 import dev.drosh.ui.settings.SettingsScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
