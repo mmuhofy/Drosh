@@ -7,6 +7,7 @@ import dev.drosh.domain.agent.ApprovalDecision
 import dev.drosh.domain.agent.ApprovalRequest
 import dev.drosh.domain.agent.LlmToolCall
 import dev.drosh.domain.agent.ToolContext
+import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolOutputTrimmer
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.agent.ToolUpdate
@@ -163,9 +164,13 @@ internal class ToolCallExecutor(
             ),
         )
 
+        // Hoisted: a `select` clause block is not a coroutine body, so
+        // currentCoroutineContext() cannot be called inside it.
+        val runJob = currentCoroutineContext().job
+
         val decision = select {
             waiter.onAwait { it }
-            currentCoroutineContext().job.onJoin {
+            runJob.onJoin {
                 throw CancellationException("run cancelled while awaiting approval")
             }
         }

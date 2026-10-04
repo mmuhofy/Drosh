@@ -14,87 +14,140 @@
 
 package dev.drosh.editor
 
-import android.content.Context
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import android.graphics.Typeface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import dev.drosh.core.DroshPalette
+import io.github.rosemoe.sora.event.ContentChangeEvent
+import io.github.rosemoe.sora.event.EventReceiver
 import io.github.rosemoe.sora.widget.CodeEditor
+
+/**
+ * Editor size in sp.
+ *
+ * Matches the terminal's own text size default so the two do not look like
+ * different applications sharing a screen.
+ */
+private const val EDITOR_TEXT_SIZE_SP = 14f
+
+/**
+ * A live reference to the mounted editor, plus whether the user has changed it.
+ *
+ * The editor's text is pulled on demand rather than pushed per keystroke.
+ * sora-editor fires a [ContentChangeEvent] on every edit, and reading the whole
+ * buffer on each one would turn typing into an O(file) operation — at the 2 MiB
+ * [dev.drosh.domain.file.GuestFileLimits.MAX_EDIT_BYTES] ceiling that is a visible
+ * stutter. An event only flips a boolean; the buffer is read when someone
+ * actually needs it, which is saving and leaving.
+ *
+ * Not a ViewModel: it holds a `View` and a live event subscription, so it
+ * cannot survive a configuration change, and it is created and destroyed with
+ * the composition that owns the editor.
+ */
+@Stable
+class SoraEditorHandle internal constructor() {
+
+    internal var editor: CodeEditor? = null
+
+    /** True once the user has edited the buffer and it differs from disk. */
+    var dirty by mutableStateOf(false)
+        internal set
+
+    /** The buffer as it stands. Reads the whole document; do not call per keystroke. */
+    fun currentText(): String = editor?.text?.toString().orEmpty()
+
+    /**
+     * Replaces the buffer, e.g. after a save or a reload from disk.
+     *
+     * The event this triggers is [ContentChangeEvent.ACTION_SET_NEW_TEXT], which
+     * [SoraCodeEditor] deliberately ignores, so the document does not come back
+     * marked dirty and there is no flag to reset around this call.
+     */
+    fun applyExternalText(text: String) {
+        val view = editor ?: return
+        if (view.text?.toString() == text) return
+        view.setText(text)
+        dirty = false
+    }
+}
+
+@Composable
+fun rememberSoraEditorHandle(): SoraEditorHandle = remember { SoraEditorHandle() }
 
 /**
  * sora-editor's `CodeEditor`, mounted in Compose.
  *
- * The widget is a plain Android `View`, so it is hosted the same way
- * `TerminalScreen` already hosts `TerminalView`: `AndroidView` plus an imperative
- * handle. sora-editor's own Compose guide uses this shape too.
+ * The widget is a plain Android `View`, so it is hosted exactly the way
+ * `TerminalScreen` already hosts `TerminalView`: `AndroidView` over an
+ * imperative handle. sora-editor's own Compose guide uses this shape as well.
  *
- * ### What is delegated and what is ours
+ * ### What is sora's and what is Drosh's
  *
- * Everything about editing — the text buffer, the cursor, selection,
- * undo/redo, auto-indent, word wrap, rendering, and the syntax highlighter —
- * belongs to sora-editor. None of it is reimplemented. What this file adds is
- * only what an app has to add anyway: colour, and a release.
+ * The buffer, cursor, selection, undo/redo, auto-indent, word wrap, rendering
+ * and syntax analysis are all sora's, unmodified. This file contributes the
+ * three things an app has to contribute regardless of which editor widget it
+ * picks: Drosh's colours, a lifetime that releases the widget, and a dirty flag.
  *
- * ### Why the state is remembered rather than hoisted
+ * ### Why one instance per composition
  *
- * `remember` keeps one editor instance per composition, which is what sora
- * requires: it owns background threads for syntax analysis and holds a
- * language object that "should serve for only one editor". Recreating it on
- * every recomposition would leak a thread per frame.
- *
- * The colours are applied inside `apply`, not as parameters, because they come
- * from a raw `Int` palette in `:core` and never change while the screen is up.
+ * `remember`, not a parameter. sora-editor documents that a `Language` instance
+ * "should serve for only one editor" and that the widget owns background threads;
+ * recreating it on recomposition would leak a thread per frame.
  */
 @Composable
 fun SoraCodeEditor(
-    /** Set once, at creation. Changing it afterwards does not reload the editor. */
     initialText: String,
     modifier: Modifier = Modifier,
-    onTextChanged: (String) -> Unit = {},
+    handle: SoraEditorHandle = rememberSoraEditorHandle(),
 ) {
     val context = LocalContext.current
-    val latestOnTextChanged by rememberUpdatedState(onTextChanged)
-
     val editor = remember(context) {
         CodeEditor(context).apply {
             setText(initialText)
-            typefaceText = android.graphics.Typeface.MONOSPACE
-            setTextSize(TEXT_SIZE_SP)
-            // Paint the widget from the same constants the terminal uses, so the
-            // editor does not read as a different app pasted into Drosh.
-            setEditorBackgroundColor(DroshPalette.DROSH_BACKGROUND.toArgb())
-            setColorScheme(DroshEditorColorScheme())
+            setTypefaceText(Typeface.MONOSPACE)
+            setTextSize(EDITOR_TEXT_SIZE_SP)
+            setColorScheme(droshEditorColorScheme())
         }
     }
 
-    // Release is mandatory: the editor holds a background thread for syntax
-    // analysis, and sora-editor's docs are explicit that a leaked editor must
-    // not be reused afterwards. Without this the thread outlives the screen.
+    SideEffect { handle.editor = editor }
+
+    // Unsubscribe before release: the receipt holds a reference into the
+    // editor's event manager, and releasing the editor underneath a live
+    // subscription is how a listener ends up firing against a dead widget.
     DisposableEffect(editor) {
-        onDispose { editor.release() }
+        // EventReceiver spelled out rather than passed as a bare lambda:
+        // subscribeEvent and subscribeAlways are overloads on two different
+        // functional interfaces, and a lambda would leave the choice to
+        // overload resolution.
+        val receiver = EventReceiver<ContentChangeEvent> { event, _ ->
+            // ACTION_SET_NEW_TEXT is how setText() reports itself. Ignoring it is
+            // what keeps loading a file — or pushing a freshly saved buffer back
+            // into the widget — from marking the document dirty, with no flag to
+            // reset around those calls. INSERT and DELETE cover typing and
+            // undo/redo alike, which is the behaviour we want: undoing back to
+            // the saved state still counts as changed until the user saves.
+            if (event.action != ContentChangeEvent.ACTION_SET_NEW_TEXT) {
+                handle.dirty = true
+            }
+        }
+        val receipt = editor.subscribeEvent(ContentChangeEvent::class.java, receiver)
+        onDispose {
+            receipt.unsubscribe()
+            editor.release()
+        }
     }
 
     AndroidView(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DroshPalette.DROSH_BACKGROUND.toComposeColor()),
+        modifier = modifier,
         factory = { editor },
-        update = { view ->
-            view.setTextColor(DroshPalette.DROSH_TEXT_PRIMARY.toArgb())
-            // The cursor position is readable synchronously, so this gives the
-            // dirty-state tracking without a per-keystroke recomposition of the
-            // whole screen.
-            latestOnTextChanged(view.text?.toString().orEmpty())
-        },
+        update = { /* Text is imperative; nothing to push on recomposition. */ },
     )
 }
-
-private const val TEXT_SIZE_SP = 14f
