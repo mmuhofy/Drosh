@@ -155,6 +155,7 @@ fun TerminalScreen(
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onExit: () -> Unit = {},
     onOpenAgent: () -> Unit = {},
+    onOpenProjects: () -> Unit = {},
 ) {
     var showProgress by remember { mutableStateOf(false) }
 
@@ -190,6 +191,7 @@ fun TerminalScreen(
                 extraKeyState = extraKeyState,
                 onExit = onExit,
                 onOpenAgent = onOpenAgent,
+                onOpenProjects = onOpenProjects,
             )
         }
 
@@ -215,6 +217,7 @@ private fun ReadyScreen(
     inputBarViewModel: InputBarViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onOpenAgent: () -> Unit = {},
+    onOpenProjects: () -> Unit = {},
 ) {
 
     // Haze is gone. It records Compose's own draw commands, and the terminal is
@@ -973,6 +976,7 @@ private fun ReadyScreen(
         isOpen = sidebarOpen,
         onOpenSettings = onOpenSettings,
         onOpenAgent = onOpenAgent,
+        onOpenProjects = onOpenProjects,
         pushState = sidebarPush,
     )
     }

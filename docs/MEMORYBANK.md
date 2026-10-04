@@ -1,5 +1,5 @@
 # Drosh — Memory Bank
-_Last updated: 2026-09-27_
+_Last updated: 2026-10-05_
 
 ---
 
@@ -73,7 +73,7 @@ ui/
   shortcuts/        → Shortcut overlay, keyboard panel
   settings/         → Settings, theme store, API vault
   hud/              → HUD widgets, status panel
-  workspace/        → Project workspace, workflow management
+  workspace/        → Project workspace (grouping + metadata, §7B)
 
 domain/
   terminal/         → TerminalSession, Block, SemanticToken,
@@ -84,7 +84,8 @@ domain/
   session/          → SessionEntity, CommandDNA, Replay
   ssh/              → SshHost, SshKey, SshConnection
   shortcut/         → ShortcutEntity, KeyBinding, CommandShortcut
-  workspace/        → Workspace, Project, Workflow
+  workspace/        → Workspace, WorkspaceEdit, WorkspaceRepository,
+                      WorkspacePath, WorkspaceGrouping
 
 data/
   terminal/         → TerminalManager, ProotRunner, UbuntuBootstrap
@@ -418,18 +419,143 @@ See §6 Navigation. Shared Element Transition — card thumbnail morphs into ful
 - **Recents** — auto-sorted by last used
 
 ### Workspace (Project-Based)
+*Implemented 2026-10-05. Branch `feat/workspace` — see §7B.*
+
 Each workspace is a project:
 ```
 Workspace: MyApp
   ├── Path: /home/user/myapp
   ├── Sessions: dev-local, test-env
-  ├── Shortcuts: project-specific commands
-  └── Workflows: deploy, test, build (v1.1+)
+  ├── Shortcuts: project-specific commands          (deferred)
+  └── Workflows: deploy, test, build                (deferred)
 ```
-- Project-aware shortcuts
-- Project-aware agent context
-- Workflow automation (v1.1+)
+- Project-aware shortcuts — **deferred**, nothing in the schema anticipates it
+- Project-aware agent context — **deferred**
+- Workflow automation (v1.1+) — **deferred**
 - Lightweight — terminal stays primary
+
+---
+
+## 7B. Workspace / Project System
+
+*Added 2026-10-05. Branch `feat/workspace`.*
+
+### Scope, as Muhofy specified it
+
+**Grouping plus persistent metadata. Sessions and processes are not made
+persistent by it.** That sentence is the whole design, and two things follow from
+it that are decisions rather than omissions:
+
+- A workspace owns **no** PTY, keeps **no** shell alive, and reopens nothing.
+  The workspace row survives a process death; the shell behind a session does
+  not, exactly as it does not for an ungrouped session.
+- `rootPath` is a **label, not a working directory**. Nothing reads it to decide
+  where to run a shell and nothing `cd`s on the user's behalf.
+
+Had a workspace implied a process, a dead session inside one would read as a
+failure rather than the normal state of a phone that closed an hour ago.
+
+### What is stored
+
+```
+Workspace
+  id, name
+  rootPath     guest path, normalised on write
+  description  optional, empty is normal
+  colorSeed    index into a fixed 6-slot palette the UI owns
+  createdAtMs, lastOpenedAtMs
+  archived
+```
+
+`sessions.workspace_id` — nullable FK, `ON DELETE SET NULL`, indexed. The
+grouping lives on the session row, not as a collection on the workspace: a
+workspace can hold many sessions but is not *made of* them, and a column of ids
+would need its own consistency rules on every write that touched either table.
+
+### Layering
+
+| Layer | Files |
+|-------|-------|
+| `domain/workspace/` | `Workspace.kt` (model + `WorkspaceRepository` + `WorkspaceEdit` + `forStorage`), `WorkspacePath.kt`, `WorkspaceGrouping.kt` |
+| `data/workspace/` | `WorkspaceEntity`, `WorkspaceDao`, `WorkspaceRepositoryImpl` |
+| `ui/workspace/` | `WorkspaceScreen`, `WorkspaceViewModel`, `components/` |
+
+`ui/` sees only `:domain`. The board the screen renders is
+`WorkspaceGrouping.board(workspaces, sessions)` — a **pure** function over two
+independent Room streams, which is why its three decision rules are unit-tested
+rather than inferred from the screen.
+
+### Decisions worth keeping
+
+- **The colour is a seed index, not a stored colour.** A hex value would survive a
+  theme change that made it unreadable, and a project list is read at a glance
+  where two projects looking alike is the failure that matters. Every seed
+  resolves to a token that already has a dark and a light value.
+- **The seed is clamped on write** (`WorkspaceEdit.forStorage`), so the palette
+  can be indexed without a bounds check at every read.
+- **The path is normalised on write**, because it is typed by hand on a phone
+  keyboard and then compared: `myapp`, `/myapp/`, `//myapp//` and
+  `/home/x/./myapp` must not become four projects. `..` is *kept* — resolving it
+  needs a filesystem, and a workspace path is not required to exist.
+- **Deleting a workspace never deletes a session.** A grouping label is cheap to
+  lose and a session's history is not. `WorkspaceRepositoryImpl.delete` also
+  writes the nulls explicitly, because `ON DELETE SET NULL` only fires when the
+  `foreign_keys` pragma is on and Room does not guarantee that it is.
+- **Restoring a session keeps its grouping.** Dropping it would silently
+  ungroup a session as a side effect of a restore the user thinks is harmless.
+- **`assignToWorkspace` validates the id before the write**, not via the foreign
+  key. A stale screen offering a since-deleted project is a UI mistake, and an
+  `SQLiteConstraintException` at an arbitrary later point is a poor trade for it.
+- **An archived workspace's sessions become ungrouped**, not lost. The group is
+  gone as far as the user can see, so pretending the session still belongs to
+  something would be worse than showing it loose.
+- **A session naming a workspace that is not in the list is ungrouped, not
+  dropped.** The FK should make this unreachable; a session silently missing from
+  the screen is invisible breakage.
+- **The screen claims only whether a record has *ended*.** A persisted
+  `SessionState.Running` is not a liveness report: it is written when a PTY
+  spawns and nothing rewrites it if the process dies with the app. It is the
+  resume marker `SessionManagerAdapter.ensureSessionExists` looks for — the same
+  distinction `docs/SESSION-SYSTEM.md` §2 already draws.
+- **Opening an ended session restores it** rather than merely activating it.
+  Activation of a `Closed` row is a no-op (the terminal switches by id and there
+  is no process to switch to), so the user would land back where they were having
+  been told nothing. Restoring resets it to `Idle`, which is the signal
+  `reconcile` already watches for. Same rule as the sidebar, same reason.
+- **Nothing about grouping touches `reconcile`.** It reads `state` only, so
+  `ensureSessionExists` still resumes the most recently used session across *all*
+  projects. That is correct and unchanged — a project is not a resume scope.
+
+### Reached from
+
+Sidebar → **Projects**, and Settings → Projects. Both routes land on
+`"workspace"`; opening a session from there pops back to the named terminal
+destination (`terminal_home`, else `terminal`) rather than one entry, because a
+single pop would land on Settings.
+
+### Migration
+
+`DroshDatabase` **2 → 3**, `MIGRATION_2_3`. The `sessions` table is **rebuilt**,
+not altered: `workspace_id` needs a foreign key and SQLite cannot add a
+constraint to an existing table. Room validates the actual schema at open time,
+so a plain `ADD COLUMN` would take every existing install down at launch. The
+column is appended last so the `INSERT ... SELECT` can name the original six and
+read NULL — the correct value, since every session predates grouping.
+
+### Tests
+
+`:domain:test` (runs in `tests.yml`) — `WorkspacePathTest`,
+`WorkspaceEditTest`, `WorkspaceGroupingTest`.
+
+### Not built
+
+- **No project-scoped shortcuts**, no workflow builder — both are in §9 as
+  deferred, and nothing here anticipates their schema.
+- **Agent chats are not grouped.** A chat has a `working_directory` and would fit,
+  but §9 lists sessions only and grouping it is a separate product call.
+- **No archive screen.** `archived` is persisted and `observeArchived()` exists,
+  but nothing calls it; there is no way yet to archive or unarchive.
+- **No file tree, no "open in editor", no git state** for a project.
 
 ---
 
@@ -862,7 +988,7 @@ data class SshHost(
 ⬜ ThemeStore.kt — theme engine
 ⬜ AliasManager.kt — shell alias sync
 ⬜ MultiExec.kt — broadcast SSH commands
-   ⬜ WorkspaceManager.kt — project system
+   ✅ Workspace.kt, WorkspaceRepository, WorkspacePath, WorkspaceGrouping (§7B)
 
 ### WebViewSheet (browser)
 - back/forward/reload toolbar icons (enabled via `canGoBack`/`canGoForward`); `WebChromeClient.onProgressChanged` → Material3 progress bar; 3-dot dropdown (`DroshDropdownMenu`: Copy URL / Open in Browser / Reload).

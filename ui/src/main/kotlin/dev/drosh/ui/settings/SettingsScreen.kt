@@ -64,6 +64,7 @@ private fun statusBarInset(): Dp =
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onOpenProjects: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
     deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel(),
 ) {
@@ -236,6 +237,21 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(Modifier.height(GROUP_GAP))
+
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_section_projects),
+                items = 1,
+            ) { _, cap ->
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_projects),
+                    icon = DroshIcons.Folder,
+                    supporting = stringResource(R.string.settings_projects_desc),
+                    onClick = onOpenProjects,
+                ) { SettingsChevron() }
             }
 
             Spacer(Modifier.height(GROUP_GAP))

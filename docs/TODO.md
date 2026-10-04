@@ -1,13 +1,61 @@
-# Drosh — TODO (Phase 6: Agent Bölümü + Native Editor)
-_Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence ve Native Editor bölümlerini içerir. Diğer fazlar buraya dahil edilmemiştir._
+# Drosh — TODO (Phase 6: Agent Bölümü + Native Editor + Workspace)
+_Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence, Native Editor ve Workspace bölümlerini içerir. Diğer fazlar buraya dahil edilmemiştir._
 
-_Son güncelleme: 2026-10-04_
+_Son güncelleme: 2026-10-05_
 
 ---
 
 ## Çalışma Prensibi — Önce Plan, Sonra Kod
 
 Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri içerir. Agent sistemi tasarlanırken 10 agentic kodlama uygulamasının analizinden (OpenCode, Cline SDK, Codex, Aider, DeepSeek Harness, Qwen Code, Harness CLI, Claude Code, Kilo Code) ilham alınıyor — bu ürünlerin çözdüğü problemler inceleniyor, Drosh'un kendi mobil/Android kısıtlarına uyarlanıyor, birebir kopyalanmıyor. İmplementasyon, plan tamamen netleşip onaylandıktan sonra başlayacak.
+
+---
+
+## Workspace / Proje Sistemi
+*Goal: gruplama + kalıcı metadata. Session'lar ve process'ler kalıcı değil. Branch `feat/workspace`.*
+*Şartname: Muhofy, 2026-10-05 — "sadece gruplama, kalıcı metadata olacak sessionlar processler kalıcı olmucak"*
+
+### Shipped (2026-10-05)
+- [x] `domain/workspace/` — `Workspace`, `WorkspaceEdit`, `WorkspaceRepository`,
+      `WorkspaceEdit.forStorage()`, `WorkspacePath`, `WorkspaceGrouping`
+- [x] `data/workspace/` — `WorkspaceEntity`, `WorkspaceDao`, `WorkspaceRepositoryImpl`
+- [x] `sessions.workspace_id` — nullable FK, `ON DELETE SET NULL`, indexed
+- [x] `DroshDatabase` 2 → 3 + `MIGRATION_2_3` (sessions tablosu rebuild: SQLite
+      mevcut tabloya constraint ekleyemiyor)
+- [x] `SessionRepository.assignToWorkspace` — id'yi yazmadan önce doğrular
+- [x] `WorkspaceScreen` + `WorkspaceViewModel` + edit/assign sheet'leri
+- [x] Erişim: sidebar → Projects, Settings → Projects
+- [x] `:domain:test` — `WorkspacePathTest`, `WorkspaceEditTest`, `WorkspaceGroupingTest`
+- [x] MEMORYBANK §7B
+
+### Explicitly NOT in v1 (karar, eksiklik değil)
+- [~] **Workspace process tutmaz.** PTY yok, shell ayakta tutulmuyor, hiçbir şey
+      geri açılmıyor. Bu yüzden ekranda "çalışıyor" rozeti yok — yalnızca
+      "bitti" / "aktif" var. Kalıcı `SessionState.Running` bir canlılık raporu
+      değil, resume işaretidir.
+- [~] **`rootPath` bir etiket, çalışma dizini değil.** Hiçbir yerde `cd` yapılmıyor.
+- [~] **Projeye özel shortcut yok** — MEMORYBANK §9'da deferred, şema öngörmüyor.
+- [~] **Workflow builder yok** — v1.1+.
+- [~] **Agent chat'ler gruplanmıyor** — §9 sadece session diyor; ayrı ürün kararı.
+
+### Next
+- [ ] **Arşiv ekranı.** `archived` kolonu ve `observeArchived()` var ama kimse
+      çağırmıyor — arşivle/arzivden çıkar yolu henüz yok.
+- [ ] **Projeye yeni session** — şu an session'ı projeye *taşı*ma var, proje
+      içinden sıfırdan session açma yok. `SessionRepository.create(name, workspaceId)`
+      bunun için hazırlandı, çağıran yok.
+- [ ] **Session silerken projeyi de silme teklifi** — "bu session projeye ait,
+      projeyi de sil?" onayı.
+- [ ] **Projeyi terminalde aç** — `cd <rootPath>` yerine doğrudan bir yeni
+      session. Root path etiket olduğu için bu ayrı bir karar.
+- [ ] **Arama/filtre** — session listesi aranıyor, proje listesi aranmıyor.
+- [ ] **Sürükle-bırak sıralama** — projeler `lastOpenedAtMs` ile sıralı,
+      kullanıcı sırası yok.
+- [ ] **Agent chat'lerini gruplama** — `working_directory` zaten var, ürün kararı bekliyor.
+
+### Bilinçli olarak yapılmayan
+- [ ] ~~Workspace oturumları kalıcı yapsın~~ — Muhofy's spec'i bunu açıkça
+      reddediyor. Bir process'in ömrü app'in ömrü; proje onu taşımıyor.
 
 ---
 
