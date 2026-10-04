@@ -455,7 +455,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                 if (body != null) {
                     MonoBlock(
                         text = body,
-                        modifier = Modifier.padding(horizontal = 10.dp, top = 2.dp),
+                        modifier = Modifier.padding(start = 10.dp, top = 2.dp, end = 10.dp),
                     )
                 }
 
@@ -464,7 +464,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                         text = "çıktı kırpıldı — tam hâli context'e kısıtlı olarak gitti",
                         fontSize = 10.sp,
                         color = DroshWarning,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(start = 10.dp, top = 4.dp, end = 10.dp),
                     )
                 }
 
@@ -474,7 +474,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
                         color = DroshTextMuted,
-                        modifier = Modifier.padding(horizontal = 10.dp, bottom = 8.dp),
+                        modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
                     )
                 }
             }

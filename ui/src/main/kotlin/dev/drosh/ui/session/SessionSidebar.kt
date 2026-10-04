@@ -164,6 +164,7 @@ fun SessionSidebar(
             viewModel = viewModel,
             deviceIdentityViewModel = deviceIdentityViewModel,
             onOpenSettings = onOpenSettings,
+            onOpenAgent = onOpenAgent,
         )
     }
 }
