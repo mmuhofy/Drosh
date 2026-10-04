@@ -15,6 +15,7 @@ import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.toList
@@ -60,41 +61,45 @@ class AgentLoopTest {
      * Approving or cancelling a parked run needs the collector still alive, so
      * these tests cannot use `toList()` — it would block on a loop that is waiting
      * for the very answer the test is about to send.
+     *
+     * Events go into a [Channel] rather than a list the test polls. A `yield()`
+     * spin is a busy-wait on a `StandardTestDispatcher`, which does not reliably
+     * hand the slot to the background job and is not thread-safe against it; a
+     * channel receive is a real suspension point and carries the value across
+     * safely.
      */
     private class LiveRun(
         scope: CoroutineScope,
         loop: AgentLoop,
         request: AgentRequest,
     ) {
-        val events: MutableList<AgentEvent> = mutableListOf()
+        private val channel = Channel<AgentEvent>(Channel.UNLIMITED)
+        private val collected = mutableListOf<AgentEvent>()
         private val job = scope.launch {
-            loop.send(request).collect { events += it }
+            loop.send(request).collect { event ->
+                collected += event
+                channel.send(event)
+            }
         }
 
         /**
-         * Wait until the run parks on an approval, then hand back the request.
+         * Suspend until the run parks on an approval and hand back the request.
          *
-         * Bounded on purpose. An unbounded `yield()` spin turns a broken event
-         * relay into a suite that hangs until the harness timeout with no
-         * diagnostic; this fails immediately with what the run actually emitted.
+         * The first approval wins; later ones (a tool that asks twice) are read by
+         * [drain] if a test cares.
          */
-        suspend fun awaitApproval(loop: AgentLoop): AgentApproval {
-            repeat(MAX_SPINS) {
-                val raised = events.filterIsInstance<AgentEvent.ApprovalRequired>().lastOrNull()
-                if (raised != null && loop.pendingApprovalIds().contains(raised.approval.id)) {
-                    return raised.approval
+        suspend fun awaitApproval(): AgentApproval {
+            while (true) {
+                when (val event = channel.receive()) {
+                    is AgentEvent.ApprovalRequired -> return event.approval
+                    else -> Unit
                 }
-                yield()
             }
-            throw AssertionError(
-                "the run never parked on an approval. emitted=${events.map { it::class.simpleName }}" +
-                    " pending=${loop.pendingApprovalIds()} state=${loop.state.value}",
-            )
         }
 
         suspend fun finish() = job.join()
 
-        fun outcome(): RunOutcome = events.last().outcome()
+        fun outcome(): RunOutcome = collected.last().outcome()
     }
 
     // ── the happy path ────────────────────────────────────────────────────
@@ -376,7 +381,7 @@ class AgentLoopTest {
         adapter.script += listOf(answerTurn("Written."))
 
         val run = LiveRun(this, loop, request())
-        val approval = run.awaitApproval(loop)
+        val approval = run.awaitApproval()
 
         assertEquals("overwrite vite.config.js?", approval.title)
         assertNotNull(approval.diff)
@@ -398,7 +403,7 @@ class AgentLoopTest {
         adapter.script += listOf(answerTurn("Leaving it then."))
 
         val run = LiveRun(this, loop, request())
-        val approval = run.awaitApproval(loop)
+        val approval = run.awaitApproval()
         loop.answerApproval(approval.id, ApprovalDecision.Reject("that would break the build"))
         run.finish()
 
@@ -425,7 +430,7 @@ class AgentLoopTest {
         adapter.script += listOf(answerTurn("Going manual."))
 
         val run = LiveRun(this, loop, request())
-        val approval = run.awaitApproval(loop)
+        val approval = run.awaitApproval()
 
         assertEquals(listOf("automatic", "manual"), approval.options)
         loop.answerApproval(approval.id, ApprovalDecision.Answer("manual"))
@@ -441,15 +446,14 @@ class AgentLoopTest {
         adapter.script += listOf(answerTurn("Done."))
 
         val run = LiveRun(this, loop, request())
-        val approval = run.awaitApproval(loop)
+        val approval = run.awaitApproval()
 
         // Only meaningful once the run has actually parked.
-        val observed = loop.state.value
         assertTrue(
-            "expected WaitingApproval, saw $observed (pending=${loop.pendingApprovalIds()})",
-            observed is AgentRunState.WaitingApproval,
+            "expected WaitingApproval, saw ${loop.state.value}",
+            loop.state.value is AgentRunState.WaitingApproval,
         )
-        val waiting = observed as AgentRunState.WaitingApproval
+        val waiting = loop.state.value as AgentRunState.WaitingApproval
         assertEquals(setOf("chat-1"), waiting.chatIds)
 
         loop.answerApproval(approval.id, ApprovalDecision.Approve)
@@ -464,7 +468,7 @@ class AgentLoopTest {
         adapter.script += listOf(toolTurn("write_file", args("command" to "w", "path" to "a")))
 
         val run = LiveRun(this, loop, request())
-        run.awaitApproval(loop)
+        run.awaitApproval()
 
         loop.cancel("chat-1")
         run.finish()
@@ -550,7 +554,7 @@ class AgentLoopTest {
 
         val first = launch { loop.send(request()).toList() }
         var spins = 0
-        while (slowTool.calls.isEmpty() && spins++ < MAX_SPINS) yield()
+        while (slowTool.calls.isEmpty() && spins++ < 10_000) yield()
         assertTrue("the first run never reached the tool", slowTool.calls.isNotEmpty())
 
         val error = runCatching { loop.send(request()).toList() }.exceptionOrNull()
@@ -572,16 +576,6 @@ class AgentLoopTest {
         loop.send(request()).toList()
 
         assertEquals(AgentRunState.Idle, loop.state.value)
-    }
-
-    private companion object {
-        /**
-         * Enough scheduler passes for a scripted run to reach its tool and park.
-         * Not a timeout — virtual time does not advance during `yield()`, so this
-         * counts yields rather than elapsed time. In a companion object because
-         * [LiveRun] is a nested class and cannot see the outer instance.
-         */
-        const val MAX_SPINS = 200
     }
 }
 
