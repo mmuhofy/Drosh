@@ -30,3 +30,9 @@ jobs:
 
       - name: Run :domain tests
         run: ./gradlew :domain:test --no-daemon --stacktrace
+
+      # The agent module's tests are pure: SSE framing, tool-call reassembly,
+      # request encoding and provider error classification, all driven from
+      # literal wire text with no network and no Android.
+      - name: Run :agent tests
+        run: ./gradlew :agent:test --no-daemon --stacktrace

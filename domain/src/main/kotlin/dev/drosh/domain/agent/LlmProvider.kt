@@ -61,7 +61,11 @@ interface LlmProviderRepository {
 
     fun observeCredentials(): Flow<Map<String, LlmCredential>>
 
-    suspend fun provider(id: String): LlmProvider?
+    /**
+     * Provider by id, or null. Synchronous: the catalog is configuration, not
+     * storage, so an adapter resolving its endpoint mid-stream never blocks on IO.
+     */
+    fun provider(id: String): LlmProvider?
 
     /** Throws when there is no credential — the caller surfaces it as a setup prompt. */
     suspend fun credential(providerId: String): LlmCredential?
