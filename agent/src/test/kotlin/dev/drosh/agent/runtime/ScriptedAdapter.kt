@@ -1,0 +1,131 @@
+package dev.drosh.agent.runtime
+
+import dev.drosh.domain.agent.ChatAdapter
+import dev.drosh.domain.agent.FinishReason
+import dev.drosh.domain.agent.LlmCredential
+import dev.drosh.domain.agent.LlmMessage
+import dev.drosh.domain.agent.LlmModel
+import dev.drosh.domain.agent.LlmProvider
+import dev.drosh.domain.agent.LlmProviderRepository
+import dev.drosh.domain.agent.LlmRequest
+import dev.drosh.domain.agent.LlmStreamEvent
+import dev.drosh.domain.agent.LlmToolCall
+import dev.drosh.domain.agent.ProviderKind
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+/**
+ * A scripted provider.
+ *
+ * Each call to [stream] consumes the next turn from [script]. A turn that runs
+ * out of entries yields a plain "done" answer, so a test that only cares about the
+ * first tool call does not have to spell out the follow-up.
+ */
+internal class ScriptedAdapter(
+    override val kind: ProviderKind = ProviderKind.OPENAI_COMPAT,
+) : ChatAdapter {
+
+    val requests: MutableList<LlmRequest> = mutableListOf()
+    var script: MutableList<List<LlmStreamEvent>> = mutableListOf()
+
+    override fun stream(
+        provider: LlmProvider,
+        request: LlmRequest,
+        credential: LlmCredential,
+    ): Flow<LlmStreamEvent> = flow {
+        requests += request
+        val turn = if (script.isEmpty()) listOf(finishedEvent()) else script.removeAt(0)
+        turn.forEach { emit(it) }
+    }
+}
+
+/** A model that answers in plain text and asks for nothing. */
+internal fun answerTurn(text: String): List<LlmStreamEvent> = listOf(
+    LlmStreamEvent.TextDelta(text),
+    LlmStreamEvent.Finished(FinishReason.STOP, TokenUsageFixture()),
+)
+
+/** A model that asks for one tool and nothing else. */
+internal fun toolTurn(
+    toolName: String,
+    arguments: JsonObject,
+    callId: String = "call_1",
+): List<LlmStreamEvent> = listOf(
+    LlmStreamEvent.ToolCallStarted(callId, toolName),
+    LlmStreamEvent.ToolCallCompleted(callId, toolName, arguments),
+    LlmStreamEvent.Finished(FinishReason.TOOL_CALLS, TokenUsageFixture()),
+)
+
+/** A model that asks for the same tool call over and over. */
+internal fun repeatingToolTurn(toolName: String, arguments: JsonObject): List<LlmStreamEvent> =
+    toolTurn(toolName, arguments, callId = "call_repeat")
+
+internal fun failureTurn(message: String, retryable: Boolean): List<LlmStreamEvent> =
+    listOf(LlmStreamEvent.Failed(message, retryable))
+
+/** A turn that streams some text and *then* fails. */
+internal fun textThenFailureTurn(text: String, message: String): List<LlmStreamEvent> = listOf(
+    LlmStreamEvent.TextDelta(text),
+    LlmStreamEvent.Failed(message, retryable = true),
+)
+
+internal fun finishedEvent() = LlmStreamEvent.Finished(FinishReason.STOP, TokenUsageFixture())
+
+private fun TokenUsageFixture() = dev.drosh.domain.agent.TokenUsage(input = 100, output = 20)
+
+/** An in-memory provider catalog with a fixed key. */
+internal class FakeProviderRepository(
+    private val key: String? = "sk-test",
+) : LlmProviderRepository {
+
+    var providers: List<LlmProvider> = listOf(
+        LlmProvider(
+            id = "openrouter",
+            label = "OpenRouter",
+            kind = ProviderKind.OPENAI_COMPAT,
+            baseUrl = "https://openrouter.ai/api/v1",
+            modelsPath = "models",
+        ),
+    )
+
+    override fun observeProviders(): Flow<List<LlmProvider>> = flow { emit(providers) }
+
+    override fun observeCredentials(): Flow<Map<String, LlmCredential>> = flow {
+        emit(key?.let { mapOf("openrouter" to LlmCredential("openrouter", it)) } ?: emptyMap())
+    }
+
+    override fun provider(id: String): LlmProvider? = providers.firstOrNull { it.id == id }
+
+    override suspend fun credential(providerId: String): LlmCredential? =
+        key?.let { LlmCredential(providerId, it) }
+
+    override suspend fun fetchModels(providerId: String, forceRefresh: Boolean): List<LlmModel> =
+        emptyList()
+
+    override suspend fun setSelectedModel(providerId: String, modelId: String) = Unit
+
+    override suspend fun selectedModel(providerId: String): String? = null
+}
+
+/** Convenience for building tool arguments in tests. */
+internal fun args(vararg pairs: Pair<String, String>): JsonObject = buildJsonObject {
+    pairs.forEach { (key, value) -> put(key, value) }
+}
+
+/** The assistant/tool history the loop built, as a flat list for assertions. */
+internal fun LlmRequest.describeHistory(): List<String> = messages.map { message ->
+    when (message) {
+        is LlmMessage.User -> "user: ${message.text}"
+        is LlmMessage.Assistant -> if (message.toolCalls.isEmpty()) {
+            "assistant: ${message.text}"
+        } else {
+            "assistant(tool): ${message.toolCalls.joinToString { it.name }}"
+        }
+
+        is LlmMessage.ToolResultMessage -> "result(${message.name}): ${message.content.take(40)}"
+    }
+}
+

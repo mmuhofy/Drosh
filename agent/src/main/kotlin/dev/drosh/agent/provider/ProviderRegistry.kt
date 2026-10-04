@@ -9,23 +9,29 @@ import javax.inject.Singleton
 /**
  * Maps a provider's wire protocol to the adapter that speaks it.
  *
- * Adapters are injected rather than constructed here so Hilt owns their lifetime
- * and a test can swap one without touching this class.
+ * Adapters arrive through a multibinding rather than as constructor parameters,
+ * which buys two things. Adding a protocol is one class and nothing else — no
+ * edit to this file, and therefore no chance of adding the adapter but forgetting
+ * to register it. And the registry can be constructed with a stand-in adapter in
+ * a test, which a hard-coded `OpenAiCompatAdapter` parameter made impossible.
  *
- * An unimplemented protocol fails loudly. Silently routing an unknown provider
- * to the OpenAI-compatible adapter would produce a request the provider rejects
- * in a way that looks like a bad API key.
+ * An unimplemented protocol fails loudly. Silently routing an unknown provider to
+ * the OpenAI-compatible adapter would produce a request the provider rejects in a
+ * way that looks like a bad API key.
  */
 @Singleton
 class ProviderRegistry @Inject constructor(
-    private val openAiCompat: OpenAiCompatAdapter,
+    adapters: Set<@JvmSuppressWildcards ChatAdapter>,
 ) {
 
-    fun adapterFor(provider: LlmProvider): ChatAdapter = when (provider.kind) {
-        ProviderKind.OPENAI_COMPAT -> openAiCompat
-        ProviderKind.GEMINI -> throw UnsupportedOperationException(
-            "Provider '${provider.label}' speaks ${ProviderKind.GEMINI}, which is not " +
-                "implemented yet. OpenRouter and other OpenAI-compatible endpoints work.",
+    private val byKind: Map<ProviderKind, ChatAdapter> =
+        adapters.associateBy { it.kind }
+
+    fun adapterFor(provider: LlmProvider): ChatAdapter = byKind[provider.kind]
+        ?: throw UnsupportedOperationException(
+            "Provider '${provider.label}' speaks ${provider.kind}, which no adapter implements. " +
+                "Adapters registered: ${byKind.keys.joinToString(", ").ifEmpty { "none" }}.",
         )
-    }
+
+    internal fun supportedKinds(): Set<ProviderKind> = byKind.keys
 }

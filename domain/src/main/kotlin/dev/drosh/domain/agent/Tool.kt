@@ -64,13 +64,37 @@ interface Tool {
  * @param workingDirectory absolute path inside the guest filesystem the agent
  *                         is scoped to; tools must not escape it
  * @param step 1-based loop iteration, for diagnostics and loop detection
- * @param emit push an incremental update to the UI without ending the call
+ * @param emit push an incremental update to the UI without ending the call.
+ *               Suspend because streaming output *is* the asynchronous part —
+ *               a tool reporting a line of shell output is doing I/O, and a
+ *               plain `(ToolUpdate) -> Unit` would make that impossible to
+ *               express honestly.
+ * @param awaitApproval suspend until the user answers. A tool that mutates
+ *               something the user did not explicitly ask for calls this with
+ *               the detail worth showing — a diff, a question, a set of choices —
+ *               and proceeds or returns `ToolResult.Cancelled` on the answer.
  */
 data class ToolContext(
     val chatId: String,
     val workingDirectory: String,
     val step: Int,
-    val emit: (ToolUpdate) -> Unit,
+    val emit: suspend (ToolUpdate) -> Unit,
+    val awaitApproval: suspend (ApprovalRequest) -> ApprovalDecision,
+)
+
+/**
+ * What a tool wants the user's consent for.
+ *
+ * Only [title] is required: an approval card that cannot be rendered into a
+ * single readable line is not worth blocking a run over.
+ */
+data class ApprovalRequest(
+    val title: String,
+    val body: String? = null,
+    /** Unified diff, when the decision is about a file change. */
+    val diff: String? = null,
+    /** Choices for [ApprovalDecision.Answer]; empty means free text. */
+    val options: List<String> = emptyList(),
 )
 
 /** Incremental progress from a running tool. Never terminates the call. */

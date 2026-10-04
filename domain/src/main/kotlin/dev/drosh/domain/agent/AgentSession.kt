@@ -85,11 +85,13 @@ sealed interface AgentRunState {
     data object Idle : AgentRunState
 
     /** At least one chat is streaming or running tools. */
-    data class Running(val chatIds: Set<String>, val step: Int) : AgentRunState
+    data class Running(val chatIds: Set<String>) : AgentRunState
 
-    /** At least one chat is parked on the user; other chats may still run. */
+    /**
+     * At least one chat is parked on the user; others may still be running.
+     *
+     * Distinct from [Running] because it needs a different affordance: a stop
+     * button is wrong when the run is waiting for a yes or no.
+     */
     data class WaitingApproval(val chatIds: Set<String>) : AgentRunState
-
-    /** Last run ended in an error. Cleared when a new run starts. */
-    data class Failed(val message: String) : AgentRunState
 }
