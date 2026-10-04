@@ -132,6 +132,6 @@ class WriteFileTool @Inject constructor(
         const val NAME = "write_file"
 
         /** Refuse to load something enormous into memory just to diff it. */
-        private const val MAX_EDITABLE_BYTES = 1_000_000L
+        private const val MAX_EDITABLE_BYTES = 1_000_000
     }
 }

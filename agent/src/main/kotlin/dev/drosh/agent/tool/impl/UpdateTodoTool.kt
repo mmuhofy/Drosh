@@ -50,7 +50,7 @@ class UpdateTodoTool @Inject constructor() : Tool {
 
     override fun summarize(input: JsonObject): String {
         val todos = input["todos"] as? JsonArray
-        val count = todos?.size() ?: 0
+        val count = todos?.size ?: 0
         return "todo list ($count item${if (count == 1) "" else "s"})"
     }
 
@@ -60,7 +60,8 @@ class UpdateTodoTool @Inject constructor() : Tool {
 
         val parsed = raw.mapIndexedNotNull { index, element ->
             val obj = element as? JsonObject ?: return@mapIndexedNotNull null
-            val id = obj["id"]?.jsonPrimitive?.content?.trim().ifEmpty { (index + 1).toString() }
+            val id = obj["id"]?.jsonPrimitive?.content?.trim().orEmpty()
+                .ifEmpty { (index + 1).toString() }
             val title = obj["title"]?.jsonPrimitive?.content?.trim().orEmpty()
             if (title.isEmpty()) return@mapIndexedNotNull null
             val status = parseStatus(obj["status"]?.jsonPrimitive?.content)
