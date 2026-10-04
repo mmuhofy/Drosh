@@ -1,13 +1,44 @@
-# Drosh — TODO (Phase 6: Agent Bölümü)
-_Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence bölümünü içerir. Diğer fazlar buraya dahil edilmemiştir._
+# Drosh — TODO (Phase 6: Agent Bölümü + Native Editor)
+_Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence ve Native Editor bölümlerini içerir. Diğer fazlar buraya dahil edilmemiştir._
 
-_Son güncelleme: 2026-09-19_
+_Son güncelleme: 2026-10-04_
 
 ---
 
 ## Çalışma Prensibi — Önce Plan, Sonra Kod
 
 Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri içerir. Agent sistemi tasarlanırken 10 agentic kodlama uygulamasının analizinden (OpenCode, Cline SDK, Codex, Aider, DeepSeek Harness, Qwen Code, Harness CLI, Claude Code, Kilo Code) ilham alınıyor — bu ürünlerin çözdüğü problemler inceleniyor, Drosh'un kendi mobil/Android kısıtlarına uyarlanıyor, birebir kopyalanmıyor. İmplementasyon, plan tamamen netleşip onaylandıktan sonra başlayacak.
+
+---
+
+## Native Editor
+*Goal: `editor <path>` opens a real code editor. Branch `feat/editor`.*
+
+### Shipped (2026-10-04)
+- [x] `editor <path>` shell command → Drosh-private OSC 1339 → editor opens
+- [x] `GuestFileRepository` (`:domain`) + `RootfsGuestFileRepository` (`:data`), rootfs-only
+- [x] `:editor` module — sora-editor wrapper, Drosh colour scheme, ViewModel, screen
+- [x] Route + Hilt binding + `CodeEditor.release()` lifecycle
+- [x] Discard-changes confirmation on back when dirty
+
+### Next
+- [ ] **Syntax highlighting** — `language-textmate:0.24.3` is pinned and ready.
+      Needs core-library desugaring (`java.time` below API 33) + bundled
+      `*.tmLanguage.json` grammars. Colour scheme already sets the token keys.
+- [ ] `Ctrl+S` / hardware-keyboard save (nothing binds save to a key yet)
+- [ ] Undo/redo buttons in the header — sora has `canUndo()`/`canRedo()`, unused
+- [ ] Decide the editor's place in the phase order — it is in no phase list
+- [ ] **LGPL sign-off** — sora-editor is LGPL-2.1-or-later, Drosh is GPL-3.0.
+      Must be confirmed before any F-Droid submission.
+
+### Known unrelated bugs found while working here
+- [ ] `ui/.../input/FlatKeyBar.kt:170` — the Backspace key emits
+      `Navigation.HOME`. `ExtraKey.Navigation` has no `BACKSPACE` member at all.
+- [ ] `TerminalView`'s IME mirror (`imeCursor`/`typedMirror`, 144 lines) was
+      reverted by `72efca9` as "a wrong guess, made by reading code instead of
+      observing the device" — but merge `d4013ec` resolved the conflict the other
+      way and it is **live on main**. The revert's own reasoning still stands and
+      nobody has re-decided it.
 
 ---
 
@@ -71,3 +102,15 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 - [ ] Agent Watch — WorkManager background conditions
 - [ ] Natural Language Cron — WorkManager scheduler
 - [ ] Terminal Lens — OCR → command
+
+---
+
+## Bilinen Borç — Agent (2026-10-04)
+
+- [ ] **`AgentLoopTest.cancelling a parked run…` testini geri aç.**
+      `AgentLoop.cancel` toplama coroutine'ini iptal ediyor; `runTest` bir
+      çocuktaki yakalanmamış exception'ı test başarısızlığı sayıyor ve testi
+      mesajsız bir `AssertionError` ile kendi şikâyeti olarak raporluyor.
+      Gerçek davranış `PendingRequestsTest` içinde deterministik olarak test
+      ediliyor (8 test). Dışarıdan gözlemleyen test `runBlocking` + açık job
+      handle ile yeniden yazılmalı. İptal yolu yeniden ele alındığında yapılacak.
