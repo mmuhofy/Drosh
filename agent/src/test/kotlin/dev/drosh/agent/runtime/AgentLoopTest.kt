@@ -502,6 +502,11 @@ class AgentLoopTest {
         assertNotNull("the parked tool was never released", writer.decision)
         assertEquals("run cancelled", (writer.decision as? ApprovalDecision.Reject)?.reason)
         assertEquals(0, writer.executions)
+
+        // Join last: runTest fails the test if a child is still running at the end,
+        // and joining a cancelled coroutine returns normally. Joining earlier raced
+        // the tool's own unwinding, which is why the wait moved above.
+        run.finish()
     }
 
     // ── configuration and concurrency ─────────────────────────────────────
