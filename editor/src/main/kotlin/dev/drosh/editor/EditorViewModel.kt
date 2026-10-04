@@ -99,7 +99,7 @@ class EditorViewModel @Inject constructor(
                     )
                 },
                 onFailure = { error ->
-                    _state.value = EditorUiState.Failed(error.toMessage(guestPath))
+                    _state.value = EditorUiState.Failed(error.toFileFailure().toMessage(guestPath))
                 },
             )
         }
