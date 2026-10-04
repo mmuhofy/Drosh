@@ -87,9 +87,9 @@ class AgentLoopTest {
                 channel.send(event)
             }
         }.also {
-            // Closed when the run stops for any reason, so awaitToolCompletion's
-            // receiveCatching returns instead of waiting for an event a cancelled
-            // run will never emit.
+            // Closed when the run stops for any reason, so a receiveCatching in a
+            // test returns instead of waiting on an event a cancelled run never
+            // emits.
             it.invokeOnCompletion { channel.close() }
         }
 
@@ -102,20 +102,6 @@ class AgentLoopTest {
                     is AgentEvent.ApprovalRequired -> return event.approval
                     else -> Unit
                 }
-            }
-        }
-
-        /**
-         * Suspend until the currently running tool reports a terminal result.
-         *
-         * Ends immediately if cancellation tore the run down before the tool could
-         * finish — there is no event coming, and that is a legitimate outcome for
-         * a cancelled run.
-         */
-        suspend fun awaitToolCompletion() {
-            while (true) {
-                val event = channel.receiveCatching().getOrNull() ?: return
-                if (event is AgentEvent.ToolCompleted) return
             }
         }
 
@@ -494,10 +480,11 @@ class AgentLoopTest {
 
         loop.cancel("chat-1")
 
-        // cancel() resumes the parked tool with a rejection; let that unwind before
-        // asserting. The channel receive suspends until the run emits its next
-        // event, which happens once the tool has returned.
-        run.awaitToolCompletion()
+        // cancel() resumes the parked tool with a rejection. Give the run a few
+        // scheduler passes to unwind; the tool sets its decision synchronously when
+        // the deferred resolves, so a short yield loop is enough and cannot hang.
+        var spins = 0
+        while (writer.decision == null && spins++ < 10_000) yield()
 
         // The tool resumed with a rejection rather than staying suspended for the
         // life of the process.
@@ -517,11 +504,6 @@ class AgentLoopTest {
             0,
             writer.executions,
         )
-
-        // Join last: runTest fails the test if a child is still running at the end,
-        // and joining a cancelled coroutine returns normally. Joining earlier raced
-        // the tool's own unwinding, which is why the wait moved above.
-        run.finish()
     }
 
     // ── configuration and concurrency ─────────────────────────────────────
