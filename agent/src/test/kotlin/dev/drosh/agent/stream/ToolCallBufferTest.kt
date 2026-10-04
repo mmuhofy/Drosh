@@ -1,6 +1,7 @@
 package dev.drosh.agent.stream
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -25,7 +26,7 @@ class ToolCallBufferTest {
         assertEquals(1, calls.size)
         assertEquals("call_a", calls.single().id)
         assertEquals("shell", calls.single().name)
-        assertEquals("ls -la", calls.single().arguments["command"].jsonPrimitive.content)
+        assertEquals("ls -la", calls.single().arguments.str("command"))
     }
 
     @Test
@@ -38,7 +39,7 @@ class ToolCallBufferTest {
         buffer.append(0, null, null, "b.tsx\"}")
 
         val args = buffer.finishAll().single().arguments
-        assertEquals("a\"b.tsx", args["path"].jsonPrimitive.content)
+        assertEquals("a\"b.tsx", args.str("path"))
     }
 
     @Test
@@ -56,8 +57,8 @@ class ToolCallBufferTest {
         val byId = calls.associateBy { it.id }
         assertEquals("shell", byId.getValue("call_a").name)
         assertEquals("read_file", byId.getValue("call_b").name)
-        assertEquals("a1", byId.getValue("call_a").arguments["command"].jsonPrimitive.content)
-        assertEquals("b.txt", byId.getValue("call_b").arguments["path"].jsonPrimitive.content)
+        assertEquals("a1", byId.getValue("call_a").arguments.str("command"))
+        assertEquals("b.txt", byId.getValue("call_b").arguments.str("path"))
     }
 
     @Test
@@ -137,7 +138,7 @@ class ToolCallBufferTest {
 
 class ReasoningTextTest {
 
-    private fun obj(json: String) = Json.parseToJsonElement(json) as kotlinx.serialization.json.JsonObject
+    private fun obj(json: String) = Json.parseToJsonElement(json) as JsonObject
 
     @Test
     fun `reads the reasoning_content spelling`() {
@@ -162,3 +163,11 @@ class ReasoningTextTest {
         assertNull(obj("""{"reasoning":123}""").reasoningText())
     }
 }
+
+/**
+ * Read a string argument the way production code does.
+ *
+ * `getValue` rather than `[]`: an absent key then fails with a message naming
+ * the key, instead of a nullability error pointing at the wrong line.
+ */
+private fun JsonObject.str(key: String): String = getValue(key).jsonPrimitive.content
