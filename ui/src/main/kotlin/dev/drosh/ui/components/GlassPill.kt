@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -70,7 +69,12 @@ fun GlassPill(
     tint: Color? = null,
     enabled: Boolean = true,
     icon: ImageVector? = null,
-    painter: Painter? = null,
+    /**
+     * Drawable resource, for the agent mark. Resolved here rather than by the
+     * caller: `painterResource` is itself a composable call, and passing a Painter
+     * in would push that requirement onto every call site.
+     */
+    drawableRes: Int? = null,
     label: String? = null,
 ) {
     var pressed by remember { mutableStateOf(false) }
@@ -130,8 +134,8 @@ fun GlassPill(
                 modifier = Modifier.size(GlassPillDefaults.IconSize),
             )
 
-            painter != null -> Icon(
-                painter = painter,
+            drawableRes != null -> Icon(
+                painter = painterResource(drawableRes),
                 contentDescription = null,
                 tint = accent,
                 modifier = Modifier.size(GlassPillDefaults.IconSize),
@@ -151,26 +155,6 @@ fun GlassPill(
             Spacer(Modifier.width(GlassPillDefaults.IconSize))
         }
     }
-}
-
-/** Drawable-backed pill, for the agent mark. */
-@Composable
-fun GlassPillDrawable(
-    drawableRes: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tint: Color? = null,
-    enabled: Boolean = true,
-) {
-    GlassPill(
-        contentDescription = contentDescription,
-        onClick = onClick,
-        modifier = modifier,
-        tint = tint,
-        enabled = enabled,
-        painter = painterResource(drawableRes),
-    )
 }
 
 /** An icon-only pill sized to the 48dp touch minimum, for a bar's leading slot. */
