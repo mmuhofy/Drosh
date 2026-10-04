@@ -501,9 +501,22 @@ class AgentLoopTest {
 
         // The tool resumed with a rejection rather than staying suspended for the
         // life of the process.
-        assertNotNull("the parked tool was never released", writer.decision)
-        assertEquals("run cancelled", (writer.decision as? ApprovalDecision.Reject)?.reason)
-        assertEquals(0, writer.executions)
+        val decision = writer.decision
+        assertNotNull("the parked tool was never released", decision)
+        assertTrue(
+            "expected a Reject, got $decision",
+            decision is ApprovalDecision.Reject,
+        )
+        assertEquals(
+            "wrong rejection reason",
+            "run cancelled",
+            (decision as ApprovalDecision.Reject).reason,
+        )
+        assertEquals(
+            "a rejected write must not touch the file, but it ran ${writer.executions} times",
+            0,
+            writer.executions,
+        )
 
         // Join last: runTest fails the test if a child is still running at the end,
         // and joining a cancelled coroutine returns normally. Joining earlier raced
