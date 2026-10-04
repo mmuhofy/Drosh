@@ -78,8 +78,11 @@ private fun TokenUsageFixture() = dev.drosh.domain.agent.TokenUsage(input = 100,
 
 /** An in-memory provider catalog with a fixed key. */
 internal class FakeProviderRepository(
-    private val key: String? = "sk-test",
+    key: String? = "sk-test",
 ) : LlmProviderRepository {
+
+    /** Mutable so the new setCredential / clearCredential can be exercised. */
+    private var key: String? = key
 
     var providers: List<LlmProvider> = listOf(
         LlmProvider(
