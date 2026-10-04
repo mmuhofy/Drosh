@@ -102,6 +102,14 @@ internal class FakeProviderRepository(
     override suspend fun credential(providerId: String): LlmCredential? =
         key?.let { LlmCredential(providerId, it) }
 
+    override suspend fun setCredential(providerId: String, apiKey: String) {
+        this.key = apiKey.takeIf { it.isNotBlank() }
+    }
+
+    override suspend fun clearCredential(providerId: String) {
+        key = null
+    }
+
     override suspend fun fetchModels(providerId: String, forceRefresh: Boolean): List<LlmModel> =
         emptyList()
 
