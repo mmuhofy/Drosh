@@ -10,6 +10,7 @@ import dev.drosh.domain.agent.LlmToolCall
 import dev.drosh.domain.agent.ProviderKind
 import dev.drosh.domain.agent.ToolDefinition
 import dev.drosh.domain.agent.toolSchema
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -22,13 +23,18 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 /**
- * The wire format is asserted directly against literal payloads rather than
- * through a stub server: cheaper, and it pins the exact bytes OpenRouter
- * receives instead of whatever a fake would happen to produce.
+ * The wire format is asserted against literal payloads rather than through a
+ * stub server: cheaper, and it pins the exact bytes OpenRouter receives instead
+ * of whatever a fake happens to produce.
  *
  * No request is ever sent — `parseFrame` and `buildBody` are pure.
+ *
+ * Every JSON literal below is kept on one line and free of `$`. Multi-line raw
+ * strings and templates inside them are legal Kotlin but make a stray imbalance
+ * very hard to see, and there is no local build to catch it.
  */
 class OpenAiCompatAdapterTest {
 
@@ -48,80 +54,94 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `parses a text delta`() {
-        val frame = adapter.parseFrame(
-            """{"choices":[{"delta":{"content":"Hello"}}]}""",
-        )
+        val frame = adapter.parseFrame("""{"choices":[{"delta":{"content":"Hello"}}]}""")
 
         assertTrue(frame is OpenAiCompatAdapter.Frame.Text)
         assertEquals("Hello", (frame as OpenAiCompatAdapter.Frame.Text).delta)
     }
 
     @Test
-    fun `parses reasoning under both spellings`() {
-        val first = adapter.parseFrame("""{"choices":[{"delta":{"reasoning":"hmm"}}]}""")
-        val second = adapter.parseFrame("""{"choices":[{"delta":{"reasoning_content":"hmm"}}]}""")
+    fun `parses reasoning under both spellings providers use`() {
+        val plain = adapter.parseFrame("""{"choices":[{"delta":{"reasoning":"hmm"}}]}""")
+        val content = adapter.parseFrame("""{"choices":[{"delta":{"reasoning_content":"hmm"}}]}""")
 
-        assertEquals("hmm", (first as OpenAiCompatAdapter.Frame.Reasoning).delta)
-        assertEquals("hmm", (second as OpenAiCompatAdapter.Frame.Reasoning).delta)
+        assertEquals("hmm", (plain as OpenAiCompatAdapter.Frame.Reasoning).delta)
+        assertEquals("hmm", (content as OpenAiCompatAdapter.Frame.Reasoning).delta)
     }
 
     @Test
     fun `parses a tool call fragment`() {
-        val frame = adapter.parseFrame(
-            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a",
-               "function":{"name":"shell","arguments":""}}]}}]}""",
-        )
+        val payload = """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a",""" +
+            """"function":{"name":"shell","arguments":""}}]}}]}"""
+        val frame = adapter.parseFrame(payload)
 
         val fragment = frame as OpenAiCompatAdapter.Frame.ToolFragment
         assertEquals(0, fragment.index)
         assertEquals("call_a", fragment.id)
         assertEquals("shell", fragment.name)
+        assertEquals("", fragment.argsDelta)
+    }
+
+    @Test
+    fun `parses an argument fragment with no id or name`() {
+        // Only the first fragment for an index carries identity; the rest are
+        // bare argument text.
+        val payload = """{"choices":[{"delta":{"tool_calls":[{"index":0,""" +
+            """"function":{"arguments":"{}"}}]}}]}"""
+        val frame = adapter.parseFrame(payload) as OpenAiCompatAdapter.Frame.ToolFragment
+
+        assertNull(frame.id)
+        assertNull(frame.name)
+        assertEquals("{}", frame.argsDelta)
     }
 
     @Test
     fun `a fragment without an index defaults to zero`() {
-        // Some gateways omit the index entirely; assembling everything into one
-        // call beats dropping the tool call.
-        val frame = adapter.parseFrame(
-            """{"choices":[{"delta":{"tool_calls":[{"id":"call_a",
-               "function":{"name":"shell","arguments":"{}"}}]}}]}""",
-        )
+        // Some gateways omit the index entirely. Assembling everything into one
+        // call beats dropping the tool call on the floor.
+        val payload = """{"choices":[{"delta":{"tool_calls":[{"id":"call_a",""" +
+            """"function":{"name":"shell","arguments":"{}"}}]}}]}"""
+        val frame = adapter.parseFrame(payload) as OpenAiCompatAdapter.Frame.ToolFragment
 
-        assertEquals(0, (frame as OpenAiCompatAdapter.Frame.ToolFragment).index)
+        assertEquals(0, frame.index)
     }
 
     @Test
-    fun `parses finish reasons`() {
-        fun reasonOf(raw: String) =
-            (adapter.parseFrame("""{"choices":[{"delta":{},"finish_reason":"$raw"}]}""}")
-                as OpenAiCompatAdapter.Frame.Finish).reason
+    fun `parses every finish reason`() {
+        // A regular escaped string rather than a raw one: interpolating into a raw
+        // string here would need a four-quote run to put the value inside quotes,
+        // which parses but reads as a typo.
+        fun reasonOf(raw: String): FinishReason {
+            val payload = "{\"choices\":[{\"delta\":{},\"finish_reason\":\"$raw\"}]}"
+            return (adapter.parseFrame(payload) as OpenAiCompatAdapter.Frame.Finish).reason
+        }
 
         assertEquals(FinishReason.STOP, reasonOf("stop"))
         assertEquals(FinishReason.MAX_TOKENS, reasonOf("length"))
         assertEquals(FinishReason.TOOL_CALLS, reasonOf("tool_calls"))
         assertEquals(FinishReason.ERROR, reasonOf("error"))
         assertEquals(FinishReason.OTHER, reasonOf("content_filter"))
+        assertEquals(FinishReason.OTHER, reasonOf("something_new"))
     }
 
     @Test
-    fun `parses the trailing usage chunk with empty choices`() {
-        val frame = adapter.parseFrame(
-            """{"choices":[],"usage":{"prompt_tokens":812,"completion_tokens":96,
-               "cache_read_input_tokens":512,"reasoning_tokens":40}}""",
-        )
+    fun `parses the trailing usage chunk that has empty choices`() {
+        val payload = """{"choices":[],"usage":{"prompt_tokens":812,"completion_tokens":96,""" +
+            """"cache_read_input_tokens":512,"reasoning_tokens":40}}"""
+        val frame = adapter.parseFrame(payload)
 
         val usage = (frame as OpenAiCompatAdapter.Frame.Usage).usage
-        assertEquals(812, usage.input)
-        assertEquals(96, usage.output)
-        assertEquals(512, usage.cacheRead)
-        assertEquals(40, usage.reasoning)
+        assertEquals(812, requireNotNull(usage.input))
+        assertEquals(96, requireNotNull(usage.output))
+        assertEquals(512, requireNotNull(usage.cacheRead))
+        assertEquals(40, requireNotNull(usage.reasoning))
     }
 
     @Test
-    fun `an error object inside a 200 response is a failure not text`() {
-        val frame = adapter.parseFrame(
-            """{"error":{"code":401,"message":"User not found."},"choices":[{"finish_reason":"error"}]}""",
-        )
+    fun `an error object inside a 200 response is a failure, not text`() {
+        val payload = """{"error":{"code":401,"message":"User not found."},""" +
+            """"choices":[{"finish_reason":"error"}]}"""
+        val frame = adapter.parseFrame(payload)
 
         assertEquals(
             "User not found.",
@@ -130,25 +150,37 @@ class OpenAiCompatAdapterTest {
     }
 
     @Test
+    fun `an error object without a message still reports something`() {
+        val frame = adapter.parseFrame("""{"error":{"code":500},"choices":[]}""")
+
+        assertTrue((frame as OpenAiCompatAdapter.Frame.Failure).message.isNotBlank())
+    }
+
+    @Test
     fun `malformed json is ignored rather than thrown`() {
         assertTrue(adapter.parseFrame("not json at all") is OpenAiCompatAdapter.Frame.Ignore)
         assertTrue(adapter.parseFrame("") is OpenAiCompatAdapter.Frame.Ignore)
+        assertTrue(adapter.parseFrame("[1,2,3]") is OpenAiCompatAdapter.Frame.Ignore)
     }
 
     @Test
     fun `an unknown field does not break parsing`() {
-        val frame = adapter.parseFrame(
-            """{"choices":[{"delta":{"content":"hi","some_new_field":42}}],
-               "system_fingerprint":"fp_1"}""",
-        )
+        val payload = """{"choices":[{"delta":{"content":"hi","some_new_field":42}}],""" +
+            """"system_fingerprint":"fp_1"}"""
+        val frame = adapter.parseFrame(payload)
 
         assertEquals("hi", (frame as OpenAiCompatAdapter.Frame.Text).delta)
+    }
+
+    @Test
+    fun `an empty delta is ignored`() {
+        assertTrue(adapter.parseFrame("""{"choices":[{"delta":{}}]}""") is OpenAiCompatAdapter.Frame.Ignore)
     }
 
     // ── request building ──────────────────────────────────────────────────
 
     @Test
-    fun `body requests a stream and asks for usage`() {
+    fun `body requests a stream and opts into usage`() {
         // Without stream_options.include_usage, streaming responses carry no token
         // counts at all and the UI has nothing to show after a long run.
         val body = adapter.buildBody(
@@ -175,17 +207,14 @@ class OpenAiCompatAdapterTest {
 
         val messages = body["messages"]!!.jsonArray
         assertEquals("system", messages[0].jsonObject["role"]!!.jsonPrimitive.content)
-        assertEquals(
-            "You are a shell agent.",
-            messages[0].jsonObject["content"]!!.jsonPrimitive.content,
-        )
+        assertEquals("You are a shell agent.", messages[0].jsonObject["content"]!!.jsonPrimitive.content)
         assertEquals("user", messages[1].jsonObject["role"]!!.jsonPrimitive.content)
     }
 
     @Test
-    fun `a blank system prompt is omitted`() {
+    fun `a blank system prompt is omitted entirely`() {
         val body = adapter.buildBody(
-            LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi")), systemPrompt = "  "),
+            LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi")), systemPrompt = "   "),
         )
 
         assertEquals(1, body["messages"]!!.jsonArray.size)
@@ -219,10 +248,28 @@ class OpenAiCompatAdapterTest {
         val function = toolCall["function"]!!.jsonObject
         assertEquals("shell", function["name"]!!.jsonPrimitive.content)
         // Arguments travel as a JSON string, not as a nested object.
-        assertEquals(
-            """{"command":"ls"}""",
-            function["arguments"]!!.jsonPrimitive.content,
+        assertEquals("""{"command":"ls"}""", function["arguments"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `an assistant turn with text keeps both text and tool calls`() {
+        val body = adapter.buildBody(
+            LlmRequest(
+                model = "m",
+                messages = listOf(
+                    LlmMessage.Assistant(
+                        text = "Let me look.",
+                        toolCalls = listOf(
+                            LlmToolCall("call_a", "read_file", buildJsonObject { put("path", "a.kt") }),
+                        ),
+                    ),
+                ),
+            ),
         )
+
+        val assistant = body["messages"]!!.jsonArray[0].jsonObject
+        assertEquals("Let me look.", assistant["content"]!!.jsonPrimitive.content)
+        assertEquals(1, assistant["tool_calls"]!!.jsonArray.size)
     }
 
     @Test
@@ -231,7 +278,7 @@ class OpenAiCompatAdapterTest {
             LlmRequest(
                 model = "m",
                 messages = listOf(
-                    LlmMessage.ToolResultMessage("call_a", "shell", "total 0\ndrwxr-xr-x"),
+                    LlmMessage.ToolResultMessage("call_a", "shell", "total 0"),
                 ),
             ),
         )
@@ -239,7 +286,7 @@ class OpenAiCompatAdapterTest {
         val message = body["messages"]!!.jsonArray[0].jsonObject
         assertEquals("tool", message["role"]!!.jsonPrimitive.content)
         assertEquals("call_a", message["tool_call_id"]!!.jsonPrimitive.content)
-        assertEquals("total 0\ndrwxr-xr-x", message["content"]!!.jsonPrimitive.content)
+        assertEquals("total 0", message["content"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -252,9 +299,7 @@ class OpenAiCompatAdapterTest {
                     ToolDefinition(
                         name = "read_file",
                         description = "Read a file",
-                        parameters = toolSchema {
-                            string("path", "absolute path")
-                        },
+                        parameters = toolSchema { string("path", "absolute path") },
                     ),
                 ),
             ),
@@ -307,7 +352,7 @@ class OpenAiCompatAdapterTest {
     // ── http request ──────────────────────────────────────────────────────
 
     @Test
-    fun `request targets the chat completions url with auth and provider headers`() {
+    fun `request targets chat completions with auth and provider headers`() {
         val request = adapter.buildHttpRequest(
             provider = provider,
             request = LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi"))),
@@ -322,8 +367,15 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `a trailing slash on the base url does not double up`() {
-        val slashed = provider.copy(baseUrl = "https://openrouter.ai/api/v1/")
-        assertEquals("https://openrouter.ai/api/v1/chat/completions", slashed.chatCompletionsUrl)
+        assertEquals(
+            "https://openrouter.ai/api/v1/chat/completions",
+            provider.copy(baseUrl = "https://openrouter.ai/api/v1/").chatCompletionsUrl,
+        )
+    }
+
+    @Test
+    fun `the models url is derived from the provider config`() {
+        assertEquals("https://openrouter.ai/api/v1/models", provider.modelsUrl)
     }
 }
 
@@ -333,12 +385,9 @@ class ProviderErrorClassifierTest {
 
     @Test
     fun `auth and payment problems are not retried`() {
-        // Resending a request with a bad key cannot help, and three attempts of
-        // backoff just make the user wait longer to see the real message.
-        assertEquals(
-            ProviderErrorClassifier.Decision.NEEDS_CREDENTIALS,
-            decision(401),
-        )
+        // Resending with a bad key cannot help, and three attempts of backoff just
+        // make the user wait longer to see the real message.
+        assertEquals(ProviderErrorClassifier.Decision.NEEDS_CREDENTIALS, decision(401))
         assertEquals(ProviderErrorClassifier.Decision.NEEDS_CREDENTIALS, decision(403))
         assertEquals(ProviderErrorClassifier.Decision.NEEDS_CREDENTIALS, decision(402))
     }
@@ -361,18 +410,14 @@ class ProviderErrorClassifierTest {
     }
 
     @Test
-    fun `a dropped connection mid stream is retried`() {
+    fun `a dropped connection is retryable`() {
         assertEquals(
             ProviderErrorClassifier.Decision.RETRY,
-            ProviderErrorClassifier.classify(java.io.IOException("connection reset")),
+            ProviderErrorClassifier.classify(IOException("connection reset")),
         )
-    }
-
-    @Test
-    fun `an io exception from reading a socket is retryable`() {
         assertEquals(
             ProviderErrorClassifier.Decision.RETRY,
-            ProviderErrorClassifier.classify(java.io.IOException()),
+            ProviderErrorClassifier.classify(IOException()),
         )
     }
 
@@ -382,7 +427,7 @@ class ProviderErrorClassifierTest {
         // restart the run they just ended.
         assertEquals(
             ProviderErrorClassifier.Decision.FATAL,
-            ProviderErrorClassifier.classify(kotlinx.coroutines.CancellationException("stop")),
+            ProviderErrorClassifier.classify(CancellationException("stop")),
         )
     }
 
@@ -401,9 +446,6 @@ class ProviderErrorClassifierTest {
         val max = AgentLimits.RETRY_MAX_DELAY_MS
 
         assertEquals(max, ProviderErrorClassifier.backoffMs(20, AgentLimits.RETRY_BASE_DELAY_MS, max))
-        assertEquals(
-            max,
-            ProviderErrorClassifier.backoffMs(1_000, AgentLimits.RETRY_BASE_DELAY_MS, max),
-        )
+        assertEquals(max, ProviderErrorClassifier.backoffMs(1_000, AgentLimits.RETRY_BASE_DELAY_MS, max))
     }
 }
