@@ -25,7 +25,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,6 +58,7 @@ import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.components.GlassPill
 import dev.drosh.ui.agent.components.ActionButton
 import dev.drosh.ui.agent.components.DroshAgentMark
+import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.SectionHeader
 import dev.drosh.ui.agent.components.TOUCH_TARGET
@@ -77,11 +77,9 @@ import dev.drosh.ui.agent.components.TOUCH_TARGET
 fun AgentSettingsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: AgentChatViewModel = hiltViewModel(),
+    viewModel: AgentSettingsViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(Unit) { viewModel.loadProvider() }
-
-    val state by viewModel.providerState.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -138,7 +136,7 @@ fun AgentSettingsScreen(
                 ApiKeyField(
                     hasKey = state.hasKey,
                     onSave = viewModel::saveApiKey,
-                    onRefreshModels = viewModel::fetchModels,
+                    onClear = viewModel::clearApiKey,
                     loadingModels = state.loadingModels,
                 )
             }
@@ -213,7 +211,7 @@ fun AgentSettingsScreen(
 private fun ApiKeyField(
     hasKey: Boolean,
     onSave: (String) -> Unit,
-    onRefreshModels: () -> Unit,
+    onClear: () -> Unit,
     loadingModels: Boolean,
 ) {
     var key by rememberSaveable { mutableStateOf("") }
@@ -279,16 +277,33 @@ private fun ApiKeyField(
 
         Spacer(Modifier.height(8.dp))
 
+        // Enabled on *any* non-blank input, including whitespace — the view model
+        // trims and treats an emptied result as a request to clear, and the user
+        // should not have to know that to remove a key.
         ActionButton(
-            text = "Kaydet",
+            text = if (hasKey) "Güncelle" else "Kaydet",
             onClick = { onSave(key) },
             modifier = Modifier.fillMaxWidth(),
             enabled = key.isNotBlank() && !loadingModels,
         )
 
-        Spacer(Modifier.height(6.dp))
+        if (hasKey) {
+            Spacer(Modifier.height(8.dp))
+            FlatButton(
+                text = "Anahtarı sil",
+                onClick = onClear,
+                modifier = Modifier.fillMaxWidth(),
+                tint = DroshError,
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
         Text(
-            text = "Cihazda şifreli saklanır. Drosh sunucuya başka bir şey göndermez.",
+            text = if (hasKey) {
+                "Anahtar kayıtlı. Drosh sunucuya başka bir şey göndermez."
+            } else {
+                "Cihazda şifreli saklanır. Drosh sunucuya başka bir şey göndermez."
+            },
             fontSize = 11.sp,
             lineHeight = 16.sp,
             color = DroshTextMuted,

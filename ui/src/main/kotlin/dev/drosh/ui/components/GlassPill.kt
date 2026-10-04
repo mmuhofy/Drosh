@@ -181,14 +181,27 @@ fun GlassIconButton(
 }
 
 object GlassPillDefaults {
-    /** Matches the terminal top bar's row so the two read as one control set. */
-    val Height: Dp = 36.dp
-    val Width: Dp = 36.dp
-    val IconSize: Dp = 22.dp
+    /**
+     * Matches the terminal top bar's row so the two read as one control set.
+     *
+     * 32 rather than 36: beside a 14dp title on a 390dp screen, 36 was heavy enough
+     * that the pills read as the primary content of the bar rather than as
+     * controls for it.
+     */
+    val Height: Dp = 32.dp
+    val Width: Dp = 32.dp
+    val IconSize: Dp = 19.dp
     val LabelSize = 12.sp
 
-    /** 48dp — the Material minimum; the pill is smaller than this on purpose. */
-    val TouchTarget: Dp = 48.dp
+    /**
+     * The tap area, which is deliberately larger than the pill.
+     *
+     * A 32dp pill is small to hit, so every call site that uses it in a bar sizes
+     * the *box* to 44dp and lets the pill be drawn smaller inside it. The hit
+     * target is what accessibility measures; the visible shape does not have to
+     * match it.
+     */
+    val TouchTarget: Dp = 44.dp
 
     /**
      * Accent for a pill in an active or busy state.
