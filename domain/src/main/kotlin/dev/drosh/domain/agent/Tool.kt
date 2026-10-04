@@ -164,9 +164,29 @@ class ToolSchemaBuilder {
         required,
     )
 
-    /** Escape hatch for a nested object or array schema. */
-    fun raw(name: String, schema: JsonObject, required: Boolean = true) =
-        property(name, schema, required)
+    /**
+     * Escape hatch for a nested object or array schema.
+     *
+     * Takes a description because a raw schema has no way to carry one — without
+     * it the model gets a property with no explanation of what it is.
+     */
+    fun raw(
+        name: String,
+        schema: JsonObject,
+        description: String = "",
+        required: Boolean = true,
+    ) = property(
+        name,
+        if (description.isBlank()) {
+            schema
+        } else {
+            buildJsonObject {
+                schema.forEach { (key, value) -> put(key, value) }
+                put("description", description)
+            }
+        },
+        required,
+    )
 
     fun build(): JsonObject = buildJsonObject {
         put("type", "object")

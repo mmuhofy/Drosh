@@ -89,8 +89,9 @@ class ReadFileTool @Inject constructor(
     }
 
     private fun sliceLines(content: String, startLine: Int, endLine: Int): String {
-        val lines = content.split("\n")
-        if (lines.isNotEmpty() && lines.last().isEmpty()) lines.removeAt(lines.size - 1)
+        val lines = content.split("\n").let {
+            if (it.isNotEmpty() && it.last().isEmpty()) it.dropLast(1) else it
+        }
         val from = (startLine - 1).coerceIn(0, lines.size)
         val to = if (endLine > 0) endLine.coerceAtMost(lines.size) else lines.size
         if (from >= to) {

@@ -4,11 +4,11 @@ import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolContext
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.agent.toolSchema
-import JsonArray
-import JsonObject
-import JsonPrimitive
-import buildJsonArray
-import buildJsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.util.concurrent.ConcurrentHashMap
