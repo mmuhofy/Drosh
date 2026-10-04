@@ -13,7 +13,6 @@ import dev.drosh.domain.agent.LlmRequest
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolResult
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -82,12 +81,12 @@ class AgentLoopTest {
                     collected += event
                     channel.send(event)
                 }
-            } catch (e: CancellationException) {
-                // Expected when the test cancels a parked run: `AgentLoop.cancel`
-                // cancels the collecting coroutine, which is this coroutine. The
-                // test asserts the tool was released, not that the run completed
-                // cleanly, so rethrowing would fail an otherwise correct test.
-                throw e
+            } finally {
+                // awaitToolCompletion waits on receiveCatching, which only returns
+                // once the channel is closed. A cancelled run may never emit a
+                // ToolCompleted, so the close is what turns "waiting for an event
+                // that will never come" into a normal return.
+                channel.close()
             }
         }
 
