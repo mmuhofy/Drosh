@@ -11,6 +11,7 @@ import dev.drosh.agent.tool.impl.AskUserTool
 import dev.drosh.agent.tool.impl.ReadFileTool
 import dev.drosh.agent.tool.impl.ShellTool
 import dev.drosh.agent.tool.impl.UpdateTodoTool
+import dev.drosh.agent.tool.impl.WebSearchTool
 import dev.drosh.agent.tool.impl.WriteFileTool
 import dev.drosh.domain.agent.Tool
 import dev.drosh.terminal.UbuntuBootstrap
@@ -46,6 +47,10 @@ abstract class AgentToolsModule {
     @Binds
     @IntoSet
     abstract fun bindUpdateTodoTool(impl: UpdateTodoTool): Tool
+
+    @Binds
+    @IntoSet
+    abstract fun bindWebSearchTool(impl: WebSearchTool): Tool
 
     companion object {
 

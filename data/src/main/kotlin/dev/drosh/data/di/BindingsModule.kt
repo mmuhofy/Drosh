@@ -8,6 +8,7 @@ import dev.drosh.data.session.DeviceIdentityRepositoryImpl
 import dev.drosh.data.session.SessionRepositoryImpl
 import dev.drosh.data.agent.AgentChatRepositoryImpl
 import dev.drosh.data.agent.LlmProviderRepositoryImpl
+import dev.drosh.data.agent.ToolCredentialRepositoryImpl
 import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
@@ -15,11 +16,13 @@ import dev.drosh.data.settings.FirstLaunchRepositoryImpl
 import dev.drosh.data.settings.SettingsRepositoryImpl
 import dev.drosh.data.settings.TerminalFontSizeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
+import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
 import dev.drosh.data.terminal.TriggerBootstrap
 import dev.drosh.domain.agent.AgentChatRepository
 import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmProviderRepository
+import dev.drosh.domain.agent.ToolCredentialRepository
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.NetworkMetricsCollector
 import dev.drosh.domain.input.HardwareKeyboardPresence
@@ -32,6 +35,7 @@ import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
+import dev.drosh.domain.terminal.PaneLayoutRepository
 import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
 import dev.drosh.domain.terminal.SubmitBlockCommandUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
@@ -108,6 +112,12 @@ abstract class BindingsModule {
 
     @Binds
     @Singleton
+    abstract fun bindPaneLayoutRepository(
+        impl: PaneLayoutRepositoryImpl,
+    ): PaneLayoutRepository
+
+    @Binds
+    @Singleton
     abstract fun bindBlockRepository(
         impl: BlockRepositoryImpl,
     ): BlockRepository
@@ -153,6 +163,12 @@ abstract class BindingsModule {
     abstract fun bindAgentChatRepository(
         impl: AgentChatRepositoryImpl,
     ): AgentChatRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindToolCredentialRepository(
+        impl: ToolCredentialRepositoryImpl,
+    ): ToolCredentialRepository
 
     @Binds
     @Singleton

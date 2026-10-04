@@ -152,6 +152,14 @@ fun AgentSettingsScreen(
                 }
             }
 
+            item(key = "search") {
+                SearchKeyField(
+                    hasKey = state.hasSearchKey,
+                    onSave = viewModel::saveSearchKey,
+                    onClear = viewModel::clearSearchKey,
+                )
+            }
+
             item(key = "models_header") {
                 SectionHeader("MODEL")
             }
@@ -308,6 +316,104 @@ private fun ApiKeyField(
             lineHeight = 16.sp,
             color = DroshTextMuted,
         )
+    }
+}
+
+/**
+ * The web-search key.
+ *
+ * Its own field rather than a row in the provider list, because it is a
+ * different kind of secret: it is never sent to a model, and leaving it out
+ * disables one tool rather than the agent.
+ */
+@Composable
+private fun SearchKeyField(
+    hasKey: Boolean,
+    onSave: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    var key by rememberSaveable { mutableStateOf("") }
+    var visible by rememberSaveable { mutableStateOf(false) }
+
+    Column(modifier = Modifier.padding(top = 4.dp)) {
+        SectionHeader("WEB ARAMA")
+        Text(
+            text = "Dışarıdaki bilgiler için. Anahtarsız da çalışır — agent sadece " +
+                "bu cihazdaki dosyalarla sınırlı kalır.",
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            color = DroshTextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(DroshSurfaceVariant)
+                .padding(start = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                if (key.isEmpty()) {
+                    Text(
+                        text = if (hasKey) "exa-… (kayıtlı)" else "exa-…",
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = DroshTextMuted,
+                    )
+                }
+                BasicTextField(
+                    value = key,
+                    onValueChange = { key = it },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = DroshText,
+                    ),
+                    cursorBrush = SolidColor(DroshPrimary),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = if (visible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                        .semantics { contentDescription = "Exa API anahtarı" },
+                )
+            }
+            GlassPill(
+                contentDescription = if (visible) "Gizle" else "Göster",
+                onClick = { visible = !visible },
+                modifier = Modifier.height(40.dp),
+                height = 34.dp,
+                width = 34.dp,
+                icon = if (visible) DroshIcons.EyeOff else DroshIcons.Eye,
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (hasKey) {
+                FlatButton(
+                    text = "Sil",
+                    onClick = onClear,
+                    modifier = Modifier.width(96.dp),
+                    tint = DroshError,
+                )
+            }
+            ActionButton(
+                text = if (hasKey) "Güncelle" else "Kaydet",
+                onClick = { onSave(key) },
+                enabled = key.isNotBlank(),
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
