@@ -4,8 +4,6 @@ import dev.drosh.domain.agent.ToolCredentialRepository
 import dev.drosh.domain.agent.ToolContext
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.agent.ToolUpdate
-import dev.drosh.domain.agent.stringArg
-import dev.drosh.domain.agent.toolSchema
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
