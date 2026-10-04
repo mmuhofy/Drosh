@@ -435,28 +435,50 @@ Workspace: MyApp
 
 ## 10. Agent Core
 
-### Architecture
-Port of Iris Code's agent system. Same 3-layer architecture:
+### Architecture (Phase 6 — implemented)
+Single-provider model (per Muhofy instruction: "endpoint girme, isim girme").
+Port of Iris Code's `OpenAiChatClient` + `OpenAiProviderAdapter`.
 
 ```
-AgentLoop (submission)
-  └── Flow<AgentEvent> → UI
-  └── Maps StreamEvent → AgentEvent
-        ↓
-MultiStepStreamer (multi-step engine)
-  └── for (step in 1..MAX_STEPS)
-  └── ProviderAdapter.stream() → SSE
-  └── Tool execution inline
-        ↓
-ProviderAdapter (interface)
-  └── OpenAiProviderAdapter (impl)
-  └── OpenAI-compatible /chat/completions
+AgentSession (domain interface)
+  └── AgentRuntime (agent/ module impl)
+      ├── ProviderAdapter → OpenAiSseAdapter
+      ├── ToolRegistry → ShellTool
+      └── MAX_STEPS = 20 (mobile battery/CPU constraint)
 ```
 
-### Tool Set (v1.0)
+### Provider Configuration
+- `ProviderConfig.baseUrl` (base URL, e.g. `https://openrouter.ai/api/v1`)
+- Chat URL: `"${baseUrl.trimEnd('/')}/chat/completions"`
+- Models URL: `"${baseUrl.trimEnd('/')}/models"` (no auth required on OpenRouter)
+- `isOpenRouter` detected via `baseUrl.contains("openrouter")`
+
+### OpenRouter Headers
+- `Authorization: Bearer <API_KEY>` (required)
+- `HTTP-Referer: https://github.com/mmuhofy/IrisCode` (recommended for attribution)
+- `X-OpenRouter-Title: Drosh` (app name for rankings)
+- `Content-Type: application/json`
+
+### Request Format
+- System prompt as `role: "system"` message in messages array (NOT `system` field)
+- Body: `{ model, messages, stream: true, tools: [...] }`
+- SSE: `[DONE]` → `finish_reason:"stop"` → `StreamEnd`; `:ping` comments ignored
+- `finish_reason:"error"` → `StreamEvent.Error` (not StreamEnd)
+
+### Error Handling (per OpenRouter docs)
+- Pre-stream: HTTP 4xx/5xx, body `{"error":{"code":401,"message":"User not found."}}`
+- Mid-stream: 200 OK, SSE `{"error":{...},"choices":[{"finish_reason":"error"}]}`
+- `onFailure`: raw response body passed through; JSON `error` extracted by `parseSseLine`
+
+### Default Provider
+- OpenRouter only: `https://openrouter.ai/api/v1`, model `meta-llama/llama-3-8b-instruct`
+- Plus "Custom" for arbitrary OpenAI-compatible endpoints
+- User enters base URL + API key + fetches models from `/models`
+
+### Tool Set
 | Tool | Description | Mode |
 |------|-------------|------|
-| `bash` | Execute shell command via PRoot | BUILD |
+| `shell` | Execute shell command via PRoot | BUILD |
 | `read_file` | Read file into agent context | PLAN + BUILD |
 | `write_file` | Write file, diff+approve flow | BUILD |
 | `ask_user` | Ask user a question | PLAN + BUILD |
@@ -787,11 +809,11 @@ data class SshHost(
 ✅ ProotRunner.kt
 ✅ UbuntuBootstrap.kt (+ log emission + lastFailedStep tracking)
 ✅ TerminalManager.kt
-✅ AgentLoop.kt
-✅ MultiStepStreamer.kt
-✅ OpenAiProviderAdapter.kt
-✅ WebSearchTool.kt
-✅ BashTool.kt
+✅ AgentLoop.kt → AgentRuntime.kt (simplified)
+✅ MultiStepStreamer.kt → bounded loop in AgentRuntime
+✅ OpenAiProviderAdapter.kt → OpenAiSseAdapter.kt (OpenRouter headers, system msg)
+✅ WebSearchTool.kt (v2.0+)
+✅ BashTool.kt → ShellTool.kt (name="shell")
 ✅ termux-view (vendored JNI)
 ✅ libtermux.so
 ✅ Visual Identity (colors, typography)
