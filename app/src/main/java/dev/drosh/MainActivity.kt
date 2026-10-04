@@ -29,7 +29,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
+import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
@@ -38,6 +41,7 @@ import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
+import dev.drosh.editor.EditorScreen
 import dev.drosh.terminal.ExtraKeyState
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.UbuntuSetupState
@@ -309,6 +313,7 @@ class MainActivity : ComponentActivity() {
                         onOpenSettings = { navController.navigate("settings") },
                         extraKeyState = extraKeyState,
                         onExit = { context.finish() },
+                        onOpenEditor = { path -> navController.openEditor(path) },
                     )
                 }
             }
@@ -323,12 +328,34 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = { navController.navigate("settings") },
                     extraKeyState = extraKeyState,
                     onExit = { context.finish() },
+                    onOpenEditor = { path -> navController.openEditor(path) },
                 )
             }
 
             composable("settings") {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
+                )
+            }
+
+            // `editor <path>` lands here. The path goes in a query argument, not a
+            // path segment: a guest path contains slashes, and a path segment
+            // would be matched against the route pattern and fail. Callers pass
+            // it through Uri.encode, which also covers the `?`, `#` and space a
+            // filename is allowed to contain.
+            composable(
+                route = "editor?guestPath={guestPath}",
+                arguments = listOf(
+                    navArgument("guestPath") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                ),
+            ) { entry ->
+                val guestPath = entry.arguments?.getString("guestPath").orEmpty()
+                EditorScreen(
+                    guestPath = guestPath,
+                    onClose = { navController.popBackStack() },
                 )
             }
         }
@@ -338,3 +365,14 @@ class MainActivity : ComponentActivity() {
 /** Blank means "follow the system", where no override applies. */
 private fun String.toLocaleOrNull() =
     takeIf { it.isNotBlank() }?.let { java.util.Locale.forLanguageTag(it) }
+
+/**
+ * Opens the editor for a guest path.
+ *
+ * Uri.encode, not string interpolation: a path may contain spaces, `?`, `#` or
+ * `&`, all of which would otherwise truncate or split the query argument and
+ * send the editor to the wrong file — or to none.
+ */
+private fun NavHostController.openEditor(guestPath: String) {
+    navigate("editor?guestPath=${android.net.Uri.encode(guestPath)}")
+}

@@ -80,6 +80,9 @@ class TerminalManager(
         onActiveSessionChanged?.invoke(activePersistentId())
         // Command marks are per session, so the flow follows the active tab.
         commandState.bind(irisSessions.getOrNull(_activeTabIndex.value)?.terminalSession)
+        // Same reason: `editor` is a command, so it belongs to the session that
+        // ran it, not to whichever tab happens to be showing.
+        editorRequests.bind(irisSessions.getOrNull(_activeTabIndex.value)?.terminalSession)
     }
 
     /**
@@ -98,6 +101,16 @@ class TerminalManager(
      * Keyboard.
      */
     val commandState: CommandStatePublisher = CommandStatePublisher(commandActivity)
+
+    /**
+     * Paths the guest asked Drosh to open in the native editor, delivered by
+     * the `editor` shell command.
+     *
+     * One-shot events, so this is a [kotlinx.coroutines.flow.Flow] rather than
+     * state: there is nothing to read, only something to react to. Collected
+     * by the terminal screen to navigate.
+     */
+    val editorRequests: EditorRequestPublisher = EditorRequestPublisher()
 
     /**
      * Ambient tint derived from the colours on screen, or null when neutral.
@@ -741,6 +754,7 @@ class TerminalManager(
 
     fun destroy() {
         commandState.unbind()
+        editorRequests.unbind()
         irisSessions.forEach { it.terminalSession.finishIfRunning() }
         irisSessions.clear()
         idToIndex.clear()
