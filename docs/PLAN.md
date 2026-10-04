@@ -1,6 +1,6 @@
 # Drosh Keyboard — Plan
 
-> **Durum:** Faz 0 **tamamlandı**. Kimlik ve imza hazır, kod özelleştirmesi henüz yok.
+> **Durum:** Faz 0-4 **tamamlandı**, cihaz testi bekliyor. Editor ertelendi.
 > **Tarih:** 2026-10-01
 > **Karar:** FlorisBoard tam fork, **ayrı Gradle build + ayrı repo**, ikinci APK, aynı imza.
 > **Repo:** `github.com/mmuhofy/DroshKeyboard` · yerel `/root/projects/DroshKeyboard`
@@ -417,3 +417,117 @@ klavye reposu o işlerde değişmiyor.
 | Package rename sadece kaynak dosyalarla sınırlı | Hayır — Room şema dizinleri de isim türetiyor |
 | `dev.patrickgold` önekini çevirmek güvenli | Hayır — `jetpref`/`compose` harici artifact'ler |
 | Push CI'si fork'ta çalışır | **Çalışmıyor** — `workflow_dispatch` zorunlu |
+
+---
+
+# 15. Tamamlananlar (2026-10-04)
+
+Hepsi CI'da yeşil. **Cihazda henüz test edilmedi.**
+
+## 15.1 Yazma bozulması (bug, en acil)
+
+`TerminalView`'ın `BaseInputConnection`'ında `setComposingRegion`/`setComposingText`
+override **edilmiyordu**. `editable` aynası `commitText` ile PTY'ye gönderilip
+temizlendiği halde `BaseInputConnection`'ın composing işaretçileri **asılı kalıyordu**;
+sonraki `finishComposingText` bunları boşaltılmış tampona karşı çözüp **daha önce
+gönderilmiş metni geri koyuyor**, `commitText` de onu ikinci kez PTY'ye yolluyordu.
+
+> "Bir harf yazıyorum, bir sürü harf geliyor, eskiler de geliyor" — biriken ayna.
+
+Gboard `TYPE_NULL`'da öneri kurmadığı için görünmüyordu; **Drosh Keyboard ile ortaya çıktı.**
+İkisi de no-op yapıldı — terminalde composing kavramı yok.
+
+## 15.2 Komut durumu — OSC 133 (eski mekanizma tamamen silindi)
+
+**Silinenler:** `writeShellHooksFile()`, `dev_drosh_cmd_complete` dosyası,
+`TerminalService` 500 ms yoklaması + `RandomAccessFile` ofseti,
+`command|elapsed|exit_code` ayrıştırıcısı, bildirim kanalı, toast,
+komut başına iki `$(date +%s)` fork'u.
+
+Eski yapının ifade edemedikleri:
+- `git commit -m "a|b"` → dörde bölünüp **sessizce düşüyordu**
+- Yarım satıra denk gelen okuma `lastFilePointer`'ı ilerletiyor, o komut **bir daha bildirilmiyordu**
+- Dosya sonsuz büyüyordu
+- Hook'lar zsh fonksiyonuydu ama **bash oturumlarında hiç çalışmıyordu**
+
+Yeni: **OSC 133** (FinalTerm; iTerm2, WezTerm, Kitty, Ghostty, VS Code,
+Windows Terminal). Kabuk birkaç kaçış dizisi yazar, emulator yorumlar.
+
+| Shell | Mekanizma |
+|---|---|
+| zsh | `$ENV` — `.zshrc`'ye dokunulmaz. A/B `PROMPT`'a enjekte edilir (`%{ %}` ile) |
+| bash | `--rcfile` — önce kullanıcının `.bashrc`'i. C `PS0`'dan |
+| diğer | yok → `ShellIntegrationLevel.NONE` |
+
+**Test edilen (tahmin edilmeyen):** bash `PS0` **stderr'a** yazıyor.
+`ls > out.txt` dosyası sadece `ls` çıktısı içeriyor, stdout 0 bayt. Doğrulandı.
+
+Süre artık **emulator içinde** `elapsedRealtime` ile damgalanıyor — sıfır kayma,
+kabuk saat okumuyor.
+
+## 15.3 Ambiyans — üç katman, hepsi tuş alanı çalmadan
+
+| Katman | Sinyal | Görünüm |
+|---|---|---|
+| **E1** Kenar = durum | OSC 133 durumu | Boşta nötr · çalışırken mavi + **nefes** · yeşil · **kırmızı kalıcı** |
+| **E2** Hareket = aktivite | `onTextChanged` çıktı hızı | `gradle build` hareketli, `sleep 100` düz |
+| **E3** Ton = palet | `TerminalRow.mStyle` hücre renkleri | Kenar %35 harman, yüzey boyanmaz |
+
+**E3'ün kilidi:** piksel gerekmiyor. Terminalin her hücresinde stil biti ve
+ön plan palet indeksi var. Apple'ın "çevreden renk al" fikri bir terminalde
+**bedava** — çünkü renk zaten yapılandırılmış veri.
+
+Tasarım kısıtları: son 6 satır, yeniye ağırlık · varsayılan ön plan sayılmaz ·
+doygunluk tavanı + dar kanal aralığı · `altBuffer` (TUI) **tamamen atlanır**.
+
+## 15.4 IPC
+
+`ContentProvider` (`dev.drosh.state`), **imza korumalı izin**, tek satır.
+Broadcast değil çünkü durum **okunabilir** olmalı — araç ortasında açılan klavye
+ilk sorgusunda yetişir. `notifyChange` ile gözlemci abone olur, yoklama yok.
+
+Klavyenin bilmediği tek şey: `Failure` yalnızca `level == "f"` (tam entegrasyon)
+güvenilirse. `dash`/`sh` hiç çıkış kodu veremez — orada her komutu hata
+göstermek, hiç göstermekten kötüdür.
+
+## 15.5 Yüzen klavye
+
+`imePadding()` → `droshImePadding()`: **yalnızca klavye sabitlenmişken.**
+Yüzen klavye içeriğin üstüne bilerek konur; dolgu hem anlamsız hem de klavyenin
+oturduğu yerde ölü bir bant bırakırdı.
+
+> **Bu, Drosh'ta camın gerçekten işe yaradığı tek durum.** Sabit modda içerik
+> klavyenin üstünde biter; yüzen modda gerçek terminal arkadadır.
+
+## 15.6 Cam hataları
+
+- Köşeler dikdörtgenle doluydu → sheen **yüzey şekline kırpıldı**
+- Üst border görünmüyordu → kontur yarım piksel dışarıda kalıyordu, **yarı çizgi kadar içeri alındı**
+- Tuse gölgeleri kaldırıldı, yalnızca popup'larında kaldı (yüzeyin üstündeler)
+
+---
+
+# 16. Test edilmesi gerekenler
+
+CI yalnızca derleme doğruluyor. **Hiçbiri cihazda çalıştırılmadı.**
+
+| # | Test | Neden önemli |
+|---|---|---|
+| 1 | Terminalde harf yaz | Bug düzeldi mi, veri bozulması bitti mi |
+| 2 | Gboard ile de bir tur | no-op composing Gboard'u etkiledi mi |
+| 3 | `echo hi \| there` | `\|` içeren komut bildiriliyor mu |
+| 4 | Köşeler boş, üst çizgi var | Görsel hata düzeldi mi |
+| 5 | Komut çalışırken kenar **mavi + nefes** | E1 + E2 çalışıyor mu |
+| 6 | `exit 1` sonrası kenar **kırmızı kalıcı** | E1 doğru mu |
+| 7 | `sleep 60` → parlama **durur** | Aktivite ölçümü ayırt ediyor mu |
+| 8 | Yüzen klavye → terminal **klavyenin arkasında** | C çalışıyor mu |
+| 9 | Spotify'da klavye | Drosh yokken nötr kalıyor mu |
+| 10 | bash oturumu (OMZ kaldır) | bash `--rcfile` yolu |
+
+## 17. Bilinen riskler
+
+- **zsh `PS0`/prompt sarma davranışı zsh sürümüne göre değişebilir.** Cihazda
+  doğrulanmalı; kitty'nin gerçek kodundan uyarlandı ama ölçüm yok.
+- **`BUSY_UPDATES_PER_SECOND = 40` hissedilerek ayarlandı**, ölçülmedi.
+- `E3` en spekülatif katman — ilk iki işe yaramazsa çıkarılabilir.
+- Editor hâlâ erteledi; klavyenin komut/bitirmek sırası sonrasına kaldı.
