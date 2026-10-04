@@ -441,14 +441,19 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
         },
         content = {
             Column {
-                if (message.output.isNotEmpty()) {
+                // Read once into a local: finalOutput is a public property from
+                // another module, so Kotlin cannot smart-cast it across the null
+                // check even though it is a val on a data class.
+                val finalOutput = message.finalOutput
+                val liveOutput = message.output
+                val body = when {
+                    liveOutput.isNotEmpty() -> liveOutput.takeLast(MAX_LIVE_LINES).joinToString("\n")
+                    finalOutput != null -> finalOutput
+                    else -> null
+                }
+                if (body != null) {
                     MonoBlock(
-                        text = message.output.takeLast(MAX_LIVE_LINES).joinToString("\n"),
-                        modifier = Modifier.padding(horizontal = 10.dp, top = 2.dp),
-                    )
-                } else if (message.finalOutput != null) {
-                    MonoBlock(
-                        text = message.finalOutput,
+                        text = body,
                         modifier = Modifier.padding(horizontal = 10.dp, top = 2.dp),
                     )
                 }
