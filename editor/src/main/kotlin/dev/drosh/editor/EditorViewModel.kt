@@ -139,24 +139,23 @@ class EditorViewModel @Inject constructor(
 /**
  * Turns a [FileFailure] into something worth putting in front of a user.
  *
- * [reason] is recovered from the wrapper exception rather than by matching on
- * the message text, so a wording change here cannot silently break the mapping.
- * The path is only included when it helps identify the file; for the common
- * cases the filename is already on screen.
+ * Switched over rather than matched on message text, so a wording change here
+ * cannot silently break the mapping. The path is only included where it helps
+ * identify the file; for the common cases the filename is already on screen.
+ *
+ * `OutsideRootfs` is the one worth naming explicitly: it means the path was
+ * outside the rootfs, not that the file is missing, and the two need different
+ * reactions from the user.
  */
-private fun Throwable.toMessage(guestPath: String): String {
-    val reason = (this as? GuestFileException)?.reason ?: return "Could not open the file"
-    return when (reason) {
-        is FileFailure.NotFound -> "No such file"
-        is FileFailure.IsDirectory -> "That is a directory"
-        // Named explicitly because this is the one failure the user can act on:
-        // it means the path was outside the rootfs, not that the file is missing.
-        is FileFailure.OutsideRootfs ->
-            "Only files inside the Ubuntu filesystem can be edited"
-        is FileFailure.Io -> "Could not read $guestPath"
-        is FileFailure.TooLarge -> {
-            val kb = reason.sizeBytes / 1024
-            "File is too large to edit (${kb} KB)"
-        }
-    }
+private fun FileFailure.toMessage(guestPath: String): String = when (this) {
+    is FileFailure.NotFound -> "No such file"
+    is FileFailure.IsDirectory -> "That is a directory"
+    is FileFailure.OutsideRootfs -> "Only files inside the Ubuntu filesystem can be edited"
+    is FileFailure.Io -> "Could not read $guestPath"
+    is FileFailure.TooLarge -> "File is too large to edit (${sizeBytes / 1024} KB)"
 }
+
+/** Unwraps a failed [Result] back into the [FileFailure] it was built from. */
+private fun Throwable.toFileFailure(): FileFailure =
+    (this as? GuestFileException)?.reason
+        ?: FileFailure.Io("unknown", message ?: "unknown failure")

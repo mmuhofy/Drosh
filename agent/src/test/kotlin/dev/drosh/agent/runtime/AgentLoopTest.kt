@@ -87,7 +87,8 @@ class AgentLoopTest {
                 yield()
             }
             throw AssertionError(
-                "the run never parked on an approval. emitted=${events.map { it::class.simpleName }}",
+                "the run never parked on an approval. emitted=${events.map { it::class.simpleName }}" +
+                    " pending=${loop.pendingApprovalIds()} state=${loop.state.value}",
             )
         }
 
