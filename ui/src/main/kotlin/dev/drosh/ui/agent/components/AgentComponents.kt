@@ -56,14 +56,17 @@ import dev.drosh.ui.components.GlassIconButton
  * is below the 48dp Material minimum and unreliable on a phone.
  */
 
-/** 48dp — the Material minimum for a touch target. */
+/** 48dp — the Material minimum, for icon-only controls. */
 val TOUCH_TARGET: Dp = 48.dp
+
+/** 44dp — for labelled buttons, where the label makes the target obvious. */
+val BUTTON_HEIGHT: Dp = 44.dp
 
 /** Animation length, in the 150–300ms band Material asks for. */
 private const val MOTION_MS = 180
 
 /**
- * The agent mark — a terminal window with a prompt.
+ * The agent mark — a square head with a prompt on its face.
  *
  * A vector rather than an emoji, so it takes the theme's tint and is not
  * whatever the device's font renders at that codepoint.
@@ -75,7 +78,7 @@ fun DroshAgentMark(
     modifier: Modifier = Modifier,
 ) {
     Icon(
-        painter = painterResource(R.drawable.ic_agent_terminal),
+        painter = painterResource(R.drawable.ic_agent_head),
         contentDescription = null,
         tint = tint,
         modifier = modifier.size(size),
@@ -95,7 +98,13 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** A filled button. One per screen at most, so the primary action stays legible. */
+/**
+ * A filled button.
+ *
+ * 44dp rather than the 48dp touch minimum: 44 is still a comfortable tap target
+ * and a full-width button at 48dp reads as a slab on a phone. One per screen, so
+ * the primary action stays unambiguous.
+ */
 @Composable
 fun ActionButton(
     text: String,
@@ -106,8 +115,8 @@ fun ActionButton(
 ) {
     Box(
         modifier = modifier
-            .heightIn(min = TOUCH_TARGET)
-            .clip(RoundedCornerShape(12.dp))
+            .heightIn(min = BUTTON_HEIGHT)
+            .clip(RoundedCornerShape(11.dp))
             .background(if (enabled) {
                 if (destructive) DroshError else DroshPrimary
             } else {
@@ -119,7 +128,7 @@ fun ActionButton(
     ) {
         Text(
             text = text,
-            fontSize = 14.sp,
+            fontSize = 13.5.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (enabled) {
                 if (destructive) Color(0xFF1A1A1A) else DroshOnPrimary
@@ -140,8 +149,8 @@ fun FlatButton(
 ) {
     Box(
         modifier = modifier
-            .heightIn(min = TOUCH_TARGET)
-            .clip(RoundedCornerShape(12.dp))
+            .heightIn(min = BUTTON_HEIGHT)
+            .clip(RoundedCornerShape(11.dp))
             .background(DroshSurfaceHigh)
             .clickable(onClick = onClick)
             .semantics { contentDescription = text },
@@ -149,7 +158,7 @@ fun FlatButton(
     ) {
         Text(
             text = text,
-            fontSize = 14.sp,
+            fontSize = 13.5.sp,
             fontWeight = FontWeight.Medium,
             color = tint,
         )

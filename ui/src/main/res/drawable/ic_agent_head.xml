@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Agent mark — a square head with a prompt on its face.
+
+  A terminal window, then a ghost, then this. Both earlier marks failed for the
+  same reason: they described a *thing* rather than a *face*. A mascot is
+  decorative; a head with a prompt in it is the machine's expression, and it is
+  the one image that says both "this is an agent" and "it is looking at a shell"
+  without a label.
+
+  Drawn on a 24x24 viewport that it fills, so a 19dp call site shows a 19dp mark.
+  The first mark needed a 2048 viewport and a group transform to rescale artwork
+  occupying 46% of its canvas — the empty viewport, not the icon size, had been
+  the problem, and it took a three-paragraph comment to explain.
+
+  Solid head with the prompt cut as holes (evenOdd) rather than painted in a
+  second colour: Icon() applies one ColorFilter over the whole drawable, so a
+  two-tone path collapses to flat colour the moment it is tinted and the prompt
+  disappears into the face. A hole cannot be filled by a tint.
+
+  The corner radius is 2.1 units — enough to stop the corners reading as a
+  rendering error, small enough that the silhouette stays square. A larger
+  radius turns it into a rounded square, which reads as an app icon rather than
+  a head.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Head: rounded square, plus two holes for "> _" -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M5.4,2.6
+            L18.6,2.6
+            C19.82,2.6 20.8,3.58 20.8,4.8
+            L20.8,19.2
+            C20.8,20.42 19.82,21.4 18.6,21.4
+            L5.4,21.4
+            C4.18,21.4 3.2,20.42 3.2,19.2
+            L3.2,4.8
+            C3.2,3.58 4.18,2.6 5.4,2.6
+            Z
+            M8.5,8.9
+            L12,12
+            L8.5,15.1
+            L7.1,13.8
+            L9.4,12
+            L7.1,10.2
+            Z
+            M12.9,13.4
+            L16.4,13.4
+            L16.4,14.8
+            L12.9,14.8
+            Z" />
+</vector>
