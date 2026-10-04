@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Drosh — Konsept F · Agent Home</title>
+<link rel="stylesheet" href="agent-ui.css"/>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Konsept F — Agent Home</h1>
+  <p>Agent chat'lerin <b>kendi ana ekranı</b> var — bir sohbet uygulaması listesi gibi.
+     Nereden açarsan aç 🤖 butonu buraya gelir. Çalışan chat'ler üstte gruplanır.
+     Hiç chat yokken terminal session'a bağlı olmadan da chat oluşturulabilir.</p>
+</div>
+
+<div class="stage">
+
+  <div class="stage-col">
+    <div class="phone" id="phone">
+
+      <div class="statusbar">
+        <span>14:32</span>
+        <span class="sb-right"><span>▮▮▮</span><span>LTE</span><span>86%</span></span>
+      </div>
+
+      <div class="topbar">
+        <div class="pill icon" id="backBtn">‹</div>
+        <div style="display:flex;gap:6px">
+          <div class="pill icon">⌕</div><div class="pill icon">⋯</div>
+        </div>
+      </div>
+
+      <div style="padding:84px 14px 6px;display:flex;align-items:baseline;gap:8px">
+        <div style="font-size:22px;font-weight:600;letter-spacing:-0.02em">Agent</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted)" id="countLabel">4 chat</div>
+      </div>
+
+      <!-- opened-from-session hint -->
+      <div id="fromBanner" style="margin:6px 12px 0;padding:7px 10px;border-radius:10px;
+           background:rgba(76,158,255,0.08);border:1px solid rgba(76,158,255,0.22);
+           display:none;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--text-secondary);flex:1">
+          <span class="c-build">~/zsh</span> session'ından açıldı — yeni chat bu dizinde başlayacak
+        </span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-disabled)">✕</span>
+      </div>
+
+      <div class="home-scroll" id="list" style="padding-top:10px"></div>
+
+      <div class="fab" id="fab">✦ New agent chat</div>
+    </div>
+
+    <div class="col-note">
+      <b>Okuma:</b> liste gruplu — çalışanlar en üstte. Kartta isim, son mesaj özeti,
+      çalışma dizini ve süre. Boş durumda tek buton var.
+    </div>
+  </div>
+
+  <div class="stage-col">
+    <div class="controls">
+      <div class="ch">Liste</div>
+      <div class="crow" id="cData">
+        <button class="tbtn on" data-d="normal">4 chat</button>
+        <button class="tbtn" data-d="running">çalışan var</button>
+        <button class="tbtn" data-d="empty">hiç chat yok</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Nereden açıldı</div>
+      <div class="crow" id="cFrom">
+        <button class="tbtn on" data-f="none">hiçbir yerden</button>
+        <button class="tbtn" data-f="session">terminal session'dan</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Olaylar</div>
+      <div class="crow">
+        <button class="tbtn" id="btnTapNew">FAB → dizin seç</button>
+      </div>
+    </div>
+
+    <div class="col-note" style="max-width:390px;text-align:left">
+      <b>Artı:</b> 🤖 butonunun anlamı net: <b>"Agent'lar"</b>. Nereden açsan aynı yer.
+      Birden fazla paralel görev varsa liste en doğru görünüm. Boş durum da düzgün.<br><br>
+      <b>Eksi:</b> yeni bir top-level ekran. Zaten bir sürü ekran var
+      (sessions home / terminal / settings / setup). "En son açılan chat'i doğrudan aç" kısayolu
+      olmazsa tek dokunuşta iki ekran.
+    </div>
+  </div>
+
+</div>
+
+<div class="scrim" id="scrim" style="position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:10;display:none"></div>
+
+<script>
+(function () {
+  const list = document.getElementById("list");
+  const countLabel = document.getElementById("countLabel");
+  const banner = document.getElementById("fromBanner");
+  const fab = document.getElementById("fab");
+
+  let data = "normal", from = "none";
+
+  const data_ = {
+    normal: [
+      { nm: "vendor-split",    cwd: "~/zsh", mt: "Vendor ayrıldı, build 5.9s'de geçti.", t: "12 dk önce", dot: "done" },
+      { nm: "auth-migration",  cwd: "~/api", mt: "Şu diff'i uygulayayım mı?", t: "1 saat önce", dot: "wait" },
+      { nm: "test-coverage",   cwd: "~/zsh", mt: "coverage %34 → %61, 14 test eklendi.", t: "3 saat önce", dot: "done" },
+      { nm: "log-investigate", cwd: "~/logs", mt: "Son konuşma 2 gün önce.", t: "2 gün önce", dot: "" },
+    ],
+    running: [
+      { nm: "vendor-split",    cwd: "~/zsh", mt: "npm run build · adım 3/8", t: "şimdi", dot: "run" },
+      { nm: "auth-migration",  cwd: "~/api", mt: "Şu diff'i uygulayayım mı?", t: "1 saat önce", dot: "wait" },
+      { nm: "deploy-dryrun",   cwd: "~/proj/shop", mt: "docker build · 2/6", t: "şimdi", dot: "run" },
+      { nm: "test-coverage",   cwd: "~/zsh", mt: "coverage %34 → %61.", t: "3 saat önce", dot: "done" },
+      { nm: "log-investigate", cwd: "~/logs", mt: "Son konuşma 2 gün önce.", t: "2 gün önce", dot: "" },
+    ],
+    empty: [],
+  };
+
+  const dotColor = d => d === "run" ? "var(--primary)" : d === "wait" ? "var(--warning)"
+                      : d === "done" ? "var(--success)" : "var(--outline)";
+
+  const card = c => `
+    <div class="chatcard ${c.dot === "run" ? "run" : ""}">
+      <div class="chatcard-h">
+        <span class="nm">🤖 ${c.nm}</span>
+        <span style="width:6px;height:6px;border-radius:50%;background:${dotColor(c.dot)}"></span>
+        <span style="font-family:var(--mono);font-size:9.5px;color:var(--text-disabled)">${c.t}</span>
+      </div>
+      <div class="prev">${c.mt}</div>
+      <div class="meta">
+        <span class="tag">${c.cwd}</span>
+        ${c.dot === "run" ? '<span style="color:var(--primary)">çalışıyor</span>' : ""}
+        ${c.dot === "wait" ? '<span style="color:var(--warning)">onay bekliyor</span>' : ""}
+      </div>
+    </div>`;
+
+  const label = t => `<div class="dw-label" style="padding:10px 2px 4px"><span>${t}</span></div>`;
+
+  function render() {
+    const arr = data_[data];
+    banner.style.display = from === "session" ? "flex" : "none";
+
+    if (!arr.length) {
+      countLabel.textContent = "0 chat";
+      list.innerHTML = `
+        <div style="text-align:center;padding:40px 22px">
+          <div style="font-size:32px;margin-bottom:12px;opacity:0.3">🤖</div>
+          <div style="font-size:14px;color:var(--text);margin-bottom:6px">Henüz agent chat yok</div>
+          <div style="font-size:12.5px;color:var(--text-muted);line-height:1.6">
+            Bir chat oluştur — agent kendi terminalini açar.<br>
+            Terminal session açmana gerek yok.
+          </div>
+        </div>`;
+      fab.innerHTML = "✦ New agent chat";
+      return;
+    }
+
+    const running = arr.filter(c => c.dot === "run");
+    const waiting = arr.filter(c => c.dot === "wait");
+    const rest    = arr.filter(c => c.dot !== "run" && c.dot !== "wait");
+
+    let html = "";
+    if (running.length) html += label("ÇALIŞAN") + running.map(card).join("");
+    if (waiting.length) html += label("BEKLEYEN") + waiting.map(card).join("");
+    if (rest.length)    html += label("SON") + rest.map(card).join("");
+
+    list.innerHTML = html;
+    countLabel.textContent = arr.length + " chat";
+    fab.innerHTML = from === "session" ? "✦ New chat · ~/zsh" : "✦ New agent chat";
+  }
+
+  document.querySelectorAll("#cData .tbtn").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#cData .tbtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); data = b.dataset.d; render();
+  });
+  document.querySelectorAll("#cFrom .tbtn").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#cFrom .tbtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); from = b.dataset.f; render();
+  });
+  document.getElementById("btnTapNew").onclick = () => alert("→ Konsept E'deki 'dizin seç' sheet'ine geçer");
+  fab.onclick = () => alert("→ Konsept E'deki 'dizin seç' sheet'ine geçer");
+
+  render();
+})();
+</script>
+</body>
+</html>

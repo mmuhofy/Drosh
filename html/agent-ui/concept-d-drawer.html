@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Drosh — Konsept D · Global Drawer</title>
+<link rel="stylesheet" href="agent-ui.css"/>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Konsept D — Global Drawer</h1>
+  <p>Agent chat'leri mevcut <code>SessionSidebar</code>'a ekleniyor: <b>AGENT CHATS</b> bölümü,
+     <code>SESSIONS</code>'un üstünde. Aynı drawer hem terminal ekranında hem agent chat ekranında
+     açılıyor — yani <b>global</b>. Sağdaki "arkada ne var" düğmesiyle iki arka plan arasında
+     geçiş yapıp aynı drawer'ın ikisinde de çalıştığını kontrol et.</p>
+</div>
+
+<div class="stage">
+
+  <div class="stage-col">
+    <div class="phone" id="phone">
+
+      <div class="statusbar" style="z-index:50">
+        <span>14:32</span>
+        <span class="sb-right"><span>▮▮▮</span><span>LTE</span><span>86%</span></span>
+      </div>
+
+      <!-- ── backdrop 1: terminal screen ── -->
+      <div id="bdTerm">
+        <div class="topbar" style="z-index:20">
+          <div class="pill icon" id="openDrawer">☰</div>
+          <div style="display:flex;gap:6px">
+            <div class="pill icon">🤖</div><div class="pill icon">⌨</div><div class="pill icon">⋯</div>
+          </div>
+        </div>
+        <div class="term">
+          <div class="blk"><div class="line blk-cmd">$ npx vite build</div></div>
+          <div class="blk">
+            <div class="line c-dim">vite v5.4.8 building for production...</div>
+            <div class="line c-success">✓ 1423 modules transformed.</div>
+          </div>
+          <div class="blk"><div class="line c-warning">(!) some chunks are larger than 500 kB</div></div>
+          <div class="blk"><div class="line c-success">✓ built in 6.14s</div></div>
+          <div class="term-spacer"></div>
+        </div>
+        <div class="keybar">
+          <div class="key">esc</div><div class="key">tab</div><div class="key">ctrl</div>
+          <div class="key">|</div><div class="key">/</div><div class="key">-</div><div class="key wide">⌫</div>
+        </div>
+      </div>
+
+      <!-- ── backdrop 2: agent chat screen ── -->
+      <div id="bdChat" style="display:none;position:absolute;inset:0;flex-direction:column">
+        <div class="topbar" style="z-index:20">
+          <div class="pill icon" id="openDrawer2">☰</div>
+          <div style="display:flex;gap:6px">
+            <div class="pill icon">🤖</div><div class="pill icon">⋯</div>
+          </div>
+        </div>
+        <div style="padding:78px 12px 8px;display:flex;align-items:center;gap:8px">
+          <div class="sheet-title">🤖 vendor-split</div>
+          <span class="spinner" style="width:10px;height:10px;border-width:1.2px"></span>
+          <span style="font-family:var(--mono);font-size:10.5px;color:var(--text-muted)">adım 3/8</span>
+        </div>
+        <div class="transcript" style="padding-top:4px">
+          <div class="msg-user">vendor'ı ayır, tekrar build et.</div>
+          <div class="msg-agent"><div class="role">drosh</div>Config'e bakıyorum.</div>
+          <div class="tool open">
+            <div class="tool-head"><span class="tool-icon shell">$</span><span class="tool-name">shell</span>
+              <span class="tool-sum">npm run build</span><span class="tool-stat c-build">çalışıyor…</span><span class="caret">▶</span></div>
+            <div class="tool-body"><div class="tool-out">vite v5.4.8 building...
+✓ 1423 modules transformed.</div></div>
+          </div>
+        </div>
+        <div class="peekbar-row" style="padding:8px 12px 12px;border-top:1px solid var(--outline)">
+          <div class="composer" style="flex:1"><span class="placeholder">Agent'a bir şey sor<span class="caret"></span></span></div>
+          <div class="stop">■</div>
+        </div>
+      </div>
+
+      <!-- ── the drawer ── -->
+      <div class="drawer-scrim" id="dscrim"></div>
+      <div class="drawer on" id="drawer">
+        <div class="statusbar" style="height:34px"><span>14:32</span><span></span></div>
+        <div class="dw-head">
+          <div class="dw-avatar">DS</div>
+          <div>
+            <div class="dw-name">Pixel 8 Pro</div>
+            <div class="dw-sub">ubuntu 24.04 · 8 oturum</div>
+          </div>
+        </div>
+
+        <div class="dw-body" id="dwBody">
+          <div class="dw-nav" id="navNewChat"><span class="ico">✦</span>New agent chat</div>
+          <div class="dw-nav"><span class="ico">＋</span>New session</div>
+          <div class="dw-nav"><span class="ico">⚙</span>Settings</div>
+
+          <div class="dw-label"><span>AGENT CHATS</span><span id="agentCount">4</span></div>
+          <div id="agentList"></div>
+
+          <div class="dw-label"><span>SESSIONS</span><span id="sessCount">3</span></div>
+          <div id="sessList"></div>
+        </div>
+
+        <div class="dw-foot">
+          <div class="dw-search" id="searchHint"><span>⌕</span><span>Search</span></div>
+        </div>
+      </div>
+
+      <!-- long-press context menu -->
+      <div class="ctxmenu" id="ctx" style="left:96px;top:246px">
+        <div>✎ Rename</div>
+        <div>📋 Duplicate</div>
+        <div>📂 Change working dir</div>
+        <div>↗ Open in terminal</div>
+        <div class="danger">🗑 Delete<span class="k">⌫</span></div>
+      </div>
+
+    </div>
+
+    <div class="col-note">
+      <b>Okuma:</b> drawer iki ekran arasında <b>aynı</b> çalışıyor. Agent chat listesinde
+      her satır: isim, çalışma dizini, son mesaj özeti, durum noktası.
+    </div>
+  </div>
+
+  <div class="stage-col">
+    <div class="controls">
+      <div class="ch">Arka plan (drawer arkasında ne var)</div>
+      <div class="crow" id="cBd">
+        <button class="tbtn on" data-b="term">Terminal ekranı</button>
+        <button class="tbtn" data-b="chat">Agent chat ekranı</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Chat durumları</div>
+      <div class="crow" id="cData">
+        <button class="tbtn on" data-d="normal">normal</button>
+        <button class="tbtn" data-d="mixed">çalışan + onay bekleyen</button>
+        <button class="tbtn" data-d="search">arama yazıyor</button>
+        <button class="tbtn" data-d="ctx">long-press menüsü</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Olaylar</div>
+      <div class="crow">
+        <button class="tbtn" id="btnClose">drawer'ı kapat</button>
+      </div>
+    </div>
+
+    <div class="col-note" style="max-width:390px;text-align:left">
+      <b>Artı:</b> tek yer — tüm session'lar ve agent chat'leri aynı listede.
+      Arama zaten var. Sidebar zaten uygulanmış bir yüzey, sıfır yeni ekran.<br><br>
+      <b>Eksi:</b> agent chat'leri uzun vadeli arşivlenmezse liste yine şişer —
+      ama terminal session'larıyla aynı şişme sorunu, yani yeni bir sorun değil.
+      Ayrıca agent ekranındayken de drawer açmak biraz "terminal kılıfı" gibi hissettirebilir.
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const drawer = document.getElementById("drawer");
+  const scrim  = document.getElementById("dscrim");
+  const agentList = document.getElementById("agentList");
+  const sessList  = document.getElementById("sessList");
+  const ctx  = document.getElementById("ctx");
+  const dwBody = document.getElementById("dwBody");
+
+  let bd = "term", data = "normal";
+
+  const agentChats = {
+    normal: [
+      { nm: "vendor-split",   cwd: "~/zsh",   mt: "Vendor ayrıldı, build 5.9s", dot: "done" },
+      { nm: "auth-migration", cwd: "~/api",   mt: "5 dosya değişti, onay bekliyor", dot: "wait" },
+      { nm: "test-coverage",  cwd: "~/zsh",   mt: "coverage %34 → %61", dot: "done" },
+      { nm: "log-investigate", cwd: "~/logs", mt: "Son konuşma 2 gün önce", dot: "" },
+    ],
+    mixed: [
+      { nm: "vendor-split",   cwd: "~/zsh",   mt: "npm run build · 3/8",   dot: "run" },
+      { nm: "auth-migration", cwd: "~/api",   mt: "Şu diff'i uygulayayım mı?", dot: "wait" },
+      { nm: "test-coverage",  cwd: "~/zsh",   mt: "coverage %34 → %61",     dot: "done" },
+      { nm: "log-investigate", cwd: "~/logs", mt: "Son konuşma 2 gün önce", dot: "" },
+    ],
+  };
+
+  const sessions = [
+    { nm: "zsh",      mt: "~/zsh · 2 saat önce" },
+    { nm: "api",      mt: "~/api · 1 gün önce" },
+    { nm: "postgres", mt: "~/pg · 3 gün önce" },
+  ];
+
+  function render() {
+    if (data === "search") {
+      agentList.innerHTML = `
+        <div class="dw-row"><span class="ico">🔍</span><div class="txt">
+          <div class="nm c-build" style="font-family:var(--mono)">vendor<span class="caret"></span></div>
+          <div class="mt">2 sonuç</div></div></div>`;
+      sessList.innerHTML = `<div class="dw-row"><span class="ico">·</span><div class="txt">
+        <div class="mt" style="padding:6px 0">terminal session'larında eşleşme yok</div></div></div>`;
+      document.getElementById("agentCount").textContent = "2";
+      ctx.classList.remove("on");
+      return;
+    }
+
+    const list = agentChats[data === "mixed" ? "mixed" : "normal"];
+    agentList.innerHTML = list.map((c, i) => `
+      <div class="dw-row${i === 0 ? " on" : ""}" data-i="${i}">
+        <span class="ico">🤖</span>
+        <div class="txt">
+          <div class="nm">${c.nm}</div>
+          <div class="mt${c.dot === "run" ? " run" : ""}">${c.cwd} · ${c.mt}</div>
+        </div>
+        <span class="dot ${c.dot}"></span>
+      </div>`).join("");
+
+    sessList.innerHTML = sessions.map(s => `
+      <div class="dw-row">
+        <span class="ico" style="color:var(--text-muted)">▤</span>
+        <div class="txt"><div class="nm">${s.nm}</div><div class="mt">${s.mt}</div></div>
+        <span class="dot" style="background:var(--success)"></span>
+      </div>`).join("");
+
+    document.getElementById("agentCount").textContent = list.length;
+    document.getElementById("sessCount").textContent = sessions.length;
+
+    // long-press on an agent chat row
+    agentList.querySelectorAll(".dw-row").forEach(r => {
+      let t;
+      r.addEventListener("pointerdown", () => { t = setTimeout(() => ctx.classList.add("on"), 550); });
+      ["pointerup", "pointerleave", "pointercancel"].forEach(ev =>
+        r.addEventListener(ev, () => clearTimeout(t)));
+    });
+
+    ctx.classList.toggle("on", data === "ctx");
+  }
+
+  function setBd(b) {
+    bd = b;
+    document.getElementById("bdTerm").style.display = b === "term" ? "flex" : "none";
+    document.getElementById("bdTerm").style.flexDirection = "column";
+    document.getElementById("bdTerm").style.height = b === "term" ? "100%" : "0";
+    document.getElementById("bdChat").style.display = b === "chat" ? "flex" : "none";
+    document.querySelectorAll("#cBd .tbtn").forEach(x => x.classList.toggle("on", x.dataset.b === b));
+  }
+
+  document.querySelectorAll("#cBd .tbtn").forEach(x => x.onclick = () => setBd(x.dataset.b));
+  document.querySelectorAll("#cData .tbtn").forEach(x => x.onclick = () => {
+    document.querySelectorAll("#cData .tbtn").forEach(y => y.classList.remove("on"));
+    x.classList.add("on"); data = x.dataset.d; render();
+  });
+
+  const close = () => { drawer.classList.remove("on"); scrim.classList.remove("on"); };
+  document.getElementById("openDrawer").onclick =
+  document.getElementById("openDrawer2").onclick = () => {
+    drawer.classList.add("on"); scrim.classList.add("on"); ctx.classList.remove("on");
+  };
+  document.getElementById("btnClose").onclick = close;
+  document.getElementById("searchHint").onclick = () => {
+    document.querySelectorAll("#cData .tbtn").forEach(y => y.classList.toggle("on", y.dataset.d === "search"));
+    data = "search"; render();
+  };
+  dwBody.addEventListener("click", e => { if (e.target.closest(".ctxmenu")) ctx.classList.remove("on"); });
+
+  setBd("term");
+  render();
+})();
+</script>
+</body>
+</html>

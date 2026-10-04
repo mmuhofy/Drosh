@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Drosh — Agent UI Konseptleri</title>
+<link rel="stylesheet" href="agent-ui.css"/>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Agent UI — konseptler</h1>
+  <p>
+    <b>Bölüm 1 — 🤖 butonuna dokununca</b> (A/B/C): agent paneli nereye gelir.
+    Hepsi Claude Code tarzı tool satırları (kapalı özet → tap ile açılır),
+    agent'ın kendi izole PTY'si, work mode yok.<br>
+    <b>Bölüm 2 — agent chat'ler nasıl yönetilir</b> (D/E/F): liste nereden açılır,
+    yeni chat nasıl oluşturulur, terminal session'a bağlı olmak zorunda mı.<br>
+    Her sayfada state'leri tek tek değiştirip elle gezebilirsin.
+  </p>
+  <div class="swatches" style="margin-top:14px">
+    <div class="sw" style="background:#0E0E0E"></div>
+    <div class="sw" style="background:#1A1A1A"></div>
+    <div class="sw" style="background:#242424"></div>
+    <div class="sw" style="background:#3A3A3A"></div>
+    <div class="sw" style="background:#4C9EFF"></div>
+    <div class="sw" style="background:#3DD68C"></div>
+    <div class="sw" style="background:#F0B429"></div>
+    <div class="sw" style="background:#F2555A"></div>
+  </div>
+</div>
+
+<div class="cards">
+
+  <div class="card">
+    <div class="sub">KONSEPT A</div>
+    <h2>Peek Bar</h2>
+    <p>
+      Agent, terminalin altına dock edilmiş ince bir bar olarak gelir.
+      Terminal <b>tamamen görünür</b> kalır — üstte komut çalışırken altta agent'a yazıyorsun.
+      Chevron'a tap → agent tam ekrana açılır, terminal arkaya blur/dim olur.
+    </p>
+    <ul>
+      <li class="p">Terminal bağlamı hiç kaybolmaz — Drosh'un tez budur</li>
+      <li class="p">Tek dokunuşla "sadece yap, göster" ayrımı</li>
+      <li class="p">Serbest sürükleme yok → gesture çatışması yok</li>
+      <li class="c">Telefonda bar dikey alan yiyor (~56dp + keybar)</li>
+      <li class="c">Agent çalışırken bar'da sadece tek satır ticker</li>
+    </ul>
+    <a class="go" href="concept-a-peek-bar.html">Prototipi aç →</a>
+  </div>
+
+  <div class="card">
+    <div class="sub">KONSEPT B</div>
+    <h2>Draggable Sheet</h2>
+    <p>
+      Docs'taki "Model B". Standart Android bottom sheet — %58 yükseklikte,
+      arkasında blur/dim'li terminal. Grabber'ı yukarı çek → tam ekran.
+      İçerik alttan başlar, mesaj listesi yukarı kaydırılır.
+    </p>
+    <ul>
+      <li class="p">Tanıdık Android paterni, öğrenme maliyeti sıfır</li>
+      <li class="p">Sheet yüksekliği içeriğe göre ayarlanabilir</li>
+      <li class="c">Sheet + LazyColumn iç içe → nested scroll çatışması</li>
+      <li class="c">IME açılınca sheet yüksekliği + klavye yarışması</li>
+      <li class="c">Back'de "sheet kapat mı, panel kapat mı" belirsiz</li>
+    </ul>
+    <a class="go" href="concept-b-sheet.html">Prototipi aç →</a>
+  </div>
+
+  <div class="card">
+    <div class="sub">KONSEPT C</div>
+    <h2>Agent = Bir Session</h2>
+    <p>
+      Agent özel bir panel değil, sıradan bir session. 🤖 butonu yeni bir
+      <b>Agent Session</b> açar (izole PTY), session switcher'da <code>🤖 npm-fix</code>
+      olarak görünür. Ekranın üstünde Transcript / Terminal sekmesi — bir tıkla
+      agent'ın canlı terminaline geçersin.
+    </p>
+    <ul>
+      <li class="p">Session sistemiyle birebir aynı — yeni mental model yok</li>
+      <li class="p">Agent'ın terminali birinci sınıf, transcript'ten bağımsız</li>
+      <li class="p">Session kapatma/rename/switcher tümü zaten çalışıyor</li>
+      <li class="c">Her görev için yeni session → session listesi şişer</li>
+      <li class="c">"Bu Session'da çalış" kavramı geriye gelir</li>
+    </ul>
+    <a class="go" href="concept-c-agent-session.html">Prototipi aç →</a>
+  </div>
+
+</div>
+
+<div class="page-head" style="margin-top:48px">
+  <h1>Bölüm 2 — Agent chat yönetimi</h1>
+  <p>Sorular: chat listesi nereden açılır? Global drawer mı, sheet mi, ayrı bir ekran mı?
+     Bir agent chat terminal session'a bağlı olmak zorunda mı?</p>
+</div>
+
+<div class="cards">
+
+  <div class="card">
+    <div class="sub">KONSEPT D</div>
+    <h2>Global Drawer</h2>
+    <p>
+      Agent chat'ler mevcut <code>SessionSidebar</code>'a <b>AGENT CHATS</b> bölümü olarak ekleniyor.
+      Aynı drawer hem terminal ekranında hem agent ekranında açılıyor. Satırda isim, çalışma
+      dizini, son mesaj ve durum noktası. Uzun bas → rename / cwd değiştir / sil.
+    </p>
+    <ul>
+      <li class="p">Tek yer — session'lar ve agent chat'leri aynı listede</li>
+      <li class="p">Arama zaten var, sidebar zaten uygulanmış</li>
+      <li class="p">Hiç yeni ekran / hiç yeni yüzey</li>
+      <li class="c">Agent ekranındayken de drawer açmak "terminal kılıfı" gibi hissedebilir</li>
+      <li class="c">İki tür liste aynı gözde → karmaşa</li>
+    </ul>
+    <a class="go" href="concept-d-drawer.html">Prototipi aç →</a>
+  </div>
+
+  <div class="card">
+    <div class="sub">KONSEPT E</div>
+    <h2>Agent Chat Switcher Sheet</h2>
+    <p>
+      Yönetim agent deneyiminin içinde: 🤖 butonu bir bottom sheet açar — chat listesi + arama +
+      <b>New agent chat</b>. Sheet'in içinde çalışma dizini seçimi. Terminal sidebar'ı
+      agent chat'lerinden habersiz kalıyor.
+    </p>
+    <ul>
+      <li class="p">Bağlam doğru — agent ile uğraşırken agent yönetimi de yanında</li>
+      <li class="p">Terminal yüzeyine hiç dokunmuyorsun</li>
+      <li class="c">Bir agent chat'e girmeden listeye <b>hiçbir yerden</b> ulaşamazsın</li>
+      <li class="c">Global giriş noktası yine gerekiyor</li>
+    </ul>
+    <a class="go" href="concept-e-switcher-sheet.html">Prototipi aç →</a>
+  </div>
+
+  <div class="card">
+    <div class="sub">KONSEPT F</div>
+    <h2>Agent Home</h2>
+    <p>
+      Agent chat'lerin kendi ana ekranı. Nereden açarsan aç 🤖 buraya gelir — anlamı net:
+      <b>"Agent'lar"</b>. Çalışanlar üstte gruplanır, kartta isim + son mesaj + dizin + süre.
+      Boş durumda tek buton. FAB yeni chat'in çalışma dizinini seçtirir.
+    </p>
+    <ul>
+      <li class="p">Paralel birden fazla görev varsa en doğru görünüm</li>
+      <li class="p">Boş durum ve ilk kullanım düzgün tasarlanabilir</li>
+      <li class="c">Yeni bir top-level ekran — ekran sayısı artıyor</li>
+      <li class="c">"En son açılan chat'i doğrudan aç" kısayolu olmazsa iki dokunuş</li>
+    </ul>
+    <a class="go" href="concept-f-agent-home.html">Prototipi aç →</a>
+  </div>
+
+</div>
+
+<div class="page-head" style="margin-top:48px">
+  <h1>Bölüm 2 — ortak karar: chat / session ilişkisi</h1>
+</div>
+<div class="cards">
+  <div class="card">
+    <h2 style="font-size:15px">Agent chat birinci sınıf</h2>
+    <p>Agent chat <b>kendi PTY'sini kendisi açar</b>. Yani terminal session açmadan da agent chat oluşturulabilir — bu bir istisna değil, normal yol. "Bu session'da çalış" dediğin şey sadece <b>başlangıç dizini</b> ön-doldurulmuş bir seçenek.</p>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">İki tür, tek liste</h2>
+    <p>Session ve agent chat aynı listede durur, ayrım yalnızca bir etiket (🤖). Ayrı bir tablo ya da ayrı bir arşiv mekanizması gerekmez — şişme sorunu zaten session tarafında mevcut.</p>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">PTY ömrü</h2>
+    <p>Agent chat'in PTY'si yalnızca chat açıkken yaşar. Chat'ten çıkınca PTY kapanır, transcript kalır. Geri gelince yeniden açılır — aynı anda en çok 1 agent PTY.</p>
+  </div>
+</div>
+
+<div class="page-head" style="margin-top:48px">
+  <h1 style="font-size:18px">Ortak kararlar (3 konseptte de aynı)</h1>
+</div>
+<div class="cards">
+  <div class="card">
+    <h2 style="font-size:15px">Tool satırları — Claude Code tarzı</h2>
+    <p>Varsayılan <b>kapalı</b>: tek satır — ikon, tool adı, özet, süre. Tap ile açılır, altında tam çıktı / diff. Uzun shell çıktısı transcript'i boğmaz.</p>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">Shell çıktısı canlı akar</h2>
+    <p><code>TerminalManager.executeCommand(..., onOutput)</code> zaten streaming veriyor. Araç satırı açıkken satır satır düşer. 30 sn'lık <code>apt install</code> donmuş gibi görünmez.</p>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">Yazma = onay kartı</h2>
+    <p><code>write_file</code> unified diff gösterir, <b>Uygula / Reddet</b>. Onaylanana kadar dosyaya dokunulmaz. Reddedilirse agent'a <code>CANCELLED</code> döner, loop devam eder.</p>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">API key artık chat içinde değil</h2>
+    <p>Provider + key + model ayarları bir sheet'e taşınır, <code>EncryptedSharedPreferences</code>'a yazılır (<code>SecurityModule.kt</code> pattern'ı). Bugün key her app açılışında kayboluyor.</p>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">Arka plan göstergesi</h2>
+    <p>Agent panel kapandıysa çalışmaya devam eder; 🤖 ikonunda spinner + badge. Tıklayınca transcript'i bulduğun yerden açılır.</p>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">Sıkıştırılmış tool çıktısı</h2>
+    <p>Her tool sonucu context'e <b>kapsamlı</b> gider. 300 satırlık <code>cat</code> tek pencereyi patlatır. Satır + karakter hard cap, uzunsa baş/son korunur.</p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Drosh — Konsept A · Peek Bar</title>
+<link rel="stylesheet" href="agent-ui.css"/>
+<style>
+  /* transcript overlays the terminal when expanded */
+  .x-script { position: absolute; top: 78px; left: 0; right: 0; bottom: 0; z-index: 20;
+              background: var(--bg); display: none; flex-direction: column; }
+  .x-script.on { display: flex; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Konsept A — Peek Bar</h1>
+  <p>Agent terminalin altına ince bir bar olarak dock olur. Terminal tamamen görünür kalır.
+     Chevron → tam ekran transcript (terminal blur/dim). Back → bar'a, tekrar Back → çıkış.
+     Aşağıdaki state'leri gezerek elle test edebilirsin.</p>
+</div>
+
+<div class="stage">
+
+  <!-- ══════════ PHONE ══════════ -->
+  <div class="stage-col">
+    <div class="phone" id="phone" data-state="idle">
+
+      <div class="statusbar">
+        <span>14:32</span>
+        <span class="sb-right"><span>▮▮▮</span><span>LTE</span><span>86%</span></span>
+      </div>
+
+      <div class="topbar">
+        <div class="pill icon">☰</div>
+        <div style="display:flex;gap:6px">
+          <div class="pill icon" id="agentPill" title="Agent">🤖</div>
+          <div class="pill icon">⌨</div>
+          <div class="pill icon">⋯</div>
+        </div>
+      </div>
+
+      <!-- ── terminal ── -->
+      <div class="term" id="term">
+        <div class="blk">
+          <div class="line blk-cmd">$ npx vite build</div>
+        </div>
+        <div class="blk">
+          <div class="line c-dim">vite v5.4.8 building for production...</div>
+          <div class="line c-dim">transforming...</div>
+          <div class="line c-success">✓ 1423 modules transformed.</div>
+        </div>
+        <div class="blk">
+          <div class="line blk-out">dist/index.html                 0.42 kB</div>
+          <div class="line blk-out">dist/assets/index-8fa2c1.js   881.24 kB</div>
+        </div>
+        <div class="blk">
+          <div class="line c-warning">(!) some chunks are larger than 500 kB after minification</div>
+        </div>
+        <div class="blk">
+          <div class="line c-success">✓ built in 6.14s</div>
+        </div>
+        <div class="term-spacer"></div>
+      </div>
+
+      <div class="keybar" id="keybar">
+        <div class="key">esc</div><div class="key">tab</div><div class="key">ctrl</div>
+        <div class="key">|</div><div class="key">/</div><div class="key">-</div>
+        <div class="key wide">⌫</div>
+      </div>
+
+      <!-- ── peek bar (collapsed resting state) ── -->
+      <div class="peekbar" id="peekbar">
+        <div class="ticker" id="ticker">
+          <span class="spinner" style="width:9px;height:9px;border-width:1.2px"></span>
+          <span class="grow" id="tickerText">agent çalışıyor…</span>
+          <span class="expand-btn" id="expandBtn" style="width:22px;height:22px;font-size:10px">▲</span>
+        </div>
+        <div class="peekbar-row">
+          <div class="chip tint">🤖 npm-fix</div>
+          <div class="composer">
+            <span class="placeholder" id="ph">Agent'a bir şey sor<span class="caret"></span></span>
+          </div>
+          <div class="send">➤</div>
+        </div>
+      </div>
+
+      <!-- ── transcript (expanded) ── -->
+      <div class="x-script" id="script">
+        <div class="sheet-bar" style="border-top:1px solid var(--outline)">
+          <div class="expand-btn" id="collapseBtn" style="transform:rotate(180deg)">▼</div>
+          <div class="sheet-title">🤖 npm-fix · <span class="c-muted" id="stepLabel">adım 2/8</span></div>
+          <div class="chip tint" id="modeChip">Agent Session</div>
+        </div>
+        <div class="transcript" id="transcript"></div>
+        <div class="peekbar-row" style="padding:8px 12px 10px;background:var(--bg);border-top:1px solid var(--outline)">
+          <div class="composer" style="flex:1">
+            <span class="placeholder">Agent'a bir şey sor<span class="caret"></span></span>
+          </div>
+          <div class="stop">■</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="col-note">
+      <b>Okuma:</b> terminal sürekli açık. Agent çalışırken bile komut çıktısını
+      izliyorsun. Bar dar — sadece hedef + composer + tek satır ticker.
+    </div>
+  </div>
+
+  <!-- ══════════ CONTROLS ══════════ -->
+  <div class="stage-col">
+    <div class="controls">
+      <div class="ch">Panel durumu</div>
+      <div class="crow" id="cView">
+        <button class="tbtn on" data-v="collapsed">Collapsed (bar)</button>
+        <button class="tbtn" data-v="expanded">Expanded (full)</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Agent state</div>
+      <div class="crow" id="cState">
+        <button class="tbtn on" data-s="idle">idle</button>
+        <button class="tbtn" data-s="thinking">thinking</button>
+        <button class="tbtn" data-s="streaming">streaming metin</button>
+        <button class="tbtn" data-s="tool">shell çalışıyor</button>
+        <button class="tbtn" data-s="approval">diff onayı</button>
+        <button class="tbtn" data-s="ask">ask_user</button>
+        <button class="tbtn" data-s="done">tamamlandı</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Olaylar</div>
+      <div class="crow">
+        <button class="tbtn" id="btnTapAgent">🤖 butonuna dokun</button>
+        <button class="tbtn" id="btnSend">mesaj gönder</button>
+        <button class="tbtn" id="btnBg">paneli kapat (arka plan)</button>
+      </div>
+    </div>
+    <div class="col-note" style="max-width:390px;text-align:left">
+      <b>Dikkat edilecekler:</b><br>
+      • Back davranışı iki kademeli: expanded → collapsed → çıkış<br>
+      • "paneli kapat" → agent <b>çalışmaya devam eder</b>, 🤖 ikonunda spinner belirir<br>
+      • onay kartı sadece expanded'da görünür — collapsed'da ticker uyarır
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const phone = document.getElementById("phone");
+  const term  = document.getElementById("term");
+  const bar   = document.getElementById("peekbar");
+  const keybar= document.getElementById("keybar");
+  const script= document.getElementById("script");
+  const tr    = document.getElementById("transcript");
+  const pill  = document.getElementById("agentPill");
+  const tickerText = document.getElementById("tickerText");
+  const stepLabel = document.getElementById("stepLabel");
+
+  let view = "collapsed";   // collapsed | expanded
+  let state = "idle";       // idle | thinking | streaming | tool | approval | ask | done
+
+  const head = () =>
+    `<div class="msg-user">vite build'de chunk size uyarısı veriyor. vendor'ı ayır, tekrar build et.</div>`;
+
+  const thinking = () =>
+    `<div class="thinking"><span class="dots"><i></i><i></i><i></i></span> düşünüyor… 3.2s</div>`;
+
+  const toolRead = () => `
+    <div class="tool open">
+      <div class="tool-head"><span class="tool-icon read">R</span><span class="tool-name">read_file</span>
+        <span class="tool-sum">vite.config.js</span><span class="tool-stat">34 satır</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out">import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
+})</div></div>
+    </div>`;
+
+  const agentText = (t) => `<div class="msg-agent"><div class="role">drosh</div>${t}</div>`;
+
+  const toolShellOpen = `
+    <div class="tool open">
+      <div class="tool-head"><span class="tool-icon shell">$</span><span class="tool-name">shell</span>
+        <span class="tool-sum">npm run build</span><span class="tool-stat c-build">çalışıyor…</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out" id="liveOut"></div></div>
+    </div>`;
+
+  const toolShellDone = `
+    <div class="tool">
+      <div class="tool-head"><span class="tool-icon shell">$</span><span class="tool-name">shell</span>
+        <span class="tool-sum">npm run build</span><span class="tool-stat c-success">exit 0 · 5.9s</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out">vite v5.4.8 building for production...
+✓ 1423 modules transformed.
+dist/assets/index-8fa2c1.js   214.83 kB
+dist/assets/vendor-a91f22.js  667.02 kB
+(!) vendor chunk is larger than 500 kB
+✓ built in 5.91s</div></div>
+    </div>`;
+
+  const toolWriteClosed = `
+    <div class="tool">
+      <div class="tool-head"><span class="tool-icon write">W</span><span class="tool-name">write_file</span>
+        <span class="tool-sum">vite.config.js</span><span class="tool-stat c-warning">onay bekliyor</span><span class="caret">▶</span></div>
+    </div>`;
+
+  const toolWrite = (open) => `
+    <div class="tool ${open ? "open" : ""}" id="writeTool">
+      <div class="tool-head"><span class="tool-icon write">W</span><span class="tool-name">write_file</span>
+        <span class="tool-sum">vite.config.js</span><span class="tool-stat c-warning">onay bekliyor</span><span class="caret">▶</span></div>
+      <div class="tool-body">
+        <div class="diff">
+          <div class="diff-file"><span>vite.config.js</span><span class="st">+7 −2</span></div>
+          <div class="diff-line hunk">@@ -6,9 +6,14 @@ export default defineConfig({</div>
+          <div class="diff-line ctx">   rollupOptions: {</div>
+          <div class="diff-line ctx">     output: {</div>
+          <div class="diff-line del">      manualChunks: undefined,</div>
+          <div class="diff-line add">      manualChunks(id) {</div>
+          <div class="diff-line add">        if (id.includes('node_modules'))</div>
+          <div class="diff-line add">          return 'vendor'</div>
+          <div class="diff-line add">      },</div>
+          <div class="diff-line ctx">    },</div>
+          <div class="diff-line ctx">  },</div>
+        </div>
+        <div class="approve" id="approveBar">
+          <div class="btn ghost">Reddet</div>
+          <div class="btn primary">Uygula</div>
+        </div>
+      </div>
+    </div>`;
+
+  const todo = () => `
+    <div class="todo">
+      <div class="todo-h">TODO · 2/4</div>
+      <div class="todo-i done"><span class="bx">✓</span><span>build config'ini incele</span></div>
+      <div class="todo-i act"><span class="bx"></span><span>vendor chunk ayrımını ekle</span></div>
+      <div class="todo-i"><span class="bx"></span><span>tekrar build et ve doğrula</span></div>
+    </div>`;
+
+  const askCard = () => `
+    <div class="tool open">
+      <div class="tool-head"><span class="tool-icon ask">?</span><span class="tool-name">ask_user</span>
+        <span class="tool-sum">hangi vendor stratejisi?</span><span class="tool-stat c-warning">yanıt bekleniyor</span><span class="caret">▶</span></div>
+      <div class="tool-body">
+        <div class="tool-out">node_modules içinde birden fazla büyük paket var. Rollup'ın
+otomatik bölmesine mi versem, yoksa elle vendor'a mı çıkarayım?</div>
+        <div class="approve">
+          <div class="btn ghost">Otomatik</div>
+          <div class="btn primary">Elle vendor</div>
+        </div>
+      </div>
+    </div>`;
+
+  const streamingMsg = `<div class="msg-agent"><div class="role">drosh</div><span id="streamText"></span><span class="caret"></span></div>`;
+
+  function render() {
+    let html = head();
+    let step = "adım 1/8";
+    let tick = "";
+
+    switch (state) {
+      case "thinking":
+        html += thinking(); tick = "düşünüyor…"; step = "adım 1/8"; break;
+      case "streaming":
+        html += streamingMsg; tick = "yanıt yazıyor…"; step = "adım 1/8"; break;
+      case "tool":
+        html += agentText("Config'e bakıyorum, sonra vendor'a ayıracağım.");
+        html += toolRead() + toolShellOpen;
+        tick = "shell · npm run build"; step = "adım 3/8"; break;
+      case "approval":
+        html += todo();
+        html += agentText("Şu diff'i uygulayayım mı?");
+        html += toolWrite(true);
+        tick = "onayını bekliyor"; step = "adım 5/8"; break;
+      case "ask":
+        html += toolRead() + askCard();
+        tick = "soru soruyor"; step = "adım 2/8"; break;
+      case "done":
+        html += todo();
+        html += agentText("Vendor ayrıldı, build 5.9s'de geçti. Uyarı gitti, `vendor` chunk 667 kB ama artık ayrı dosyada.");
+        html += toolShellDone;
+        tick = "bitti · 5.9s"; step = "tamamlandı"; break;
+      default:
+        tick = ""; step = "hazır";
+    }
+
+    tr.innerHTML = html;
+    stepLabel.textContent = step;
+
+    // ticker only when collapsed
+    tickerText.innerHTML = tick || "agent'a bir şey sor";
+    bar.querySelector(".ticker").style.display = tick ? "flex" : "none";
+
+    // live shell output simulation
+    if (state === "tool") {
+      const out = document.getElementById("liveOut");
+      if (out) {
+        const lines = ["vite v5.4.8 building for production...", "transforming...", "✓ 1423 modules transformed."];
+        let i = 0;
+        clearInterval(window.__sim);
+        window.__sim = setInterval(() => {
+          if (i >= lines.length) { clearInterval(window.__sim); return; }
+          const d = document.createElement("span");
+          d.className = "ln new";
+          d.textContent = lines[i++] + "\n";
+          out.appendChild(d);
+          out.scrollTop = out.scrollHeight;
+        }, 420);
+      }
+    }
+
+    // pill state
+    const busy = ["thinking", "streaming", "tool"].includes(state);
+    pill.classList.toggle("agent-active", busy || state === "approval" || state === "ask");
+    pill.innerHTML = busy
+      ? '<span class="spinner"></span>'
+      : state === "approval" || state === "ask" ? "🤖<span style='position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:50%;background:#F0B429;border:1.5px solid #0E0E0E'></span>"
+      : "🤖";
+
+    // write tool opens automatically when it appears
+    if (state === "approval") {
+      const t = document.getElementById("writeTool");
+      if (t) t.classList.add("open");
+    }
+
+    // tap-to-expand on tool rows
+    tr.querySelectorAll(".tool-head").forEach(h => {
+      h.onclick = () => h.parentElement.classList.toggle("open");
+    });
+
+    applyView();
+  }
+
+  function applyView() {
+    const expanded = view === "expanded";
+    script.classList.toggle("on", expanded);
+    term.classList.toggle("dim", expanded);
+    bar.style.display = expanded ? "none" : "flex";
+    keybar.style.display = expanded ? "none" : "flex";
+  }
+
+  // ── wiring ──
+  document.querySelectorAll("#cView .tbtn").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#cView .tbtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    view = b.dataset.v;
+    applyView();
+  });
+
+  document.querySelectorAll("#cState .tbtn").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    state = b.dataset.s;
+    render();
+  });
+
+  document.getElementById("expandBtn").onclick   = () => { view = "expanded";  syncView(); };
+  document.getElementById("collapseBtn").onclick = () => { view = "collapsed"; syncView(); };
+  document.getElementById("agentPill").onclick    = () => { view = view === "expanded" ? "collapsed" : "expanded"; syncView(); };
+
+  function syncView() {
+    document.querySelectorAll("#cView .tbtn").forEach(x =>
+      x.classList.toggle("on", x.dataset.v === view));
+    applyView();
+  }
+
+  document.getElementById("btnTapAgent").onclick = () => {
+    view = "expanded"; state = "idle"; syncView();
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.toggle("on", x.dataset.s === "idle"));
+    render();
+  };
+
+  document.getElementById("btnSend").onclick = () => {
+    state = "streaming";
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.toggle("on", x.dataset.s === "streaming"));
+    render();
+    const txt = "vite build'de chunk size uyarısı var, vendor'ı ayır, tekrar build et.";
+    const el = document.getElementById("streamText");
+    if (!el) return;
+    let i = 0;
+    clearInterval(window.__type);
+    window.__type = setInterval(() => {
+      el.textContent = txt.slice(0, ++i);
+      if (i >= txt.length) { clearInterval(window.__type); state = "done"; }
+    }, 18);
+  };
+
+  document.getElementById("btnBg").onclick = () => {
+    view = "collapsed";
+    state = "tool";
+    syncView();
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.toggle("on", x.dataset.s === "tool"));
+    render();
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

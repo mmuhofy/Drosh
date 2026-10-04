@@ -149,7 +149,6 @@ fun TerminalTopBar(
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenAgent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
@@ -246,23 +245,6 @@ fun TerminalTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                GlassPillButton(
-                    backdrop = backdrop,
-                    terminalBounds = terminalBounds,
-                    drawableRes = R.drawable.ic_agent_mark,
-                    contentDescription = "AI Agent",
-                    // Same 22dp as every lucide glyph beside it. It was
-                    // briefly set to 24dp on the theory that the mark needed
-                    // extra room for its detail, but the real reason it looked
-                    // small was the vector itself: the artwork fills only 46%
-                    // of its 2048 viewport, so at any iconSize the visible
-                    // mark was about half the size of its neighbours. The
-                    // drawable now scales the artwork to fill the box, and at
-                    // the same 22dp it matches the rest of the row.
-                    iconSize = 22.dp,
-                    onClick = { onOpenAgent() },
-                )
-
                 GlassPillButton(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,

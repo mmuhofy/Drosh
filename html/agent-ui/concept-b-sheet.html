@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Drosh — Konsept B · Draggable Sheet</title>
+<link rel="stylesheet" href="agent-ui.css"/>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Konsept B — Draggable Sheet</h1>
+  <p>Docs'taki "Model B". 🤖 butonu → standart bottom sheet açılır (%58), arkasında
+     terminal blur/dim olur. Grabber'ı yukarı çek → tam ekran. Mesaj listesi sheet içinde
+     kendi scroll'unda döner. State'leri gezerek elle test et.</p>
+</div>
+
+<div class="stage">
+
+  <div class="stage-col">
+    <div class="phone" id="phone">
+
+      <div class="statusbar">
+        <span>14:32</span>
+        <span class="sb-right"><span>▮▮▮</span><span>LTE</span><span>86%</span></span>
+      </div>
+
+      <div class="topbar">
+        <div class="pill icon">☰</div>
+        <div style="display:flex;gap:6px">
+          <div class="pill icon agent-active" id="agentPill"><span class="spinner"></span></div>
+          <div class="pill icon">⌨</div>
+          <div class="pill icon">⋯</div>
+        </div>
+      </div>
+
+      <!-- terminal stays mounted, gets blurred by the scrim -->
+      <div class="term" id="term">
+        <div class="blk"><div class="line blk-cmd">$ npx vite build</div></div>
+        <div class="blk">
+          <div class="line c-dim">vite v5.4.8 building for production...</div>
+          <div class="line c-success">✓ 1423 modules transformed.</div>
+        </div>
+        <div class="blk">
+          <div class="line blk-out">dist/assets/index-8fa2c1.js   881.24 kB</div>
+        </div>
+        <div class="blk"><div class="line c-warning">(!) some chunks are larger than 500 kB after minification</div></div>
+        <div class="blk"><div class="line c-success">✓ built in 6.14s</div></div>
+        <div class="term-spacer"></div>
+      </div>
+
+      <div class="keybar" id="keybar">
+        <div class="key">esc</div><div class="key">tab</div><div class="key">ctrl</div>
+        <div class="key">|</div><div class="key">/</div><div class="key">-</div>
+        <div class="key wide">⌫</div>
+      </div>
+
+      <!-- ── the sheet ── -->
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet" id="sheet">
+        <div class="grabber" id="grabber"><i></i></div>
+        <div class="sheet-bar">
+          <div class="chip tint">🤖 npm-fix</div>
+          <div class="sheet-title" style="flex:1;text-align:center;font-size:11px" id="stepLabel">adım 1/8</div>
+          <div class="pill icon" style="height:26px;width:26px;min-width:26px" id="closeBtn">✕</div>
+        </div>
+        <div class="drag-hint" id="dragHint">yukarı çek → tam ekran</div>
+        <div class="transcript" id="transcript"></div>
+        <div class="peekbar-row" style="padding:8px 12px 12px;border-top:1px solid var(--outline)">
+          <div class="composer" style="flex:1">
+            <span class="placeholder">Agent'a bir şey sor<span class="caret"></span></span>
+          </div>
+          <div class="stop">■</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="col-note">
+      <b>Okuma:</b> sheet içeriği alttan başlar, yukarı doğru büyür — klasik davranış.
+      Terminal üstte bulanık. Tam ekrana çekince terminal tamamen gizlenir.
+    </div>
+  </div>
+
+  <div class="stage-col">
+    <div class="controls">
+      <div class="ch">Sheet durumu</div>
+      <div class="crow" id="cView">
+        <button class="tbtn" data-v="closed">Kapalı</button>
+        <button class="tbtn on" data-v="half">%58 (yarı)</button>
+        <button class="tbtn" data-v="full">Tam ekran</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Agent state</div>
+      <div class="crow" id="cState">
+        <button class="tbtn on" data-s="idle">idle</button>
+        <button class="tbtn" data-s="thinking">thinking</button>
+        <button class="tbtn" data-s="streaming">streaming</button>
+        <button class="tbtn" data-s="tool">shell çalışıyor</button>
+        <button class="tbtn" data-s="approval">diff onayı</button>
+        <button class="tbtn" data-s="ask">ask_user</button>
+        <button class="tbtn" data-s="done">tamamlandı</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Olaylar</div>
+      <div class="crow">
+        <button class="tbtn" id="btnTapAgent">🤖 butonuna dokun</button>
+        <button class="tbtn" id="btnDrag">yukarı çek</button>
+        <button class="tbtn" id="btnBg">arkada çalışsın</button>
+      </div>
+    </div>
+
+    <div class="col-note" style="max-width:390px;text-align:left">
+      <b>Bu konseptin asıl riski:</b><br>
+      • Sheet'in kendi LazyColumn'ı + yukarı/aşağı sürükleme → Android'de
+        gesture çatışması. Sheet yukarı çekilirken liste de kayabilir.<br>
+      • Klavye açılınca sheet yüksekliği ile IME arasında yarış olur.<br>
+      • Back: sheet'i kapatır mı, agent'ı mı durdurur mu? Karışır.<br>
+      <b>Konsept A'da bu üçü de yok.</b>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const sheet = document.getElementById("sheet");
+  const scrim = document.getElementById("scrim");
+  const tr    = document.getElementById("transcript");
+  const stepLabel = document.getElementById("stepLabel");
+  const dragHint = document.getElementById("dragHint");
+  const pill  = document.getElementById("agentPill");
+  const keybar = document.getElementById("keybar");
+
+  let view = "half";
+  let state = "idle";
+
+  const H = `<div class="msg-user">vite build'de chunk size uyarısı veriyor. vendor'ı ayır, tekrar build et.</div>`;
+  const TH = `<div class="thinking"><span class="dots"><i></i><i></i><i></i></span> düşünüyor… 3.2s</div>`;
+  const AG = t => `<div class="msg-agent"><div class="role">drosh</div>${t}</div>`;
+  const ST = `<div class="msg-agent"><div class="role">drosh</div><span id="streamText"></span><span class="caret"></span></div>`;
+
+  const readTool = `
+    <div class="tool">
+      <div class="tool-head"><span class="tool-icon read">R</span><span class="tool-name">read_file</span>
+        <span class="tool-sum">vite.config.js</span><span class="tool-stat">34 satır</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out">export default defineConfig({
+  plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
+})</div></div>
+    </div>`;
+
+  const shellRun = `
+    <div class="tool open">
+      <div class="tool-head"><span class="tool-icon shell">$</span><span class="tool-name">shell</span>
+        <span class="tool-sum">npm run build</span><span class="tool-stat c-build">çalışıyor…</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out" id="liveOut"></div></div>
+    </div>`;
+
+  const shellDone = `
+    <div class="tool">
+      <div class="tool-head"><span class="tool-icon shell">$</span><span class="tool-name">shell</span>
+        <span class="tool-sum">npm run build</span><span class="tool-stat c-success">exit 0 · 5.9s</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out">vite v5.4.8 building for production...
+✓ 1423 modules transformed.
+dist/assets/index-8fa2c1.js   214.83 kB
+dist/assets/vendor-a91f22.js  667.02 kB
+✓ built in 5.91s</div></div>
+    </div>`;
+
+  const writeTool = open => `
+    <div class="tool ${open ? "open" : ""}" id="writeTool">
+      <div class="tool-head"><span class="tool-icon write">W</span><span class="tool-name">write_file</span>
+        <span class="tool-sum">vite.config.js</span><span class="tool-stat c-warning">onay bekliyor</span><span class="caret">▶</span></div>
+      <div class="tool-body">
+        <div class="diff">
+          <div class="diff-file"><span>vite.config.js</span><span class="st">+7 −2</span></div>
+          <div class="diff-line hunk">@@ -6,9 +6,14 @@ export default defineConfig({</div>
+          <div class="diff-line ctx">   rollupOptions: {</div>
+          <div class="diff-line ctx">     output: {</div>
+          <div class="diff-line del">      manualChunks: undefined,</div>
+          <div class="diff-line add">      manualChunks(id) {</div>
+          <div class="diff-line add">        if (id.includes('node_modules'))</div>
+          <div class="diff-line add">          return 'vendor'</div>
+          <div class="diff-line add">      },</div>
+          <div class="diff-line ctx">    },</div>
+          <div class="diff-line ctx">  },</div>
+        </div>
+        <div class="approve"><div class="btn ghost">Reddet</div><div class="btn primary">Uygula</div></div>
+      </div>
+    </div>`;
+
+  const askCard = `
+    <div class="tool open">
+      <div class="tool-head"><span class="tool-icon ask">?</span><span class="tool-name">ask_user</span>
+        <span class="tool-sum">hangi vendor stratejisi?</span><span class="tool-stat c-warning">yanıt bekleniyor</span><span class="caret">▶</span></div>
+      <div class="tool-body">
+        <div class="tool-out">node_modules içinde birden fazla büyük paket var. Rollup'ın otomatik
+bölmesine mi versem, yoksa elle vendor'a mı çıkarayım?</div>
+        <div class="approve"><div class="btn ghost">Otomatik</div><div class="btn primary">Elle vendor</div></div>
+      </div>
+    </div>`;
+
+  const todo = `
+    <div class="todo">
+      <div class="todo-h">TODO · 2/4</div>
+      <div class="todo-i done"><span class="bx">✓</span><span>build config'ini incele</span></div>
+      <div class="todo-i act"><span class="bx"></span><span>vendor chunk ayrımını ekle</span></div>
+      <div class="todo-i"><span class="bx"></span><span>tekrar build et ve doğrula</span></div>
+    </div>`;
+
+  function render() {
+    let html = H, step = "adım 1/8";
+    switch (state) {
+      case "thinking":  html += TH; break;
+      case "streaming": html += ST; step = "adım 1/8"; break;
+      case "tool":      html += AG("Config'e bakıyorum, sonra vendor'a ayıracağım.") + readTool + shellRun; step = "adım 3/8"; break;
+      case "approval":  html += todo() + AG("Şu diff'i uygulayayım mı?") + writeTool(true); step = "adım 5/8"; break;
+      case "ask":       html += readTool + askCard; step = "adım 2/8"; break;
+      case "done":      html += todo() + AG("Vendor ayrıldı, build 5.9s'de geçti. Uyarı gitti.") + shellDone; step = "tamamlandı"; break;
+      default:          step = "hazır";
+    }
+    tr.innerHTML = html;
+    stepLabel.textContent = step;
+
+    if (state === "tool") {
+      const out = document.getElementById("liveOut");
+      if (out) {
+        const lines = ["vite v5.4.8 building for production...", "transforming...", "✓ 1423 modules transformed."];
+        let i = 0; clearInterval(window.__sim);
+        window.__sim = setInterval(() => {
+          if (i >= lines.length) { clearInterval(window.__sim); return; }
+          const d = document.createElement("span");
+          d.className = "ln new"; d.textContent = lines[i++] + "\n";
+          out.appendChild(d); out.scrollTop = out.scrollHeight;
+        }, 420);
+      }
+    }
+
+    tr.querySelectorAll(".tool-head").forEach(h => h.onclick = () => h.parentElement.classList.toggle("open"));
+    applyView();
+  }
+
+  function applyView() {
+    const open = view !== "closed";
+    sheet.classList.toggle("show", open);
+    scrim.classList.toggle("show", open);
+    sheet.classList.toggle("full", view === "full");
+    dragHint.style.display = view === "half" ? "block" : "none";
+    keybar.style.opacity = open ? "0" : "1";
+
+    const busy = ["thinking", "streaming", "tool"].includes(state);
+    pill.innerHTML = open ? '<span class="spinner"></span>' : "🤖";
+  }
+
+  document.querySelectorAll("#cView .tbtn").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#cView .tbtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); view = b.dataset.v; applyView();
+  });
+  document.querySelectorAll("#cState .tbtn").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); state = b.dataset.s; render();
+  });
+
+  document.getElementById("grabber").onclick =
+    document.getElementById("dragHint").onclick = () => { view = view === "full" ? "half" : "full"; sync(); };
+  document.getElementById("closeBtn").onclick = () => { view = "closed"; sync(); };
+  document.getElementById("agentPill").onclick = () => { view = view === "closed" ? "half" : "closed"; sync(); };
+  document.getElementById("scrim").onclick = () => { view = "closed"; sync(); };
+
+  function sync() {
+    document.querySelectorAll("#cView .tbtn").forEach(x => x.classList.toggle("on", x.dataset.v === view));
+    applyView();
+  }
+
+  document.getElementById("btnTapAgent").onclick = () => {
+    view = "half"; state = "idle"; sync();
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.toggle("on", x.dataset.s === "idle"));
+    render();
+  };
+  document.getElementById("btnDrag").onclick = () => { view = view === "full" ? "half" : "full"; sync(); };
+  document.getElementById("btnBg").onclick = () => {
+    view = "closed"; state = "tool"; sync();
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.toggle("on", x.dataset.s === "tool"));
+    render();
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

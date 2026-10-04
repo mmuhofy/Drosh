@@ -1,9 +1,16 @@
-// agent/ — AgentLoop, ToolRegistry, MultiStepStreamer, tool implementations.
+// agent/ — Phase 6 Agent Intelligence.
 //
-// Per AGENT.md §122-124: "Depends on domain/ interfaces only."
-// Per AGENT.md §142: "agent/ depends only on domain/ interfaces, connected via Hilt"
-// Per MEMORYBANK.md §92-95: tools, loop, semantic — see §10 (Agent Core).
-
+// Depends on :domain interfaces only (AGENT.md: "agent/ depends only on
+// domain/ interfaces, connected via Hilt").
+//
+// Layout:
+//   runtime/   the agent loop — bounded, emits AgentEvent to the UI
+//   provider/  ChatAdapter implementations (one per wire protocol) + registry
+//   stream/    tool-call accumulator shared by the SSE adapters
+//   tool/      Tool implementations + ToolRegistry
+//   auth/      credential vault (EncryptedSharedPreferences)
+//   di/        Hilt module — no logic
+//
 plugins {
     alias(libs.plugins.dev.drosh.android.library)
     alias(libs.plugins.dev.drosh.android.hilt)

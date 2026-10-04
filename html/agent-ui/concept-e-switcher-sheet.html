@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Drosh — Konsept E · Agent Chat Switcher Sheet</title>
+<link rel="stylesheet" href="agent-ui.css"/>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Konsept E — Agent Chat Switcher (sheet)</h1>
+  <p>Agent chat yönetimi <b>agent deneyiminin içinde</b>: terminal sidebar'a dokunulmuyor.
+     Agent chat ekranının üst barındaki 🤖 butonu bir bottom sheet açar — tüm agent chat'leri,
+     arama ve <b>New agent chat</b>. Sheet'in içinde çalışma dizini seçimi de yapılıyor.</p>
+</div>
+
+<div class="stage">
+
+  <div class="stage-col">
+    <div class="phone" id="phone">
+
+      <div class="statusbar" style="z-index:50">
+        <span>14:32</span>
+        <span class="sb-right"><span>▮▮▮</span><span>LTE</span><span>86%</span></span>
+      </div>
+
+      <div class="topbar" style="z-index:20">
+        <div class="pill icon">‹</div>
+        <div style="display:flex;gap:6px">
+          <div class="pill icon agent-active" id="switchBtn" title="Agent chats">🤖<span class="caret" style="transform:rotate(90deg)"></span></div>
+          <div class="pill icon">⋯</div>
+        </div>
+      </div>
+
+      <div style="flex:1;display:flex;flex-direction:column;min-height:0;padding-top:78px">
+        <div style="padding:0 12px 8px;display:flex;align-items:center;gap:8px">
+          <div class="sheet-title">🤖 vendor-split</div>
+          <span class="spinner" style="width:10px;height:10px;border-width:1.2px"></span>
+          <span style="font-family:var(--mono);font-size:10.5px;color:var(--text-muted)">adım 3/8</span>
+        </div>
+        <div class="transcript" style="padding-top:4px">
+          <div class="msg-user">vendor'ı ayır, tekrar build et.</div>
+          <div class="msg-agent"><div class="role">drosh</div>Config'e bakıyorum, sonra vendor'a ayıracağım.</div>
+          <div class="tool open">
+            <div class="tool-head"><span class="tool-icon shell">$</span><span class="tool-name">shell</span>
+              <span class="tool-sum">npm run build</span><span class="tool-stat c-build">çalışıyor…</span><span class="caret">▶</span></div>
+            <div class="tool-body"><div class="tool-out">vite v5.4.8 building...
+✓ 1423 modules transformed.</div></div>
+          </div>
+        </div>
+        <div class="peekbar-row" style="padding:8px 12px 12px;border-top:1px solid var(--outline)">
+          <div class="composer" style="flex:1"><span class="placeholder">Agent'a bir şey sor<span class="caret"></span></span></div>
+          <div class="stop">■</div>
+        </div>
+      </div>
+
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet" id="sheet" style="height:72%">
+        <div class="grabber"></div>
+
+        <!-- list mode -->
+        <div id="paneList" style="flex:1;min-height:0;display:flex;flex-direction:column">
+          <div class="sheet-bar">
+            <div class="sheet-title">AGENT CHATS</div>
+            <div class="pill icon" style="height:26px;width:26px;min-width:26px" id="sheetClose">✕</div>
+          </div>
+          <div style="padding:8px 12px">
+            <div class="dw-search"><span>⌕</span><span>Search agent chats</span></div>
+          </div>
+          <div class="home-scroll" id="chatList" style="padding-top:0"></div>
+          <div style="padding:9px 12px 12px;border-top:1px solid var(--outline)">
+            <div class="btn primary" id="btnNew" style="width:100%">✦ New agent chat</div>
+          </div>
+        </div>
+
+        <!-- new chat mode -->
+        <div id="paneNew" style="flex:1;min-height:0;display:none;flex-direction:column">
+          <div class="sheet-bar">
+            <div class="pill icon" style="height:26px;width:26px;min-width:26px" id="newBack">‹</div>
+            <div class="sheet-title">NEW AGENT CHAT</div>
+          </div>
+          <div class="home-scroll">
+            <div style="font-size:12.5px;color:var(--text-muted);padding:2px 2px 8px;line-height:1.5">
+              Agent chat'in kendi terminali olur. Çalışacağı dizini seç —
+              terminal session açman <b>gerekmiyor</b>.
+            </div>
+            <div class="opt sel" data-cwd="~/">
+              <div class="ico">⌂</div>
+              <div style="flex:1"><div class="t1">Boş dizin</div><div class="t2">~/ · yeni agent oturumu</div></div>
+              <div class="rd"></div>
+            </div>
+            <div class="opt" data-cwd="~/zsh">
+              <div class="ico">▤</div>
+              <div style="flex:1"><div class="t1">Session: zsh</div><div class="t2">~/zsh · mevcut session'ın dizini</div></div>
+              <div class="rd"></div>
+            </div>
+            <div class="opt" data-cwd="~/api">
+              <div class="ico">▤</div>
+              <div style="flex:1"><div class="t1">Session: api</div><div class="t2">~/api · mevcut session'ın dizini</div></div>
+              <div class="rd"></div>
+            </div>
+            <div class="opt" data-cwd="~/proj/shop">
+              <div class="ico">◈</div>
+              <div style="flex:1"><div class="t1">Workspace: shop</div><div class="t2">~/proj/shop</div></div>
+              <div class="rd"></div>
+            </div>
+            <div class="opt" data-cwd="?" style="border-style:dashed">
+              <div class="ico">＋</div>
+              <div style="flex:1"><div class="t1">Başka bir dizin…</div><div class="t2">PRoot içinde serbest yol</div></div>
+              <div class="rd"></div>
+            </div>
+          </div>
+          <div style="padding:9px 12px 12px;border-top:1px solid var(--outline);display:flex;gap:8px">
+            <div class="btn ghost" style="flex:0 0 90px" id="newCancel">Vazgeç</div>
+            <div class="btn primary" id="newGo">Chat oluştur</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="col-note">
+      <b>Okuma:</b> sheet agent ekranına ait. Terminal sidebar'ı agent chat'lerinden
+      habersiz kalıyor. "New agent chat" iki adımda: dizin seç → oluştur.
+    </div>
+  </div>
+
+  <div class="stage-col">
+    <div class="controls">
+      <div class="ch">Sheet</div>
+      <div class="crow" id="cView">
+        <button class="tbtn on" data-v="closed">Kapalı</button>
+        <button class="tbtn" data-v="list">Chat listesi</button>
+        <button class="tbtn" data-v="new">Yeni chat · dizin seçimi</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Liste durumu</div>
+      <div class="crow" id="cData">
+        <button class="tbtn on" data-d="normal">normal</button>
+        <button class="tbtn" data-d="mixed">çalışan var</button>
+        <button class="tbtn" data-d="empty">hiç chat yok</button>
+      </div>
+    </div>
+
+    <div class="col-note" style="max-width:390px;text-align:left">
+      <b>Artı:</b> bağlam doğru — agent ile uğraşırken agent yönetimi de aynı yerde.
+      Terminal sidebar'ı olduğu gibi kalır, iki yüzey birbirine karışmaz.<br><br>
+      <b>Eksi:</b> bir agent chat'e girmeden agent chat listesine <b>hiçbir yerden</b> ulaşamazsın.
+      Terminal ekranındayken 🤖 butonu yeni bir chat açmalı — o zaman zaten liste de lazım.
+      Yani gerçekte bir yerde <b>global bir giriş noktası</b> şart.
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const sheet = document.getElementById("sheet");
+  const scrim = document.getElementById("scrim");
+  const paneList = document.getElementById("paneList");
+  const paneNew = document.getElementById("paneNew");
+  const chatList = document.getElementById("chatList");
+
+  let view = "closed", data = "normal";
+
+  const chats = {
+    normal: [
+      { nm: "vendor-split",    cwd: "~/zsh", mt: "Vendor ayrıldı, build 5.9s'de geçti", dot: "done", t: "12 dk" },
+      { nm: "auth-migration",  cwd: "~/api", mt: "Şu diff'i uygulayayım mı?", dot: "wait", t: "1 sa" },
+      { nm: "test-coverage",   cwd: "~/zsh", mt: "coverage %34 → %61, 14 test eklendi", dot: "done", t: "3 sa" },
+      { nm: "log-investigate", cwd: "~/logs", mt: "Son konuşma 2 gün önce", dot: "", t: "2 gün" },
+    ],
+    mixed: [
+      { nm: "vendor-split",    cwd: "~/zsh", mt: "npm run build · adım 3/8", dot: "run", t: "şimdi" },
+      { nm: "auth-migration",  cwd: "~/api", mt: "Şu diff'i uygulayayım mı?", dot: "wait", t: "1 sa" },
+      { nm: "test-coverage",   cwd: "~/zsh", mt: "coverage %34 → %61", dot: "done", t: "3 sa" },
+      { nm: "log-investigate", cwd: "~/logs", mt: "Son konuşma 2 gün önce", dot: "", t: "2 gün" },
+    ],
+    empty: [],
+  };
+
+  function render() {
+    const list = chats[data] || [];
+    if (!list.length) {
+      chatList.innerHTML = `
+        <div style="text-align:center;padding:34px 18px;color:var(--text-muted)">
+          <div style="font-size:30px;margin-bottom:10px;opacity:0.35">🤖</div>
+          <div style="font-size:13.5px;color:var(--text-secondary);margin-bottom:5px">Henüz agent chat yok</div>
+          <div style="font-size:12px;line-height:1.6">İlk chat'ini oluştur — terminal session açmana gerek yok.</div>
+        </div>`;
+      return;
+    }
+    chatList.innerHTML = list.map((c, i) => `
+      <div class="chatcard ${c.dot === "run" ? "run" : ""}">
+        <div class="chatcard-h">
+          <span class="nm">🤖 ${c.nm}</span>
+          <span class="dot ${c.dot}" style="width:6px;height:6px;border-radius:50%;
+                background:${c.dot === "run" ? "var(--primary)" : c.dot === "wait" ? "var(--warning)" : c.dot === "done" ? "var(--success)" : "var(--outline)"}"></span>
+          <span style="font-family:var(--mono);font-size:9.5px;color:var(--text-disabled)">${c.t}</span>
+        </div>
+        <div class="prev">${c.mt}</div>
+        <div class="meta"><span class="tag">${c.cwd}</span>${c.dot === "run" ? '<span style="color:var(--primary)">çalışıyor</span>' : ""}</div>
+      </div>`).join("");
+  }
+
+  function applyView() {
+    const open = view !== "closed";
+    sheet.classList.toggle("show", open);
+    scrim.classList.toggle("show", open);
+    paneList.style.display = (view === "new") ? "none" : "flex";
+    paneNew.style.display  = (view === "new") ? "flex" : "none";
+    document.querySelectorAll("#cView .tbtn").forEach(x => x.classList.toggle("on", x.dataset.v === view));
+  }
+
+  document.querySelectorAll("#cView .tbtn").forEach(b => b.onclick = () => { view = b.dataset.v; applyView(); });
+  document.querySelectorAll("#cData .tbtn").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#cData .tbtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); data = b.dataset.d; render();
+  });
+
+  document.getElementById("switchBtn").onclick  = () => { view = view === "closed" ? "list" : "closed"; applyView(); };
+  document.getElementById("sheetClose").onclick = () => { view = "closed"; applyView(); };
+  document.getElementById("btnNew").onclick     = () => { view = "new"; applyView(); };
+  document.getElementById("newBack").onclick    = () => { view = "list"; applyView(); };
+  document.getElementById("newCancel").onclick  = () => { view = "list"; applyView(); };
+  document.getElementById("newGo").onclick      = () => { view = "closed"; applyView(); };
+  scrim.onclick = () => { view = "closed"; applyView(); };
+
+  paneNew.querySelectorAll(".opt").forEach(o => o.onclick = () => {
+    paneNew.querySelectorAll(".opt").forEach(x => x.classList.remove("sel"));
+    o.classList.add("sel");
+  });
+
+  render();
+  applyView();
+})();
+</script>
+</body>
+</html>

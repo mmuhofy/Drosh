@@ -60,7 +60,6 @@ import dev.drosh.ui.DroshIcons
 fun MotdWidget(
     motdText: String,
     systemInfo: SystemInfo?,
-    onAgentClick: () -> Unit,
     onHelpClick: () -> Unit,
     modifier: Modifier = Modifier,
     onDismiss: () -> Unit,
@@ -102,10 +101,7 @@ fun MotdWidget(
 
             // ── Actions ────────────────────────────────────────────────────────
             Spacer(Modifier.height(16.dp))
-            ActionButtons(
-                onAgentClick = onAgentClick,
-                onHelpClick = onHelpClick,
-            )
+            ActionButtons(onHelpClick = onHelpClick)
         }
 
         // ── Close button ────────────────────────────────────────────────────────
@@ -167,18 +163,12 @@ private fun SystemInfoRow(info: SystemInfo) {
 
 @Composable
 private fun ActionButtons(
-    onAgentClick: () -> Unit,
     onHelpClick: () -> Unit,
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        ActionButton(
-            label = "Agent",
-            icon = DroshIcons.SquareTerminal,
-            onClick = onAgentClick,
-        )
         ActionButton(
             label = "Yardım",
             icon = DroshIcons.Info,

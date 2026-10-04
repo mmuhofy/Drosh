@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Drosh — Konsept C · Agent = Session</title>
+<link rel="stylesheet" href="agent-ui.css"/>
+<style>
+  .sess-bar {
+    flex: 0 0 auto; padding: 8px 12px 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sess-name {
+    font-family: var(--mono); font-size: 12.5px; color: var(--text); flex: 1;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sess-name .sw { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+  .agentterm { padding: 10px 14px 14px; gap: 7px; }
+  .sess-switch {
+    display: flex; gap: 6px; padding: 0 12px 8px;
+    font-family: var(--mono); font-size: 10.5px; color: var(--text-disabled);
+    overflow: hidden;
+  }
+  .sess-switch span.on { color: var(--primary); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Konsept C — Agent = Bir Session</h1>
+  <p>Agent özel bir panel değil, sıradan bir session. 🤖 butonu yeni bir <b>Agent Session</b>
+     açar — izole PTY, session switcher'da <code>🤖 npm-fix</code> olarak durur.
+     Ekranın üstünde <b>Transcript / Terminal</b> sekmesi: bir tıkla agent'ın canlı
+     terminaline geç. Session kapatma, rename, switcher — hepsi zaten var.</p>
+</div>
+
+<div class="stage">
+
+  <div class="stage-col">
+    <div class="phone" id="phone">
+
+      <div class="statusbar">
+        <span>14:32</span>
+        <span class="sb-right"><span>▮▮▮</span><span>LTE</span><span>86%</span></span>
+      </div>
+
+      <div class="topbar">
+        <div class="pill icon" id="backBtn">‹</div>
+        <div style="display:flex;gap:6px">
+          <div class="pill icon">⋯</div>
+        </div>
+      </div>
+
+      <!-- session chrome -->
+      <div class="sess-bar" style="margin-top:44px">
+        <div class="sess-name"><span class="sw"></span>🤖 npm-fix</div>
+        <div class="chip" id="stepChip">adım 1/8</div>
+      </div>
+
+      <div class="sess-switch">
+        <span>~/zsh</span><span>·</span><span class="on">🤖 npm-fix</span><span>·</span><span>postgres</span>
+      </div>
+
+      <!-- tab switch -->
+      <div style="padding:0 12px 8px">
+        <div class="seg" style="width:100%">
+          <button class="on" data-t="transcript">💬 Transcript</button>
+          <button data-t="terminal">▤ Agent terminali</button>
+        </div>
+      </div>
+
+      <!-- ── transcript pane ── -->
+      <div class="pane on" id="paneTranscript">
+        <div class="transcript" id="transcript"></div>
+        <div class="peekbar-row" style="padding:8px 12px 12px;border-top:1px solid var(--outline)">
+          <div class="composer" style="flex:1">
+            <span class="placeholder">Agent'a bir şey sor<span class="caret"></span></span>
+          </div>
+          <div class="stop">■</div>
+        </div>
+      </div>
+
+      <!-- ── agent's own PTY pane ── -->
+      <div class="pane" id="paneTerminal">
+        <div class="term agentterm" id="agentTerm">
+          <div class="blk"><div class="line c-dim">ubuntu@drsh: ~/zsh</div></div>
+          <div class="blk"><div class="line blk-cmd">$ pwd</div><div class="line blk-out">/data/data/dev.drosh/files/home/zsh</div></div>
+          <div class="blk"><div class="line blk-cmd">$ ls</div><div class="line blk-out">package.json  vite.config.js  index.html  src/  node_modules/</div></div>
+          <div class="term-spacer"></div>
+          <div class="blk"><div class="line blk-cmd">$ <span style="color:#4C9EFF">▊</span></div></div>
+        </div>
+        <div class="keybar">
+          <div class="key">esc</div><div class="key">tab</div><div class="key">ctrl</div>
+          <div class="key">|</div><div class="key">/</div><div class="key">-</div>
+          <div class="key wide">⌫</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="col-note">
+      <b>Okuma:</b> agent'ın kendi terminali birinci sınıf — transcript'te ara sıra
+      "shell" kartı yerine burada bakabiliyorsun. Session switcher'da normal bir
+      session gibi duruyor, kapatınca temizleniyor.
+    </div>
+  </div>
+
+  <div class="stage-col">
+    <div class="controls">
+      <div class="ch">Sekme</div>
+      <div class="crow" id="cTab">
+        <button class="tbtn on" data-t="transcript">Transcript</button>
+        <button class="tbtn" data-t="terminal">Agent terminali</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Agent state</div>
+      <div class="crow" id="cState">
+        <button class="tbtn on" data-s="idle">idle</button>
+        <button class="tbtn" data-s="thinking">thinking</button>
+        <button class="tbtn" data-s="streaming">streaming</button>
+        <button class="tbtn" data-s="tool">shell çalışıyor</button>
+        <button class="tbtn" data-s="approval">diff onayı</button>
+        <button class="tbtn" data-s="ask">ask_user</button>
+        <button class="tbtn" data-s="done">tamamlandı</button>
+      </div>
+
+      <div class="ch" style="margin-top:6px">Olaylar</div>
+      <div class="crow">
+        <button class="tbtn" id="btnNew">yeni agent session</button>
+        <button class="tbtn" id="btnRename">session'u yeniden adlandır</button>
+      </div>
+    </div>
+
+    <div class="col-note" style="max-width:390px;text-align:left">
+      <b>Bu konseptin trade-off'u:</b><br>
+      • <span style="color:#3DD68C">+</span> Session sistemiyle birebir aynı — sıfır yeni mental model.<br>
+      • <span style="color:#3DD68C">+</span> İzole PT'yi kullanıcı da görebiliyor, "ne yapıyor?" sorusu cevaplanıyor.<br>
+      • <span style="color:#3DD68C">+</span> Session kapatma/rename/switcher/geri dönüş bedava.<br>
+      • <span style="color:#F0B429">−</span> Her yeni görev = yeni session → liste şişer, "<b>bu session'da devam et</b>" kavramı geri gelir.<br>
+      • <span style="color:#F0B429">−</span> Kullanıcının terminali ile agent'ın terminali arasında geçiş = segment değiştirmek, panel hissi yok.
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const tr = document.getElementById("transcript");
+  const stepChip = document.getElementById("stepChip");
+  const agentTerm = document.getElementById("agentTerm");
+
+  let tab = "transcript";
+  let state = "idle";
+
+  const H = `<div class="msg-user">vite build'de chunk size uyarısı veriyor. vendor'ı ayır, tekrar build et.</div>`;
+  const TH = `<div class="thinking"><span class="dots"><i></i><i></i><i></i></span> düşünüyor… 3.2s</div>`;
+  const AG = t => `<div class="msg-agent"><div class="role">drosh</div>${t}</div>`;
+  const ST = `<div class="msg-agent"><div class="role">drosh</div><span id="streamText"></span><span class="caret"></span></div>`;
+
+  const readTool = `
+    <div class="tool">
+      <div class="tool-head"><span class="tool-icon read">R</span><span class="tool-name">read_file</span>
+        <span class="tool-sum">vite.config.js</span><span class="tool-stat">34 satır</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out">export default defineConfig({
+  plugins: [react()],
+  build: {
+    rollupOptions: { output: { manualChunks: undefined } },
+  },
+})</div></div>
+    </div>`;
+
+  const shellRun = `
+    <div class="tool open">
+      <div class="tool-head"><span class="tool-icon shell">$</span><span class="tool-name">shell</span>
+        <span class="tool-sum">npm run build <span class="c-dim">· agent terminalinde</span></span>
+        <span class="tool-stat c-build">çalışıyor…</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out c-muted">Bu komut agent session'ının kendi PTY'sinde çalışıyor.
+Sekmeyi "Agent terminali"ne geç, canlı izle.</div></div>
+    </div>`;
+
+  const shellDone = `
+    <div class="tool">
+      <div class="tool-head"><span class="tool-icon shell">$</span><span class="tool-name">shell</span>
+        <span class="tool-sum">npm run build</span><span class="tool-stat c-success">exit 0 · 5.9s</span><span class="caret">▶</span></div>
+      <div class="tool-body"><div class="tool-out">dist/assets/index-8fa2c1.js   214.83 kB
+dist/assets/vendor-a91f22.js  667.02 kB
+✓ built in 5.91s</div></div>
+    </div>`;
+
+  const writeTool = open => `
+    <div class="tool ${open ? "open" : ""}" id="writeTool">
+      <div class="tool-head"><span class="tool-icon write">W</span><span class="tool-name">write_file</span>
+        <span class="tool-sum">vite.config.js</span><span class="tool-stat c-warning">onay bekliyor</span><span class="caret">▶</span></div>
+      <div class="tool-body">
+        <div class="diff">
+          <div class="diff-file"><span>vite.config.js</span><span class="st">+7 −2</span></div>
+          <div class="diff-line hunk">@@ -6,9 +6,14 @@ export default defineConfig({</div>
+          <div class="diff-line ctx">   rollupOptions: {</div>
+          <div class="diff-line ctx">     output: {</div>
+          <div class="diff-line del">      manualChunks: undefined,</div>
+          <div class="diff-line add">      manualChunks(id) {</div>
+          <div class="diff-line add">        if (id.includes('node_modules'))</div>
+          <div class="diff-line add">          return 'vendor'</div>
+          <div class="diff-line add">      },</div>
+          <div class="diff-line ctx">    },</div>
+          <div class="diff-line ctx">  },</div>
+        </div>
+        <div class="approve"><div class="btn ghost">Reddet</div><div class="btn primary">Uygula</div></div>
+      </div>
+    </div>`;
+
+  const askCard = `
+    <div class="tool open">
+      <div class="tool-head"><span class="tool-icon ask">?</span><span class="tool-name">ask_user</span>
+        <span class="tool-sum">hangi vendor stratejisi?</span><span class="tool-stat c-warning">yanıt bekleniyor</span><span class="caret">▶</span></div>
+      <div class="tool-body">
+        <div class="tool-out">node_modules içinde birden fazla büyük paket var. Rollup'ın otomatik
+bölmesine mi versem, yoksa elle vendor'a mı çıkarayım?</div>
+        <div class="approve"><div class="btn ghost">Otomatik</div><div class="btn primary">Elle vendor</div></div>
+      </div>
+    </div>`;
+
+  const todo = `
+    <div class="todo">
+      <div class="todo-h">TODO · 2/4</div>
+      <div class="todo-i done"><span class="bx">✓</span><span>build config'ini incele</span></div>
+      <div class="todo-i act"><span class="bx"></span><span>vendor chunk ayrımını ekle</span></div>
+      <div class="todo-i"><span class="bx"></span><span>tekrar build et ve doğrula</span></div>
+    </div>`;
+
+  function renderTerm() {
+    const base = `<div class="blk"><div class="line c-dim">ubuntu@drsh: ~/zsh</div></div>
+      <div class="blk"><div class="line blk-cmd">$ pwd</div><div class="line blk-out">/data/data/dev.drosh/files/home/zsh</div></div>
+      <div class="blk"><div class="line blk-cmd">$ ls</div><div class="line blk-out">package.json  vite.config.js  index.html  src/  node_modules/</div></div>`;
+
+    let mid = "";
+    if (state === "tool") {
+      mid = `<div class="blk"><div class="line blk-cmd">$ npm run build</div>
+        <div class="line blk-out">vite v5.4.8 building for production...</div>
+        <div class="line blk-out">transforming...</div>
+        <div class="line c-build" id="agentTermLive">✓ 1423 modules transformed.</div></div>`;
+    } else if (state === "done") {
+      mid = `<div class="blk"><div class="line blk-cmd">$ npm run build</div>
+        <div class="line c-success">✓ 1423 modules transformed.</div>
+        <div class="line blk-out">dist/assets/vendor-a91f22.js  667.02 kB</div>
+        <div class="line c-success">✓ built in 5.91s</div></div>`;
+    } else if (state === "approval") {
+      mid = `<div class="blk"><div class="line blk-cmd">$ cat vite.config.js</div>
+        <div class="line blk-out">      manualChunks: undefined,</div></div>`;
+    }
+
+    agentTerm.innerHTML = base + mid + `<div class="term-spacer"></div>
+      <div class="blk"><div class="line blk-cmd">$ <span style="color:#4C9EFF">▊</span></div></div>`;
+  }
+
+  function render() {
+    let html = H, step = "adım 1/8";
+    switch (state) {
+      case "thinking":  html += TH; break;
+      case "streaming": html += ST; break;
+      case "tool":      html += AG("Config'e bakıyorum, sonra vendor'a ayıracağım.") + readTool + shellRun; step = "adım 3/8"; break;
+      case "approval":  html += todo() + AG("Şu diff'i uygulayayım mı?") + writeTool(true); step = "adım 5/8"; break;
+      case "ask":       html += readTool + askCard; step = "adım 2/8"; break;
+      case "done":      html += todo() + AG("Vendor ayrıldı, build 5.9s'de geçti. Uyarı gitti.") + shellDone; step = "tamamlandı"; break;
+      default:          step = "hazır";
+    }
+    tr.innerHTML = html;
+    stepChip.textContent = step;
+    tr.querySelectorAll(".tool-head").forEach(h => h.onclick = () => h.parentElement.classList.toggle("open"));
+    renderTerm();
+  }
+
+  function setTab(t) {
+    tab = t;
+    document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+    document.getElementById("paneTranscript").classList.toggle("on", t === "transcript");
+    document.getElementById("paneTerminal").classList.toggle("on", t === "terminal");
+    document.querySelectorAll("#cTab .tbtn").forEach(x => x.classList.toggle("on", x.dataset.t === t));
+  }
+
+  document.querySelectorAll(".seg button").forEach(b => b.onclick = () => setTab(b.dataset.t));
+  document.querySelectorAll("#cTab .tbtn").forEach(b => b.onclick = () => setTab(b.dataset.t));
+  document.querySelectorAll("#cState .tbtn").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); state = b.dataset.s; render();
+  });
+
+  document.getElementById("btnNew").onclick = () => {
+    state = "idle"; render();
+    document.querySelectorAll("#cState .tbtn").forEach(x => x.classList.toggle("on", x.dataset.s === "idle"));
+    setTab("transcript");
+    document.querySelector(".sess-name").innerHTML = '<span class="sw"></span>🤖 yeni-görev';
+  };
+  document.getElementById("btnRename").onclick = () => {
+    document.querySelector(".sess-name").innerHTML = '<span class="sw"></span>🤖 vendor-split ✓';
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

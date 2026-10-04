@@ -1,12 +1,21 @@
 package dev.drosh.domain.agent
 
 /**
- * Sealed result type for agent tool execution.
+ * Result of a single tool invocation.
  *
- * Success      → tool ran, output is available for LLM context
- * Error        → tool failed, message is surfaced to agent
- * Cancelled    → tool was blocked (e.g. PLAN mode blocks write_file)
- * AwaitingApproval → tool triggered a blocking UI flow, agent must pause until resolved
+ * The agent loop feeds these back into the conversation history so the model
+ * can react to what happened. [toResponseString] is the exact text that goes
+ * back to the model — keep it explicit and short, the model reads it verbatim.
+ *
+ * Success            tool ran, [output] is available to the model
+ * Error              tool failed, [message] is surfaced to the model
+ * Cancelled          tool was blocked or the user declined it
+ * AwaitingApproval   tool is waiting on the user; the loop is suspended and
+ *                     resumes once the approval resolves
+ *
+ * Note: `terminal/TerminalManager.executeCommand` also returns this type, so
+ * it lives in `:domain` rather than `:agent` — `:terminal` has no dependency on
+ * the agent module.
  */
 sealed class ToolResult {
 
@@ -16,15 +25,19 @@ sealed class ToolResult {
 
     data class Cancelled(val reason: String) : ToolResult()
 
-    data class AwaitingApproval(val eventId: String) : ToolResult()
+    data class AwaitingApproval(val approvalId: String) : ToolResult()
 
+    /**
+     * True when the result is final — no further resolution is expected.
+     * [AwaitingApproval] is deliberately false: the loop is parked, not done.
+     */
     val isTerminal: Boolean
-        get() = this is Success || this is Error || this is Cancelled
+        get() = this !is AwaitingApproval
 
     fun toResponseString(): String = when (this) {
         is Success -> output
         is Error -> "ERROR: $message"
         is Cancelled -> "CANCELLED: $reason"
-        is AwaitingApproval -> "AWAITING_APPROVAL: $eventId"
+        is AwaitingApproval -> "AWAITING_APPROVAL: $approvalId"
     }
 }
