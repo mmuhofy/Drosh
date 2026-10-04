@@ -53,7 +53,7 @@ class RootfsGuestFileRepository @Inject constructor(
 
     override suspend fun read(guestPath: String): Result<String> = withContext(Dispatchers.IO) {
         when (val resolved = resolve(guestPath, mustExist = true)) {
-            is Resolution.Failed -> resolved.reason.asFailure()
+            is Resolution.Failed -> failed(resolved.reason)
             is Resolution.Ok -> readText(resolved.file, guestPath)
         }
     }
@@ -61,20 +61,29 @@ class RootfsGuestFileRepository @Inject constructor(
     override suspend fun openForEditing(guestPath: String): Result<GuestFile> =
         withContext(Dispatchers.IO) {
             when (val resolved = resolve(guestPath, mustExist = false)) {
-                is Resolution.Failed -> resolved.reason.asFailure()
+                is Resolution.Failed -> failed(resolved.reason)
                 is Resolution.Ok -> {
                     val file = resolved.file
                     // Not being there yet is the normal case for
                     // `editor notes.md`, not an error: hand back an empty
                     // document and let the first save create it.
                     if (!file.exists()) {
-                        GuestFile(guestPath, text = "", exists = false)
+                        Result.success(GuestFile(guestPath, text = "", exists = false))
                     } else if (file.isDirectory) {
-                        FileFailure.IsDirectory(guestPath).asFailure()
+                        failed(FileFailure.IsDirectory(guestPath))
                     } else {
+                        // Explicit rather than fold(): `fold` would have to infer
+                        // its result type across a lambda that both builds a
+                        // GuestFile and re-wraps a failure, and it does not
+                        // manage it. getOrElse keeps the success value untouched
+                        // and re-wraps only the failure.
                         readText(file, guestPath).fold(
-                            onSuccess = { GuestFile(guestPath, text = it, exists = true) },
-                            onFailure = { it.asFailure() },
+                            onSuccess = { text ->
+                                Result.success(GuestFile(guestPath, text = text, exists = true))
+                            },
+                            onFailure = { error ->
+                                failed((error as? GuestFileException)?.reason ?: reasonOf(error))
+                            },
                         )
                     }
                 }
@@ -116,13 +125,13 @@ class RootfsGuestFileRepository @Inject constructor(
         if (size > GuestFileLimits.MAX_EDIT_BYTES) {
             // Refused with the real size rather than a flat "too big", because
             // the user needs to know whether they are 3 MB or 3 GB over.
-            return FileFailure.TooLarge(guestPath, size).asFailure()
+            return failed(FileFailure.TooLarge(guestPath, size))
         }
         return try {
             Result.success(file.readText())
         } catch (e: IOException) {
             Timber.e(e, "read failed for %s", guestPath)
-            FileFailure.Io(guestPath, e.message ?: "read failed").asFailure()
+            failed(FileFailure.Io(guestPath, e.message ?: "read failed"))
         }
     }
 
@@ -183,6 +192,25 @@ class RootfsGuestFileRepository @Inject constructor(
         }
     }
 
-    private fun <T> FileFailure.asFailure(): Result<T> =
-        Result.failure(GuestFileException(this))
+    /**
+     * A failed [Result] carrying [reason].
+     *
+     * Named rather than an extension on `FileFailure` so the result type is
+     * fixed at the declaration. As a generic `fun <T> FileFailure.asFailure()`
+     * it left the compiler to infer `T` from the surrounding `when`/`fold`,
+     * which it could not do and reported as a cascade of type mismatches.
+     */
+    private fun <T> failed(reason: FileFailure): Result<T> =
+        Result.failure(GuestFileException(reason))
+
+    /**
+     * Recovers a [FileFailure] from an error that should already be one.
+     *
+     * Only reached if something throws something other than
+     * [GuestFileException] out of [readText], which it does not. Kept total so
+     * the editor screen always has a reason to show rather than crashing on a
+     * missing one.
+     */
+    private fun reasonOf(error: Throwable): FileFailure =
+        FileFailure.Io("(unknown)", error.message ?: "unknown failure")
 }
