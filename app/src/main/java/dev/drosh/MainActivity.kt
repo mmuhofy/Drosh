@@ -59,6 +59,9 @@ import dev.drosh.ui.splash.SplashScreen
 import dev.drosh.ui.terminal.TerminalScreen
 import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
+import dev.drosh.ui.agent.AgentChatScreen
+import dev.drosh.ui.agent.AgentHomeScreen
+import dev.drosh.ui.agent.AgentSettingsScreen
 import dev.drosh.ui.settings.SettingsScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -314,6 +317,7 @@ class MainActivity : ComponentActivity() {
                         extraKeyState = extraKeyState,
                         onExit = { context.finish() },
                         onOpenEditor = { path -> navController.openEditor(path) },
+                        onOpenAgent = { navController.navigate("agent_home") },
                     )
                 }
             }
@@ -329,7 +333,38 @@ class MainActivity : ComponentActivity() {
                     extraKeyState = extraKeyState,
                     onExit = { context.finish() },
                     onOpenEditor = { path -> navController.openEditor(path) },
+                    onOpenAgent = { navController.navigate("agent_home") },
                 )
+            }
+
+            composable("agent_home") {
+                AgentHomeScreen(
+                    onOpenChat = { id -> navController.navigate("agent_chat/$id") },
+                    onNewChat = { navController.navigate("agent_chat/new") },
+                    onBack = { navController.popBackStack() },
+                    onOpenSettings = { navController.navigate("agent_settings") },
+                )
+            }
+
+            composable("agent_chat/{chatId}") { entry ->
+                val chatId = entry.arguments?.getString("chatId")
+                AgentChatScreen(
+                    chatId = chatId,
+                    onBack = { navController.popBackStack() },
+                    onOpenSettings = { navController.navigate("agent_settings") },
+                    // A chat created on the first send replaces this entry rather
+                    // than stacking on it, so Back from it returns to Agent Home
+                    // instead of to a placeholder chat that no longer exists.
+                    onChatCreated = { createdId ->
+                        navController.navigate("agent_chat/$createdId") {
+                            popUpTo("agent_chat/$chatId") { inclusive = true }
+                        }
+                    },
+                )
+            }
+
+            composable("agent_settings") {
+                AgentSettingsScreen(onBack = { navController.popBackStack() })
             }
 
             composable("settings") {

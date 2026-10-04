@@ -6,6 +6,7 @@ import dev.drosh.data.input.SubmitRawByteUseCaseImpl
 import dev.drosh.data.session.ObserveActiveSessionUseCaseImpl
 import dev.drosh.data.session.DeviceIdentityRepositoryImpl
 import dev.drosh.data.session.SessionRepositoryImpl
+import dev.drosh.data.agent.AgentChatRepositoryImpl
 import dev.drosh.data.agent.LlmProviderRepositoryImpl
 import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
@@ -16,6 +17,8 @@ import dev.drosh.data.settings.TerminalFontSizeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
 import dev.drosh.data.terminal.TriggerBootstrap
+import dev.drosh.domain.agent.AgentChatRepository
+import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.NetworkMetricsCollector
@@ -144,4 +147,16 @@ abstract class BindingsModule {
     abstract fun bindLlmProviderRepository(
         impl: LlmProviderRepositoryImpl,
     ): LlmProviderRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAgentChatRepository(
+        impl: AgentChatRepositoryImpl,
+    ): AgentChatRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAgentSession(
+        impl: dev.drosh.agent.runtime.AgentLoop,
+    ): AgentSession
 }

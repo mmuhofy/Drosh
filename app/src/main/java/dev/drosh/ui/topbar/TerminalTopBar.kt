@@ -149,6 +149,7 @@ fun TerminalTopBar(
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenAgent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
@@ -204,6 +205,19 @@ fun TerminalTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                GlassPillButton(
+                    backdrop = backdrop,
+                    terminalBounds = terminalBounds,
+                    drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
+                    contentDescription = "Agent",
+                    // 22dp, matching every lucide glyph in this row. The mark is
+                    // drawn on a 24 viewport that it fills, so it needs no
+                    // correcting — unlike the old 2048 mark, which sat at 46% of its
+                    // own canvas and looked half the size of its neighbours.
+                    iconSize = 22.dp,
+                    onClick = { onOpenAgent() },
+                )
+
                 GlassPillButton(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,

@@ -61,9 +61,14 @@ import compose.icons.lucideicons.Terminal
 import compose.icons.lucideicons.Tablet
 import compose.icons.lucideicons.Timer
 import compose.icons.lucideicons.Trash2
+import compose.icons.lucideicons.RotateCcw
 import compose.icons.lucideicons.Type
 import compose.icons.lucideicons.Undo
 import compose.icons.lucideicons.X
+import compose.icons.lucideicons.EyeOff
+import compose.icons.lucideicons.Eye
+import compose.icons.lucideicons.Send
+import compose.icons.lucideicons.ListChecks
 
 object DroshIcons {
     val ALargeSmall: ImageVector get() = LucideIcons.ALargeSmall
@@ -119,6 +124,11 @@ object DroshIcons {
     val Smartphone: ImageVector get() = LucideIcons.Smartphone
     val SquareTerminal: ImageVector get() = LucideIcons.SquareTerminal
     val Terminal: ImageVector get() = LucideIcons.Terminal
+    val EyeOff: ImageVector get() = LucideIcons.EyeOff
+    val Eye: ImageVector get() = LucideIcons.Eye
+    val Send: ImageVector get() = LucideIcons.Send
+    val ListChecks: ImageVector get() = LucideIcons.ListChecks
+    val RotateCcw: ImageVector get() = LucideIcons.RotateCcw
     val Tablet: ImageVector get() = LucideIcons.Tablet
     val Timer: ImageVector get() = LucideIcons.Timer
     val Trash2: ImageVector get() = LucideIcons.Trash2

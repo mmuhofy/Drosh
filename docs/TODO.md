@@ -102,3 +102,15 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 - [ ] Agent Watch — WorkManager background conditions
 - [ ] Natural Language Cron — WorkManager scheduler
 - [ ] Terminal Lens — OCR → command
+
+---
+
+## Bilinen Borç — Agent (2026-10-04)
+
+- [ ] **`AgentLoopTest.cancelling a parked run…` testini geri aç.**
+      `AgentLoop.cancel` toplama coroutine'ini iptal ediyor; `runTest` bir
+      çocuktaki yakalanmamış exception'ı test başarısızlığı sayıyor ve testi
+      mesajsız bir `AssertionError` ile kendi şikâyeti olarak raporluyor.
+      Gerçek davranış `PendingRequestsTest` içinde deterministik olarak test
+      ediliyor (8 test). Dışarıdan gözlemleyen test `runBlocking` + açık job
+      handle ile yeniden yazılmalı. İptal yolu yeniden ele alındığında yapılacak.

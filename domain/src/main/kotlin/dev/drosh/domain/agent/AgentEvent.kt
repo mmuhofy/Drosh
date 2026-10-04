@@ -89,6 +89,15 @@ sealed interface RunOutcome {
      */
     data class StepLimitReached(val steps: Int) : RunOutcome
 
+    /**
+     * The model asked for the same call over and over.
+     *
+     * Distinct from [StepLimitReached]: the step budget was not the constraint,
+     * the loop was. Retrying would produce the same result, so the run stops and
+     * says which call repeated.
+     */
+    data class RepetitiveLoop(val toolName: String, val repeats: Int) : RunOutcome
+
     /** The user stopped the run. */
     data object Cancelled : RunOutcome
 

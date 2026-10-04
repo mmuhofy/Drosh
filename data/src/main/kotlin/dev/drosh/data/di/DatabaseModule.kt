@@ -2,6 +2,7 @@ package dev.drosh.data.di
 
 import android.content.Context
 import androidx.room.Room
+import dev.drosh.data.agent.AgentChatDao
 import dev.drosh.data.local.DroshDatabase
 import dagger.Module
 import dagger.Provides
@@ -29,5 +30,21 @@ object DatabaseModule {
         context,
         DroshDatabase::class.java,
         DroshDatabase.DATABASE_NAME,
-    ).build()
+    )
+        // Every version bump must add its migration here. Room does not fall back
+        // to a destructive migration or to dropping the table — it throws at open
+        // time — so an unregistered migration takes every existing install down
+        // with it rather than degrading quietly.
+        .addMigrations(DroshDatabase.MIGRATION_1_2)
+        .build()
+
+    /**
+     * Agent chats.
+     *
+     * From the same database rather than a second one: the two record sets are
+     * read together on the sessions screen, and a second connection would mean a
+     * second WAL and a second thing to migrate.
+     */
+    @Provides
+    fun provideAgentChatDao(database: DroshDatabase): AgentChatDao = database.agentChatDao()
 }

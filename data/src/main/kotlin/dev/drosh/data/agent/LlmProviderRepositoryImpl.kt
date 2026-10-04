@@ -76,11 +76,19 @@ class LlmProviderRepositoryImpl @Inject constructor(
                 ?.let { LlmCredential(providerId = providerId, apiKey = it) }
         }
 
-    suspend fun setCredential(providerId: String, apiKey: String) = withContext(Dispatchers.IO) {
-        prefs.edit().putString(keyFor(providerId), apiKey.trim()).apply()
+    override suspend fun setCredential(providerId: String, apiKey: String) = withContext(Dispatchers.IO) {
+        val trimmed = apiKey.trim()
+        if (trimmed.isEmpty()) {
+            // Blank clears rather than storing an empty key: saving an emptied field
+            // is how a user expects to remove a credential, and a stored "" would
+            // read as "no key" at one end of the app and as a set key at the other.
+            prefs.edit().remove(keyFor(providerId)).apply()
+        } else {
+            prefs.edit().putString(keyFor(providerId), trimmed).apply()
+        }
     }
 
-    suspend fun clearCredential(providerId: String) = withContext(Dispatchers.IO) {
+    override suspend fun clearCredential(providerId: String) = withContext(Dispatchers.IO) {
         prefs.edit().remove(keyFor(providerId)).apply()
     }
 
