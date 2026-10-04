@@ -32,12 +32,6 @@ class AgentLoopTest {
 
     private val adapter = ScriptedAdapter()
 
-    /**
-     * Enough yields for a scripted run to reach the tool and park. Not a timeout —
-     * virtual time does not advance during `yield()`, so this counts scheduler
-     * passes rather than elapsed time.
-     */
-    private val MAX_SPINS = 200
 
     private fun loop(
         repository: FakeProviderRepository = FakeProviderRepository(),
@@ -572,6 +566,16 @@ class AgentLoopTest {
         loop.send(request()).toList()
 
         assertEquals(AgentRunState.Idle, loop.state.value)
+    }
+
+    private companion object {
+        /**
+         * Enough scheduler passes for a scripted run to reach its tool and park.
+         * Not a timeout — virtual time does not advance during `yield()`, so this
+         * counts yields rather than elapsed time. In a companion object because
+         * [LiveRun] is a nested class and cannot see the outer instance.
+         */
+        const val MAX_SPINS = 200
     }
 }
 
