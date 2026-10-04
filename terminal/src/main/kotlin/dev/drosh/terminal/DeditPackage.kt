@@ -167,15 +167,15 @@ object DeditPackage {
 
         __dedit_target="${'$'}1"
 
-        # A leading ~ is the shell'"'"'s job to expand, and it only does so
+        # A leading ~ is the shell's job to expand, and it only does so
         # unquoted. Left alone here it would be taken as a literal directory
         # named "~", which is never what the user meant.
         #
-        # `${x#~/}` is NOT correct here: POSIX does not expand `~` inside a `#`
-        # pattern, so the pattern is the literal string "~/" and fails to match,
-        # leaving the tilde in place and tripping the parent-directory check with
-        # a nonsense path. `#?` drops exactly one character -- the tilde -- and
-        # carries no such caveat.
+        # A `#` pattern of literal `~/` would NOT work: POSIX does not expand `~`
+        # inside a `#` pattern, so it fails to match and the tilde survives into
+        # the path, tripping the parent-directory check with a nonsense path.
+        # `#?` drops exactly one character -- the tilde -- with no expansion
+        # rules to get wrong.
         case "${'$'}__dedit_target" in
           "~"/*) __dedit_target="${'$'}HOME/${'$'}__dedit_target#?}" ;;
         esac
