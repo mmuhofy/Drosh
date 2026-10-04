@@ -749,7 +749,7 @@ class TerminalManager(
     suspend fun executeCommand(
         command: String,
         timeoutSec: Long = 30L,
-        onOutput: (String) -> Unit = {}
+        onOutput: suspend (String) -> Unit = {}
     ): ToolResult = withContext(Dispatchers.IO) {
         if (!ubuntuBootstrap.isInstalled) {
             return@withContext ToolResult.Error("Ubuntu is not installed")

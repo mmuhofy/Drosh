@@ -6,7 +6,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.Multibinds
 import dev.drosh.domain.agent.ChatAdapter
-import dev.drosh.domain.agent.Tool
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 
@@ -36,26 +35,16 @@ object AgentModule {
 }
 
 /**
- * Collects the tools a run may call.
+ * Collects the protocol adapters.
  *
- * A multibinding rather than a hand-written list, so adding a tool is one
- * `@Provides` here and nothing else: the registry, the loop and the model all
- * read from this set, and there is no second place to forget to update.
- *
- * The set is currently empty — the tools arrive in the next phase. The loop
- * refuses to start in that state rather than appearing to work, and says why.
+ * A multibinding, so a new protocol is one injectable class and nothing else —
+ * `ProviderRegistry` needs no edit, and therefore cannot be left inconsistent
+ * with what is actually available.
  */
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class AgentToolsModule {
+abstract class AdapterModule {
 
-    @Multibinds
-    abstract fun tools(): Set<@JvmSuppressWildcards Tool>
-
-    /**
-     * Collects the protocol adapters. `OpenAiCompatAdapter` is picked up by being
-     * injectable, so a new protocol is one class.
-     */
     @Multibinds
     abstract fun adapters(): Set<@JvmSuppressWildcards ChatAdapter>
 }
