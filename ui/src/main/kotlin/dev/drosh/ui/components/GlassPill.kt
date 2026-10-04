@@ -6,20 +6,17 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,7 +28,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -74,7 +70,12 @@ fun GlassPill(
     tint: Color? = null,
     enabled: Boolean = true,
     icon: ImageVector? = null,
-    painter: Painter? = null,
+    /**
+     * Drawable resource, for the agent mark. Resolved here rather than by the
+     * caller: `painterResource` is itself a composable call, and passing a Painter
+     * in would push that requirement onto every call site.
+     */
+    drawableRes: Int? = null,
     label: String? = null,
 ) {
     var pressed by remember { mutableStateOf(false) }
@@ -134,8 +135,8 @@ fun GlassPill(
                 modifier = Modifier.size(GlassPillDefaults.IconSize),
             )
 
-            painter != null -> Icon(
-                painter = painter,
+            drawableRes != null -> Icon(
+                painter = painterResource(drawableRes),
                 contentDescription = null,
                 tint = accent,
                 modifier = Modifier.size(GlassPillDefaults.IconSize),
@@ -155,26 +156,6 @@ fun GlassPill(
             Spacer(Modifier.width(GlassPillDefaults.IconSize))
         }
     }
-}
-
-/** Drawable-backed pill, for the agent mark. */
-@Composable
-fun GlassPillDrawable(
-    drawableRes: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tint: Color? = null,
-    enabled: Boolean = true,
-) {
-    GlassPill(
-        contentDescription = contentDescription,
-        onClick = onClick,
-        modifier = modifier,
-        tint = tint,
-        enabled = enabled,
-        painter = painterResource(drawableRes),
-    )
 }
 
 /** An icon-only pill sized to the 48dp touch minimum, for a bar's leading slot. */
@@ -209,6 +190,14 @@ object GlassPillDefaults {
     /** 48dp — the Material minimum; the pill is smaller than this on purpose. */
     val TouchTarget: Dp = 48.dp
 
-    /** Accent for a pill in an active or busy state. */
-    val ActiveTint: Color = DroshPrimary
+    /**
+     * Accent for a pill in an active or busy state.
+     *
+     * A function, not a val: the palette tokens are `@Composable` getters over
+     * `LocalDroshColors`, so reading one from an object initialiser has no
+     * composition to read it from. Same reason `GlassPill`'s own defaults are all
+     * plain `Dp`.
+     */
+    val ActiveTint: Color
+        @Composable @ReadOnlyComposable get() = DroshPrimary
 }
