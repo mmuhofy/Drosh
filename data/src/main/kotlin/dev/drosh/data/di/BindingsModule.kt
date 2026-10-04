@@ -6,6 +6,7 @@ import dev.drosh.data.input.SubmitRawByteUseCaseImpl
 import dev.drosh.data.session.ObserveActiveSessionUseCaseImpl
 import dev.drosh.data.session.DeviceIdentityRepositoryImpl
 import dev.drosh.data.session.SessionRepositoryImpl
+import dev.drosh.data.agent.LlmProviderRepositoryImpl
 import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
@@ -15,6 +16,7 @@ import dev.drosh.data.settings.TerminalFontSizeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
 import dev.drosh.data.terminal.TriggerBootstrap
+import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.NetworkMetricsCollector
 import dev.drosh.domain.input.HardwareKeyboardPresence
@@ -136,4 +138,10 @@ abstract class BindingsModule {
     abstract fun bindHardwareKeyboardPresence(
         impl: HardwareKeyboardPresenceImpl,
     ): HardwareKeyboardPresence
+
+    @Binds
+    @Singleton
+    abstract fun bindLlmProviderRepository(
+        impl: LlmProviderRepositoryImpl,
+    ): LlmProviderRepository
 }

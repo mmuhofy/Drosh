@@ -27,11 +27,22 @@ import kotlinx.serialization.json.JsonObject
  */
 interface ChatAdapter {
 
-    /** Which [LlmProvider] this adapter serves. */
-    val providerId: String
+    /**
+     * The wire protocol this adapter speaks.
+     *
+     * An adapter is a protocol handler, not a vendor: one [OpenAiCompatAdapter][
+     * dev.drosh.domain.agent.ProviderKind.OPENAI_COMPAT] serves OpenRouter,
+     * OpenAI and anything else speaking Chat Completions, because adding a
+     * vendor is a row in the catalog rather than another class.
+     */
+    val kind: ProviderKind
 
     /**
      * Send one request and stream the response.
+     *
+     * [provider] is passed per call rather than held as a field so a single
+     * adapter instance serves every configured endpoint of its protocol — the
+     * user can add a second OpenAI-compatible base URL without a second object.
      *
      * The flow emits [LlmStreamEvent]s and completes normally when the stream
      * ends. Failures are reported as [LlmStreamEvent.Failed] rather than thrown,
@@ -41,7 +52,11 @@ interface ChatAdapter {
      * Cancellation follows the collecting coroutine, as with any cold [Flow];
      * implementations must not swallow it.
      */
-    fun stream(request: LlmRequest, credential: LlmCredential): Flow<LlmStreamEvent>
+    fun stream(
+        provider: LlmProvider,
+        request: LlmRequest,
+        credential: LlmCredential,
+    ): Flow<LlmStreamEvent>
 }
 
 /**
