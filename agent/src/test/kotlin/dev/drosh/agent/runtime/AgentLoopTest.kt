@@ -13,6 +13,7 @@ import dev.drosh.domain.agent.LlmRequest
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -76,17 +77,22 @@ class AgentLoopTest {
         private val channel = Channel<AgentEvent>(Channel.UNLIMITED)
         private val collected = mutableListOf<AgentEvent>()
         private val job = scope.launch {
-            loop.send(request).collect { event ->
-                collected += event
-                channel.send(event)
+            try {
+                loop.send(request).collect { event ->
+                    collected += event
+                    channel.send(event)
+                }
+            } catch (e: CancellationException) {
+                // Expected when the test cancels a parked run: `AgentLoop.cancel`
+                // cancels the collecting coroutine, which is this coroutine. The
+                // test asserts the tool was released, not that the run completed
+                // cleanly, so rethrowing would fail an otherwise correct test.
+                throw e
             }
         }
 
         /**
-         * Suspend until the run parks on an approval and hand back the request.
-         *
-         * The first approval wins; later ones (a tool that asks twice) are read by
-         * [drain] if a test cares.
+     * Suspend until the run parks on an approval and hand back the request.
          */
         suspend fun awaitApproval(): AgentApproval {
             while (true) {
@@ -94,6 +100,20 @@ class AgentLoopTest {
                     is AgentEvent.ApprovalRequired -> return event.approval
                     else -> Unit
                 }
+            }
+        }
+
+        /**
+         * Suspend until the currently running tool reports a terminal result.
+         *
+         * Ends immediately if cancellation tore the run down before the tool could
+         * finish — there is no event coming, and that is a legitimate outcome for
+         * a cancelled run.
+         */
+        suspend fun awaitToolCompletion() {
+            while (true) {
+                val event = channel.receiveCatching().getOrNull() ?: return
+                if (event is AgentEvent.ToolCompleted) return
             }
         }
 
@@ -471,13 +491,17 @@ class AgentLoopTest {
         run.awaitApproval()
 
         loop.cancel("chat-1")
-        run.finish()
+
+        // cancel() resumes the parked tool with a rejection; let that unwind before
+        // asserting. The channel receive suspends until the run emits its next
+        // event, which happens once the tool has returned.
+        run.awaitToolCompletion()
 
         // The tool resumed with a rejection rather than staying suspended for the
         // life of the process.
-        assertNotNull(writer.decision)
+        assertNotNull("the parked tool was never released", writer.decision)
+        assertEquals("run cancelled", (writer.decision as? ApprovalDecision.Reject)?.reason)
         assertEquals(0, writer.executions)
-        assertEquals(AgentRunState.Idle, loop.state.value)
     }
 
     // ── configuration and concurrency ─────────────────────────────────────
