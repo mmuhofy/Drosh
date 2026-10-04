@@ -11,7 +11,11 @@ package dev.drosh.domain.agent
  * Error              tool failed, [message] is surfaced to the model
  * Cancelled          tool was blocked or the user declined it
  * AwaitingApproval   tool is waiting on the user; the loop is suspended and
- *                     resumes once the approval resolves
+ *                     resumes once the approval resolves. The normal way to ask
+ *                     is [ToolContext.awaitApproval], which lets a tool block
+ *                     and then continue; this variant exists for a tool that
+ *                     discovers it needs consent only after doing work and
+ *                     cannot usefully resume in the same call.
  *
  * Note: `terminal/TerminalManager.executeCommand` also returns this type, so
  * it lives in `:domain` rather than `:agent` — `:terminal` has no dependency on

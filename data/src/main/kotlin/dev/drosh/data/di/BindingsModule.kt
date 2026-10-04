@@ -16,6 +16,7 @@ import dev.drosh.data.settings.TerminalFontSizeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
 import dev.drosh.data.terminal.TriggerBootstrap
+import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.NetworkMetricsCollector
@@ -144,4 +145,10 @@ abstract class BindingsModule {
     abstract fun bindLlmProviderRepository(
         impl: LlmProviderRepositoryImpl,
     ): LlmProviderRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAgentSession(
+        impl: dev.drosh.agent.runtime.AgentLoop,
+    ): AgentSession
 }
