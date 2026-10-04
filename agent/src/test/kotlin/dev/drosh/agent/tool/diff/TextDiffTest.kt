@@ -92,7 +92,15 @@ class TextDiffTest {
     @Test
     fun `two distant changes become two hunks`() {
         val old = (1..40).joinToString("\n")
-        val new = old.replace("5", "FIVE").replace("35", "THIRTYFIVE")
+        // Whole-line replacement, not replace() on the joined text — replace("5")
+        // would also rewrite 15 and 25 and produce six changes.
+        val new = old.lines().map {
+            when (it) {
+                "5" -> "FIVE"
+                "35" -> "THIRTYFIVE"
+                else -> it
+            }
+        }.joinToString("\n")
 
         val result = TextDiff.diff(old, new)
 
@@ -148,12 +156,27 @@ class TextDiffTest {
 
     @Test
     fun `an empty range is anchored at the line before it`() {
-        // The unified-diff convention: inserting before the first line of a file
-        // reports the range as starting at 0, not 1.
-        val result = TextDiff.diff("b", "a\nb")
+        // Prepending to an empty file: there is no old line to anchor to, so the
+        // range starts at 0 with count 0. Matches `diff -u`.
+        val result = TextDiff.diff("", "first\nsecond")
 
-        assertEquals(0, result.hunks.single().oldStart)
-        assertEquals(0, result.hunks.single().oldCount)
+        val hunk = result.hunks.single()
+        assertEquals(0, hunk.oldStart)
+        assertEquals(0, hunk.oldCount)
+        assertEquals(1, hunk.newStart)
+        assertEquals(2, hunk.newCount)
+    }
+
+    @Test
+    fun `appending after an existing line keeps the anchor on that line`() {
+        // `diff -u` on "b" -> "a\nb" reports @@ -1 +1,2 @@ — the existing line
+        // stays as context and is the anchor, rather than reporting an empty
+        // range. Pinning this so the convention is not misremembered.
+        val hunk = TextDiff.diff("b", "a\nb").hunks.single()
+
+        assertEquals(1, hunk.oldStart)
+        assertEquals(1, hunk.oldCount)
+        assertEquals(2, hunk.newCount)
     }
 
     @Test
@@ -179,13 +202,28 @@ class TextDiffTest {
     }
 
     @Test
-    fun `reordered lines show as removal then addition`() {
-        val result = TextDiff.diff("a\nb\nc", "c\nb\na")
+    fun `reordering is reported as a removal and an addition`() {
+        // Which lines survive as context is a choice, not a rule: the LCS anchors
+        // differently depending on how the text is split. What matters is that no
+        // line is silently dropped or invented.
+        val old = "a\nb\nc"
+        val new = "c\nb\na"
+        val result = TextDiff.diff(old, new)
 
-        // The middle line still matches, so it survives as context.
-        assertTrue(result.added >= 1)
-        assertTrue(result.removed >= 1)
-        assertTrue(result.hunks.single().lines.any { it.text == "b" && it.kind == TextDiff.Kind.CONTEXT })
+        val hunk = result.hunks.single()
+        val removals = hunk.lines.filter { it.kind == TextDiff.Kind.REMOVED }.map { it.text }
+        val additions = hunk.lines.filter { it.kind == TextDiff.Kind.ADDED }.map { it.text }
+
+        assertEquals(
+            "every old line must appear exactly once, as context or removal",
+            old.lines().toSet(),
+            (removals + hunk.lines.filter { it.kind == TextDiff.Kind.CONTEXT }.map { it.text }).toSet(),
+        )
+        assertEquals(
+            new.lines().toSet(),
+            (additions + hunk.lines.filter { it.kind == TextDiff.Kind.CONTEXT }.map { it.text }).toSet(),
+        )
+        assertTrue("an actual move must change something", result.added >= 1 && result.removed >= 1)
     }
 
     @Test
