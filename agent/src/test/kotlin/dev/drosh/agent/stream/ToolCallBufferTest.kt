@@ -1,6 +1,7 @@
 package dev.drosh.agent.stream
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -24,7 +25,7 @@ class ToolCallBufferTest {
         assertEquals(1, calls.size)
         assertEquals("call_a", calls.single().id)
         assertEquals("shell", calls.single().name)
-        assertEquals("ls -la", calls.single().arguments["command"].toString().trim('"'))
+        assertEquals("ls -la", calls.single().arguments["command"].jsonPrimitive.content)
     }
 
     @Test
@@ -37,7 +38,7 @@ class ToolCallBufferTest {
         buffer.append(0, null, null, "b.tsx\"}")
 
         val args = buffer.finishAll().single().arguments
-        assertEquals("a\"b.tsx", args["path"].toString().trim('"'))
+        assertEquals("a\"b.tsx", args["path"].jsonPrimitive.content)
     }
 
     @Test
@@ -55,8 +56,8 @@ class ToolCallBufferTest {
         val byId = calls.associateBy { it.id }
         assertEquals("shell", byId.getValue("call_a").name)
         assertEquals("read_file", byId.getValue("call_b").name)
-        assertEquals("a1", byId.getValue("call_a").arguments["command"].toString().trim('"'))
-        assertEquals("b.txt", byId.getValue("call_b").arguments["path"].toString().trim('"'))
+        assertEquals("a1", byId.getValue("call_a").arguments["command"].jsonPrimitive.content)
+        assertEquals("b.txt", byId.getValue("call_b").arguments["path"].jsonPrimitive.content)
     }
 
     @Test

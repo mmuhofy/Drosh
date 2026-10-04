@@ -12,6 +12,7 @@ import dev.drosh.domain.agent.ToolDefinition
 import dev.drosh.domain.agent.toolSchema
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -239,7 +240,9 @@ class OpenAiCompatAdapterTest {
 
         val assistant = body["messages"]!!.jsonArray[0].jsonObject
         assertEquals("assistant", assistant["role"]!!.jsonPrimitive.content)
-        assertNull(assistant["content"])
+        // The key must be present with a null value, not omitted: a provider
+        // rejects an assistant message whose content is missing outright.
+        assertEquals(JsonNull, assistant["content"])
 
         val toolCall = assistant["tool_calls"]!!.jsonArray[0].jsonObject
         assertEquals("call_a", toolCall["id"]!!.jsonPrimitive.content)
