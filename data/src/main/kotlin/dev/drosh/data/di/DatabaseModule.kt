@@ -29,5 +29,11 @@ object DatabaseModule {
         context,
         DroshDatabase::class.java,
         DroshDatabase.DATABASE_NAME,
-    ).build()
+    )
+        // Every version bump must add its migration here. Room does not fall back
+        // to a destructive migration or to dropping the table — it throws at open
+        // time — so an unregistered migration takes every existing install down
+        // with it rather than degrading quietly.
+        .addMigrations(DroshDatabase.MIGRATION_1_2)
+        .build()
 }

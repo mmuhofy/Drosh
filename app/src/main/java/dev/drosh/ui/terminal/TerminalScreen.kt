@@ -154,6 +154,7 @@ fun TerminalScreen(
     terminalViewModel: TerminalViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onExit: () -> Unit = {},
+    onOpenAgent: () -> Unit = {},
 ) {
     var showProgress by remember { mutableStateOf(false) }
 
@@ -188,6 +189,7 @@ fun TerminalScreen(
                 onOpenSettings = onOpenSettings,
                 extraKeyState = extraKeyState,
                 onExit = onExit,
+                onOpenAgent = onOpenAgent,
             )
         }
 
@@ -212,6 +214,7 @@ private fun ReadyScreen(
     blockEngineViewModel: BlockEngineViewModel = hiltViewModel(),
     inputBarViewModel: InputBarViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
+    onOpenAgent: () -> Unit = {},
 ) {
 
     // Haze is gone. It records Compose's own draw commands, and the terminal is
@@ -806,6 +809,7 @@ private fun ReadyScreen(
                     terminalManager.restartCurrentTab()
                 },
                 onOpenSettings = onOpenSettings,
+                onOpenAgent = onOpenAgent,
         )
 
         // Slider overlay trigger — BackHandler kalıyor, SessionSidebar
@@ -968,6 +972,7 @@ private fun ReadyScreen(
     SessionSidebar(
         isOpen = sidebarOpen,
         onOpenSettings = onOpenSettings,
+        onOpenAgent = onOpenAgent,
         pushState = sidebarPush,
     )
     }

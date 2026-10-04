@@ -140,6 +140,7 @@ fun Modifier.sidebarPush(state: SidebarPushState): Modifier = this.graphicsLayer
 fun SessionSidebar(
     isOpen: Boolean,
     onOpenSettings: () -> Unit,
+    onOpenAgent: () -> Unit = {},
     pushState: SidebarPushState? = null,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
@@ -163,6 +164,7 @@ fun SessionSidebar(
             viewModel = viewModel,
             deviceIdentityViewModel = deviceIdentityViewModel,
             onOpenSettings = onOpenSettings,
+            onOpenAgent = onOpenAgent,
         )
     }
 }
@@ -172,6 +174,7 @@ private fun SidebarContent(
     viewModel: SessionSwitcherViewModel,
     deviceIdentityViewModel: DeviceIdentityViewModel,
     onOpenSettings: () -> Unit,
+    onOpenAgent: () -> Unit,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
@@ -219,6 +222,9 @@ private fun SidebarContent(
         ) {
             item(key = "nav_new") {
                 PressableRow(DroshIcons.Plus, "New session") { viewModel.createNew("shell") }
+            }
+            item(key = "nav_agent") {
+                PressableRow(DroshIcons.SquareTerminal, "Agent", onOpenAgent)
             }
             item(key = "nav_settings") {
                 PressableRow(DroshIcons.Settings, "Settings", onOpenSettings)
@@ -287,6 +293,7 @@ private fun SidebarContent(
             onOpenSearch = { searchOpen = true },
             onCloseSearch = ::closeSearch,
             onOpenSettings = onOpenSettings,
+            onOpenAgent = onOpenAgent,
         )
     }
 }

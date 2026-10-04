@@ -71,6 +71,20 @@ interface LlmProviderRepository {
     suspend fun credential(providerId: String): LlmCredential?
 
     /**
+     * Store a credential.
+     *
+     * On the domain interface rather than only on the implementation: the settings
+     * sheet has to write the key, and it can only see `:domain`.
+     *
+     * @param apiKey trimmed; blank removes the credential, so clearing the field
+     *        and saving is not a special case at the call site
+     */
+    suspend fun setCredential(providerId: String, apiKey: String)
+
+    /** Remove a stored credential. */
+    suspend fun clearCredential(providerId: String)
+
+    /**
      * Fetch the provider's model list.
      *
      * @param forceRefresh skip the cache; the previous implementation fetched on
