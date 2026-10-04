@@ -62,9 +62,15 @@ class AgentLoopTest {
      * these tests cannot use `toList()` — it would block on a loop that is waiting
      * for the very answer the test is about to send.
      *
+     * Callers pass `backgroundScope`, which is what makes a deliberately
+     * cancelled run safe: runTest treats an uncaught exception from a child of the
+     * test scope as a test failure, and cancelling a run *is* meant to throw. In
+     * the background scope that cancellation unwinds quietly while the test
+     * asserts what it actually cares about.
+     *
      * Events go into a [Channel] rather than a list the test polls. A `yield()`
      * spin is a busy-wait on a `StandardTestDispatcher`, which does not reliably
-     * hand the slot to the background job and is not thread-safe against it; a
+     * hand the slot to the collecting job and is not thread-safe against it; a
      * channel receive is a real suspension point and carries the value across
      * safely.
      */
@@ -76,18 +82,15 @@ class AgentLoopTest {
         private val channel = Channel<AgentEvent>(Channel.UNLIMITED)
         private val collected = mutableListOf<AgentEvent>()
         private val job = scope.launch {
-            try {
-                loop.send(request).collect { event ->
-                    collected += event
-                    channel.send(event)
-                }
-            } finally {
-                // awaitToolCompletion waits on receiveCatching, which only returns
-                // once the channel is closed. A cancelled run may never emit a
-                // ToolCompleted, so the close is what turns "waiting for an event
-                // that will never come" into a normal return.
-                channel.close()
+            loop.send(request).collect { event ->
+                collected += event
+                channel.send(event)
             }
+        }.also {
+            // Closed when the run stops for any reason, so awaitToolCompletion's
+            // receiveCatching returns instead of waiting for an event a cancelled
+            // run will never emit.
+            it.invokeOnCompletion { channel.close() }
         }
 
         /**
@@ -399,7 +402,7 @@ class AgentLoopTest {
         adapter.script += listOf(toolTurn("write_file", args("command" to "write", "path" to "a.tsx")))
         adapter.script += listOf(answerTurn("Written."))
 
-        val run = LiveRun(this, loop, request())
+        val run = LiveRun(backgroundScope, loop, request())
         val approval = run.awaitApproval()
 
         assertEquals("overwrite vite.config.js?", approval.title)
@@ -421,7 +424,7 @@ class AgentLoopTest {
         adapter.script += listOf(toolTurn("write_file", args("command" to "write", "path" to "a.tsx")))
         adapter.script += listOf(answerTurn("Leaving it then."))
 
-        val run = LiveRun(this, loop, request())
+        val run = LiveRun(backgroundScope, loop, request())
         val approval = run.awaitApproval()
         loop.answerApproval(approval.id, ApprovalDecision.Reject("that would break the build"))
         run.finish()
@@ -448,7 +451,7 @@ class AgentLoopTest {
         adapter.script += listOf(toolTurn("ask_user", args("command" to "which strategy?")))
         adapter.script += listOf(answerTurn("Going manual."))
 
-        val run = LiveRun(this, loop, request())
+        val run = LiveRun(backgroundScope, loop, request())
         val approval = run.awaitApproval()
 
         assertEquals(listOf("automatic", "manual"), approval.options)
@@ -464,7 +467,7 @@ class AgentLoopTest {
         adapter.script += listOf(toolTurn("write_file", args("command" to "w", "path" to "a")))
         adapter.script += listOf(answerTurn("Done."))
 
-        val run = LiveRun(this, loop, request())
+        val run = LiveRun(backgroundScope, loop, request())
         val approval = run.awaitApproval()
 
         // Only meaningful once the run has actually parked.
@@ -486,7 +489,7 @@ class AgentLoopTest {
         val loop = loop(tools = arrayOf(writer))
         adapter.script += listOf(toolTurn("write_file", args("command" to "w", "path" to "a")))
 
-        val run = LiveRun(this, loop, request())
+        val run = LiveRun(backgroundScope, loop, request())
         run.awaitApproval()
 
         loop.cancel("chat-1")
