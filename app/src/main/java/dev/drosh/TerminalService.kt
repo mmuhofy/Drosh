@@ -70,6 +70,7 @@ class TerminalService : LifecycleService() {
                     terminalManager.activePersistentId().orEmpty(),
                     snapshot,
                     terminalManager.commandActivity.level.value,
+                    terminalManager.currentAmbientTint,
                 )
                 contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_COMMAND), null)
             }

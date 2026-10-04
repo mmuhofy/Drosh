@@ -99,6 +99,31 @@ class TerminalManager(
      */
     val commandState: CommandStatePublisher = CommandStatePublisher(commandActivity)
 
+    /**
+     * Ambient tint derived from the colours on screen, or null when neutral.
+     *
+     * See [AmbientTintCalculator] for why this reads style bits rather than
+     * pixels.
+     */
+    val ambientTint: AmbientTintCalculator = AmbientTintCalculator()
+
+    private var _currentAmbientTint: Int? = null
+
+    /** Latest ambient tint, or null when the screen reads as neutral. */
+    val currentAmbientTint: Int? get() = _currentAmbientTint
+
+    private fun recomputeAmbientTint(): Int? {
+        val session = irisSessions.getOrNull(_activeTabIndex.value)?.terminalSession ?: return null
+        val emulator = session.emulator ?: return null
+        return runCatching {
+            ambientTint.compute(
+                screen = emulator.getScreen(),
+                colors = emulator.mColors,
+                alternateBuffer = emulator.isAlternateBufferActive(),
+            )
+        }.getOrNull()
+    }
+
     private val _activeTabIndex = MutableStateFlow(0)
     val activeTabIndex: StateFlow<Int> = _activeTabIndex.asStateFlow()
 
@@ -240,6 +265,9 @@ class TerminalManager(
         sessionClient.onTextChanged = { session ->
             terminalViewRef?.onScreenUpdated()
             commandActivity.onOutput()
+            // Recomputed at most a few times per command; the screen has to
+            // have changed for it to be worth asking.
+            _currentAmbientTint = recomputeAmbientTint()
             val persistentId = getIndexOfSession(session)
                 .takeIf { it >= 0 }
                 ?.let { irisSessions[it].persistentId }

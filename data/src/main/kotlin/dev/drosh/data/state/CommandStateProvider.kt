@@ -63,6 +63,7 @@ class CommandStateProvider : ContentProvider() {
         const val COLUMN_CWD = "cwd"
         const val COLUMN_LEVEL = "level"
         const val COLUMN_ACTIVITY = "activity_level"
+        const val COLUMN_AMBIENT_TINT = "ambient_tint"
 
         /** Generous: nothing here is large and the keyboard may hold the cursor. */
         private const val MAX_COMMAND_CHARS = 512
@@ -76,6 +77,7 @@ class CommandStateProvider : ContentProvider() {
             COLUMN_CWD,
             COLUMN_LEVEL,
             COLUMN_ACTIVITY,
+            COLUMN_AMBIENT_TINT,
         )
     }
 
@@ -105,6 +107,8 @@ class CommandStateProvider : ContentProvider() {
                 entry.snapshot.cwd,
                 CommandStateBus.levelCode(entry.snapshot.level),
                 entry.activityLevel,
+                // -1 rather than null: MatrixCursor cannot hold a null Int.
+                entry.ambientTint ?: -1,
             ),
         )
         return cursor

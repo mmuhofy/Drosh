@@ -105,4 +105,18 @@ class TerminalColors {
             ).toInt()
         }
     }
+
+    /**
+     * Resolves a style's foreground index to ARGB, or null when the index is
+     * outside the palette.
+     *
+     * Truecolour cells encode their value directly in the index rather than
+     * naming a palette entry, so anything at or above [TextStyle.NUM_INDEXED_COLORS]
+     * is already a packed colour.
+     */
+    fun resolveColor(index: Int): Int? {
+        if (index >= TextStyle.NUM_INDEXED_COLORS) return index
+        if (index < 0) return null
+        return mCurrentColors.getOrNull(index)
+    }
 }

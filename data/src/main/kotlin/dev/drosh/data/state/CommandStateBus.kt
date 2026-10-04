@@ -34,14 +34,21 @@ object CommandStateBus {
         val snapshot: CommandSnapshot,
         /** 0f idle, 1f saturating output rate of the running command. */
         val activityLevel: Float = 0f,
+        /** ARGB tint from the screen, or null when it reads as neutral. */
+        val ambientTint: Int? = null,
     )
 
     @Volatile
     private var latest: Entry? = null
 
     /** Cleared when the terminal goes away so readers do not see stale state. */
-    fun publish(sessionId: String, snapshot: CommandSnapshot, activityLevel: Float = 0f) {
-        latest = Entry(sessionId, snapshot, activityLevel)
+    fun publish(
+        sessionId: String,
+        snapshot: CommandSnapshot,
+        activityLevel: Float = 0f,
+        ambientTint: Int? = null,
+    ) {
+        latest = Entry(sessionId, snapshot, activityLevel, ambientTint)
     }
 
     fun clear() {
