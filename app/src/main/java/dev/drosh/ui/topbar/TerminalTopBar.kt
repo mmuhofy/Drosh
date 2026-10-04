@@ -208,9 +208,9 @@ fun TerminalTopBar(
                 GlassPillButton(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
-                    drawableRes = dev.drosh.ui.R.drawable.ic_agent_ghost,
+                    drawableRes = dev.drosh.ui.R.drawable.ic_agent_terminal,
                     contentDescription = "Agent",
-                    // 22dp, matching every lucide glyph in this row. The ghost is
+                    // 22dp, matching every lucide glyph in this row. The mark is
                     // drawn on a 24 viewport that it fills, so it needs no
                     // correcting — unlike the old 2048 mark, which sat at 46% of its
                     // own canvas and looked half the size of its neighbours.

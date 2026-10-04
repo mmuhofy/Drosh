@@ -47,6 +47,7 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.components.GlassIconButton
 
 /**
  * Shared pieces of the agent UI.
@@ -63,19 +64,19 @@ val TOUCH_TARGET: Dp = 48.dp
 private const val MOTION_MS = 180
 
 /**
- * The ghost mark.
+ * The agent mark — a terminal window with a prompt.
  *
  * A vector rather than an emoji, so it takes the theme's tint and is not
  * whatever the device's font renders at that codepoint.
  */
 @Composable
-fun DroshGhostMark(
+fun DroshAgentMark(
     size: Dp,
     tint: Color,
     modifier: Modifier = Modifier,
 ) {
     Icon(
-        painter = painterResource(R.drawable.ic_agent_ghost),
+        painter = painterResource(R.drawable.ic_agent_terminal),
         contentDescription = null,
         tint = tint,
         modifier = modifier.size(size),
@@ -156,7 +157,14 @@ fun FlatButton(
     }
 }
 
-/** A square icon button that still meets the touch minimum. */
+/**
+ * An icon button in a top bar.
+ *
+ * A glass pill at the 48dp touch minimum rather than a bare icon: these sit over
+ * a scrolling transcript, and a flat icon on a flat background gives no sign of
+ * being pressable. Same component as the terminal top bar, so the two control
+ * sets read as one.
+ */
 @Composable
 fun IconAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -166,21 +174,14 @@ fun IconAction(
     tint: Color = DroshTextSecondary,
     enabled: Boolean = true,
 ) {
-    Box(
-        modifier = modifier
-            .size(TOUCH_TARGET)
-            .clip(CircleShape)
-            .clickable(enabled = enabled, onClick = onClick)
-            .semantics { this.contentDescription = contentDescription },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (enabled) tint else DroshTextMuted,
-            modifier = Modifier.size(22.dp),
-        )
-    }
+    GlassIconButton(
+        icon = icon,
+        contentDescription = contentDescription,
+        onClick = onClick,
+        modifier = modifier,
+        tint = tint,
+        enabled = enabled,
+    )
 }
 
 /**

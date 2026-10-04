@@ -1,10 +1,13 @@
 package dev.drosh.agent.di
 
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoSet
 import dagger.multibindings.Multibinds
+import dev.drosh.agent.provider.OpenAiCompatAdapter
 import dev.drosh.domain.agent.ChatAdapter
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
@@ -37,13 +40,22 @@ object AgentModule {
 /**
  * Collects the protocol adapters.
  *
- * A multibinding, so a new protocol is one injectable class and nothing else —
- * `ProviderRegistry` needs no edit, and therefore cannot be left inconsistent
- * with what is actually available.
+ * A multibinding, so `ProviderRegistry` needs no edit when a protocol arrives
+ * and therefore cannot be left inconsistent with what is actually available.
+ *
+ * The `@Multibinds` declaration is only the *set*; every adapter still needs its
+ * own `@Binds @IntoSet` below. `@Multibinds` with no contributions is a valid,
+ * empty set rather than a compile error — which is why this shipped looking
+ * correct and then failed at the first run with "no adapter implements",
+ * naming the symptom rather than the missing annotation.
  */
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AdapterModule {
+
+    @Binds
+    @IntoSet
+    abstract fun bindOpenAiCompatAdapter(impl: OpenAiCompatAdapter): ChatAdapter
 
     @Multibinds
     abstract fun adapters(): Set<@JvmSuppressWildcards ChatAdapter>

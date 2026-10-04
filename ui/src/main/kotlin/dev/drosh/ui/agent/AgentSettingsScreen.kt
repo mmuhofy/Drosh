@@ -56,8 +56,9 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.components.GlassPill
 import dev.drosh.ui.agent.components.ActionButton
-import dev.drosh.ui.agent.components.DroshGhostMark
+import dev.drosh.ui.agent.components.DroshAgentMark
 import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.SectionHeader
 import dev.drosh.ui.agent.components.TOUCH_TARGET
@@ -101,7 +102,7 @@ fun AgentSettingsScreen(
                 contentDescription = "Geri",
                 onClick = onBack,
             )
-            DroshGhostMark(size = 20.dp, tint = DroshPrimary)
+            DroshAgentMark(size = 20.dp, tint = DroshPrimary)
             Spacer(Modifier.width(8.dp))
             Text(
                 text = "Agent ayarları",
@@ -264,10 +265,15 @@ private fun ApiKeyField(
                         .semantics { contentDescription = "OpenRouter API anahtarı" },
                 )
             }
-            IconAction(
-                icon = if (visible) DroshIcons.EyeOff else DroshIcons.Eye,
+            // A 34dp pill next to a 40dp field: the row is already tall, and a
+            // full 48dp circle here would push the field's label out of line.
+            GlassPill(
                 contentDescription = if (visible) "Gizle" else "Göster",
                 onClick = { visible = !visible },
+                modifier = Modifier.height(40.dp),
+                height = 34.dp,
+                width = 34.dp,
+                icon = if (visible) DroshIcons.EyeOff else DroshIcons.Eye,
             )
         }
 

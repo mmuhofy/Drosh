@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Agent mark — a terminal window with a prompt.
+
+  Replaces a ghost silhouette. The ghost read as a generic mascot and said
+  nothing about what this thing does; a terminal with a prompt says "this acts
+  in your shell", which is the only fact a user needs before tapping it.
+
+  Drawn on a 24x24 viewport that it fills, so a 22dp call site shows a 22dp
+  mark. The previous mark needed a 2048 viewport and a group transform to
+  rescale artwork that occupied 46% of its canvas — the empty viewport, not the
+  icon size, had been the problem.
+
+  The prompt chevron is cut as a hole with evenOdd rather than painted in a
+  second colour. Icon() applies a single ColorFilter over the whole drawable, so
+  a two-tone path collapses to one flat colour the moment it is tinted and the
+  chevron vanishes into the frame. A hole cannot be filled by a tint.
+
+  Stroke-as-fill: the frame is drawn as a filled ring rather than a stroked
+  rectangle. A stroke's width is in viewport units and reads as noticeably
+  heavier or lighter than neighbouring lucide glyphs depending on the value
+  chosen; a ring of two paths has a fixed optical weight at every size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Frame: outer rounded rect minus inner rounded rect, leaving a 1.6 ring. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M3,4.5
+            C3,3.67 3.67,3 4.5,3
+            L19.5,3
+            C20.33,3 21,3.67 21,4.5
+            L21,19.5
+            C21,20.33 20.33,21 19.5,21
+            L4.5,21
+            C3.67,21 3,20.33 3,19.5
+            Z
+            M4.6,5.6
+            L4.6,18.4
+            L19.4,18.4
+            L19.4,5.6
+            Z
+            M7,6.2 L7,7.8 L11.2,7.8 L11.2,6.2 Z
+            M6.2,16.4
+            L8.1,13.6
+            L10,16.4
+            L9.1,16.4
+            L9.1,17.6
+            L7.1,17.6
+            L7.1,16.4
+            Z
+            M11.2,16.4 L16.6,16.4 L16.6,15.2 L11.2,15.2 Z" />
+</vector>

@@ -73,10 +73,11 @@ import dev.drosh.domain.agent.ApprovalDecision
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.components.GlassPill
 import dev.drosh.ui.agent.components.ActionButton
 import dev.drosh.ui.agent.components.CollapsibleRow
 import dev.drosh.ui.agent.components.DiffBlock
-import dev.drosh.ui.agent.components.DroshGhostMark
+import dev.drosh.ui.agent.components.DroshAgentMark
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.MonoBlock
@@ -199,7 +200,7 @@ private fun ChatTopBar(
                 onClick = onBack,
             )
 
-            DroshGhostMark(
+            DroshAgentMark(
                 size = 20.dp,
                 tint = if (waiting) DroshWarning else DroshPrimary,
             )
@@ -643,7 +644,7 @@ private fun ChatEmptyHint() {
             .padding(top = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        DroshGhostMark(size = 40.dp, tint = DroshOutline)
+        DroshAgentMark(size = 40.dp, tint = DroshOutline)
         Spacer(Modifier.height(14.dp))
         Text(
             text = "Ne yapmamı istiyorsun?",
@@ -717,43 +718,36 @@ private fun Composer(
         Spacer(Modifier.width(8.dp))
 
         if (stopVisible) {
-            Box(
-                modifier = Modifier
-                    .size(TOUCH_TARGET)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DroshSurfaceHigh)
-                    .clickable(onClick = onStop)
-                    .semantics { contentDescription = "Durdur" },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = DroshIcons.Square,
-                    contentDescription = null,
-                    tint = DroshError,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+            // Stop is the only control that matters while a run is going, so it is
+            // a pill rather than a bare glyph — it has to be findable without
+            // reading the bar.
+            GlassPill(
+                contentDescription = "Durdur",
+                onClick = onStop,
+                modifier = Modifier.size(TOUCH_TARGET),
+                height = TOUCH_TARGET,
+                width = TOUCH_TARGET,
+                tint = DroshError,
+                icon = DroshIcons.Square,
+            )
         } else {
-            Box(
-                modifier = Modifier
-                    .size(TOUCH_TARGET)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (text.isBlank()) DroshSurfaceHigh else DroshPrimary)
-                    .clickable(enabled = text.isNotBlank() && enabled) {
-                        val sent = text
-                        text = ""
-                        onSend(sent)
-                    }
-                    .semantics { contentDescription = "Gönder" },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = DroshIcons.Send,
-                    contentDescription = null,
-                    tint = if (text.isBlank()) DroshTextMuted else DroshOnPrimary,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+            val canSend = text.isNotBlank() && enabled
+            GlassPill(
+                contentDescription = "Gönder",
+                onClick = {
+                    val sent = text
+                    text = ""
+                    onSend(sent)
+                },
+                modifier = Modifier.size(TOUCH_TARGET),
+                height = TOUCH_TARGET,
+                width = TOUCH_TARGET,
+                // Filled when armed, flat when not. A pill that is always the same
+                // colour gives no signal about whether there is anything to send.
+                tint = if (canSend) DroshOnPrimary else DroshTextMuted,
+                enabled = canSend,
+                icon = DroshIcons.Send,
+            )
         }
     }
 }

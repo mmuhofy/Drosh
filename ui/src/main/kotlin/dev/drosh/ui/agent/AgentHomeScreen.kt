@@ -54,7 +54,7 @@ import dev.drosh.domain.agent.AgentChat
 import dev.drosh.domain.agent.ChatStatus
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.ActionButton
-import dev.drosh.ui.agent.components.DroshGhostMark
+import dev.drosh.ui.agent.components.DroshAgentMark
 import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.SectionHeader
 import dev.drosh.ui.agent.components.TOUCH_TARGET
@@ -169,7 +169,7 @@ private fun HomeTopBar(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             onClick = onBack,
         )
 
-        DroshGhostMark(size = 22.dp, tint = DroshPrimary)
+        DroshAgentMark(size = 22.dp, tint = DroshPrimary)
 
         Spacer(Modifier.width(8.dp))
 
@@ -322,7 +322,7 @@ private fun EmptyChats() {
             .padding(top = 56.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        DroshGhostMark(size = 44.dp, tint = DroshOutline)
+        DroshAgentMark(size = 44.dp, tint = DroshOutline)
         Spacer(Modifier.height(16.dp))
         Text(
             text = "Henüz agent chat yok",
