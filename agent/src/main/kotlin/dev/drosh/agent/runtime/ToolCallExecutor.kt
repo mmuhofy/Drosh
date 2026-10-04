@@ -46,7 +46,7 @@ internal class ToolCallExecutor(
         chatId: String,
         workingDirectory: String,
         step: Int,
-        emit: FlowCollector<AgentEvent>,
+        collector: FlowCollector<AgentEvent>,
     ): String {
         val startedAt = System.currentTimeMillis()
         val tool = registry.find(call.name)
@@ -55,10 +55,10 @@ internal class ToolCallExecutor(
             // Not fatal. The model is told what it could have called and gets
             // another turn; ending the run over a hallucinated name discards
             // everything that led up to it.
-            return unknownTool(call, emit)
+            return unknownTool(call, collector)
         }
 
-        emit(
+        collector.emit(
             AgentEvent.ToolCallStarted(
                 callId = call.id,
                 name = tool.name,
@@ -73,9 +73,9 @@ internal class ToolCallExecutor(
                     chatId = chatId,
                     workingDirectory = workingDirectory,
                     step = step,
-                    emit = { update -> emit(update.eventFor(call.id)) },
+                    emit = { update -> collector.emit(update.eventFor(call.id)) },
                     awaitApproval = { request ->
-                        awaitApproval(tool, call, request, chatId, emit)
+                        awaitApproval(tool, call, request, chatId, collector)
                     },
                 ),
             )
@@ -92,7 +92,7 @@ internal class ToolCallExecutor(
 
         val trimmed = ToolOutputTrimmer.trim(result.toResponseString())
 
-        emit(
+        collector.emit(
             AgentEvent.ToolCompleted(
                 callId = call.id,
                 name = tool.name,
@@ -107,7 +107,7 @@ internal class ToolCallExecutor(
 
     private suspend fun unknownTool(
         call: LlmToolCall,
-        emit: FlowCollector<AgentEvent>,
+        collector: FlowCollector<AgentEvent>,
     ): String {
         val available = registry.names()
         val message = buildString {
@@ -119,7 +119,7 @@ internal class ToolCallExecutor(
             }
         }
 
-        emit(
+        collector.emit(
             AgentEvent.ToolCompleted(
                 callId = call.id,
                 name = call.name,
@@ -144,12 +144,12 @@ internal class ToolCallExecutor(
         call: LlmToolCall,
         request: ApprovalRequest,
         chatId: String,
-        emit: FlowCollector<AgentEvent>,
+        collector: FlowCollector<AgentEvent>,
     ): ApprovalDecision {
         val approvalId = "ap_${approvalIds.incrementAndGet()}"
         val waiter: CompletableDeferred<ApprovalDecision> = pending.register(approvalId, chatId)
 
-        emit(
+        collector.emit(
             AgentEvent.ApprovalRequired(
                 AgentApproval(
                     id = approvalId,

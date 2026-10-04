@@ -139,7 +139,7 @@ class AgentLoop @Inject constructor(
     private suspend fun runLoop(
         request: AgentRequest,
         runtime: ChatRuntime,
-        emit: FlowCollector<AgentEvent>,
+        collector: FlowCollector<AgentEvent>,
     ): RunOutcome {
         val provider = providers.provider(request.providerId)
             ?: return RunOutcome.Failed("Unknown provider '${request.providerId}'")
@@ -167,10 +167,10 @@ class AgentLoop @Inject constructor(
 
         while (step < maxSteps) {
             step++
-            emit(AgentEvent.TurnStarted(step, maxSteps))
+            collector.emit(AgentEvent.TurnStarted(step, maxSteps))
 
             val turn = try {
-                collectTurn(provider, adapter, runtime, request, declarations, credential, emit)
+                collectTurn(provider, adapter, runtime, request, declarations, credential, collector)
             } catch (failure: AgentRunFailure) {
                 return RunOutcome.Failed(failure.message ?: "The provider request failed")
             }
@@ -208,13 +208,13 @@ class AgentLoop @Inject constructor(
                     // running — a stop button is the wrong affordance for a yes/no
                     // question. Relaying through here means the executor needs no
                     // knowledge of run state.
-                    emit = approvalAwareRelay(emit),
+                    emit = approvalAwareRelay(collector),
                 )
 
                 runtime.remember(LlmMessage.ToolResultMessage(call.id, call.name, responseText))
             }
 
-            emit(AgentEvent.TurnCompleted(step))
+            collector.emit(AgentEvent.TurnCompleted(step))
         }
 
         return RunOutcome.StepLimitReached(step)
@@ -237,7 +237,7 @@ class AgentLoop @Inject constructor(
         request: AgentRequest,
         tools: List<ToolDefinition>,
         credential: LlmCredential,
-        emit: FlowCollector<AgentEvent>,
+        collector: FlowCollector<AgentEvent>,
     ): Turn {
         var attempt = 1
 
@@ -258,20 +258,20 @@ class AgentLoop @Inject constructor(
                 when (event) {
                     is LlmStreamEvent.TextDelta -> {
                         text.append(event.text)
-                        emit(AgentEvent.TextDelta(event.text))
+                        collector.emit(AgentEvent.TextDelta(event.text))
                     }
 
-                    is LlmStreamEvent.ReasoningDelta -> emit(AgentEvent.ReasoningDelta(event.text))
+                    is LlmStreamEvent.ReasoningDelta -> collector.emit(AgentEvent.ReasoningDelta(event.text))
 
                     is LlmStreamEvent.ReasoningCompleted ->
-                        emit(AgentEvent.ReasoningCompleted(event.text))
+                        collector.emit(AgentEvent.ReasoningCompleted(event.text))
 
                     is LlmStreamEvent.ToolCallCompleted ->
                         calls += LlmToolCall(event.callId, event.name, event.arguments)
 
                     is LlmStreamEvent.Finished -> {
                         finishReasonSeen = true
-                        event.usage?.let { emit(AgentEvent.UsageUpdated(it)) }
+                        event.usage?.let { collector.emit(AgentEvent.UsageUpdated(it)) }
                     }
 
                     is LlmStreamEvent.Failed -> failure = event
@@ -306,7 +306,7 @@ class AgentLoop @Inject constructor(
                 baseMs = AgentLimits.RETRY_BASE_DELAY_MS,
                 maxMs = AgentLimits.RETRY_MAX_DELAY_MS,
             )
-            emit(
+            collector.emit(
                 AgentEvent.Retrying(
                     attempt = attempt,
                     maxAttempts = AgentLimits.MAX_PROVIDER_RETRIES,
