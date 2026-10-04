@@ -32,6 +32,13 @@ class AgentLoopTest {
 
     private val adapter = ScriptedAdapter()
 
+    /**
+     * Enough yields for a scripted run to reach the tool and park. Not a timeout —
+     * virtual time does not advance during `yield()`, so this counts scheduler
+     * passes rather than elapsed time.
+     */
+    private val MAX_SPINS = 200
+
     private fun loop(
         repository: FakeProviderRepository = FakeProviderRepository(),
         vararg tools: Tool,
@@ -70,15 +77,24 @@ class AgentLoopTest {
             loop.send(request).collect { events += it }
         }
 
-        /** Spin until the run parks on an approval, then hand back the request. */
+        /**
+         * Wait until the run parks on an approval, then hand back the request.
+         *
+         * Bounded on purpose. An unbounded `yield()` spin turns a broken event
+         * relay into a suite that hangs until the harness timeout with no
+         * diagnostic; this fails immediately with what the run actually emitted.
+         */
         suspend fun awaitApproval(loop: AgentLoop): AgentApproval {
-            while (true) {
+            repeat(MAX_SPINS) {
                 val raised = events.filterIsInstance<AgentEvent.ApprovalRequired>().lastOrNull()
                 if (raised != null && loop.pendingApprovalIds().contains(raised.approval.id)) {
                     return raised.approval
                 }
                 yield()
             }
+            throw AssertionError(
+                "the run never parked on an approval. emitted=${events.map { it::class.simpleName }}",
+            )
         }
 
         suspend fun finish() = job.join()
@@ -190,9 +206,13 @@ class AgentLoopTest {
     @Test
     fun `the same call in non-consecutive turns is allowed`() = runTest {
         val shell = FakeTool("shell")
-        val loop = loop(tools = arrayOf(shell))
+        val loop = loop(tools = arrayOf(shell, FakeTool("read_file")))
+
+        // A middle turn calling a *different* tool, so "ls" repeats at steps 1 and
+        // 3 without being consecutive. A plain text turn in the middle would end
+        // the run before the second call ever happened.
         adapter.script += listOf(toolTurn("shell", args("command" to "ls")))
-        adapter.script += listOf(answerTurn("looked"))
+        adapter.script += listOf(toolTurn("read_file", args("command" to "cat a")))
         adapter.script += listOf(toolTurn("shell", args("command" to "ls")))
         adapter.script += listOf(answerTurn("looked again"))
 
@@ -426,11 +446,13 @@ class AgentLoopTest {
         adapter.script += listOf(answerTurn("Done."))
 
         val run = LiveRun(this, loop, request())
-        run.awaitApproval(loop)
+        val approval = run.awaitApproval(loop)
 
+        // Only meaningful once the run has actually parked.
         val waiting = loop.state.value as AgentRunState.WaitingApproval
         assertEquals(setOf("chat-1"), waiting.chatIds)
 
+        loop.answerApproval(approval.id, ApprovalDecision.Approve)
         run.finish()
         assertEquals(AgentRunState.Idle, loop.state.value)
     }
@@ -527,7 +549,9 @@ class AgentLoopTest {
         adapter.script += listOf(answerTurn("done"))
 
         val first = launch { loop.send(request()).toList() }
-        while (slowTool.calls.isEmpty()) yield()
+        var spins = 0
+        while (slowTool.calls.isEmpty() && spins++ < MAX_SPINS) yield()
+        assertTrue("the first run never reached the tool", slowTool.calls.isNotEmpty())
 
         val error = runCatching { loop.send(request()).toList() }.exceptionOrNull()
 
