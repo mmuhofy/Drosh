@@ -83,12 +83,21 @@ class TerminalManager(
     }
 
     /**
+     * How much the running command is actually producing output.
+     *
+     * Lets the keyboard tell a working command from a stalled one without the
+     * user looking away from it. Declared before [commandState] because the
+     * publisher drives it from command transitions.
+     */
+    val commandActivity: CommandActivityTracker = CommandActivityTracker()
+
+    /**
      * Command lifecycle of the active terminal, derived from OSC 133 marks.
      *
      * Consumed by the command state provider and, through it, by Drosh
      * Keyboard.
      */
-    val commandState: CommandStatePublisher = CommandStatePublisher()
+    val commandState: CommandStatePublisher = CommandStatePublisher(commandActivity)
 
     private val _activeTabIndex = MutableStateFlow(0)
     val activeTabIndex: StateFlow<Int> = _activeTabIndex.asStateFlow()
@@ -230,6 +239,7 @@ class TerminalManager(
         sessionClient.onSessionFinished = { session -> onSessionFinished(session) }
         sessionClient.onTextChanged = { session ->
             terminalViewRef?.onScreenUpdated()
+            commandActivity.onOutput()
             val persistentId = getIndexOfSession(session)
                 .takeIf { it >= 0 }
                 ?.let { irisSessions[it].persistentId }

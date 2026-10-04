@@ -69,6 +69,7 @@ class TerminalService : LifecycleService() {
                 CommandStateBus.publish(
                     terminalManager.activePersistentId().orEmpty(),
                     snapshot,
+                    terminalManager.commandActivity.level.value,
                 )
                 contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_COMMAND), null)
             }

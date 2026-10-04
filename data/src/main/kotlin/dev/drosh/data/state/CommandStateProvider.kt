@@ -62,6 +62,7 @@ class CommandStateProvider : ContentProvider() {
         const val COLUMN_STARTED_AT = "started_at"
         const val COLUMN_CWD = "cwd"
         const val COLUMN_LEVEL = "level"
+        const val COLUMN_ACTIVITY = "activity_level"
 
         /** Generous: nothing here is large and the keyboard may hold the cursor. */
         private const val MAX_COMMAND_CHARS = 512
@@ -74,6 +75,7 @@ class CommandStateProvider : ContentProvider() {
             COLUMN_STARTED_AT,
             COLUMN_CWD,
             COLUMN_LEVEL,
+            COLUMN_ACTIVITY,
         )
     }
 
@@ -102,6 +104,7 @@ class CommandStateProvider : ContentProvider() {
                 entry.snapshot.startedAtElapsedMs,
                 entry.snapshot.cwd,
                 CommandStateBus.levelCode(entry.snapshot.level),
+                entry.activityLevel,
             ),
         )
         return cursor

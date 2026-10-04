@@ -15,6 +15,7 @@
 package dev.drosh.terminal
 
 import com.termux.terminal.CommandSnapshot
+import com.termux.terminal.CommandStatus
 import com.termux.terminal.ShellIntegrationState
 import com.termux.terminal.TerminalSession
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,20 +34,45 @@ import kotlinx.coroutines.flow.asStateFlow
  * Bound to the active session and re-bound whenever the tab changes, so
  * multiple terminals do not fight over one flow.
  */
-class CommandStatePublisher {
+class CommandStatePublisher(
+    /**
+     * Output-rate tracker, so the combined state carries activity alongside the
+     * command lifecycle. A consumer therefore gets both from one snapshot
+     * instead of subscribing to two sources.
+     */
+    private val activity: CommandActivityTracker,
+) {
 
     private val _state = MutableStateFlow(CommandSnapshot())
     val state: StateFlow<CommandSnapshot> = _state.asStateFlow()
 
+    private val _activityLevel = MutableStateFlow(0f)
+
+    /** 0f idle, 1f saturating output rate. */
+    val activityLevel: StateFlow<Float> = _activityLevel.asStateFlow()
+
     private var bound: ShellIntegrationState? = null
 
-    private val listener: (CommandSnapshot) -> Unit = { _state.value = it }
+    private val listener: (CommandSnapshot) -> Unit = { snapshot ->
+        // Start and finish drive the tracker so activity resets on its own,
+        // without needing a timer to notice that output stopped.
+        when (snapshot.status) {
+            is CommandStatus.Running -> activity.onCommandStarted()
+            is CommandStatus.Success,
+            is CommandStatus.Failure,
+            is CommandStatus.Indeterminate,
+            is CommandStatus.Idle -> activity.onSettled()
+        }
+        _state.value = snapshot
+        _activityLevel.value = activity.level.value
+    }
 
     fun bind(session: TerminalSession?) {
         val target = session?.shellIntegration
         if (bound === target) return
         bound?.removeListener(listener)
         bound = target
+        activity.reset()
         // addListener replays the current value, so a switch lands on the new
         // terminal's real state instead of keeping the previous one's.
         target?.addListener(listener) ?: run { _state.value = CommandSnapshot() }

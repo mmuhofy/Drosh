@@ -29,14 +29,19 @@ import com.termux.terminal.ShellIntegrationLevel
  */
 object CommandStateBus {
 
-    data class Entry(val sessionId: String, val snapshot: CommandSnapshot)
+    data class Entry(
+        val sessionId: String,
+        val snapshot: CommandSnapshot,
+        /** 0f idle, 1f saturating output rate of the running command. */
+        val activityLevel: Float = 0f,
+    )
 
     @Volatile
     private var latest: Entry? = null
 
     /** Cleared when the terminal goes away so readers do not see stale state. */
-    fun publish(sessionId: String, snapshot: CommandSnapshot) {
-        latest = Entry(sessionId, snapshot)
+    fun publish(sessionId: String, snapshot: CommandSnapshot, activityLevel: Float = 0f) {
+        latest = Entry(sessionId, snapshot, activityLevel)
     }
 
     fun clear() {
