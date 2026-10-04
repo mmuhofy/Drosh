@@ -27,16 +27,6 @@ object AgentLimits {
     /** Hard cap on lines any single tool result may contribute to history. */
     const val TOOL_OUTPUT_MAX_LINES: Int = 200
 
-    /** Characters kept from each end when a result is clipped. */
-    const val TOOL_OUTPUT_HEAD_CHARS: Int = 4_000
-
-    /** Characters kept from the tail when a result is clipped. */
-    const val TOOL_OUTPUT_TAIL_CHARS: Int = 4_000
-
-    /** Marker inserted where output was removed, so the model knows to re-read. */
-    const val TRUNCATION_MARKER: String =
-        "\n… [output truncated: ${TOOL_OUTPUT_MAX_LINES} line / ${TOOL_OUTPUT_MAX_CHARS} char limit] …\n"
-
     /** Wall-clock limit for a single shell command. */
     const val SHELL_TIMEOUT_SEC: Long = 120L
 

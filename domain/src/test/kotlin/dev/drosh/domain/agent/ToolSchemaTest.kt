@@ -79,7 +79,7 @@ class ToolArgumentTest {
         }
 
         assertEquals("src/App.ktx", input.stringArg("path"))
-        assertEquals(7, input.intArg("lines", 7))
+        assertEquals(40, input.intArg("lines", 7))
         assertTrue(input.boolArg("force", false))
     }
 
@@ -164,6 +164,35 @@ class ToolOutputTrimmerTest {
         val result = ToolOutputTrimmer.trim(output, maxChars = 1_000_000, maxLines = 50)
 
         assertTrue(result.truncated)
+        assertTrue(result.text.lines().size <= 52)
+    }
+
+    @Test
+    fun `result never exceeds maxChars including the marker`() {
+        val output = (1..5_000).joinToString("\n") { "line $it" }
+
+        for (maxChars in listOf(200, 500, 1_000, 4_000)) {
+            val result = ToolOutputTrimmer.trim(output, maxChars = maxChars, maxLines = 100)
+            assertTrue(
+                "maxChars=$maxChars produced ${result.text.length} chars",
+                result.text.length <= maxChars,
+            )
+            assertTrue("maxChars=$maxChars lost the marker", result.text.contains("output truncated"))
+        }
+    }
+
+    @Test
+    fun `head and tail both survive a char budget far smaller than the defaults`() {
+        val output = buildString {
+            append("HEADER-MARKER\n")
+            repeat(200) { append("filler $it\n") }
+            append("TAIL-MARKER\n")
+        }
+
+        val result = ToolOutputTrimmer.trim(output, maxChars = 300, maxLines = 40)
+
+        assertTrue(result.text.contains("HEADER-MARKER"))
+        assertTrue(result.text.contains("TAIL-MARKER"))
     }
 }
 
