@@ -122,6 +122,7 @@ dependencies {
     implementation(project(":ssh"))
     implementation(project(":ui"))
     implementation(project(":design-system"))
+    implementation(project(":editor"))
     implementation(libs.androidx.datastore.preferences)
 
     // AndroidX entry-point
