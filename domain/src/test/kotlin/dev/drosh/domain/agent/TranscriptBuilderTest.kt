@@ -256,6 +256,17 @@ class TranscriptBuilderTest {
     }
 
     @Test
+    fun `a repetitive loop is a notice naming the tool`() {
+        val b = TranscriptBuilder()
+
+        b.accept(AgentEvent.RunFinished(RunOutcome.RepetitiveLoop("shell", 3)))
+
+        val notice = b.snapshot().single() as ChatMessage.Notice
+        assertTrue(notice.text.contains("shell"))
+        assertTrue(notice.text.contains("3"))
+    }
+
+    @Test
     fun `a run that produced no text still shows the final text`() {
         val b = TranscriptBuilder()
 

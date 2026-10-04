@@ -250,6 +250,12 @@ class TranscriptBuilder(
                 "Adım sınırına ulaşıldı (${outcome.steps}). Devam etmek için bir şey yaz.",
             )
 
+            is RunOutcome.RepetitiveLoop -> messages += ChatMessage.Notice(
+                nextId(),
+                "Model aynı çağrıyı ${outcome.repeats} kez tekrarladı (${outcome.toolName}), " +
+                    "bu yüzden durduruldu.",
+            )
+
             is RunOutcome.Cancelled -> messages += ChatMessage.Notice(nextId(), "Durduruldu.")
 
             is RunOutcome.Failed -> messages += ChatMessage.Failure(nextId(), outcome.message)

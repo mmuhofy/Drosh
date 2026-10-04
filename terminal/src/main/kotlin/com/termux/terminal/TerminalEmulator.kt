@@ -97,6 +97,20 @@ class TerminalEmulator(
         /** Needs to be large enough to contain reasonable OSC 52 pastes. */
         private const val MAX_OSC_STRING_LENGTH = 8192
 
+        /**
+         * OSC number Drosh uses to ask its own editor to open a file.
+         *
+         * Private to Drosh: it is not in the OSC registry and no other terminal
+         * claims it. It sits clear of the two neighbouring families this
+         * emulator already implements — 133 is FinalTerm shell integration,
+         * 1337 and 1338 are iTerm2's — so a guest cannot collide with either
+         * by accident.
+         *
+         * Long paths are not a concern: the whole sequence is bounded by
+         * [MAX_OSC_STRING_LENGTH], which no filesystem allows us to exceed.
+         */
+        private const val OSC_DROSH_OPEN_EDITOR = 1339
+
         /** DECSET 1 - application cursor keys. */
         private const val DECSET_BIT_APPLICATION_CURSOR_KEYS = 1
         private const val DECSET_BIT_REVERSE_VIDEO = 1 shl 1
@@ -1435,6 +1449,25 @@ class TerminalEmulator(
         return line.trim().takeIf { it.isNotEmpty() }
     }
 
+    /**
+     * OSC [OSC_DROSH_OPEN_EDITOR] — the guest asked Drosh to open a path in the
+     * native editor.
+     *
+     * Written by the `editor` shell function that [dev.drosh.terminal.DroshShellIntegration]
+     * installs, so the request reaches the app by the same route as every other
+     * piece of shell integration: bytes out of the PTY, interpreted here. No
+     * polling, no filesystem watch, no inotify.
+     *
+     * The payload is the guest path verbatim rather than percent-encoded. Only
+     * the first `;` separates the OSC number from the payload, so a path may
+     * contain any number of them; the installing function strips the two bytes
+     * that would otherwise end the sequence early.
+     */
+    private fun handleOscDroshOpenEditor(textParameter: String) {
+        if (textParameter.isEmpty()) return
+        mSession.shellIntegration?.onOpenEditor(textParameter)
+    }
+
     /** An Operating System Controls (OSC) Set Text Parameters. */
     private fun doOscSetTextParameters(bellOrStringTerminator: String) {
         var value = -1
@@ -1456,6 +1489,7 @@ class TerminalEmulator(
             0, 1, 2 -> setTitle(textParameter)
             7 -> handleOscCurrentDirectory(textParameter)
             133 -> handleOscShellIntegration(textParameter)
+            OSC_DROSH_OPEN_EDITOR -> handleOscDroshOpenEditor(textParameter)
             4 -> {
                 var colorIndex = -1
                 var parsingPairStart = -1

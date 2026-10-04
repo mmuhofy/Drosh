@@ -186,6 +186,43 @@ class ShellIntegrationState {
         publish(snapshot.copy(cwd = cwd))
     }
 
+    /**
+     * A program running in the guest asked Drosh to open a path in the native
+     * editor.
+     *
+     * This rides the same shell-to-app channel as the OSC 133 marks because
+     * that is what it is: the guest talking to its own terminal, not the guest
+     * reaching into the app. Nothing is polled and no file is watched — the
+     * `editor` command Drosh installs writes one escape sequence and exits.
+     *
+     * Deliberately kept out of [snapshot]. An editor request is an event with
+     * no lasting state, and putting it in the snapshot would make
+     * [CommandSnapshot.equals] report a command-lifecycle change every time
+     * the user opens a file, which the block engine reads as activity.
+     */
+    fun onOpenEditor(guestPath: String) {
+        if (guestPath.isEmpty()) return
+        editorListeners.forEach { it(guestPath) }
+    }
+
+    private val editorListeners = mutableListOf<(String) -> Unit>()
+
+    /**
+     * Registers an editor-request listener.
+     *
+     * Unlike [addListener] this does not replay anything. A request that
+     * arrived while nobody was listening has already been acted on or lost,
+     * and re-delivering it on the next tab switch would open the editor again
+     * with no command to explain it.
+     */
+    fun addEditorListener(listener: (String) -> Unit) {
+        editorListeners += listener
+    }
+
+    fun removeEditorListener(listener: (String) -> Unit) {
+        editorListeners -= listener
+    }
+
     /** Called when a new session replaces the old one. */
     fun reset() {
         sawPromptMark = false
