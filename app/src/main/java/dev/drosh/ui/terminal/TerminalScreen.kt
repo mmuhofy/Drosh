@@ -110,6 +110,7 @@ import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
 import java.util.Properties
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -154,8 +155,26 @@ fun TerminalScreen(
     terminalViewModel: TerminalViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onExit: () -> Unit = {},
+    /**
+     * Called with a guest path when the user types `editor <path>`.
+     *
+     * A callback rather than navigating from here, so this screen keeps no
+     * reference to a NavController — it is instantiated twice in `MainActivity`
+     * (before and after the PIN gate) and navigating from inside it would tie
+     * the terminal to one of those call sites.
+     */
+    onOpenEditor: (String) -> Unit = {},
 ) {
     var showProgress by remember { mutableStateOf(false) }
+
+    // `editor <path>` arrives as an escape sequence from the shell, parsed by the
+    // emulator and republished by TerminalManager. Collected here because this is
+    // the screen the user is looking at when they type the command.
+    LaunchedEffect(terminalManager) {
+        terminalManager.editorRequests.requests.collect { guestPath ->
+            onOpenEditor(guestPath)
+        }
+    }
 
     LaunchedEffect(ubuntuSetupState) {
         if (ubuntuSetupState is UbuntuSetupState.Ready) {

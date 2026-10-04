@@ -64,7 +64,11 @@ interface Tool {
  * @param workingDirectory absolute path inside the guest filesystem the agent
  *                         is scoped to; tools must not escape it
  * @param step 1-based loop iteration, for diagnostics and loop detection
- * @param emit push an incremental update to the UI without ending the call
+ * @param emit push an incremental update to the UI without ending the call.
+ *               Suspend because streaming output *is* the asynchronous part —
+ *               a tool reporting a line of shell output is doing I/O, and a
+ *               plain `(ToolUpdate) -> Unit` would make that impossible to
+ *               express honestly.
  * @param awaitApproval suspend until the user answers. A tool that mutates
  *               something the user did not explicitly ask for calls this with
  *               the detail worth showing — a diff, a question, a set of choices —
@@ -74,7 +78,7 @@ data class ToolContext(
     val chatId: String,
     val workingDirectory: String,
     val step: Int,
-    val emit: (ToolUpdate) -> Unit,
+    val emit: suspend (ToolUpdate) -> Unit,
     val awaitApproval: suspend (ApprovalRequest) -> ApprovalDecision,
 )
 

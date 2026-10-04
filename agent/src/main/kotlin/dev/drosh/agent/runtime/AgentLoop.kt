@@ -206,9 +206,10 @@ class AgentLoop @Inject constructor(
                     step = step,
                     // A run that parks on the user has to show as waiting, not as
                     // running — a stop button is the wrong affordance for a yes/no
-                    // question. Relaying through here means the executor needs no
-                    // knowledge of run state.
-                    emit = approvalAwareRelay(collector),
+                    // question. Wrapping the collector here means the executor
+                    // needs no knowledge of run state, and every event it emits
+                    // passes through the same relay.
+                    collector = approvalAwareRelay(collector),
                 )
 
                 runtime.remember(LlmMessage.ToolResultMessage(call.id, call.name, responseText))
