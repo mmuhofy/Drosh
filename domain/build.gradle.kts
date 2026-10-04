@@ -15,7 +15,12 @@ plugins {
 //
 // Coroutines are pure-Kotlin and thus permitted here.
 dependencies {
-    implementation(libs.kotlinx.coroutines.core)
+    api(libs.kotlinx.coroutines.core)
+
+    // Tool schemas are JSON Schema objects and stream events carry parsed tool
+    // arguments, so JsonObject appears in the public API of Tool/LlmStreamEvent.
+    api(libs.kotlinx.serialization.json)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
