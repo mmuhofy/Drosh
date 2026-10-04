@@ -15,6 +15,7 @@
 package dev.drosh.terminal
 
 import com.termux.terminal.TerminalBuffer
+import com.termux.terminal.TerminalColors
 import com.termux.terminal.TextStyle
 import kotlin.math.max
 import kotlin.math.min
