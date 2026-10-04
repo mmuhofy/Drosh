@@ -1,5 +1,6 @@
 package dev.drosh.agent.di
 
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
