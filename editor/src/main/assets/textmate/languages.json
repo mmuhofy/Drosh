@@ -1,0 +1,64 @@
+{
+  "languages": [
+    {
+      "grammar": "syntaxes/bash.tmLanguage.json",
+      "name": "bash",
+      "scopeName": "source.shell",
+      "languageConfiguration": "configs/shell.json"
+    },
+    {
+      "grammar": "syntaxes/json.tmLanguage.json",
+      "name": "json",
+      "scopeName": "source.json"
+    },
+    {
+      "grammar": "syntaxes/yaml.tmLanguage.json",
+      "name": "yaml",
+      "scopeName": "source.yaml",
+      "languageConfiguration": "configs/yaml.json"
+    },
+    {
+      "grammar": "syntaxes/python.tmLanguage.json",
+      "name": "python",
+      "scopeName": "source.python",
+      "languageConfiguration": "configs/python.json"
+    },
+    {
+      "grammar": "syntaxes/kotlin.tmLanguage.json",
+      "name": "kotlin",
+      "scopeName": "source.kotlin"
+    },
+    {
+      "grammar": "syntaxes/java.tmLanguage.json",
+      "name": "java",
+      "scopeName": "source.java"
+    },
+    {
+      "grammar": "syntaxes/javascript.tmLanguage.json",
+      "name": "javascript",
+      "scopeName": "source.js",
+      "languageConfiguration": "configs/javascript.json"
+    },
+    {
+      "grammar": "syntaxes/typescript.tmLanguage.json",
+      "name": "typescript",
+      "scopeName": "source.ts",
+      "languageConfiguration": "configs/javascript.json"
+    },
+    {
+      "grammar": "syntaxes/cpp.tmLanguage.json",
+      "name": "cpp",
+      "scopeName": "source.cpp"
+    },
+    {
+      "grammar": "syntaxes/csharp.tmLanguage.json",
+      "name": "csharp",
+      "scopeName": "source.cs"
+    },
+    {
+      "grammar": "syntaxes/markdown.tmLanguage.json",
+      "name": "markdown",
+      "scopeName": "text.html.markdown"
+    }
+  ]
+}

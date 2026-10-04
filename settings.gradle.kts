@@ -36,6 +36,9 @@ include(":terminal")
 include(":ssh")
 include(":ui")
 include(":design-system")
+// Native code editor (Rosemoe/sora-editor). Its own module so the LGPL-2.1
+// surface stays isolated and :ui keeps its "no :terminal" rule.
+include(":editor")
 
 // Convention plugins — included as a composite build so its plugin ids
 // (e.g. `dev.drosh.android.library`) are visible to all subprojects.

@@ -1,5 +1,5 @@
 # Drosh — Memory Bank
-_Last updated: 2026-09-27_
+_Last updated: 2026-10-04_
 
 ---
 
@@ -41,6 +41,7 @@ Termux brought the terminal to Android in 2012. Drosh reinvents it for 2026. Not
 | Min SDK         | 26                                     | Android 8.0+                       |
 | Target SDK      | 36                                     | Android 16                         |
 | Terminal Engine | termux-view + termux-terminal-emulator | Vendored from Iris Code            |
+| Editor Engine | **sora-editor** (`io.github.rosemoe:editor`) | Native Android widget, LGPL-2.1-or-later |
 | PTY             | libtermux.so (JNI)                     | Prebuilt, port from Iris Code      |
 | Linux Env       | PRoot v5.2.0 + Ubuntu 24.04 rootfs     | Port from Iris Code                |
 | Agent Loop      | MultiStepStreamer + AgentLoop          | Port from Iris Code                |
@@ -349,6 +350,117 @@ PTY → ANSI → Semantic → Rich Renderer → Compose UI
 | `- [ ] task` | Interactive checklist |
 | `![img](url)` | Inline image thumbnail |
 | JSON blob | Collapsible formatted JSON |
+
+---
+
+## 7A. Native Editor
+
+*Added 2026-10-04. Branch `feat/editor`.*
+
+### Feature shape
+
+One command, one file, one screen:
+
+```
+$ editor notes.md        → Drosh's editor opens notes.md
+```
+
+Deliberately the whole feature. No file tree, no tabs, no agent integration.
+
+### Why sora-editor
+
+Android has exactly one serious open-source code editor *widget*: `Rosemoe/sora-editor`
+(1.4k★, Maven Central). sora is taken as a dependency — **none of the editing is
+reimplemented**. The buffer, cursor, selection, undo/redo, auto-indent, word wrap
+and rendering are all sora's, unmodified.
+
+- **Licence: LGPL-2.1-or-later.** Drosh is GPL-3.0. Compatible in principle
+  (LGPL "or later" permits relicensing under GPL-3), but **Muhofy has not yet
+  signed off**, and it needs checking before any F-Droid submission.
+- Upstream marks every release `prerelease` and its README says "developing
+  slowly". Pinned deliberately for that reason.
+
+### Version pinning — measured, not guessed
+
+`editor` is pure Java (verified: `editor-0.24.6.aar` contains zero
+`.kotlin_metadata`). `language-textmate` is Kotlin, and its metadata version
+matters:
+
+| Artifact | Kotlin metadata (`mv`) | Readable by this project's KGP 2.2.0 |
+|---|---|---|
+| `editor:0.24.6` | *(no Kotlin)* | yes |
+| `language-textmate:0.24.3` | `[2,2,0]` | yes |
+| `language-textmate:0.24.6` | `[2,3,0]` | **no — compile error** |
+
+So `soraEditor = 0.24.6` and `soraLanguageTextmate = 0.24.3`, **no `editor-bom`**
+(the BOM would force one version and reintroduce the 2.3 metadata). Same class of
+trap as the `kotlinx-serialization` pin already in `libs.versions.toml`.
+
+### Architecture
+
+```
+shell: editor <path>                  a shell function (not a script — see below)
+    ↓ ESC ] 1339 ; <guest path> BEL   Drosh-private OSC
+TerminalEmulator.handleOscDroshOpenEditor
+    ↓
+ShellIntegrationState.onOpenEditor    per-session event channel (NOT CommandSnapshot)
+    ↓
+EditorRequestPublisher                Channel(BUFFERED) → Flow<String>
+    ↓
+TerminalScreen → onOpenEditor(path)   callback, so it holds no NavController
+    ↓ navigate "editor?guestPath=…"
+EditorScreen (`:editor`)  → SoraCodeEditor → sora CodeEditor (AndroidView)
+    ↓
+EditorViewModel → GuestFileRepository (`:domain`) → RootfsGuestFileRepository (`:data`)
+```
+
+### Decisions worth keeping
+
+- **The `editor` command is a shell *function*, not a file in the rootfs.**
+  A script needs a shebang the *host* kernel can resolve before PRoot starts;
+  inside a guest the only resolvable shebangs are host paths, which would run
+  the interpreter outside the guest where `/dev/tty` is not the PTY the terminal
+  owns. A function is already inside the guest shell, so the shell-integration
+  script's open fd on the guest's `/dev/tty` is reused. Verified byte-for-byte
+  in both bash and zsh.
+- **OSC 1339 is Drosh-private.** 133 is FinalTerm, 1337/1338 are iTerm2.
+- **Relative paths are resolved in the shell** against `$PWD`, because that is
+  the only authority on where the user is; OSC 7 would report the same thing
+  but only after the prompt is redrawn, which has not happened yet.
+- **Path travels as a URI-encoded query argument**, not a path segment — a guest
+  path contains slashes and would not match the route pattern.
+- **Dirty tracking ignores `ContentChangeEvent.ACTION_SET_NEW_TEXT`**, which is
+  how `setText()` reports itself. That is what keeps loading a file (or pushing
+  a saved buffer back) from marking the document dirty, with no flag to reset.
+- **The buffer is read on demand, never per keystroke.** sora fires a
+  `ContentChangeEvent` on every edit; reading the whole document on each one
+  makes typing O(file), which is visible at the 2 MiB ceiling.
+- **`CodeEditor.release()` is mandatory** and is called in `DisposableEffect`; it
+  owns a background syntax-analysis thread. The event subscription is cancelled
+  *before* the release.
+
+### File access is rootfs-only
+
+`RootfsGuestFileRepository` maps `/home/x` ↔ `<filesDir>/ubuntu/rootfs/home/x` by
+concatenation — true only under the rootfs. PRoot bind-mounts `/sdcard`,
+`/storage`, `/data`, `/proc`, `/sys` and `/system*`, and `rootfsDir + "/sdcard"`
+names a real but *unrelated* directory, so those are **refused** with
+`FileFailure.OutsideRootfs` rather than silently reading the wrong file. Both
+sides of the check are canonicalised, so `..` and symlinks are covered too.
+
+`GuestFileLimits.MAX_EDIT_BYTES = 2 MiB`.
+
+### Not built yet
+
+- **No syntax highlighting.** `language-textmate` is in the catalog and pinned,
+  but wiring it needs core-library desugaring (it uses `java.time` below API 33)
+  and bundled `*.tmLanguage.json` grammars, which do not ship with the library.
+  Until then the editor is plain monospace text. The colour scheme already sets
+  the token keys so a theme has somewhere to land.
+- **No file tree, no tabs, no split view, no LSP.**
+- `FlatKeyBar`'s Backspace is still wired to `HOME`
+  (`ui/.../input/FlatKeyBar.kt:170`) and `ExtraKey.Navigation` has no
+  `BACKSPACE` member — unrelated to the editor but still wrong.
 
 ---
 
