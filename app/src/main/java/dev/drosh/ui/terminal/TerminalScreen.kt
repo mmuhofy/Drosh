@@ -155,19 +155,16 @@ fun TerminalScreen(
     terminalViewModel: TerminalViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onExit: () -> Unit = {},
-<<<<<<< HEAD
-    onOpenAgent: () -> Unit = {},
-=======
     /**
-     * Called with a guest path when the user types `editor <path>`.
+     * Called with a guest path when the guest runs `dedit <path>`.
      *
      * A callback rather than navigating from here, so this screen keeps no
-     * reference to a NavController — it is instantiated twice in `MainActivity`
+     * reference to a NavController - it is instantiated twice in `MainActivity`
      * (before and after the PIN gate) and navigating from inside it would tie
      * the terminal to one of those call sites.
      */
     onOpenEditor: (String) -> Unit = {},
->>>>>>> 9e9c198 (feat(editor): open a native editor with `editor <path>`)
+    onOpenAgent: () -> Unit = {},
 ) {
     var showProgress by remember { mutableStateOf(false) }
 

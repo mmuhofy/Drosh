@@ -316,11 +316,8 @@ class MainActivity : ComponentActivity() {
                         onOpenSettings = { navController.navigate("settings") },
                         extraKeyState = extraKeyState,
                         onExit = { context.finish() },
-<<<<<<< HEAD
-                        onOpenAgent = { navController.navigate("agent_home") },
-=======
                         onOpenEditor = { path -> navController.openEditor(path) },
->>>>>>> 9e9c198 (feat(editor): open a native editor with `editor <path>`)
+                        onOpenAgent = { navController.navigate("agent_home") },
                     )
                 }
             }
@@ -335,11 +332,8 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = { navController.navigate("settings") },
                     extraKeyState = extraKeyState,
                     onExit = { context.finish() },
-<<<<<<< HEAD
-                    onOpenAgent = { navController.navigate("agent_home") },
-=======
                     onOpenEditor = { path -> navController.openEditor(path) },
->>>>>>> 9e9c198 (feat(editor): open a native editor with `editor <path>`)
+                    onOpenAgent = { navController.navigate("agent_home") },
                 )
             }
 
