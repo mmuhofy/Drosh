@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -189,6 +190,14 @@ object GlassPillDefaults {
     /** 48dp — the Material minimum; the pill is smaller than this on purpose. */
     val TouchTarget: Dp = 48.dp
 
-    /** Accent for a pill in an active or busy state. */
-    val ActiveTint: Color = DroshPrimary
+    /**
+     * Accent for a pill in an active or busy state.
+     *
+     * A function, not a val: the palette tokens are `@Composable` getters over
+     * `LocalDroshColors`, so reading one from an object initialiser has no
+     * composition to read it from. Same reason `GlassPill`'s own defaults are all
+     * plain `Dp`.
+     */
+    val ActiveTint: Color
+        @Composable @ReadOnlyComposable get() = DroshPrimary
 }
