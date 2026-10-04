@@ -47,6 +47,7 @@ import com.termux.view.textselection.TextSelectionCursorController
 import dev.drosh.terminal.SearchHighlightOverlay
 
 import java.util.Properties
+import kotlin.math.abs
 
 /** View displaying and interacting with a [TerminalSession]. */
 class TerminalView(context: Context, attributes: AttributeSet?) : View(context, attributes) {
@@ -423,6 +424,19 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
         return object : BaseInputConnection(this, true) {
 
+            /**
+             * Where the shell's cursor is, as far as this connection can tell.
+             *
+             * Not the real position — that lives in the shell's line editor and
+             * is not observable from here. It is a running estimate advanced by
+             * what we send and rebased by every selection change, which is what
+             * a keyboard needs in order to compute a meaningful delta.
+             */
+            private var imeCursor: Int = 0
+
+            /** Recent committed text, so getTextBeforeCursor is not always empty. */
+            private val typedMirror = StringBuilder()
+
             /*
              * A terminal has no notion of a composing region: there is nothing
              * to pre-edit and then commit, the bytes have to reach the PTY as
@@ -456,6 +470,65 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 return true
             }
 
+            /**
+             * Moves the cursor by translating the IME's selection change into
+             * arrow key events.
+             *
+             * A terminal has no editable buffer for an IME to point into. The
+             * only thing that can move a shell's cursor is the terminal itself,
+             * via the arrow escape sequences. Left unhandled,
+             * `setSelection` reached `BaseInputConnection` and was applied to a
+             * mirror that is cleared after every commit, so it clamped to zero
+             * and did nothing.
+             *
+             * That breaks any keyboard which moves the cursor through
+             * `setSelection` rather than through arrow keys — FUTO for one,
+             * which is also how it corrupts input: the IME keeps a selection it
+             * believes in, and the next commit flushes a mirror that no longer
+             * agrees with it.
+             *
+             * Only the horizontal delta is honoured. The IME cannot know the
+             * shell's true cursor position, so [imeCursor] is our own running
+             * estimate: advanced by each committed text, and rebased by each
+             * selection change.
+             */
+            override fun setSelection(start: Int, end: Int): Boolean {
+                if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) {
+                    mClient!!.logInfo(LOG_TAG, "IME: setSelection($start, $end)")
+                }
+                // A selection range cannot be represented in a terminal; collapse
+                // it to a caret so the estimate stays meaningful.
+                val target = if (start == end) start else minOf(start, end)
+                val delta = target - imeCursor
+                if (delta != 0) {
+                    moveCursor(delta)
+                    imeCursor = target
+                }
+                return true
+            }
+
+            override fun getTextBeforeCursor(n: Int): CharSequence? {
+                if (n <= 0) return ""
+                val length = minOf(n, typedMirror.length)
+                if (length == 0) return ""
+                return typedMirror.substring(typedMirror.length - length, typedMirror.length)
+            }
+
+            override fun getTextAfterCursor(n: Int): CharSequence? = ""
+
+            override fun getSelectedText(n: Int): CharSequence? = ""
+
+            private fun moveCursor(delta: Int) {
+                val step = if (delta > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
+                var remaining = abs(delta)
+                // Batched so a long jump is one burst of events, not hundreds.
+                while (remaining > 0) {
+                    val chunk = minOf(remaining, CURSOR_MOVE_BATCH)
+                    repeat(chunk) { handleKeyCode(step, 0) }
+                    remaining -= chunk
+                }
+            }
+
             override fun finishComposingText(): Boolean {
                 if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) mClient!!.logInfo(LOG_TAG, "IME: finishComposingText()")
                 super.finishComposingText()
@@ -476,7 +549,30 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 val content = editable!!
                 sendTextToTerminal(content)
                 content.clear()
+                // Keep the running cursor estimate in step with what the shell
+                // has actually received, so a later setSelection computes its
+                // delta against reality rather than against a stale mirror.
+                advanceCursor(content)
                 return true
+            }
+
+            /**
+             * Records committed text and moves the estimate forward.
+             *
+             * Bounded on purpose: this exists to let a keyboard read a little
+             * context back, not to mirror the whole command line.
+             */
+            private fun advanceCursor(sent: CharSequence) {
+                val length = sent.length
+                if (length == 0) return
+                imeCursor += length
+                typedMirror.append(sent)
+                if (typedMirror.length > TYPED_MIRROR_MAX) {
+                    val excess = typedMirror.length - TYPED_MIRROR_MAX
+                    typedMirror.delete(0, excess)
+                    imeCursor -= excess
+                    if (imeCursor < 0) imeCursor = 0
+                }
             }
 
             override fun deleteSurroundingText(leftLength: Int, rightLength: Int): Boolean {
@@ -486,6 +582,9 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 // The stock Samsung keyboard with 'Auto check spelling' enabled sends leftLength > 1.
                 val deleteKey = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL)
                 for (i in 0 until leftLength) sendKeyEvent(deleteKey)
+                // Backspaces move the shell's cursor left, so the estimate has
+                // to follow or the next setSelection overshoots.
+                if (leftLength > 0) imeCursor = (imeCursor - leftLength).coerceAtLeast(0)
                 return super.deleteSurroundingText(leftLength, rightLength)
             }
 
@@ -1772,5 +1871,14 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
          private const val LOG_TAG = "TerminalView"
 
         private const val SPACE_DRAG_TIMEOUT_MS: Long = 500
+
+        /** Upper bound on text read back by getTextBeforeCursor. */
+        private const val TYPED_MIRROR_MAX = 256
+
+        /**
+         * Arrow events per batch when moving the cursor a long way, so a large
+         * jump does not turn into hundreds of separate PTY writes.
+         */
+        private const val CURSOR_MOVE_BATCH = 16
      }
 }
