@@ -30,15 +30,19 @@ android {
     }
 
     compileOptions {
-        // Required by language-textmate, which calls java.time APIs that do not
-        // exist below API 33. Only take the dependency once that module lands;
-        // desugaring rewrites bytecode across the app for a feature that is not
-        // in the first cut.
-        // isCoreLibraryDesugaringEnabled = true
+        // Required by language-textmate: it uses java.time APIs that do not
+        // exist below API 33, and without this it throws NoClassDefFoundError at
+        // runtime on API 26-32 — which is every device this app supports. The
+        // version is the one upstream prescribes for the textmate module.
+        isCoreLibraryDesugaringEnabled = true
     }
 }
 
 dependencies {
+    // Must be the same coordinate as :app's, or the two modules desugar with
+    // different libraries and the packaged app does not link.
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
     api(project(":domain"))
     implementation(project(":core"))
     implementation(project(":design-system"))
@@ -51,6 +55,11 @@ dependencies {
     // The editor widget itself. Java-only, so no Kotlin metadata and no clash
     // with this project's Kotlin 2.2.0 — see the pin note in libs.versions.toml.
     implementation(libs.sora.editor)
+
+    // Syntax highlighting via TextMate. Pinned to 0.24.3, not 0.24.6: the latter
+    // is compiled with Kotlin 2.3.10 and its metadata is unreadable by this
+    // project's KGP 2.2.0. Measured with javap on the real artifacts.
+    implementation(libs.sora.language.textmate)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.timber)

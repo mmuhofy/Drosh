@@ -14,10 +14,12 @@ import dev.drosh.domain.agent.ToolUpdate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.job
 import kotlinx.coroutines.selects.select
+import kotlin.coroutines.ContinuationInterceptor
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -32,6 +34,26 @@ import java.util.concurrent.atomic.AtomicLong
  * is a separate concern and gets its own event — the model wants a clipped
  * version of the result plus a marker saying it was clipped, while the UI wants
  * the tool's own message and a flag saying it was truncated.
+ *
+ * ## Why [confined] wraps every emit
+ *
+ * A `FlowCollector` is not thread-safe and must only be emitted from the
+ * coroutine that collected it — the loop's flow is collected on the ViewModel's
+ * dispatcher (Main), while tools do their work on IO.
+ *
+ * `ShellTool` is the case that proves it: it passes its `onOutput` lambda into
+ * `TerminalManager.executeCommand`, which reads the process inside
+ * `withContext(Dispatchers.IO)` and calls that lambda from the IO thread. So a
+ * plain `collector.emit(...)` from inside a tool arrives from IO at a collector
+ * living on Main, and kotlinx.coroutines throws
+ * *"Flow invariant is violated"* — taking the whole run down on the first shell
+ * command.
+ *
+ * The alternative was `flowOn(Dispatchers.IO)` on `AgentSession.send`, which
+ * moves the entire loop off the collector's context and out of `runTest`'s
+ * virtual clock. Capturing the interceptor where the tool call *starts* and
+ * hopping back for each emit keeps the loop where it was collected and leaves
+ * the tests deterministic.
  */
 internal class ToolCallExecutor(
     private val registry: ToolRegistry,
@@ -49,13 +71,17 @@ internal class ToolCallExecutor(
         collector: FlowCollector<AgentEvent>,
     ): String {
         val startedAt = System.currentTimeMillis()
+        // Captured once, before any tool runs: the whole point is the context this
+        // call *started* on, and reading it inside the emit lambda would report the
+        // tool's context instead — the one that is wrong.
+        val events = confined(collector)
         val tool = registry.find(call.name)
 
         if (tool == null) {
             // Not fatal. The model is told what it could have called and gets
             // another turn; ending the run over a hallucinated name discards
             // everything that led up to it.
-            return unknownTool(call, collector)
+            return unknownTool(call, events)
         }
 
         collector.emit(
@@ -73,9 +99,9 @@ internal class ToolCallExecutor(
                     chatId = chatId,
                     workingDirectory = workingDirectory,
                     step = step,
-                    emit = { update -> collector.emit(update.eventFor(call.id)) },
+                    emit = { update -> events.emit(update.eventFor(call.id)) },
                     awaitApproval = { request ->
-                        awaitApproval(tool, call, request, chatId, collector)
+                        awaitApproval(tool, call, request, chatId, events)
                     },
                 ),
             )
@@ -92,7 +118,7 @@ internal class ToolCallExecutor(
 
         val trimmed = ToolOutputTrimmer.trim(result.toResponseString())
 
-        collector.emit(
+        events.emit(
             AgentEvent.ToolCompleted(
                 callId = call.id,
                 name = tool.name,
@@ -109,6 +135,7 @@ internal class ToolCallExecutor(
         call: LlmToolCall,
         collector: FlowCollector<AgentEvent>,
     ): String {
+        // Already confined by the caller.
         val available = registry.names()
         val message = buildString {
             append("No tool named '").append(call.name).append("'.")
@@ -119,7 +146,7 @@ internal class ToolCallExecutor(
             }
         }
 
-        collector.emit(
+        events.emit(
             AgentEvent.ToolCompleted(
                 callId = call.id,
                 name = call.name,
@@ -149,7 +176,7 @@ internal class ToolCallExecutor(
         val approvalId = "ap_${approvalIds.incrementAndGet()}"
         val waiter: CompletableDeferred<ApprovalDecision> = pending.register(approvalId, chatId)
 
-        collector.emit(
+        events.emit(
             AgentEvent.ApprovalRequired(
                 AgentApproval(
                     id = approvalId,
@@ -184,4 +211,32 @@ internal class ToolCallExecutor(
 private fun ToolUpdate.eventFor(callId: String): AgentEvent = when (this) {
     is ToolUpdate.Output -> AgentEvent.ToolOutput(callId, line)
     is ToolUpdate.Progress -> AgentEvent.ToolProgress(callId, text)
+}
+
+/**
+ * Capture the context this tool call was entered on, and return a collector that
+ * hops back to it for every emit.
+ *
+ * The interceptor is read once, at the call site, rather than per emit: reading
+ * `currentCoroutineContext()` inside the emit lambda would report the *tool's*
+ * context — which is the one that is wrong.
+ *
+ * `ContinuationInterceptor` is captured on its own rather than the whole
+ * [kotlin.coroutines.CoroutineContext], because a context carries its Job and
+ * re-parenting every emit under it would detach the emission from the run's
+ * cancellation.
+ */
+private suspend fun confined(collector: FlowCollector<AgentEvent>): ConfinedCollector =
+    ConfinedCollector(collector, currentCoroutineContext()[ContinuationInterceptor])
+
+private class ConfinedCollector(
+    private val delegate: FlowCollector<AgentEvent>,
+    /** Null when the calling context has no interceptor, i.e. nothing to hop to. */
+    private val interceptor: ContinuationInterceptor?,
+) : FlowCollector<AgentEvent> {
+
+    override suspend fun emit(value: AgentEvent) {
+        val target = interceptor
+        if (target == null) delegate.emit(value) else withContext(target) { delegate.emit(value) }
+    }
 }
