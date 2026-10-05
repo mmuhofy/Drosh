@@ -41,6 +41,7 @@ Termux brought the terminal to Android in 2012. Drosh reinvents it for 2026. Not
 | Min SDK         | 26                                     | Android 8.0+                       |
 | Target SDK      | 36                                     | Android 16                         |
 | Terminal Engine | termux-view + termux-terminal-emulator | Vendored from Iris Code            |
+| Editor Engine | **sora-editor** (`io.github.rosemoe:editor`) | Native Android widget, LGPL-2.1-or-later |
 | PTY             | libtermux.so (JNI)                     | Prebuilt, port from Iris Code      |
 | Linux Env       | PRoot v5.2.0 + Ubuntu 24.04 rootfs     | Port from Iris Code                |
 | Agent Loop      | MultiStepStreamer + AgentLoop          | Port from Iris Code                |
@@ -353,6 +354,153 @@ PTY → ANSI → Semantic → Rich Renderer → Compose UI
 
 ---
 
+## 7A. Native Editor
+
+*Merged 2026-10-05. PR #15, branch `feat/editor-clean`.*
+
+### Shape
+
+```
+$ dedit notes.md        → opens in Drosh's native editor
+$ dedit --help
+$ dpkg -l | grep dedit  → it is a real package
+```
+
+One command, one file, one screen. No file tree, no tabs.
+
+### `dedit` is a package, not a shell function
+
+The first attempt injected an `editor` **shell function** from the shell-integration
+script. It never ran, so `editor foo.txt` fell through to Ubuntu's
+`/usr/bin/editor` — which is nano. Measured, not assumed:
+
+| invocation | reads `$ENV`? |
+|---|---|
+| `ENV=f zsh -i -l` — what Drosh does, `--login` | **no** |
+| `ENV=f zsh -i` | **no** |
+| `ZDOTDIR/.zshenv` | yes |
+
+**zsh does not read `$ENV` in native mode.** Since Drosh prefers zsh whenever
+Oh My Zsh is installed, `DroshShellIntegration.install()`'s zsh plan has never
+worked. See §16 — this also means **OSC 133 does not fire for zsh**, which is
+why the block engine's command lifecycle has been degraded on the default shell.
+Still unfixed; fixing it means injecting into `~/.zshenv`, which touches a user
+file.
+
+A packaged executable has none of that fragility: it does not care which shell
+runs, whether it is interactive, or whether any startup file was sourced. So
+`dedit` works from a script, a Makefile or a bare `sh -c` — none of which a shell
+function can. It draws nothing itself, so it composes with pipes.
+
+Built for real: `dpkg-deb --build` over a staging tree, a hand-written
+`Packages` index (`dpkg-scanpackages` is in dpkg-dev, absent from the base
+rootfs), `apt-get install dedit`. Any failure falls back to copying the command
+into `/usr/local/bin` — a missing `dedit` is worse than one dpkg does not know
+about, and failing the install step would send a working terminal back to the
+recovery screen.
+
+**Shebang is host-absolute**, built from the real `filesDir` at runtime: the
+kernel resolves a shebang before PRoot is involved and `/bin/sh` does not exist
+on the Android host. Termux does this in 40k+ files. An NDK binary was
+rejected — this program's whole job is to validate one argument and write forty
+bytes to a file descriptor.
+
+**Validation, with messages:** no argument, more than one, unknown option, a
+directory, an unreadable file, a read-only file (warns, still opens), over
+2 MiB, a missing parent directory, and the bind-mounted paths the app cannot
+open (`/sdcard`, `/data`, `/proc`, …). BEL and ESC are stripped from the path
+rather than refused: they would end the escape sequence early and silently open
+the wrong file. Verified in dash.
+
+### Signal path
+
+```
+dedit <path>                         a packaged POSIX sh script
+    ↓ ESC ] 1339 ; <guest path> BEL  Drosh-private OSC
+TerminalEmulator.handleOscDroshOpenEditor
+    ↓
+ShellIntegrationState.onOpenEditor   per-session event, NOT CommandSnapshot
+    ↓
+EditorRequestPublisher               Channel(BUFFERED) → Flow<String>
+    ↓
+TerminalScreen → onOpenEditor(path)   callback, holds no NavController
+    ↓ navigate "editor?guestPath=…"   URI-encoded: a guest path has slashes
+EditorScreen (`:editor`) → SoraCodeEditor → sora CodeEditor (AndroidView)
+    ↓
+EditorViewModel → GuestFileRepository (`:domain`) → RootfsGuestFileRepository (`:data`)
+```
+
+OSC 1339 is Drosh-private: 133 is FinalTerm, 1337/1338 are iTerm2's. Relative
+paths resolve against `$PWD` in the script, because that is the only authority
+on where the user is; OSC 7 reports the same thing but only after the prompt
+redraws, which has not happened when a command runs.
+
+`ShellIntegrationState.onOpenEditor` is deliberately **not** folded into
+`CommandSnapshot`: an editor request has no lasting state, and putting it in the
+snapshot would make the block engine read every file open as command activity.
+
+### Editor engine
+
+`Rosemoe/sora-editor` — the only serious open-source Android code editor
+*widget*. None of the editing is reimplemented; buffer, cursor, selection,
+undo/redo, auto-indent, word wrap and rendering are all sora's.
+
+- **Licence: LGPL-2.1-or-later.** Drosh is GPL-3.0. Compatible in principle
+  (LGPL "or later" permits relicensing under GPL-3) but **Muhofy has not signed
+  off**, and it needs checking before any F-Droid submission.
+- Upstream marks every release `prerelease` and its README says "developing
+  slowly". Pinned deliberately for that reason.
+
+**Version pin — measured, not guessed.** `editor` is pure Java (verified:
+`editor-0.24.6.aar` contains zero `.kotlin_metadata`). `language-textmate` is
+Kotlin, and its metadata version is the constraint:
+
+| Artifact | metadata (`mv`) | readable by KGP 2.2.0 |
+|---|---|---|
+| `editor:0.24.6` | *(no Kotlin)* | yes |
+| `language-textmate:0.24.3` | `[2,2,0]` | yes |
+| `language-textmate:0.24.6` | `[2,3,0]` | **no — compile error** |
+
+Hence the two are pinned apart and **`editor-bom` is deliberately not used** —
+it would force one version and reintroduce the 2.3 metadata. Same class of trap
+as the `kotlinx-serialization` pin already in the catalog.
+
+### Syntax highlighting
+
+`language-textmate:0.24.3`. Core library desugaring is on in **both** `:editor`
+and `:app`: tm4e uses `java.time`, which does not exist below API 33, and this
+app supports API 26.
+
+Eleven grammars — bash, json, yaml, python, kotlin, java, javascript, typescript,
+cpp, csharp, markdown — vendored from MIT-licensed microsoft/vscode at a pinned
+commit, plus Kotlin from MIT-licensed fwcd/vscode-kotlin. Per-file provenance in
+`editor/src/main/assets/textmate/PROVENANCE.md`. The theme is Drosh's own,
+written against the palette in `:core`, so highlighted files match the terminal.
+
+Loading is once per process and total: a grammar that fails to parse costs one
+file its colours, not the user their editor. An unknown extension opens as plain
+text rather than being guessed at.
+
+### File access is rootfs-only
+
+`RootfsGuestFileRepository` maps `/home/x` ↔ `<filesDir>/ubuntu/rootfs/home/x` by
+concatenation — true only under the rootfs. PRoot bind-mounts `/sdcard`,
+`/storage`, `/data`, `/proc`, `/sys` and `/system*`, and `rootfsDir + "/sdcard"`
+names a real but *unrelated* directory, so those are **refused** with
+`FileFailure.OutsideRootfs` rather than silently reading the wrong file. Both
+sides are canonicalised, which covers `..` and symlinks too.
+
+`GuestFileLimits.MAX_EDIT_BYTES = 2 MiB`.
+
+### Still not built
+
+- No file tree, no tabs, no LSP, no split view inside the editor.
+- `FlatKeyBar`'s Backspace is still wired to `HOME`
+  (`ui/.../input/FlatKeyBar.kt:170`) and `ExtraKey.Navigation` has no
+  `BACKSPACE` member — unrelated to the editor but still wrong.
+
+---
+
 ## 7B. Split Panes & Floating Window
 
 *Added 2026-10-05. Branch `feat/split-pane-panes`, PR #19.*
@@ -548,7 +696,7 @@ Workspace: MyApp
 
 ---
 
-## 7B. Workspace / Project System
+## 7C. Workspace / Project System
 
 *Added 2026-10-05. Branch `feat/workspace`.*
 
@@ -1135,6 +1283,9 @@ data class SshHost(
 | 11 | Split in Block mode | Per-pane block engine, or classic-only? | Resolved 2026-10-05: classic-only for now. Block mode has one wire and one repository; per-pane blocks is a bigger change than it looks. |
 | 12 | Split gesture | Drag the row, or a dedicated grip? | Resolved 2026-10-05: dedicated grip. One gesture cannot reliably mean two things in Compose — the detectors race on the same timeout. |
 | 13 | Split depth | Arbitrary nesting, or two panes? | Resolved 2026-10-05: two. Nested panes on a phone are too narrow to read, and each is another divider to discover. |
+| 14 | sora-editor licence | Accept LGPL-2.1-or-later inside a GPL-3.0 app? | **OPEN — Muhofy must sign off.** Compatible in principle, but blocks F-Droid until confirmed. See §7A. |
+| 15 | zsh `$ENV` breakage | Inject into `~/.zshenv`, or leave OSC 133 dead on zsh? | **OPEN.** Touches a user file, so not done unilaterally. Also fixes the block engine's command lifecycle on the default shell. See §7A. |
+| 16 | Editor surface | Split view with the terminal, or full screen? | Resolved 2026-10-05: full screen, separate route. One document at a time, no tabs. |
 
 ---
 

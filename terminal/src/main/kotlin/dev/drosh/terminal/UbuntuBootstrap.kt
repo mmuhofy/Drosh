@@ -123,6 +123,12 @@ class UbuntuBootstrap(private val context: Context) {
                 )
                 onLog("✓ Base packages installed.")
 
+                // `dedit` ships as a real package so the command exists in the
+                // terminal the way a user expects. dpkg-deb and apt are used
+                // inside proot rather than by hand; see dedit-install.sh.
+                onLog("→ Installing the dedit package…")
+                installDeditPackage(onLog)
+
                 val shellChoice = preferences.shellChoice
                 if (shellChoice == ShellChoice.Zsh) {
                     onLog("→ Installing Oh My Zsh + plugins…")
@@ -190,6 +196,36 @@ class UbuntuBootstrap(private val context: Context) {
     // the pipeline and forwards logs — see `runScriptInProot`.
 
     // ─── Proot script loading & execution ──────────────────────────
+
+    /**
+     * Stages and installs the `dedit` package.
+     *
+     * Best effort by design. A broken `dedit` should cost the user the command,
+     * not the whole rootfs — bootstrap has already downloaded and configured
+     * Ubuntu by this point, and failing the install step would send a working
+     * terminal back to the recovery screen over a package the user may not even
+     * have asked for yet.
+     */
+    private fun installDeditPackage(onLog: (String) -> Unit) {
+        // The shebang has to be a path the host kernel can resolve, so it is
+        // built from the real filesDir rather than assumed to be
+        // /data/data/<pkg>/files. See DeditPackage for why it is host-absolute.
+        val hostShell = File(rootfsDir, "bin/sh").absolutePath
+        if (!DeditPackage.stage(context, hostShell)) {
+            onLog("  · Could not stage dedit; skipping.")
+            return
+        }
+        val repoDir = File(baseDir, "dedit-repo").apply { mkdirs() }
+        val rc = runScriptInProot(
+            SCRIPTS_DEDIT,
+            onLog = onLog,
+            envExtras = mapOf(
+                "DEDIT_SRC" to DeditPackage.stagingDir(context).absolutePath,
+                "DEDIT_REPO" to repoDir.absolutePath,
+            ),
+        )
+        if (rc != 0) onLog("  · dedit install exited $rc; the command may be unavailable.")
+    }
 
     private fun loadAssetScript(scriptName: String): String {
         val path = "shell-scripts/setup/$scriptName"
@@ -357,6 +393,7 @@ class UbuntuBootstrap(private val context: Context) {
         // Each is shipped in the APK and streamed to proot via stdin (`bash -s`).
         private const val SCRIPTS_CONFIGURE = "rootfs-configure.sh"
         private const val SCRIPTS_PACKAGES = "packages-install.sh"
+        private const val SCRIPTS_DEDIT = "dedit-install.sh"
         private const val SCRIPTS_SET_DEFAULT_SHELL = "set-default-shell.sh"
         private const val SCRIPTS_RESET_SHELL_TO_BASH = "reset-shell-to-bash.sh"
         private const val SCRIPTS_OMZ = "omz-install.sh"

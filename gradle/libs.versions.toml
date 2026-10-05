@@ -64,6 +64,22 @@ sshj = "0.41.1"
 # Diff utilities
 diffUtils = "4.12"
 
+# Native editor — Rosemoe/sora-editor (LGPL-2.1-or-later)
+# The two are pinned apart on purpose: `editor` is pure Java so it carries no
+# Kotlin metadata at any version, but `language-textmate` is Kotlin and 0.24.5+
+# is compiled with Kotlin 2.3.10. Measured with javap on the real artifacts:
+#   language-textmate 0.24.3 -> mv=[2,2,0]  (readable by this project's KGP 2.2.0)
+#   language-textmate 0.24.6 -> mv=[2,3,0]  (NOT readable — compile error)
+# So no editor-bom here: the BOM would drag both to one version and reintroduce
+# the 2.3 metadata. Raise language-textmate only after this project moves to a
+# Kotlin that can read metadata 2.3.
+soraEditor = "0.24.6"
+soraLanguageTextmate = "0.24.3"
+# Core library desugaring. Required by language-textmate on API < 33 — it uses
+# java.time APIs that do not exist there. Version matches the one upstream docs
+# prescribe for the textmate module.
+desugarJdkLibs = "2.1.5"
+
 # Image loading
 coil = "3.3.0"                # 3.4+ built with Kotlin 2.3.10/2.4.0; KGP 2.2.0 reads metadata <= 2.3.0
 
@@ -160,6 +176,13 @@ sshj = { group = "com.hierynomus", name = "sshj", version.ref = "sshj" }
 
 # Diff
 diff-utils = { group = "io.github.java-diff-utils", name = "java-diff-utils", version.ref = "diffUtils" }
+
+# Native editor — Rosemoe/sora-editor. LGPL-2.1-or-later; see the version block.
+sora-editor = { group = "io.github.rosemoe", name = "editor", version.ref = "soraEditor" }
+sora-language-textmate = { group = "io.github.rosemoe", name = "language-textmate", version.ref = "soraLanguageTextmate" }
+
+# Core library desugaring (language-textmate needs java.time below API 33)
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 
 # Image
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }

@@ -63,6 +63,52 @@ object DroshShellIntegration {
         }
     }
 
+    /**
+     * The `editor` command, appended to both shell scripts.
+     *
+     * A shell function rather than an executable dropped into the rootfs, and
+     * that is the whole reason for the shape. A script would need a shebang
+     * the *host* kernel can resolve before PRoot is ever entered, and inside a
+     * PRoot guest the only resolvable shebangs are host paths — which run the
+     * interpreter outside the guest, where `/dev/tty` is not the PTY this
+     * terminal owns and the escape sequence would be written into the void.
+     * A function is already inside the guest shell, so [__drosh_osc]'s
+     * already-open fd on the guest's `/dev/tty` is simply reused.
+     *
+     * It also means no binary is planted in `/usr/local/bin`, nothing is
+     * shadowed on the user's `$PATH`, and removing the feature removes the
+     * command with it.
+     *
+     * The relative-path case is resolved here rather than in the app because
+     * `$PWD` is the only authority on where the user actually is; OSC 7
+     * reports the same thing but only once the prompt is redrawn, which has not
+     * happened yet when a command runs.
+     *
+     * POSIX sh only — this text is pasted into a zsh script and a bash script
+     * alike, so `local`, arrays and zsh globbing syntax are all avoided.
+     */
+    private val EDITOR_FUNCTION = """
+        # `editor <file>` — open a file in Drosh's native editor.
+        editor() {
+          if [ "${'$'}#" -lt 1 ]; then
+            printf 'editor: usage: editor <file>\n' >&2
+            return 2
+          fi
+          __drosh_editor_target="${'$'}1"
+          case "${'$'}__drosh_editor_target" in
+            /*) ;;
+            *) __drosh_editor_target="${'$'}{PWD:-/}/${'$'}__drosh_editor_target" ;;
+          esac
+          # BEL and ESC would close the OSC before the path was complete.
+          __drosh_editor_target=${'$'}(printf '%s' "${'$'}__drosh_editor_target" | tr -d '\007\033')
+          if [ -z "${'$'}__drosh_editor_target" ]; then
+            printf 'editor: empty path\n' >&2
+            return 1
+          fi
+          __drosh_osc "${'$'}(printf '\033]1339;%s\a' "${'$'}__drosh_editor_target")"
+        }
+    """
+
     private fun writeScript(context: Context, suffix: String, body: String): File {
         val dir = File(context.filesDir, "shell-integration").apply { mkdirs() }
         val file = File(dir, "$SCRIPT_FILE_NAME.$suffix")
@@ -102,9 +148,11 @@ object DroshShellIntegration {
             return 0 2>/dev/null || true
           fi
 
-          __drosh_osc() {
-            builtin print -rnu -- "${'$'}__drosh_tty_fd" -- "${'$'}1" 2>/dev/null
+__drosh_osc() {
+            builtin print -rnu -- "${'$'}{__drosh_tty_fd}" -- "${'$'}1" 2>/dev/null
           }
+
+          __drosh_editor_function
 
           __drosh_wrap_prompt() {
             case "${'$'}PROMPT" in
@@ -183,6 +231,8 @@ object DroshShellIntegration {
           __drosh_osc() {
             builtin printf '%s' "${'$'}1" >&"${'$'}__drosh_tty_fd" 2>/dev/null
           }
+
+          __drosh_editor_function
 
           # Command finished. Must capture ${'$'}? before anything else runs.
           __drosh_precmd() {

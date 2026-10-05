@@ -30,7 +30,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+<<<<<<< HEAD
+=======
+import androidx.navigation.NavType
+>>>>>>> origin/feat/editor-clean
 import androidx.navigation.compose.NavHost
+import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
@@ -39,6 +44,7 @@ import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
+import dev.drosh.editor.EditorScreen
 import dev.drosh.terminal.ExtraKeyState
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.UbuntuSetupState
@@ -314,6 +320,7 @@ class MainActivity : ComponentActivity() {
                         onOpenSettings = { navController.navigate("settings") },
                         extraKeyState = extraKeyState,
                         onExit = { context.finish() },
+                        onOpenEditor = { path -> navController.openEditor(path) },
                         onOpenAgent = { navController.navigate("agent_home") },
                         onOpenProjects = { navController.navigate("workspace") },
                     )
@@ -330,6 +337,7 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = { navController.navigate("settings") },
                     extraKeyState = extraKeyState,
                     onExit = { context.finish() },
+                    onOpenEditor = { path -> navController.openEditor(path) },
                     onOpenAgent = { navController.navigate("agent_home") },
                     onOpenProjects = { navController.navigate("workspace") },
                 )
@@ -381,6 +389,27 @@ class MainActivity : ComponentActivity() {
                     onOpenSession = { navController.returnToTerminal() },
                 )
             }
+
+            // `editor <path>` lands here. The path goes in a query argument, not a
+            // path segment: a guest path contains slashes, and a path segment
+            // would be matched against the route pattern and fail. Callers pass
+            // it through Uri.encode, which also covers the `?`, `#` and space a
+            // filename is allowed to contain.
+            composable(
+                route = "editor?guestPath={guestPath}",
+                arguments = listOf(
+                    navArgument("guestPath") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                ),
+            ) { entry ->
+                val guestPath = entry.arguments?.getString("guestPath").orEmpty()
+                EditorScreen(
+                    guestPath = guestPath,
+                    onClose = { navController.popBackStack() },
+                )
+            }
         }
     }
 }
@@ -390,6 +419,7 @@ private fun String.toLocaleOrNull() =
     takeIf { it.isNotBlank() }?.let { java.util.Locale.forLanguageTag(it) }
 
 /**
+<<<<<<< HEAD
  * Come back to a terminal from a screen the user reached through Settings.
  *
  * The stack when this is called is terminal → settings → workspace, so a single
@@ -412,3 +442,14 @@ private fun NavHostController.returnToTerminal() {
 
 private const val TERMINAL_ROUTE = "terminal"
 private const val TERMINAL_HOME_ROUTE = "terminal_home"
+=======
+ * Opens the editor for a guest path.
+ *
+ * Uri.encode, not string interpolation: a path may contain spaces, `?`, `#` or
+ * `&`, all of which would otherwise truncate or split the query argument and
+ * send the editor to the wrong file — or to none.
+ */
+private fun NavHostController.openEditor(guestPath: String) {
+    navigate("editor?guestPath=${android.net.Uri.encode(guestPath)}")
+}
+>>>>>>> origin/feat/editor-clean

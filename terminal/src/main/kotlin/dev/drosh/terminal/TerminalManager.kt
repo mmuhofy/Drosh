@@ -81,7 +81,11 @@ class TerminalManager(
         onActiveSessionChanged?.invoke(activePersistentId())
         // Command marks are per session, so the flow follows whichever pane has
         // focus — that is the one a keystroke is going to.
-        commandState.bind(sessionForSlot(focusedPane.value))
+        val focusedSession = sessionForSlot(focusedPane.value)
+        commandState.bind(focusedSession)
+        // Same reasoning: `dedit` is a command, so it belongs to the session that
+        // ran it — the focused one — not to whichever tab happens to be showing.
+        editorRequests.bind(focusedSession)
     }
 
     /**
@@ -100,6 +104,16 @@ class TerminalManager(
      * Keyboard.
      */
     val commandState: CommandStatePublisher = CommandStatePublisher(commandActivity)
+
+    /**
+     * Paths the guest asked Drosh to open in the native editor, delivered by
+     * the `editor` shell command.
+     *
+     * One-shot events, so this is a [kotlinx.coroutines.flow.Flow] rather than
+     * state: there is nothing to read, only something to react to. Collected
+     * by the terminal screen to navigate.
+     */
+    val editorRequests: EditorRequestPublisher = EditorRequestPublisher()
 
     /**
      * Ambient tint derived from the colours on screen, or null when neutral.
@@ -1092,6 +1106,7 @@ class TerminalManager(
 
     fun destroy() {
         commandState.unbind()
+        editorRequests.unbind()
         // Every pane's view, not just one: a pane left registered keeps this
         // manager alive through its selection and scroll listeners after the
         // screens that built it are gone.
