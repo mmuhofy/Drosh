@@ -69,11 +69,16 @@ import dev.drosh.design.system.DroshWarning
 import dev.drosh.domain.agent.AgentRunState
 import dev.drosh.domain.agent.ApprovalDecision
 import dev.drosh.domain.agent.ChatMessage
+import dev.drosh.domain.agent.TerminalProjection
 import dev.drosh.domain.agent.TokenUsage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.components.GlassPill
 import dev.drosh.ui.agent.components.ActionButton
+import dev.drosh.ui.agent.components.AgentTerminalEmpty
+import dev.drosh.ui.agent.components.AgentPane
+import dev.drosh.ui.agent.components.AgentPaneToggle
+import dev.drosh.ui.agent.components.AgentTerminalPane
 import dev.drosh.ui.agent.components.CollapsibleRow
 import dev.drosh.ui.agent.components.DiffBlock
 import dev.drosh.ui.agent.components.DroshAgentMark
@@ -118,6 +123,12 @@ fun AgentChatScreen(
     val waiting = runState is AgentRunState.WaitingApproval
     val running = viewModel.isRunning
 
+    // Ephemeral view state, reset per chat so switching back does not land on the
+    // pane the other conversation was left on.
+    var pane by rememberSaveable(chatId) { mutableStateOf(AgentPane.CHAT) }
+    val terminalLines = remember(messages) { TerminalProjection.project(messages) }
+    val hasShellOutput = remember(messages) { terminalLines.isNotEmpty() }
+
     val listState = rememberLazyListState()
 
     // Follow the stream, but only when the user is already near the bottom.
@@ -142,6 +153,12 @@ fun AgentChatScreen(
             onBack = onBack,
             onStop = viewModel::stop,
             onOpenSettings = onOpenSettings,
+            pane = pane,
+            onPaneChange = { pane = it },
+            // Offered once something has run, and never while a command is in
+            // flight: an empty pane that fills in a second later is worse than not
+            // offering it.
+            showTerminal = hasShellOutput,
         )
 
         providerState.error?.let { message ->
@@ -164,20 +181,34 @@ fun AgentChatScreen(
             )
         }
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(messages, key = { it.id }) { message ->
-                MessageRow(message = message, onAnswer = viewModel::answer)
+        if (pane == AgentPane.TERMINAL) {
+            if (hasShellOutput) {
+                AgentTerminalPane(
+                    lines = terminalLines,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                AgentTerminalEmpty(
+                    running = running,
+                    modifier = Modifier.weight(1f),
+                )
             }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(messages, key = { it.id }) { message ->
+                    MessageRow(message = message, onAnswer = viewModel::answer)
+                }
 
-            if (messages.isEmpty()) {
-                item(key = "hint") { ChatEmptyHint() }
+                if (messages.isEmpty()) {
+                    item(key = "hint") { ChatEmptyHint() }
+                }
             }
         }
 
@@ -185,12 +216,16 @@ fun AgentChatScreen(
             UsageStrip(usage = usage)
         }
 
-        Composer(
-            enabled = !running,
-            stopVisible = running,
-            onSend = viewModel::send,
-            onStop = viewModel::stop,
-        )
+        // No composer on the terminal pane: it is a read-only view, and a text
+        // field under a non-interactive surface suggests otherwise.
+        if (pane == AgentPane.CHAT) {
+            Composer(
+                enabled = !running,
+                stopVisible = running,
+                onSend = viewModel::send,
+                onStop = viewModel::stop,
+            )
+        }
     }
 }
 
@@ -202,6 +237,9 @@ private fun ChatTopBar(
     onBack: () -> Unit,
     onStop: () -> Unit,
     onOpenSettings: () -> Unit,
+    pane: AgentPane,
+    onPaneChange: (AgentPane) -> Unit,
+    showTerminal: Boolean,
 ) {
     Column(
         modifier = Modifier
@@ -261,6 +299,20 @@ private fun ChatTopBar(
                     onClick = onOpenSettings,
                 )
             }
+        }
+
+        // Below the title rather than beside it: at 390dp there is no room for
+        // both, and a switch that pushes the title off-screen is worse than a
+        // second row.
+        if (showTerminal) {
+            AgentPaneToggle(
+                pane = pane,
+                onChange = onPaneChange,
+                showTerminal = showTerminal,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
         }
     }
 }

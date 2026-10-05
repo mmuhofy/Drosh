@@ -65,7 +65,8 @@ class TranscriptBuilderRestoreTest {
         assertTrue(error is IllegalStateException)
         // The live conversation is untouched: this is a programming error, not a
         // state to recover from.
-        assertEquals("live", builder.snapshot().single().text)
+        val live = builder.snapshot().single() as ChatMessage.Assistant
+        assertEquals("live", live.text)
     }
 
     @Test
@@ -92,6 +93,7 @@ class TranscriptBuilderRestoreTest {
         assertTrue(builder.snapshot().isEmpty())
         // And the builder is still usable, which is what an empty restore has to mean.
         builder.accept(AgentEvent.TextDelta("first"))
-        assertEquals("first", builder.snapshot().single().text)
+        val first = builder.snapshot().single() as ChatMessage.Assistant
+        assertEquals("first", first.text)
     }
 }
