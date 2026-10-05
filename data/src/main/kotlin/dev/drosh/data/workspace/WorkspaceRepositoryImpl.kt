@@ -1,5 +1,6 @@
 package dev.drosh.data.workspace
 
+import dev.drosh.data.local.DroshDatabase
 import dev.drosh.data.session.SessionDao
 import dev.drosh.domain.workspace.Workspace
 import dev.drosh.domain.workspace.WorkspaceEdit
@@ -13,9 +14,16 @@ import javax.inject.Singleton
 
 @Singleton
 class WorkspaceRepositoryImpl @Inject constructor(
-    private val workspaceDao: WorkspaceDao,
-    private val sessionDao: SessionDao,
+    private val database: DroshDatabase,
 ) : WorkspaceRepository {
+
+    // Derived from the database rather than injected: SessionDao has never been a
+    // Hilt binding — SessionRepositoryImpl takes the database and calls the
+    // accessor — and giving one consumer a @Provides that the other does not go
+    // through would split the pattern for no gain. WorkspaceDao is provided in
+    // DatabaseModule because it is injected directly.
+    private val workspaceDao: WorkspaceDao = database.workspaceDao()
+    private val sessionDao: SessionDao = database.sessionDao()
 
     override fun observeAll(): Flow<List<Workspace>> =
         workspaceDao.observeAll().map { rows -> rows.map { it.toDomain() } }
