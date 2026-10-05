@@ -103,15 +103,21 @@ class FileToolsTest {
     fun `results stop at the cap and say so`() = runTest {
         setUp()
         try {
-            write("many.txt", (1..50).joinToString("\n") { "hit $it" })
+            // Two files, so the walk has to *descend* after the cap is reached.
+            // With one file the loop simply ends and nothing is truncated, which is
+            // the same output but for a different reason.
+            write("a.txt", (1..30).joinToString("\n") { "hit a$it" })
+            write("b.txt", (1..30).joinToString("\n") { "hit b$it" })
 
             val output = (GrepTool(guestPaths())
                 .execute(args("pattern" to "hit", "max_results" to "5"), context())
                 as ToolResult.Success).output
 
-            // The header line mentions the pattern, so count only lines that
-            // carry a file path — those are the actual matches.
-            assertEquals(5, output.lines().count { it.contains(".txt:") })
+            assertEquals(
+                "should return exactly the cap",
+                5,
+                output.lines().count { it.contains(".txt:") },
+            )
             assertTrue("should say it stopped early: $output", output.contains("stopped at the result limit"))
         } finally {
             tearDown()
