@@ -1,4 +1,4 @@
-package dev.drosh.agent.transcript
+package dev.drosh.data.agent
 
 import dev.drosh.domain.agent.AgentApproval
 import dev.drosh.domain.agent.ApprovalDecision
@@ -27,7 +27,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class TranscriptStoreImpl @Inject constructor(
-    private val dao: MessageDao,
+    private val dao: AgentMessageDao,
 ) : TranscriptStore {
 
     override suspend fun load(chatId: String): List<ChatMessage> = withContext(Dispatchers.IO) {
@@ -113,7 +113,7 @@ class TranscriptStoreImpl @Inject constructor(
     // ── row ↔ message ─────────────────────────────────────────────────────
 
     private fun ChatMessage.toEntity(chatId: String, seq: Int, createdAtMs: Long) =
-        AgentMessageRow(
+        AgentMessageEntity(
             chatId = chatId,
             seq = seq,
             kind = this::class.simpleName.orEmpty(),
@@ -150,7 +150,7 @@ class TranscriptStoreImpl @Inject constructor(
         is ChatMessage.Approval -> ""
     }
 
-    private fun AgentMessageRow.toMessage(): ChatMessage? = when (kind) {
+    private fun AgentMessageEntity.toMessage(): ChatMessage? = when (kind) {
         "User" -> ChatMessage.User(messageId, text)
         "Assistant" -> ChatMessage.Assistant(messageId, text)
         "Reasoning" -> ChatMessage.Reasoning(messageId, text)

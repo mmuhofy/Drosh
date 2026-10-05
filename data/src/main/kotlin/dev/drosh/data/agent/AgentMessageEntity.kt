@@ -8,10 +8,9 @@ import androidx.room.PrimaryKey
 /**
  * The Room table behind agent transcripts.
  *
- * Declared in `:data` rather than annotated on `:agent`'s [dev.drosh.agent.transcript.AgentMessageRow]
- * because Room reads its annotations, and `:agent` has no Room dependency. The
- * two shapes are identical and the DAO hands rows straight through, so there is
- * no mapping layer that could drift.
+ * The row shape itself, carrying Room's annotations. `TranscriptStoreImpl` maps
+ * between this and the sealed `ChatMessage` hierarchy — the one place that has
+ * to know how a transcript row is encoded.
  */
 @Entity(
     tableName = "agent_messages",
