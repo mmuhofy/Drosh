@@ -47,12 +47,16 @@ abstract class DroshDatabase : RoomDatabase() {
          * Expected identity hash: <this>, found: <the one in the database>
          * ```
          *
-         * **Update this whenever the schema or the version changes.** The build
-         * exports the authoritative value to `data/schemas/`, and CI fails when
-         * that export differs from the committed snapshot, so a missed update is a
-         * red build rather than a crash on every install.
+         * **Update this whenever the schema changes — not when the version
+         * does.** Verified by exporting 3.json and 4.json from the same
+         * entities: the hash is identical, so Room derives it from the schema
+         * alone. A version bump with this left alone is correct and expected.
+         *
+         * The build exports the authoritative value to `data/schemas/`, and CI
+         * fails when that export differs from the committed snapshot, so a missed
+         * update is a red build rather than a crash on every install.
          */
-        const val IDENTITY_HASH = "PLACEHOLDER_V4"
+        const val IDENTITY_HASH = "2c34080b274172ef8334419145cb02ea"
 
         /**
          * The SQL that brings a database up to the current schema.
