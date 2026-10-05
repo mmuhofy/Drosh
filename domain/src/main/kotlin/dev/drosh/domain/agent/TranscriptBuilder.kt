@@ -308,5 +308,8 @@ class TranscriptBuilder(
 
     companion object {
         const val DEFAULT_MAX_VISIBLE_OUTPUT_LINES: Int = 200
+
+        /** Must match `UpdateTodoTool.NAME`. */
+        const val TODO_TOOL: String = "update_todo"
     }
 }
