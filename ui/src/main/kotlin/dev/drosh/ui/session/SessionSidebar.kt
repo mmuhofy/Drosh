@@ -2,6 +2,7 @@ package dev.drosh.ui.session
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
@@ -16,6 +17,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -78,6 +82,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
 import dev.drosh.design.system.DroshMenuItemStyle
+import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
@@ -143,6 +148,19 @@ fun SessionSidebar(
     onOpenAgent: () -> Unit = {},
     onOpenProjects: () -> Unit = {},
     pushState: SidebarPushState? = null,
+    /**
+     * Opens [sessionId] in the second terminal pane.
+     *
+     * A callback rather than a ViewModel the sidebar reaches into, because the
+     * sidebar lives in `:ui` and the pane state lives with the terminal screen
+     * in `:app`. Null disables the affordance — which is the right behaviour
+     * when there is only one session to split into.
+     */
+    onSplitSession: ((String) -> Unit)? = null,
+    /** Turns the second pane into a floating window, or docks it back. */
+    onToggleFloat: (() -> Unit)? = null,
+    /** True while a second pane is open, so the rows can show it. */
+    isSplit: Boolean = false,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
     val deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel()
@@ -167,6 +185,9 @@ fun SessionSidebar(
             onOpenSettings = onOpenSettings,
             onOpenAgent = onOpenAgent,
             onOpenProjects = onOpenProjects,
+            onSplitSession = onSplitSession,
+            onToggleFloat = onToggleFloat,
+            isSplit = isSplit,
         )
     }
 }
@@ -178,6 +199,9 @@ private fun SidebarContent(
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
     onOpenProjects: () -> Unit,
+    onSplitSession: ((String) -> Unit)?,
+    onToggleFloat: (() -> Unit)?,
+    isSplit: Boolean,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
@@ -259,6 +283,9 @@ private fun SidebarContent(
                         onClick = { viewModel.activate(snapshot.id) },
                         onStartRename = { renamingSession = snapshot },
                         onDelete = { viewModel.delete(snapshot.id) },
+                        onSplit = onSplitSession?.let { split -> { split(snapshot.id) } },
+                        onToggleFloat = onToggleFloat,
+                        canFloat = isSplit,
                     )
                 }
             }
@@ -506,6 +533,11 @@ private fun SessionRow(
     onClick: () -> Unit,
     onStartRename: () -> Unit,
     onDelete: () -> Unit,
+    /** Opens this session in the second pane, or null when it cannot. */
+    onSplit: (() -> Unit)? = null,
+    onToggleFloat: (() -> Unit)? = null,
+    /** True once a second pane exists, so float/dock is offered at all. */
+    canFloat: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val ended = snapshot.state == SessionState.Closed
@@ -571,6 +603,16 @@ private fun SessionRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+
+            // The drag handle. Its own target rather than the row, because the
+            // row's long press is already spoken for by the menu, and Compose
+            // gives no reliable way to have one gesture mean two things — the
+            // two detectors race on the same timeout and whichever consumes
+            // first wins. A separate grip is unambiguous, and it doubles as the
+            // affordance that says a row can be dragged at all.
+            if (onSplit != null && !ended) {
+                SplitDragHandle(onSplit = onSplit)
+            }
         }
 
         // The same menu the terminal's overflow button uses, so the two cannot
@@ -580,16 +622,30 @@ private fun SessionRow(
             expanded = menuOpen,
             onDismissRequest = { menuOpen = false },
             offset = DpOffset(20.dp, 0.dp),
-            items = listOf(
-                DroshMenuItem(label = "Rename", icon = DroshIcons.Pencil),
-                DroshMenuItem(
-                    label = "Delete",
-                    icon = DroshIcons.Trash2,
-                    style = DroshMenuItemStyle.Destructive,
-                ),
-            ),
+            items = buildList {
+                if (onSplit != null && !ended) {
+                    // PanelLeft rather than a two-column glyph. The lucide
+                    // artifact is not on this machine to check a name against,
+                    // and an icon whose absence only shows up at runtime is not
+                    // worth the two lines a custom vector would cost.
+                    add(DroshMenuItem(label = "Split right", icon = DroshIcons.PanelLeft))
+                }
+                if (onToggleFloat != null && canFloat && !ended) {
+                    add(DroshMenuItem(label = "Float window", icon = DroshIcons.Square))
+                }
+                add(DroshMenuItem(label = "Rename", icon = DroshIcons.Pencil))
+                add(
+                    DroshMenuItem(
+                        label = "Delete",
+                        icon = DroshIcons.Trash2,
+                        style = DroshMenuItemStyle.Destructive,
+                    ),
+                )
+            },
             onItemClick = { item ->
                 when (item.label) {
+                    "Split right" -> onSplit?.invoke()
+                    "Float window" -> onToggleFloat?.invoke()
                     "Rename" -> onStartRename()
                     "Delete" -> onDelete()
                 }
@@ -597,6 +653,80 @@ private fun SessionRow(
         )
     }
 }
+
+/**
+ * The grip that drags a session into the second pane.
+ *
+ * A deliberate threshold rather than "any drag opens the split": a user who
+ * brushes the grip while scrolling the list should not end up with two panes
+ * they did not ask for, and one that opens only past half the row's width can
+ * be cancelled by dragging back without lifting off.
+ *
+ * The progress is drawn on the grip itself rather than as an overlay across
+ * the terminal. An overlay would be the clearer sign, but it has to be driven
+ * from here and this row is inside a drawer that is itself translating — the
+ * two would not agree about where the finger is.
+ */
+@Composable
+private fun SplitDragHandle(
+    onSplit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var dragged by remember { mutableFloatStateOf(0f) }
+
+    val progress = (dragged / SPLIT_DRAG_THRESHOLD_PX.coerceAtLeast(1f)).coerceIn(0f, 1f)
+    val armed = progress >= 1f
+
+    val barColor by animateColorAsState(
+        targetValue = when {
+            armed -> DroshPrimary
+            progress > 0f -> DroshTextMuted
+            else -> DroshOutline
+        },
+        label = "splitGripColor",
+    )
+
+    Box(
+        modifier = modifier
+            // 24dp wide and the full row height: a grip inside a 44dp row has
+            // to be a decent target, and the row has no other vertical room.
+            .width(24.dp)
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(6.dp))
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = rememberDraggableState { delta ->
+                    dragged += delta
+                    if (dragged >= SPLIT_DRAG_THRESHOLD_PX) {
+                        dragged = 0f
+                        onSplit()
+                    } else if (dragged <= -SPLIT_DRAG_THRESHOLD_PX) {
+                        dragged = 0f
+                    }
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Three bars that close up as the drag approaches the threshold, so the
+        // grip itself reads as filling. An opacity fade was the first attempt
+        // and it was invisible against the row's own surface at these sizes.
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            repeat(3) { index ->
+                val inRange = progress > (index + 1) / 3f
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .height(if (inRange) 16.dp else 10.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(if (inRange) barColor else barColor.copy(alpha = 0.45f)),
+                )
+            }
+        }
+    }
+}
+
+/** How far the grip must be dragged before the split opens, in pixels. */
+private val SPLIT_DRAG_THRESHOLD_PX = 96f
 
 @Composable
 private fun SidebarFooter(

@@ -17,6 +17,7 @@ import dev.drosh.data.settings.FirstLaunchRepositoryImpl
 import dev.drosh.data.settings.SettingsRepositoryImpl
 import dev.drosh.data.settings.TerminalFontSizeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
+import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
 import dev.drosh.data.terminal.TriggerBootstrap
 import dev.drosh.data.workspace.WorkspaceRepositoryImpl
@@ -37,6 +38,7 @@ import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
+import dev.drosh.domain.terminal.PaneLayoutRepository
 import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
 import dev.drosh.domain.terminal.SubmitBlockCommandUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
@@ -118,6 +120,12 @@ abstract class BindingsModule {
         impl: PinLockRepositoryImpl,
     ): PinLockRepository
 
+
+    @Binds
+    @Singleton
+    abstract fun bindPaneLayoutRepository(
+        impl: PaneLayoutRepositoryImpl,
+    ): PaneLayoutRepository
 
     @Binds
     @Singleton

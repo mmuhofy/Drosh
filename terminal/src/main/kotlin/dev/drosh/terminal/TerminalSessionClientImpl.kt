@@ -15,19 +15,40 @@ class TerminalSessionClientImpl : TerminalSessionClient {
     var onTitleChanged: ((TerminalSession) -> Unit)? = null
     var onSessionFinished: ((TerminalSession) -> Unit)? = null
     var onPidChanged: ((TerminalSession, Int) -> Unit)? = null
-    var onAltBufferChanged: ((Boolean) -> Unit)? = null
+
+    /**
+     * Fires when a session enters or leaves the alternate screen buffer,
+     * carrying the session it happened to.
+     *
+     * The session is part of the callback because the old single-boolean shape
+     * could not survive two panes: the flag was one field for every session,
+     * so a `vim` opening in the background pane was silently deduplicated
+     * against whatever the foreground pane's emulator last reported — the
+     * transition was dropped, or worse, delivered with the wrong value. Each
+     * session's state is tracked separately and the listener is told which one
+     * moved.
+     */
+    var onAltBufferChanged: ((TerminalSession, Boolean) -> Unit)? = null
     var clipboard: ClipboardManager? = null
     var terminalView: com.termux.view.TerminalView? = null
 
-    private var lastAltBufferState: Boolean = false
+    /**
+     * Last known alternate-buffer state per session.
+     *
+     * Keyed by session rather than kept as one value because "is a TUI on
+     * screen" is a property of a session, not of the terminal. Entries are
+     * dropped in [onSessionFinished] — without that, every session the user
+     * has ever run would be retained for the life of the process.
+     */
+    private val altBufferStates = HashMap<TerminalSession, Boolean>()
 
     override fun onTextChanged(changedSession: TerminalSession) {
         onTextChanged?.invoke(changedSession)
         val altActive = changedSession.emulator?.isAlternateBufferActive() ?: false
-        if (altActive != lastAltBufferState) {
-            lastAltBufferState = altActive
-            onAltBufferChanged?.invoke(altActive)
-        }
+        val previous = altBufferStates[changedSession]
+        if (previous == altActive) return
+        altBufferStates[changedSession] = altActive
+        onAltBufferChanged?.invoke(changedSession, altActive)
     }
 
     override fun onTitleChanged(changedSession: TerminalSession) {
@@ -35,6 +56,7 @@ class TerminalSessionClientImpl : TerminalSessionClient {
     }
 
     override fun onSessionFinished(finishedSession: TerminalSession) {
+        altBufferStates.remove(finishedSession)
         onSessionFinished?.invoke(finishedSession)
     }
 
@@ -49,7 +71,11 @@ class TerminalSessionClientImpl : TerminalSessionClient {
         if (clip != null && clip.itemCount > 0) {
             val text = clip.getItemAt(0).text?.toString() ?: return
             if (text.isNotBlank()) {
-                terminalView?.mEmulator?.paste(text)
+                // The session that asked for the paste, not whichever view
+                // happens to be registered. Those were the same thing while
+                // there was one terminal; with a second pane open, long-pressing
+                // in the background pane pasted into the foreground one.
+                (session?.emulator ?: terminalView?.mEmulator)?.paste(text)
             }
         }
     }

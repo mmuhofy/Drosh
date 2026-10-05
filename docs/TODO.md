@@ -174,3 +174,30 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
       Gerçek davranış `PendingRequestsTest` içinde deterministik olarak test
       ediliyor (8 test). Dışarıdan gözlemleyen test `runBlocking` + açık job
       handle ile yeniden yazılmalı. İptal yolu yeniden ele alındığında yapılacak.
+
+---
+
+## Split Panes
+*Goal: two terminals side by side, or one floating over the other. Branch `feat/split-pane-panes`, PR #19.*
+
+### Shipped (2026-10-05)
+- [x] `PaneSlot` / `PaneLayout` (`:domain`) — two panes only, fractions not pixels, clamps in the model
+- [x] `PaneLayoutRepository` + DataStore impl — survives rotation and process death
+- [x] `TerminalManager`: a `TerminalView` per pane, focus as the active session, per-pane alt-buffer / selection / scroll
+- [x] Sidebar drag grip (threshold-armed, disarmable) + "Split right" menu item
+- [x] Draggable divider, 24dp target, 2dp drawn, accent only while dragged
+- [x] Floating window: title-bar drag, corner resize, expand to fill, dock back
+- [x] Overflow menu: "Float window" / "Dock pane" / "Close second pane", shown only when split
+- [x] A pane whose session ends is reconciled away
+
+### Not done, deliberately
+- [ ] **Block mode does not split.** One `BlockEngineWire`, one `BlockRepository`. Per-pane block
+      history means the wire's transcript-diff anchor and the repository's per-session store both
+      become keyed by pane, and `BlockEngineViewModel` becomes per-pane. Bigger than it reads —
+      not smuggled into this change.
+- [ ] No vertical split. Two side by side is the only axis; a top/bottom split on a phone leaves
+      two terminal strips too short to read.
+- [ ] No "swap panes". Focus follows a tap, but there is no gesture to trade the two sessions.
+- [ ] No "reset layout" for a floating pane dragged into a corner it cannot be dragged out of.
+- [ ] The floating window's expand button has no collapse affordance in the title bar while
+      maximized — you restore from the same button, which is correct but undiscoverable.
