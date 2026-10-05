@@ -79,6 +79,7 @@ class AssembleModelHistoryTest {
                     id = "m1",
                     callId = "call_1",
                     name = "write_file",
+                    summary = "a.tsx",
                     state = ToolCallState.Cancelled,
                     finalOutput = "user rejected",
                 ),
