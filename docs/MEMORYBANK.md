@@ -1,5 +1,5 @@
 # Drosh — Memory Bank
-_Last updated: 2026-09-27_
+_Last updated: 2026-10-05_
 
 ---
 
@@ -73,7 +73,7 @@ ui/
   shortcuts/        → Shortcut overlay, keyboard panel
   settings/         → Settings, theme store, API vault
   hud/              → HUD widgets, status panel
-  workspace/        → Project workspace, workflow management
+  workspace/        → Project workspace (grouping + metadata, §7B)
 
 domain/
   terminal/         → TerminalSession, Block, SemanticToken,
@@ -84,7 +84,8 @@ domain/
   session/          → SessionEntity, CommandDNA, Replay
   ssh/              → SshHost, SshKey, SshConnection
   shortcut/         → ShortcutEntity, KeyBinding, CommandShortcut
-  workspace/        → Workspace, Project, Workflow
+  workspace/        → Workspace, WorkspaceEdit, WorkspaceRepository,
+                      WorkspacePath, WorkspaceGrouping
 
 data/
   terminal/         → TerminalManager, ProotRunner, UbuntuBootstrap
@@ -352,6 +353,118 @@ PTY → ANSI → Semantic → Rich Renderer → Compose UI
 
 ---
 
+## 7B. Split Panes & Floating Window
+
+*Added 2026-10-05. Branch `feat/split-pane-panes`, PR #19.*
+
+### Shape
+
+Two terminal panes, and never more. Docked side by side with a draggable
+divider, or the second one floating over the first as a movable, resizable,
+expandable window.
+
+Two ways in:
+- Drag the grip on a session row in the sidebar past half its width.
+- "Split right" in the same row's long-press menu.
+
+The overflow menu gains "Float window"/"Dock pane" and "Close second pane",
+and both appear only once a second pane exists.
+
+### Why exactly two
+
+A tree of slots would allow arbitrary nesting, which on a phone means panes
+too narrow to read a line of output in — and every nested split is another
+divider the user has to discover and another thing that can collapse to zero.
+`PaneSlot` refuses to describe a third pane, so the tree cannot be built even
+by accident.
+
+### Why the grip is its own target
+
+The row's long press is already the context menu, and Compose gives no
+reliable way to have one gesture mean two things: the tap and
+drag-after-long-press detectors race on the same timeout, and whichever
+consumes first wins — so the outcome depends on which one arrives. A
+dedicated grip is unambiguous, and it doubles as the sign that a row can be
+dragged at all.
+
+It arms on a threshold rather than on any movement, and disarms if the drag
+comes back, because brushing the grip while scrolling the list should not
+leave the user with two panes they did not ask for.
+
+### Geometry is fractions, not pixels
+
+`PaneLayout` stores the divider position and the floating window's bounds as
+fractions of the container. All of it is persisted, and a phone rotates: a
+pane saved at 300dp wide is a different fraction of the screen after the
+process restarts in the other orientation, and a different size again on a
+tablet.
+
+The clamps live in the model, not at the call sites. `MIN_SPLIT_FRACTION`
+keeps both panes readable — below about a sixth of a phone's width a terminal
+fits roughly ten characters, narrower than most paths — and `OVERSCAN` keeps
+a sliver of a floating pane reachable, because a pane pushed entirely off
+screen has no visible edge to drag back in. Clamping rather than rejecting
+means a drag past the end stops at the limit instead of snapping back.
+
+### The part that was not cosmetic
+
+`TerminalManager` had one `TerminalView`, one active index, and three
+single-valued flows that quietly assumed there was only ever one terminal. A
+View holds a single `TerminalSession`, so two sessions cannot be drawn by one
+of them — the manager now holds a view per `PaneSlot` plus a focused pane.
+
+Each pane keeps its **own positional index**. Both panes resolving through
+one "current" index is what made the single-view design work, and it is
+exactly what breaks with two: moving focus would drag the other pane's
+session along with it.
+
+Three flows were genuinely per-pane and are now resolved as such:
+
+| Flow | What was wrong |
+|------|----------------|
+| Alt buffer | One boolean for every session, so a `vim` opening in the background pane was deduplicated against whatever the foreground pane's emulator last reported — the transition was dropped, or delivered with the wrong value, swapping the foreground pane's renderer for no reason |
+| Selection | Drawn once, in view pixels, so the unfocused pane's rectangle anchored the menu to a different terminal |
+| Scroll position | Scrolling the background pane collapsed the top bar the user was not reading |
+
+Cursor style and blink rate apply to every pane, and the blink rate is held
+rather than only pushed on change — a pane opened after the user last touched
+the setting would otherwise keep the emulator default for good, since the
+settings flow does not re-emit.
+
+`switchTab` moves focus rather than opening a session twice when it is already
+on screen in the other pane. Two views driven by one session is not something
+the emulator can serve: each attach resets the other's scroll position.
+
+`closeTab` and `onSessionFinished` hand their index arithmetic to
+`resyncPanes()`, which remaps every pane and moves focus to one that still
+has a session — so the persisted active id never names a session that is not
+on screen.
+
+### A pane outliving its session
+
+Reconciled away, not left as an empty rectangle. `PaneLayout.reconciledAgainst`
+and a `liveSessionIdsFlow` check in the screen both cover it, and the check
+is guarded on the live set being non-empty so the first composition — where
+no session has spawned yet — is not read as "the session you split into
+died".
+
+### Block mode
+
+Split panes are a **classic terminal** feature. Block mode still renders one
+session's blocks through a single `BlockEngineWire` and a single
+`BlockRepository`, and giving each pane its own block history means the wire
+and the repository become per-pane — a larger change, deliberately not smuggled
+into this one.
+
+### Known rough edges
+
+- `FlatKeyBar` renders in both panes when no hardware keyboard is attached,
+  which is correct but means two identical key bars on a half-width screen.
+- The second pane does not repeat the MOTD widget, deliberately.
+- Floating-window position is remembered, but there is no "reset layout".
+
+---
+
 ## 8. Input System
 
 ### Keyboard Handle & Extra Keys Bar (Phase 3 Sprint 1 — scope confirmed 2026-08-08)
@@ -418,18 +531,143 @@ See §6 Navigation. Shared Element Transition — card thumbnail morphs into ful
 - **Recents** — auto-sorted by last used
 
 ### Workspace (Project-Based)
+*Implemented 2026-10-05. Branch `feat/workspace` — see §7B.*
+
 Each workspace is a project:
 ```
 Workspace: MyApp
   ├── Path: /home/user/myapp
   ├── Sessions: dev-local, test-env
-  ├── Shortcuts: project-specific commands
-  └── Workflows: deploy, test, build (v1.1+)
+  ├── Shortcuts: project-specific commands          (deferred)
+  └── Workflows: deploy, test, build                (deferred)
 ```
-- Project-aware shortcuts
-- Project-aware agent context
-- Workflow automation (v1.1+)
+- Project-aware shortcuts — **deferred**, nothing in the schema anticipates it
+- Project-aware agent context — **deferred**
+- Workflow automation (v1.1+) — **deferred**
 - Lightweight — terminal stays primary
+
+---
+
+## 7B. Workspace / Project System
+
+*Added 2026-10-05. Branch `feat/workspace`.*
+
+### Scope, as Muhofy specified it
+
+**Grouping plus persistent metadata. Sessions and processes are not made
+persistent by it.** That sentence is the whole design, and two things follow from
+it that are decisions rather than omissions:
+
+- A workspace owns **no** PTY, keeps **no** shell alive, and reopens nothing.
+  The workspace row survives a process death; the shell behind a session does
+  not, exactly as it does not for an ungrouped session.
+- `rootPath` is a **label, not a working directory**. Nothing reads it to decide
+  where to run a shell and nothing `cd`s on the user's behalf.
+
+Had a workspace implied a process, a dead session inside one would read as a
+failure rather than the normal state of a phone that closed an hour ago.
+
+### What is stored
+
+```
+Workspace
+  id, name
+  rootPath     guest path, normalised on write
+  description  optional, empty is normal
+  colorSeed    index into a fixed 6-slot palette the UI owns
+  createdAtMs, lastOpenedAtMs
+  archived
+```
+
+`sessions.workspace_id` — nullable FK, `ON DELETE SET NULL`, indexed. The
+grouping lives on the session row, not as a collection on the workspace: a
+workspace can hold many sessions but is not *made of* them, and a column of ids
+would need its own consistency rules on every write that touched either table.
+
+### Layering
+
+| Layer | Files |
+|-------|-------|
+| `domain/workspace/` | `Workspace.kt` (model + `WorkspaceRepository` + `WorkspaceEdit` + `forStorage`), `WorkspacePath.kt`, `WorkspaceGrouping.kt` |
+| `data/workspace/` | `WorkspaceEntity`, `WorkspaceDao`, `WorkspaceRepositoryImpl` |
+| `ui/workspace/` | `WorkspaceScreen`, `WorkspaceViewModel`, `components/` |
+
+`ui/` sees only `:domain`. The board the screen renders is
+`WorkspaceGrouping.board(workspaces, sessions)` — a **pure** function over two
+independent Room streams, which is why its three decision rules are unit-tested
+rather than inferred from the screen.
+
+### Decisions worth keeping
+
+- **The colour is a seed index, not a stored colour.** A hex value would survive a
+  theme change that made it unreadable, and a project list is read at a glance
+  where two projects looking alike is the failure that matters. Every seed
+  resolves to a token that already has a dark and a light value.
+- **The seed is clamped on write** (`WorkspaceEdit.forStorage`), so the palette
+  can be indexed without a bounds check at every read.
+- **The path is normalised on write**, because it is typed by hand on a phone
+  keyboard and then compared: `myapp`, `/myapp/`, `//myapp//` and
+  `/home/x/./myapp` must not become four projects. `..` is *kept* — resolving it
+  needs a filesystem, and a workspace path is not required to exist.
+- **Deleting a workspace never deletes a session.** A grouping label is cheap to
+  lose and a session's history is not. `WorkspaceRepositoryImpl.delete` also
+  writes the nulls explicitly, because `ON DELETE SET NULL` only fires when the
+  `foreign_keys` pragma is on and Room does not guarantee that it is.
+- **Restoring a session keeps its grouping.** Dropping it would silently
+  ungroup a session as a side effect of a restore the user thinks is harmless.
+- **`assignToWorkspace` validates the id before the write**, not via the foreign
+  key. A stale screen offering a since-deleted project is a UI mistake, and an
+  `SQLiteConstraintException` at an arbitrary later point is a poor trade for it.
+- **An archived workspace's sessions become ungrouped**, not lost. The group is
+  gone as far as the user can see, so pretending the session still belongs to
+  something would be worse than showing it loose.
+- **A session naming a workspace that is not in the list is ungrouped, not
+  dropped.** The FK should make this unreachable; a session silently missing from
+  the screen is invisible breakage.
+- **The screen claims only whether a record has *ended*.** A persisted
+  `SessionState.Running` is not a liveness report: it is written when a PTY
+  spawns and nothing rewrites it if the process dies with the app. It is the
+  resume marker `SessionManagerAdapter.ensureSessionExists` looks for — the same
+  distinction `docs/SESSION-SYSTEM.md` §2 already draws.
+- **Opening an ended session restores it** rather than merely activating it.
+  Activation of a `Closed` row is a no-op (the terminal switches by id and there
+  is no process to switch to), so the user would land back where they were having
+  been told nothing. Restoring resets it to `Idle`, which is the signal
+  `reconcile` already watches for. Same rule as the sidebar, same reason.
+- **Nothing about grouping touches `reconcile`.** It reads `state` only, so
+  `ensureSessionExists` still resumes the most recently used session across *all*
+  projects. That is correct and unchanged — a project is not a resume scope.
+
+### Reached from
+
+Sidebar → **Projects**, and Settings → Projects. Both routes land on
+`"workspace"`; opening a session from there pops back to the named terminal
+destination (`terminal_home`, else `terminal`) rather than one entry, because a
+single pop would land on Settings.
+
+### Migration
+
+`DroshDatabase` **2 → 3**, `MIGRATION_2_3`. The `sessions` table is **rebuilt**,
+not altered: `workspace_id` needs a foreign key and SQLite cannot add a
+constraint to an existing table. Room validates the actual schema at open time,
+so a plain `ADD COLUMN` would take every existing install down at launch. The
+column is appended last so the `INSERT ... SELECT` can name the original six and
+read NULL — the correct value, since every session predates grouping.
+
+### Tests
+
+`:domain:test` (runs in `tests.yml`) — `WorkspacePathTest`,
+`WorkspaceEditTest`, `WorkspaceGroupingTest`.
+
+### Not built
+
+- **No project-scoped shortcuts**, no workflow builder — both are in §9 as
+  deferred, and nothing here anticipates their schema.
+- **Agent chats are not grouped.** A chat has a `working_directory` and would fit,
+  but §9 lists sessions only and grouping it is a separate product call.
+- **No archive screen.** `archived` is persisted and `observeArchived()` exists,
+  but nothing calls it; there is no way yet to archive or unarchive.
+- **No file tree, no "open in editor", no git state** for a project.
 
 ---
 
@@ -862,7 +1100,7 @@ data class SshHost(
 ⬜ ThemeStore.kt — theme engine
 ⬜ AliasManager.kt — shell alias sync
 ⬜ MultiExec.kt — broadcast SSH commands
-   ⬜ WorkspaceManager.kt — project system
+   ✅ Workspace.kt, WorkspaceRepository, WorkspacePath, WorkspaceGrouping (§7B)
 
 ### WebViewSheet (browser)
 - back/forward/reload toolbar icons (enabled via `canGoBack`/`canGoForward`); `WebChromeClient.onProgressChanged` → Material3 progress bar; 3-dot dropdown (`DroshDropdownMenu`: Copy URL / Open in Browser / Reload).
@@ -894,6 +1132,9 @@ data class SshHost(
 | 8 | General UI direction | Material You depth vs minimal | Resolved 2026-07-25: deliberately avoids Material 3 expressive animations. M3 baseline, monospace prompt, dark gold-on-black, near-zero animation." |
 | 9 | Live Share relay | Self-hosted? Third-party? | v1.1 concern |
 | 10 | Workspace depth v1.0 | Full workflow builder or just project tagging? | TBD |
+| 11 | Split in Block mode | Per-pane block engine, or classic-only? | Resolved 2026-10-05: classic-only for now. Block mode has one wire and one repository; per-pane blocks is a bigger change than it looks. |
+| 12 | Split gesture | Drag the row, or a dedicated grip? | Resolved 2026-10-05: dedicated grip. One gesture cannot reliably mean two things in Compose — the detectors race on the same timeout. |
+| 13 | Split depth | Arbitrary nesting, or two panes? | Resolved 2026-10-05: two. Nested panes on a phone are too narrow to read, and each is another divider to discover. |
 
 ---
 

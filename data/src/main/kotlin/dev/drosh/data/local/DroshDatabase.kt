@@ -10,6 +10,8 @@ import dev.drosh.data.agent.AgentMessageDao
 import dev.drosh.data.agent.AgentMessageEntity
 import dev.drosh.data.session.SessionDao
 import dev.drosh.data.session.SessionEntity
+import dev.drosh.data.workspace.WorkspaceDao
+import dev.drosh.data.workspace.WorkspaceEntity
 
 /**
  * Single source of truth for all persistent metadata.
@@ -24,12 +26,18 @@ import dev.drosh.data.session.SessionEntity
  * the diff on PRs that touch this file.
  */
 @Database(
-    entities = [SessionEntity::class, AgentChatEntity::class, AgentMessageEntity::class],
+    entities = [
+        SessionEntity::class,
+        WorkspaceEntity::class,
+        AgentChatEntity::class,
+        AgentMessageEntity::class,
+    ],
     version = 4,
     exportSchema = true,
 )
 abstract class DroshDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
+    abstract fun workspaceDao(): WorkspaceDao
     abstract fun agentChatDao(): AgentChatDao
     abstract fun agentMessageDao(): AgentMessageDao
 
@@ -40,37 +48,42 @@ abstract class DroshDatabase : RoomDatabase() {
          * The identity hash Room expects for the current schema.
          *
          * Room stores this in `room_master_table` and compares it on every open. A
-         * database whose marker is stale fails with:
+         * database whose marker is stale fails to open with
+         * `IllegalStateException: Room cannot verify the data integrity` — on the
+         * device, on the next launch, and never in a build.
          *
-         * ```
-         * IllegalStateException: Room cannot verify the data integrity.
-         * Expected identity hash: <this>, found: <the one in the database>
-         * ```
+         * **Update this whenever the schema changes — not when the version does.**
+         * Verified by exporting two snapshots over identical entities: the hash was
+         * the same, so Room derives it from the schema alone. Only a schema change
+         * invalidates it. The value here is the one in 4.json, and 3.json holds the
+         * previous one for the schema without workspaces.
          *
-         * **Update this whenever the schema changes — not when the version
-         * does.** Verified by exporting 3.json and 4.json from the same
-         * entities: the hash is identical, so Room derives it from the schema
-         * alone. A version bump with this left alone is correct and expected.
-         *
-         * The build exports the authoritative value to `data/schemas/`, and CI
-         * fails when that export differs from the committed snapshot, so a missed
-         * update is a red build rather than a crash on every install.
+         * CI diffs the exported `data/schemas/` snapshot against the committed one,
+         * so a missed update is a red build rather than a crash on every install.
          */
-        const val IDENTITY_HASH = "2c34080b274172ef8334419145cb02ea"
+        const val IDENTITY_HASH = "7a24d67aad74fdf9f5ff71afe52144c9"
 
         /**
-         * The SQL that brings a database up to the current schema.
+         * The identity hash for the version-3 schema — everything except agent
+         * transcripts.
          *
-         * Both tables are created `IF NOT EXISTS`, which is what makes this safe
-         * to run over a database that already has them — a device that went
-         * through a broken upgrade is at the current version with no tables at
-         * all, and one that upgraded cleanly has both.
-         *
-         * The trailing UPDATE is the part that is easy to leave out and invisible
-         * until a device opens the app: without it the tables are right and the
-         * marker is stale, which is a build that passes and a crash on launch.
+         * Only needed by [MIGRATION_2_3], whose schema genuinely differs. The hash
+         * is overwritten again by [MIGRATION_3_4] for any device that continues.
          */
-        private fun bringToCurrentSchema(db: SupportSQLiteDatabase) {
+        const val IDENTITY_HASH_V3: String = "2c34080b274172ef8334419145cb02ea"
+
+        /**
+         * The SQL that brings a database to the current schema.
+         *
+         * Both agent tables are created `IF NOT EXISTS` so this is safe over a
+         * database that already has them, which is the normal case: only a
+         * database that took the broken version-3 path is missing them.
+         *
+         * The trailing UPDATE is the part that is easy to leave out and impossible
+         * to see in a build — without it the tables are right and the marker is
+         * stale, which is a green build and a crash on launch.
+         */
+        private fun createAgentTables(db: SupportSQLiteDatabase) {
             db.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS `agent_chats` (
@@ -119,22 +132,118 @@ abstract class DroshDatabase : RoomDatabase() {
                 ON `agent_messages` (`chat_id`, `seq`)
                 """.trimIndent(),
             )
+        }
+
+        private fun writeIdentityHash(db: SupportSQLiteDatabase) {
             db.execSQL("UPDATE room_master_table SET identity_hash = '$IDENTITY_HASH'")
         }
 
-        /** From a version-1 database: only `sessions` exists. */
-        val MIGRATION_1_4 = object : Migration(1, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) = bringToCurrentSchema(db)
+        /**
+         * 1 → 2: agent chats.
+         *
+         * From the workspace branch. Additive, so no existing row is rewritten.
+         */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                createAgentTables(db)
+                writeIdentityHash(db)
+            }
         }
 
         /**
-         * From a version-3 database, which is the broken case: the version was
-         * bumped without a migration, so these devices are at 3 with neither
-         * agent table and a stale marker. Room finds no path forward and fails the
-         * identity check on launch.
+         * 2 → 3: workspaces, and sessions gain a workspace.
+         *
+         * From the workspace branch, which rebuilt `sessions` into a new table and
+         * copied the rows across — the only way to add a foreign key to an existing
+         * table in SQLite. Every existing session lands with a null workspace,
+         * which the grouping UI treats as ungrouped.
          */
-        val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) = bringToCurrentSchema(db)
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `workspaces` (
+                        `id` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `root_path` TEXT NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `color_seed` INTEGER NOT NULL,
+                        `created_at_ms` INTEGER NOT NULL,
+                        `last_opened_at_ms` INTEGER NOT NULL,
+                        `archived` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `sessions_new` (
+                        `id` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `state` TEXT NOT NULL,
+                        `created_at_ms` INTEGER NOT NULL,
+                        `last_used_at_ms` INTEGER NOT NULL,
+                        `last_snapshot` TEXT NOT NULL,
+                        `workspace_id` TEXT,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`workspace_id`) REFERENCES `workspaces`(`id`)
+                            ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `sessions_new` (
+                        `id`, `name`, `state`, `created_at_ms`,
+                        `last_used_at_ms`, `last_snapshot`, `workspace_id`
+                    )
+                    SELECT
+                        `id`, `name`, `state`, `created_at_ms`,
+                        `last_used_at_ms`, `last_snapshot`, NULL
+                    FROM `sessions`
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE `sessions`")
+                db.execSQL("ALTER TABLE `sessions_new` RENAME TO `sessions`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_sessions_workspace_id` " +
+                        "ON `sessions` (`workspace_id`)",
+                )
+                // The hash that reaches v3 is the one for the agent schema without
+                // transcripts, so it is necessarily wrong for v3. Written here
+                // rather than left to 3→4, because a device that never opens the
+                // app again on this build should still open correctly.
+                db.execSQL("UPDATE room_master_table SET identity_hash = '$IDENTITY_HASH_V3'")
+            }
         }
+
+        /**
+         * 3 → 4: agent transcripts, and the identity marker.
+         *
+         * The missing path that made every affected install unlaunchable. Version 3
+         * shipped without a migration to match, so those devices sit at 3 with
+         * neither agent table and the version-2 marker still in
+         * `room_master_table`. Room compares the version first, finds 3 matches 3,
+         * runs nothing, and then fails the identity check.
+         *
+         * This also fixes the marker for every other path: a database that
+         * upgraded through 1→2 or 2→3 has the correct tables but a hash that
+         * predates the transcripts, which is the same crash.
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                createAgentTables(db)
+                writeIdentityHash(db)
+            }
+        }
+
+        /**
+         * Every migration, in order.
+         *
+         * Registered in `DatabaseModule`. Room walks this to find a path from
+         * whatever version a device is at, so a device on 1, on 2 or on the broken
+         * 3 all reach the current schema.
+         */
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }

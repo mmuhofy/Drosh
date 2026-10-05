@@ -150,6 +150,12 @@ fun TerminalTopBar(
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
+    /** True while a second pane is open. */
+    isSplit: Boolean = false,
+    /** True when that second pane is floating rather than docked. */
+    isFloating: Boolean = false,
+    onToggleFloat: () -> Unit = {},
+    onCloseSplit: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
@@ -286,40 +292,68 @@ fun TerminalTopBar(
             MoreActionsDropdown(
                 expanded = moreExpanded,
                 onDismiss = { moreExpanded = false },
-                onFindInOutput = { onFindInOutput(); moreExpanded = false },
-                onRefresh = { onRefresh(); moreExpanded = false },
+                onFindInOutput = onFindInOutput,
+                onRefresh = onRefresh,
+                isSplit = isSplit,
+                isFloating = isFloating,
+                onToggleFloat = onToggleFloat,
+                onCloseSplit = onCloseSplit,
             )
         }
     }
 }
 
+/**
+ * The overflow menu.
+ *
+ * The split entries only appear once a second pane exists. Offering "Float
+ * window" before that would be an action on a pane that is not there, and the
+ * labels have to swap — "Float" and "Dock" describe the same gesture from
+ * opposite ends, and a menu that says "Float" while the pane is already
+ * floating is worse than no menu.
+ */
 @Composable
 private fun MoreActionsDropdown(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
+    isSplit: Boolean,
+    isFloating: Boolean,
+    onToggleFloat: () -> Unit,
+    onCloseSplit: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
-        items = listOf(
-            DroshMenuItem(
-                label = "Refresh terminal",
-                icon = DroshIcons.RotateCw,
-            ),
-            DroshMenuItem(
-                label = "Find in output",
-                icon = DroshIcons.Search,
-            ),
+        items = buildList {
+            if (isSplit) {
+                add(
+                    DroshMenuItem(
+                        label = if (isFloating) "Dock pane" else "Float window",
+                        icon = DroshIcons.Square,
+                    ),
+                )
+                add(
+                    DroshMenuItem(
+                        label = "Close second pane",
+                        icon = DroshIcons.X,
+                    ),
+                )
+            }
+            add(DroshMenuItem(label = "Refresh terminal", icon = DroshIcons.RotateCw))
+            add(DroshMenuItem(label = "Find in output", icon = DroshIcons.Search))
             // Settings is gone from here. It is reachable from the drawer, and
             // an overflow entry that duplicates a drawer item gives two ways to
             // open the same screen.
-        ),
+        },
         onItemClick = { item ->
+            onDismiss()
             when (item.label) {
                 "Refresh terminal" -> onRefresh()
                 "Find in output" -> onFindInOutput()
+                "Float window", "Dock pane" -> onToggleFloat()
+                "Close second pane" -> onCloseSplit()
             }
         },
     )

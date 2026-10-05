@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -59,6 +60,7 @@ import dev.drosh.ui.agent.AgentChatScreen
 import dev.drosh.ui.agent.AgentHomeScreen
 import dev.drosh.ui.agent.AgentSettingsScreen
 import dev.drosh.ui.settings.SettingsScreen
+import dev.drosh.ui.workspace.WorkspaceScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -313,6 +315,7 @@ class MainActivity : ComponentActivity() {
                         extraKeyState = extraKeyState,
                         onExit = { context.finish() },
                         onOpenAgent = { navController.navigate("agent_home") },
+                        onOpenProjects = { navController.navigate("workspace") },
                     )
                 }
             }
@@ -328,6 +331,7 @@ class MainActivity : ComponentActivity() {
                     extraKeyState = extraKeyState,
                     onExit = { context.finish() },
                     onOpenAgent = { navController.navigate("agent_home") },
+                    onOpenProjects = { navController.navigate("workspace") },
                 )
             }
 
@@ -364,6 +368,17 @@ class MainActivity : ComponentActivity() {
             composable("settings") {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenProjects = { navController.navigate("workspace") },
+                )
+            }
+
+            // Projects — workspaces and the sessions filed under them. Reached
+            // from Settings, which is why opening a session from here has to pop
+            // all the way back to the terminal rather than just one entry.
+            composable("workspace") {
+                WorkspaceScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenSession = { navController.returnToTerminal() },
                 )
             }
         }
@@ -373,3 +388,27 @@ class MainActivity : ComponentActivity() {
 /** Blank means "follow the system", where no override applies. */
 private fun String.toLocaleOrNull() =
     takeIf { it.isNotBlank() }?.let { java.util.Locale.forLanguageTag(it) }
+
+/**
+ * Come back to a terminal from a screen the user reached through Settings.
+ *
+ * The stack when this is called is terminal → settings → workspace, so a single
+ * `popBackStack()` would land on Settings — the screen they left to do
+ * something else, and the one thing they are not waiting for. Popping to the
+ * named destination clears everything in between.
+ *
+ * Both terminal routes are tried because which one is on the stack depends on
+ * whether app lock is on: without it the start destination stays `terminal`,
+ * with it `terminal` is replaced by `terminal_home` after the PIN is accepted.
+ * `popBackStack` reports whether it found the destination, so the fallback is a
+ * real check rather than a guess — and reaching for the terminal still has to
+ * leave something on the stack for Back to work.
+ */
+private fun NavHostController.returnToTerminal() {
+    val landed = popBackStack(TERMINAL_HOME_ROUTE, inclusive = false) ||
+        popBackStack(TERMINAL_ROUTE, inclusive = false)
+    if (!landed) navigate(TERMINAL_ROUTE)
+}
+
+private const val TERMINAL_ROUTE = "terminal"
+private const val TERMINAL_HOME_ROUTE = "terminal_home"

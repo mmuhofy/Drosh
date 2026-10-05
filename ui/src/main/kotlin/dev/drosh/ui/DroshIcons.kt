@@ -33,6 +33,9 @@ import compose.icons.lucideicons.Code
 import compose.icons.lucideicons.Copy
 import compose.icons.lucideicons.Download
 import compose.icons.lucideicons.EllipsisVertical
+import compose.icons.lucideicons.Folder
+import compose.icons.lucideicons.FolderOpen
+import compose.icons.lucideicons.Archive
 import compose.icons.lucideicons.Gauge
 import compose.icons.lucideicons.Globe
 import compose.icons.lucideicons.Info
@@ -99,6 +102,9 @@ object DroshIcons {
     val Copy: ImageVector get() = LucideIcons.Copy
     val Download: ImageVector get() = LucideIcons.Download
     val EllipsisVertical: ImageVector get() = LucideIcons.EllipsisVertical
+    val Folder: ImageVector get() = LucideIcons.Folder
+    val FolderOpen: ImageVector get() = LucideIcons.FolderOpen
+    val Archive: ImageVector get() = LucideIcons.Archive
     val Gauge: ImageVector get() = LucideIcons.Gauge
     val Globe: ImageVector get() = LucideIcons.Globe
     val Info: ImageVector get() = LucideIcons.Info

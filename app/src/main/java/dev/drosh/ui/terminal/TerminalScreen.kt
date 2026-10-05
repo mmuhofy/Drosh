@@ -78,6 +78,7 @@ import dev.drosh.terminal.SearchHighlightOverlay
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
+import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.terminal.UbuntuSetupState
 import dev.drosh.ui.block.BlockEngineViewModel
 import dev.drosh.ui.block.BlockInputField
@@ -86,6 +87,8 @@ import dev.drosh.ui.block.PromptDivider
 import dev.drosh.ui.browser.WebViewSheet
 import dev.drosh.ui.input.FlatKeyBar
 import dev.drosh.ui.input.InputBarViewModel
+import dev.drosh.ui.pane.PaneLayoutViewModel
+import dev.drosh.ui.pane.SplitPaneHost
 import dev.drosh.ui.search.DraggableSearchBar
 import dev.drosh.ui.search.SearchScope
 import dev.drosh.ui.session.SessionSidebar
@@ -155,6 +158,7 @@ fun TerminalScreen(
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onExit: () -> Unit = {},
     onOpenAgent: () -> Unit = {},
+    onOpenProjects: () -> Unit = {},
 ) {
     var showProgress by remember { mutableStateOf(false) }
 
@@ -190,6 +194,7 @@ fun TerminalScreen(
                 extraKeyState = extraKeyState,
                 onExit = onExit,
                 onOpenAgent = onOpenAgent,
+                onOpenProjects = onOpenProjects,
             )
         }
 
@@ -213,9 +218,42 @@ private fun ReadyScreen(
     sessionSwitcherViewModel: SessionSwitcherViewModel = hiltViewModel(),
     blockEngineViewModel: BlockEngineViewModel = hiltViewModel(),
     inputBarViewModel: InputBarViewModel = hiltViewModel(),
+    paneLayoutViewModel: PaneLayoutViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onOpenAgent: () -> Unit = {},
+    onOpenProjects: () -> Unit = {},
 ) {
+
+    // ── Split panes ─────────────────────────────────────────────────────────
+    val paneLayout by paneLayoutViewModel.layout.collectAsStateWithLifecycle()
+    val liveSessionIds by terminalManager.liveSessionIdsFlow.collectAsStateWithLifecycle()
+
+    /**
+     * The second pane's session, bound to [PaneSlot.SECONDARY].
+     *
+     * Driven off the layout rather than left to the view to attach itself,
+     * because the order is not guaranteed: the layout is restored from storage
+     * on the first composition, which can land before or after the pane's view
+     * is built. bindPaneToSession covers both orders, and re-running it is
+     * cheap.
+     */
+    LaunchedEffect(paneLayout.secondarySessionId) {
+        terminalManager.bindPaneToSession(PaneSlot.SECONDARY, paneLayout.secondarySessionId)
+    }
+
+    /**
+     * Drops the second pane when its session is gone.
+     *
+     * A session ends, or the user deletes it, and the pane would otherwise sit
+     * there as an empty rectangle. Guarded on the set being non-empty, because
+     * on the first composition it is still empty — no session has spawned yet —
+     * and an empty set must not be read as "the session you split into died".
+     */
+    LaunchedEffect(paneLayout.secondarySessionId, liveSessionIds) {
+        val secondary = paneLayout.secondarySessionId ?: return@LaunchedEffect
+        if (liveSessionIds.isEmpty()) return@LaunchedEffect
+        if (secondary !in liveSessionIds) paneLayoutViewModel.closeSplit()
+    }
 
     // Haze is gone. It records Compose's own draw commands, and the terminal is
     // a View inside an AndroidView, so it is not in the display list Haze sees
@@ -223,7 +261,6 @@ private fun ReadyScreen(
     // taken from the view directly now — see TerminalBackdrop.kt.
     //
     var terminalBounds by remember { mutableStateOf<Rect?>(null) }
-    val altBufferActive by terminalManager.altBufferActive.collectAsState()
 
     // The band above the grid, in the terminal's own background. Without it the
     // gap showed the app background and read as a black bar sitting on top of
@@ -290,11 +327,24 @@ private fun ReadyScreen(
     val inputBarState by inputBarViewModel.uiState.collectAsState()
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
     val noSessionsLeft by terminalManager.noSessionsLeft.collectAsState()
+    val sessions by sessionSwitcherViewModel.allSessions.collectAsStateWithLifecycle()
+
+    /**
+     * The second pane's session name, for its title bar.
+     *
+     * Looked up from the session list rather than kept alongside the layout,
+     * because the name is editable and the layout only stores an id. A renamed
+     * session would otherwise keep the name it had when it was split in.
+     */
+    val secondarySessionName = remember(paneLayout.secondarySessionId, sessions) {
+        paneLayout.secondarySessionId
+            ?.let { id -> sessions.firstOrNull { it.id == id }?.name }
+            .orEmpty()
+    }
 
     val motdMode by terminalViewModel.motdMode.collectAsState()
     val motdText by terminalViewModel.motdText.collectAsState()
     val appInfo by terminalViewModel.appInfo.collectAsState()
-    val blocks by blockEngineViewModel.blocks.collectAsState()
     val awaitingShellInput by blockEngineViewModel.awaitingShellInput.collectAsState()
 
     var motdDismissed by remember { mutableStateOf(false) }
@@ -589,148 +639,76 @@ private fun ReadyScreen(
                 .fillMaxSize()
                 .droshImePadding(),
         ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f),
-    ) {
-        // Behind the frame's own background, so the strip matches the terminal
-        // it sits above without tinting anything else.
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(statusBarInset())
-                .background(terminalBgColor),
-        )
-
-        if (useBlockEngine) {
-            val blocks by blockEngineViewModel.blocks.collectAsState()
-            val promptDir by blockEngineViewModel.lastDir.collectAsState()
-            val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()
-
-            // A TUI (nano, vim, htop) takes over the alternate screen buffer,
-            // so the raw terminal view has to be shown rather than the block
-            // list — the shell is not producing line output to block up.
-            if (altBufferActive) {
-                TerminalViewHost(
+        SplitPaneHost(
+            layout = paneLayout,
+            onSplitFractionChange = paneLayoutViewModel::dragSplitFraction,
+            onSplitFractionCommit = paneLayoutViewModel::commitSplitFraction,
+            onFloatingBoundsChange = paneLayoutViewModel::dragFloatingBounds,
+            onToggleMaximized = paneLayoutViewModel::toggleMaximized,
+            floatingTitle = secondarySessionName,
+            modifier = Modifier.fillMaxSize(),
+            primary = {
+                TerminalPaneBody(
+                    paneSlot = PaneSlot.PRIMARY,
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
                     colorProps = colorProps,
                     terminalViewModel = terminalViewModel,
-                    terminalViewRef = terminalViewRef,
+                    blockEngineViewModel = blockEngineViewModel,
+                    inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
-                    onUrlClick = { browserUrl = it },
-                    searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
+                    useBlockEngine = useBlockEngine,
+                    terminalBgColor = terminalBgColor,
+                    inputBarState = inputBarState,
+                    motdMode = motdMode,
+                    motdText = motdText,
+                    systemInfo = systemInfo,
+                    motdDismissed = motdDismissed,
+                    onDismissMotd = { motdDismissed = true },
+                    awaitingShellInput = awaitingShellInput,
+                    searchActive = searchActive,
+                    searchQuery = searchQuery,
                     searchOverlayRef = searchOverlayRef,
-                    modifier = Modifier.fillMaxSize(),
+                    terminalViewRef = terminalViewRef,
+                    onBoundsChanged = { terminalBounds = it },
+                    onUrlClick = { browserUrl = it },
                 )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = statusBarInset()),
-                ) {
-                    if (motdMode == MotdMode.Compose && !motdDismissed) {
-                        MotdWidget(
-                            motdText = motdText,
-                            systemInfo = systemInfo,
-                            onHelpClick = { /* TODO: open help */ },
-                            onDismiss = { motdDismissed = true },
-                        )
-                    }
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        state = rememberLazyListState(),
-                    ) {
-                        items(blocks, key = { it.id }) { block ->
-                            PromptBlock(
-                                block = block,
-                                promptDir = promptDir,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                            onCopyCommand = { blockEngineViewModel.onCopyCommand(block) },
-                            onCopyOutput = { blockEngineViewModel.onCopyOutput(block) },
-                            onRerunCommand = { cmd -> blockEngineViewModel.onRerunCommand(cmd) },
-                            onEditCommand = { cmd -> blockEngineViewModel.onEditCommand(cmd) },
-                            onExportOutput = { blockEngineViewModel.onExportOutput(block) },
-                            onDeleteBlock = { blockEngineViewModel.onDeleteBlock(block.id) },
-                            onUrlClick = { browserUrl = it },
-                        )
-                        if (block.id != blocks.lastOrNull()?.id) {
-                            PromptDivider()
-                        }
-                        }
-                    }
-
-                    PromptDivider()
-
-                    // While the shell is at its prompt this records a command
-                    // block. Once an interactive program takes the terminal the
-                    // line goes straight to the program instead, so the bar stops
-                    // labelling itself as a command prompt and its output is not
-                    // mistaken for one.
-                    BlockInputField(
-                        onSubmit = { cmd ->
-                            if (awaitingShellInput) {
-                                blockEngineViewModel.onCommandSubmitted("", cmd)
-                            } else {
-                                blockEngineViewModel.onRawInput(cmd)
-                            }
-                        },
-                        promptLabel = promptDir,
-                        promptSuffix = promptSuffix,
-                        programPrompt = if (awaitingShellInput) null else PROGRAM_PROMPT_MARKER,
-                    )
-                }
-            }
-        } else {
-            /*
-             * CLASSIC TERMINAL PATH
-             *
-             * terminalViewRef is handed to the caller so overlays (search
-             * highlight, WebView chrome) can sample this exact TerminalView.
-             */
-            TerminalViewHost(
-                terminalManager = terminalManager,
-                fontSizeSp = fontSizeSp,
-                colorProps = colorProps,
-                terminalViewModel = terminalViewModel,
-                terminalViewRef = terminalViewRef,
-                extraKeyState = extraKeyState,
-                onUrlClick = { browserUrl = it },
-                searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
-                searchOverlayRef = searchOverlayRef,
-                onBoundsChanged = { terminalBounds = it },
-                modifier = Modifier
-                    .fillMaxSize()
-                    // The grid still starts below the system bar. Letting the
-                    // first row run behind it puts the prompt under the clock,
-                    // which is unreadable — a fixed grid is not scrolling
-                    // content, so there is nothing to gain from it passing
-                    // underneath. The band itself is painted with the
-                    // terminal's own background just above, so it reads as part
-                    // of the terminal rather than as a strip of its own.
-                    .padding(top = statusBarInset())
-                    .graphicsLayer {
-                        scaleX = appearScale
-                        scaleY = appearScale
-                        alpha = appearAlpha
-                    },
-            )
-        }
-
-        }
-
-        if (!inputBarState.hardwareKeyboardPresent) {
-            FlatKeyBar(
-                ctrlStuck = inputBarState.ctrlStuck,
-                altStuck = inputBarState.altStuck,
-                onIntent = inputBarViewModel::onIntent,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+            },
+            secondary = {
+                TerminalPaneBody(
+                    paneSlot = PaneSlot.SECONDARY,
+                    terminalManager = terminalManager,
+                    fontSizeSp = fontSizeSp,
+                    colorProps = colorProps,
+                    terminalViewModel = terminalViewModel,
+                    blockEngineViewModel = blockEngineViewModel,
+                    inputBarViewModel = inputBarViewModel,
+                    extraKeyState = extraKeyState,
+                    useBlockEngine = useBlockEngine,
+                    terminalBgColor = terminalBgColor,
+                    inputBarState = inputBarState,
+                    motdMode = motdMode,
+                    motdText = motdText,
+                    systemInfo = systemInfo,
+                    // The second pane does not repeat the welcome widget: it
+                    // would appear twice on one screen, in a box half the
+                    // width, saying nothing the first one has not.
+                    motdDismissed = true,
+                    onDismissMotd = {},
+                    awaitingShellInput = awaitingShellInput,
+                    searchActive = searchActive,
+                    searchQuery = searchQuery,
+                    searchOverlayRef = remember { mutableStateOf<SearchHighlightOverlay?>(null) },
+                    terminalViewRef = terminalViewRef,
+                    // Bounds are the top bar's backdrop sample, and the top bar
+                    // reads whichever pane has focus. Letting the unfocused pane
+                    // report would leave the bar sampling a terminal the user is
+                    // not looking at.
+                    onBoundsChanged = {},
+                    onUrlClick = { browserUrl = it },
+                )
+            },
+        )
     }
 
         // Selection menu. Anchored to the selection, whose bounds are in
@@ -810,6 +788,10 @@ private fun ReadyScreen(
                 },
                 onOpenSettings = onOpenSettings,
                 onOpenAgent = onOpenAgent,
+                isSplit = paneLayout.isSplit,
+                isFloating = paneLayout.isFloating,
+                onToggleFloat = paneLayoutViewModel::togglePresentation,
+                onCloseSplit = paneLayoutViewModel::closeSplit,
         )
 
         // Slider overlay trigger — BackHandler kalıyor, SessionSidebar
@@ -973,7 +955,18 @@ private fun ReadyScreen(
         isOpen = sidebarOpen,
         onOpenSettings = onOpenSettings,
         onOpenAgent = onOpenAgent,
+        onOpenProjects = onOpenProjects,
         pushState = sidebarPush,
+        // Offered only when there is something to split into. With one live
+        // session the grip would open a pane that can only ever be empty, and
+        // the split would refuse it anyway.
+        onSplitSession = if (liveSessionIds.size >= 2) {
+            { id -> paneLayoutViewModel.openSplit(id, activeId) }
+        } else {
+            null
+        },
+        onToggleFloat = paneLayoutViewModel::togglePresentation,
+        isSplit = paneLayout.isSplit,
     )
     }
 }
@@ -1081,10 +1074,184 @@ private fun SetupFailure(
     }
 }
 
+/**
+ * One pane's contents: the status-bar band, either the block list or the
+ * classic terminal, and the extra-key bar.
+ *
+ * Extracted from what used to be inline in ReadyScreen so the same body can be
+ * composed twice. Almost everything it needs is shared; the two things that are
+ * not are [paneSlot] and the alt-buffer answer, and both are resolved here
+ * rather than passed in, because the caller has no way to know the second
+ * pane's answer without asking the manager anyway.
+ *
+ * It brings its own [Column] rather than relying on the caller's scope.
+ * SplitPaneHost hands each pane a Box, and `weight` does not exist in a
+ * BoxScope — the terminal has to take the pane's height and leave the rest to
+ * the extra-key bar, so it has to be asked for in a Column.
+ */
+@Composable
+private fun TerminalPaneBody(
+    paneSlot: PaneSlot,
+    terminalManager: TerminalManager,
+    fontSizeSp: Int,
+    colorProps: Properties,
+    terminalViewModel: TerminalViewModel,
+    blockEngineViewModel: BlockEngineViewModel,
+    inputBarViewModel: InputBarViewModel,
+    extraKeyState: dev.drosh.terminal.ExtraKeyState?,
+    useBlockEngine: Boolean,
+    terminalBgColor: Color,
+    inputBarState: dev.drosh.ui.input.InputBarUiState,
+    motdMode: MotdMode,
+    motdText: String,
+    systemInfo: SystemInfo,
+    motdDismissed: Boolean,
+    onDismissMotd: () -> Unit,
+    awaitingShellInput: Boolean,
+    searchActive: Boolean,
+    searchQuery: String,
+    searchOverlayRef: MutableState<SearchHighlightOverlay?>,
+    terminalViewRef: MutableState<TerminalView?>,
+    onBoundsChanged: (Rect) -> Unit,
+    onUrlClick: (String) -> Unit,
+) {
+    // A TUI (nano, vim, htop) takes over the alternate screen buffer, so the raw
+    // terminal view has to be shown rather than the block list — the shell is
+    // not producing line output to block up. Asked per pane: a vim in the other
+    // pane says nothing about this one.
+    val altBufferActive = terminalManager.isAltBufferActive(paneSlot)
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        ) {
+            // Behind the frame's own background, so the strip matches the
+            // terminal it sits above without tinting anything else.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(statusBarInset())
+                    .background(terminalBgColor),
+            )
+
+            if (useBlockEngine && !altBufferActive) {
+                val blocks by blockEngineViewModel.blocks.collectAsState()
+                val promptDir by blockEngineViewModel.lastDir.collectAsState()
+                val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = statusBarInset()),
+                ) {
+                    if (motdMode == MotdMode.Compose && !motdDismissed) {
+                        MotdWidget(
+                            motdText = motdText,
+                            systemInfo = systemInfo,
+                            onHelpClick = { /* TODO: open help */ },
+                            onDismiss = onDismissMotd,
+                        )
+                    }
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        state = rememberLazyListState(),
+                    ) {
+                        items(blocks, key = { it.id }) { block ->
+                            PromptBlock(
+                                block = block,
+                                promptDir = promptDir,
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                onCopyCommand = { blockEngineViewModel.onCopyCommand(block) },
+                                onCopyOutput = { blockEngineViewModel.onCopyOutput(block) },
+                                onRerunCommand = { cmd -> blockEngineViewModel.onRerunCommand(cmd) },
+                                onEditCommand = { cmd -> blockEngineViewModel.onEditCommand(cmd) },
+                                onExportOutput = { blockEngineViewModel.onExportOutput(block) },
+                                onDeleteBlock = { blockEngineViewModel.onDeleteBlock(block.id) },
+                                onUrlClick = onUrlClick,
+                            )
+                            if (block.id != blocks.lastOrNull()?.id) {
+                                PromptDivider()
+                            }
+                        }
+                    }
+
+                    PromptDivider()
+
+                    // While the shell is at its prompt this records a command
+                    // block. Once an interactive program takes the terminal the
+                    // line goes straight to the program instead, so the bar stops
+                    // labelling itself as a command prompt and its output is not
+                    // mistaken for one.
+                    BlockInputField(
+                        onSubmit = { cmd ->
+                            if (awaitingShellInput) {
+                                blockEngineViewModel.onCommandSubmitted("", cmd)
+                            } else {
+                                blockEngineViewModel.onRawInput(cmd)
+                            }
+                        },
+                        promptLabel = promptDir,
+                        promptSuffix = promptSuffix,
+                        programPrompt = if (awaitingShellInput) null else PROGRAM_PROMPT_MARKER,
+                    )
+                }
+            } else {
+                /*
+                 * CLASSIC TERMINAL PATH
+                 *
+                 * terminalViewRef is handed to the caller so overlays (search
+                 * highlight, WebView chrome) can sample this exact TerminalView.
+                 * Only the focused pane reports its bounds: the top bar samples
+                 * one terminal to blur behind itself, and there is no sensible
+                 * answer while two are on screen.
+                 */
+                TerminalViewHost(
+                    paneSlot = paneSlot,
+                    terminalManager = terminalManager,
+                    fontSizeSp = fontSizeSp,
+                    colorProps = colorProps,
+                    terminalViewModel = terminalViewModel,
+                    terminalViewRef = terminalViewRef,
+                    extraKeyState = extraKeyState,
+                    onUrlClick = onUrlClick,
+                    searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
+                    searchOverlayRef = searchOverlayRef,
+                    onBoundsChanged = onBoundsChanged,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // The grid still starts below the system bar. Letting the
+                        // first row run behind it puts the prompt under the clock,
+                        // which is unreadable — a fixed grid is not scrolling
+                        // content, so there is nothing to gain from it passing
+                        // underneath. The band itself is painted with the
+                        // terminal's own background just above, so it reads as
+                        // part of the terminal rather than as a strip of its own.
+                        .padding(top = statusBarInset()),
+                )
+            }
+        }
+
+        if (!inputBarState.hardwareKeyboardPresent) {
+            FlatKeyBar(
+                ctrlStuck = inputBarState.ctrlStuck,
+                altStuck = inputBarState.altStuck,
+                onIntent = inputBarViewModel::onIntent,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
 private const val TERMINAL_PINCH_THRESHOLD = 0.04f
 
 @Composable
 private fun TerminalViewHost(
+    paneSlot: PaneSlot,
     terminalManager: TerminalManager,
     fontSizeSp: Int,
     colorProps: Properties,
@@ -1100,6 +1267,16 @@ private fun TerminalViewHost(
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
+    val focusedPane by terminalManager.focusedPane.collectAsStateWithLifecycle()
+
+    /**
+     * This pane's own view.
+     *
+     * Local rather than the caller's shared ref, which now names whichever
+     * pane has focus. Sharing one would make both panes apply their font size
+     * and colours to the same view and leave the other one on the defaults.
+     */
+    val ownView = remember { mutableStateOf<TerminalView?>(null) }
 
     val viewClient = remember(
         terminalViewModel,
@@ -1118,11 +1295,23 @@ private fun TerminalViewHost(
     }
 
     LaunchedEffect(fontSizeSp) {
-        terminalViewRef.value?.setTextSize(fontSizeSp)
+        ownView.value?.setTextSize(fontSizeSp)
     }
 
     LaunchedEffect(colorProps) {
-        terminalViewRef.value?.updateColors(colorProps)
+        ownView.value?.updateColors(colorProps)
+    }
+
+    // The caller's ref is what the keyboard, the selection menu and the top bar
+    // backdrop all reach through, and all three mean "the terminal the user is
+    // looking at". Republishing it on focus is what keeps them pointing at the
+    // right one after a tap into the other pane.
+    LaunchedEffect(focusedPane, ownView.value) {
+        if (paneSlot == focusedPane) terminalViewRef.value = ownView.value
+    }
+
+    DisposableEffect(paneSlot) {
+        onDispose { terminalManager.unregisterPaneView(paneSlot) }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -1159,17 +1348,33 @@ private fun TerminalViewHost(
                 isFocusableInTouchMode = true
                 setTerminalViewClient(viewClient)
                 viewClient.terminalView = this
-                terminalManager.currentSession?.let { session ->
+                // This pane's session, not the active one. A View shows one
+                // session, so the unfocused pane has to be attached to its own
+                // or the split would render the same terminal twice.
+                terminalManager.sessionForSlot(paneSlot)?.let { session ->
                     attachSession(session)
                 }
-                terminalManager.registerTerminalView(this, ctx)
+                terminalManager.registerPaneView(paneSlot, this, ctx)
+
+                // A tap is how the user says "I am working here". Wired to the
+                // platform focus listener rather than a Compose click handler so
+                // it does not consume the tap — the terminal still needs to see
+                // it, to select a word or open a link, and an overlay handler
+                // above the View would take both.
+                setOnFocusChangeListener { _, hasFocus ->
+                    if (hasFocus) terminalManager.focusPane(paneSlot)
+                }
+
                 val listener =
                     object : ViewTreeObserver.OnGlobalLayoutListener {
                         override fun onGlobalLayout() {
                             if (width > 0 && height > 0 && isAttachedToWindow) {
                                 viewTreeObserver.removeOnGlobalLayoutListener(this)
-                                terminalViewRef.value = this@apply
-                                this@apply.requestFocus()
+                                ownView.value = this@apply
+                                if (paneSlot == focusedPane) {
+                                    terminalViewRef.value = this@apply
+                                    this@apply.requestFocus()
+                                }
                             }
                         }
                     }
@@ -1201,14 +1406,14 @@ private fun TerminalViewHost(
         },
 
         update = { _ ->
-            val tv = terminalViewRef.value
+            val tv = ownView.value
             val overlay = searchOverlayRef.value
 
             tv?.setTextSize(fontSizeSp)
-            terminalManager.currentSession?.let { session ->
+            tv?.updateColors(colorProps)
+            terminalManager.sessionForSlot(paneSlot)?.let { session ->
                 tv?.attachSession(session)
             }
-            tv?.let { terminalManager.registerTerminalView(it, it.context) }
 
             overlay?.updateQuery(searchQuery)
         },

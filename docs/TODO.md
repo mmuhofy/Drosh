@@ -1,13 +1,73 @@
-# Drosh — TODO (Phase 6: Agent Bölümü + Native Editor)
-_Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence ve Native Editor bölümlerini içerir. Diğer fazlar buraya dahil edilmemiştir._
+# Drosh — TODO (Phase 6: Agent Bölümü + Native Editor + Workspace)
+_Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence, Native Editor ve Workspace bölümlerini içerir. Diğer fazlar buraya dahil edilmemiştir._
 
-_Son güncelleme: 2026-10-04_
+_Son güncelleme: 2026-10-05_
 
 ---
 
 ## Çalışma Prensibi — Önce Plan, Sonra Kod
 
 Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri içerir. Agent sistemi tasarlanırken 10 agentic kodlama uygulamasının analizinden (OpenCode, Cline SDK, Codex, Aider, DeepSeek Harness, Qwen Code, Harness CLI, Claude Code, Kilo Code) ilham alınıyor — bu ürünlerin çözdüğü problemler inceleniyor, Drosh'un kendi mobil/Android kısıtlarına uyarlanıyor, birebir kopyalanmıyor. İmplementasyon, plan tamamen netleşip onaylandıktan sonra başlayacak.
+
+---
+
+## Workspace / Proje Sistemi
+*Goal: gruplama + kalıcı metadata. Session'lar ve process'ler kalıcı değil. Branch `feat/workspace`.*
+*Şartname: Muhofy, 2026-10-05 — "sadece gruplama, kalıcı metadata olacak sessionlar processler kalıcı olmucak"*
+
+### Shipped (2026-10-05)
+- [x] `domain/workspace/` — `Workspace`, `WorkspaceEdit`, `WorkspaceRepository`,
+      `WorkspaceEdit.forStorage()`, `WorkspacePath`, `WorkspaceGrouping`
+- [x] `data/workspace/` — `WorkspaceEntity`, `WorkspaceDao`, `WorkspaceRepositoryImpl`
+- [x] `sessions.workspace_id` — nullable FK, `ON DELETE SET NULL`, indexed
+- [x] `DroshDatabase` 2 → 3 + `MIGRATION_2_3` (sessions tablosu rebuild: SQLite
+      mevcut tabloya constraint ekleyemiyor)
+- [x] `SessionRepository.assignToWorkspace` — id'yi yazmadan önce doğrular
+- [x] `WorkspaceScreen` + `WorkspaceViewModel` + edit/assign sheet'leri
+- [x] Erişim: sidebar → Projects, Settings → Projects
+- [x] `:domain:test` — `WorkspacePathTest`, `WorkspaceEditTest`, `WorkspaceGroupingTest`
+- [x] MEMORYBANK §7B
+
+### Explicitly NOT in v1 (karar, eksiklik değil)
+- [~] **Workspace process tutmaz.** PTY yok, shell ayakta tutulmuyor, hiçbir şey
+      geri açılmıyor. Bu yüzden ekranda "çalışıyor" rozeti yok — yalnızca
+      "bitti" / "aktif" var. Kalıcı `SessionState.Running` bir canlılık raporu
+      değil, resume işaretidir.
+- [~] **`rootPath` bir etiket, çalışma dizini değil.** Hiçbir yerde `cd` yapılmıyor.
+- [~] **Projeye özel shortcut yok** — MEMORYBANK §9'da deferred, şema öngörmüyor.
+- [~] **Workflow builder yok** — v1.1+.
+- [~] **Agent chat'ler gruplanmıyor** — §9 sadece session diyor; ayrı ürün kararı.
+
+### Next
+- [ ] **`MIGRATION_2_3` gerçek v2 kurulumda denenmedi.** `data/schemas/` bu
+      projede hiç commit edilmediği için Room'un `MigrationTestHelper`'ı için v2
+      fixture yok ve derleme zamanında şema karşılaştırması da yapılmıyor — bu
+      SQL'i yakalayabilecek iki kontrolün ikisi de o dosyalara bağlı. SQL entity
+      şekline göre elle yazıldı ve Room sonucu cihazda açılışta doğruluyor, yani
+      hata sessiz bozulma değil açılış çökmesi olur. **Denediğin yer: eski build
+      çalıştırmış bir cihaz.** Yeni kurulum v3'ü doğrudan açar, migration'ı
+      hiç çalıştırmaz.
+- [ ] **`data/schemas/`'ı commit etmeye başla.** `exportSchema = true` zaten açık
+      ama dizin yok; `DroshDatabase` notu "CI runs exportSchemaDebug" diyor,
+      workflow'da böyle bir adım da yok. Şemalar commit edilirse migration'lar
+      derleme zamanında doğrulanır.
+- [ ] **Arşiv ekranı.** `archived` kolonu ve `observeArchived()` var ama kimse
+      çağırmıyor — arşivle/arzivden çıkar yolu henüz yok.
+- [ ] **Projeye yeni session** — şu an session'ı projeye *taşı*ma var, proje
+      içinden sıfırdan session açma yok. `SessionRepository.create(name, workspaceId)`
+      bunun için hazırlandı, çağıran yok.
+- [ ] **Session silerken projeyi de silme teklifi** — "bu session projeye ait,
+      projeyi de sil?" onayı.
+- [ ] **Projeyi terminalde aç** — `cd <rootPath>` yerine doğrudan bir yeni
+      session. Root path etiket olduğu için bu ayrı bir karar.
+- [ ] **Arama/filtre** — session listesi aranıyor, proje listesi aranmıyor.
+- [ ] **Sürükle-bırak sıralama** — projeler `lastOpenedAtMs` ile sıralı,
+      kullanıcı sırası yok.
+- [ ] **Agent chat'lerini gruplama** — `working_directory` zaten var, ürün kararı bekliyor.
+
+### Bilinçli olarak yapılmayan
+- [ ] ~~Workspace oturumları kalıcı yapsın~~ — Muhofy's spec'i bunu açıkça
+      reddediyor. Bir process'in ömrü app'in ömrü; proje onu taşımıyor.
 
 ---
 
@@ -114,3 +174,30 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
       Gerçek davranış `PendingRequestsTest` içinde deterministik olarak test
       ediliyor (8 test). Dışarıdan gözlemleyen test `runBlocking` + açık job
       handle ile yeniden yazılmalı. İptal yolu yeniden ele alındığında yapılacak.
+
+---
+
+## Split Panes
+*Goal: two terminals side by side, or one floating over the other. Branch `feat/split-pane-panes`, PR #19.*
+
+### Shipped (2026-10-05)
+- [x] `PaneSlot` / `PaneLayout` (`:domain`) — two panes only, fractions not pixels, clamps in the model
+- [x] `PaneLayoutRepository` + DataStore impl — survives rotation and process death
+- [x] `TerminalManager`: a `TerminalView` per pane, focus as the active session, per-pane alt-buffer / selection / scroll
+- [x] Sidebar drag grip (threshold-armed, disarmable) + "Split right" menu item
+- [x] Draggable divider, 24dp target, 2dp drawn, accent only while dragged
+- [x] Floating window: title-bar drag, corner resize, expand to fill, dock back
+- [x] Overflow menu: "Float window" / "Dock pane" / "Close second pane", shown only when split
+- [x] A pane whose session ends is reconciled away
+
+### Not done, deliberately
+- [ ] **Block mode does not split.** One `BlockEngineWire`, one `BlockRepository`. Per-pane block
+      history means the wire's transcript-diff anchor and the repository's per-session store both
+      become keyed by pane, and `BlockEngineViewModel` becomes per-pane. Bigger than it reads —
+      not smuggled into this change.
+- [ ] No vertical split. Two side by side is the only axis; a top/bottom split on a phone leaves
+      two terminal strips too short to read.
+- [ ] No "swap panes". Focus follows a tap, but there is no gesture to trade the two sessions.
+- [ ] No "reset layout" for a floating pane dragged into a corner it cannot be dragged out of.
+- [ ] The floating window's expand button has no collapse affordance in the title bar while
+      maximized — you restore from the same button, which is correct but undiscoverable.

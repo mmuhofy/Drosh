@@ -7,6 +7,14 @@ data class SessionSnapshot(
     val createdAtMs: Long,
     val lastUsedAtMs: Long,
     val liveSnapshotLines: List<String> = emptyList(),
+    /**
+     * The workspace this session is filed under, or null when it is not in one.
+     *
+     * Grouping only. It says nothing about liveness: a session can name a
+     * workspace and still have no process behind it, because nothing here is
+     * durable across a process death.
+     */
+    val workspaceId: String? = null,
 )
 
 enum class SessionState {
