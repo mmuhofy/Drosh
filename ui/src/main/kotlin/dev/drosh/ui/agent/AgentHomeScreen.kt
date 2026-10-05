@@ -59,7 +59,6 @@ import dev.drosh.ui.agent.components.ActionButton
 import dev.chrisbanes.haze.hazeSource
 import dev.drosh.ui.agent.components.AgentIconPill
 import dev.drosh.ui.agent.components.AgentPill
-import dev.drosh.ui.agent.components.DroshAgentMark
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.rememberAgentGlass
 import dev.drosh.ui.agent.components.SectionHeader
@@ -444,8 +443,10 @@ private fun EmptyChats() {
             .padding(top = 56.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        DroshAgentMark(size = 44.dp, tint = DroshOutline)
-        Spacer(Modifier.height(16.dp))
+        // No agent mark here. The icon belongs to the terminal screen's agent
+        // button and nowhere else: a face that means "agent" on every agent screen
+        // is decoration, and the same glyph on a terminal button is what tells the
+        // user that button opens the agent rather than a shell.
         Text(
             text = "Henüz agent chat yok",
             fontSize = 15.sp,

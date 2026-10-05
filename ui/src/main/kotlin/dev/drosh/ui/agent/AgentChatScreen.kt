@@ -60,7 +60,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
-import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
@@ -81,7 +80,6 @@ import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.ActionButton
 import dev.drosh.ui.agent.components.CollapsibleRow
 import dev.drosh.ui.agent.components.DiffBlock
-import dev.drosh.ui.agent.components.DroshAgentMark
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.MonoBlock
@@ -1087,8 +1085,10 @@ private fun ChatEmptyHint() {
             .padding(top = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        DroshAgentMark(size = 40.dp, tint = DroshOutline)
-        Spacer(Modifier.height(14.dp))
+        // No agent mark here. The icon belongs to the terminal screen's agent
+        // button and nowhere else: a face that means "agent" on every agent screen
+        // is decoration, and the same glyph on a terminal button is what tells the
+        // user that button opens the agent rather than a shell.
         Text(
             text = "Ne yapmamı istiyorsun?",
             fontSize = 15.sp,
