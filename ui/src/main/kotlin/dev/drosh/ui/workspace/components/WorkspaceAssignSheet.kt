@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshOutline
+import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
