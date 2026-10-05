@@ -190,13 +190,20 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 - [x] Overflow menu: "Float window" / "Dock pane" / "Close second pane", shown only when split
 - [x] A pane whose session ends is reconciled away
 
+### Corrected (PR #27)
+- [x] **Top-to-bottom, not side by side.** Two 180dp columns are ~10 characters wide.
+- [x] **Divider snaps to five positions**, 20% apart, plus "Move divider" in the overflow.
+- [x] **Divider restyled** — 1dp hairline seam with a rounded pill on it, widening while held.
+- [x] **The key bar no longer covers the lower pane.** `fillMaxSize()` → `weight(1f)`; the host
+      was taking the whole Column and pushing each pane's own key bar off the bottom edge.
+- [x] **Sidebar names both halves** with the split glyph between them, ellipsised from the middle.
+- [x] **"Open in window" in the row menu** — a floating window is one tap, not split-then-toggle.
+
 ### Not done, deliberately
 - [ ] **Block mode does not split.** One `BlockEngineWire`, one `BlockRepository`. Per-pane block
       history means the wire's transcript-diff anchor and the repository's per-session store both
       become keyed by pane, and `BlockEngineViewModel` becomes per-pane. Bigger than it reads —
       not smuggled into this change.
-- [ ] No vertical split. Two side by side is the only axis; a top/bottom split on a phone leaves
-      two terminal strips too short to read.
 - [ ] No "swap panes". Focus follows a tap, but there is no gesture to trade the two sessions.
 - [ ] No "reset layout" for a floating pane dragged into a corner it cannot be dragged out of.
 - [ ] The floating window's expand button has no collapse affordance in the title bar while
