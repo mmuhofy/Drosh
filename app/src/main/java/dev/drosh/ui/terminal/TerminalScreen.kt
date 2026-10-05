@@ -719,7 +719,8 @@ private fun ReadyScreen(
             val screenDp = LocalConfiguration.current.screenWidthDp
             // Derived from how many actions are actually showing, so the first
             // frame samples the right region instead of waiting to be measured.
-            val actionCount = 2 + (if (hasClipboardText) 1 else 0) + (if (selectionUrl != null) 1 else 0)
+            // Kopyala, Tümü, Paylaş and the keyboard toggle are unconditional.
+            val actionCount = 4 + (if (hasClipboardText) 1 else 0) + (if (selectionUrl != null) 1 else 0)
             val densityPx = with(density) { menuWidthFor(actionCount).roundToPx() }
             val menuHeightPx = with(density) { MENU_HEIGHT_PX.roundToPx() }
             var measured by remember { mutableStateOf(IntSize.Zero) }
@@ -741,6 +742,7 @@ private fun ReadyScreen(
                 selectedText = selectionText,
                 url = selectionUrl,
                 canPaste = hasClipboardText,
+                keyboardFocused = keyboardFocused,
                 blurRadius = MENU_BLUR,
                 onCopy = {
                     selectionText?.let { context.copyToClipboard("terminal", it) }
@@ -753,6 +755,7 @@ private fun ReadyScreen(
                 },
                 onSelectAll = { terminalViewRef.value?.selectAll() },
                 onShare = { selectionText?.let { context.shareText(it) } },
+                onToggleKeyboard = ::toggleKeyboard,
                 modifier = Modifier
                     .offset(x = anchorX, y = belowSelection)
                     .onSizeChanged { measured = it },
@@ -770,8 +773,6 @@ private fun ReadyScreen(
                 backdrop = backdrop,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
-                            keyboardFocused = keyboardFocused,
-                onToggleKeyboard = ::toggleKeyboard,
                 onOpenSidebar = {
                     hideKeyboard()
                     scope.launch {
