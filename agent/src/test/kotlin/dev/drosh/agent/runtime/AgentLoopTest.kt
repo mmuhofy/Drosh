@@ -8,6 +8,7 @@ import dev.drosh.domain.agent.AgentLimits
 import dev.drosh.domain.agent.AgentRequest
 import dev.drosh.domain.agent.AgentRunState
 import dev.drosh.domain.agent.ApprovalDecision
+import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.LlmMessage
 import dev.drosh.domain.agent.LlmRequest
 import dev.drosh.domain.agent.RunOutcome
