@@ -9,7 +9,6 @@ import dev.drosh.data.session.SessionRepositoryImpl
 import dev.drosh.data.agent.AgentChatRepositoryImpl
 import dev.drosh.data.agent.LlmProviderRepositoryImpl
 import dev.drosh.data.agent.ToolCredentialRepositoryImpl
-import dev.drosh.data.agent.TranscriptStoreImpl
 import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
@@ -23,7 +22,6 @@ import dev.drosh.domain.agent.AgentChatRepository
 import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.agent.ToolCredentialRepository
-import dev.drosh.domain.agent.TranscriptStore
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.NetworkMetricsCollector
 import dev.drosh.domain.input.HardwareKeyboardPresence
@@ -158,12 +156,6 @@ abstract class BindingsModule {
     abstract fun bindAgentChatRepository(
         impl: AgentChatRepositoryImpl,
     ): AgentChatRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindTranscriptStore(
-        impl: TranscriptStoreImpl,
-    ): TranscriptStore
 
     @Binds
     @Singleton

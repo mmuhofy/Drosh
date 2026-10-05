@@ -3,7 +3,9 @@ package dev.drosh.data.di
 import android.content.Context
 import androidx.room.Room
 import dev.drosh.data.agent.AgentChatDao
+import dev.drosh.agent.transcript.MessageDao
 import dev.drosh.data.agent.AgentMessageDao
+import dev.drosh.data.agent.RoomMessageDao
 import dev.drosh.data.local.DroshDatabase
 import dagger.Module
 import dagger.Provides
@@ -51,4 +53,9 @@ object DatabaseModule {
 
     @Provides
     fun provideAgentMessageDao(database: DroshDatabase): AgentMessageDao = database.agentMessageDao()
+
+    /** The port `:agent` injects, over the Room DAO above. */
+    @Provides
+    @Singleton
+    fun provideMessageDao(dao: AgentMessageDao): MessageDao = RoomMessageDao(dao)
 }

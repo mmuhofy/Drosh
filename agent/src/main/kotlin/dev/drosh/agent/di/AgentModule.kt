@@ -8,6 +8,8 @@ import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import dagger.multibindings.Multibinds
 import dev.drosh.agent.provider.OpenAiCompatAdapter
+import dev.drosh.agent.transcript.TranscriptStoreImpl
+import dev.drosh.domain.agent.TranscriptStore
 import dev.drosh.domain.agent.ChatAdapter
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
@@ -49,6 +51,23 @@ object AgentModule {
  * correct and then failed at the first run with "no adapter implements",
  * naming the symptom rather than the missing annotation.
  */
+/**
+ * Transcript storage.
+ *
+ * Bound in `:agent` rather than `:data` because `AgentLoop` injects `TranscriptStore`
+ * here and this module's KSP pass cannot see bindings a module it does not depend
+ * on contributes. The Room side arrives through [dev.drosh.agent.transcript.MessageDao],
+ * which `:data` binds.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class TranscriptModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindTranscriptStore(impl: TranscriptStoreImpl): TranscriptStore
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AdapterModule {

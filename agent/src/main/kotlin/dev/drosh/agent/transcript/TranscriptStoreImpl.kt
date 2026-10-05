@@ -1,4 +1,4 @@
-package dev.drosh.data.agent
+package dev.drosh.agent.transcript
 
 import dev.drosh.domain.agent.AgentApproval
 import dev.drosh.domain.agent.ApprovalDecision
@@ -13,7 +13,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Room-backed transcript storage.
+ * Transcript storage over a [MessageDao] port.
+ *
+ * Lives in `:agent` rather than `:data` because `AgentLoop` injects
+ * `TranscriptStore` and `:agent`'s KSP pass cannot see bindings contributed by a
+ * module it does not depend on. Room supplies the DAO through [MessageDao],
+ * which `:data` binds to its Room implementation.
  *
  * ## `seq` allocation
  *
@@ -22,7 +27,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class TranscriptStoreImpl @Inject constructor(
-    private val dao: AgentMessageDao,
+    private val dao: MessageDao,
 ) : TranscriptStore {
 
     override suspend fun load(chatId: String): List<ChatMessage> = withContext(Dispatchers.IO) {
@@ -108,7 +113,7 @@ class TranscriptStoreImpl @Inject constructor(
     // ── row ↔ message ─────────────────────────────────────────────────────
 
     private fun ChatMessage.toEntity(chatId: String, seq: Int, createdAtMs: Long) =
-        AgentMessageEntity(
+        AgentMessageRow(
             chatId = chatId,
             seq = seq,
             kind = this::class.simpleName.orEmpty(),
@@ -145,7 +150,7 @@ class TranscriptStoreImpl @Inject constructor(
         is ChatMessage.Approval -> ""
     }
 
-    private fun AgentMessageEntity.toMessage(): ChatMessage? = when (kind) {
+    private fun AgentMessageRow.toMessage(): ChatMessage? = when (kind) {
         "User" -> ChatMessage.User(messageId, text)
         "Assistant" -> ChatMessage.Assistant(messageId, text)
         "Reasoning" -> ChatMessage.Reasoning(messageId, text)
