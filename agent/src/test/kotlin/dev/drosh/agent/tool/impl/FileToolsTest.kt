@@ -27,10 +27,12 @@ class FileToolsTest {
     private lateinit var root: File
 
     /**
-     * A GuestPaths whose guest root and working directory are the same temp
-     * directory, so a path like `a.kt` resolves to a real file here.
+     * A GuestPaths whose guest root is the temp directory and whose working
+     * directory is the guest root, so a path like `a.kt` resolves to a real file
+     * here. GuestPaths takes a *guest* working directory, so "/" — not the host
+     * path — is what makes `resolve("a.kt")` land inside root.
      */
-    private fun guestPaths(): GuestPaths = GuestPaths(root, root.path)
+    private fun guestPaths(): GuestPaths = GuestPaths(rootfsDir = root, workingDirectory = "/")
 
     private fun context(
         onApproval: (ApprovalRequest) -> ApprovalDecision = { ApprovalDecision.Approve },
