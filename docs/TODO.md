@@ -39,6 +39,18 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 - [~] **Agent chat'ler gruplanmıyor** — §9 sadece session diyor; ayrı ürün kararı.
 
 ### Next
+- [ ] **`MIGRATION_2_3` gerçek v2 kurulumda denenmedi.** `data/schemas/` bu
+      projede hiç commit edilmediği için Room'un `MigrationTestHelper`'ı için v2
+      fixture yok ve derleme zamanında şema karşılaştırması da yapılmıyor — bu
+      SQL'i yakalayabilecek iki kontrolün ikisi de o dosyalara bağlı. SQL entity
+      şekline göre elle yazıldı ve Room sonucu cihazda açılışta doğruluyor, yani
+      hata sessiz bozulma değil açılış çökmesi olur. **Denediğin yer: eski build
+      çalıştırmış bir cihaz.** Yeni kurulum v3'ü doğrudan açar, migration'ı
+      hiç çalıştırmaz.
+- [ ] **`data/schemas/`'ı commit etmeye başla.** `exportSchema = true` zaten açık
+      ama dizin yok; `DroshDatabase` notu "CI runs exportSchemaDebug" diyor,
+      workflow'da böyle bir adım da yok. Şemalar commit edilirse migration'lar
+      derleme zamanında doğrulanır.
 - [ ] **Arşiv ekranı.** `archived` kolonu ve `observeArchived()` var ama kimse
       çağırmıyor — arşivle/arzivden çıkar yolu henüz yok.
 - [ ] **Projeye yeni session** — şu an session'ı projeye *taşı*ma var, proje

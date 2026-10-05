@@ -93,6 +93,21 @@ abstract class DroshDatabase : RoomDatabase() {
          * [dev.drosh.data.workspace.WorkspaceRepositoryImpl.delete], which also
          * writes the nulls explicitly because that action only fires when the
          * foreign_keys pragma happens to be on.
+         *
+         * ## UNTESTED — verify before use
+         *
+         * Not exercised against a real v2 database. `data/schemas/` has never
+         * been committed in this project, so there is no exported schema for
+         * Room's `MigrationTestHelper` to build a v2 fixture from and no
+         * compile-time cross-check of this SQL against version 2 — the two checks
+         * that would catch a mismatch here both need those files.
+         *
+         * The SQL was written against the entity shape by hand, and Room does
+         * validate the *resulting* schema at open time on the device, so a
+         * mismatch is a launch-time crash and not silent corruption. But the
+         * first real upgrade from a v2 install is still unproven. Test it on a
+         * device that has run an older build, not on a fresh install — a fresh
+         * install creates v3 directly and never runs this at all.
          */
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
