@@ -64,6 +64,15 @@ abstract class DroshDatabase : RoomDatabase() {
         const val IDENTITY_HASH = "2c34080b274172ef8334419145cb02ea"
 
         /**
+         * The identity hash for the version-3 schema — everything except agent
+         * transcripts.
+         *
+         * Only needed by [MIGRATION_2_3], whose schema genuinely differs. The hash
+         * is overwritten again by [MIGRATION_3_4] for any device that continues.
+         */
+        const val IDENTITY_HASH_V3: String = "REPLACED_BY_CI"
+
+        /**
          * The SQL that brings a database to the current schema.
          *
          * Both agent tables are created `IF NOT EXISTS` so this is safe over a
@@ -200,6 +209,11 @@ abstract class DroshDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS `index_sessions_workspace_id` " +
                         "ON `sessions` (`workspace_id`)",
                 )
+                // The hash that reaches v3 is the one for the agent schema without
+                // transcripts, so it is necessarily wrong for v3. Written here
+                // rather than left to 3→4, because a device that never opens the
+                // app again on this build should still open correctly.
+                db.execSQL("UPDATE room_master_table SET identity_hash = '$IDENTITY_HASH_V3'")
             }
         }
 
