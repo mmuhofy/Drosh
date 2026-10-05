@@ -9,6 +9,7 @@ import dev.drosh.data.session.SessionRepositoryImpl
 import dev.drosh.data.agent.AgentChatRepositoryImpl
 import dev.drosh.data.agent.LlmProviderRepositoryImpl
 import dev.drosh.data.agent.ToolCredentialRepositoryImpl
+import dev.drosh.data.agent.TranscriptStoreImpl
 import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
