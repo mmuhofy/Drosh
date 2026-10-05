@@ -31,6 +31,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
@@ -131,9 +133,9 @@ fun AgentSelectionMenu(
  * nothing behind it worth reading.
  */
 @Composable
-private fun agentSelectionStyle() = agentGlassStyle().copy(
+private fun agentSelectionStyle(): HazeStyle = HazeStyle(
+    tint = HazeTint(DroshSurfaceHigh.copy(alpha = 0.26f)),
     blurRadius = 32.dp,
-    tint = dev.chrisbanes.haze.HazeTint(DroshSurfaceHigh.copy(alpha = 0.26f)),
 )
 
 @Composable
