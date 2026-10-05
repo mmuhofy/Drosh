@@ -8,6 +8,7 @@ import dev.drosh.domain.agent.AgentLimits
 import dev.drosh.domain.agent.AgentRequest
 import dev.drosh.domain.agent.AgentRunState
 import dev.drosh.domain.agent.AgentSession
+import dev.drosh.domain.agent.ConversationCompactor
 import dev.drosh.domain.agent.ApprovalDecision
 import dev.drosh.domain.agent.ChatAdapter
 import dev.drosh.domain.agent.LlmCredential
@@ -19,6 +20,7 @@ import dev.drosh.domain.agent.LlmStreamEvent
 import dev.drosh.domain.agent.LlmToolCall
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.ToolDefinition
+import dev.drosh.domain.agent.TranscriptStore
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -74,6 +76,7 @@ class AgentLoop @Inject constructor(
     private val providers: LlmProviderRepository,
     private val registry: ProviderRegistry,
     private val toolRegistry: ToolRegistry,
+    private val transcripts: TranscriptStore,
 ) : AgentSession {
 
     private val chats = ConcurrentHashMap<String, ChatRuntime>()
@@ -101,6 +104,13 @@ class AgentLoop @Inject constructor(
         markRunning(request.chatId)
 
         try {
+            // Restore before appending the new prompt. A chat resumed after a
+            // restart has to arrive at the provider carrying what it already knows,
+            // or "carry on where we left off" silently becomes "start again".
+            if (runtime.history.isEmpty()) {
+                val stored = transcripts.load(request.chatId)
+                if (stored.isNotEmpty()) runtime.restore(transcripts.assembleHistory(stored))
+            }
             runtime.remember(LlmMessage.User(request.prompt))
 
             emit(AgentEvent.RunFinished(runLoop(request, runtime, this)))
@@ -177,6 +187,7 @@ class AgentLoop @Inject constructor(
 
             if (turn.toolCalls.isEmpty()) {
                 runtime.remember(LlmMessage.Assistant(turn.text))
+                persist(runtime)
                 return RunOutcome.Completed(turn.text)
             }
 
@@ -215,10 +226,41 @@ class AgentLoop @Inject constructor(
                 runtime.remember(LlmMessage.ToolResultMessage(call.id, call.name, responseText))
             }
 
+            // Once per turn, after every tool result has been folded in: a
+            // transcript saved mid-tool would record a call with no result, which
+            // restores as a dangling tool_call the model cannot make sense of.
+            persist(runtime)
             collector.emit(AgentEvent.TurnCompleted(step))
         }
 
+        persist(runtime)
         return RunOutcome.StepLimitReached(step)
+    }
+
+    /**
+     * Write the conversation to durable storage and compact it if it has grown.
+     *
+     * Called once per turn rather than per event: a tool that streams forty output
+     * lines would otherwise do forty writes of the whole transcript.
+     */
+    private suspend fun persist(runtime: ChatRuntime) {
+        val id = runtime.chatId
+        transcripts.saveModelView(id, runtime.snapshot())
+
+        val plan = ConversationCompactor.plan(runtime.snapshot())
+        if (!plan.shouldCompact) return
+
+        val older = runtime.take(plan.summarizeUpToSeq)
+        if (older.isEmpty()) return
+
+        // Cline's overflow recovery, run before the provider refuses rather than
+        // after: a chat that has to hit `context_length_exceeded` before anything
+        // happens ends at that wall every single time.
+        runtime.compactTo(
+            summary = ConversationCompactor.summarise(older, fromSeq = plan.summarizeUpToSeq),
+            keepFromSeq = plan.keepFromSeq,
+        )
+        transcripts.saveModelView(id, runtime.snapshot())
     }
 
     // ── one provider turn, with retry ──────────────────────────────────────

@@ -6,6 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import dev.drosh.data.agent.AgentChatDao
 import dev.drosh.data.agent.AgentChatEntity
+import dev.drosh.data.agent.AgentMessageDao
+import dev.drosh.data.agent.AgentMessageEntity
 import dev.drosh.data.session.SessionDao
 import dev.drosh.data.session.SessionEntity
 
@@ -22,13 +24,14 @@ import dev.drosh.data.session.SessionEntity
  * the diff on PRs that touch this file.
  */
 @Database(
-    entities = [SessionEntity::class, AgentChatEntity::class],
-    version = 2,
+    entities = [SessionEntity::class, AgentChatEntity::class, AgentMessageEntity::class],
+    version = 3,
     exportSchema = true,
 )
 abstract class DroshDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun agentChatDao(): AgentChatDao
+    abstract fun agentMessageDao(): AgentMessageDao
 
     companion object {
         const val DATABASE_NAME = "irisshell.db"
@@ -57,6 +60,53 @@ abstract class DroshDatabase : RoomDatabase() {
                         `last_message_preview` TEXT NOT NULL,
                         PRIMARY KEY(`id`)
                     )
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        /**
+         * 2 -> 3: agent transcripts.
+         *
+         * Additive, so no existing row is rewritten. The unique index on
+         * (chat_id, seq) is what makes "before" unambiguous: several rows can be
+         * written in the same millisecond while a tool streams, and a timestamp
+         * tie would make restore order non-deterministic.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `agent_messages` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `chat_id` TEXT NOT NULL,
+                        `seq` INTEGER NOT NULL,
+                        `kind` TEXT NOT NULL,
+                        `message_id` TEXT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `tool_call_id` TEXT,
+                        `tool_name` TEXT,
+                        `tool_summary` TEXT,
+                        `tool_state` TEXT,
+                        `tool_output` TEXT,
+                        `tool_final_output` TEXT,
+                        `truncated` INTEGER NOT NULL,
+                        `duration_ms` INTEGER,
+                        `approval_id` TEXT,
+                        `approval_title` TEXT,
+                        `approval_body` TEXT,
+                        `approval_diff` TEXT,
+                        `approval_options` TEXT,
+                        `approval_decision_kind` TEXT,
+                        `approval_decision_value` TEXT,
+                        `created_at_ms` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS `index_agent_messages_chat_id_seq`
+                    ON `agent_messages` (`chat_id`, `seq`)
                     """.trimIndent(),
                 )
             }
