@@ -15,6 +15,7 @@ import dev.drosh.core.TerminalConstants
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.terminal.PaneSlot
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
@@ -78,8 +79,9 @@ class TerminalManager(
 
     private fun publishActiveId() {
         onActiveSessionChanged?.invoke(activePersistentId())
-        // Command marks are per session, so the flow follows the active tab.
-        commandState.bind(irisSessions.getOrNull(_activeTabIndex.value)?.terminalSession)
+        // Command marks are per session, so the flow follows whichever pane has
+        // focus — that is the one a keystroke is going to.
+        commandState.bind(sessionForSlot(focusedPane.value))
     }
 
     /**
@@ -113,7 +115,7 @@ class TerminalManager(
     val currentAmbientTint: Int? get() = _currentAmbientTint
 
     private fun recomputeAmbientTint(): Int? {
-        val session = irisSessions.getOrNull(_activeTabIndex.value)?.terminalSession ?: return null
+        val session = sessionForSlot(focusedPane.value) ?: return null
         val emulator = session.emulator ?: return null
         return runCatching {
             ambientTint.compute(
@@ -125,10 +127,54 @@ class TerminalManager(
     }
 
     private val _activeTabIndex = MutableStateFlow(0)
-    val activeTabIndex: StateFlow<Int> = _activeTabIndex.asStateFlow()
 
-    private val _altBufferActive = MutableStateFlow(false)
-    val altBufferActive: StateFlow<Boolean> = _altBufferActive.asStateFlow()
+    /**
+     * Positional index into [irisSessions] for each pane, or [NO_PANE_SESSION]
+     * when the pane is empty.
+     *
+     * Both panes hold explicit indices rather than one of them following
+     * [currentSession]. That indirection is what made the original
+     * single-view design work — one view, one "current" session — and it is
+     * exactly what breaks with two: switching focus would drag the other
+     * pane's session along with it, because both panes would be resolving
+     * through the same index. Each pane keeps what it was given.
+     */
+    private val paneTabIndices = LinkedHashMap<PaneSlot, Int>(
+        PaneSlot.PRIMARY to 0,
+        PaneSlot.SECONDARY to NO_PANE_SESSION,
+    )
+
+    private val _focusedPane = MutableStateFlow(PaneSlot.DEFAULT)
+    val focusedPane: StateFlow<PaneSlot> = _focusedPane.asStateFlow()
+
+    /**
+     * Sessions currently in the alternate screen buffer — a TUI has the
+     * terminal, not a shell.
+     *
+     * Per pane rather than one flag: the question is asked per pane because
+     * the answer differs. A `vim` in the background pane says nothing about
+     * whether the foreground pane is at a shell prompt, and a single boolean
+     * would swap the foreground pane's whole renderer because of what the
+     * other one is doing.
+     */
+    private val _altBufferByPane = MutableStateFlow<Map<PaneSlot, Boolean>>(emptyMap())
+
+    /** True when the given pane is showing a TUI rather than shell output. */
+    fun isAltBufferActive(slot: PaneSlot): Boolean =
+        _altBufferByPane.value[slot] == true
+
+    /**
+     * Sessions currently live, as a flow.
+     *
+     * The split layout stores a session id, and that session can end while the
+     * app runs. The UI needs to watch the live set to drop a pane whose session
+     * has gone, and it cannot see [irisSessions] — only the ids that made it
+     * into Room belong in the public surface.
+     */
+    private val _liveSessionIds = MutableStateFlow<Set<String>>(emptySet())
+    val liveSessionIdsFlow: StateFlow<Set<String>> = _liveSessionIds.asStateFlow()
+
+    val activeTabIndex: StateFlow<Int> = _activeTabIndex.asStateFlow()
 
     /**
      * Synchronous snapshot of the active tab index, intended for UI scaffolds
@@ -138,8 +184,18 @@ class TerminalManager(
 
     val tabCount: Int get() = irisSessions.size
 
+    /**
+     * The session the user is currently working in: whichever pane last had
+     * focus.
+     *
+     * This is what the rest of the app means by "the" session — the one the
+     * block engine ingests, the one a keystroke goes to, the one whose id is
+     * persisted as active. It is deliberately not the primary pane's session:
+     * with a split open, the user reading scrollback in the right-hand pane is
+     * working in the right-hand pane.
+     */
     val currentSession: TerminalSession?
-        get() = irisSessions.getOrNull(_activeTabIndex.value)?.terminalSession
+        get() = sessionForSlot(focusedPane.value)
 
     /** Display names of all tabs, in positional order. */
     val tabNames: List<String>
@@ -183,7 +239,161 @@ class TerminalManager(
         _noSessionsLeft.value = false
     }
 
-    private var terminalViewRef: TerminalView? = null
+    /**
+     * The [TerminalView] showing each pane, if that pane's view has been built.
+     *
+     * A view is registered by the Compose layer as it is created and dropped
+     * when the pane goes away, so this map is empty for a pane that is not on
+     * screen. Everything below tolerates that: a pane whose view has not
+     * arrived yet still has an index, and attaching is a no-op until there is
+     * something to attach to.
+     *
+     * [LinkedHashMap] rather than [HashMap] so [focusedPane] can hand the last
+     * view back to the new one when a pane is torn down, without caring about
+     * iteration order.
+     */
+    private val paneViews = LinkedHashMap<PaneSlot, TerminalView>()
+
+    /**
+     * Last cursor-blink rate seen from settings, replayed onto views as they
+     * register.
+     *
+     * Held because the rate is a property of the pane, not of the view's
+     * creation moment: applying it only on the settings flow meant a pane
+     * opened after the user last touched the setting kept the emulator
+     * default, so a second terminal blinked at a different speed from the
+     * first.
+     */
+    private var cursorBlinkRateMs: Int = DEFAULT_CURSOR_BLINK_MS
+
+    /** The pane's view, or null when the pane is not on screen. */
+    fun viewForPane(slot: PaneSlot): TerminalView? = paneViews[slot]
+
+    /** The focused pane's view — the one keystrokes and pastes go to. */
+    val focusedView: TerminalView? get() = paneViews[focusedPane.value]
+
+    /**
+     * The pane showing [session], or null when it is on no pane.
+     *
+     * Found by asking the views rather than by keeping a session→pane map
+     * alongside this one. [TerminalView.mTermSession] is the same fact, already
+     * maintained by `attachSession`, so a second copy could only ever disagree
+     * with it.
+     */
+    fun paneForSession(session: TerminalSession?): PaneSlot? {
+        if (session == null) return null
+        return paneViews.entries.firstOrNull { it.value.mTermSession === session }?.key
+    }
+
+    /** Redraws every pane that is showing [session]. */
+    private fun redrawPanesShowing(session: TerminalSession) {
+        paneViews.values.forEach { view ->
+            if (view.mTermSession === session) view.onScreenUpdated()
+        }
+    }
+
+    /**
+     * Points [slot] at [sessionId].
+     *
+     * Returns false when the id is not live, so a caller can tell "pane opened"
+     * from "pane refused a session that is gone" — the second needs the layout
+     * left alone, because the id may become live again on the next reconcile
+     * tick rather than being a mistake to unwind.
+     */
+    fun bindPaneToSession(slot: PaneSlot, sessionId: String?): Boolean {
+        if (sessionId == null) {
+            // No attach here: TerminalView.attachSession takes a non-null
+            // session, and there is nothing to attach. The view keeps painting
+            // the old session until the UI unmounts the pane, which unregisters
+            // it — painting a stale frame for the frame or two before that is
+            // better than growing a detach path on the vendored view for it.
+            paneTabIndices[slot] = NO_PANE_SESSION
+            return true
+        }
+        val index = getIndexForId(sessionId)
+        if (index < 0) return false
+        paneTabIndices[slot] = index
+        paneViews[slot]?.let { view -> irisSessions[index].terminalSession.let(view::attachSession) }
+        return true
+    }
+
+    /** The session id shown in [slot], or null when the pane is empty. */
+    fun sessionIdForSlot(slot: PaneSlot): String? = irisSessions
+        .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
+        ?.persistentId
+
+    /** The session shown in [slot], or null when the pane is empty. */
+    fun sessionForSlot(slot: PaneSlot): TerminalSession? = irisSessions
+        .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
+        ?.terminalSession
+
+    /**
+     * Re-attaches whichever pane holds [index] to its current session.
+     *
+     * Called after a session's [TerminalSession] is replaced — a restart, or a
+     * fallback shell being swapped in — because a view keeps its reference to
+     * the dead session until something tells it otherwise. Matching on the
+     * index rather than on the focused pane is what lets both panes recover
+     * from a restart that touched only one of them.
+     */
+    private fun reattachPanesAt(index: Int) {
+        paneTabIndices.forEach { (slot, slotIndex) ->
+            if (slotIndex != index) return@forEach
+            val session = irisSessions.getOrNull(index)?.terminalSession ?: return@forEach
+            paneViews[slot]?.attachSession(session)
+        }
+    }
+
+    /**
+     * Re-points every pane at whatever its index currently resolves to, and
+     * keeps [_activeTabIndex] agreeing with the focused pane.
+     *
+     * The bookkeeping after a session is added or removed: indices have shifted
+     * for everyone, and the pane that lost its session has to fall back to
+     * another one rather than keep pointing at a row that no longer exists.
+     */
+    private fun resyncPanes() {
+        var focusMoved = false
+        paneTabIndices.forEach { (slot, index) ->
+            if (index == NO_PANE_SESSION) return@forEach
+            val clamped = index.coerceIn(0, (irisSessions.size - 1).coerceAtLeast(0))
+            if (clamped != index) paneTabIndices[slot] = clamped
+            val session = irisSessions.getOrNull(clamped)?.terminalSession
+            if (session == null) {
+                paneTabIndices[slot] = NO_PANE_SESSION
+                if (slot == focusedPane.value) focusMoved = true
+            } else {
+                paneViews[slot]?.attachSession(session)
+            }
+        }
+
+        // A pane whose session vanished cannot stay focused — the app's idea of
+        // "active session" would then name something that is not on screen.
+        if (focusMoved || irisSessions.isEmpty()) {
+            val fallback = PaneSlot.entries.firstOrNull {
+                (paneTabIndices[it] ?: NO_PANE_SESSION) >= 0
+            }
+            if (fallback != null) _focusedPane.value = fallback
+        }
+        syncActiveTabIndex()
+        publishAltBufferState()
+    }
+
+    /** Keeps [_activeTabIndex] pointing at the focused pane's session. */
+    private fun syncActiveTabIndex() {
+        val index = paneTabIndices[focusedPane.value] ?: NO_PANE_SESSION
+        _activeTabIndex.value = index.coerceIn(0, (irisSessions.size - 1).coerceAtLeast(0))
+    }
+
+    /** Recomputes the per-pane alt-buffer flags from the live sessions. */
+    private fun publishAltBufferState() {
+        val next = HashMap<PaneSlot, Boolean>(PaneSlot.entries.size)
+        PaneSlot.entries.forEach { slot ->
+            val active = sessionForSlot(slot)?.emulator?.isAlternateBufferActive() ?: false
+            if (active) next[slot] = true
+        }
+        _altBufferByPane.value = next
+    }
 
     private val _scrollTopRow = MutableStateFlow(0)
 
@@ -250,7 +460,7 @@ class TerminalManager(
                 isFallbackSession = false,
             )
             if (idx == _activeTabIndex.value) {
-                terminalViewRef?.attachSession(irisSessions[idx].terminalSession)
+                reattachPanesAt(idx)
             }
         }
     }
@@ -263,7 +473,7 @@ class TerminalManager(
     init {
         sessionClient.onSessionFinished = { session -> onSessionFinished(session) }
         sessionClient.onTextChanged = { session ->
-            terminalViewRef?.onScreenUpdated()
+            redrawPanesShowing(session)
             commandActivity.onOutput()
             // Recomputed at most a few times per command; the screen has to
             // have changed for it to be worth asking.
@@ -273,8 +483,14 @@ class TerminalManager(
                 ?.let { irisSessions[it].persistentId }
             blockEngineWire?.onSessionTextChanged(session, persistentId)
         }
-        sessionClient.onAltBufferChanged = { isActive ->
-            _altBufferActive.value = isActive
+        sessionClient.onAltBufferChanged = { session, isActive ->
+            // Routed by pane rather than assigned to a shared flag: a TUI
+            // opening in the background pane must not swap the foreground
+            // pane's renderer out from under the user.
+            val slot = paneForSession(session) ?: return@onAltBufferChanged
+            val next = _altBufferByPane.value.toMutableMap()
+            if (isActive) next[slot] = true else next.remove(slot)
+            _altBufferByPane.value = next
         }
         sessionClient.onPidChanged = { session, pid -> onSessionPidChanged(session, pid) }
 
@@ -290,16 +506,24 @@ class TerminalManager(
                     "Underline" -> TerminalEmulator.TERMINAL_CURSOR_STYLE_UNDERLINE
                     else      -> null
                 }
-                terminalViewRef?.mEmulator?.let { emulator ->
-                    emulator.setCursorStyle()
-                    terminalViewRef?.invalidate()
+                // Applied to every pane: cursor shape is a user preference about how
+                // Drosh looks, not about one terminal. Applying it to the
+                // focused view alone left the second pane with whatever style
+                // it happened to be created with.
+                paneViews.values.forEach { view ->
+                    view.mEmulator?.setCursorStyle()
+                    view.invalidate()
                 }
             }
             .launchIn(managerScope)
 
         settingsRepository.cursorBlinkRateMs
             .onEach { rate ->
-                terminalViewRef?.setTerminalCursorBlinkerRate(rate)
+                // Held, not just applied: a view registered later must get the
+                // current rate too, and the settings flow does not re-emit for
+                // a pane that appears after the user last changed it.
+                cursorBlinkRateMs = rate
+                paneViews.values.forEach { view -> view.setTerminalCursorBlinkerRate(rate) }
             }
             .launchIn(managerScope)
 
@@ -331,19 +555,25 @@ class TerminalManager(
     /**
      * Routes the selection controller's changes out to Compose.
      *
-     * Called from registerTerminalView rather than from a composable effect:
-     * a LaunchedEffect on first composition runs before the AndroidView factory
-     * has registered the view, so it returned early and the platform
-     * ActionMode stayed on. Binding it where the view is actually attached
-     * cannot miss.
+     * Called from registerPaneView rather than from a composable effect: a
+     * LaunchedEffect on first composition runs before the AndroidView factory
+     * has registered the view, so it returned early and the platform ActionMode
+     * stayed on. Binding it where the view is actually attached cannot miss.
+     *
+     * Only the focused pane publishes. The selection menu is drawn once, over
+     * whichever pane has it, and [selectionBounds] is in view pixels — feeding
+     * it the unfocused pane's bounds would anchor the menu to a rectangle
+     * belonging to a different terminal, at coordinates the host cannot
+     * reconcile with its own.
      */
-    private fun bindSelectionMenu(view: TerminalView) {
+    private fun bindSelectionMenu(view: TerminalView, slot: PaneSlot) {
         view.installSelectionMenu(enabled = false) {
             // The highlight is painted inside TerminalView.onDraw, so the view
             // has to be invalidated for a selection change to be visible. The
             // handles reposition themselves, which is why select-all appeared
             // to do nothing: nothing moved the pixel content.
             view.invalidate()
+            if (slot != focusedPane.value) return@installSelectionMenu
             val bounds = view.selectionBounds()
             _selectionBounds.value = bounds
             _hasSelection.value = bounds != null
@@ -351,27 +581,110 @@ class TerminalManager(
         view.notifySelectionChanged()
     }
 
-    fun registerTerminalView(view: TerminalView, context: Context) {
-        terminalViewRef = view
-        sessionClient.clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    /**
+     * Registers [view] as the terminal view for [slot].
+     *
+     * Every pane gets its own view rather than sharing one: a View holds a
+     * single [TerminalSession], so two sessions cannot be drawn by one of them.
+     * That makes several of this manager's single-value flows genuinely
+     * per-pane — selection, scroll position, alt-buffer — and each is resolved
+     * here against whichever pane currently has focus.
+     */
+    fun registerPaneView(slot: PaneSlot, view: TerminalView, context: Context) {
+        paneViews[slot] = view
+        sessionClient.clipboard =
+            context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        view.setTerminalCursorBlinkerRate(cursorBlinkRateMs)
+
+        // The pane may have been given its session before its view existed —
+        // the layout is restored from storage before the first composition
+        // builds anything — so attach now rather than waiting for a change that
+        // has already happened.
+        sessionForSlot(slot)?.let { view.attachSession(it) }
+
+        if (slot == focusedPane.value) activatePaneView(slot, view)
+    }
+
+    /**
+     * Makes [view] the one that reports scroll position, selection and pastes.
+     *
+     * Detaching first matters: the previous pane keeps a listener that writes
+     * the same flows, so without this, scrolling the background pane would
+     * collapse the top bar the user is not even reading.
+     */
+    private fun activatePaneView(slot: PaneSlot, view: TerminalView) {
+        paneViews.forEach { (other, otherView) ->
+            if (other != slot) otherView.onScrollPositionChanged = null
+        }
         sessionClient.terminalView = view
-        // Report the current position immediately: a session restored straight
-        // into the middle of its scrollback would otherwise start with a stale
-        // zero and only correct itself on the next scroll.
-        _scrollTopRow.value = view.mTopRow
+        publishScroll(view)
         view.onScrollPositionChanged = { topRow ->
+            if (slot != focusedPane.value) return@onScrollPositionChanged
             _scrollTopRow.value = topRow
             val atEdge = topRow == 0
             if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
         }
-        bindSelectionMenu(view)
+        bindSelectionMenu(view, slot)
     }
 
-    fun unregisterTerminalView() {
-        // Drop the callback before the reference, or the view keeps a strong
-        // reference to this manager after the screen is gone.
-        terminalViewRef?.onScrollPositionChanged = null
-        terminalViewRef = null
+    /** Reports a view's current scroll position immediately. */
+    private fun publishScroll(view: TerminalView) {
+        // A session restored straight into the middle of its scrollback would
+        // otherwise start with a stale zero and only correct itself on the next
+        // scroll.
+        _scrollTopRow.value = view.mTopRow
+        val atEdge = view.mTopRow == 0
+        if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
+    }
+
+    /**
+     * Moves keyboard focus to [slot].
+     *
+     * Focus is what makes a pane the active one app-wide, so this also rebinds
+     * the flows that describe "the current terminal" and republishes the active
+     * session id. A pane with no session cannot take focus; there would be
+     * nothing to be active about.
+     */
+    fun focusPane(slot: PaneSlot) {
+        val view = paneViews[slot] ?: return
+        if (sessionForSlot(slot) == null) return
+        if (_focusedPane.value == slot) {
+            view.requestFocus()
+            return
+        }
+        _focusedPane.value = slot
+        _selectionBounds.value = null
+        _hasSelection.value = false
+        activatePaneView(slot, view)
+        blockEngineWire?.onSessionChanged(sessionIdForSlot(slot), sessionForSlot(slot))
+        publishAltBufferState()
+        publishActiveId()
+        view.requestFocus()
+    }
+
+    fun unregisterPaneView(slot: PaneSlot) {
+        val view = paneViews.remove(slot) ?: return
+        // Drop the callbacks before dropping the reference, or the view keeps a
+        // strong reference to this manager after the pane is gone.
+        view.onScrollPositionChanged = null
+        view.installSelectionMenu(enabled = false, listener = null)
+
+        if (slot != focusedPane.value) return
+
+        _selectionBounds.value = null
+        _hasSelection.value = false
+        val fallback = PaneSlot.entries.firstOrNull {
+            it != slot && paneViews.containsKey(it) && sessionForSlot(it) != null
+        }
+        if (fallback != null) {
+            _focusedPane.value = fallback
+            paneViews[fallback]?.let { activatePaneView(fallback, it) }
+        } else {
+            // Nothing on screen left to be active.
+            sessionClient.terminalView = null
+            _isAtLiveEdge.value = true
+        }
+        publishActiveId()
     }
 
     /**
@@ -394,13 +707,20 @@ class TerminalManager(
         irisSessions.add(irisSession)
         val newIndex = irisSessions.size - 1
         idToIndex[persistentId] = newIndex
-        _activeTabIndex.value = newIndex
+        // Into the focused pane, matching the old single-view behaviour where
+        // opening a session always showed it. The pane it displaces stays live
+        // and keeps its place in the sidebar — it simply is not on screen,
+        // which is exactly what happened before the split existed.
+        paneTabIndices[focusedPane.value] = newIndex
         _sessionCount.value = irisSessions.size
+        _liveSessionIds.value = liveSessionIds()
         // A session exists again, so the exit dialog no longer applies.
         _noSessionsLeft.value = false
         // Block mode shares these sessions; point the block store at the new one.
         blockEngineWire?.onSessionChanged(persistentId, irisSession.terminalSession)
-        terminalViewRef?.attachSession(irisSession.terminalSession)
+        paneViews[focusedPane.value]?.attachSession(irisSession.terminalSession)
+        syncActiveTabIndex()
+        publishAltBufferState()
         publishActiveId()
         return irisSession.terminalSession
     }
@@ -441,9 +761,14 @@ class TerminalManager(
         if (idx >= 0) switchTab(idx)
     }
 
-    /** Currently-active session's persistent id, or null if unknown. */
-    fun activePersistentId(): String? =
-        irisSessions.getOrNull(_activeTabIndex.value)?.persistentId
+    /**
+     * Currently-active session's persistent id, or null if unknown.
+     *
+     * The focused pane's, not the primary pane's: this is what the sidebar
+     * highlights and what survives a relaunch, and both should follow what the
+     * user was last looking at.
+     */
+    fun activePersistentId(): String? = sessionIdForSlot(focusedPane.value)
 
     /**
      * Snapshot of all session ids currently live in the terminal manager
@@ -486,18 +811,23 @@ class TerminalManager(
             idToIndex[id] = idx
         }
 
-        if (_activeTabIndex.value == from) {
-            _activeTabIndex.value = to
-        } else {
-            val moved = if (from < to) -1 else 1
-            if (_activeTabIndex.value in (minOf(from, to) + 1) until maxOf(from, to) + 1) {
-                _activeTabIndex.value += moved
+        // Panes hold indices, so they move with the rows. Left alone, a reorder
+        // would leave each pane showing a different session than it did before,
+        // without anything on screen changing shape to explain it.
+        paneTabIndices.replaceAll { slot, index ->
+            if (index == NO_PANE_SESSION) return@replaceAll index
+            when {
+                index == from -> to
+                from < to && index in (from + 1)..to -> index - 1
+                from > to && index in to until from -> index + 1
+                else -> index
             }
         }
+        syncActiveTabIndex()
     }
 
     fun restartCurrentTab() {
-        val index = _activeTabIndex.value
+        val index = paneTabIndices[focusedPane.value] ?: NO_PANE_SESSION
         if (index !in irisSessions.indices) return
         val irisSession = irisSessions[index]
 
@@ -510,7 +840,7 @@ class TerminalManager(
         // has to be re-seeded regardless, or the new shell's first output is
         // diffed against the dead shell's transcript.
         blockEngineWire?.reanchor(replacement)
-        terminalViewRef?.attachSession(replacement)
+        reattachPanesAt(index)
     }
 
     /**
@@ -526,9 +856,13 @@ class TerminalManager(
         irisSessions.forEach { it.terminalSession.finishIfRunning() }
         irisSessions.clear()
         idToIndex.clear()
+        paneTabIndices[PaneSlot.PRIMARY] = 0
+        paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
+        _focusedPane.value = PaneSlot.DEFAULT
         _activeTabIndex.value = 0
         _sessionCount.value = 0
-        _altBufferActive.value = false
+        _altBufferByPane.value = emptyMap()
+        _liveSessionIds.value = emptySet()
         _noSessionsLeft.value = false
         _processExitEvent.value = null
         // The view keeps painting the last screen until something else attaches;
@@ -546,16 +880,13 @@ class TerminalManager(
 
         idToIndex.remove(persistentId)
         reindexFrom(index)
-
-        when {
-            index < _activeTabIndex.value -> _activeTabIndex.value--
-            index == _activeTabIndex.value && _activeTabIndex.value >= irisSessions.size ->
-                _activeTabIndex.value = (irisSessions.size - 1).coerceAtLeast(0)
-        }
-
-        terminalViewRef?.let { view ->
-            currentSession?.let { view.attachSession(it) }
-        }
+        // Panes hold positional indices, so removing a session shifts every
+        // pane below it and empties whichever one held it. resyncPanes does
+        // both and hands focus to a pane that still has something to show,
+        // rather than the index arithmetic this used to do for the active tab
+        // alone — which left a second pane pointing at the wrong row.
+        resyncPanes()
+        _liveSessionIds.value = liveSessionIds()
 
         // The persistent row must be marked Closed for *every* close, not just
         // when the list empties. reconcile deliberately skips Closed rows when
@@ -575,14 +906,33 @@ class TerminalManager(
         }
     }
 
+    /**
+     * Shows the session at [index] in the focused pane.
+     *
+     * With a split open this cannot mean "make it the only thing on screen",
+     * so a session already on screen in the other pane takes focus instead of
+     * being opened twice. Two [TerminalView]s driven by one
+     * [TerminalSession] is not a thing the emulator can serve: they would each
+     * reset the other's scroll position on every attach.
+     */
     fun switchTab(index: Int) {
-        if (index < 0 || index >= irisSessions.size || index == _activeTabIndex.value) return
-        _activeTabIndex.value = index
+        if (index < 0 || index >= irisSessions.size) return
+        val slot = focusedPane.value
+        if ((paneTabIndices[slot] ?: NO_PANE_SESSION) == index) return
+
+        val other = slot.other()
+        if ((paneTabIndices[other] ?: NO_PANE_SESSION) == index) {
+            focusPane(other)
+            return
+        }
+
+        paneTabIndices[slot] = index
+        val target = irisSessions[index]
         // Blocks are stored per session, so switching shows that session's
         // history instead of clearing the engine.
-        val target = irisSessions[index]
         blockEngineWire?.onSessionChanged(target.persistentId, target.terminalSession)
-        currentSession?.let { terminalViewRef?.attachSession(it) }
+        paneViews[slot]?.attachSession(target.terminalSession)
+        publishAltBufferState()
         publishActiveId()
     }
 
@@ -700,15 +1050,10 @@ class TerminalManager(
         idToIndex.remove(persistentId)
 
         reindexFrom(idx)
-        when {
-            idx < _activeTabIndex.value -> _activeTabIndex.value--
-            idx == _activeTabIndex.value && _activeTabIndex.value >= irisSessions.size ->
-                _activeTabIndex.value = (irisSessions.size - 1).coerceAtLeast(0)
-        }
-
-        terminalViewRef?.let { view ->
-            currentSession?.let { view.attachSession(it) }
-        }
+        // Same reasoning as closeTab: the indices every pane holds shift, and
+        // whichever pane held the session that exited is now empty.
+        resyncPanes()
+        _liveSessionIds.value = liveSessionIds()
 
         lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
 
@@ -741,6 +1086,15 @@ class TerminalManager(
 
     fun destroy() {
         commandState.unbind()
+        // Every pane's view, not just one: a pane left registered keeps this
+        // manager alive through its selection and scroll listeners after the
+        // screens that built it are gone.
+        paneViews.values.forEach { view ->
+            view.onScrollPositionChanged = null
+            view.installSelectionMenu(enabled = false, listener = null)
+        }
+        paneViews.clear()
+        sessionClient.terminalView = null
         irisSessions.forEach { it.terminalSession.finishIfRunning() }
         irisSessions.clear()
         idToIndex.clear()
@@ -809,5 +1163,26 @@ class TerminalManager(
         } catch (e: Exception) {
             ToolResult.Error("Command execution failed: ${e.message}")
         }
+    }
+
+    private companion object {
+        /**
+         * A pane with no session.
+         *
+         * Distinct from 0, which is a real index. Using -1 for "empty" is what
+         * lets [paneTabIndices] hold either meaning without a second flag, and
+         * it is why [syncActiveTabIndex] coerces rather than assigns — the
+         * public active index cannot be negative, but the pane's can.
+         */
+        const val NO_PANE_SESSION = -1
+
+        /**
+         * Blinker rate assumed before settings have been read.
+         *
+         * A view registered in that window would otherwise keep the emulator's
+         * own default for the rest of its life, because the settings flow has
+         * already emitted and will not emit again.
+         */
+        const val DEFAULT_CURSOR_BLINK_MS = 600
     }
 }
