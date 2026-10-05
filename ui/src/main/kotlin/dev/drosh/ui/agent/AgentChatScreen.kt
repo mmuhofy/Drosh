@@ -63,6 +63,7 @@ import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
+import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshSuccess
