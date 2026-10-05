@@ -179,6 +179,7 @@ fun ProvideAgentGlass(glass: AgentGlass, content: @Composable () -> Unit) {
  * A control previewed outside a screen gets the fill and no blur rather than a
  * crash, so its shape is still reviewable on its own.
  */
+@Composable
 private fun Modifier.glassFill(glass: AgentGlass?, fill: Color): Modifier {
     val state = glass?.state
     return if (state == null) {

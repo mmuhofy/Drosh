@@ -127,7 +127,7 @@ fun AgentSelectableText(
             AgentSelectionMenu(
                 selectedText = picked.text,
                 onCopy = { onCopy?.invoke(picked.text) },
-                onSelectAll = onSelectAll,
+                onSelectAll = { onSelectAll?.invoke() },
                 onShare = { onShare?.invoke(picked.text) },
                 modifier = Modifier
                     .offset { place }
@@ -144,6 +144,7 @@ fun AgentSelectableText(
  * rectangle over the laid-out text: it moves with the glyphs on a font-scale
  * change or a re-wrap, which a drawn box does not.
  */
+@Composable
 private fun AgentTextSelection?.toHighlightedString(source: String): AnnotatedString =
     if (this == null) {
         AnnotatedString(source)
