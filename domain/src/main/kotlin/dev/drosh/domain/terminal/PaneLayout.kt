@@ -93,7 +93,10 @@ data class PaneLayout(
     }
 
     /** Closes the second pane and returns to a single full-width terminal. */
-    fun cleared(): PaneLayout = PaneLayout(splitFraction = DEFAULT_SPLIT_FRACTION)
+    fun cleared(): PaneLayout = PaneLayout(
+        secondarySessionId = null,
+        splitFraction = DEFAULT_SPLIT_FRACTION,
+    )
 
     /**
      * Moves the divider. The fraction is clamped rather than rejected, so a
