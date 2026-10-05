@@ -176,9 +176,17 @@ private fun AgentSelectionAction(
     }
 }
 
-/** Copies [text] to the clipboard and returns true when the platform accepted it. */
+/**
+ * Copies text to the clipboard.
+ *
+ * Returns Unit rather than a success flag because nothing acts on the result:
+ * `setText` on the platform clipboard has no failure path to report, so a Boolean
+ * here would be a value every call site ignores.
+ */
 @Composable
-fun rememberAgentClipboard(): (String) -> Boolean {
+fun rememberAgentClipboard(): (String) -> Unit {
     val clipboard = LocalClipboardManager.current
-    return remember(clipboard) { { text: String -> clipboard.setText(AnnotatedString(text)); true } }
+    return remember(clipboard) {
+        { text: String -> clipboard.setText(AnnotatedString(text)) }
+    }
 }

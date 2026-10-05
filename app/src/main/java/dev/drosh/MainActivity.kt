@@ -369,6 +369,9 @@ class MainActivity : ComponentActivity() {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
                     onOpenProjects = { navController.navigate("workspace") },
+                    // Reached from Settings rather than from a gear on the agent
+                    // screens: an OpenRouter key is the user's, not a chat's.
+                    onOpenAgentSettings = { navController.navigate("agent_settings") },
                 )
             }
 

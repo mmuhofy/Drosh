@@ -202,7 +202,7 @@ fun AgentHomeScreen(
         )
     }
 
-        renaming?.let { chat ->
+    renaming?.let { chat ->
         RenameChatDialog(
             initial = chat.name,
             onDismiss = { renaming = null },
@@ -213,15 +213,16 @@ fun AgentHomeScreen(
         )
     }
 
-    deleting?.let { chat ->
-        DeleteChatDialog(
-            name = chat.name,
-            onDismiss = { deleting = null },
-            onConfirm = {
-                viewModel.delete(chat.id)
-                deleting = null
-            },
-        )
+        deleting?.let { chat ->
+            DeleteChatDialog(
+                name = chat.name,
+                onDismiss = { deleting = null },
+                onConfirm = {
+                    viewModel.delete(chat.id)
+                    deleting = null
+                },
+            )
+        }
     }
 }
 
@@ -459,4 +460,3 @@ private fun EmptyChats() {
         )
     }
     }
-}

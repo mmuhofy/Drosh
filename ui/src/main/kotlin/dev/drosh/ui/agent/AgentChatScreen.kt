@@ -156,6 +156,7 @@ fun AgentChatScreen(
     val listState = rememberLazyListState()
     val clipboard = rememberAgentClipboard()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // Follow the stream, but only when the user is already near the bottom.
     // Yanking the viewport while they are reading earlier output is worse than
@@ -221,7 +222,7 @@ fun AgentChatScreen(
                             onAnswer = viewModel::answer,
                             onCopy = clipboard,
                             onShare = { picked ->
-                                scope.launch { shareText(picked) }
+                                scope.launch { shareText(context, picked) }
                             },
                         )
                     }
@@ -1117,8 +1118,7 @@ private fun ChatEmptyHint() {
  * share throws `ActivityNotFoundException` on some devices with no chooser
  * installed, and swallowing that would leave the user tapping a dead menu item.
  */
-private suspend fun shareText(text: String) {
-    val context = LocalContext.current
+private suspend fun shareText(context: android.content.Context, text: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, text)

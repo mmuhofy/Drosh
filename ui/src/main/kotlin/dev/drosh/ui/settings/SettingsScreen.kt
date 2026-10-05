@@ -65,6 +65,7 @@ private fun statusBarInset(): Dp =
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenProjects: () -> Unit,
+    onOpenAgentSettings: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
     deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel(),
 ) {
@@ -251,6 +252,25 @@ fun SettingsScreen(
                     icon = DroshIcons.Folder,
                     supporting = stringResource(R.string.settings_projects_desc),
                     onClick = onOpenProjects,
+                ) { SettingsChevron() }
+            }
+
+            Spacer(Modifier.height(GROUP_GAP))
+
+            // The agent's keys and model live here rather than behind a gear on the
+            // agent screens. They are the user's settings, not a conversation's: they
+            // do not change per chat, so a gear on every agent screen put one setting
+            // in two places and made each chat look like it had settings of its own.
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_section_ai),
+                items = 1,
+            ) { _, cap ->
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_agent),
+                    icon = DroshIcons.Code,
+                    supporting = stringResource(R.string.settings_agent_desc),
+                    onClick = onOpenAgentSettings,
                 ) { SettingsChevron() }
             }
 
