@@ -74,6 +74,7 @@ class AgentLoop @Inject constructor(
     private val providers: LlmProviderRepository,
     private val registry: ProviderRegistry,
     private val toolRegistry: ToolRegistry,
+    private val transcripts: TranscriptStore,
 ) : AgentSession {
 
     private val chats = ConcurrentHashMap<String, ChatRuntime>()
@@ -101,6 +102,12 @@ class AgentLoop @Inject constructor(
         markRunning(request.chatId)
 
         try {
+            // Restore before appending the new prompt. A chat resumed after a
+            // restart has to arrive at the provider carrying what it already knows,
+            // or "carry on where we left off" silently becomes "start again".
+            if (runtime.history.isEmpty()) {
+                restoreHistory(runtime)
+            }
             runtime.remember(LlmMessage.User(request.prompt))
 
             emit(AgentEvent.RunFinished(runLoop(request, runtime, this)))
@@ -133,6 +140,24 @@ class AgentLoop @Inject constructor(
 
     /** Approval ids still awaiting an answer. Exposed for diagnostics and tests. */
     internal fun pendingApprovalIds(): Set<String> = pending.pendingIds()
+
+    /**
+     * Rebuild the model-facing history from durable storage.
+     *
+     * The loop's history and the stored transcript are two views of one
+     * conversation; this is where they are reconciled, once, on the first run of
+     * a chat in this process.
+     *
+     * Only the model-facing half is restored here. The rows themselves reach the
+     * UI through `TranscriptStore.observe` rather than through events — the events
+     * that produced them belonged to a process that no longer exists, so there is
+     * nothing to replay.
+     */
+    private suspend fun restoreHistory(runtime: ChatRuntime) {
+        val stored = transcripts.load(runtime.chatId)
+        if (stored.isEmpty()) return
+        runtime.restore(transcripts.assembleHistory(stored))
+    }
 
     // ── the loop ──────────────────────────────────────────────────────────
 
@@ -177,6 +202,7 @@ class AgentLoop @Inject constructor(
 
             if (turn.toolCalls.isEmpty()) {
                 runtime.remember(LlmMessage.Assistant(turn.text))
+                persist(runtime)
                 return RunOutcome.Completed(turn.text)
             }
 
@@ -215,10 +241,46 @@ class AgentLoop @Inject constructor(
                 runtime.remember(LlmMessage.ToolResultMessage(call.id, call.name, responseText))
             }
 
+            // Once per turn, after every tool result has been folded in: a
+            // transcript saved mid-tool would record a call with no result, which
+            // restores as a dangling tool_call the model cannot make sense of.
+            persist(runtime)
             collector.emit(AgentEvent.TurnCompleted(step))
         }
 
+        persist(runtime)
         return RunOutcome.StepLimitReached(step)
+    }
+
+    /**
+     * Write the conversation to durable storage and compact it if it has grown.
+     *
+     * Called once per turn rather than per event: a tool that streams forty
+     * output lines would otherwise do forty writes of the whole transcript.
+     */
+    private suspend fun persist(runtime: ChatRuntime) {
+        val id = runtime.chatId
+        transcripts.saveModelView(id, runtime.snapshot())
+
+        val plan = ConversationCompactor.plan(runtime.snapshot())
+        if (!plan.shouldCompact) return
+        compact(runtime, plan)
+    }
+
+    /**
+     * Replace the older half of the conversation with a summary.
+     *
+     * Cline's overflow recovery, run before the provider refuses rather than
+     * after: a chat that has to hit `context_length_exceeded` before anything
+     * happens ends at that wall every single time.
+     */
+    private suspend fun compact(runtime: ChatRuntime, plan: ConversationCompactor.Plan) {
+        val older = runtime.take(plan.summarizeUpToSeq)
+        if (older.isEmpty()) return
+
+        val summary = ConversationCompactor.summarise(older, fromSeq = plan.summarizeUpToSeq)
+        runtime.compactTo(summary, keepFromSeq = plan.keepFromSeq)
+        transcripts.saveModelView(runtime.chatId, runtime.snapshot())
     }
 
     // ── one provider turn, with retry ──────────────────────────────────────

@@ -3,6 +3,7 @@ package dev.drosh.data.di
 import android.content.Context
 import androidx.room.Room
 import dev.drosh.data.agent.AgentChatDao
+import dev.drosh.data.agent.AgentMessageDao
 import dev.drosh.data.local.DroshDatabase
 import dagger.Module
 import dagger.Provides
@@ -35,7 +36,7 @@ object DatabaseModule {
         // to a destructive migration or to dropping the table — it throws at open
         // time — so an unregistered migration takes every existing install down
         // with it rather than degrading quietly.
-        .addMigrations(DroshDatabase.MIGRATION_1_2)
+        .addMigrations(DroshDatabase.MIGRATION_1_2, DroshDatabase.MIGRATION_2_3)
         .build()
 
     /**
@@ -47,4 +48,7 @@ object DatabaseModule {
      */
     @Provides
     fun provideAgentChatDao(database: DroshDatabase): AgentChatDao = database.agentChatDao()
+
+    @Provides
+    fun provideAgentMessageDao(database: DroshDatabase): AgentMessageDao = database.agentMessageDao()
 }

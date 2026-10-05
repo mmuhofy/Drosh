@@ -55,6 +55,38 @@ internal class ChatRuntime(val chatId: String) {
         history += message
     }
 
-    /** Snapshot, so a failed turn can be rewound without aliasing [history]. */
+    /** Snapshot, so a caller cannot mutate the live history through the copy. */
     fun snapshot(): List<LlmMessage> = history.toList()
+
+    /**
+     * Adopt a restored conversation wholesale.
+     *
+     * Only ever called when [history] is empty — on the first run of a chat in
+     * this process — so a run in progress can never be clobbered by a reload.
+     */
+    fun restore(messages: List<LlmMessage>) {
+        check(history.isEmpty()) { "refusing to restore over a live conversation" }
+        history.clear()
+        history += messages
+    }
+
+    /** The oldest [count] messages. */
+    fun take(count: Int): List<LlmMessage> =
+        if (count <= 0) emptyList() else history.take(count.coerceAtMost(history.size))
+
+    /**
+     * Replace everything before [keepFromSeq] with [summary].
+     *
+     * The summary is written as a user turn rather than a system one: a
+     * mid-conversation system message is not something the Chat Completions
+     * protocol reliably accepts, and a user turn is indistinguishable in role
+     * from the report it is standing in for.
+     */
+    fun compactTo(summary: String, keepFromSeq: Int) {
+        if (keepFromSeq <= 0) return
+        val kept = history.drop(keepFromSeq.coerceAtMost(history.size))
+        history.clear()
+        history += LlmMessage.User(summary)
+        history += kept
+    }
 }

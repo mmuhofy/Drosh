@@ -42,6 +42,23 @@ object AgentLimits {
     /** Default ceiling for a `read_file` result, before the general caps apply. */
     const val READ_FILE_MAX_CHARS: Int = 20_000
 
+    // ── conversation compaction ───────────────────────────────────────────
+    // Once history is durable it never stops growing, and the whole conversation
+    // is resent every turn. Past this budget the older half is summarised rather
+    // than letting the conversation hit the provider's context ceiling.
+
+    /** Soft ceiling, in characters, for what the model is sent. */
+    const val COMPACTION_THRESHOLD_CHARS: Int = 120_000
+
+    /** Below this many messages, never bother — the budget is not near. */
+    const val COMPACTION_MIN_MESSAGES: Int = 12
+
+    /** The opening exchange is always kept whole: it frames everything after it. */
+    const val COMPACTION_KEEP_HEADING: Int = 2
+
+    /** Recent turns kept whole: that is the work in progress. */
+    const val COMPACTION_KEEP_TAIL: Int = 8
+
     /**
      * Identical tool calls in a row beyond this count stop the run.
      *
