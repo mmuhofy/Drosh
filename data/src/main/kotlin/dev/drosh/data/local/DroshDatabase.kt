@@ -55,12 +55,13 @@ abstract class DroshDatabase : RoomDatabase() {
          * **Update this whenever the schema changes — not when the version does.**
          * Verified by exporting two snapshots over identical entities: the hash was
          * the same, so Room derives it from the schema alone. Only a schema change
-         * invalidates it.
+         * invalidates it. The value here is the one in 4.json, and 3.json holds the
+         * previous one for the schema without workspaces.
          *
          * CI diffs the exported `data/schemas/` snapshot against the committed one,
          * so a missed update is a red build rather than a crash on every install.
          */
-        const val IDENTITY_HASH = "2c34080b274172ef8334419145cb02ea"
+        const val IDENTITY_HASH = "7a24d67aad74fdf9f5ff71afe52144c9"
 
         /**
          * The identity hash for the version-3 schema — everything except agent
@@ -69,7 +70,7 @@ abstract class DroshDatabase : RoomDatabase() {
          * Only needed by [MIGRATION_2_3], whose schema genuinely differs. The hash
          * is overwritten again by [MIGRATION_3_4] for any device that continues.
          */
-        const val IDENTITY_HASH_V3: String = "REPLACED_BY_CI"
+        const val IDENTITY_HASH_V3: String = "2c34080b274172ef8334419145cb02ea"
 
         /**
          * The SQL that brings a database to the current schema.
