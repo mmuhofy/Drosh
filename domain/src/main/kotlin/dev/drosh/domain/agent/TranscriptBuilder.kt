@@ -229,6 +229,7 @@ class TranscriptBuilder(
                 finalOutput = finalText(event.result),
                 truncated = event.truncated,
                 durationMs = event.durationMs,
+                todos = todosFor(event.name, event.result),
                 error = (event.result as? ToolResult.Error)?.message,
             )
             return
@@ -238,8 +239,22 @@ class TranscriptBuilder(
             finalOutput = finalText(event.result),
             truncated = event.truncated,
             durationMs = event.durationMs,
+            todos = todosFor(event.name, event.result),
             error = (event.result as? ToolResult.Error)?.message,
         )
+    }
+
+    /**
+     * The checklist, for `update_todo` only.
+     *
+     * Gated on the tool name so no other tool's output is ever handed to the
+     * decoder — a shell command that happened to print a line shaped like a
+     * checklist should stay a line of output.
+     */
+    private fun todosFor(name: String, result: ToolResult): List<AgentTodo> {
+        if (name != TODO_TOOL) return emptyList()
+        val output = (result as? ToolResult.Success)?.output ?: return emptyList()
+        return AgentTodoCodec.decode(output)
     }
 
     private fun stateFor(result: ToolResult): ToolCallState = when (result) {

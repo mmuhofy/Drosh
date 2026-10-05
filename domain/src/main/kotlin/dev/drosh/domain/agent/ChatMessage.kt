@@ -42,6 +42,14 @@ sealed interface ChatMessage {
         /** Set when the result was clipped before reaching the model. */
         val truncated: Boolean = false,
         val durationMs: Long? = null,
+        /**
+         * The checklist, when this call was `update_todo`.
+         *
+         * Derived from [finalOutput] rather than carried separately — see
+         * [AgentTodoCodec] for why the output string is the storage. Empty for every
+         * other tool, so the field costs nothing on the rows that have no list.
+         */
+        val todos: List<AgentTodo> = emptyList(),
         /** Non-null when the tool failed. */
         val error: String? = null,
     ) : ChatMessage
