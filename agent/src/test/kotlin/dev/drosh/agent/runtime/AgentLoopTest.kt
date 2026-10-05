@@ -35,6 +35,8 @@ class AgentLoopTest {
     private val adapter = ScriptedAdapter()
 
 
+    private val transcripts = FakeTranscriptStore()
+
     private fun loop(
         repository: FakeProviderRepository = FakeProviderRepository(),
         vararg tools: Tool,
@@ -42,6 +44,7 @@ class AgentLoopTest {
         providers = repository,
         registry = ProviderRegistry(setOf(adapter)),
         toolRegistry = ToolRegistry(tools.toSet()),
+        transcripts = transcripts,
     )
 
     private fun request(
@@ -229,6 +232,50 @@ class AgentLoopTest {
 
         assertEquals("looked again", (events.last().outcome() as RunOutcome.Completed).finalText)
         assertEquals(2, shell.calls.size)
+    }
+
+    // ── durable history ───────────────────────────────────────────────────
+
+    @Test
+    fun `a finished run is written to the transcript`() {
+        val shell = FakeTool("shell")
+        val loop = loop(tools = arrayOf(shell))
+        adapter.script += listOf(toolTurn("shell", args("command" to "ls")))
+        adapter.script += listOf(answerTurn("All good."))
+
+        loop.send(request(prompt = "list the files")).toList()
+
+        val stored = transcripts.modelViews["chat-1"].orEmpty()
+        assertTrue(
+            "expected the prompt to be stored: ${stored.map { it::class.simpleName }}",
+            stored.any { it is LlmMessage.User && it.text == "list the files" },
+        )
+        assertTrue(
+            "expected the tool result to be stored",
+            stored.any { it is LlmMessage.ToolResultMessage && it.content.contains("ok") },
+        )
+    }
+
+    @Test
+    fun `a restored conversation is sent back to the model`() {
+        val shell = FakeTool("shell")
+        val loop = loop(tools = arrayOf(shell))
+
+        // What a restart leaves behind: the previous turn, with no live run.
+        transcripts.modelViews["chat-1"] = listOf(
+            LlmMessage.User("fix the build"),
+            LlmMessage.Assistant("I looked at it."),
+        )
+        adapter.script += listOf(answerTurn("Continuing."))
+
+        loop.send(request(prompt = "now add a test")).toList()
+
+        val sent = adapter.requests.single().describeHistory()
+        assertTrue(
+            "the model should have been shown the earlier exchange: $sent",
+            sent.contains("user: fix the build"),
+        )
+        assertTrue("and the current prompt: $sent", sent.contains("user: now add a test"))
     }
 
     // ── provider failures and retries ─────────────────────────────────────

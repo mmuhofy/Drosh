@@ -1,6 +1,9 @@
 package dev.drosh.agent.runtime
 
 import dev.drosh.domain.agent.ChatAdapter
+import dev.drosh.domain.agent.ChatMessage
+import dev.drosh.domain.agent.TranscriptStore
+import dev.drosh.domain.agent.assembleModelHistory
 import dev.drosh.domain.agent.FinishReason
 import dev.drosh.domain.agent.LlmCredential
 import dev.drosh.domain.agent.LlmMessage
@@ -140,3 +143,37 @@ internal fun LlmRequest.describeHistory(): List<String> = messages.map { message
     }
 }
 
+
+/**
+ * An in-memory transcript store.
+ *
+ * Keeps everything the loop wrote so a test can assert on what a restored chat
+ * would actually be sent — which is the only way to check that the model
+ * remembers without a database.
+ */
+internal class FakeTranscriptStore : TranscriptStore {
+    val modelViews = mutableMapOf<String, List<LlmMessage>>()
+    val messages = mutableMapOf<String, List<ChatMessage>>()
+
+    override suspend fun load(chatId: String): List<ChatMessage> = messages[chatId].orEmpty()
+
+    override suspend fun save(chatId: String, messages: List<ChatMessage>) {
+        this.messages[chatId] = messages
+    }
+
+    override suspend fun saveModelView(chatId: String, messages: List<LlmMessage>) {
+        modelViews[chatId] = messages
+    }
+
+    override suspend fun replaceAll(chatId: String, messages: List<ChatMessage>) {
+        this.messages[chatId] = messages
+    }
+
+    override suspend fun clear(chatId: String) {
+        messages.remove(chatId)
+        modelViews.remove(chatId)
+    }
+
+    override fun assembleHistory(messages: List<ChatMessage>): List<LlmMessage> =
+        assembleModelHistory(messages)
+}
