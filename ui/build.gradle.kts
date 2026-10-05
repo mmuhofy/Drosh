@@ -58,6 +58,11 @@ dependencies {
     // is backward-compatible with project's Kotlin 2.2.0).
     implementation(libs.lucide.compose)
 
+    // Real backdrop blur for the glass surfaces on the agent screens. Android 12+
+    // renders an offscreen layer and blurs it; below that Haze draws a scrim,
+    // because RenderEffect does not exist before API 31.
+    implementation(libs.haze)
+
     // coroutines
     implementation(libs.kotlinx.coroutines.android)
 

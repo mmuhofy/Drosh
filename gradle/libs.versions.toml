@@ -12,6 +12,10 @@
 # NOTE: KSP version MUST match Kotlin 2.3.20 — use KSP 2.3.20-x.x.x.
 
 [versions]
+# Real backdrop blur. 2.x is built with Kotlin 2.4 and 1.7.x with 2.3.20; this
+# project is on KGP 2.2.0, whose metadata reader cannot load either. 1.6.10 is
+# the newest release built with Kotlin 2.1.0.
+haze = "1.6.10"
 # Build tools
 agp = "8.13.0"
 kotlin = "2.2.0"
@@ -117,6 +121,7 @@ spotless = "7.0.2"
 detekt = "1.23.7"
 
 [libraries]
+haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 # AndroidX core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidxAppCompat" }
