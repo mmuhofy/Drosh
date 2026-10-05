@@ -19,6 +19,7 @@ import dev.drosh.data.settings.TerminalFontSizeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
 import dev.drosh.data.terminal.TriggerBootstrap
+import dev.drosh.data.workspace.WorkspaceRepositoryImpl
 import dev.drosh.domain.agent.AgentChatRepository
 import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmProviderRepository
@@ -39,6 +40,7 @@ import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
 import dev.drosh.domain.terminal.SubmitBlockCommandUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
+import dev.drosh.domain.workspace.WorkspaceRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -97,6 +99,12 @@ abstract class BindingsModule {
     abstract fun bindObserveActiveSession(
         impl: ObserveActiveSessionUseCaseImpl,
     ): ObserveActiveSessionUseCase
+
+    @Binds
+    @Singleton
+    abstract fun bindWorkspaceRepository(
+        impl: WorkspaceRepositoryImpl,
+    ): WorkspaceRepository
 
     @Binds
     @Singleton

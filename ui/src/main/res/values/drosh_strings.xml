@@ -4,6 +4,10 @@
     <!-- ── Settings: groups ─────────────────────────────────────────────── -->
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_terminal">Terminal</string>
+    <string name="settings_section_projects">Projects</string>
+    <string name="settings_projects">Projects</string>
+    <string name="settings_projects_desc">Group sessions by project</string>
+
     <string name="settings_section_startup">Startup</string>
     <string name="settings_section_motd">Message of the day</string>
     <string name="settings_section_language">Language</string>

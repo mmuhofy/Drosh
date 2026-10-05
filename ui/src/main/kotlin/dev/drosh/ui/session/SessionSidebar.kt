@@ -141,6 +141,7 @@ fun SessionSidebar(
     isOpen: Boolean,
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit = {},
+    onOpenProjects: () -> Unit = {},
     pushState: SidebarPushState? = null,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
@@ -165,6 +166,7 @@ fun SessionSidebar(
             deviceIdentityViewModel = deviceIdentityViewModel,
             onOpenSettings = onOpenSettings,
             onOpenAgent = onOpenAgent,
+            onOpenProjects = onOpenProjects,
         )
     }
 }
@@ -175,6 +177,7 @@ private fun SidebarContent(
     deviceIdentityViewModel: DeviceIdentityViewModel,
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
+    onOpenProjects: () -> Unit,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
@@ -225,6 +228,9 @@ private fun SidebarContent(
             }
             item(key = "nav_agent") {
                 PressableRow(DroshIcons.SquareTerminal, "Agent", onOpenAgent)
+            }
+            item(key = "nav_projects") {
+                PressableRow(DroshIcons.Folder, "Projects", onOpenProjects)
             }
             item(key = "nav_settings") {
                 PressableRow(DroshIcons.Settings, "Settings", onOpenSettings)

@@ -3,6 +3,10 @@
 
     <string name="settings_section_appearance">Görünüm</string>
     <string name="settings_section_terminal">Terminal</string>
+    <string name="settings_section_projects">Projeler</string>
+    <string name="settings_projects">Projeler</string>
+    <string name="settings_projects_desc">Session\'ları projeye göre grupla</string>
+
     <string name="settings_section_startup">Başlangıç</string>
     <string name="settings_section_motd">Karşılama mesajı</string>
     <string name="settings_section_language">Dil</string>
