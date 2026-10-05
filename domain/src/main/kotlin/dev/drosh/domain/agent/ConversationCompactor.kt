@@ -40,13 +40,13 @@ object ConversationCompactor {
     )
 
     fun plan(
-        messages: List<ChatMessage>,
+        messages: List<LlmMessage>,
         maxChars: Int = AgentLimits.COMPACTION_THRESHOLD_CHARS,
     ): Plan {
         val none = Plan(false, 0, -1, 0)
         if (messages.size < AgentLimits.COMPACTION_MIN_MESSAGES) return none
 
-        val charCount = assembleModelHistory(messages).sumOf { it.approximateChars() }
+        val charCount = messages.sumOf { it.approximateChars() }
         if (charCount <= maxChars) return none
 
         val headCount = AgentLimits.COMPACTION_KEEP_HEADING
@@ -58,8 +58,7 @@ object ConversationCompactor {
             shouldCompact = true,
             keepFromSeq = cutIndex,
             summarizeUpToSeq = cutIndex - 1,
-            olderChars = assembleModelHistory(messages.subList(0, cutIndex))
-                .sumOf { it.approximateChars() },
+            olderChars = messages.subList(0, cutIndex).sumOf { it.approximateChars() },
         )
     }
 
@@ -70,32 +69,27 @@ object ConversationCompactor {
      * and a list of "we did X, we found Y" survives the next summarisation better
      * than a paragraph that blends them together.
      */
-    fun summarise(compacted: List<ChatMessage>, fromSeq: Int): String {
+    fun summarise(compacted: List<LlmMessage>, fromSeq: Int): String {
         val lines = mutableListOf<String>()
         val filesTouched = linkedSetOf<String>()
         var commandsRun = 0
 
         compacted.take(MAX_SUMMARY_LINES).forEach { message ->
             when (message) {
-                is ChatMessage.User -> lines += "- user asked: ${message.text.firstLine()}"
+                is LlmMessage.User -> lines += "- user asked: ${message.text.firstLine()}"
 
-                is ChatMessage.Assistant ->
+                is LlmMessage.Assistant ->
                     if (message.text.isNotBlank()) {
                         lines += "- assistant: ${message.text.firstLine()}"
                     }
 
-                is ChatMessage.ToolCall -> when (message.name) {
+                // A tool result arrives here as text, not as a call with arguments,
+                // so the tool's name is what identifies what was touched.
+                is LlmMessage.ToolResultMessage -> when (message.name) {
                     "shell" -> commandsRun++
-                    "write_file", "read_file" ->
-                        if (message.summary.isNotBlank()) filesTouched += message.summary
+                    "write_file", "read_file" -> filesTouched += message.content.firstLine()
                     else -> Unit
                 }
-
-                is ChatMessage.Reasoning,
-                is ChatMessage.Approval,
-                is ChatMessage.Failure,
-                is ChatMessage.Notice,
-                -> Unit
             }
         }
 

@@ -142,18 +142,16 @@ class AssembleModelHistoryTest {
 
 class ConversationCompactorTest {
 
-    private fun transcript(size: Int, bodyChar: Int = 2_000): List<ChatMessage> =
+    /** The model-facing view the loop actually holds. */
+    private fun transcript(size: Int, bodyChar: Int = 2_000): List<LlmMessage> =
         (0 until size).map { index ->
             when (index % 3) {
-                0 -> ChatMessage.User("m$index", "q${"_".repeat(bodyChar)}")
-                1 -> ChatMessage.Assistant("m$index", "a${"_".repeat(bodyChar)}")
-                else -> ChatMessage.ToolCall(
-                    id = "m$index",
+                0 -> LlmMessage.User("q${"_".repeat(bodyChar)}")
+                1 -> LlmMessage.Assistant("a${"_".repeat(bodyChar)}")
+                else -> LlmMessage.ToolResultMessage(
                     callId = "call_$index",
                     name = "shell",
-                    summary = "cmd $index",
-                    state = ToolCallState.Succeeded,
-                    finalOutput = "out${"_".repeat(bodyChar)}",
+                    content = "out${"_".repeat(bodyChar)}",
                 )
             }
         }
@@ -207,19 +205,10 @@ class ConversationCompactorTest {
     fun `the summary names what happened rather than paraphrasing it`() {
         val summary = ConversationCompactor.summarise(
             compacted = listOf(
-                ChatMessage.User("m1", "fix the vite config"),
-                ChatMessage.ToolCall(
-                    id = "m2", callId = "c1", name = "read_file", summary = "vite.config.js",
-                    state = ToolCallState.Succeeded, finalOutput = "...",
-                ),
-                ChatMessage.ToolCall(
-                    id = "m3", callId = "c2", name = "write_file", summary = "vite.config.js",
-                    state = ToolCallState.Succeeded, finalOutput = "...",
-                ),
-                ChatMessage.ToolCall(
-                    id = "m4", callId = "c3", name = "shell", summary = "npm run build",
-                    state = ToolCallState.Succeeded, finalOutput = "...",
-                ),
+                LlmMessage.User("fix the vite config"),
+                LlmMessage.ToolResultMessage("c1", "read_file", "vite.config.js"),
+                LlmMessage.ToolResultMessage("c2", "write_file", "vite.config.js"),
+                LlmMessage.ToolResultMessage("c3", "shell", "built ok"),
             ),
             fromSeq = 3,
         )
@@ -235,10 +224,7 @@ class ConversationCompactorTest {
         // A `cat` of a large file would be the very thing being compacted away.
         val summary = ConversationCompactor.summarise(
             compacted = listOf(
-                ChatMessage.ToolCall(
-                    id = "m1", callId = "c1", name = "shell", summary = "cat big.log",
-                    state = ToolCallState.Succeeded, finalOutput = "x".repeat(200_000),
-                ),
+                LlmMessage.ToolResultMessage("c1", "shell", "x".repeat(200_000)),
             ),
             fromSeq = 0,
         )
