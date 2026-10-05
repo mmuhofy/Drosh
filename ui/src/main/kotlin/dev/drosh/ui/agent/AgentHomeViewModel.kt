@@ -146,6 +146,14 @@ class AgentHomeViewModel @Inject constructor(
     ) {
         val isEmpty: Boolean
             get() = running.isEmpty() && waiting.isEmpty() && recent.isEmpty()
+
+        /**
+         * Every chat, in section order.
+         *
+         * The screen needs this to resolve a long-pressed id back to a chat once
+         * the grouping has already been applied.
+         */
+        fun all(): List<AgentChat> = running + waiting + recent
     }
 
     companion object {

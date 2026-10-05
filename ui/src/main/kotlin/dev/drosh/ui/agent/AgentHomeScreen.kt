@@ -168,24 +168,24 @@ fun AgentHomeScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
+    }
 
-        // Anchored to the row that was long-pressed, so the menu appears under the
-        // finger rather than in a corner the user has to find.
-        busyChatId?.let { id ->
-            val chat = grouped.all().firstOrNull { it.id == id } ?: return@let
-            RowContextMenu(
-                chat = chat,
-                onDismiss = { viewModel.markBusy(null) },
-                onRename = {
-                    viewModel.markBusy(null)
-                    renaming = chat
-                },
-                onDelete = {
-                    viewModel.markBusy(null)
-                    deleting = chat
-                },
-            )
-        }
+    // Outside the Box: the menu is a full-screen overlay, and putting it inside
+    // the same Column as the list makes the overlay compete for the list's bounds.
+    val busyChat = busyChatId?.let { id -> grouped.all().firstOrNull { it.id == id } }
+    if (busyChat != null) {
+        RowContextMenu(
+            chat = busyChat,
+            onDismiss = { viewModel.markBusy(null) },
+            onRename = {
+                viewModel.markBusy(null)
+                renaming = busyChat
+            },
+            onDelete = {
+                viewModel.markBusy(null)
+                deleting = busyChat
+            },
+        )
     }
 
     renaming?.let { chat ->

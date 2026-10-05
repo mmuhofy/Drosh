@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -36,6 +37,7 @@ import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
+import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
