@@ -184,7 +184,9 @@ class TranscriptStoreImpl @Inject constructor(
             text = "",
             toolCallId = callId,
             toolName = name,
-            toolState = ToolCallState.Succeeded.name,
+            // The literal, not .name: a data object's name is its class name, which
+            // a refactor would change silently and break every stored transcript.
+            toolState = STATE_SUCCEEDED,
             toolFinalOutput = content,
             createdAtMs = createdAtMs,
         )
@@ -244,14 +246,23 @@ class TranscriptStoreImpl @Inject constructor(
     }
 
     /**
-     * An unknown stored state reads as Cancelled.
+     * Parse a stored state name.
      *
-     * A tool call whose state cannot be parsed was not left running — rendering it
-     * as running would put a permanent spinner in the transcript for something that
-     * finished or was never going to.
+     * `ToolCallState` is a sealed interface of data objects, not an enum, so
+     * there is no `valueOf` to lean on.
+     *
+     * Unknown values read as Cancelled rather than Running: a call whose state
+     * cannot be parsed was not left running, and rendering it as such would put a
+     * permanent spinner in the transcript for something that had already finished.
      */
-    private fun String?.toState(): ToolCallState =
-        runCatching { ToolCallState.valueOf(this.orEmpty()) }.getOrDefault(ToolCallState.Cancelled)
+    private fun String?.toState(): ToolCallState = when (this) {
+        "Pending" -> ToolCallState.Pending
+        "Running" -> ToolCallState.Running
+        "AwaitingApproval" -> ToolCallState.AwaitingApproval
+        "Succeeded" -> ToolCallState.Succeeded
+        "Failed" -> ToolCallState.Failed
+        else -> ToolCallState.Cancelled
+    }
 
     private fun String?.toDecision(value: String?): ApprovalDecision? = when (this) {
         "approve" -> ApprovalDecision.Approve
@@ -261,6 +272,8 @@ class TranscriptStoreImpl @Inject constructor(
     }
 
     private companion object {
+        const val STATE_SUCCEEDED = "Succeeded"
+
         /**
          * Separator for the approval option list.
          *
