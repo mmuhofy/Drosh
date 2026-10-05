@@ -83,11 +83,19 @@ import dev.drosh.ui.DroshIcons
  */
 object AgentPillDefaults {
 
-    /** The drawn pill. */
-    val Height: Dp = 34.dp
-    val IconSize: Dp = 16.dp
-    val ChevronSize: Dp = 14.dp
-    val LabelSize = 13.sp
+    /**
+     * The drawn pill.
+     *
+     * 40 rather than 34. At 34 the row read as chrome around the transcript rather
+     * than as controls — the glyphs were legible but the boxes were not obviously
+     * tappable, and a row of things that look decorative is a row people hesitate
+     * over. Still one fixed height for every pill, which is the part that matters:
+     * the size never depends on the label.
+     */
+    val Height: Dp = 40.dp
+    val IconSize: Dp = 19.dp
+    val ChevronSize: Dp = 16.dp
+    val LabelSize = 14.sp
 
     /**
      * The clickable box for an icon-only pill.
@@ -224,6 +232,14 @@ fun AgentPill(
     trailingChevron: Boolean = false,
     primary: Boolean = false,
     enabled: Boolean = true,
+    /**
+     * Where the label sits inside the pill.
+     *
+     * Needed because a pill that fills its share of a row has to be able to hold its
+     * content at the left instead of centring it, or the label drifts to the middle
+     * of the row as the text changes length.
+     */
+    contentAlignment: Alignment = Alignment.Center,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -253,8 +269,8 @@ fun AgentPill(
             .glassFill(glass, fill)
             .semantics { this.contentDescription = contentDescription }
             .pressable(interaction, enabled, onClick)
-            .padding(horizontal = AgentPillDefaults.LabelPadding, vertical = 7.dp),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = AgentPillDefaults.LabelPadding, vertical = 9.dp),
+        contentAlignment = contentAlignment,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (leadingIcon != null) {

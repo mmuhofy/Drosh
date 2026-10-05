@@ -310,6 +310,14 @@ class AgentChatViewModel @Inject constructor(
                 hasKey = hasKey,
                 selectedModelId = selected,
             )
+            // The list, not just the id.
+            //
+            // This only ever set the selected id, so `models` stayed empty until the
+            // key was re-saved from settings — which meant the model picker on a chat
+            // opened empty for anyone whose key was already stored, and the pill fell
+            // back to its "first model or model seç" placeholder with nothing behind
+            // it. The catalogue has to be loaded wherever the id is read.
+            if (hasKey) fetchModels()
         }
     }
 

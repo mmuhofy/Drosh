@@ -3,6 +3,7 @@ package dev.drosh.ui.agent.components
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -22,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -68,6 +70,7 @@ import dev.drosh.ui.DroshIcons
  */
 @Composable
 fun AgentSelectionMenu(
+    visible: Boolean,
     selectedText: String,
     onCopy: (String) -> Unit,
     onSelectAll: () -> Unit,
@@ -77,20 +80,29 @@ fun AgentSelectionMenu(
     val glass = LocalAgentGlass.current
     val shape = RoundedCornerShape(14.dp)
 
-    // Enters at 90% and settles, matching the sheet. A menu that simply appears is
-    // easy to miss when it arrives over the exact text the user just selected.
+    // Enters slightly small and settles.
+    //
+    // Keyed on [visible] because this was targeting 1f from an initial of 1f — the
+    // animation was written and never ran, so the menu snapped in over the text the
+    // user had just selected.
     val scale by animateFloatAsState(
-        targetValue = 1f,
+        targetValue = if (visible) 1f else 0.92f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium,
         ),
         label = "agentSelectionMenuScale",
     )
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(140),
+        label = "agentSelectionMenuAlpha",
+    )
 
     Row(
         modifier = modifier
             .scale(scale)
+            .alpha(alpha)
             .clip(shape)
             .then(
                 if (glass == null) {

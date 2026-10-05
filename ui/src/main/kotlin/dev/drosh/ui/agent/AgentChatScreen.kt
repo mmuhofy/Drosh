@@ -96,6 +96,7 @@ import dev.drosh.domain.agent.LlmModel
 import dev.drosh.ui.agent.components.AgentIconPill
 import dev.drosh.ui.agent.components.AgentPill
 import dev.drosh.ui.agent.components.AgentSelectableText
+import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.LocalAgentGlass
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.agentGlassStyle
@@ -123,6 +124,10 @@ fun AgentChatScreen(
     modifier: Modifier = Modifier,
     viewModel: AgentChatViewModel = hiltViewModel(),
 ) {
+    // The terminal hides the status bar outright and never restores it, so
+    // arriving from there would inherit a hidden one.
+    DroshStatusBarVisible()
+
     LaunchedEffect(chatId) {
         chatId?.let { viewModel.attach(it, onChatCreated) }
     }
@@ -176,9 +181,7 @@ fun AgentChatScreen(
                     modelLabel = providerState.selectedModelId.ifEmpty {
                         providerState.models.firstOrNull()?.id ?: "model seç"
                     },
-                    running = running,
                     onBack = onBack,
-                    onStop = viewModel::stop,
                     onOpenMenu = { menuOpen = true },
                     onOpenModelPicker = { modelPickerOpen = true },
                 )
@@ -235,8 +238,7 @@ fun AgentChatScreen(
                 }
 
                 AgentComposer(
-                    enabled = !running,
-                    stopVisible = running,
+                    running = running,
                     onSend = viewModel::send,
                     onStop = viewModel::stop,
                 )
@@ -248,16 +250,19 @@ fun AgentChatScreen(
                 ModelPickerSheet(
                     models = providerState.models,
                     selectedId = providerState.selectedModelId,
+                    loading = providerState.loadingModels,
                     onSelect = { id ->
                         viewModel.selectModel(id)
                         modelPickerOpen = false
                     },
+                    onOpenSettings = onOpenSettings,
                     onDismiss = { modelPickerOpen = false },
                 )
             }
 
             if (menuOpen) {
                 AgentChatMenu(
+                    visible = menuOpen,
                     chatName = chat?.name ?: "Sohbet",
                     onRename = {
                         menuOpen = false
@@ -278,6 +283,7 @@ fun AgentChatScreen(
             if (sheetOpen) {
                 TerminalHistorySheet(
                     lines = terminalLines,
+                    sheetVisible = sheetOpen,
                     onDismiss = { sheetOpen = false },
                 )
             }
@@ -331,9 +337,7 @@ fun AgentChatScreen(
 @Composable
 private fun ChatPillRow(
     modelLabel: String,
-    running: Boolean,
     onBack: () -> Unit,
-    onStop: () -> Unit,
     onOpenMenu: () -> Unit,
     onOpenModelPicker: () -> Unit,
 ) {
@@ -351,37 +355,36 @@ private fun ChatPillRow(
             tint = DroshTextSecondary,
         )
 
-        // Weighted and truncating, so an OpenRouter model id like
-        // "anthropic/claude-sonnet-4-20250514" takes the space it needs and yields
-        // it back rather than pushing the overflow button off the row.
+        // Fills the space between the back arrow and the overflow button, label held
+        // at the left.
+        //
+        // `weight(1f, fill = false)` was the bug: free to be narrower than its share,
+        // so a short model id left the overflow button sitting beside it instead of at
+        // the edge. Filling the share pins the button right whatever the label says,
+        // and a long OpenRouter id truncates rather than pushing the button off.
         AgentPill(
             label = modelLabel,
             onClick = onOpenModelPicker,
             modifier = Modifier
-                .weight(1f, fill = false)
+                .weight(1f)
                 .padding(start = 6.dp, end = 6.dp),
             contentDescription = "Model: $modelLabel",
             trailingChevron = true,
+            contentAlignment = Alignment.CenterStart,
         )
 
-        // Stop replaces the overflow while a run is going, so the thing that ends
-        // the run is where the eye already is. Both at once crowds a 390dp row, and
-        // a stop button is more urgent than a menu.
-        if (running) {
-            AgentIconPill(
-                icon = DroshIcons.Square,
-                contentDescription = "Durdur",
-                onClick = onStop,
-                tint = DroshError,
-            )
-        } else {
-            AgentIconPill(
-                icon = DroshIcons.EllipsisVertical,
-                contentDescription = "Sohbet menüsü",
-                onClick = onOpenMenu,
-                tint = DroshTextSecondary,
-            )
-        }
+        // Always the overflow button. It used to become a stop button while a run was
+        // going, which put the urgent action where the eye already was — and made the
+        // one control whose position the user had just learned move without warning.
+        // Stop lives in the composer instead, next to the text that is generating.
+        // Two controls in one row that swap identity is a bar you have to re-read every
+        // time a run starts.
+        AgentIconPill(
+            icon = DroshIcons.EllipsisVertical,
+            contentDescription = "Sohbet menüsü",
+            onClick = onOpenMenu,
+            tint = DroshTextSecondary,
+        )
     }
 }
 
@@ -396,7 +399,9 @@ private fun ChatPillRow(
 private fun ModelPickerSheet(
     models: List<LlmModel>,
     selectedId: String,
+    loading: Boolean,
     onSelect: (String) -> Unit,
+    onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -448,6 +453,54 @@ private fun ModelPickerSheet(
                 color = DroshText,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
             )
+
+            // An empty sheet is the worst outcome here: it looks like a broken list
+            // rather than a catalogue that has not arrived. Both states say which one
+            // it is, and the empty one offers the thing that fixes it.
+            if (models.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(28.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (loading) {
+                        Text(
+                            text = "modeller yükleniyor…",
+                            fontSize = 13.sp,
+                            color = DroshTextSecondary,
+                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Model listesi boş",
+                                fontSize = 14.sp,
+                                color = DroshText,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "OpenRouter anahtarı kayıtlı değil ya da model " +
+                                    "listesi çekilemedi.",
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp,
+                                color = DroshTextMuted,
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            AgentPill(
+                                label = "Ayarları aç",
+                                onClick = {
+                                    onDismiss()
+                                    onOpenSettings()
+                                },
+                                primary = true,
+                                contentDescription = "Agent ayarlarını aç",
+                            )
+                        }
+                    }
+                }
+                return@Column
+            }
 
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -521,12 +574,12 @@ private fun ModelPickerSheet(
  */
 @Composable
 private fun AgentComposer(
-    enabled: Boolean,
-    stopVisible: Boolean,
+    running: Boolean,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
 ) {
     var text by rememberSaveable { mutableStateOf("") }
+    val enabled = !running
     val canSend = text.isNotBlank() && enabled
 
     Column(
@@ -571,98 +624,70 @@ private fun AgentComposer(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    ComposerMiniAction(
-                        icon = DroshIcons.Search,
-                        contentDescription = "Araçlar",
-                        onClick = { /* Tool affordance lands with the tool list. */ },
-                    )
-                    ComposerMiniAction(
-                        icon = DroshIcons.ListChecks,
-                        contentDescription = "Görevler",
-                        onClick = { /* Todo affordance lands with the TodoCard. */ },
+                    // A hint of what the field accepts, in place of the two buttons.
+                    //
+                    // The tool and todo affordances were placeholders and the wrong
+                    // call twice over: three identical circles made send look like a
+                    // peer of two controls with no behaviour, and two dead controls
+                    // cost more attention than the live one gained. When tools and
+                    // todos arrive they get rows in the transcript, which is where
+                    // their output is anyway.
+                    Text(
+                        text = if (running) "çalışıyor…" else "⏎ gönder · ⇧⏎ yeni satır",
+                        fontSize = 11.sp,
+                        color = DroshTextMuted,
+                        modifier = Modifier.weight(1f),
                     )
 
-                    Spacer(Modifier.weight(1f))
-
-                    if (stopVisible) {
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(DroshError)
-                                .clickable(onClick = onStop)
-                                .semantics { contentDescription = "Durdur" },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = DroshIcons.Square,
-                                contentDescription = null,
-                                tint = DroshOnPrimary,
-                                modifier = Modifier.size(13.dp),
-                            )
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(if (canSend) DroshPrimary else DroshSurfaceHigh)
-                                .clickable(enabled = canSend) {
-                                    val sent = text
-                                    text = ""
-                                    onSend(sent)
-                                }
-                                .semantics { contentDescription = "Gönder" },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = DroshIcons.Send,
-                                contentDescription = null,
-                                tint = if (canSend) DroshOnPrimary else DroshTextMuted,
-                                modifier = Modifier.size(15.dp),
-                            )
+                    // 36dp drawn inside a 48dp box, to sit with the 40dp pills above.
+                    // At 30dp the primary action on the screen was smaller than the
+                    // icons in the row above it, which read as a deliberate demotion.
+                    Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        // Stop replaces send, here rather than in the top row: it acts
+                        // on the thing happening right now, so it belongs beside the
+                        // text that is generating.
+                        if (running) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(DroshError)
+                                    .clickable(onClick = onStop)
+                                    .semantics { contentDescription = "Durdur" },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = DroshIcons.Square,
+                                    contentDescription = null,
+                                    tint = DroshOnPrimary,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (canSend) DroshPrimary else DroshSurfaceHigh)
+                                    .clickable(enabled = canSend) {
+                                        val sent = text
+                                        text = ""
+                                        onSend(sent)
+                                    }
+                                    .semantics { contentDescription = "Gönder" },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = DroshIcons.Send,
+                                    contentDescription = null,
+                                    tint = if (canSend) DroshOnPrimary else DroshTextMuted,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-/**
- * A small control inside the composer.
- *
- * 30dp of visible circle in a 44dp box. It sits inside a surface that already
- * says "tap here", so it does not need to look like an independent button — but the
- * hit area is still 44dp, because the eye being convinced does not make a 30dp
- * circle easier to hit.
- */
-@Composable
-private fun ComposerMiniAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clickable(onClick = onClick)
-            .semantics { this.contentDescription = contentDescription },
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(DroshSurfaceHigh.copy(alpha = 0.7f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = DroshTextSecondary,
-                modifier = Modifier.size(15.dp),
-            )
         }
     }
 }
@@ -791,24 +816,41 @@ private fun AssistantText(
     }
 }
 
+/**
+ * The "still working" indicator.
+ *
+ * Three dots fading in sequence rather than all pulsing together. Synchronised
+ * pulsing reads as one blob that breathes; a stagger reads as three separate
+ * events, which is what it is — the agent is doing several things, not one thing
+ * that is merely dim.
+ *
+ * No card, no border. It sits on the assistant's own baseline next to the label, so
+ * the answer visibly grows out of the same place instead of appearing under a
+ * spinner-shaped widget.
+ */
 @Composable
-private fun ThinkingDots() {
+private fun ThinkingDots(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "thinking")
-    val alpha by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
-        label = "thinking-alpha",
-    )
+
     Row(
+        modifier = modifier.semantics { contentDescription = "düşünüyor" },
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.semantics { contentDescription = "düşünüyor" },
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         repeat(3) { index ->
+            // Each dot starts a third of the cycle behind the one before it.
+            val alpha by transition.animateFloat(
+                initialValue = 0.18f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 420, delayMillis = index * 150),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "thinking-dot-$index",
+            )
             Box(
                 modifier = Modifier
-                    .padding(end = 3.dp)
-                    .size(4.dp)
+                    .size(5.dp)
                     .clip(CircleShape)
                     .background(DroshTextMuted.copy(alpha = alpha)),
             )
@@ -842,85 +884,175 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
  * because the point of the collapsed row is "what did it just do", not "what were
  * the exact arguments".
  */
+/**
+ * One tool call: a line, not a card.
+ *
+ * ## Why there is no box
+ *
+ * These were `DroshSurfaceLow` rounded containers, one per call, stacked down the
+ * transcript. On a turn that ran five tools that is five grey slabs between the user
+ * and the answer, and the conversation stopped reading as a conversation — it read
+ * as a log with prose in it.
+ *
+ * A card says "this is a separate thing". A tool call is not a separate thing; it is
+ * a sentence the agent did, sitting in the middle of its reply. So it is a line: a
+ * status glyph, the tool name, the command or path, and the outcome, on the same
+ * baseline as the text around it. Nothing is boxed.
+ *
+ * ## What replaces the card as an anchor
+ *
+ * The expanded body hangs off a 2dp vertical rule at 20dp, indented from the glyph.
+ * That rule is what groups the output with the line that produced it — the job the
+ * card's background was doing, without the second surface.
+ *
+ * ## A running call opens itself
+ *
+ * Whether a command is working is the most common reason to watch this screen, so a
+ * running call expands without a tap. Waiting to see whether `npm install` is alive
+ * is the thing people are actually here for.
+ */
 @Composable
 private fun ToolCallRow(message: ChatMessage.ToolCall) {
-    // A running tool shows its output without a tap: waiting to see whether a
-    // command is working is the single most common reason to watch this screen.
-    var open by rememberSaveable(message.id) { mutableStateOf(message.state == ToolCallState.Running) }
+    var open by rememberSaveable(message.id) {
+        mutableStateOf(message.state == ToolCallState.Running)
+    }
     val running = message.state == ToolCallState.Running
 
     LaunchedEffect(running) {
         if (running) open = true
     }
 
-    CollapsibleRow(
-        expanded = open,
-        onToggle = { open = !open },
-        summary = {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = TOUCH_TARGET)
+                .clickable { open = !open }
+                .padding(end = 4.dp)
+                .semantics { contentDescription = toolRowDescription(message) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             ToolIcon(message.name)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(9.dp))
+
             Text(
                 text = message.name,
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium,
-                color = DroshText,
+                color = if (running) DroshPrimary else DroshText,
             )
+
             if (message.summary.isNotEmpty()) {
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = message.summary,
-                    fontSize = 11.sp,
+                    fontSize = 11.5.sp,
                     fontFamily = FontFamily.Monospace,
                     color = DroshTextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
             }
-            // Pushes the status pill to the far end. weight only once, or the row
-            // divides the slack between two spacers and the pill sits mid-row.
+
             Spacer(Modifier.weight(1f))
+
+            if (running) ThinkingDots()
             ToolStatus(message)
-        },
-        content = {
-            Column {
-                // Read once into a local: finalOutput is a public property from
-                // another module, so Kotlin cannot smart-cast it across the null
-                // check even though it is a val on a data class.
-                val finalOutput = message.finalOutput
-                val liveOutput = message.output
-                val body = when {
-                    liveOutput.isNotEmpty() -> liveOutput.takeLast(MAX_LIVE_LINES).joinToString("\n")
-                    finalOutput != null -> finalOutput
-                    else -> null
-                }
-                if (body != null) {
-                    MonoBlock(
-                        text = body,
-                        modifier = Modifier.padding(start = 10.dp, top = 2.dp, end = 10.dp),
-                    )
-                }
+        }
 
-                if (message.truncated) {
-                    Text(
-                        text = "çıktı kırpıldı — tam hâli context'e kısıtlı olarak gitti",
-                        fontSize = 10.sp,
-                        color = DroshWarning,
-                        modifier = Modifier.padding(start = 10.dp, top = 4.dp, end = 10.dp),
-                    )
-                }
+        AnimatedVisibility(
+            visible = open,
+            enter = fadeIn(tween(MOTION_MS)) + expandVertically(tween(MOTION_MS)),
+            exit = fadeOut(tween(MOTION_MS)) + shrinkVertically(tween(MOTION_MS)),
+        ) {
+            Row(modifier = Modifier.padding(top = 2.dp)) {
+                // The rule the card used to be, reduced to what a grouping cue
+                // actually needs: a line from under the glyph down past the output.
+                Box(
+                    modifier = Modifier
+                        .padding(start = 7.dp)
+                        .width(2.dp)
+                        .heightIn(min = 16.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(DroshOutline.copy(alpha = 0.55f)),
+                )
 
-                message.durationMs?.let { duration ->
-                    Text(
-                        text = "${duration} ms",
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = DroshTextMuted,
-                        modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
-                    )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp, top = 2.dp, bottom = 4.dp),
+                ) {
+                    val finalOutput = message.finalOutput
+                    val liveOutput = message.output
+                    val body = when {
+                        liveOutput.isNotEmpty() ->
+                            liveOutput.takeLast(MAX_LIVE_LINES).joinToString("\n")
+                        finalOutput != null -> finalOutput
+                        else -> null
+                    }
+                    if (body != null) {
+                        Text(
+                            text = body,
+                            fontSize = 11.5.sp,
+                            lineHeight = 16.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = DroshTextSecondary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(DroshSurfaceContainerLowest)
+                                .padding(10.dp),
+                        )
+                    }
+
+                    if (message.truncated) {
+                        Text(
+                            text = "çıktı kırpıldı — tam hâli context'e kısıtlı olarak gitti",
+                            fontSize = 10.sp,
+                            color = DroshWarning,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+
+                    message.durationMs?.let { duration ->
+                        Text(
+                            text = formatToolDuration(duration),
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = DroshTextMuted,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
                 }
             }
-        },
+        }
+    }
+}
+
+/**
+ * Seconds, not milliseconds.
+ *
+ * "18420 ms" is a number with no scale attached; the reader has to divide it by a
+ * thousand in their head to learn that it was slow. Sub-second runs keep one decimal
+ * because 0.2s and 1s are different experiences.
+ */
+private fun formatToolDuration(ms: Long): String =
+    if (ms < 1000) "${(ms / 10.0).let { String.format("%.1f", it) }} sn" else "${ms / 1000} sn"
+
+/** Spoken form of a row, for a screen reader rather than the eye. */
+private fun toolRowDescription(message: ChatMessage.ToolCall): String = buildString {
+    append(message.name)
+    if (message.summary.isNotEmpty()) append(", ${message.summary}")
+    append(
+        when (message.state) {
+            ToolCallState.Running -> ", çalışıyor"
+            ToolCallState.Succeeded -> ", başarılı"
+            ToolCallState.Failed -> ", başarısız"
+            ToolCallState.Cancelled -> ", iptal edildi"
+            else -> ""
+        }
     )
 }
 
