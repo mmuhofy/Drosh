@@ -190,15 +190,27 @@ class ConversationCompactorTest {
     }
 
     @Test
-    fun `a conversation too short to split is not compacted`() {
-        // Plenty of characters, but no room to keep a tail and still summarise
-        // something. Compacting here would replace the whole conversation with a
-        // summary of itself.
+    fun `a conversation with no middle to summarise is not compacted`() {
+        // Plenty of characters, but nothing between the kept head and the kept
+        // tail. Compacting here would replace the entire conversation with a
+        // summary of itself and lose the actual turns.
+        val headAndTailOnly = AgentLimits.COMPACTION_KEEP_HEADING + AgentLimits.COMPACTION_KEEP_TAIL
         val plan = ConversationCompactor.plan(
-            transcript(size = AgentLimits.COMPACTION_KEEP_HEADING + AgentLimits.COMPACTION_KEEP_TAIL + 2, bodyChar = 40_000),
+            transcript(size = headAndTailOnly, bodyChar = 40_000),
         )
 
-        assertFalse(plan.shouldCompact)
+        assertFalse(
+            "a conversation of exactly head+tail has no middle to compact",
+            plan.shouldCompact,
+        )
+    }
+
+    @Test
+    fun `one message past head plus tail is enough to compact`() {
+        // The boundary: with a single message in the middle, summarising it is
+        // still better than resending the whole thing every turn.
+        val size = AgentLimits.COMPACTION_KEEP_HEADING + AgentLimits.COMPACTION_KEEP_TAIL + 1
+        assertTrue(ConversationCompactor.plan(transcript(size, bodyChar = 20_000)).shouldCompact)
     }
 
     @Test
