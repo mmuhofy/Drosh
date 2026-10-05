@@ -108,6 +108,7 @@ fun WorkspaceEditSheet(
     onDraftChange: ((WorkspaceEdit) -> WorkspaceEdit) -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
+    onToggleArchive: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val draft = state.draft
@@ -236,17 +237,36 @@ fun WorkspaceEditSheet(
                     color = DroshTextMuted,
                 )
             } else {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
+
+                // Archive sits above delete on purpose. Delete is destructive and
+                // irreversible; archiving hides the project and keeps it
+                // recoverable, and it is what most people actually want when they
+                // want a project out of the way. Offering it first means the
+                // common case does not sit next to the irreversible one.
+                FlatButton(
+                    text = if (state.isArchived) "Arşivden çıkar" else "Projeyi arşivle",
+                    onClick = onToggleArchive,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(6.dp))
+
                 FlatButton(
                     text = "Projeyi sil",
                     onClick = onDelete,
                     modifier = Modifier.fillMaxWidth(),
                     tint = DroshError,
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Session'lar silinmez — yalnızca bu proje bağları kalkar.",
+                    text = if (state.isArchived) {
+                        "Bu proje arşivde. Session'ları hâlâ projesiz sayılır."
+                    } else {
+                        "Silmek session'ları silmez — yalnızca bu proje bağları kalkar."
+                    },
                     fontSize = 11.sp,
+                    lineHeight = 16.sp,
                     color = DroshTextMuted,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center,

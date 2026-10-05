@@ -56,6 +56,7 @@ fun WorkspaceAssignSheet(
     currentWorkspaceId: String?,
     workspaces: List<Workspace>,
     onSelect: (String?) -> Unit,
+    onCreateProject: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -110,11 +111,24 @@ fun WorkspaceAssignSheet(
                 }
 
                 if (workspaces.isEmpty()) {
+                    // Not a dead end. Filing a session is how people find out
+                    // that projects exist at all, so the sheet that introduces
+                    // them has to be able to make one — otherwise it says "create
+                    // a project first" and the session they were filing stays
+                    // unfiled until they find another way in.
                     Text(
-                        text = "Henüz proje yok. Önce bir proje oluştur.",
+                        text = "Henüz proje yok.",
                         fontSize = 12.sp,
                         color = DroshTextSecondary,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+                    )
+                    AssignRow(
+                        label = "Yeni proje oluştur",
+                        sublabel = "ve bu session'ı içine koy",
+                        accent = DroshPrimary,
+                        selected = false,
+                        showCheck = false,
+                        onClick = onCreateProject,
                     )
                 }
             }
@@ -129,6 +143,7 @@ private fun AssignRow(
     onClick: () -> Unit,
     sublabel: String? = null,
     accent: Color?,
+    showCheck: Boolean = true,
 ) {
     Row(
         modifier = Modifier
@@ -176,7 +191,7 @@ private fun AssignRow(
             }
         }
 
-        if (selected) {
+        if (selected && showCheck) {
             Icon(
                 imageVector = DroshIcons.Check,
                 contentDescription = null,

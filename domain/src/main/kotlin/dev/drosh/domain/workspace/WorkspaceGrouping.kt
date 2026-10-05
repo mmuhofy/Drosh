@@ -48,6 +48,13 @@ data class WorkspaceBoard(
  * 4. **A workspace with no sessions is still shown.** An empty project is a
  *    thing the user made; hiding it would make it impossible to edit or delete
  *    from this screen.
+ *
+ * Rule 2 has a consequence worth stating on its own, because it is the one that
+ * looks like a bug: **archiving a project ungroups its sessions.** The user did
+ * not ask to lose that grouping, but they did ask to stop seeing the project, and
+ * an archived project shown in the active list would be a group they cannot
+ * leave. So the grouping goes and the sessions become visible again rather than
+ * disappearing with it.
  */
 object WorkspaceGrouping {
 
