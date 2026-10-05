@@ -11,7 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.buildJsonObject
 import java.io.File
 
 /**
@@ -280,12 +280,8 @@ class FileToolsTest {
 /**
  * Build a tool argument object.
  *
- * The builder is spelled out explicitly because `buildJsonObject` has overloads
- * that leave `put` resolving to the JsonElement-typed one, and a String argument
- * then fails to match.
+ * `put` is the JsonObjectBuilder extension rather than the member, so a String
+ * value matches without an explicit JsonPrimitive.
  */
-private fun args(vararg pairs: Pair<String, String>): JsonObject {
-    val builder = JsonObjectBuilder()
-    pairs.forEach { (key, value) -> builder.put(key, value) }
-    return builder.build()
-}
+private fun args(vararg pairs: Pair<String, String>): JsonObject =
+    buildJsonObject { pairs.forEach { (key, value) -> put(key, value) } }
