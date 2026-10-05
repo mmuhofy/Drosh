@@ -216,8 +216,14 @@ class TranscriptStoreImpl @Inject constructor(
     }
 
     private companion object {
-        /** Options are display-only; a separator that cannot occur in a label. */
-        const val OPTION_SEPARATOR = " "
+        /**
+         * Separator for the approval option list.
+         *
+         * ASCII unit separator, not a space: an option is free text the model
+         * wrote, and joining on a space would split "skip the tests" into two
+         * options on restore.
+         */
+        const val OPTION_SEPARATOR = "\u001F"
     }
 }
 
