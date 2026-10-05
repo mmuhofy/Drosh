@@ -260,10 +260,16 @@ class AgentLoopTest {
         val shell = FakeTool("shell")
         val loop = loop(tools = arrayOf(shell))
 
-        // What a restart leaves behind: the previous turn, with no live run.
+        // What a restart leaves behind: the previous turn, with no live run. Both
+        // views are written in production — the loop writes the model-facing one,
+        // the UI writes the rows it renders — and a restore reads the rows.
         transcripts.modelViews["chat-1"] = listOf(
             LlmMessage.User("fix the build"),
             LlmMessage.Assistant("I looked at it."),
+        )
+        transcripts.messages["chat-1"] = listOf(
+            ChatMessage.User("u1", "fix the build"),
+            ChatMessage.Assistant("a1", "I looked at it."),
         )
         adapter.script += listOf(answerTurn("Continuing."))
 
