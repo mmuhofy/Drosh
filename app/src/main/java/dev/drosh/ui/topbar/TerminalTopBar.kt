@@ -156,6 +156,7 @@ fun TerminalTopBar(
     isFloating: Boolean = false,
     onToggleFloat: () -> Unit = {},
     onCloseSplit: () -> Unit = {},
+    onCycleSplit: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
@@ -298,6 +299,7 @@ fun TerminalTopBar(
                 isFloating = isFloating,
                 onToggleFloat = onToggleFloat,
                 onCloseSplit = onCloseSplit,
+                onCycleSplit = onCycleSplit,
             )
         }
     }
@@ -322,6 +324,7 @@ private fun MoreActionsDropdown(
     isFloating: Boolean,
     onToggleFloat: () -> Unit,
     onCloseSplit: () -> Unit,
+    onCycleSplit: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
@@ -332,6 +335,12 @@ private fun MoreActionsDropdown(
                     DroshMenuItem(
                         label = if (isFloating) "Dock pane" else "Float window",
                         icon = DroshIcons.Square,
+                    ),
+                )
+                add(
+                    DroshMenuItem(
+                        label = "Move divider",
+                        icon = DroshIcons.RotateCcw,
                     ),
                 )
                 add(
@@ -353,6 +362,7 @@ private fun MoreActionsDropdown(
                 "Refresh terminal" -> onRefresh()
                 "Find in output" -> onFindInOutput()
                 "Float window", "Dock pane" -> onToggleFloat()
+                "Move divider" -> onCycleSplit()
                 "Close second pane" -> onCloseSplit()
             }
         },

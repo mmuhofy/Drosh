@@ -361,6 +361,17 @@ private fun ReadyScreen(
             .orEmpty()
     }
 
+    /**
+     * The top pane's name, for the sidebar's split banner.
+     *
+     * The *focused* pane rather than the primary one: the banner sits above the
+     * list and describes what is on screen, and when the user is working in the
+     * lower pane, naming the one they are not looking at would be its own lie.
+     */
+    val activeSessionName = remember(activeId, sessions) {
+        sessions.firstOrNull { it.id == activeId }?.name.orEmpty()
+    }
+
     val motdMode by terminalViewModel.motdMode.collectAsState()
     val motdText by terminalViewModel.motdText.collectAsState()
     val appInfo by terminalViewModel.appInfo.collectAsState()
@@ -665,7 +676,12 @@ private fun ReadyScreen(
             onFloatingBoundsChange = paneLayoutViewModel::dragFloatingBounds,
             onToggleMaximized = paneLayoutViewModel::toggleMaximized,
             floatingTitle = secondarySessionName,
-            modifier = Modifier.fillMaxSize(),
+            // weight, not fillMaxSize. Each pane draws its own extra-key bar, so
+            // the host has to take only the height the Column has left over —
+            // filling it all pushed the key bar past the bottom edge, which is
+            // what made the lower pane look half-empty: it was drawn under the
+            // bar and under the keyboard.
+            modifier = Modifier.weight(1f),
             primary = {
                 TerminalPaneBody(
                     paneSlot = PaneSlot.PRIMARY,
@@ -811,6 +827,7 @@ private fun ReadyScreen(
                 isFloating = paneLayout.isFloating,
                 onToggleFloat = paneLayoutViewModel::togglePresentation,
                 onCloseSplit = paneLayoutViewModel::closeSplit,
+                onCycleSplit = paneLayoutViewModel::cycleSplitFraction,
         )
 
         // Slider overlay trigger — BackHandler kalıyor, SessionSidebar
@@ -984,8 +1001,19 @@ private fun ReadyScreen(
         } else {
             null
         },
-        onToggleFloat = paneLayoutViewModel::togglePresentation,
+        onFloatSession = if (liveSessionIds.size >= 2) {
+            { id -> paneLayoutViewModel.openFloating(id, activeId) }
+        } else {
+            null
+        },
         isSplit = paneLayout.isSplit,
+        // Only named while both are on screen. A banner listing one session and
+        // a blank would be worse than no banner.
+        splitTitles = if (paneLayout.isSplit) {
+            activeSessionName to secondarySessionName
+        } else {
+            null
+        },
     )
     }
 }
