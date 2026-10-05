@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +73,8 @@ import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshWarning
 import dev.drosh.domain.agent.AgentRunState
+import dev.drosh.domain.agent.AgentTodo
+import dev.drosh.domain.agent.AgentTodoStatus
 import dev.drosh.domain.agent.ApprovalDecision
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.TerminalProjection
@@ -1085,232 +1088,6 @@ private fun ToolStatus(message: ChatMessage.ToolCall) {
 }
 
 /**
- * An approval, inline with the transcript.
- *
- * Not a dialog. The question is only answerable while the diff that prompted it
- * is visible, and a dialog hides the thing being agreed to — which is precisely
- * the mistake this flow exists to prevent.
- */
-@Composable
-private fun ApprovalBlock(
-    message: ChatMessage.Approval,
-    onAnswer: (String, ApprovalDecision) -> Unit,
-) {
-    val approval = message.approval
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(DroshSurfaceLow)
-            .padding(12.dp),
-    ) {
-        Text(
-            text = approval.title,
-            fontSize = 14.sp,
-            lineHeight = 19.sp,
-            fontWeight = FontWeight.Medium,
-            color = DroshText,
-        )
-
-        approval.body?.let {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = it,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                color = DroshTextSecondary,
-            )
-        }
-
-        approval.diff?.let {
-            Spacer(Modifier.height(8.dp))
-            DiffBlock(text = it)
-        }
-
-        Spacer(Modifier.height(10.dp))
-
-        val decided = message.decision
-        if (decided != null) {
-            Text(
-                text = when (decided) {
-                    is ApprovalDecision.Approve -> "onaylandı"
-                    is ApprovalDecision.Reject -> "reddedildi: ${decided.reason}"
-                    is ApprovalDecision.Answer -> "yanıt: ${decided.text}"
-                },
-                fontSize = 11.sp,
-                color = DroshTextMuted,
-            )
-            return@Column
-        }
-
-        // Two decisions, because the pair matters: an offer is a choice between
-        // what the tool proposed and something else. With no options the tool is
-        // asking a question, and the free-text path needs its own affordance —
-        // pretending a question can be answered with a button is how a model ends
-        // up guessing at something only the user knows.
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (approval.options.isEmpty()) {
-                FlatButton(
-                    text = "Geç",
-                    onClick = { onAnswer(approval.id, ApprovalDecision.Reject("dismissed")) },
-                    modifier = Modifier.weight(1f),
-                )
-                ActionButton(
-                    text = "Yanıtla",
-                    onClick = { onAnswer(approval.id, ApprovalDecision.Approve) },
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                FlatButton(
-                    text = approval.options.first(),
-                    onClick = {
-                        onAnswer(approval.id, ApprovalDecision.Answer(approval.options.first()))
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                ActionButton(
-                    text = approval.options.getOrElse(1) { "Onayla" },
-                    onClick = {
-                        onAnswer(approval.id, ApprovalDecision.Answer(approval.options.getOrElse(1) { "onay" }))
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
-}
-
-/**
- * The agent's checklist.
- *
- * A list, not a card: no fill, no border, a rule on the left like the tool output
- * above it. A checklist is the same kind of thing as the output it replaces, and
- * boxing it inside a box reads as one more layer.
- *
- * ## Why progress is a count and not a bar
- *
- * `2/5` says how far along it is and how much is left, which is what someone
- * glancing at it wants. A bar would say the same thing while hiding the total, so
- * the reader cannot tell whether five items or fifty is left.
- *
- * ## Completed items stay
- *
- * Struck through, not removed. A checklist that forgets what it finished cannot be
- * used to answer "did it do the thing I asked", and the strike is the cheapest way
- * to keep that answer on screen.
- */
-@Composable
-private fun TodoCard(
-    todos: List<AgentTodo>,
-    modifier: Modifier = Modifier,
-) {
-    val done = todos.count { it.status == AgentTodoStatus.COMPLETED }
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "$done/${todos.size}",
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Medium,
-                color = if (done == todos.size) DroshSuccess else DroshTextSecondary,
-            )
-            Spacer(Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(1.dp)
-                    .background(DroshOutline.copy(alpha = 0.4f)),
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        todos.forEach { todo ->
-            TodoRow(todo = todo)
-        }
-    }
-}
-
-@Composable
-private fun TodoRow(todo: AgentTodo) {
-    val completed = todo.status == AgentTodoStatus.COMPLETED
-    val active = todo.status == AgentTodoStatus.IN_PROGRESS
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .semantics {
-                contentDescription = buildString {
-                    append(todo.title)
-                    append(
-                        when (todo.status) {
-                            AgentTodoStatus.COMPLETED -> ", tamamlandı"
-                            AgentTodoStatus.IN_PROGRESS -> ", sürüyor"
-                            AgentTodoStatus.PENDING -> ", bekliyor"
-                        }
-                    )
-                }
-            },
-        verticalAlignment = Alignment.Top,
-    ) {
-        // The mark carries the state, not just the colour: an empty box, a filled
-        // box and a ring are three different shapes, so the list is readable without
-        // relying on hue.
-        Box(
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .size(15.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(if (completed) DroshSuccess else Color.Transparent)
-                .then(
-                    if (!completed) {
-                        Modifier.background(DroshOutline.copy(alpha = 0.5f))
-                    } else {
-                        Modifier
-                    }
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            when {
-                completed -> Icon(
-                    imageVector = DroshIcons.Check,
-                    contentDescription = null,
-                    tint = DroshOnPrimary,
-                    modifier = Modifier.size(11.dp),
-                )
-
-                // A ring rather than a fill: the item is started, not done, and a
-                // half-done box drawn as a filled one would overstate it.
-                active -> Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(DroshPrimary),
-                )
-            }
-        }
-
-        Spacer(Modifier.width(10.dp))
-
-        Text(
-            text = todo.title,
-            fontSize = 13.5.sp,
-            lineHeight = 19.sp,
-            color = when {
-                completed -> DroshTextMuted
-                active -> DroshText
-                else -> DroshTextSecondary
-            },
-            textDecoration = if (completed) TextDecoration.LineThrough else null,
-            fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-/**
  * A question, or an approval.
  *
  * ## The two are not the same control
@@ -1429,6 +1206,128 @@ private fun ApprovalBlock(
     }
 }
 
+/**
+ * The agent's checklist.
+ *
+ * A list, not a card: no fill, no border, hanging off the same rule as the tool
+ * output it replaces. A checklist is the same kind of thing as that output, and
+ * boxing it inside a box reads as one more layer.
+ *
+ * ## Why progress is a count and not a bar
+ *
+ * `2/5` says how far along it is and how much is left, which is what someone
+ * glancing at it wants. A bar says the same while hiding the total, so the reader
+ * cannot tell whether five items or fifty is left.
+ *
+ * ## Completed items stay
+ *
+ * Struck through, not removed. A checklist that forgets what it finished cannot
+ * answer "did it do the thing I asked", and the strike is the cheapest way to keep
+ * that answer on screen.
+ */
+@Composable
+private fun TodoCard(
+    todos: List<AgentTodo>,
+    modifier: Modifier = Modifier,
+) {
+    val done = todos.count { it.status == AgentTodoStatus.COMPLETED }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "$done/${todos.size}",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium,
+                color = if (done == todos.size) DroshSuccess else DroshTextSecondary,
+            )
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(DroshOutline.copy(alpha = 0.4f)),
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        todos.forEach { todo -> TodoRow(todo = todo) }
+    }
+}
+
+@Composable
+private fun TodoRow(todo: AgentTodo) {
+    val completed = todo.status == AgentTodoStatus.COMPLETED
+    val active = todo.status == AgentTodoStatus.IN_PROGRESS
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .semantics {
+                contentDescription = todo.title + when (todo.status) {
+                    AgentTodoStatus.COMPLETED -> ", tamamlandı"
+                    AgentTodoStatus.IN_PROGRESS -> ", sürüyor"
+                    AgentTodoStatus.PENDING -> ", bekliyor"
+                }
+            },
+        verticalAlignment = Alignment.Top,
+    ) {
+        // The mark carries the state as shape, not only as colour: an empty box, a
+        // filled box and a ring are three different shapes, so the list is readable
+        // without relying on hue.
+        Box(
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(15.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(
+                    when {
+                        completed -> DroshSuccess
+                        // A ring rather than a fill: started is not done, and a
+                        // half-done item drawn as a filled box would overstate it.
+                        active -> DroshOutline.copy(alpha = 0.35f)
+                        else -> Color.Transparent
+                    }
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                completed -> Icon(
+                    imageVector = DroshIcons.Check,
+                    contentDescription = null,
+                    tint = DroshOnPrimary,
+                    modifier = Modifier.size(11.dp),
+                )
+
+                active -> Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(DroshPrimary),
+                )
+            }
+        }
+
+        Spacer(Modifier.width(10.dp))
+
+        Text(
+            text = todo.title,
+            fontSize = 13.5.sp,
+            lineHeight = 19.sp,
+            color = when {
+                completed -> DroshTextMuted
+                active -> DroshText
+                else -> DroshTextSecondary
+            },
+            textDecoration = if (completed) TextDecoration.LineThrough else null,
+            fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
 /** Must match `AskUserTool.NAME`. */
 private const val ASK_USER_TOOL = "ask_user"
 
@@ -1452,7 +1351,7 @@ private fun QuestionControls(
             }
             DismissRow(onClick = { onAnswer(ApprovalDecision.Reject("dismissed")) })
         }
-        return@Column
+        return
     }
 
     // No options: the answer is free text, and a button cannot collect one.
