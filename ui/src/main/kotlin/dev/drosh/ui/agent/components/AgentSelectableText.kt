@@ -125,6 +125,7 @@ fun AgentSelectableText(
                 )
             }
             AgentSelectionMenu(
+                visible = true,
                 selectedText = picked.text,
                 onCopy = { onCopy?.invoke(picked.text) },
                 onSelectAll = { onSelectAll?.invoke() },

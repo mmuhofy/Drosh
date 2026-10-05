@@ -3,6 +3,7 @@ package dev.drosh.ui.agent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
@@ -70,6 +73,7 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun AgentChatMenu(
+    visible: Boolean,
     chatName: String,
     onRename: () -> Unit,
     onShowTerminalHistory: () -> Unit,
@@ -78,12 +82,20 @@ fun AgentChatMenu(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
+        // Keyed on [visible] so it runs at all: targeting 1f from an initial of 1f is
+        // an animation that never moves.
+        val progress by animateFloatAsState(
+            targetValue = if (visible) 1f else 0f,
+            animationSpec = tween(150),
+            label = "chatMenuFade",
+        )
+
         // Scrim. Tapping outside is the expected way to dismiss, so the whole
         // backdrop is the target rather than a close button in the corner.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.35f))
+                .background(Color.Black.copy(alpha = 0.35f * progress))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -93,9 +105,15 @@ fun AgentChatMenu(
         )
 
         AgentMenuSurface(
+            // Opens from the three-dot button's corner and settles. A menu that only
+            // fades appears to belong to no particular control, so the button that
+            // opened it does not feel like it opened anything.
+            enterScale = 0.94f + 0.06f * progress,
+            enterOffsetY = ((1f - progress) * -8f).roundToInt(),
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = MENU_TOP_INSET, end = 12.dp),
+                .padding(top = MENU_TOP_INSET, end = 12.dp)
+                .zIndex(1f),
         ) {
             AgentMenuHeader(text = chatName)
 
@@ -133,6 +151,8 @@ fun AgentChatMenu(
  */
 @Composable
 private fun AgentMenuSurface(
+    enterScale: Float,
+    enterOffsetY: Int,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -141,6 +161,8 @@ private fun AgentMenuSurface(
 
     Column(
         modifier = modifier
+            .offset { IntOffset(0, enterOffsetY) }
+            .scale(enterScale)
             .width(IntrinsicMenuWidth)
             .clip(shape)
             .then(
@@ -251,14 +273,20 @@ private fun AgentMenuItem(
 @Composable
 fun TerminalHistorySheet(
     lines: List<TerminalLine>,
+    sheetVisible: Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
+        val scrim by animateFloatAsState(
+            targetValue = if (sheetVisible) 1f else 0f,
+            animationSpec = tween(160),
+            label = "terminalSheetScrim",
+        )
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
+                .background(Color.Black.copy(alpha = 0.5f * scrim))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -270,17 +298,22 @@ fun TerminalHistorySheet(
         val glass = LocalAgentGlass.current
         val shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
 
-        // The sheet rises from the bottom edge rather than fading in. A sheet that
+        // The sheet rises from the bottom edge rather than fading in: a sheet that
         // only fades gives no cue which edge it belongs to, so the gesture that
-        // will dismiss it — dragging down — has nothing to connect to.
+        // dismisses it has nothing to connect to.
+        //
+        // Keyed on [sheetVisible] so it actually runs. `animateFloatAsState` was
+        // targeting 1f from an initial of 1f, so the offset was always zero and the
+        // sheet appeared instantly — the animation was written and did nothing.
         val rise by animateFloatAsState(
-            targetValue = 1f,
+            targetValue = if (sheetVisible) 1f else 0f,
             animationSpec = spring(
                 dampingRatio = Spring.DampingRatioNoBouncy,
                 stiffness = Spring.StiffnessLow,
             ),
             label = "terminalSheetRise",
         )
+
 
         Column(
             modifier = Modifier

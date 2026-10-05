@@ -46,7 +46,6 @@ import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshSuccess
 import dev.drosh.design.system.DroshWarning
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
@@ -59,6 +58,7 @@ import dev.drosh.ui.agent.components.ActionButton
 import dev.chrisbanes.haze.hazeSource
 import dev.drosh.ui.agent.components.AgentIconPill
 import dev.drosh.ui.agent.components.AgentPill
+import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.rememberAgentGlass
 import dev.drosh.ui.agent.components.SectionHeader
@@ -79,6 +79,10 @@ fun AgentHomeScreen(
     modifier: Modifier = Modifier,
     viewModel: AgentHomeViewModel = hiltViewModel(),
 ) {
+    // Same reason as the chat screen: the terminal hides the status bar and
+    // never restores it.
+    DroshStatusBarVisible()
+
     val grouped by viewModel.grouped.collectAsStateWithLifecycle()
     val hasKey by viewModel.hasKey.collectAsStateWithLifecycle()
     val directory by viewModel.directory.collectAsStateWithLifecycle()
@@ -99,7 +103,6 @@ fun AgentHomeScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             HomePillRow(
-                directory = directory.orEmpty(),
                 onBack = onBack,
                 onNewChat = { onNewChat(directory.orEmpty()) },
             )
@@ -159,29 +162,24 @@ fun AgentHomeScreen(
             }
         }
 
-        // A full-width bar rather than a floating button: it sits above the
-        // navigation bar with predictable spacing, and a FAB on a dark field at
-        // the bottom edge competes with the gesture pill for the same 16dp.
-        Column(
+        // The directory picker, floating.
+        //
+        // The bar it used to live in is gone, and so is the "New agent chat" button
+        // inside it. Two new-chat controls on one screen — that button and the Yeni
+        // pill in the row above — meant the primary action had no single obvious
+        // home, and the bar itself painted a lighter band across the bottom that
+        // read as a separate surface from the list above it.
+        //
+        // The picker stays because it is the one control here that works and has no
+        // equivalent anywhere else on the screen.
+        DirectoryChip(
+            directory = directory,
+            onChange = viewModel::setDirectory,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(DroshSurface)
                 .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-        ) {
-            ActionButton(
-                text = "New agent chat",
-                onClick = { onNewChat(directory) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(4.dp))
-            DirectoryChip(
-                directory = directory,
-                onChange = viewModel::setDirectory,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-        }
+                .padding(bottom = 12.dp),
+        )
     }
 
     // Outside the Box: the menu is a full-screen overlay, and putting it inside
@@ -238,7 +236,6 @@ fun AgentHomeScreen(
  */
 @Composable
 private fun HomePillRow(
-    directory: String,
     onBack: () -> Unit,
     onNewChat: () -> Unit,
 ) {
@@ -279,21 +276,6 @@ private fun HomePillRow(
             )
         }
 
-        // The working directory on its own line, because a path is long and a row
-        // that has to truncate it is worse than a row that does not have to.
-        Row(
-            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AgentPill(
-                label = directory.ifBlank { "çalışma dizini" },
-                onClick = { /* Directory picking lands with the picker. */ },
-                modifier = Modifier.weight(1f, fill = false),
-                leadingIcon = DroshIcons.Folder,
-                trailingChevron = true,
-                contentDescription = "Çalışma dizini: $directory",
-            )
-        }
     }
 }
 
