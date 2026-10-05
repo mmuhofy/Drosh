@@ -123,7 +123,7 @@ class TranscriptStoreImpl @Inject constructor(
         toolCallId = (this as? ChatMessage.ToolCall)?.callId,
         toolName = (this as? ChatMessage.ToolCall)?.name,
         toolSummary = (this as? ChatMessage.ToolCall)?.summary,
-        toolState = (this as? ChatMessage.ToolCall)?.state?.name,
+        toolState = (this as? ChatMessage.ToolCall)?.state?.let(::stateName),
         toolOutput = (this as? ChatMessage.ToolCall)?.output
             ?.joinToString("\n")
             ?.takeIf { it.isNotEmpty() },
@@ -184,9 +184,7 @@ class TranscriptStoreImpl @Inject constructor(
             text = "",
             toolCallId = callId,
             toolName = name,
-            // The literal, not .name: a data object's name is its class name, which
-            // a refactor would change silently and break every stored transcript.
-            toolState = STATE_SUCCEEDED,
+            toolState = stateName(ToolCallState.Succeeded),
             toolFinalOutput = content,
             createdAtMs = createdAtMs,
         )
@@ -255,6 +253,22 @@ class TranscriptStoreImpl @Inject constructor(
      * cannot be parsed was not left running, and rendering it as such would put a
      * permanent spinner in the transcript for something that had already finished.
      */
+    /**
+     * The stored name for a state.
+     *
+     * Explicit, because `ToolCallState` is a sealed interface of data objects
+     * whose `.name` is the class name — a refactor would change the database
+     * format silently and orphan every transcript already on disk.
+     */
+    private fun stateName(state: ToolCallState): String = when (state) {
+        is ToolCallState.Pending -> "Pending"
+        is ToolCallState.Running -> "Running"
+        is ToolCallState.AwaitingApproval -> "AwaitingApproval"
+        is ToolCallState.Succeeded -> "Succeeded"
+        is ToolCallState.Failed -> "Failed"
+        is ToolCallState.Cancelled -> "Cancelled"
+    }
+
     private fun String?.toState(): ToolCallState = when (this) {
         "Pending" -> ToolCallState.Pending
         "Running" -> ToolCallState.Running
@@ -272,8 +286,6 @@ class TranscriptStoreImpl @Inject constructor(
     }
 
     private companion object {
-        const val STATE_SUCCEEDED = "Succeeded"
-
         /**
          * Separator for the approval option list.
          *
