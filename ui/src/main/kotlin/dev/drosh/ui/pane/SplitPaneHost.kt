@@ -2,15 +2,19 @@ package dev.drosh.ui.pane
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -100,57 +104,62 @@ fun SplitPaneHost(
             return@BoxWithConstraints
         }
 
-        val leftPx = (layout.splitFraction * widthPx).roundToInt().coerceIn(1, (widthPx - 1).toInt())
-        val rightPx = (widthPx - leftPx).roundToInt().coerceAtLeast(1)
+        // Top pane, divider, bottom pane. Stacked rather than side by side: two
+        // 180dp columns of terminal are about ten characters wide, narrower than
+        // most paths, while a shorter-but-full-width pane still reads.
+        val topPx = (layout.splitFraction * heightPx)
+            .roundToInt()
+            .coerceIn(1, (heightPx - 1).toInt())
+        val bottomPx = (heightPx - topPx).roundToInt().coerceAtLeast(1)
 
         Box(modifier = Modifier.fillMaxSize()) {
             Box(
-                modifier = Modifier.size(
-                    width = with(density) { leftPx.toDp() },
-                    height = with(density) { heightPx.toDp() },
-                ),
+                modifier = Modifier
+                    .size(
+                        width = with(density) { widthPx.toDp() },
+                        height = with(density) { topPx.toDp() },
+                    ),
             ) { primary() }
 
             Box(
                 modifier = Modifier
-                    .offset { IntOffset(leftPx, 0) }
+                    .offset { IntOffset(0, topPx) }
                     .size(
-                        width = with(density) { rightPx.toDp() },
-                        height = with(density) { heightPx.toDp() },
+                        width = with(density) { widthPx.toDp() },
+                        height = with(density) { bottomPx.toDp() },
                     ),
             ) { secondary() }
 
             SplitDivider(
-                onDrag = { deltaPx ->
-                    // Clamped in the model, not here. PaneLayout owns the
-                    // limits; a second set of them here is a second thing to
-                    // keep in step when they change.
-                    onSplitFractionChange((leftPx + deltaPx) / widthPx)
-                },
+                // Clamped and snapped in the model; this only turns pixels back
+                // into a fraction.
+                onDrag = { deltaPx -> onSplitFractionChange((topPx + deltaPx) / heightPx) },
                 onDragEnd = onSplitFractionCommit,
-                modifier = Modifier.align(Alignment.CenterStart),
+                // Straddles the seam, so the seam line stays visible on both
+                // sides of the grip rather than the grip covering it.
+                modifier = Modifier.offset {
+                    IntOffset(0, topPx - with(density) { DIVIDER_HIT_HEIGHT.toPx() }.toInt() / 2)
+                },
             )
         }
     }
 }
 
-/** Width of the divider's touch target, which is wider than the line drawn. */
-private val DIVIDER_HIT_WIDTH = 24.dp
-
-/** The visible rule between two docked panes. */
-private val DIVIDER_THICKNESS = 2.dp
-
 /**
- * The draggable seam between two docked panes.
+ * The seam between two docked panes, dragging vertically.
  *
- * The touch target is [DIVIDER_HIT_WIDTH] but only [DIVIDER_THICKNESS] is
- * drawn. A 2dp line is right to look at and wrong to grab — a finger covers far
- * more than 2dp, and a target that thin misses often enough that the split
- * reads as broken rather than as stiff.
+ * Not a rule with a groove in it. A straight 2dp line across a terminal reads
+ * as a seam in the output rather than as a control, so the grip is a short
+ * rounded pill that sits *on* the seam and nothing else moves with it: the
+ * line stays hairline, the pill grows out of it.
  *
- * The line carries the accent only while it is being dragged. A permanently lit
- * divider competes with the output on either side of it, which is the one thing
- * a terminal should not do.
+ * The pill is [DIVIDER_HIT_HEIGHT] tall to grab but only [PILL_HEIGHT] tall to
+ * see. A finger covers far more than 8dp and a target that thin misses often
+ * enough that the split feels broken.
+ *
+ * It lights with the accent only while held. A permanently lit pill competes
+ * with the output on either side of it, which is the one thing a terminal
+ * should not do.
  */
 @Composable
 private fun SplitDivider(
@@ -160,12 +169,28 @@ private fun SplitDivider(
 ) {
     var dragging by remember { mutableStateOf(false) }
 
+    // Only while held, so it fades rather than snapping — a control that pops
+    // between states reads as a glitch in the output.
+    val pillWidth by animateDpAsState(
+        targetValue = if (dragging) PILL_HELD_WIDTH else PILL_WIDTH,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "dividerPillWidth",
+    )
+    val pillColor by animateColorAsState(
+        targetValue = if (dragging) DroshPrimary else DroshOutline,
+        animationSpec = tween(durationMillis = 140),
+        label = "dividerPillColor",
+    )
+
     Box(
         modifier = modifier
-            .width(DIVIDER_HIT_WIDTH)
-            .fillMaxHeight()
+            .fillMaxWidth()
+            .height(DIVIDER_HIT_HEIGHT)
             .pointerInput(Unit) {
-                detectHorizontalDragGestures(
+                detectVerticalDragGestures(
                     onDragStart = { dragging = true },
                     onDragEnd = {
                         dragging = false
@@ -175,7 +200,7 @@ private fun SplitDivider(
                         dragging = false
                         onDragEnd()
                     },
-                    onHorizontalDrag = { change, delta ->
+                    onVerticalDrag = { change, delta ->
                         change.consume()
                         onDrag(delta)
                     },
@@ -183,18 +208,37 @@ private fun SplitDivider(
             },
         contentAlignment = Alignment.Center,
     ) {
+        // The hairline. Full width so the seam reads as a seam, but only a
+        // shade above the surface so it does not read as a rule drawn through
+        // the output.
         Box(
             modifier = Modifier
-                .width(DIVIDER_THICKNESS)
-                .fillMaxHeight()
-                .background(
-                    color = if (dragging) DroshPrimary else DroshOutline,
-                    shape = RoundedCornerShape(percent = 50),
-                ),
+                .fillMaxWidth()
+                .height(SEAM_THICKNESS)
+                .background(DroshOutline.copy(alpha = 0.55f)),
+        )
+
+        // The grip itself, floating on the seam.
+        Box(
+            modifier = Modifier
+                .width(pillWidth)
+                .height(PILL_HEIGHT)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(pillColor),
         )
     }
 }
 
+/** Height of the divider's touch target, far taller than the pill drawn. */
+private val DIVIDER_HIT_HEIGHT = 28.dp
+
+/** The pill's resting size, and its size while held. */
+private val PILL_WIDTH = 40.dp
+private val PILL_HELD_WIDTH = 72.dp
+private val PILL_HEIGHT = 4.dp
+
+/** The seam itself: hairline, because it is not the thing being grabbed. */
+private val SEAM_THICKNESS = 1.dp
 /**
  * The floating pane: a window dragged by its title bar, resized from its
  * bottom-right corner, and expandable to fill the host.

@@ -156,10 +156,12 @@ fun SessionSidebar(
      * when there is only one session to split into.
      */
     onSplitSession: ((String) -> Unit)? = null,
-    /** Turns the second pane into a floating window, or docks it back. */
-    onToggleFloat: (() -> Unit)? = null,
+    /** Opens this session straight into a floating window. */
+    onFloatSession: ((String) -> Unit)? = null,
     /** True while a second pane is open, so the rows can show it. */
     isSplit: Boolean = false,
+    /** Names of the two sessions currently sharing the screen. */
+    splitTitles: Pair<String, String>? = null,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
     val deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel()
@@ -184,8 +186,9 @@ fun SessionSidebar(
             onOpenSettings = onOpenSettings,
             onOpenAgent = onOpenAgent,
             onSplitSession = onSplitSession,
-            onToggleFloat = onToggleFloat,
+            onFloatSession = onFloatSession,
             isSplit = isSplit,
+            splitTitles = splitTitles,
         )
     }
 }
@@ -197,8 +200,9 @@ private fun SidebarContent(
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
     onSplitSession: ((String) -> Unit)?,
-    onToggleFloat: (() -> Unit)?,
+    onFloatSession: ((String) -> Unit)?,
     isSplit: Boolean,
+    splitTitles: Pair<String, String>?,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
@@ -240,6 +244,13 @@ private fun SidebarContent(
             onNewSession = { viewModel.createNew("shell") },
         )
 
+        // The split itself, named. A second terminal on screen with no mention
+        // of it in the drawer reads as the app having drawn something twice —
+        // there is nothing on the left half to explain the right one.
+        splitTitles?.let { (top, bottom) ->
+            SplitBanner(top = top, bottom = bottom)
+        }
+
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(bottom = 8.dp),
@@ -278,8 +289,7 @@ private fun SidebarContent(
                         onStartRename = { renamingSession = snapshot },
                         onDelete = { viewModel.delete(snapshot.id) },
                         onSplit = onSplitSession?.let { split -> { split(snapshot.id) } },
-                        onToggleFloat = onToggleFloat,
-                        canFloat = isSplit,
+                        onFloat = onFloatSession?.let { float -> { float(snapshot.id) } },
                     )
                 }
             }
@@ -529,9 +539,8 @@ private fun SessionRow(
     onDelete: () -> Unit,
     /** Opens this session in the second pane, or null when it cannot. */
     onSplit: (() -> Unit)? = null,
-    onToggleFloat: (() -> Unit)? = null,
-    /** True once a second pane exists, so float/dock is offered at all. */
-    canFloat: Boolean = false,
+    /** Opens this session straight into a floating window. */
+    onFloat: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val ended = snapshot.state == SessionState.Closed
@@ -622,10 +631,10 @@ private fun SessionRow(
                     // artifact is not on this machine to check a name against,
                     // and an icon whose absence only shows up at runtime is not
                     // worth the two lines a custom vector would cost.
-                    add(DroshMenuItem(label = "Split right", icon = DroshIcons.PanelLeft))
+                    add(DroshMenuItem(label = "Split below", icon = DroshIcons.PanelLeft))
                 }
-                if (onToggleFloat != null && canFloat && !ended) {
-                    add(DroshMenuItem(label = "Float window", icon = DroshIcons.Square))
+                if (onFloat != null && !ended) {
+                    add(DroshMenuItem(label = "Open in window", icon = DroshIcons.Square))
                 }
                 add(DroshMenuItem(label = "Rename", icon = DroshIcons.Pencil))
                 add(
@@ -638,12 +647,71 @@ private fun SessionRow(
             },
             onItemClick = { item ->
                 when (item.label) {
-                    "Split right" -> onSplit?.invoke()
-                    "Float window" -> onToggleFloat?.invoke()
+                    "Split below" -> onSplit?.invoke()
+                    "Open in window" -> onFloat?.invoke()
                     "Rename" -> onStartRename()
                     "Delete" -> onDelete()
                 }
             },
+        )
+    }
+}
+
+
+/**
+ * Names the two sessions sharing the screen.
+ *
+ * A split drawn with nothing in the drawer explaining it reads as the app
+ * having rendered the same terminal twice. Naming both halves — with the split
+ * glyph between them, since that is what the icon means everywhere else here —
+ * is the difference between a second terminal and a rendering bug.
+ *
+ * Both names are ellipsised from the middle rather than the end: sessions are
+ * named after what they are for, and the distinguishing end of a name is the
+ * one a line ending would cut off.
+ */
+@Composable
+private fun SplitBanner(
+    top: String,
+    bottom: String,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .height(44.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(DroshSurfaceVariant)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = top,
+            color = DroshTextSecondary,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+            modifier = Modifier.weight(1f),
+        )
+
+        Icon(
+            imageVector = DroshIcons.PanelLeft,
+            contentDescription = "Split",
+            tint = DroshPrimary,
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .size(14.dp),
+        )
+
+        Text(
+            text = bottom,
+            color = DroshTextSecondary,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 }
