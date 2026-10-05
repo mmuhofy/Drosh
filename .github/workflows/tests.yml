@@ -36,3 +36,10 @@ jobs:
       # literal wire text with no network and no Android.
       - name: Run :agent tests
         run: ./gradlew :agent:test --no-daemon --stacktrace
+
+      # :terminal and :editor were never listed here, which is how a failing
+      # AnsiStripperTest sat on main for months: nothing ran it. Run every
+      # module that has tests, rather than appending one name at a time — the
+      # next module with tests would otherwise be missed the same way.
+      - name: Run remaining module tests
+        run: ./gradlew test -x :domain:test -x :agent:test --no-daemon --stacktrace
