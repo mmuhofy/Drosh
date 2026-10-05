@@ -36,7 +36,10 @@ object DatabaseModule {
         // to a destructive migration or to dropping the table — it throws at open
         // time — so an unregistered migration takes every existing install down
         // with it rather than degrading quietly.
-        .addMigrations(DroshDatabase.MIGRATION_1_3)
+        .addMigrations(
+            DroshDatabase.MIGRATION_1_4,
+            DroshDatabase.MIGRATION_3_4,
+        )
         .build()
 
     /**
