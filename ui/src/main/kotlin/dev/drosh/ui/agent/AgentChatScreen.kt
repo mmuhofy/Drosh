@@ -632,21 +632,6 @@ private fun AgentComposer(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    // A hint of what the field accepts, in place of the two buttons.
-                    //
-                    // The tool and todo affordances were placeholders and the wrong
-                    // call twice over: three identical circles made send look like a
-                    // peer of two controls with no behaviour, and two dead controls
-                    // cost more attention than the live one gained. When tools and
-                    // todos arrive they get rows in the transcript, which is where
-                    // their output is anyway.
-                    Text(
-                        text = if (running) "çalışıyor…" else "⏎ gönder · ⇧⏎ yeni satır",
-                        fontSize = 11.sp,
-                        color = DroshTextMuted,
-                        modifier = Modifier.weight(1f),
-                    )
-
                     // 36dp drawn inside a 48dp box, to sit with the 40dp pills above.
                     // At 30dp the primary action on the screen was smaller than the
                     // icons in the row above it, which read as a deliberate demotion.
@@ -799,13 +784,6 @@ private fun AssistantText(
     onShare: (String) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "drosh",
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
-            color = DroshPrimary,
-        )
-        Spacer(Modifier.height(2.dp))
         AgentSelectableText(
             text = message.text,
             fontSize = 14.sp,
@@ -992,9 +970,21 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                         .weight(1f)
                         .padding(start = 12.dp, top = 2.dp, bottom = 4.dp),
                 ) {
+                    // A checklist is the tool's result, not its output text, so it is
+                    // rendered as a list and the text version is not shown. Printing
+                    // "[x] 1. Read the failing test" under the row would make the
+                    // user read a diff format to learn what the agent is doing.
+                    if (message.todos.isNotEmpty()) {
+                        TodoCard(todos = message.todos)
+                    }
+
                     val finalOutput = message.finalOutput
                     val liveOutput = message.output
                     val body = when {
+                        // A checklist already says everything its text does, in a
+                        // shape a person can read. Showing both is the same fact
+                        // twice, once formatted for a model.
+                        message.todos.isNotEmpty() -> null
                         liveOutput.isNotEmpty() ->
                             liveOutput.takeLast(MAX_LIVE_LINES).joinToString("\n")
                         finalOutput != null -> finalOutput
@@ -1185,6 +1175,436 @@ private fun ApprovalBlock(
                     },
                     modifier = Modifier.weight(1f),
                 )
+            }
+        }
+    }
+}
+
+/**
+ * The agent's checklist.
+ *
+ * A list, not a card: no fill, no border, a rule on the left like the tool output
+ * above it. A checklist is the same kind of thing as the output it replaces, and
+ * boxing it inside a box reads as one more layer.
+ *
+ * ## Why progress is a count and not a bar
+ *
+ * `2/5` says how far along it is and how much is left, which is what someone
+ * glancing at it wants. A bar would say the same thing while hiding the total, so
+ * the reader cannot tell whether five items or fifty is left.
+ *
+ * ## Completed items stay
+ *
+ * Struck through, not removed. A checklist that forgets what it finished cannot be
+ * used to answer "did it do the thing I asked", and the strike is the cheapest way
+ * to keep that answer on screen.
+ */
+@Composable
+private fun TodoCard(
+    todos: List<AgentTodo>,
+    modifier: Modifier = Modifier,
+) {
+    val done = todos.count { it.status == AgentTodoStatus.COMPLETED }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "$done/${todos.size}",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium,
+                color = if (done == todos.size) DroshSuccess else DroshTextSecondary,
+            )
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(DroshOutline.copy(alpha = 0.4f)),
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        todos.forEach { todo ->
+            TodoRow(todo = todo)
+        }
+    }
+}
+
+@Composable
+private fun TodoRow(todo: AgentTodo) {
+    val completed = todo.status == AgentTodoStatus.COMPLETED
+    val active = todo.status == AgentTodoStatus.IN_PROGRESS
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .semantics {
+                contentDescription = buildString {
+                    append(todo.title)
+                    append(
+                        when (todo.status) {
+                            AgentTodoStatus.COMPLETED -> ", tamamlandı"
+                            AgentTodoStatus.IN_PROGRESS -> ", sürüyor"
+                            AgentTodoStatus.PENDING -> ", bekliyor"
+                        }
+                    )
+                }
+            },
+        verticalAlignment = Alignment.Top,
+    ) {
+        // The mark carries the state, not just the colour: an empty box, a filled
+        // box and a ring are three different shapes, so the list is readable without
+        // relying on hue.
+        Box(
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(15.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (completed) DroshSuccess else Color.Transparent)
+                .then(
+                    if (!completed) {
+                        Modifier.background(DroshOutline.copy(alpha = 0.5f))
+                    } else {
+                        Modifier
+                    }
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                completed -> Icon(
+                    imageVector = DroshIcons.Check,
+                    contentDescription = null,
+                    tint = DroshOnPrimary,
+                    modifier = Modifier.size(11.dp),
+                )
+
+                // A ring rather than a fill: the item is started, not done, and a
+                // half-done box drawn as a filled one would overstate it.
+                active -> Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(DroshPrimary),
+                )
+            }
+        }
+
+        Spacer(Modifier.width(10.dp))
+
+        Text(
+            text = todo.title,
+            fontSize = 13.5.sp,
+            lineHeight = 19.sp,
+            color = when {
+                completed -> DroshTextMuted
+                active -> DroshText
+                else -> DroshTextSecondary
+            },
+            textDecoration = if (completed) TextDecoration.LineThrough else null,
+            fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * A question, or an approval.
+ *
+ * ## The two are not the same control
+ *
+ * They share the loop's primitive — suspend, present, take an answer — but they are
+ * different things to be asked, and the old card treated them as one:
+ *
+ *  - **an approval** (`write_file`) is yes or no about something already decided.
+ *    Two buttons is the whole answer.
+ *  - **a question** (`ask_user`) is the agent blocked on something only the user
+ *    knows. Answering it needs a way to *type*, and the old card's "Yanıtla" button
+ *    sent `Approve`, which reaches the model as "the user acknowledged the
+ *    question" — so the free-text path the tool documents was unreachable from the
+ *    screen.
+ *
+ * With options, the old card also rendered `options.first()` and
+ * `options.getOrElse(1) { "Onayla" }` — two buttons out of however many were
+ * offered, inventing an "Onayla" when only one existed. A three-way question showed
+ * two of its options and a button that was never one of them.
+ *
+ * So: every option as its own row, and a real text field when there are none.
+ *
+ * ## Why this one keeps a card
+ *
+ * Unlike a tool row, this is a question addressed to the user with the run parked
+ * on the answer. It is a distinct object in the transcript rather than a line of it,
+ * and the answer controls need to read as a set you act on rather than as prose.
+ */
+@Composable
+private fun ApprovalBlock(
+    message: ChatMessage.Approval,
+    onAnswer: (String, ApprovalDecision) -> Unit,
+) {
+    val approval = message.approval
+    // ask_user asks; write_file proposes. Distinguished by the tool that raised it
+    // rather than by a new flag on the approval, since the name is already here and
+    // is what the loop actually branched on.
+    val isQuestion = approval.toolName == ASK_USER_TOOL
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DroshSurfaceLow)
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (isQuestion) DroshIcons.ListChecks else DroshIcons.Pencil,
+                contentDescription = null,
+                tint = if (isQuestion) DroshPrimary else DroshWarning,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = if (isQuestion) "SORU" else "ONAY",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.9.sp,
+                color = if (isQuestion) DroshPrimary else DroshWarning,
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            text = approval.title,
+            fontSize = 14.5.sp,
+            lineHeight = 20.sp,
+            fontWeight = FontWeight.Medium,
+            color = DroshText,
+        )
+
+        approval.body?.let {
+            Spacer(Modifier.height(5.dp))
+            Text(
+                text = it,
+                fontSize = 12.5.sp,
+                lineHeight = 18.sp,
+                color = DroshTextSecondary,
+            )
+        }
+
+        approval.diff?.let {
+            Spacer(Modifier.height(10.dp))
+            DiffBlock(text = it)
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        val decided = message.decision
+        if (decided != null) {
+            DecisionRow(decision = decided)
+            return@Column
+        }
+
+        if (isQuestion) {
+            QuestionControls(
+                options = approval.options,
+                onAnswer = { onAnswer(approval.id, it) },
+            )
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlatButton(
+                    text = "Reddet",
+                    onClick = { onAnswer(approval.id, ApprovalDecision.Reject("declined")) },
+                    modifier = Modifier.weight(1f),
+                )
+                ActionButton(
+                    text = "Uygula",
+                    onClick = { onAnswer(approval.id, ApprovalDecision.Approve) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+/** Must match `AskUserTool.NAME`. */
+private const val ASK_USER_TOOL = "ask_user"
+
+/**
+ * How a question gets answered.
+ *
+ * Options as rows rather than a row of buttons: a list of choices has no natural
+ * count, and two columns silently drop the third. Rows also fit the length of an
+ * option, which is where these fail first — buttons truncate their labels and a
+ * truncated choice is a choice the user cannot read.
+ */
+@Composable
+private fun QuestionControls(
+    options: List<String>,
+    onAnswer: (ApprovalDecision) -> Unit,
+) {
+    if (options.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            options.forEach { option ->
+                ChoiceRow(option = option, onClick = { onAnswer(ApprovalDecision.Answer(option)) })
+            }
+            DismissRow(onClick = { onAnswer(ApprovalDecision.Reject("dismissed")) })
+        }
+        return@Column
+    }
+
+    // No options: the answer is free text, and a button cannot collect one.
+    var reply by rememberSaveable { mutableStateOf("") }
+    val canSend = reply.isNotBlank()
+
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(DroshSurfaceVariant)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            if (reply.isEmpty()) {
+                Text(
+                    text = "Yanıtını yaz…",
+                    fontSize = 13.5.sp,
+                    color = DroshTextMuted,
+                )
+            }
+            BasicTextField(
+                value = reply,
+                onValueChange = { reply = it },
+                maxLines = 4,
+                textStyle = TextStyle(fontSize = 13.5.sp, color = DroshText),
+                cursorBrush = SolidColor(DroshPrimary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Atla",
+                fontSize = 13.sp,
+                color = DroshTextSecondary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { onAnswer(ApprovalDecision.Reject("dismissed")) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .semantics { contentDescription = "Soruyu atla" },
+            )
+            Spacer(Modifier.weight(1f))
+            AgentPill(
+                label = "Yanıtla",
+                onClick = { onAnswer(ApprovalDecision.Answer(reply.trim())) },
+                primary = true,
+                enabled = canSend,
+                contentDescription = "Yanıtı gönder",
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChoiceRow(option: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(11.dp))
+            .background(DroshSurfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 11.dp)
+            .semantics { contentDescription = option },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = option,
+            fontSize = 13.5.sp,
+            lineHeight = 19.sp,
+            color = DroshText,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = DroshIcons.ChevronRight,
+            contentDescription = null,
+            tint = DroshTextMuted,
+            modifier = Modifier.size(15.dp),
+        )
+    }
+}
+
+@Composable
+private fun DismissRow(onClick: () -> Unit) {
+    Text(
+        text = "Atla",
+        fontSize = 13.sp,
+        color = DroshTextMuted,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .semantics { contentDescription = "Soruyu atla" },
+    )
+}
+
+/** What the user chose, once they have. */
+@Composable
+private fun DecisionRow(decision: ApprovalDecision) {
+    val (label, tint) = when (decision) {
+        is ApprovalDecision.Approve -> "onaylandı" to DroshSuccess
+        is ApprovalDecision.Reject -> "reddedildi" to DroshError
+        is ApprovalDecision.Answer -> "yanıtlandı" to DroshSuccess
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(tint.copy(alpha = 0.12f))
+            .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = when (decision) {
+                is ApprovalDecision.Reject -> DroshIcons.X
+                else -> DroshIcons.Check
+            },
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(
+                text = label,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = tint,
+            )
+            // The words matter. "onaylandı" alone does not say what the user said,
+            // and for a question that text is the entire content of the answer.
+            when (decision) {
+                is ApprovalDecision.Reject -> if (decision.reason.isNotBlank()) {
+                    Text(
+                        text = decision.reason,
+                        fontSize = 11.5.sp,
+                        color = DroshTextMuted,
+                    )
+                }
+
+                is ApprovalDecision.Answer -> Text(
+                    text = decision.text,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = DroshTextSecondary,
+                )
+
+                is ApprovalDecision.Approve -> Unit
             }
         }
     }
