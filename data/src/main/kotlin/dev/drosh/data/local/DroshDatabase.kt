@@ -37,7 +37,6 @@ import dev.drosh.data.workspace.WorkspaceEntity
 )
 abstract class DroshDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
-    abstract fun agentChatDao(): AgentChatDao
     abstract fun workspaceDao(): WorkspaceDao
     abstract fun agentChatDao(): AgentChatDao
     abstract fun agentMessageDao(): AgentMessageDao
