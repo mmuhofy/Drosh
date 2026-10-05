@@ -66,12 +66,18 @@ class GrepTool @Inject constructor(
         val pattern = input.stringArg("pattern").trim()
         if (pattern.isEmpty()) return ToolResult.Error("pattern must not be empty")
 
-        val root = input.stringArg("path").ifBlank { paths.workDir }
-        val resolved = paths.resolve(root, mustExist = true, mustBeDirectory = false)
-        val relative = (resolved as? ToolResult.Success)?.output ?: return resolved
+        // Resolved through resolveOrNull rather than resolve: the working
+        // directory itself is a legitimate search root, and resolve() refuses the
+        // filesystem root on purpose. Refusing here would make the default case —
+        // search everything under where I am — an error.
+        val requested = input.stringArg("path").trim()
+        val searchRoot = paths.resolveOrNull(if (requested.isEmpty()) "." else requested)
+            ?: return ToolResult.Error("cannot resolve '${requested.ifEmpty { "." }}'")
 
-        val searchRoot = paths.resolveOrNull(root)
-            ?: return ToolResult.Error("cannot resolve $root")
+        if (!searchRoot.exists()) {
+            return ToolResult.Error("no such file or directory: $requested")
+        }
+        val relative = paths.toGuest(searchRoot)
         val glob = input.stringArg("glob").trim()
         val ignoreCase = input.boolArg("ignore_case", false)
         val maxResults = input.intArg("max_results", DEFAULT_MAX_RESULTS)
