@@ -15,10 +15,10 @@ android {
 }
 
 room {
-    // Phase 6 schema export target — :data/schemas directory is created now
-    // so the Room Gradle plugin accepts the configuration even though no
-    // entities exist yet. Once CommandDnaDao / SessionDao / etc. land, this
-    // path starts emitting *.json schema snapshots per database version.
+    // Room writes a JSON snapshot per database version here, and CI diffs it.
+    // That diff is what catches a stale DroshDatabase.IDENTITY_HASH: the build
+    // cannot see one, so without this a schema change reaches every install as a
+    // crash on first launch.
     schemaDirectory("$projectDir/schemas")
 }
 

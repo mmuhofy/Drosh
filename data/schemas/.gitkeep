@@ -1,0 +1,4 @@
+Room writes the schema snapshot for each database version here during
+:data:exportSchemaDebug, and CI fails the build when this directory
+changes. If it did, DroshDatabase.IDENTITY_HASH needs updating too — a
+stale hash builds clean and crashes on first launch.

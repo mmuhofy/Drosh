@@ -33,6 +33,28 @@ jobs:
       - name: Assemble debug
         run: ./gradlew assembleDebug --no-daemon --stacktrace --max-workers=2
 
+      # The identity hash in the migration is a hand-copied constant, and a stale
+      # one is invisible here: the build passes and the app crashes on first
+      # launch with "Room cannot verify the data integrity". Room writes the real
+      # hash to data/schemas/ during the build, so exporting here and diffing
+      # turns a device crash into a red build.
+      - name: Export Room schemas
+        run: ./gradlew :data:exportSchemaDebug --no-daemon
+
+      - name: Check Room schema export is committed
+        run: |
+          # An empty directory is not tracked by git, so a first export shows up as
+          # an untracked path rather than a diff. Commit the snapshots and this
+          # step is a plain diff from then on.
+          if git status --porcelain -- data/schemas | grep -q .; then
+            echo "::error::data/schemas is out of date. If the schema changed,"
+            echo "::error::update DroshDatabase.IDENTITY_HASH to match, then"
+            echo "::error::commit the exported snapshots alongside the change."
+            git status --porcelain -- data/schemas
+            git --no-pager diff -- data/schemas | head -100
+            exit 1
+          fi
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
