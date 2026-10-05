@@ -75,4 +75,7 @@
     <string name="settings_mode_block">Blok</string>
     <string name="settings_fullscreen_mode">Tam ekran modu</string>
     <string name="settings_fullscreen_mode_desc">Çalışırken status bar gizlenir, geri scroll edince geri gelir</string>
+    <string name="settings_section_ai">Yapay zekâ</string>
+    <string name="settings_agent">Agent</string>
+    <string name="settings_agent_desc">OpenRouter anahtarı, Exa arama anahtarı ve model</string>
 </resources>

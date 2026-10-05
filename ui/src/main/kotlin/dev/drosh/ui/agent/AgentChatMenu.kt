@@ -324,7 +324,11 @@ fun TerminalHistorySheet(
                     lines = lines,
                     modifier = Modifier
                         .weight(1f)
-                        .hazeSource(glass?.state),
+                        // Only a source when there is a state to observe; a null
+                        // HazeState here would be a silent no-op at best.
+                        .then(
+                            if (glass != null) Modifier.hazeSource(glass.state) else Modifier
+                        ),
                 )
             }
         }
