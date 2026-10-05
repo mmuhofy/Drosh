@@ -21,10 +21,18 @@ interface TranscriptStore {
     suspend fun load(chatId: String): List<ChatMessage>
 
     /**
-     * Append or update rows.
+     * Replace a chat's transcript with the user's view of it.
      *
-     * Rows carry their own stable id, so re-saving a message that has streamed
-     * further replaces it rather than duplicating it.
+     * Replaces rather than appends, and the distinction matters: the loop
+     * already wrote the model-facing rows for this conversation, and appending a
+     * second description of the same turns would restore as duplicates. Since the
+     * user's view is a superset — everything the model was told plus the reasoning,
+     * approvals and notices only the user saw — it is the whole transcript once
+     * written.
+     *
+     * Until it is written, [load] returns the model-facing rows, which are enough
+     * to render the conversation. That is what makes a run that is killed
+     * mid-flight still leave a readable transcript behind.
      */
     suspend fun save(chatId: String, messages: List<ChatMessage>)
 

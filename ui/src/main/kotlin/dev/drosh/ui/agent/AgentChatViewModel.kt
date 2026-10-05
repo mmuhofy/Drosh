@@ -16,6 +16,7 @@ import dev.drosh.domain.agent.LlmModel
 import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.agent.TokenUsage
+import dev.drosh.domain.agent.TranscriptStore
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.TranscriptBuilder
 import kotlinx.coroutines.Job
@@ -48,6 +49,7 @@ class AgentChatViewModel @Inject constructor(
     private val agentSession: AgentSession,
     private val chats: AgentChatRepository,
     private val providers: LlmProviderRepository,
+    private val transcripts: TranscriptStore,
 ) : ViewModel() {
 
     private val builder = TranscriptBuilder()
@@ -134,6 +136,13 @@ class AgentChatViewModel @Inject constructor(
 
         chatId = id
         viewModelScope.launch {
+            // The transcript first, so the first frame shows the conversation
+            // rather than an empty screen that fills in a moment later.
+            val stored = transcripts.load(id)
+            if (stored.isNotEmpty()) {
+                builder.restore(stored)
+                _messages.value = builder.snapshot()
+            }
             chats.observe(id).collect { _chat.value = it }
         }
         loadProvider()
@@ -232,6 +241,12 @@ class AgentChatViewModel @Inject constructor(
                         _retrying.value = null
                         _failure.value = (event.outcome as? RunOutcome.Failed)?.message
                         chats.updateStatus(id, event.outcome.toChatStatus())
+                        // Written here rather than per event: this is the user's
+                        // view of the run, and a turn only becomes a row worth
+                        // keeping once it has finished. A run that is killed
+                        // mid-flight leaves the model-facing rows, which are enough
+                        // to read.
+                        transcripts.save(id, builder.snapshot())
                     }
 
                     else -> Unit
