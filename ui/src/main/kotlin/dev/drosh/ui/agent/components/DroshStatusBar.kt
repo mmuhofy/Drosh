@@ -35,7 +35,11 @@ import androidx.core.view.WindowInsetsControllerCompat
  */
 @Composable
 fun DroshStatusBarVisible() {
-    val activity = remember { LocalContext.current.findActivity() }
+    // Read outside `remember`: a composition local cannot be read inside a
+    // non-composable lambda, and hoisting it here also re-resolves when the context
+    // changes rather than keeping the activity it happened to have at first frame.
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
 
     LaunchedEffect(activity) {
         val window = activity?.window ?: return@LaunchedEffect
