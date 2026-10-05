@@ -51,6 +51,20 @@ import kotlin.math.roundToInt
  * Replaces the platform ActionMode, whose floating toolbar is Android's own:
  * it cannot carry the app's design system and it cannot be blurred.
  *
+ * ## Why the keyboard toggle lives here
+ *
+ * It used to be a button in the top bar, and it was the only control there that was
+ * not about the terminal's content — it changed how the device is being typed into,
+ * from a bar that otherwise lists things about the session.
+ *
+ * It also competed for the row. The bar had four buttons, and the keyboard one was
+ * the only one whose state was a mode rather than a destination, which is why the
+ * agent button had to be pushed off the end.
+ *
+ * Here it is the last action in a row the user has already opened, on a selection
+ * they just made — so the common case, "I selected something and now I want to type
+ * instead", is one tap from one gesture rather than a hunt for a bar button.
+ *
  * ## Why the blur is sampled rather than requested
  *
  * Haze cannot do this here. It records Compose's own draw commands, and the
@@ -197,12 +211,15 @@ fun SelectionMenuRow(
     selectedText: String?,
     url: String?,
     canPaste: Boolean,
+    /** Whether the on-screen keyboard is up, so the action can name the inverse. */
+    keyboardFocused: Boolean,
     blurRadius: Dp,
     onCopy: () -> Unit,
     onPaste: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onSelectAll: () -> Unit,
     onShare: () -> Unit,
+    onToggleKeyboard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SelectionMenuSurface(
@@ -221,6 +238,15 @@ fun SelectionMenuRow(
             if (url != null) MenuAction(DroshIcons.ExternalLink, "Aç", { onOpenUrl(url) })
             MenuAction(DroshIcons.Type, "Tümü", onSelectAll)
             MenuAction(DroshIcons.Share, "Paylaş", onShare)
+            // Last, because it is the only action here that does not act on the
+            // selection. The label says the inverse of what the tap will do, since
+            // "Klavye" next to a keyboard that is already up reads as an invitation to
+            // open it again rather than as a way to put it away.
+            MenuAction(
+                icon = if (keyboardFocused) DroshIcons.KeyboardOff else DroshIcons.Keyboard,
+                label = if (keyboardFocused) "Kapat" else "Klavye",
+                onClick = onToggleKeyboard,
+            )
         }
     }
 }
