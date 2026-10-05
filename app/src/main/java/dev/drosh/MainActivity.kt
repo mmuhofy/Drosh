@@ -30,10 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-<<<<<<< HEAD
-=======
 import androidx.navigation.NavType
->>>>>>> origin/feat/editor-clean
 import androidx.navigation.compose.NavHost
 import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
@@ -419,7 +416,6 @@ private fun String.toLocaleOrNull() =
     takeIf { it.isNotBlank() }?.let { java.util.Locale.forLanguageTag(it) }
 
 /**
-<<<<<<< HEAD
  * Come back to a terminal from a screen the user reached through Settings.
  *
  * The stack when this is called is terminal → settings → workspace, so a single
@@ -442,7 +438,8 @@ private fun NavHostController.returnToTerminal() {
 
 private const val TERMINAL_ROUTE = "terminal"
 private const val TERMINAL_HOME_ROUTE = "terminal_home"
-=======
+
+/**
  * Opens the editor for a guest path.
  *
  * Uri.encode, not string interpolation: a path may contain spaces, `?`, `#` or
@@ -452,4 +449,3 @@ private const val TERMINAL_HOME_ROUTE = "terminal_home"
 private fun NavHostController.openEditor(guestPath: String) {
     navigate("editor?guestPath=${android.net.Uri.encode(guestPath)}")
 }
->>>>>>> origin/feat/editor-clean
