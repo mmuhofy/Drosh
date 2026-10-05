@@ -1,7 +1,8 @@
 package dev.drosh.ui.agent
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,6 +79,10 @@ fun AgentHomeScreen(
     val grouped by viewModel.grouped.collectAsStateWithLifecycle()
     val hasKey by viewModel.hasKey.collectAsStateWithLifecycle()
     val directory by viewModel.directory.collectAsStateWithLifecycle()
+    val busyChatId by viewModel.busyChatId.collectAsStateWithLifecycle()
+
+    var renaming by remember { mutableStateOf<AgentChat?>(null) }
+    var deleting by remember { mutableStateOf<AgentChat?>(null) }
 
     Box(
         modifier = modifier
@@ -101,21 +106,36 @@ fun AgentHomeScreen(
                 if (grouped.running.isNotEmpty()) {
                     item(key = "hdr_running") { SectionHeader("ÇALIŞAN") }
                     items(grouped.running, key = { "run_${it.id}" }) { chat ->
-                        ChatCard(chat, onClick = { onOpenChat(chat.id) })
+                        ChatCard(
+                            chat = chat,
+                            busy = chat.id == busyChatId,
+                            onClick = { onOpenChat(chat.id) },
+                            onLongPress = { viewModel.markBusy(chat.id) },
+                        )
                     }
                 }
 
                 if (grouped.waiting.isNotEmpty()) {
                     item(key = "hdr_waiting") { SectionHeader("SENİ BEKLİYOR") }
                     items(grouped.waiting, key = { "wait_${it.id}" }) { chat ->
-                        ChatCard(chat, onClick = { onOpenChat(chat.id) })
+                        ChatCard(
+                            chat = chat,
+                            busy = chat.id == busyChatId,
+                            onClick = { onOpenChat(chat.id) },
+                            onLongPress = { viewModel.markBusy(chat.id) },
+                        )
                     }
                 }
 
                 if (grouped.recent.isNotEmpty()) {
                     item(key = "hdr_recent") { SectionHeader("SON") }
                     items(grouped.recent, key = { "recent_${it.id}" }) { chat ->
-                        ChatCard(chat, onClick = { onOpenChat(chat.id) })
+                        ChatCard(
+                            chat = chat,
+                            busy = chat.id == busyChatId,
+                            onClick = { onOpenChat(chat.id) },
+                            onLongPress = { viewModel.markBusy(chat.id) },
+                        )
                     }
                 }
 
@@ -142,14 +162,52 @@ fun AgentHomeScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(4.dp))
-            Text(
-                text = "çalışma dizini: $directory",
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                color = DroshTextMuted,
+            DirectoryChip(
+                directory = directory,
+                onChange = viewModel::setDirectory,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
+
+        // Anchored to the row that was long-pressed, so the menu appears under the
+        // finger rather than in a corner the user has to find.
+        busyChatId?.let { id ->
+            val chat = grouped.all().firstOrNull { it.id == id } ?: return@let
+            RowContextMenu(
+                chat = chat,
+                onDismiss = { viewModel.markBusy(null) },
+                onRename = {
+                    viewModel.markBusy(null)
+                    renaming = chat
+                },
+                onDelete = {
+                    viewModel.markBusy(null)
+                    deleting = chat
+                },
+            )
+        }
+    }
+
+    renaming?.let { chat ->
+        RenameChatDialog(
+            initial = chat.name,
+            onDismiss = { renaming = null },
+            onConfirm = { name ->
+                viewModel.rename(chat.id, name)
+                renaming = null
+            },
+        )
+    }
+
+    deleting?.let { chat ->
+        DeleteChatDialog(
+            name = chat.name,
+            onDismiss = { deleting = null },
+            onConfirm = {
+                viewModel.delete(chat.id)
+                deleting = null
+            },
+        )
     }
 }
 
@@ -189,8 +247,21 @@ private fun HomeTopBar(onBack: () -> Unit, onOpenSettings: () -> Unit) {
     }
 }
 
+/**
+ * One chat row.
+ *
+ * Long press opens the rename/delete menu. A row is the only target for either
+ * action and there is room for one, so a hidden gesture beats a chevron that
+ * competes with the status dot for the same 24dp.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChatCard(chat: AgentChat, onClick: () -> Unit) {
+private fun ChatCard(
+    chat: AgentChat,
+    busy: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+) {
     val (dotColor, statusLabel) = when (chat.status) {
         ChatStatus.Running -> DroshPrimary to "çalışıyor"
         ChatStatus.WaitingApproval -> DroshWarning to "onay bekliyor"
@@ -203,8 +274,8 @@ private fun ChatCard(chat: AgentChat, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(DroshSurfaceLow)
-            .clickable(onClick = onClick)
+            .background(if (busy) DroshSurfaceVariant else DroshSurfaceLow)
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
             // One description for the whole card: a screen reader reading four
             // separate fragments would not say "vendor-split, çalışıyor, ~/zsh".
             .semantics(mergeDescendants = true) {

@@ -69,6 +69,7 @@ import dev.drosh.design.system.DroshWarning
 import dev.drosh.domain.agent.AgentRunState
 import dev.drosh.domain.agent.ApprovalDecision
 import dev.drosh.domain.agent.ChatMessage
+import dev.drosh.domain.agent.TokenUsage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.components.GlassPill
@@ -110,6 +111,9 @@ fun AgentChatScreen(
     val runState by viewModel.runState.collectAsStateWithLifecycle()
     val pending by viewModel.pendingApprovals.collectAsStateWithLifecycle()
     val providerState by viewModel.providerState.collectAsStateWithLifecycle()
+    val usage by viewModel.usage.collectAsStateWithLifecycle()
+    val retrying by viewModel.retrying.collectAsStateWithLifecycle()
+    val failure by viewModel.failure.collectAsStateWithLifecycle()
 
     val waiting = runState is AgentRunState.WaitingApproval
     val running = viewModel.isRunning
@@ -144,6 +148,22 @@ fun AgentChatScreen(
             ErrorBanner(message = message, onDismiss = viewModel::dismissError, onFix = onOpenSettings)
         }
 
+        // A retry the loop is working through, not an error. Showing it as one
+        // would tell the user something failed when the system is doing exactly
+        // what it should.
+        retrying?.let { notice ->
+            RetryBanner(notice = notice)
+        }
+
+        // A run that ended badly, with the one action that helps.
+        failure?.let { message ->
+            FailureCard(
+                message = message,
+                onRetry = viewModel::retry,
+                onDismiss = viewModel::dismissFailure,
+            )
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -159,6 +179,10 @@ fun AgentChatScreen(
             if (messages.isEmpty()) {
                 item(key = "hint") { ChatEmptyHint() }
             }
+        }
+
+        if (!usage.isEmpty) {
+            UsageStrip(usage = usage)
         }
 
         Composer(
@@ -752,3 +776,113 @@ private fun Composer(
 
 /** Enough live lines to follow a build; the rest arrives as you scroll back. */
 private const val MAX_LIVE_LINES = 60
+
+// ── run-level banners ────────────────────────────────────────────────────
+
+/**
+ * A provider failure the loop is retrying.
+ *
+ * Distinct from [FailureCard] on purpose: nothing has failed yet, the system is
+ * waiting and trying again. Rendering it as an error would teach the user that
+ * every rate limit is a dead end.
+ */
+@Composable
+private fun RetryBanner(notice: AgentChatViewModel.RetryNotice) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DroshWarning.copy(alpha = 0.10f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(5.dp)
+                .clip(CircleShape)
+                .background(DroshWarning),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            // The attempt count is shown because "waiting" with no progress reads
+            // as a hang, and the backoff between retries is up to fifteen seconds.
+            text = "Bağlantı hatası, ${notice.attempt}/${notice.maxAttempts} denendi — tekrar deneniyor…",
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            color = DroshWarning,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * A run that ended badly, with the one action that helps.
+ *
+ * The message comes from the provider, so it says what went wrong; the button
+ * re-sends the prompt that started the run. A failure with no way forward is a
+ * dead end, and "tekrar dene" is the only forward.
+ */
+@Composable
+private fun FailureCard(
+    message: String,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DroshError.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = "Çalıştırma başarısız",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = DroshError,
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = message,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            color = DroshTextSecondary,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton(
+                text = "Tekrar dene",
+                onClick = onRetry,
+                modifier = Modifier.weight(1f),
+            )
+            IconAction(
+                icon = DroshIcons.X,
+                contentDescription = "Kapat",
+                onClick = onDismiss,
+            )
+        }
+    }
+}
+
+/**
+ * Token usage for the run so far.
+ *
+ * In the transcript's own scroll area rather than pinned above the composer, so
+ * it scrolls away with the conversation. A permanently pinned counter takes
+ * vertical space from a phone screen all run to report something that only
+ * matters at the end.
+ */
+@Composable
+private fun UsageStrip(usage: TokenUsage) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "${usage.output ?: 0} çıktı · ${usage.input ?: 0} girdi token",
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            color = DroshTextMuted,
+        )
+    }
+}

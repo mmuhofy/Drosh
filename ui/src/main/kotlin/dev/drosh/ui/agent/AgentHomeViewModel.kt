@@ -9,6 +9,7 @@ import dev.drosh.domain.agent.AgentRunState
 import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.ChatStatus
 import dev.drosh.domain.agent.LlmProviderRepository
+import dev.drosh.domain.agent.TranscriptStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +37,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AgentHomeViewModel @Inject constructor(
     private val chats: AgentChatRepository,
+    private val transcripts: TranscriptStore,
     private val providers: LlmProviderRepository,
     agentSession: AgentSession,
 ) : ViewModel() {
@@ -49,6 +51,10 @@ class AgentHomeViewModel @Inject constructor(
     private val _directory = MutableStateFlow(DEFAULT_DIRECTORY)
     val directory: StateFlow<String> = _directory.asStateFlow()
 
+    /** Set while a rename or a delete is being confirmed, so the row can react. */
+    private val _busyChatId = MutableStateFlow<String?>(null)
+    val busyChatId: StateFlow<String?> = _busyChatId.asStateFlow()
+
     val grouped: StateFlow<GroupedChats> = chats.observeAll()
         .map { list -> list.toGrouped() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), GroupedChats())
@@ -60,20 +66,49 @@ class AgentHomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The directory new chats start in.
+     *
+     * Kept across the screen so a user who keeps working in `~/zsh` does not set it
+     * again for every task. Each chat records its own directory, so changing this
+     * only affects chats created from now on.
+     */
     fun setDirectory(path: String) {
-        val trimmed = path.trim()
+        val trimmed = path.trim().removeSuffix("/")
         if (trimmed.isNotEmpty()) _directory.value = trimmed
     }
 
-    fun delete(id: String) {
-        viewModelScope.launch { chats.delete(id) }
-    }
-
-    fun create(directory: String, onCreated: (String) -> Unit) {
+    fun create(onCreated: (String) -> Unit) {
         viewModelScope.launch {
-            val chat = chats.create(name = DEFAULT_NAME, workingDirectory = directory)
+            val chat = chats.create(name = DEFAULT_NAME, workingDirectory = _directory.value)
             onCreated(chat.id)
         }
+    }
+
+    fun rename(id: String, name: String) {
+        val trimmed = name.trim()
+        // A rename to nothing is a no-op rather than a delete: the row would
+        // otherwise disappear out from under the dialog that asked for it.
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch { chats.rename(id, trimmed) }
+    }
+
+    /**
+     * Delete a chat and its transcript.
+     *
+     * The transcript goes with it. Leaving rows behind for a chat that can no
+     * longer be opened is dead weight, and the next chat that reused the id would
+     * inherit them.
+     */
+    fun delete(id: String) {
+        viewModelScope.launch {
+            chats.delete(id)
+            transcripts.clear(id)
+        }
+    }
+
+    fun markBusy(id: String?) {
+        _busyChatId.value = id
     }
 
     /**
