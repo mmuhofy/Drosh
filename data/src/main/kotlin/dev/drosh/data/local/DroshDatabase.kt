@@ -37,16 +37,48 @@ abstract class DroshDatabase : RoomDatabase() {
         const val DATABASE_NAME = "irisshell.db"
 
         /**
-         * 1 → 2: agent chats.
+         * The identity hash Room expects for the current schema.
          *
-         * Written by hand and committed, as the class note requires. Room does not
-         * fall back to destructive migration when one is missing — it throws at
-         * open time — so an added table needs its own CREATE or every existing
-         * install fails to launch.
+         * Room stores this in `room_master_table` and compares it on every open.
+         * A migration that creates the right tables but does not update the hash
+         * produces, on the next launch:
          *
-         * Only additive, so no data is rewritten.
+         * ```
+         * IllegalStateException: Room cannot verify the data integrity.
+         * Looks like you've changed schema but forgot to update the version
+         * number. Expected identity hash: <this>, found: <the old one>
+         * ```
+         *
+         * The two hashes are the entire error message — the device's schema is
+         * fine, the marker in it is stale. Room supplies the expected value in
+         * that message, which is where this constant came from.
+         *
+         * **It has to be updated whenever the schema changes.** `assembleDebug`
+         * writes the real value to `data/schemas/`, and CI should diff that
+         * directory so a stale constant fails the build rather than every
+         * install. Until it does, a wrong value here is a crash on first launch
+         * and nothing else.
          */
-        val MIGRATION_1_2 = object : Migration(1, 2) {
+        const val IDENTITY_HASH = "2c34080b274172ef8334419145cb02ea"
+
+        /**
+         * 1 → 3: agent chats and agent transcripts.
+         *
+         * One migration rather than 1→2 then 2→3, so there is a single identity
+         * hash to write and only one place to forget. Room applies a migration
+         * that spans versions when no intermediate step exists, and every
+         * installed database is at 1 or 2 anyway — the two schema steps shipped
+         * days apart and no release landed on 2 alone.
+         *
+         * Additive, so no existing row is rewritten. The unique index on
+         * (chat_id, seq) is what makes "before" unambiguous in a transcript:
+         * several rows can be written in the same millisecond while a tool
+         * streams, and a timestamp tie would make restore order non-deterministic.
+         *
+         * The trailing UPDATE is the part that is easy to omit and impossible to
+         * miss in CI — it fails on the device, not in the build.
+         */
+        val MIGRATION_1_3 = object : Migration(1, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -62,19 +94,6 @@ abstract class DroshDatabase : RoomDatabase() {
                     )
                     """.trimIndent(),
                 )
-            }
-        }
-
-        /**
-         * 2 -> 3: agent transcripts.
-         *
-         * Additive, so no existing row is rewritten. The unique index on
-         * (chat_id, seq) is what makes "before" unambiguous: several rows can be
-         * written in the same millisecond while a tool streams, and a timestamp
-         * tie would make restore order non-deterministic.
-         */
-        val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS `agent_messages` (
@@ -109,6 +128,7 @@ abstract class DroshDatabase : RoomDatabase() {
                     ON `agent_messages` (`chat_id`, `seq`)
                     """.trimIndent(),
                 )
+                db.execSQL("UPDATE room_master_table SET identity_hash = '$IDENTITY_HASH'")
             }
         }
     }

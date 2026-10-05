@@ -33,6 +33,36 @@ jobs:
       - name: Assemble debug
         run: ./gradlew assembleDebug --no-daemon --stacktrace --max-workers=2
 
+      # The identity hash in the migration is a hand-copied constant, and a stale
+      # one is invisible here: the build passes and the app crashes on first
+      # launch with "Room cannot verify the data integrity". Room writes the real
+      # hash to data/schemas/ during the build, so exporting here and diffing
+      # turns a device crash into a red build.
+      # The identity hash in the migration is a hand-copied constant, and a stale
+      # one is invisible to the compiler: the build passes and the app crashes on
+      # first launch. Room writes the authoritative schema during the KSP pass
+      # above, so diffing it here is what turns a device crash into a red build.
+      - name: Check Room schema matches the committed snapshot
+        run: |
+          if ! git diff --quiet -- data/schemas ||              [ -n "$(git ls-files --others --exclude-standard -- data/schemas)" ]; then
+            echo "::error::The Room schema in data/schemas does not match the committed"
+            echo "::error::snapshot. If you changed a @Entity, also update"
+            echo "::error::DroshDatabase.IDENTITY_HASH — a stale hash builds clean and"
+            echo "::error::crashes on first launch with 'Room cannot verify data"
+            echo "::error::integrity'."
+            git status --porcelain -- data/schemas
+            find data/schemas -name "*.json" -exec cat {} \;
+            exit 1
+          fi
+
+      - name: Upload Room schema on mismatch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schema-mismatch
+          path: data/schemas
+          if-no-files-found: warn
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
