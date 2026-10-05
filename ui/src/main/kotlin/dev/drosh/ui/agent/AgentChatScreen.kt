@@ -104,6 +104,13 @@ import dev.drosh.ui.agent.components.rememberAgentClipboard
 import dev.drosh.ui.agent.components.rememberAgentGlass
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import dev.drosh.design.system.DroshSurfaceContainerLowest
+import dev.drosh.ui.agent.components.MOTION_MS
 
 /**
  * One agent chat.
