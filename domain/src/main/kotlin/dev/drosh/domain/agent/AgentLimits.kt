@@ -64,14 +64,13 @@ object AgentLimits {
      * Below this many messages, never bother — the character budget is not near,
      * and compacting a short conversation would throw away turns to save nothing.
      *
-     * Expressed against the kept window rather than as its own number: a constant
-     * set independently can drift below `KEEP_HEADING + KEEP_TAIL`, at which point
-     * the guard fires on conversations that have no middle to compact at all.
+     * Spelled as arithmetic rather than referencing the two constants because a
+     * `const val` cannot initialise from another: a const must be a compile-time
+     * literal. Written out, it still ties the three together, and
+     * `ConversationCompactorTest` asserts the relationship so a change to one
+     * without the others is caught.
      */
-    const val COMPACTION_MIN_MESSAGES: Int = COMPACTION_KEEP_HEADING + COMPACTION_KEEP_TAIL + MIN_COMPACTED_MESSAGES
-
-    /** How many messages must sit between the kept head and tail to be worth it. */
-    const val MIN_COMPACTED_MESSAGES: Int = 4
+    const val COMPACTION_MIN_MESSAGES: Int = 2 + 8 + 4
 
     /**
      * Identical tool calls in a row beyond this count stop the run.
