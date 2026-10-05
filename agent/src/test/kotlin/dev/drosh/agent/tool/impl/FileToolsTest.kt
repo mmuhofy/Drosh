@@ -10,6 +10,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import java.io.File
 
 /**
@@ -275,9 +277,7 @@ class FileToolsTest {
     }
 }
 
-private fun args(vararg pairs: Pair<String, String>) =
-    kotlinx.serialization.json.buildJsonObject {
-        pairs.forEach { (key, value) ->
-            put(key, value)
-        }
+private fun args(vararg pairs: Pair<String, String>): JsonObject =
+    buildJsonObject {
+        pairs.forEach { (key, value) -> put(key, value) }
     }
