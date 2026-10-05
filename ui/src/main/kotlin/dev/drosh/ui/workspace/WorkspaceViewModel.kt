@@ -73,6 +73,18 @@ class WorkspaceViewModel @Inject constructor(
     /** The session whose "move to project" sheet is up, if any. */
     val assigningSessionId: StateFlow<String?> = _assigningSessionId.asStateFlow()
 
+    /**
+     * Archived projects, for the archive section at the bottom of the list.
+     *
+     * Kept out of [board] on purpose: an archived project is not a bucket
+     * sessions can be filed into, and listing it there would invite a tap that
+     * goes nowhere. Its sessions are ungrouped, which [WorkspaceGrouping] already
+     * decides.
+     */
+    val archived: StateFlow<List<Workspace>> =
+        workspaces.observeArchived()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
     // ---------------------------------------------------------------- editor
 
     fun startCreate() {
@@ -88,6 +100,7 @@ class WorkspaceViewModel @Inject constructor(
                 description = workspace.description,
                 colorSeed = workspace.colorSeed,
             ),
+            isArchived = workspace.archived,
         )
     }
 
@@ -128,8 +141,25 @@ class WorkspaceViewModel @Inject constructor(
         }
     }
 
-    fun setArchived(workspace: Workspace, archived: Boolean) {
-        viewModelScope.launch { workspaces.setArchived(workspace.id, archived) }
+    /**
+     * Archive, or unarchive, whatever the sheet is editing.
+     *
+     * Toggles rather than taking a flag, because the sheet already knows which
+     * state it is in — passing one in would let the caller disagree with the row
+     * it is editing.
+     */
+    fun toggleArchiveEditorTarget() {
+        val state = _editing.value ?: return
+        val id = state.workspaceId ?: return
+        viewModelScope.launch {
+            workspaces.setArchived(id, !state.isArchived)
+            _editing.value = null
+        }
+    }
+
+    /** Put an archived project back in the list. */
+    fun restore(id: String) {
+        viewModelScope.launch { workspaces.setArchived(id, false) }
     }
 
     // ------------------------------------------------------------ assignment
@@ -150,6 +180,29 @@ class WorkspaceViewModel @Inject constructor(
     }
 
     // --------------------------------------------------------------- opening
+
+    /**
+     * Create a session filed under this project, and make it active.
+     *
+     * The action the whole screen was missing. Without it a project is a filing
+     * cabinet you can only put things into from somewhere else: open a session in
+     * the sidebar, come back, long-press it, pick the project. Three screens to
+     * do what one tap should.
+     *
+     * The name is the same `shell` the sidebar uses for a new session, so a
+     * project filled from here and one filled from there look the same.
+     *
+     * Grouping is written straight onto the new row and nothing else about it
+     * changes — state stays `Idle`, and the PTY arrives the same way it does for
+     * any other new session, through `SessionManagerAdapter.reconcile` noticing
+     * the row. A project still spawns nothing itself.
+     */
+    fun createSessionIn(workspace: Workspace) {
+        viewModelScope.launch {
+            sessions.create(DEFAULT_SESSION_NAME, workspace.id)
+            workspaces.touch(workspace.id)
+        }
+    }
 
     /**
      * Open a session from this screen.
@@ -177,6 +230,9 @@ class WorkspaceViewModel @Inject constructor(
 
     companion object {
         private const val STOP_TIMEOUT_MS = 5_000L
+
+        /** Matches the sidebar's name for a new session, so the two look alike. */
+        private const val DEFAULT_SESSION_NAME = "shell"
     }
 
     /**
@@ -186,10 +242,16 @@ class WorkspaceViewModel @Inject constructor(
      * than in composable state so that rotating the device, or the sheet being
      * dismissed and reopened by a configuration change, does not lose a
      * half-typed name.
+     *
+     * [isArchived] is carried alongside the draft rather than looked up when the
+     * sheet renders, so the archive/unarchive button says which of the two it is
+     * about to do. A sheet that guessed would be a sheet that lies to the user
+     * about the consequence of the button they are pressing.
      */
     data class EditorState(
         val workspaceId: String?,
         val draft: WorkspaceEdit,
+        val isArchived: Boolean = false,
     ) {
         val isNew: Boolean get() = workspaceId == null
     }

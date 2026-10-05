@@ -1,7 +1,6 @@
 package dev.drosh.ui.workspace
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,7 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +56,7 @@ import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.domain.workspace.WorkspaceBoard
+import dev.drosh.domain.workspace.Workspace
 import dev.drosh.domain.workspace.WorkspaceGroup
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.ActionButton
@@ -90,15 +91,16 @@ fun WorkspaceScreen(
     modifier: Modifier = Modifier,
     viewModel: WorkspaceViewModel = hiltViewModel(),
 ) {
-    val board by viewModel.board.collectAsStateWithLifecycle()
+val board by viewModel.board.collectAsStateWithLifecycle()
     val activeId by viewModel.activeSessionId.collectAsStateWithLifecycle()
+    val archived by viewModel.archived.collectAsStateWithLifecycle()
     val editing by viewModel.editing.collectAsStateWithLifecycle()
     val assigningId by viewModel.assigningSessionId.collectAsStateWithLifecycle()
 
-    // Which groups are open. Held here rather than per-card so that a card can
-    // start collapsed: a project with six sessions in it should not push the
-    // next project off the screen just because it was made last.
-    var expandedIds by remember { mutableStateOf(emptySet<String>()) }
+    // Which groups are open, surviving rotation and the trip to the terminal and
+    // back — `remember` alone reset both, and a list that folds itself up every
+    // time you come back from opening a session is a list you stop trusting.
+    var expandedIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
     // Resolved from the board rather than kept as its own state, so a sheet left
     // open for a session that has since been deleted finds nothing and simply
@@ -112,18 +114,30 @@ fun WorkspaceScreen(
             .background(DroshBackground),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ProjectsTopBar(
-                onBack = onBack,
-                onNew = viewModel::startCreate,
-            )
+            // No "+" here on purpose. The bottom bar is the same action one thumb
+            // reach away; a second copy at the top of the screen is the end of a
+            // phone, and two controls for one thing reads as neither being sure
+            // which one to press.
+            ProjectsTopBar(onBack = onBack)
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (board.groups.isEmpty() && board.ungrouped.isEmpty()) {
-                    item(key = "empty") { EmptyProjects() }
+                // Two empty states, not one. "Nothing here" and "you have
+                // sessions but none of them are filed" are different situations
+                // and only the second one needs telling what to do about it — the
+                // first is a first run, the second is the state the app is in by
+                // default, because a launch creates a Default session.
+                if (board.groups.isEmpty()) {
+                    item(key = "empty") {
+                        if (board.ungrouped.isEmpty()) {
+                            EmptyProjects()
+                        } else {
+                            UnfiledNudge(sessionCount = board.ungrouped.size)
+                        }
+                    }
                 }
 
                 board.groups.forEach { group ->
@@ -134,6 +148,10 @@ fun WorkspaceScreen(
                             activeSessionId = activeId,
                             onToggle = { expandedIds = expandedIds.toggling(group.workspace.id) },
                             onEdit = { viewModel.startEdit(group.workspace) },
+                            onNewSession = {
+                                viewModel.createSessionIn(group.workspace)
+                                onOpenSession()
+                            },
                             onOpenSession = { session ->
                                 viewModel.openSession(session, group.workspace.id)
                                 onOpenSession()
@@ -144,7 +162,7 @@ fun WorkspaceScreen(
                 }
 
                 if (board.ungrouped.isNotEmpty()) {
-                    item(key = "hdr_ungrouped") { SectionHeader("GRUBU OLMAYANLAR") }
+                    item(key = "hdr_ungrouped") { SectionHeader("PROJEYE BAĞLI DEĞİL") }
                     item(key = "ungrouped") {
                         UngroupedCard(
                             sessions = board.ungrouped,
@@ -154,6 +172,21 @@ fun WorkspaceScreen(
                                 onOpenSession()
                             },
                             onAssign = viewModel::startAssigning,
+                        )
+                    }
+                }
+
+                // Archived last and out of the way. It is here because deleting a
+                // project is not something to make people do to stop seeing it —
+                // archiving keeps the grouping recoverable and the row intact.
+                if (archived.isNotEmpty()) {
+                    item(key = "hdr_archived") { SectionHeader("ARŞİV") }
+                    items(archived.size, key = { "arch_${archived[it].id}" }) { index ->
+                        val workspace = archived[index]
+                        ArchivedRow(
+                            workspace = workspace,
+                            onRestore = { viewModel.restore(workspace.id) },
+                            onEdit = { viewModel.startEdit(workspace) },
                         )
                     }
                 }
@@ -182,6 +215,7 @@ fun WorkspaceScreen(
             onDraftChange = viewModel::updateDraft,
             onSave = viewModel::saveEditor,
             onDelete = viewModel::deleteEditorTarget,
+            onToggleArchive = viewModel::toggleArchiveEditorTarget,
             onDismiss = viewModel::dismissEditor,
         )
     }
@@ -192,13 +226,21 @@ fun WorkspaceScreen(
             currentWorkspaceId = session.workspaceId,
             workspaces = board.groups.map { it.workspace },
             onSelect = { workspaceId -> viewModel.assign(session.id, workspaceId) },
+            onCreateProject = {
+                // Filing a session is how people discover projects exist, so the
+                // sheet that lists them has to be able to make one. Otherwise it
+                // says "create a project first" and leaves them with nowhere to
+                // go from here.
+                viewModel.dismissAssigning()
+                viewModel.startCreate()
+            },
             onDismiss = viewModel::dismissAssigning,
         )
     }
 }
 
 @Composable
-private fun ProjectsTopBar(onBack: () -> Unit, onNew: () -> Unit) {
+private fun ProjectsTopBar(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -222,12 +264,6 @@ private fun ProjectsTopBar(onBack: () -> Unit, onNew: () -> Unit) {
             color = DroshText,
             modifier = Modifier.weight(1f),
         )
-
-        IconAction(
-            icon = DroshIcons.Plus,
-            contentDescription = "Yeni proje",
-            onClick = onNew,
-        )
     }
 }
 
@@ -236,7 +272,14 @@ private fun ProjectsTopBar(onBack: () -> Unit, onNew: () -> Unit) {
  * the card is open.
  *
  * The header row is the toggle and the `⋯` inside it opens the editor — the
- * inner control consumes its own tap, so the two do not fight.
+ * inner control consumes its own tap, so the two do not fight. So does the `+`
+ * once the card is open.
+ *
+ * The accent is a bar down the left edge rather than a border around the card.
+ * A border has to draw all four sides and reads as a selection state; a bar
+ * reads as "this thing has a colour", which is what it is. The 8dp dot it
+ * replaces was not enough — on a dim screen at arm's length it disappeared,
+ * which is the one job the colour was doing.
  */
 @Composable
 private fun WorkspaceCard(
@@ -245,112 +288,107 @@ private fun WorkspaceCard(
     activeSessionId: String?,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
+    onNewSession: () -> Unit,
     onOpenSession: (SessionSnapshot) -> Unit,
     onAssign: (String) -> Unit,
 ) {
     val workspace = group.workspace
     val accent = workspaceSeedColor(workspace.colorSeed)
 
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(DroshSurfaceLow)
-            // A project is identified by its accent, so the border carries it. The
-            // dot alone is 8dp and disappears on a dim screen.
-            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(14.dp)),
+            .background(DroshSurfaceLow),
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onToggle)
-                .padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(accent),
-            )
-            Spacer(Modifier.width(10.dp))
+                .width(ACCENT_BAR_WIDTH)
+                .fillMaxHeight()
+                .background(accent),
+        )
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = workspace.name,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = DroshText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = workspace.rootPath,
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = DroshTextMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (workspace.description.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(start = 10.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = workspace.description,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp,
-                        color = DroshTextSecondary,
-                        maxLines = 2,
+                        text = workspace.name,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = DroshText,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = workspace.rootPath,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = DroshTextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (workspace.description.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = workspace.description,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = DroshTextSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
+
+                Spacer(Modifier.width(8.dp))
+
+                Text(
+                    text = sessionCountLabel(group.sessions.size),
+                    fontSize = 10.sp,
+                    color = DroshTextMuted,
+                )
+
+                IconAction(
+                    icon = DroshIcons.EllipsisVertical,
+                    contentDescription = "${workspace.name} ayarları",
+                    onClick = onEdit,
+                    modifier = Modifier.size(40.dp),
+                )
+
+                Icon(
+                    imageVector = if (expanded) DroshIcons.ChevronDown else DroshIcons.ChevronRight,
+                    contentDescription = if (expanded) "Daralt" else "Genişlet",
+                    tint = DroshTextMuted,
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .size(18.dp),
+                )
             }
 
-            Spacer(Modifier.width(8.dp))
-
-            Text(
-                text = sessionCountLabel(group.sessions.size),
-                fontSize = 10.sp,
-                color = DroshTextMuted,
-            )
-
-            IconAction(
-                icon = DroshIcons.EllipsisVertical,
-                contentDescription = "${workspace.name} ayarları",
-                onClick = onEdit,
-                modifier = Modifier.size(40.dp),
-            )
-
-            Icon(
-                imageVector = if (expanded) DroshIcons.ChevronDown else DroshIcons.ChevronRight,
-                contentDescription = if (expanded) "Daralt" else "Genişlet",
-                tint = DroshTextMuted,
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .size(18.dp),
-            )
-        }
-
-        if (expanded) {
-            Box(
-                modifier = Modifier
-                    .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(DroshOutline.copy(alpha = 0.4f)),
-            )
-            if (group.sessions.isEmpty()) {
-                Text(
-                    text = "Bu projeye bağlı session yok.",
-                    fontSize = 12.sp,
-                    color = DroshTextMuted,
-                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+            if (expanded) {
+                Box(
+                    modifier = Modifier
+                        .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(DroshOutline.copy(alpha = 0.35f)),
                 )
-            } else {
-                Column(
-                    modifier = Modifier.padding(bottom = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
+
+                if (group.sessions.isEmpty()) {
+                    Text(
+                        text = "Bu projeye bağlı session yok.",
+                        fontSize = 12.sp,
+                        color = DroshTextMuted,
+                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 2.dp),
+                    )
+                } else {
                     group.sessions.forEach { session ->
                         SessionRow(
                             session = session,
@@ -360,8 +398,98 @@ private fun WorkspaceCard(
                         )
                     }
                 }
+
+                // A project you just made looks identical to one you abandoned:
+                // a name, a path, "no sessions". This is the way out of that, and
+                // it only exists while there is something to be done about it.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNewSession)
+                        .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = DroshIcons.Plus,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(9.dp))
+                    Text(
+                        text = "Bu projede session aç",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = accent,
+                    )
+                }
             }
         }
+    }
+}
+
+/** Wide enough to read as a colour, thin enough not to compete with the name. */
+private val ACCENT_BAR_WIDTH = 4.dp
+
+/**
+ * An archived project: one row, and only the two things worth doing to one.
+ *
+ * Restore first. An archived project is one the user stepped away from, not one
+ * they threw out, and making them retype the name to get it back would make
+ * archiving a trap.
+ */
+@Composable
+private fun ArchivedRow(
+    workspace: Workspace,
+    onRestore: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    val accent = workspaceSeedColor(workspace.colorSeed)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(DroshSurfaceLow)
+            .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.5f)),
+        )
+        Spacer(Modifier.width(10.dp))
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onEdit),
+        ) {
+            Text(
+                text = workspace.name,
+                fontSize = 13.sp,
+                color = DroshTextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = workspace.rootPath,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = DroshTextMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        IconAction(
+            icon = DroshIcons.RotateCcw,
+            contentDescription = "${workspace.name} projeleri geri al",
+            onClick = onRestore,
+            modifier = Modifier.size(40.dp),
+        )
     }
 }
 
@@ -386,7 +514,7 @@ private fun UngroupedCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(10.dp)
+                    .size(8.dp)
                     .clip(CircleShape)
                     .background(DroshOutline),
             )
@@ -420,8 +548,10 @@ private fun UngroupedCard(
  * be a claim the app cannot keep. `docs/SESSION-SYSTEM.md` §2 has the same
  * distinction — the state field is the resume marker, not a liveness report.
  *
- * Long press files it somewhere else. That is the only gesture here that is not
- * obvious from the row itself, so it is also spoken in the content description.
+ * Moving a session to another project has a visible button *and* a long press.
+ * The gesture alone was the first version and it was invisible: nothing on the
+ * row hinted that pressing and holding did anything, so the feature only existed
+ * for people who happened to try it.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -438,7 +568,7 @@ private fun SessionRow(
             .fillMaxWidth()
             .combinedClickable(onClick = onOpen, onLongClick = onAssign)
             .background(if (active) DroshSurfaceHigh else Color.Transparent)
-            .padding(start = 16.dp, end = 14.dp, top = 10.dp, bottom = 10.dp)
+            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
             // One description for the whole row. A screen reader reading the name,
             // the state and the hint as three fragments does not say "dev-local,
             // bitti, uzun bas: projeye taşı" — it says them as separate things.
@@ -447,7 +577,7 @@ private fun SessionRow(
                     append(session.name)
                     if (ended) append(", bitti")
                     if (active) append(", aktif")
-                    append(", uzun bas: projeye taşı")
+                    append(", projeye taşı")
                 }
             },
         verticalAlignment = Alignment.CenterVertically,
@@ -460,6 +590,7 @@ private fun SessionRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .weight(1f)
+                .padding(vertical = 4.dp)
                 .clearAndSetSemantics { },
         )
         if (active) {
@@ -467,9 +598,18 @@ private fun SessionRow(
                 text = "aktif",
                 fontSize = 9.sp,
                 color = DroshTextMuted,
-                modifier = Modifier.clearAndSetSemantics { },
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .clearAndSetSemantics { },
             )
         }
+        IconAction(
+            icon = DroshIcons.FolderOpen,
+            contentDescription = "${session.name}: projeye taşı",
+            onClick = onAssign,
+            modifier = Modifier.size(38.dp),
+            tint = DroshTextMuted,
+        )
     }
 }
 
@@ -512,6 +652,49 @@ private fun EmptyProjects() {
 }
 
 /**
+ * Sessions exist, no project does — which is the state the app is in by default,
+ * because a launch creates a `Default` session whether or not you ever make a
+ * project.
+ *
+ * This is a different message from [EmptyProjects] for that reason. Showing the
+ * first-run text here would read as "you have nothing", which is false: there is
+ * a session right there, below, and the thing missing is a filing cabinet, not
+ * content.
+ */
+@Composable
+private fun UnfiledNudge(sessionCount: Int) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = DroshIcons.Folder,
+            contentDescription = null,
+            tint = DroshOutline,
+            modifier = Modifier.size(40.dp),
+        )
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = if (sessionCount == 1) "1 session projeye bağlı değil" else
+                "$sessionCount session projeye bağlı değil",
+            fontSize = 15.sp,
+            color = DroshText,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Aşağıdaki session'ları bir projeye topla,\n" +
+                "ya da önce bir proje oluştur.",
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            color = DroshTextMuted,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
  * Every session on the board, grouped or not.
  *
  * Used to resolve the id the assignment sheet is holding into the session it
@@ -522,5 +705,14 @@ private fun EmptyProjects() {
 private fun WorkspaceBoard.allSessions(): List<SessionSnapshot> =
     groups.flatMap { it.sessions } + ungrouped
 
-private fun Set<String>.toggling(id: String): Set<String> =
+/**
+ * A `List<String>`, not a `Set<String>`, because this value is held in
+ * `rememberSaveable`.
+ *
+ * A set has no `Bundle`-compatible `Saver`, so `rememberSaveable` would throw at
+ * the first state save — on rotation, of all times — rather than at compile time
+ * where it would be a one-line fix. Membership tests here are on a list of a
+ * handful of project ids, where the difference is nothing.
+ */
+private fun List<String>.toggling(id: String): List<String> =
     if (id in this) this - id else this + id
