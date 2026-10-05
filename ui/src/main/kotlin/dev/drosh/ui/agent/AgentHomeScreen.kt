@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -57,10 +56,12 @@ import dev.drosh.domain.agent.AgentChat
 import dev.drosh.domain.agent.ChatStatus
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.ActionButton
-import dev.drosh.ui.agent.components.DroshAgentMark
-import dev.drosh.ui.agent.components.IconAction
+import dev.chrisbanes.haze.hazeSource
+import dev.drosh.ui.agent.components.AgentIconPill
+import dev.drosh.ui.agent.components.AgentPill
+import dev.drosh.ui.agent.components.ProvideAgentGlass
+import dev.drosh.ui.agent.components.rememberAgentGlass
 import dev.drosh.ui.agent.components.SectionHeader
-import dev.drosh.ui.agent.components.TOUCH_TARGET
 
 /**
  * Agent Home — every agent chat, grouped by whether it needs attention.
@@ -86,16 +87,27 @@ fun AgentHomeScreen(
     var renaming by remember { mutableStateOf<AgentChat?>(null) }
     var deleting by remember { mutableStateOf<AgentChat?>(null) }
 
+    // One state for the screen: the list is the blur source, the pills are effects.
+    // Sharing it is what keeps this to a single offscreen render.
+    val glass = rememberAgentGlass()
+
+    ProvideAgentGlass(glass) {
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(DroshBackground),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            HomeTopBar(onBack = onBack, onOpenSettings = onOpenSettings)
+            HomePillRow(
+                directory = directory.orEmpty(),
+                onBack = onBack,
+                onNewChat = { onNewChat(directory.orEmpty()) },
+            )
 
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .hazeSource(glass.state),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -190,7 +202,7 @@ fun AgentHomeScreen(
         )
     }
 
-    renaming?.let { chat ->
+        renaming?.let { chat ->
         RenameChatDialog(
             initial = chat.name,
             onDismiss = { renaming = null },
@@ -213,39 +225,74 @@ fun AgentHomeScreen(
     }
 }
 
+/**
+ * The home screen's control row, and the workspace row under it.
+ *
+ * Same reasoning as the chat's pill row: no top bar. The list of chats is the
+ * screen, and a bar above it spent 56dp restating what the app already is.
+ *
+ * "Yeni" is the one primary action, so it is the one filled pill on the screen.
+ * Everything else — the back arrow, the working directory — is quiet, because a row
+ * with three equally loud controls has no primary action at all.
+ */
 @Composable
-private fun HomeTopBar(onBack: () -> Unit, onOpenSettings: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .heightIn(min = TOUCH_TARGET)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconAction(
-            icon = DroshIcons.ArrowLeft,
-            contentDescription = "Geri",
-            onClick = onBack,
-        )
+private fun HomePillRow(
+    directory: String,
+    onBack: () -> Unit,
+    onNewChat: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AgentIconPill(
+                icon = DroshIcons.ArrowLeft,
+                contentDescription = "Geri",
+                onClick = onBack,
+                tint = DroshTextSecondary,
+            )
 
-        DroshAgentMark(size = 22.dp, tint = DroshPrimary)
+            // A label, not a disabled pill. This is the screen's own name, so it
+            // is not a destination and there is nothing to tap; a greyed-out pill
+            // would promise a tap that does nothing.
+            Text(
+                text = "Agent",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DroshText,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp),
+            )
 
-        Spacer(Modifier.width(8.dp))
+            AgentPill(
+                label = "Yeni",
+                onClick = onNewChat,
+                primary = true,
+                leadingIcon = DroshIcons.Plus,
+                contentDescription = "Yeni sohbet",
+            )
+        }
 
-        Text(
-            text = "Agent",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = DroshText,
-            modifier = Modifier.weight(1f),
-        )
-
-        IconAction(
-            icon = DroshIcons.Settings,
-            contentDescription = "Agent ayarları",
-            onClick = onOpenSettings,
-        )
+        // The working directory on its own line, because a path is long and a row
+        // that has to truncate it is worse than a row that does not have to.
+        Row(
+            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AgentPill(
+                label = directory.ifBlank { "çalışma dizini" },
+                onClick = { /* Directory picking lands with the picker. */ },
+                modifier = Modifier.weight(1f, fill = false),
+                leadingIcon = DroshIcons.Folder,
+                trailingChevron = true,
+                contentDescription = "Çalışma dizini: $directory",
+            )
+        }
     }
 }
 
@@ -410,5 +457,6 @@ private fun EmptyChats() {
             color = DroshTextMuted,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
+    }
     }
 }
