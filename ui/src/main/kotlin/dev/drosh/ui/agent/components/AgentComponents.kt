@@ -62,8 +62,14 @@ val TOUCH_TARGET: Dp = 48.dp
 /** 44dp — for labelled buttons, where the label makes the target obvious. */
 val BUTTON_HEIGHT: Dp = 44.dp
 
-/** Animation length, in the 150–300ms band Material asks for. */
-private const val MOTION_MS = 180
+/**
+ * Animation length for the agent UI, in the 150–300ms band Material asks for.
+ *
+ * Public because it is a shared token, not a local: the tool rows and the selection
+ * menu both animate, and a second copy of the number is a second value to keep in
+ * step. One duration means a press, an expand and a menu all feel like the same app.
+ */
+const val MOTION_MS = 180
 
 /**
  * The agent mark — a square head with a prompt on its face.
