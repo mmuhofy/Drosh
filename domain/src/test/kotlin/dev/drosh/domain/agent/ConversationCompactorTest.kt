@@ -206,11 +206,24 @@ class ConversationCompactorTest {
     }
 
     @Test
-    fun `one message past head plus tail is enough to compact`() {
-        // The boundary: with a single message in the middle, summarising it is
-        // still better than resending the whole thing every turn.
-        val size = AgentLimits.COMPACTION_KEEP_HEADING + AgentLimits.COMPACTION_KEEP_TAIL + 1
-        assertTrue(ConversationCompactor.plan(transcript(size, bodyChar = 20_000)).shouldCompact)
+    fun `the minimum message count is head plus tail plus a real middle`() {
+        // The guard has to sit above the kept window. If it ever drifts below it,
+        // a conversation with nothing in the middle gets "compacted" into a
+        // summary of itself.
+        assertTrue(
+            "minimum (${AgentLimits.COMPACTION_MIN_MESSAGES}) must exceed head+tail " +
+                "(${AgentLimits.COMPACTION_KEEP_HEADING + AgentLimits.COMPACTION_KEEP_TAIL})",
+            AgentLimits.COMPACTION_MIN_MESSAGES >
+                AgentLimits.COMPACTION_KEEP_HEADING + AgentLimits.COMPACTION_KEEP_TAIL,
+        )
+    }
+
+    @Test
+    fun `one message below the minimum is not compacted even when huge`() {
+        val size = AgentLimits.COMPACTION_MIN_MESSAGES - 1
+        assertFalse(
+            ConversationCompactor.plan(transcript(size, bodyChar = 40_000)).shouldCompact,
+        )
     }
 
     @Test

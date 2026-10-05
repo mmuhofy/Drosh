@@ -50,14 +50,28 @@ object AgentLimits {
     /** Soft ceiling, in characters, for what the model is sent. */
     const val COMPACTION_THRESHOLD_CHARS: Int = 120_000
 
-    /** Below this many messages, never bother — the budget is not near. */
-    const val COMPACTION_MIN_MESSAGES: Int = 12
-
-    /** The opening exchange is always kept whole: it frames everything after it. */
+    /**
+     * The opening exchange is always kept whole: it frames everything after it.
+     *
+     * Two messages — a question and the answer it was asked about.
+     */
     const val COMPACTION_KEEP_HEADING: Int = 2
 
     /** Recent turns kept whole: that is the work in progress. */
     const val COMPACTION_KEEP_TAIL: Int = 8
+
+    /**
+     * Below this many messages, never bother — the character budget is not near,
+     * and compacting a short conversation would throw away turns to save nothing.
+     *
+     * Expressed against the kept window rather than as its own number: a constant
+     * set independently can drift below `KEEP_HEADING + KEEP_TAIL`, at which point
+     * the guard fires on conversations that have no middle to compact at all.
+     */
+    const val COMPACTION_MIN_MESSAGES: Int = COMPACTION_KEEP_HEADING + COMPACTION_KEEP_TAIL + MIN_COMPACTED_MESSAGES
+
+    /** How many messages must sit between the kept head and tail to be worth it. */
+    const val MIN_COMPACTED_MESSAGES: Int = 4
 
     /**
      * Identical tool calls in a row beyond this count stop the run.
