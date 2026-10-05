@@ -158,6 +158,7 @@ abstract class BindingsModule {
         impl: AgentChatRepositoryImpl,
     ): AgentChatRepository
 
+
     @Binds
     @Singleton
     abstract fun bindTranscriptStore(

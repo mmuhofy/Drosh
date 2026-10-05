@@ -49,6 +49,7 @@ object AgentModule {
  * correct and then failed at the first run with "no adapter implements",
  * naming the symptom rather than the missing annotation.
  */
+
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AdapterModule {

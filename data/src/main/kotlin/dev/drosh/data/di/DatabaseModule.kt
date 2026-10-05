@@ -49,6 +49,4 @@ object DatabaseModule {
     @Provides
     fun provideAgentChatDao(database: DroshDatabase): AgentChatDao = database.agentChatDao()
 
-    @Provides
-    fun provideAgentMessageDao(database: DroshDatabase): AgentMessageDao = database.agentMessageDao()
 }

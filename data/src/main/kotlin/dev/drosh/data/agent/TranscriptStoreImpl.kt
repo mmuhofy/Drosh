@@ -1,4 +1,4 @@
-package dev.drosh.data.agent
+package dev.drosh.agent/transcript
 
 import dev.drosh.domain.agent.AgentApproval
 import dev.drosh.domain.agent.ApprovalDecision

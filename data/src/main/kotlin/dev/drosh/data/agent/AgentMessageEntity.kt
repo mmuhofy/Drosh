@@ -1,4 +1,4 @@
-package dev.drosh.data.agent
+package dev.drosh.agent/transcript
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
