@@ -155,16 +155,31 @@ class GrepTool @Inject constructor(
 
     private fun matchesGlob(name: String, glob: String): Boolean {
         if (glob.isEmpty()) return true
-        // A single trailing `*` is the overwhelmingly common case and does not
-        // need a real glob; anything else falls back to a full pattern.
-        val star = glob.lastIndexOf('*')
-        if (star >= 0 && glob.indexOf('*') == star && !glob.dropLast(1).contains('?')) {
-            val prefix = glob.take(star)
-            return name.startsWith(prefix, ignoreCase = true) &&
-                name.length >= prefix.length + 1
+        val pattern = glob.trim()
+        if (pattern.isEmpty()) return true
+
+        // A pattern that is nothing but a suffix wildcard — `*.kt` — is the
+        // overwhelmingly common case and needs no regex at all. The wildcard has
+        // to be the only one and lead the pattern: the earlier version accepted
+        // any pattern whose last `*` was also its first, and for `*.kt` the
+        // prefix came out empty, so *every* file matched.
+        if (pattern.startsWith("*") && pattern.count { it == '*' } == 1) {
+            val suffix = pattern.substring(1)
+            if (suffix.isEmpty()) return true
+            return name.length > suffix.length &&
+                name.regionMatches(
+                    name.length - suffix.length, suffix, 0, suffix.length, ignoreCase = true,
+                )
         }
-        val regex = glob.replace(".", "\\.").replace("*", ".*").replace("?", ".")
-        return runCatching { Regex(regex, RegexOption.IGNORE_CASE).matches(name) }.getOrDefault(false)
+
+        val regex = Regex(
+            pattern
+                .replace(".", "\\.")
+                .replace("*", ".*")
+                .replace("?", "."),
+            RegexOption.IGNORE_CASE,
+        )
+        return runCatching { regex.matches(name) }.getOrDefault(false)
     }
 
     companion object {
