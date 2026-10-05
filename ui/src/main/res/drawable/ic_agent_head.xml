@@ -1,27 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Agent mark — a square head with a prompt on its face.
+  Agent mark — a head with a face.
 
-  A terminal window, then a ghost, then this. Both earlier marks failed for the
-  same reason: they described a *thing* rather than a *face*. A mascot is
-  decorative; a head with a prompt in it is the machine's expression, and it is
-  the one image that says both "this is an agent" and "it is looking at a shell"
-  without a label.
+  Replaces a terminal window with "> _" cut out of it. That was a deliberate
+  attempt at one image saying both "agent" and "looking at a shell", and it
+  failed for the reason it was drawn: the shell is the *thing the agent uses*,
+  not what the agent *is*, and a "> _" face is the glyph every terminal in the
+  app already uses. Putting it on the agent button made one icon mean "shell"
+  and "agent" at once, so the two could not be told apart at a glance — which is
+  the exact confusion the mark existed to prevent.
 
-  Drawn on a 24x24 viewport that it fills, so a 19dp call site shows a 19dp mark.
-  The first mark needed a 2048 viewport and a group transform to rescale artwork
-  occupying 46% of its canvas — the empty viewport, not the icon size, had been
-  the problem, and it took a three-paragraph comment to explain.
+  So it is a face now: rounded square skull, two eyes, an antenna. Nothing on it
+  is a prompt character, so it cannot be misread as a terminal, and nothing is a
+  mascot either — it is a head, which is the thing it is.
 
-  Solid head with the prompt cut as holes (evenOdd) rather than painted in a
-  second colour: Icon() applies one ColorFilter over the whole drawable, so a
-  two-tone path collapses to flat colour the moment it is tinted and the prompt
-  disappears into the face. A hole cannot be filled by a tint.
+  Where it appears is the other half of the fix: this mark is on the terminal
+  screen's agent button and nowhere else. It is not in settings and it is not in
+  the chat header, because a screen that says "Agent" in words does not also need
+  an icon claiming to say it.
 
-  The corner radius is 2.1 units — enough to stop the corners reading as a
-  rendering error, small enough that the silhouette stays square. A larger
-  radius turns it into a rounded square, which reads as an app icon rather than
-  a head.
+  Stroked rather than solid. A solid head with two eye holes reads as a face at
+  22dp but turns into a blob at 14dp, and this is used at both sizes. Strokes and
+  fills both take the Icon() ColorFilter, so one tint drives the whole mark —
+  which the previous evenOdd cut-out approach could not do without collapsing to
+  flat colour.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
@@ -29,30 +31,30 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
 
-    <!-- Head: rounded square, plus two holes for "> _" -->
+    <!-- Antenna stalk -->
+    <path
+        android:pathData="M12,3.4 V6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round" />
+
+    <!-- Antenna tip -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:fillType="evenOdd"
-        android:pathData="M5.4,2.6
-            L18.6,2.6
-            C19.82,2.6 20.8,3.58 20.8,4.8
-            L20.8,19.2
-            C20.8,20.42 19.82,21.4 18.6,21.4
-            L5.4,21.4
-            C4.18,21.4 3.2,20.42 3.2,19.2
-            L3.2,4.8
-            C3.2,3.58 4.18,2.6 5.4,2.6
-            Z
-            M8.5,8.9
-            L12,12
-            L8.5,15.1
-            L7.1,13.8
-            L9.4,12
-            L7.1,10.2
-            Z
-            M12.9,13.4
-            L16.4,13.4
-            L16.4,14.8
-            L12.9,14.8
-            Z" />
+        android:pathData="M10.8,2.7 a1.2,1.2 0 1,0 2.4,0 a1.2,1.2 0 1,0 -2.4,0 Z" />
+
+    <!-- Skull: rounded square, 4dp corners on a 24 viewport -->
+    <path
+        android:pathData="M8,6 H20 A4,4 0 0 1 24,10 V16 A4,4 0 0 1 20,20 H8 A4,4 0 0 1 4,16 V10 A4,4 0 0 1 8,6 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:fillColor="#00000000" />
+
+    <!-- Eyes -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.1,13.1 a1.4,1.4 0 1,0 2.8,0 a1.4,1.4 0 1,0 -2.8,0 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M13.1,13.1 a1.4,1.4 0 1,0 2.8,0 a1.4,1.4 0 1,0 -2.8,0 Z" />
 </vector>

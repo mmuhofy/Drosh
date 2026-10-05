@@ -1,5 +1,7 @@
 package dev.drosh.ui.agent
 
+import android.content.Intent
+
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -47,6 +49,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,12 +77,7 @@ import dev.drosh.domain.agent.TerminalProjection
 import dev.drosh.domain.agent.TokenUsage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
-import dev.drosh.ui.components.GlassPill
 import dev.drosh.ui.agent.components.ActionButton
-import dev.drosh.ui.agent.components.AgentTerminalEmpty
-import dev.drosh.ui.agent.components.AgentPane
-import dev.drosh.ui.agent.components.AgentPaneToggle
-import dev.drosh.ui.agent.components.AgentTerminalPane
 import dev.drosh.ui.agent.components.CollapsibleRow
 import dev.drosh.ui.agent.components.DiffBlock
 import dev.drosh.ui.agent.components.DroshAgentMark
@@ -88,6 +86,24 @@ import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.MonoBlock
 import dev.drosh.ui.agent.components.StatusPill
 import dev.drosh.ui.agent.components.TOUCH_TARGET
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.rememberCoroutineScope
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.drosh.design.system.DroshTileSelected
+import dev.drosh.domain.agent.LlmModel
+import dev.drosh.ui.agent.components.AgentIconPill
+import dev.drosh.ui.agent.components.AgentPill
+import dev.drosh.ui.agent.components.AgentSelectableText
+import dev.drosh.ui.agent.components.LocalAgentGlass
+import dev.drosh.ui.agent.components.ProvideAgentGlass
+import dev.drosh.ui.agent.components.agentGlassStyle
+import dev.drosh.ui.agent.components.rememberAgentClipboard
+import dev.drosh.ui.agent.components.rememberAgentGlass
+import kotlinx.coroutines.launch
+import timber.log.Timber
 
 /**
  * One agent chat.
@@ -124,13 +140,21 @@ fun AgentChatScreen(
     val waiting = runState is AgentRunState.WaitingApproval
     val running = viewModel.isRunning
 
-    // Ephemeral view state, reset per chat so switching back does not land on the
-    // pane the other conversation was left on.
-    var pane by rememberSaveable(chatId) { mutableStateOf(AgentPane.CHAT) }
-    val terminalLines = remember(messages) { TerminalProjection.project(messages) }
-    val hasShellOutput = remember(messages) { terminalLines.isNotEmpty() }
+    // One glass state for the whole screen: the transcript is the blur source and
+    // every floating control — pills, the overflow menu, the sheet — is an effect
+    // reading it. Sharing it is what keeps this to one offscreen render.
+    val glass = rememberAgentGlass()
 
+    var menuOpen by rememberSaveable(chatId) { mutableStateOf(false) }
+    var sheetOpen by rememberSaveable(chatId) { mutableStateOf(false) }
+    var modelPickerOpen by rememberSaveable(chatId) { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+
+    val terminalLines = remember(messages) { TerminalProjection.project(messages) }
     val listState = rememberLazyListState()
+    val clipboard = rememberAgentClipboard()
+    val scope = rememberCoroutineScope()
 
     // Follow the stream, but only when the user is already near the bottom.
     // Yanking the viewport while they are reading earlier output is worse than
@@ -141,178 +165,503 @@ fun AgentChatScreen(
         if (atBottom) listState.animateScrollToItem(messages.size.coerceAtLeast(0))
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DroshBackground),
+    ProvideAgentGlass(glass) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(DroshBackground),
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                ChatPillRow(
+                    modelLabel = providerState.selectedModelId.ifEmpty {
+                        providerState.models.firstOrNull()?.id ?: "model seç"
+                    },
+                    running = running,
+                    onBack = onBack,
+                    onStop = viewModel::stop,
+                    onOpenMenu = { menuOpen = true },
+                    onOpenModelPicker = { modelPickerOpen = true },
+                )
+
+                providerState.error?.let { message ->
+                    ErrorBanner(
+                        message = message,
+                        onDismiss = viewModel::dismissError,
+                        onFix = onOpenSettings,
+                    )
+                }
+
+                // A retry the loop is working through, not an error. Showing it as one
+                // would tell the user something failed when the system is doing exactly
+                // what it should.
+                retrying?.let { notice -> RetryBanner(notice = notice) }
+
+                // A run that ended badly, with the one action that helps.
+                failure?.let { message ->
+                    FailureCard(
+                        message = message,
+                        onRetry = viewModel::retry,
+                        onDismiss = viewModel::dismissFailure,
+                    )
+                }
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .hazeSource(glass.state),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    items(messages, key = { it.id }) { message ->
+                        MessageRow(
+                            message = message,
+                            onAnswer = viewModel::answer,
+                            onCopy = clipboard,
+                            onShare = { picked ->
+                                scope.launch { shareText(picked) }
+                            },
+                        )
+                    }
+
+                    if (messages.isEmpty()) {
+                        item(key = "hint") { ChatEmptyHint() }
+                    }
+                }
+
+                if (!usage.isEmpty) {
+                    UsageStrip(usage = usage)
+                }
+
+                AgentComposer(
+                    enabled = !running,
+                    stopVisible = running,
+                    onSend = viewModel::send,
+                    onStop = viewModel::stop,
+                )
+            }
+
+            // ── overlays ──
+
+            if (modelPickerOpen) {
+                ModelPickerSheet(
+                    models = providerState.models,
+                    selectedId = providerState.selectedModelId,
+                    onSelect = { id ->
+                        viewModel.selectModel(id)
+                        modelPickerOpen = false
+                    },
+                    onDismiss = { modelPickerOpen = false },
+                )
+            }
+
+            if (menuOpen) {
+                AgentChatMenu(
+                    chatName = chat?.name ?: "Sohbet",
+                    onRename = {
+                        menuOpen = false
+                        renaming = true
+                    },
+                    onShowTerminalHistory = {
+                        menuOpen = false
+                        sheetOpen = true
+                    },
+                    onDelete = {
+                        menuOpen = false
+                        deleting = true
+                    },
+                    onDismiss = { menuOpen = false },
+                )
+            }
+
+            if (sheetOpen) {
+                TerminalHistorySheet(
+                    lines = terminalLines,
+                    onDismiss = { sheetOpen = false },
+                )
+            }
+
+            if (renaming) {
+                RenameChatDialog(
+                    initial = chat?.name.orEmpty(),
+                    onDismiss = { renaming = false },
+                    onConfirm = { name ->
+                        renaming = false
+                        viewModel.rename(name)
+                    },
+                )
+            }
+
+            if (deleting) {
+                DeleteChatDialog(
+                    name = chat?.name ?: "Sohbet",
+                    onDismiss = { deleting = false },
+                    onConfirm = {
+                        deleting = false
+                        viewModel.delete(onDeleted = onBack)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The chat's control row.
+ *
+ * ## There is no top bar
+ *
+ * This replaces one. A bar with a title, a back arrow, a settings gear and a stop
+ * button gave the screen a permanent 56dp of chrome that was mostly empty, put the
+ * chat's name — which the user named once and almost never reads — at 14sp in the
+ * most prominent position available, and offered settings that belong to the app
+ * rather than to the conversation.
+ *
+ * What is left is what the screen actually changes: where you are, which model is
+ * answering, and what else this conversation can do. Three pills on one row.
+ *
+ * ## The model sits where the title was
+ *
+ * The model is the thing a user actually varies between chats, and it is worth the
+ * most prominent slot on this row. The chat's name is per-conversation and static,
+ * so it moved to the overflow menu where it is still one tap away and no longer
+ * spending the best position on screen.
+ */
+@Composable
+private fun ChatPillRow(
+    modelLabel: String,
+    running: Boolean,
+    onBack: () -> Unit,
+    onStop: () -> Unit,
+    onOpenMenu: () -> Unit,
+    onOpenModelPicker: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        ChatTopBar(
-            title = chat?.name ?: "Agent",
-            stepLabel = (runState as? AgentRunState.Running)
-                ?.let { "çalışıyor" },
-            waiting = waiting,
-            onBack = onBack,
-            onStop = viewModel::stop,
-            onOpenSettings = onOpenSettings,
-            pane = pane,
-            onPaneChange = { pane = it },
-            // Offered once something has run, and never while a command is in
-            // flight: an empty pane that fills in a second later is worse than not
-            // offering it.
-            showTerminal = hasShellOutput,
+        AgentIconPill(
+            icon = DroshIcons.ArrowLeft,
+            contentDescription = "Geri",
+            onClick = onBack,
+            tint = DroshTextSecondary,
         )
 
-        providerState.error?.let { message ->
-            ErrorBanner(message = message, onDismiss = viewModel::dismissError, onFix = onOpenSettings)
-        }
+        // Weighted and truncating, so an OpenRouter model id like
+        // "anthropic/claude-sonnet-4-20250514" takes the space it needs and yields
+        // it back rather than pushing the overflow button off the row.
+        AgentPill(
+            label = modelLabel,
+            onClick = onOpenModelPicker,
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .padding(start = 6.dp, end = 6.dp),
+            contentDescription = "Model: $modelLabel",
+            trailingChevron = true,
+        )
 
-        // A retry the loop is working through, not an error. Showing it as one
-        // would tell the user something failed when the system is doing exactly
-        // what it should.
-        retrying?.let { notice ->
-            RetryBanner(notice = notice)
-        }
-
-        // A run that ended badly, with the one action that helps.
-        failure?.let { message ->
-            FailureCard(
-                message = message,
-                onRetry = viewModel::retry,
-                onDismiss = viewModel::dismissFailure,
+        // Stop replaces the overflow while a run is going, so the thing that ends
+        // the run is where the eye already is. Both at once crowds a 390dp row, and
+        // a stop button is more urgent than a menu.
+        if (running) {
+            AgentIconPill(
+                icon = DroshIcons.Square,
+                contentDescription = "Durdur",
+                onClick = onStop,
+                tint = DroshError,
             )
-        }
-
-        if (pane == AgentPane.TERMINAL) {
-            if (hasShellOutput) {
-                AgentTerminalPane(
-                    lines = terminalLines,
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                AgentTerminalEmpty(
-                    running = running,
-                    modifier = Modifier.weight(1f),
-                )
-            }
         } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(messages, key = { it.id }) { message ->
-                    MessageRow(message = message, onAnswer = viewModel::answer)
-                }
-
-                if (messages.isEmpty()) {
-                    item(key = "hint") { ChatEmptyHint() }
-                }
-            }
-        }
-
-        if (!usage.isEmpty) {
-            UsageStrip(usage = usage)
-        }
-
-        // No composer on the terminal pane: it is a read-only view, and a text
-        // field under a non-interactive surface suggests otherwise.
-        if (pane == AgentPane.CHAT) {
-            Composer(
-                enabled = !running,
-                stopVisible = running,
-                onSend = viewModel::send,
-                onStop = viewModel::stop,
+            AgentIconPill(
+                icon = DroshIcons.EllipsisVertical,
+                contentDescription = "Sohbet menüsü",
+                onClick = onOpenMenu,
+                tint = DroshTextSecondary,
             )
         }
     }
 }
 
+/**
+ * The model picker.
+ *
+ * A sheet rather than a dropdown: the list is as tall as the provider's catalogue,
+ * and a menu that grows past half the screen stops being a menu. The selection is
+ * marked with a tick as well as a background, so it does not depend on colour.
+ */
 @Composable
-private fun ChatTopBar(
-    title: String,
-    stepLabel: String?,
-    waiting: Boolean,
-    onBack: () -> Unit,
-    onStop: () -> Unit,
-    onOpenSettings: () -> Unit,
-    pane: AgentPane,
-    onPaneChange: (AgentPane) -> Unit,
-    showTerminal: Boolean,
+private fun ModelPickerSheet(
+    models: List<LlmModel>,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
 ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                )
+                .semantics { contentDescription = "Kapat" },
+        )
+
+        val glass = LocalAgentGlass.current
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.7f)
+                .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
+                .then(
+                    if (glass == null) {
+                        Modifier.background(DroshSurface)
+                    } else {
+                        Modifier
+                            .hazeEffect(glass.state, agentGlassStyle())
+                            .background(DroshSurface.copy(alpha = 0.9f))
+                    }
+                )
+                .navigationBarsPadding()
+                .padding(top = 10.dp, bottom = 8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(DroshText.copy(alpha = 0.2f)),
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "Model",
+                fontSize = 15.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DroshText,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+            )
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(models, key = { it.id }) { model ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = TOUCH_TARGET)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (model.id == selectedId) {
+                                    DroshTileSelected
+                                } else {
+                                    Color.Transparent
+                                }
+                            )
+                            .clickable { onSelect(model.id) }
+                            .semantics {
+                                contentDescription = model.id +
+                                    if (model.id == selectedId) ", seçili" else ""
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = model.label ?: model.id,
+                                fontSize = 14.sp,
+                                color = if (model.id == selectedId) DroshPrimary else DroshText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = model.id,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = DroshTextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (model.id == selectedId) {
+                            Icon(
+                                imageVector = DroshIcons.Check,
+                                contentDescription = null,
+                                tint = DroshPrimary,
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The composer.
+ *
+ * One surface: the text field above, the controls in a row inside its lower edge.
+ * A separate send button outside the field was tried and read as two objects —
+ * on a 390dp screen the field ends up about 300dp wide and the button claims 44dp
+ * of prime right-thumb space for one action.
+ *
+ * The send control is the only filled thing down here, and it fills only when there
+ * is something to send. A permanently filled button is a claim about what the next
+ * tap will do, and it should not make that claim when there is nothing typed.
+ */
+@Composable
+private fun AgentComposer(
+    enabled: Boolean,
+    stopVisible: Boolean,
+    onSend: (String) -> Unit,
+    onStop: () -> Unit,
+) {
+    var text by rememberSaveable { mutableStateOf("") }
+    val canSend = text.isNotBlank() && enabled
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DroshSurface)
-            .statusBarsPadding(),
+            .imePadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = TOUCH_TARGET)
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .clip(RoundedCornerShape(20.dp))
+                .background(DroshSurfaceVariant)
+                .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
         ) {
-            IconAction(
-                icon = DroshIcons.ArrowLeft,
-                contentDescription = "Geri",
-                onClick = onBack,
-            )
-
-            DroshAgentMark(
-                size = 20.dp,
-                tint = if (waiting) DroshWarning else DroshPrimary,
-            )
-            Spacer(Modifier.width(8.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = DroshText,
-                    maxLines = 1,
-                )
-                if (stepLabel != null) {
-                    Text(
-                        text = stepLabel,
-                        fontSize = 10.sp,
-                        color = DroshPrimary,
+            Column {
+                Box {
+                    if (text.isEmpty()) {
+                        Text(
+                            text = if (enabled) "Agent'a bir şey sor…" else "çalışıyor…",
+                            fontSize = 14.5.sp,
+                            color = DroshTextMuted,
+                        )
+                    }
+                    BasicTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        enabled = enabled,
+                        singleLine = false,
+                        maxLines = 6,
+                        textStyle = TextStyle(fontSize = 14.5.sp, color = DroshText),
+                        cursorBrush = SolidColor(DroshPrimary),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
-            }
 
-            // A stop button while streaming, the settings entry otherwise. Showing
-            // both at once crowds a 390dp bar.
-            if (stepLabel != null) {
-                IconAction(
-                    icon = DroshIcons.Square,
-                    contentDescription = "Durdur",
-                    onClick = onStop,
-                    tint = DroshError,
-                )
-            } else {
-                IconAction(
-                    icon = DroshIcons.Settings,
-                    contentDescription = "Agent ayarları",
-                    onClick = onOpenSettings,
-                )
+                Spacer(Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    ComposerMiniAction(
+                        icon = DroshIcons.Search,
+                        contentDescription = "Araçlar",
+                        onClick = { /* Tool affordance lands with the tool list. */ },
+                    )
+                    ComposerMiniAction(
+                        icon = DroshIcons.ListChecks,
+                        contentDescription = "Görevler",
+                        onClick = { /* Todo affordance lands with the TodoCard. */ },
+                    )
+
+                    Spacer(Modifier.weight(1f))
+
+                    if (stopVisible) {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(DroshError)
+                                .clickable(onClick = onStop)
+                                .semantics { contentDescription = "Durdur" },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = DroshIcons.Square,
+                                contentDescription = null,
+                                tint = DroshOnPrimary,
+                                modifier = Modifier.size(13.dp),
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(if (canSend) DroshPrimary else DroshSurfaceHigh)
+                                .clickable(enabled = canSend) {
+                                    val sent = text
+                                    text = ""
+                                    onSend(sent)
+                                }
+                                .semantics { contentDescription = "Gönder" },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = DroshIcons.Send,
+                                contentDescription = null,
+                                tint = if (canSend) DroshOnPrimary else DroshTextMuted,
+                                modifier = Modifier.size(15.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+}
 
-        // Below the title rather than beside it: at 390dp there is no room for
-        // both, and a switch that pushes the title off-screen is worse than a
-        // second row.
-        if (showTerminal) {
-            AgentPaneToggle(
-                pane = pane,
-                onChange = onPaneChange,
-                showTerminal = showTerminal,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
+/**
+ * A small control inside the composer.
+ *
+ * 30dp of visible circle in a 44dp box. It sits inside a surface that already
+ * says "tap here", so it does not need to look like an independent button — but the
+ * hit area is still 44dp, because the eye being convinced does not make a 30dp
+ * circle easier to hit.
+ */
+@Composable
+private fun ComposerMiniAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clickable(onClick = onClick)
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(DroshSurfaceHigh.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = DroshTextSecondary,
+                modifier = Modifier.size(15.dp),
             )
         }
     }
@@ -346,11 +695,16 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit, onFix: () -> Uni
 }
 
 @Composable
-private fun MessageRow(message: ChatMessage, onAnswer: (String, ApprovalDecision) -> Unit) {
+private fun MessageRow(
+    message: ChatMessage,
+    onAnswer: (String, ApprovalDecision) -> Unit,
+    onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
+) {
     when (message) {
-        is ChatMessage.User -> UserBubble(message)
+        is ChatMessage.User -> UserBubble(message, onCopy = onCopy, onShare = onShare)
 
-        is ChatMessage.Assistant -> AssistantText(message)
+        is ChatMessage.Assistant -> AssistantText(message, onCopy = onCopy, onShare = onShare)
 
         is ChatMessage.Reasoning -> ReasoningBlock(message)
 
@@ -373,7 +727,11 @@ private fun MessageRow(message: ChatMessage, onAnswer: (String, ApprovalDecision
 }
 
 @Composable
-private fun UserBubble(message: ChatMessage.User) {
+private fun UserBubble(
+    message: ChatMessage.User,
+    onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
+) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Box(
             modifier = Modifier
@@ -389,18 +747,24 @@ private fun UserBubble(message: ChatMessage.User) {
                 .background(DroshPrimary.copy(alpha = 0.13f))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            Text(
+            AgentSelectableText(
                 text = message.text,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 color = DroshText,
+                onCopy = onCopy,
+                onShare = onShare,
             )
         }
     }
 }
 
 @Composable
-private fun AssistantText(message: ChatMessage.Assistant) {
+private fun AssistantText(
+    message: ChatMessage.Assistant,
+    onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "drosh",
@@ -409,13 +773,15 @@ private fun AssistantText(message: ChatMessage.Assistant) {
             color = DroshPrimary,
         )
         Spacer(Modifier.height(2.dp))
-        Text(
+        AgentSelectableText(
             text = message.text,
             fontSize = 14.sp,
             lineHeight = 20.sp,
             color = DroshText,
-            // Announced as it grows, so a screen-reader user hears the answer
-            // arrive rather than having to poll.
+            onCopy = onCopy,
+            onShare = onShare,
+            // Announced as it grows, so a screen-reader user hears the answer arrive
+            // rather than having to poll.
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
         if (message.streaming) {
@@ -742,88 +1108,27 @@ private fun ChatEmptyHint() {
  * while a run is going, because that is the only control that matters at that
  * moment and it is already within thumb reach.
  */
-@Composable
-private fun Composer(
-    enabled: Boolean,
-    stopVisible: Boolean,
-    onSend: (String) -> Unit,
-    onStop: () -> Unit,
-) {
-    var text by rememberSaveable { mutableStateOf("") }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(DroshSurface)
-            .navigationBarsPadding()
-            .imePadding()
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .heightIn(min = TOUCH_TARGET)
-                .clip(RoundedCornerShape(12.dp))
-                .background(DroshSurfaceVariant)
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-        ) {
-            if (text.isEmpty()) {
-                Text(
-                    text = if (enabled) "Agent'a bir şey sor" else "çalışıyor…",
-                    fontSize = 14.sp,
-                    color = DroshTextMuted,
-                )
-            }
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                enabled = enabled,
-                singleLine = false,
-                maxLines = 4,
-                textStyle = TextStyle(
-                    fontSize = 14.sp,
-                    color = DroshText,
-                ),
-                cursorBrush = SolidColor(DroshPrimary),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        if (stopVisible) {
-            // Stop is the only control that matters while a run is going, so it is
-            // a pill rather than a bare glyph — it has to be findable without
-            // reading the bar.
-            GlassPill(
-                contentDescription = "Durdur",
-                onClick = onStop,
-                modifier = Modifier.size(TOUCH_TARGET),
-                height = TOUCH_TARGET,
-                width = TOUCH_TARGET,
-                tint = DroshError,
-                icon = DroshIcons.Square,
-            )
-        } else {
-            val canSend = text.isNotBlank() && enabled
-            GlassPill(
-                contentDescription = "Gönder",
-                onClick = {
-                    val sent = text
-                    text = ""
-                    onSend(sent)
-                },
-                modifier = Modifier.size(TOUCH_TARGET),
-                height = TOUCH_TARGET,
-                width = TOUCH_TARGET,
-                // Filled when armed, flat when not. A pill that is always the same
-                // colour gives no signal about whether there is anything to send.
-                tint = if (canSend) DroshOnPrimary else DroshTextMuted,
-                enabled = canSend,
-                icon = DroshIcons.Send,
-            )
-        }
+/**
+ * Hands text to the system share sheet.
+ *
+ * Suspends rather than fires and forgets because `startActivity` from a
+ * non-activity context has to be a coroutine with a real scope — a fire-and-forget
+ * share throws `ActivityNotFoundException` on some devices with no chooser
+ * installed, and swallowing that would leave the user tapping a dead menu item.
+ */
+private suspend fun shareText(text: String) {
+    val context = LocalContext.current
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    val chooser = Intent.createChooser(intent, null)
+    runCatching {
+        context.startActivity(chooser, null)
+    }.onFailure { error ->
+        // No handler for ACTION_SEND. The text is still on the clipboard path the
+        // Copy action offers, so this is a degraded outcome rather than a lost one.
+        Timber.w(error, "share unavailable")
     }
 }
 
