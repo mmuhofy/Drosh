@@ -143,7 +143,8 @@ class GrepTool @Inject constructor(
     }
 
     private fun compile(pattern: String, ignoreCase: Boolean) = runCatching {
-        Regex(pattern, setOf(RegexOption.IGNORE_CASE.takeIf { ignoreCase } ?: RegexOption.NONE))
+        val options = if (ignoreCase) setOf(RegexOption.IGNORE_CASE) else emptySet()
+        Regex(pattern, options)
     }.getOrNull()
 
     private fun matchesGlob(name: String, glob: String): Boolean {
