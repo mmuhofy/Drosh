@@ -17,7 +17,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -237,7 +236,7 @@ class AgentLoopTest {
     // ── durable history ───────────────────────────────────────────────────
 
     @Test
-    fun `a finished run is written to the transcript`() {
+    fun `a finished run is written to the transcript`() = runTest {
         val shell = FakeTool("shell")
         val loop = loop(tools = arrayOf(shell))
         adapter.script += listOf(toolTurn("shell", args("command" to "ls")))
@@ -257,7 +256,7 @@ class AgentLoopTest {
     }
 
     @Test
-    fun `a restored conversation is sent back to the model`() {
+    fun `a restored conversation is sent back to the model`() = runTest {
         val shell = FakeTool("shell")
         val loop = loop(tools = arrayOf(shell))
 

@@ -12,7 +12,6 @@ import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.agent.LlmRequest
 import dev.drosh.domain.agent.LlmStreamEvent
-import dev.drosh.domain.agent.LlmToolCall
 import dev.drosh.domain.agent.ProviderKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
