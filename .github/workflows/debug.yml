@@ -50,10 +50,18 @@ jobs:
             echo "::error::DroshDatabase.IDENTITY_HASH — a stale hash builds clean and"
             echo "::error::crashes on first launch with 'Room cannot verify data"
             echo "::error::integrity'."
-            git --no-pager diff -- data/schemas | head -120
             git status --porcelain -- data/schemas
+            find data/schemas -name "*.json" -exec cat {} \;
             exit 1
           fi
+
+      - name: Upload Room schema on mismatch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schema-mismatch
+          path: data/schemas
+          if-no-files-found: warn
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
