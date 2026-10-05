@@ -1,0 +1,205 @@
+package dev.drosh.agent.tool.impl
+
+import dev.drosh.agent.tool.GuestPaths
+import dev.drosh.domain.agent.Tool
+import dev.drosh.domain.agent.ToolContext
+import dev.drosh.domain.agent.ToolResult
+import dev.drosh.domain.agent.boolArg
+import dev.drosh.domain.agent.intArg
+import dev.drosh.domain.agent.stringArg
+import dev.drosh.domain.agent.toolSchema
+import kotlinx.serialization.json.JsonObject
+import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Search file contents by pattern.
+ *
+ * ## Why this is not a shell command
+ *
+ * The model could `shell("grep -rn pattern .")`, and for a one-off that is fine.
+ * It is a bad habit for three reasons: grep is not in every minimal rootfs, its
+ * output for a broad pattern is thousands of lines that land in the context, and
+ * a model that reaches for a shell command cannot tell the difference between
+ * "no matches" and "grep is not installed".
+ *
+ * Results are capped and grouped by file. The cap is the point — a
+ * thousand-line grep result is the same context blow-up as a large `cat`, only
+ * harder to notice because it looks like search results.
+ */
+@Singleton
+class GrepTool @Inject constructor(
+    private val paths: GuestPaths,
+) : Tool {
+
+    override val name: String = NAME
+    override val description: String =
+        "Search inside files for text or a regular expression, and get back matching " +
+            "lines with their file and line number. Use this to find where something is " +
+            "used or defined — prefer it over guessing a path, and over grepping through " +
+            "shell. Set glob to limit the search to a file type, e.g. \"*.kt\"."
+    override val requiresApproval: Boolean = false
+    override val parameters: JsonObject = toolSchema {
+        string("pattern", "text or regular expression to search for")
+        string("path", "file or directory to search, relative to the working directory")
+        string("glob", "only search files matching this, e.g. \"*.kt\"", required = false)
+        bool(
+            name = "ignore_case",
+            description = "match regardless of case",
+            required = false,
+        )
+        integer(
+            name = "max_results",
+            description = "stop after this many matches",
+            required = false,
+        )
+    }
+
+    override fun summarize(input: JsonObject): String {
+        val pattern = input.stringArg("pattern").ifBlank { "(empty)" }
+        val path = input.stringArg("path")
+        return if (path.isBlank()) "in . · $pattern" else "$pattern in $path"
+    }
+
+    override suspend fun execute(input: JsonObject, context: ToolContext): ToolResult {
+        val pattern = input.stringArg("pattern").trim()
+        if (pattern.isEmpty()) return ToolResult.Error("pattern must not be empty")
+
+        // Resolved through resolveOrNull rather than resolve: the working
+        // directory itself is a legitimate search root, and resolve() refuses the
+        // filesystem root on purpose. Refusing here would make the default case —
+        // search everything under where I am — an error.
+        val requested = input.stringArg("path").trim()
+        val searchRoot = paths.resolveOrNull(if (requested.isEmpty()) "." else requested)
+            ?: return ToolResult.Error("cannot resolve '${requested.ifEmpty { "." }}'")
+
+        if (!searchRoot.exists()) {
+            return ToolResult.Error("no such file or directory: $requested")
+        }
+        val relative = paths.toGuest(searchRoot)
+        val glob = input.stringArg("glob").trim()
+        val ignoreCase = input.boolArg("ignore_case", false)
+        val maxResults = input.intArg("max_results", DEFAULT_MAX_RESULTS)
+            .coerceIn(1, HARD_MAX_RESULTS)
+
+        val regex = compile(pattern, ignoreCase)
+            ?: return ToolResult.Error(
+                "\"$pattern\" is not a valid regular expression. Pass plain text instead.",
+            )
+
+        val matches = mutableListOf<String>()
+        val filesSearched = mutableListOf<String>()
+        var truncated = false
+        var unreadable = 0
+
+        fun visit(file: File) {
+            if (matches.size >= maxResults) {
+                truncated = true
+                return
+            }
+            when {
+                file.isDirectory -> {
+                    val children = file.listFiles() ?: run {
+                        unreadable++
+                        return
+                    }
+                    children.sortedBy { it.name }.forEach { visit(it) }
+                }
+
+                !file.isFile -> Unit
+                file.length() > MAX_FILE_BYTES -> Unit // a binary or a huge blob
+                !matchesGlob(file.name, glob) -> Unit
+                else -> {
+                    filesSearched += file.name
+                    val lines = runCatching { file.readLines() }.getOrElse {
+                        unreadable++
+                        return
+                    }
+                    lines.forEachIndexed { index, line ->
+                        if (matches.size < maxResults && regex.containsMatchIn(line)) {
+                            val path = paths.toGuest(file)
+                            matches += "${path}:${index + 1}: ${line.trim().take(MAX_LINE_CHARS)}"
+                        }
+                    }
+                }
+            }
+        }
+
+        visit(searchRoot)
+
+        if (matches.isEmpty()) {
+            return ToolResult.Success(
+                "No matches for \"$pattern\" in $relative" +
+                    if (filesSearched.isEmpty()) "" else
+                        " (${filesSearched.size} file(s) searched). " +
+                            "The pattern may not be present, or the path may not hold it.",
+            )
+        }
+
+        val header = buildString {
+            append(matches.size).append(" match(es) for \"").append(pattern)
+            append("\" in ").append(relative)
+            append(" · ").append(filesSearched.size).append(" file(s) searched")
+            if (truncated) append(" · stopped at the result limit")
+            if (unreadable > 0) append(" · ").append(unreadable).append(" unreadable")
+        }
+
+        return ToolResult.Success("$header\n${matches.joinToString("\n")}")
+    }
+
+    private fun compile(pattern: String, ignoreCase: Boolean) = runCatching {
+        val options = if (ignoreCase) setOf(RegexOption.IGNORE_CASE) else emptySet()
+        Regex(pattern, options)
+    }.getOrNull()
+
+    private fun matchesGlob(name: String, glob: String): Boolean {
+        if (glob.isEmpty()) return true
+        val pattern = glob.trim()
+        if (pattern.isEmpty()) return true
+
+        // A pattern that is nothing but a suffix wildcard — `*.kt` — is the
+        // overwhelmingly common case and needs no regex at all. The wildcard has
+        // to be the only one and lead the pattern: the earlier version accepted
+        // any pattern whose last `*` was also its first, and for `*.kt` the
+        // prefix came out empty, so *every* file matched.
+        if (pattern.startsWith("*") && pattern.count { it == '*' } == 1) {
+            val suffix = pattern.substring(1)
+            if (suffix.isEmpty()) return true
+            return name.length > suffix.length &&
+                name.regionMatches(
+                    name.length - suffix.length, suffix, 0, suffix.length, ignoreCase = true,
+                )
+        }
+
+        val regex = Regex(
+            pattern
+                .replace(".", "\\.")
+                .replace("*", ".*")
+                .replace("?", "."),
+            RegexOption.IGNORE_CASE,
+        )
+        return runCatching { regex.matches(name) }.getOrDefault(false)
+    }
+
+    companion object {
+        const val NAME = "grep"
+
+        /**
+         * Ten, not fifty.
+         *
+         * The model reads the first few matches and asks again with a narrower
+         * pattern if it needs more. Fifty matches is the same context cost as
+         * reading a file, and usually tells the model nothing the first ten did not.
+         */
+        const val DEFAULT_MAX_RESULTS = 10
+
+        /** Above this the caller is asking for something a shell command does better. */
+        const val HARD_MAX_RESULTS = 50
+
+        /** Skip binaries and large bundles rather than reading them into memory. */
+        const val MAX_FILE_BYTES = 1_000_000L
+
+        const val MAX_LINE_CHARS = 200
+    }
+}

@@ -15,6 +15,7 @@ import dev.drosh.domain.agent.ChatStatus
 import dev.drosh.domain.agent.LlmModel
 import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.domain.agent.LlmProviderRepository
+import dev.drosh.domain.agent.TokenUsage
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.TranscriptBuilder
 import kotlinx.coroutines.Job
@@ -67,6 +68,15 @@ class AgentChatViewModel @Inject constructor(
     private var chatId: String? = null
     private var onChatCreatedCallback: (String) -> Unit = {}
 
+    /**
+     * The prompt that started the failed run.
+     *
+     * Retrying re-sends it. Resuming a failed turn by re-typing the prompt is
+     * friction exactly when the user least wants it, and the prompt is not
+     * sensitive enough to keep out of memory.
+     */
+    private var lastPrompt: String = ""
+
     data class ProviderState(
         val provider: LlmProvider? = null,
         val selectedModelId: String = "",
@@ -82,6 +92,26 @@ class AgentChatViewModel @Inject constructor(
     /** (approvalId, chatId) pairs the user has not answered yet. */
     private val _pendingApproval = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val pendingApprovals: StateFlow<List<Pair<String, String>>> = _pendingApproval.asStateFlow()
+
+    /**
+     * Token usage for the run in progress.
+     *
+     * Accumulated rather than replaced: a run spans many turns and the provider
+     * reports per-request counts, so showing the last turn alone would make a long
+     * run look cheaper than a short one.
+     */
+    private val _usage = MutableStateFlow(TokenUsage())
+    val usage: StateFlow<TokenUsage> = _usage.asStateFlow()
+
+    /** A transient provider failure the loop is working through, if any. */
+    private val _retrying = MutableStateFlow<RetryNotice?>(null)
+    val retrying: StateFlow<RetryNotice?> = _retrying.asStateFlow()
+
+    /** The last run's failure, so the screen can offer a retry rather than a shrug. */
+    private val _failure = MutableStateFlow<String?>(null)
+    val failure: StateFlow<String?> = _failure.asStateFlow()
+
+    data class RetryNotice(val attempt: Int, val maxAttempts: Int, val reason: String)
 
     /**
      * Bind to an existing chat.
@@ -162,12 +192,17 @@ class AgentChatViewModel @Inject constructor(
             return
         }
 
+        lastPrompt = text
         builder.startRun()
         _messages.value = builder.snapshot()
         _providerState.value = providerState.copy(error = null)
 
         runJob = viewModelScope.launch {
             chats.touch(id)
+            _retrying.value = null
+            _failure.value = null
+            _usage.value = TokenUsage()
+
             agentSession.send(
                 AgentRequest(
                     chatId = id,
@@ -184,8 +219,18 @@ class AgentChatViewModel @Inject constructor(
                     is AgentEvent.ApprovalRequired -> _pendingApproval.value =
                         _pendingApproval.value + (event.approval.id to event.approval.chatId)
 
+                    is AgentEvent.UsageUpdated -> _usage.value = _usage.value.plus(event.usage)
+
+                    is AgentEvent.Retrying -> _retrying.value = RetryNotice(
+                        attempt = event.attempt,
+                        maxAttempts = event.maxAttempts,
+                        reason = event.reason,
+                    )
+
                     is AgentEvent.RunFinished -> {
                         _pendingApproval.value = emptyList()
+                        _retrying.value = null
+                        _failure.value = (event.outcome as? RunOutcome.Failed)?.message
                         chats.updateStatus(id, event.outcome.toChatStatus())
                     }
 
@@ -194,6 +239,16 @@ class AgentChatViewModel @Inject constructor(
             }
             runJob = null
         }
+    }
+
+    /** Re-send the prompt of the run that just failed. */
+    fun retry() {
+        if (isRunning || lastPrompt.isBlank()) return
+        send(lastPrompt)
+    }
+
+    fun dismissFailure() {
+        _failure.value = null
     }
 
     fun stop() {

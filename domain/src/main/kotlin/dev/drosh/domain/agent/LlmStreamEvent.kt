@@ -109,4 +109,26 @@ data class TokenUsage(
             val sum = (input ?: 0) + (output ?: 0) + (cacheRead ?: 0) + (cacheWrite ?: 0)
             return sum.takeIf { it > 0 }
         }
+
+    /**
+     * Running total across a run.
+     *
+     * A run spans many requests and each reports its own counts, so the UI
+     * accumulates: showing the last turn alone would make a long run look
+     * cheaper than a short one.
+     *
+     * Null is treated as zero rather than skipped, so a provider that stops
+     * reporting a bucket does not make the total drift down.
+     */
+    operator fun plus(other: TokenUsage): TokenUsage = TokenUsage(
+        input = (input ?: 0) + (other.input ?: 0),
+        output = (output ?: 0) + (other.output ?: 0),
+        cacheRead = (cacheRead ?: 0) + (other.cacheRead ?: 0),
+        cacheWrite = (cacheWrite ?: 0) + (other.cacheWrite ?: 0),
+        reasoning = (reasoning ?: 0) + (other.reasoning ?: 0),
+    )
+
+    /** True when nothing has been reported yet. */
+    val isEmpty: Boolean
+        get() = (input ?: 0) == 0 && (output ?: 0) == 0
 }

@@ -8,8 +8,10 @@ import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import dev.drosh.agent.tool.GuestPaths
 import dev.drosh.agent.tool.impl.AskUserTool
+import dev.drosh.agent.tool.impl.GrepTool
 import dev.drosh.agent.tool.impl.ReadFileTool
 import dev.drosh.agent.tool.impl.ShellTool
+import dev.drosh.agent.tool.impl.MoveFileTool
 import dev.drosh.agent.tool.impl.UpdateTodoTool
 import dev.drosh.agent.tool.impl.WebSearchTool
 import dev.drosh.agent.tool.impl.WriteFileTool
@@ -51,6 +53,14 @@ abstract class AgentToolsModule {
     @Binds
     @IntoSet
     abstract fun bindWebSearchTool(impl: WebSearchTool): Tool
+
+    @Binds
+    @IntoSet
+    abstract fun bindGrepTool(impl: GrepTool): Tool
+
+    @Binds
+    @IntoSet
+    abstract fun bindMoveFileTool(impl: MoveFileTool): Tool
 
     companion object {
 
