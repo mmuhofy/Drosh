@@ -32,7 +32,7 @@ class FileToolsTest {
      * here. GuestPaths takes a *guest* working directory, so "/" — not the host
      * path — is what makes `resolve("a.kt")` land inside root.
      */
-    private fun guestPaths(): GuestPaths = GuestPaths(rootfsDir = root, workingDirectory = "/")
+    private fun guestPaths(): GuestPaths = GuestPaths(rootfsDir = root, workingDirectory = "/home")
 
     private fun context(
         onApproval: (ApprovalRequest) -> ApprovalDecision = { ApprovalDecision.Approve },
@@ -44,12 +44,16 @@ class FileToolsTest {
         awaitApproval = { request -> onApproval(request) },
     )
 
+    /** The guest working directory, mirrored under the fake guest root. */
+    private val home: File get() = File(root, "home").apply { mkdirs() }
+
     private fun write(path: String, content: String): File =
-        File(root, path).apply { parentFile?.mkdirs(); writeText(content) }
+        File(home, path).apply { parentFile?.mkdirs(); writeText(content) }
 
     private fun setUp() {
         root = File(System.getProperty("java.io.tmpdir"), "drosh-tools-${System.nanoTime()}")
         root.mkdirs()
+        home.mkdirs()
     }
 
     private fun tearDown() {
@@ -105,7 +109,9 @@ class FileToolsTest {
                 .execute(args("pattern" to "hit", "max_results" to "5"), context())
                 as ToolResult.Success).output
 
-            assertEquals(5, output.lines().count { it.contains("hit") })
+            // The header line mentions the pattern, so count only lines that
+            // carry a file path — those are the actual matches.
+            assertEquals(5, output.lines().count { it.contains(".txt:") })
             assertTrue("should say it stopped early: $output", output.contains("stopped at the result limit"))
         } finally {
             tearDown()
@@ -182,7 +188,7 @@ class FileToolsTest {
 
             assertTrue(result is ToolResult.Success)
             assertTrue("the file should have moved", !source.exists())
-            assertTrue(File(root, "new.txt").readText() == "content")
+            assertTrue(File(home, "new.txt").readText() == "content")
         } finally {
             tearDown()
         }
@@ -201,7 +207,7 @@ class FileToolsTest {
 
             assertTrue("should be reported as cancelled: $result", result is ToolResult.Cancelled)
             assertTrue("the file must not have moved", source.exists())
-            assertTrue(!File(root, "new.txt").exists())
+            assertTrue(!File(home, "new.txt").exists())
         } finally {
             tearDown()
         }
@@ -222,14 +228,14 @@ class FileToolsTest {
                 "should say how to proceed",
                 (refused as ToolResult.Error).message.contains("overwrite=true"),
             )
-            assertTrue("the destination must be untouched", File(root, "new.txt").readText() == "existing")
+            assertTrue("the destination must be untouched", File(home, "new.txt").readText() == "existing")
 
             val forced = MoveFileTool(guestPaths()).execute(
                 args("from" to "old.txt", "to" to "new.txt", "overwrite" to "true"),
                 context(),
             )
             assertTrue(forced is ToolResult.Success)
-            assertTrue(File(root, "new.txt").readText() == "new content")
+            assertTrue(File(home, "new.txt").readText() == "new content")
         } finally {
             tearDown()
         }
@@ -260,7 +266,7 @@ class FileToolsTest {
                 .execute(args("from" to "a.txt", "to" to "../escaped.txt"), context())
 
             assertTrue(result is ToolResult.Error)
-            assertTrue(!File(root.parentFile, "escaped.txt").exists())
+            assertTrue(!File(root, "escaped.txt").exists())
         } finally {
             tearDown()
         }
