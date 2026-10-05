@@ -50,8 +50,6 @@ sealed interface TerminalLine {
 object TerminalProjection {
 
     private const val EXIT_PREFIX = "exit "
-    private const val ERROR_PREFIX = "ERROR: "
-    private const val CANCELLED_PREFIX = "CANCELLED: "
 
     fun project(messages: List<ChatMessage>): List<TerminalLine> {
         val lines = mutableListOf<TerminalLine>()
@@ -100,22 +98,20 @@ object TerminalProjection {
         messages.none { it is ChatMessage.ToolCall && it.name == SHELL_TOOL }
 
     /**
+     * Map one line of a tool result.
+     *
      * The `exit N` prefix is dropped: the status is emitted once, structurally,
-     * after the output. Leaving the prefix as an output line would show the same
-     * fact twice, once as prose and once as a status.
+     * from the call's state after the output. Leaving the prefix as an output line
+     * would show the same fact twice, once as prose and once as a status.
+     *
+     * `ERROR:` and `CANCELLED:` are kept as output, not turned into a second
+     * status. They carry the *reason* — "user declined", "exit code 127" — and the
+     * state already says whether it failed. A tool that turned both into status
+     * markers rendered two failure lines for one failure, which reads as two
+     * separate things having gone wrong.
      */
     private fun String.toTerminalLine(): TerminalLine? = when {
         startsWith(EXIT_PREFIX) -> null
-
-        startsWith(ERROR_PREFIX) -> TerminalLine.Status(code = -1, failed = true)
-
-        startsWith(CANCELLED_PREFIX) -> TerminalLine.Status(code = -1, failed = true)
-
-        // The marker ShellTool appends when it stopped streaming early. Kept as a
-        // line rather than dropped: output that is incomplete but looks complete
-        // is the worse failure.
-        endsWith("omitted from the live view]") -> TerminalLine.Output(this)
-
         else -> TerminalLine.Output(this)
     }
 

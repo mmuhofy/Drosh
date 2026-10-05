@@ -34,6 +34,7 @@ import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshSuccess
+import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshSurfaceHigh

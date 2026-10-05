@@ -75,23 +75,33 @@ class TerminalProjectionTest {
     }
 
     @Test
-    fun `a failure is marked as failed`() {
+    fun `a failure is marked once, and the reason is kept as output`() {
         val lines = TerminalProjection.project(
             listOf(shell("boom", "ERROR: exit code 127", ToolCallState.Failed)),
         )
 
-        val status = lines.filterIsInstance<TerminalLine.Status>().single()
-        assertTrue(status.failed)
+        // One failure is one marker. Turning the ERROR: line into a second status
+        // rendered two failures for one, which reads as two things going wrong.
+        val statuses = lines.filterIsInstance<TerminalLine.Status>()
+        assertEquals(1, statuses.size)
+        assertTrue(statuses.single().failed)
+        // The reason stays, because "failed" alone does not say why.
+        assertTrue(
+            lines.any { it is TerminalLine.Output && it.text.contains("exit code 127") },
+        )
     }
 
     @Test
-    fun `a rejection reads as failed, not as output`() {
+    fun `a rejection reads as failed, with the reason kept`() {
         val lines = TerminalProjection.project(
             listOf(shell("rm -rf /", "CANCELLED: user declined", ToolCallState.Cancelled)),
         )
 
-        assertTrue(lines.filterIsInstance<TerminalLine.Status>().single().failed)
-        assertEquals(0, lines.count { it is TerminalLine.Output && it.text.contains("CANCELLED") })
+        val statuses = lines.filterIsInstance<TerminalLine.Status>()
+        assertEquals(1, statuses.size)
+        assertTrue(statuses.single().failed)
+        // "failed" without the reason does not tell the user it was *their* refusal.
+        assertTrue(lines.any { it is TerminalLine.Output && it.text.contains("user declined") })
     }
 
     @Test
