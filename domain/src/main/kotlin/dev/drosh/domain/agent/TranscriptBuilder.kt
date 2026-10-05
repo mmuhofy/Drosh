@@ -47,6 +47,30 @@ class TranscriptBuilder(
         closeStreaming()
     }
 
+    /**
+     * Seed the transcript from durable storage.
+     *
+     * The builder is otherwise only ever grown by [accept], so a chat reopened
+     * after the process died would start empty and the next answer would be
+     * appended to nothing.
+     *
+     * A restored assistant message is never left streaming: whatever process was
+     * writing it is gone, and a row that claims to be mid-stream would sit in the
+     * transcript with a caret nothing is going to move, and would swallow the next
+     * delta instead of starting a new message.
+     *
+     * Only valid on an empty builder. Restoring over a live conversation would
+     * silently discard what is on screen.
+     */
+    fun restore(messages: List<ChatMessage>) {
+        check(this.messages.isEmpty()) { "refusing to restore over a live transcript" }
+        this.messages += messages.map { message ->
+            if (message is ChatMessage.Assistant) message.copy(streaming = false) else message
+        }
+        streamingAssistantId = null
+        streamingReasoningId = null
+    }
+
     fun accept(event: AgentEvent) {
         when (event) {
             is AgentEvent.TurnStarted -> closeStreaming()

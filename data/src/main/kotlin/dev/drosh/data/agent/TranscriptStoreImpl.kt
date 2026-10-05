@@ -30,27 +30,15 @@ class TranscriptStoreImpl @Inject constructor(
         dao.load(chatId).mapNotNull { it.toMessage() }
     }
 
-    override suspend fun save(chatId: String, messages: List<ChatMessage>) =
-        withContext(Dispatchers.IO) {
-            if (messages.isEmpty()) return@withContext
-            val existing = dao.load(chatId).associateBy { it.messageId }
-            var seq = dao.maxSeq(chatId)
-            val now = System.currentTimeMillis()
-
-            messages.forEach { message ->
-                val prior = existing[message.id]
-                dao.upsert(
-                    message.toEntity(
-                        chatId = chatId,
-                        // An existing row keeps its position; only new rows consume a
-                        // sequence number, so re-saving a streaming message cannot move
-                        // it down the transcript.
-                        seq = prior?.seq ?: ++seq,
-                        createdAtMs = prior?.createdAtMs ?: now,
-                    ),
-                )
-            }
+    override suspend fun save(chatId: String, messages: List<ChatMessage>) {
+        // An empty transcript is a real state — the user cleared it — so the rows go
+        // rather than the previous ones being left behind.
+        if (messages.isEmpty()) {
+            withContext(Dispatchers.IO) { dao.deleteForChat(chatId) }
+            return
         }
+        replaceAll(chatId, messages)
+    }
 
     /**
      * Store the model-facing view.
