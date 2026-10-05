@@ -139,7 +139,7 @@ class TerminalManager(
      * pane's session along with it, because both panes would be resolving
      * through the same index. Each pane keeps what it was given.
      */
-    private val paneTabIndices = LinkedHashMap<PaneSlot, Int>(
+    private val paneTabIndices: MutableMap<PaneSlot, Int> = mutableMapOf(
         PaneSlot.PRIMARY to 0,
         PaneSlot.SECONDARY to NO_PANE_SESSION,
     )
@@ -487,10 +487,15 @@ class TerminalManager(
             // Routed by pane rather than assigned to a shared flag: a TUI
             // opening in the background pane must not swap the foreground
             // pane's renderer out from under the user.
-            val slot = paneForSession(session) ?: return@onAltBufferChanged
-            val next = _altBufferByPane.value.toMutableMap()
-            if (isActive) next[slot] = true else next.remove(slot)
-            _altBufferByPane.value = next
+            // `return@label` is not available here: this lambda is assigned to
+            // a property rather than passed to a function, so it has no
+            // call-site label. An if reads the same and compiles.
+            val slot = paneForSession(session)
+            if (slot != null) {
+                val next = _altBufferByPane.value.toMutableMap()
+                if (isActive) next[slot] = true else next.remove(slot)
+                _altBufferByPane.value = next
+            }
         }
         sessionClient.onPidChanged = { session, pid -> onSessionPidChanged(session, pid) }
 
@@ -619,10 +624,11 @@ class TerminalManager(
         sessionClient.terminalView = view
         publishScroll(view)
         view.onScrollPositionChanged = { topRow ->
-            if (slot != focusedPane.value) return@onScrollPositionChanged
-            _scrollTopRow.value = topRow
-            val atEdge = topRow == 0
-            if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
+            if (slot == focusedPane.value) {
+                _scrollTopRow.value = topRow
+                val atEdge = topRow == 0
+                if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
+            }
         }
         bindSelectionMenu(view, slot)
     }
