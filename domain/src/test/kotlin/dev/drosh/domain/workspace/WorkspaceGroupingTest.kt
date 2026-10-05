@@ -83,21 +83,31 @@ class WorkspaceGroupingTest {
      */
     @Test
     fun `archiving a project ungroups its sessions and hides the project`() {
-        val all = listOf(workspace("a"), workspace("b"))
+        // "b" is the archived one. Building both projects and then filtering is
+        // how the first version of this test read, and it asserted that "a" also
+        // vanished — because neither was archived to begin with, so the filter
+        // removed both. The archive has to be in the fixture, not introduced later.
+        val archivedB = workspace("b", archived = true)
+        val all = listOf(workspace("a"), archivedB)
         val sessions = listOf(session("s1", "a"), session("s2", "b"))
 
-        // Before: both projects listed, nothing loose.
-        val before = WorkspaceGrouping.board(workspaces = all, sessions = sessions)
+        // Before archiving: both projects listed, nothing loose.
+        val before = WorkspaceGrouping.board(
+            workspaces = listOf(workspace("a"), workspace("b")),
+            sessions = sessions,
+        )
         assertEquals(2, before.groups.size)
         assertTrue(before.ungrouped.isEmpty())
 
-        // After: "b" is archived, so `observeAll()` no longer returns it.
+        // After: `observeAll()` filters on `archived = 0`, so "b" is not returned.
         val visible = all.filterNot { it.archived }
         val after = WorkspaceGrouping.board(workspaces = visible, sessions = sessions)
 
         assertEquals(listOf("a"), after.groups.map { it.workspace.id })
         assertEquals(listOf("s2"), after.ungrouped.map { it.id })
+        // Nothing lost: s1 under "a", s2 loose, and s2 still names "b".
         assertEquals(2, after.groups.flatMap { it.sessions }.size + after.ungrouped.size)
+        assertEquals("b", after.ungrouped.single().workspaceId)
     }
 
     /**
