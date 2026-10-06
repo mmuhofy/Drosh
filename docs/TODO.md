@@ -12,10 +12,10 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 ---
 
 ## Workspace / Proje Sistemi
-*Goal: gruplama + kalıcı metadata. Session'lar ve process'ler kalıcı değil. Branch `feat/workspace`.*
+*Goal: gruplama + kalıcı metadata. Session'lar ve process'ler kalıcı değil. Branch `feat/workspace` → `feat/workspace-ux`.*
 *Şartname: Muhofy, 2026-10-05 — "sadece gruplama, kalıcı metadata olacak sessionlar processler kalıcı olmucak"*
 
-### Shipped (2026-10-05)
+### Shipped (2026-10-05) — `feat/workspace`, main'e #24 ile girdi
 - [x] `domain/workspace/` — `Workspace`, `WorkspaceEdit`, `WorkspaceRepository`,
       `WorkspaceEdit.forStorage()`, `WorkspacePath`, `WorkspaceGrouping`
 - [x] `data/workspace/` — `WorkspaceEntity`, `WorkspaceDao`, `WorkspaceRepositoryImpl`
@@ -27,6 +27,35 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 - [x] Erişim: sidebar → Projects, Settings → Projects
 - [x] `:domain:test` — `WorkspacePathTest`, `WorkspaceEditTest`, `WorkspaceGroupingTest`
 - [x] MEMORYBANK §7B
+
+### Shipped (2026-10-05) — `feat/workspace-ux`
+Gruplama çalışıyordu; çevresi çalışmıyordu.
+
+- [x] **Projede session açma** — ekranın eksik ana eylemiydi.
+      `SessionRepository.create(name, workspaceId)` çağrılmayan kod olarak
+      gelmişti. Bu olmadan her yeni proje bir çıkmaz sokaktı: sidebar'da session
+      aç, geri dön, uzun bas, projeyi seç. Üç ekran.
+- [x] **İki ayrı boş durum** — eskisi yalnızca iki liste de boşken tetikleniyordu,
+      yani uygulamanın varsayılan hali (launch `Default` session açıyor, proje
+      yok) hiçbir şey söylemeyen bir liste olarak çiziliyordu.
+- [x] **Session'ı taşımak görünür düğme** — uzun bas tek yoldu ve satırda hiçbir
+      ipucu yoktu. Jest hâlâ duruyor, düğme onu bulunur kılıyor.
+- [x] **Arşivleme artık kullanılabilir** — `archived`, `observeArchived()`,
+      `setArchived()` sıfır çağıranıyla gelmişti. Altta arşiv bölümü, geri al,
+      edit sheet'te arşivle/arzivden çıkar. **Sil'den üstte**, çünkü geri
+      alınabilir olan geri alınamayanın yanında durmamalı.
+- [x] Arşiv satırı, o eylemin sonucunu söyler: "3 session projeler arasında".
+      Gruplama arşivlemede kaybolmaz, sadece gösterilmez; sayıyı söylemek
+      kullanıcının bunu kendi çıkarmasından ucuz.
+- [x] Top bar'daki `+` kaldırıldı — alt bar ile aynı eylem, `+` telefonun ucunda.
+- [x] Accent kart çerçevesi yerine sol kenarda şerit: çerçeve seçim durumu gibi
+      okunuyor, 10dp nokta ise karanlık ekranda kayboluyordu.
+- [x] Açılma durumu dönmeye ve terminale gidip gelmeye dayanıyor (`rememberSaveable`).
+- [x] **`rememberSaveable` tuzağı:** açık set `Set` değil `List` — `Set`'in
+      Bundle uyumlu `Saver`'ı yok, derlemede değil ilk döndürmede patlardı.
+- [x] Atama sheet'i çıkmaz sokak değil: proje yoksa "Yeni proje oluştur" satırı.
+- [x] Arşiv/grouping testi uçtan uca: proje listeden çıkar, session'ları kaybolmadan
+      projeler arasına düşer.
 
 ### Explicitly NOT in v1 (karar, eksiklik değil)
 - [~] **Workspace process tutmaz.** PTY yok, shell ayakta tutulmuyor, hiçbir şey
@@ -51,16 +80,19 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
       ama dizin yok; `DroshDatabase` notu "CI runs exportSchemaDebug" diyor,
       workflow'da böyle bir adım da yok. Şemalar commit edilirse migration'lar
       derleme zamanında doğrulanır.
-- [ ] **Arşiv ekranı.** `archived` kolonu ve `observeArchived()` var ama kimse
-      çağırmıyor — arşivle/arzivden çıkar yolu henüz yok.
-- [ ] **Projeye yeni session** — şu an session'ı projeye *taşı*ma var, proje
-      içinden sıfırdan session açma yok. `SessionRepository.create(name, workspaceId)`
-      bunun için hazırlandı, çağıran yok.
+- [ ] **Arşiv ekranı.** ~~`archived` kolonu ve `observeArchived()` var ama kimse
+      çağırmıyor~~ — **çözüldü**, `feat/workspace-ux`. Arşiv bölümü, geri al ve
+      arşivle/arzivden çıkar eylemleri var. Kalan: arşivdeki projeye de session
+      eklenebilsin (şu an sadece geri al / düzenle / sil).
+- [x] ~~**Projeye yeni session**~~ — **çözüldü**, `WorkspaceViewModel.createSessionIn`.
+      `SessionRepository.create(name, workspaceId)` artık çağrılıyor.
 - [ ] **Session silerken projeyi de silme teklifi** — "bu session projeye ait,
       projeyi de sil?" onayı.
 - [ ] **Projeyi terminalde aç** — `cd <rootPath>` yerine doğrudan bir yeni
       session. Root path etiket olduğu için bu ayrı bir karar.
 - [ ] **Arama/filtre** — session listesi aranıyor, proje listesi aranmıyor.
+      *Bilerek ertelendi: sidebar zaten tüm session'lar üzerinde arama yapıyor ve
+      proje listesi ondan çok daha kısa. İkinci bir arama kopyalanan arama olur.*
 - [ ] **Sürükle-bırak sıralama** — projeler `lastOpenedAtMs` ile sıralı,
       kullanıcı sırası yok.
 - [ ] **Agent chat'lerini gruplama** — `working_directory` zaten var, ürün kararı bekliyor.

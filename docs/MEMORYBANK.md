@@ -813,9 +813,55 @@ read NULL — the correct value, since every session predates grouping.
   deferred, and nothing here anticipates their schema.
 - **Agent chats are not grouped.** A chat has a `working_directory` and would fit,
   but §9 lists sessions only and grouping it is a separate product call.
-- **No archive screen.** `archived` is persisted and `observeArchived()` exists,
-  but nothing calls it; there is no way yet to archive or unarchive.
 - **No file tree, no "open in editor", no git state** for a project.
+- **No search on the project list.** The sidebar already searches every session
+  and the project list is far shorter, so a second search field would be a
+  duplicated one.
+- **An archived project cannot gain sessions** — only be restored, edited or
+  deleted. Restoring first is the obvious path and the sheet says so.
+- **No drag-to-reorder.** Projects are ordered by `lastOpenedAtMs`, which is the
+  right default until the user disagrees with it.
+
+### Making it usable — `feat/workspace-ux`
+
+The grouping worked. Nothing around it did.
+
+- **Creating a session inside a project** was the missing primary action, and
+  `SessionRepository.create(name, workspaceId)` had shipped with no caller. That
+  made every new project a dead end: open a session in the sidebar, come back,
+  long-press it, pick the project. Three screens to do what one tap should.
+- **Two empty states, not one.** The empty state fired only when both the project
+  list and the loose-session list were empty, so the state the app is actually in
+  by default — a launch creates a `Default` session, you have not made a project
+  — rendered as a bare list saying nothing. "Nothing here" is a first run; "you
+  have sessions and none are filed" needs telling what to do about it.
+- **Moving a session got a visible button.** Long press was the only way and
+  nothing on the row hinted that pressing and holding did anything, so the feature
+  existed only for people who happened to try it. The gesture stays; the button is
+  why anyone finds it.
+- **Archiving became reachable.** `archived`, `observeArchived()` and
+  `setArchived()` had shipped with zero callers — a column nobody could set.
+  Archive section at the bottom, restore from there, archive/unarchive in the
+  edit sheet, placed **above** delete so the reversible option is not the one
+  sitting next to the irreversible one.
+- **The archive row states its own consequence** — "3 session projeler arasında".
+  Archiving hides the project and stops the grouping being *displayed*; the
+  grouping itself survives. Without the number, the ungrouped section reads as if
+  archiving had destroyed it.
+- The accent is a **bar down the left edge** rather than a border around the card.
+  A border draws all four sides and reads as a selection state; a bar reads as
+  "this thing has a colour", which is what it is. It also replaces a 10dp dot that
+  disappeared on a dim screen at arm's length — the one job the colour was doing.
+- Expansion **survives rotation and the trip to the terminal**, which `remember`
+  alone did not: a list that folds itself up every time you come back from opening
+  a session is a list you stop trusting.
+- The top-bar `+` is gone. It duplicated the bottom button, which is the one a
+  thumb can actually reach; two controls for one action reads as neither being
+  sure which to press.
+
+One trap worth remembering: the expanded-set state is a `List`, not a `Set`,
+because it lives in `rememberSaveable` and a `Set` has no `Bundle`-compatible
+`Saver`. It would throw at the first rotation rather than failing to compile.
 
 ---
 

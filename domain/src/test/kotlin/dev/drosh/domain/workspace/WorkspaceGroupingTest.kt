@@ -17,6 +17,7 @@ class WorkspaceGroupingTest {
     private fun workspace(
         id: String,
         name: String = id,
+        archived: Boolean = false,
     ) = Workspace(
         id = id,
         name = name,
@@ -25,7 +26,7 @@ class WorkspaceGroupingTest {
         colorSeed = 0,
         createdAtMs = 0L,
         lastOpenedAtMs = 0L,
-        archived = false,
+        archived = archived,
     )
 
     private fun session(
@@ -68,20 +69,45 @@ class WorkspaceGroupingTest {
     }
 
     /**
-     * Rule 2: an archived workspace is not in the list the repository hands over,
-     * so its sessions fall through. That is the honest reading — the group is
-     * gone as far as the user can see, so pretending the session still belongs to
-     * something would be worse than showing it loose.
+     * Rule 2, and the one that looks like a bug if you only read the rule.
+     *
+     * Archiving removes the project from the list the repository hands over —
+     * that is `observeAll()` filtering on `archived = 0` — so the board cannot see
+     * it and its sessions fall into the ungrouped bucket. The user did not ask to
+     * lose that grouping, but they did ask to stop seeing the project, and
+     * showing an archived project in the active list would be a group they cannot
+     * leave. So the grouping goes and the sessions stay visible.
+     *
+     * Both halves are asserted: the project is gone from `groups`, and its
+     * sessions are still on the board.
      */
     @Test
-    fun `a session in an archived workspace becomes ungrouped`() {
-        val board = WorkspaceGrouping.board(
-            workspaces = listOf(workspace("a")),
-            sessions = listOf(session("s1", "old"), session("s2", "a")),
-        )
+    fun `archiving a project ungroups its sessions and hides the project`() {
+        // "b" is the archived one. Building both projects and then filtering is
+        // how the first version of this test read, and it asserted that "a" also
+        // vanished — because neither was archived to begin with, so the filter
+        // removed both. The archive has to be in the fixture, not introduced later.
+        val archivedB = workspace("b", archived = true)
+        val all = listOf(workspace("a"), archivedB)
+        val sessions = listOf(session("s1", "a"), session("s2", "b"))
 
-        assertEquals(listOf("s1"), board.ungrouped.map { it.id })
-        assertEquals(listOf("s2"), board.groups.single().sessions.map { it.id })
+        // Before archiving: both projects listed, nothing loose.
+        val before = WorkspaceGrouping.board(
+            workspaces = listOf(workspace("a"), workspace("b")),
+            sessions = sessions,
+        )
+        assertEquals(2, before.groups.size)
+        assertTrue(before.ungrouped.isEmpty())
+
+        // After: `observeAll()` filters on `archived = 0`, so "b" is not returned.
+        val visible = all.filterNot { it.archived }
+        val after = WorkspaceGrouping.board(workspaces = visible, sessions = sessions)
+
+        assertEquals(listOf("a"), after.groups.map { it.workspace.id })
+        assertEquals(listOf("s2"), after.ungrouped.map { it.id })
+        // Nothing lost: s1 under "a", s2 loose, and s2 still names "b".
+        assertEquals(2, after.groups.flatMap { it.sessions }.size + after.ungrouped.size)
+        assertEquals("b", after.ungrouped.single().workspaceId)
     }
 
     /**
