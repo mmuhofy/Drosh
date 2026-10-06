@@ -57,7 +57,6 @@ import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.components.GlassPill
 import dev.drosh.ui.agent.components.ActionButton
-import dev.drosh.ui.agent.components.DroshAgentMark
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.SectionHeader
@@ -100,7 +99,7 @@ fun AgentSettingsScreen(
                 contentDescription = "Geri",
                 onClick = onBack,
             )
-            DroshAgentMark(size = 20.dp, tint = DroshPrimary)
+            // No agent mark: the title says it. See the chat screen's empty state.
             Spacer(Modifier.width(8.dp))
             Text(
                 text = "Agent ayarları",
@@ -115,6 +114,13 @@ fun AgentSettingsScreen(
             contentPadding = PaddingValues(14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            // "MODEL" had a header and this block did not, so the screen read as one
+            // section followed by a stray group. Two labelled sections is the whole
+            // change: the fields below are unchanged.
+            item(key = "conn_header") {
+                SectionHeader("BAĞLANTI")
+            }
+
             item(key = "provider") {
                 Column {
                     Text(
@@ -192,6 +198,18 @@ fun AgentSettingsScreen(
                         color = DroshTextMuted,
                     )
                 }
+            }
+
+            item(key = "hint") {
+                Text(
+                    text = "Model, sohbetin üstündeki model düğmesinden de değiştirilir. " +
+                        "Agent simgesi yalnızca terminal ekranındaki agent düğmesinde " +
+                        "görünür — ayarlarda değil.",
+                    fontSize = 11.5.sp,
+                    lineHeight = 17.sp,
+                    color = DroshTextMuted,
+                    modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp),
+                )
             }
         }
 

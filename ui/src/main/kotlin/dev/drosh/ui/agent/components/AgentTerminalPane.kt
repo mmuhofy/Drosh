@@ -1,7 +1,6 @@
 package dev.drosh.ui.agent.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,29 +15,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshSuccess
-import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.domain.agent.TerminalLine
 
 /**
@@ -118,7 +108,7 @@ private fun TerminalRow(line: TerminalLine) {
         is TerminalLine.Status -> {
             Spacer(Modifier.height(3.dp))
             Text(
-                text = if (line.failed && line.code < 0) "✕ failed" else "✓ exit ${line.code}",
+                text = line.statusLabel(),
                 fontSize = 10.5.sp,
                 fontFamily = FontFamily.Monospace,
                 color = if (line.failed) DroshError else DroshTextMuted,
@@ -127,6 +117,30 @@ private fun TerminalRow(line: TerminalLine) {
         }
     }
 }
+
+/**
+ * The status line, with the duration when there is one.
+ *
+ * A cancelled call has no exit code — it never exited — so it says so in words.
+ * Printing "exit -1" for it would read as a shell that exited -1, which is not
+ * what happened: the user declined, or the run was stopped.
+ *
+ * Duration is omitted rather than zeroed when unknown. "0.0s" on a command that
+ * was killed mid-flight is a claim, and it is false.
+ */
+private fun TerminalLine.Status.statusLabel(): String {
+    val base = when {
+        failed && code < 0 -> "✕ iptal edildi"
+        else -> "✓ exit $code"
+    }
+    val duration = durationMs ?: return base
+    return "$base · ${formatDuration(duration)}"
+}
+
+/** Sub-second runs get one decimal; anything longer gets whole seconds. */
+private fun formatDuration(ms: Long): String =
+    if (ms < 1000) "${(ms / 10.0).let { String.format("%.1f", it) }}s"
+    else "${ms / 1000}s"
 
 /** Shown when the agent has not run anything yet. */
 @Composable
@@ -157,75 +171,6 @@ fun AgentTerminalEmpty(
             },
             fontSize = 11.sp,
             color = DroshOutline,
-        )
-    }
-}
-
-/** Which pane of an agent chat is showing. */
-enum class AgentPane { CHAT, TERMINAL }
-
-/**
- * Two-pane switch.
- *
- * A segmented row rather than a tab bar: there are two views of the same thing,
- * not two destinations, and a full-width bar with an underline would imply
- * somewhere else to go. Claude Code's is a small toggle for the same reason.
- */
-@Composable
-fun AgentPaneToggle(
-    pane: AgentPane,
-    onChange: (AgentPane) -> Unit,
-    showTerminal: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(DroshSurfaceVariant)
-            .padding(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        PaneTab(
-            label = "Sohbet",
-            selected = pane == AgentPane.CHAT,
-            onClick = { onChange(AgentPane.CHAT) },
-            modifier = Modifier.weight(1f),
-        )
-        if (showTerminal) {
-            PaneTab(
-                label = "Terminal",
-                selected = pane == AgentPane.TERMINAL,
-                onClick = { onChange(AgentPane.TERMINAL) },
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun PaneTab(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .height(30.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) DroshSurfaceHigh else Color.Transparent)
-            .clickable(onClick = onClick)
-            .semantics {
-                this.contentDescription = label
-                this.selected = selected
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-            color = if (selected) DroshText else DroshTextMuted,
         )
     }
 }

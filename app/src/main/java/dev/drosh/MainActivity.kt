@@ -153,7 +153,20 @@ class MainActivity : ComponentActivity() {
                             ThemeMode.Dark -> true
                         },
                     ) {
-                        Surface(modifier = Modifier.fillMaxSize()) {
+                        // DroshBackground, not the Material default.
+                        //
+                        // Surface fills the window, so whatever colour it carries is
+                        // what shows in the status bar strip — every screen paints its
+                        // own background below it, and those start at DroshBackground.
+                        // Left on the Material surface colour, the strip above every
+                        // screen was a lighter band (#1A1A1A) against the screen's
+                        // #0E0E0E, with a visible seam exactly where the status bar
+                        // ended. Setting it to the app's base makes the window one
+                        // colour and each screen's background continue into the strip.
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = DroshBackground,
+                        ) {
                             DroshNavHost()
                         }
                     }
@@ -374,6 +387,9 @@ class MainActivity : ComponentActivity() {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
                     onOpenProjects = { navController.navigate("workspace") },
+                    // Reached from Settings rather than from a gear on the agent
+                    // screens: an OpenRouter key is the user's, not a chat's.
+                    onOpenAgentSettings = { navController.navigate("agent_settings") },
                 )
             }
 

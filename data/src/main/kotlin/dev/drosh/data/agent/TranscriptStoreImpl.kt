@@ -2,6 +2,7 @@ package dev.drosh.data.agent
 
 import dev.drosh.domain.agent.AgentApproval
 import dev.drosh.domain.agent.ApprovalDecision
+import dev.drosh.domain.agent.AgentTodoCodec
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.LlmMessage
 import dev.drosh.domain.agent.TranscriptStore
@@ -201,6 +202,14 @@ class TranscriptStoreImpl @Inject constructor(
                 finalOutput = toolFinalOutput,
                 truncated = truncated,
                 durationMs = durationMs,
+                // Rebuilt from the stored output rather than from a column of its
+                // own: the checklist's storage is that string, and a second copy
+                // could disagree with it.
+                todos = if (name == TODO_TOOL) {
+                    AgentTodoCodec.decode(toolFinalOutput)
+                } else {
+                    emptyList()
+                },
             )
         }
 
@@ -282,6 +291,9 @@ class TranscriptStoreImpl @Inject constructor(
          * options on restore.
          */
         const val OPTION_SEPARATOR = "\u001F"
+
+        /** Must match `UpdateTodoTool.NAME`. */
+        const val TODO_TOOL = "update_todo"
     }
 }
 

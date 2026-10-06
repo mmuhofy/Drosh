@@ -82,8 +82,9 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  *  - MoreActionsDropdown: hardcoded offset kaldırıldı (anchor'a göre
  *    otomatik konumlanıyor), Divider → HorizontalDivider.
  *  - Icons now use DroshIcons ImageVector instead of painterResource XML drawables.
- *
- * Public API değişmedi: TerminalTopBar(...) imzası aynı.
+ *  - The agent button moved from the left cluster to the right, and the keyboard
+ *    toggle left the bar entirely for the selection menu. `keyboardFocused` and
+ *    `onToggleKeyboard` are no longer parameters.
  */
 private const val BAR_ROW_HEIGHT_DP = 44
 private const val BAR_TOP_OFFSET_DP = 10
@@ -143,8 +144,6 @@ fun TerminalTopBar(
     /** Where the terminal sits in root space, so a pill can find its slice. */
     terminalBounds: Rect?,
     viewModel: SessionSwitcherViewModel,
-    keyboardFocused: Boolean,
-    onToggleKeyboard: () -> Unit,
     onOpenSidebar: () -> Unit,
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
@@ -207,24 +206,11 @@ fun TerminalTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start,
         ) {
-            // ── Left: pill icon button + session name pill ──────────────────
+            // ── Left: sessions button + session name pill ───────────────────
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                GlassPillButton(
-                    backdrop = backdrop,
-                    terminalBounds = terminalBounds,
-                    drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
-                    contentDescription = "Agent",
-                    // 22dp, matching every lucide glyph in this row. The mark is
-                    // drawn on a 24 viewport that it fills, so it needs no
-                    // correcting — unlike the old 2048 mark, which sat at 46% of its
-                    // own canvas and looked half the size of its neighbours.
-                    iconSize = 22.dp,
-                    onClick = { onOpenAgent() },
-                )
-
                 GlassPillButton(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
@@ -266,12 +252,24 @@ fun TerminalTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                // The agent button, where the keyboard toggle used to be.
+                //
+                // It was on the left, first in the row, which made it the first thing
+                // under the thumb on a right-handed grip and put the least used
+                // control in the most reachable slot. On the right it sits with the
+                // other secondary actions, and the left cluster is left for what the
+                // screen is actually about: the sessions and which one is open.
                 GlassPillButton(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
-                    icon = if (keyboardFocused) DroshIcons.KeyboardOff else DroshIcons.Keyboard,
-                    contentDescription = if (keyboardFocused) "Hide keyboard" else "Show keyboard",
-                    onClick = onToggleKeyboard,
+                    drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
+                    contentDescription = "Agent",
+                    // 22dp, matching every lucide glyph in this row. The mark is drawn
+                    // on a 24 viewport that it fills, so it needs no correcting —
+                    // unlike the old 2048 mark, which sat at 46% of its own canvas and
+                    // looked half the size of its neighbours.
+                    iconSize = 22.dp,
+                    onClick = { onOpenAgent() },
                 )
 
                 GlassPillButton(

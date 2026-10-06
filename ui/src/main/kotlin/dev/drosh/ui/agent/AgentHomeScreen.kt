@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,7 +46,6 @@ import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshSuccess
 import dev.drosh.design.system.DroshWarning
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
@@ -57,10 +55,13 @@ import dev.drosh.domain.agent.AgentChat
 import dev.drosh.domain.agent.ChatStatus
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.ActionButton
-import dev.drosh.ui.agent.components.DroshAgentMark
-import dev.drosh.ui.agent.components.IconAction
+import dev.chrisbanes.haze.hazeSource
+import dev.drosh.ui.agent.components.AgentIconPill
+import dev.drosh.ui.agent.components.AgentPill
+import dev.drosh.ui.agent.components.DroshStatusBarVisible
+import dev.drosh.ui.agent.components.ProvideAgentGlass
+import dev.drosh.ui.agent.components.rememberAgentGlass
 import dev.drosh.ui.agent.components.SectionHeader
-import dev.drosh.ui.agent.components.TOUCH_TARGET
 
 /**
  * Agent Home — every agent chat, grouped by whether it needs attention.
@@ -78,6 +79,10 @@ fun AgentHomeScreen(
     modifier: Modifier = Modifier,
     viewModel: AgentHomeViewModel = hiltViewModel(),
 ) {
+    // Same reason as the chat screen: the terminal hides the status bar and
+    // never restores it.
+    DroshStatusBarVisible()
+
     val grouped by viewModel.grouped.collectAsStateWithLifecycle()
     val hasKey by viewModel.hasKey.collectAsStateWithLifecycle()
     val directory by viewModel.directory.collectAsStateWithLifecycle()
@@ -86,16 +91,26 @@ fun AgentHomeScreen(
     var renaming by remember { mutableStateOf<AgentChat?>(null) }
     var deleting by remember { mutableStateOf<AgentChat?>(null) }
 
+    // One state for the screen: the list is the blur source, the pills are effects.
+    // Sharing it is what keeps this to a single offscreen render.
+    val glass = rememberAgentGlass()
+
+    ProvideAgentGlass(glass) {
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(DroshBackground),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            HomeTopBar(onBack = onBack, onOpenSettings = onOpenSettings)
+            HomePillRow(
+                onBack = onBack,
+                onNewChat = { onNewChat(directory.orEmpty()) },
+            )
 
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .hazeSource(glass.state),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -147,29 +162,24 @@ fun AgentHomeScreen(
             }
         }
 
-        // A full-width bar rather than a floating button: it sits above the
-        // navigation bar with predictable spacing, and a FAB on a dark field at
-        // the bottom edge competes with the gesture pill for the same 16dp.
-        Column(
+        // The directory picker, floating.
+        //
+        // The bar it used to live in is gone, and so is the "New agent chat" button
+        // inside it. Two new-chat controls on one screen — that button and the Yeni
+        // pill in the row above — meant the primary action had no single obvious
+        // home, and the bar itself painted a lighter band across the bottom that
+        // read as a separate surface from the list above it.
+        //
+        // The picker stays because it is the one control here that works and has no
+        // equivalent anywhere else on the screen.
+        DirectoryChip(
+            directory = directory,
+            onChange = viewModel::setDirectory,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(DroshSurface)
                 .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-        ) {
-            ActionButton(
-                text = "New agent chat",
-                onClick = { onNewChat(directory) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(4.dp))
-            DirectoryChip(
-                directory = directory,
-                onChange = viewModel::setDirectory,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-        }
+                .padding(bottom = 12.dp),
+        )
     }
 
     // Outside the Box: the menu is a full-screen overlay, and putting it inside
@@ -201,51 +211,71 @@ fun AgentHomeScreen(
         )
     }
 
-    deleting?.let { chat ->
-        DeleteChatDialog(
-            name = chat.name,
-            onDismiss = { deleting = null },
-            onConfirm = {
-                viewModel.delete(chat.id)
-                deleting = null
-            },
-        )
+        deleting?.let { chat ->
+            DeleteChatDialog(
+                name = chat.name,
+                onDismiss = { deleting = null },
+                onConfirm = {
+                    viewModel.delete(chat.id)
+                    deleting = null
+                },
+            )
+        }
     }
 }
 
+/**
+ * The home screen's control row, and the workspace row under it.
+ *
+ * Same reasoning as the chat's pill row: no top bar. The list of chats is the
+ * screen, and a bar above it spent 56dp restating what the app already is.
+ *
+ * "Yeni" is the one primary action, so it is the one filled pill on the screen.
+ * Everything else — the back arrow, the working directory — is quiet, because a row
+ * with three equally loud controls has no primary action at all.
+ */
 @Composable
-private fun HomeTopBar(onBack: () -> Unit, onOpenSettings: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .heightIn(min = TOUCH_TARGET)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconAction(
-            icon = DroshIcons.ArrowLeft,
-            contentDescription = "Geri",
-            onClick = onBack,
-        )
+private fun HomePillRow(
+    onBack: () -> Unit,
+    onNewChat: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AgentIconPill(
+                icon = DroshIcons.ArrowLeft,
+                contentDescription = "Geri",
+                onClick = onBack,
+                tint = DroshTextSecondary,
+            )
 
-        DroshAgentMark(size = 22.dp, tint = DroshPrimary)
+            // A label, not a disabled pill. This is the screen's own name, so it
+            // is not a destination and there is nothing to tap; a greyed-out pill
+            // would promise a tap that does nothing.
+            Text(
+                text = "Agent",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DroshText,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp),
+            )
 
-        Spacer(Modifier.width(8.dp))
+            AgentPill(
+                label = "Yeni",
+                onClick = onNewChat,
+                primary = true,
+                leadingIcon = DroshIcons.Plus,
+                contentDescription = "Yeni sohbet",
+            )
+        }
 
-        Text(
-            text = "Agent",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = DroshText,
-            modifier = Modifier.weight(1f),
-        )
-
-        IconAction(
-            icon = DroshIcons.Settings,
-            contentDescription = "Agent ayarları",
-            onClick = onOpenSettings,
-        )
     }
 }
 
@@ -395,8 +425,10 @@ private fun EmptyChats() {
             .padding(top = 56.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        DroshAgentMark(size = 44.dp, tint = DroshOutline)
-        Spacer(Modifier.height(16.dp))
+        // No agent mark here. The icon belongs to the terminal screen's agent
+        // button and nowhere else: a face that means "agent" on every agent screen
+        // is decoration, and the same glyph on a terminal button is what tells the
+        // user that button opens the agent rather than a shell.
         Text(
             text = "Henüz agent chat yok",
             fontSize = 15.sp,
@@ -411,4 +443,4 @@ private fun EmptyChats() {
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
-}
+    }

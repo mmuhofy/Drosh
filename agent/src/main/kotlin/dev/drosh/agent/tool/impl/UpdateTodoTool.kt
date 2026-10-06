@@ -2,6 +2,9 @@ package dev.drosh.agent.tool.impl
 
 import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolContext
+import dev.drosh.domain.agent.AgentTodo
+import dev.drosh.domain.agent.AgentTodoCodec
+import dev.drosh.domain.agent.AgentTodoStatus
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.agent.toolSchema
 import kotlinx.serialization.json.JsonArray
@@ -85,18 +88,25 @@ class UpdateTodoTool @Inject constructor() : Tool {
         else -> Status.PENDING
     }
 
-    private fun render(items: List<Item>): String {
-        val done = items.count { it.status == Status.COMPLETED }
-        val body = items.joinToString("\n") { item ->
-            val mark = when (item.status) {
-                Status.PENDING -> " "
-                Status.IN_PROGRESS -> ">"
-                Status.COMPLETED -> "x"
-            }
-            "[$mark] ${item.id}. ${item.title}"
-        }
-        return "TODO ($done/${items.size})\n$body"
-    }
+    /**
+     * The list as the model reads it.
+     *
+     * Delegated to [AgentTodoCodec] so the text the model sees and the structure the
+     * transcript decodes cannot drift: one format, two ends, one definition.
+     */
+    private fun render(items: List<Item>): String = AgentTodoCodec.encode(
+        items.map { item ->
+            AgentTodo(
+                id = item.id,
+                title = item.title,
+                status = when (item.status) {
+                    Status.PENDING -> AgentTodoStatus.PENDING
+                    Status.IN_PROGRESS -> AgentTodoStatus.IN_PROGRESS
+                    Status.COMPLETED -> AgentTodoStatus.COMPLETED
+                },
+            )
+        },
+    )
 
     data class Item(val id: String, val title: String, val status: Status)
 

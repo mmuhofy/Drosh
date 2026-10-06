@@ -168,6 +168,23 @@ class AgentChatViewModel @Inject constructor(
         viewModelScope.launch { chats.rename(id, name) }
     }
 
+    /**
+     * Delete this chat, stopping anything still running against it.
+     *
+     * The stop is not optional. A run holds the chat id to append its tool results
+     * to, so deleting the record while a run is in flight leaves the loop writing
+     * to a row that no longer exists — and the user, who asked for the chat to go
+     * away, watches output keep appearing on a screen they already dismissed.
+     */
+    fun delete(onDeleted: () -> Unit) {
+        val id = chatId ?: return
+        stop()
+        viewModelScope.launch {
+            chats.delete(id)
+            onDeleted()
+        }
+    }
+
     fun send(prompt: String) {
         val text = prompt.trim()
         if (text.isEmpty() || isRunning) return
@@ -293,6 +310,14 @@ class AgentChatViewModel @Inject constructor(
                 hasKey = hasKey,
                 selectedModelId = selected,
             )
+            // The list, not just the id.
+            //
+            // This only ever set the selected id, so `models` stayed empty until the
+            // key was re-saved from settings — which meant the model picker on a chat
+            // opened empty for anyone whose key was already stored, and the pill fell
+            // back to its "first model or model seç" placeholder with nothing behind
+            // it. The catalogue has to be loaded wherever the id is read.
+            if (hasKey) fetchModels()
         }
     }
 

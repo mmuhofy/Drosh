@@ -22,8 +22,17 @@ sealed interface TerminalLine {
      * The exit status, rendered where a real terminal would leave the cursor.
      *
      * Distinct from [Output] so the view can colour it without parsing text.
+     *
+     * [durationMs] rides along so the view can show how long the command took
+     * without reaching back into the transcript. Null when the run was cut short
+     * before a duration was recorded, which is the honest answer for a command the
+     * process was killed during — showing 0.0s there would claim it was instant.
      */
-    data class Status(val code: Int, val failed: Boolean) : TerminalLine
+    data class Status(
+        val code: Int,
+        val failed: Boolean,
+        val durationMs: Long? = null,
+    ) : TerminalLine
 }
 
 /**
@@ -82,7 +91,7 @@ object TerminalProjection {
                         line.toTerminalLine()?.let { lines += it }
                     }
 
-                    val status = message.state.toExitStatus()
+                    val status = message.state.toExitStatus(message.durationMs)
                     if (status != null) lines += status
                 }
 
@@ -115,10 +124,10 @@ object TerminalProjection {
         else -> TerminalLine.Output(this)
     }
 
-    private fun ToolCallState.toExitStatus(): TerminalLine.Status? = when (this) {
-        ToolCallState.Succeeded -> TerminalLine.Status(code = 0, failed = false)
-        ToolCallState.Failed -> TerminalLine.Status(code = -1, failed = true)
-        ToolCallState.Cancelled -> TerminalLine.Status(code = -1, failed = true)
+    private fun ToolCallState.toExitStatus(durationMs: Long?): TerminalLine.Status? = when (this) {
+        ToolCallState.Succeeded -> TerminalLine.Status(0, failed = false, durationMs = durationMs)
+        ToolCallState.Failed -> TerminalLine.Status(-1, failed = true, durationMs = durationMs)
+        ToolCallState.Cancelled -> TerminalLine.Status(-1, failed = true, durationMs = durationMs)
         else -> null
     }
 
