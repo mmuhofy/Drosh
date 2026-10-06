@@ -100,6 +100,21 @@ fun SplitPaneHost(
         // constraint of 0 arrives during the first frame of a split opening.
         if (widthPx <= 0f || heightPx <= 0f) return@BoxWithConstraints
 
+        // The pane is in another window, so there is nothing here to lay out for
+        // it. Returning before the branches below is what stops this from
+        // rendering as a docked split: `isFloating` is false for a system overlay,
+        // so without this it would fall through and draw a divider against
+        // nothing.
+        //
+        // `secondary` is not invoked, and that is the whole mechanism — it holds
+        // the pane's `AndroidView`, so not composing it is what lets the overlay's
+        // view be the only one for that session. Compositing an empty box instead
+        // would leave a second view fighting it over the emulator.
+        if (layout.isSystemOverlay) {
+            primary()
+            return@BoxWithConstraints
+        }
+
         if (layout.isFloating) {
             primary()
             FloatingPaneWindow(

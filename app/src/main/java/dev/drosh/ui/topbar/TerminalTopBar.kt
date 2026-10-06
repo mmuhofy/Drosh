@@ -157,6 +157,9 @@ fun TerminalTopBar(
     onCloseSplit: () -> Unit = {},
     onCycleSplit: () -> Unit = {},
     onSwapPanes: () -> Unit = {},
+    isSystemOverlay: Boolean = false,
+    canDrawOverlays: Boolean = true,
+    onToggleSystemOverlay: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
@@ -300,6 +303,9 @@ fun TerminalTopBar(
                 onCloseSplit = onCloseSplit,
                 onCycleSplit = onCycleSplit,
                 onSwapPanes = onSwapPanes,
+                isSystemOverlay = isSystemOverlay,
+                canDrawOverlays = canDrawOverlays,
+                onToggleSystemOverlay = onToggleSystemOverlay,
             )
         }
     }
@@ -326,18 +332,46 @@ private fun MoreActionsDropdown(
     onCloseSplit: () -> Unit,
     onCycleSplit: () -> Unit,
     onSwapPanes: () -> Unit,
+    isSystemOverlay: Boolean,
+    canDrawOverlays: Boolean,
+    onToggleSystemOverlay: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
         items = buildList {
             if (isSplit) {
-                add(
-                    DroshMenuItem(
-                        label = if (isFloating) "Dock pane" else "Float window",
-                        icon = DroshIcons.Square,
-                    ),
-                )
+                // While the pane is in the overlay, the only entry that makes sense
+                // is the one that brings it back. Float and dock describe geometry
+                // inside this app's window, and neither means anything for a window
+                // this activity does not own — so offering them would describe a
+                // gesture that does nothing.
+                if (isSystemOverlay) {
+                    add(
+                        DroshMenuItem(
+                            label = "Bring pane back",
+                            icon = DroshIcons.Square,
+                        ),
+                    )
+                } else {
+                    add(
+                        DroshMenuItem(
+                            label = if (isFloating) "Dock pane" else "Float window",
+                            icon = DroshIcons.Square,
+                        ),
+                    )
+                    // Hidden without the permission rather than disabled: a greyed
+                    // entry would still be a tap, and the reason it cannot work is a
+                    // settings screen the user has to be sent to anyway.
+                    if (canDrawOverlays) {
+                        add(
+                            DroshMenuItem(
+                                label = "Float over other apps",
+                                icon = DroshIcons.PanelBottom,
+                            ),
+                        )
+                    }
+                }
                 add(
                     DroshMenuItem(
                         label = "Move divider",
@@ -369,6 +403,7 @@ private fun MoreActionsDropdown(
                 "Refresh terminal" -> onRefresh()
                 "Find in output" -> onFindInOutput()
                 "Float window", "Dock pane" -> onToggleFloat()
+                "Float over other apps", "Bring pane back" -> onToggleSystemOverlay()
                 "Move divider" -> onCycleSplit()
                 "Swap panes" -> onSwapPanes()
                 "Close second pane" -> onCloseSplit()
