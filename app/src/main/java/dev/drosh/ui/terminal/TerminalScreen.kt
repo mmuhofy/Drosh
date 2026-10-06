@@ -1039,11 +1039,24 @@ private fun ReadyScreen(
          * first. The drawer's pair card mirrors the screen, and a swap changes
          * that order — a pair of names could not express it, so the card would
          * show the old arrangement while the terminal had already swapped.
+         *
+         * Both halves have to be a real session before the pair is offered.
+         * [activeId] is nullable and the compiler infers a different nullability
+         * for each branch here — one side is `secondary`, which is non-null by
+         * the `let`, the other is `activeId` — so a `top to bottom` pair comes
+         * out as `Pair<String, String?>` and does not fit. Both are resolved to
+         * a local first, and a split missing either session is not drawn rather
+         * than drawn with a blank half: a card naming one session and an empty
+         * space beside it is worse than no card.
          */
         splitSessions = paneLayout.secondarySessionId?.let { secondary ->
-            val top = if (paneLayout.secondarySwapped) secondary else activeId
-            val bottom = if (paneLayout.secondarySwapped) activeId else secondary
-            if (top != null) top to bottom else null
+            val primaryId = activeId
+            if (primaryId != null) {
+                if (paneLayout.secondarySwapped) secondary to primaryId
+                else primaryId to secondary
+            } else {
+                null
+            }
         },
         onCloseSplit = { paneLayoutViewModel.closeSplit() },
         onSwapPanes = { paneLayoutViewModel.swapPanes() },

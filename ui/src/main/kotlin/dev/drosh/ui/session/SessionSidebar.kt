@@ -333,36 +333,38 @@ private fun SidebarContent(
                 // item. Doing it inside `items` would mean asking a row to emit
                 // a sibling, which LazyListScope does not allow — one item, one
                 // key — so the pairing is a pass over the list instead.
-                val pairIds = splitSessions
-                val pairedWith = pairIds?.let { (top, bottom) ->
-                    mapOf(top to bottom, bottom to top)
-                }
-                val pairAnchor = pairIds?.first
+                /**
+                 * Destructured once, so the pair is either fully present or
+                 * absent.
+                 *
+                 * Reading `.first` off a nullable pair instead would leave the
+                 * anchor nullable, and every use of it — `activate`, the name
+                 * lookup, the active comparison — is a `String`. The id is a
+                 * poor fallback for a name, so a session missing from the list
+                 * is named by its id rather than by the previous row's name.
+                 */
+                val pairAnchor = splitSessions?.first
+                val pairPartner = splitSessions?.second
                 // Rank shifts by one for every session drawn inside a pair, so
                 // the recency marks below stay honest.
                 var rankOffset = 0
 
                 live.forEachIndexed { index, snapshot ->
-                    val partner = pairedWith?.get(snapshot.id)
-
-                    if (partner != null) {
-                        if (snapshot.id == pairAnchor) {
-                            item(key = "splitpair_${snapshot.id}") {
-                                SplitPairCard(
-                                    topName = sessions.firstOrNull { it.id == pairAnchor }?.name
-                                        ?: pairAnchor,
-                                    bottomName = sessions.firstOrNull { it.id == partner }?.name
-                                        ?: partner,
-                                    isActiveTop = pairAnchor == activeId,
-                                    isActiveBottom = partner == activeId,
-                                    onOpenTop = { viewModel.activate(pairAnchor) },
-                                    onOpenBottom = { viewModel.activate(partner) },
-                                    onCloseSplit = onCloseSplit,
-                                    onSwapPanes = onSwapPanes,
-                                )
-                            }
-                            rankOffset++
+                    if (snapshot.id == pairAnchor && pairPartner != null) {
+                        item(key = "splitpair_${snapshot.id}") {
+                            SplitPairCard(
+                                topName = snapshot.name,
+                                bottomName = sessions.firstOrNull { it.id == pairPartner }
+                                    ?.name ?: pairPartner,
+                                isActiveTop = snapshot.id == activeId,
+                                isActiveBottom = pairPartner == activeId,
+                                onOpenTop = { viewModel.activate(snapshot.id) },
+                                onOpenBottom = { viewModel.activate(pairPartner) },
+                                onCloseSplit = onCloseSplit,
+                                onSwapPanes = onSwapPanes,
+                            )
                         }
+                        rankOffset++
                     } else {
                         // `item`, not a bare call: this loop is not an `items {}`
                         // block, and a composable invoked straight from a
