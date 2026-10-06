@@ -84,6 +84,15 @@ data class PaneLayout(
     val floatingBounds: NormalizedRect = NormalizedRect.DEFAULT,
     /** True when the floating pane is expanded to fill the host. */
     val maximized: Boolean = false,
+    /**
+     * True when the secondary session sits in the *top* pane.
+     *
+     * Stored rather than applied, because the terminal manager owns the mapping
+     * from a session id to a pane slot: it is the only thing that knows which id
+     * is primary. Recording "these two have changed places" lets the host swap
+     * the two views without either side having to re-resolve which is which.
+     */
+    val secondarySwapped: Boolean = false,
 ) {
 
     /** True when a second pane is open. */
@@ -107,10 +116,89 @@ data class PaneLayout(
     }
 
     /** Closes the second pane and returns to a single full-width terminal. */
+    /**
+     * Closes the second pane and returns to a single full-width terminal.
+     *
+     * Resets [secondarySwapped] as well: the flag describes a relationship
+     * between two sessions, and there is no second session any more. Carrying it
+     * would put the next split's session in the wrong pane for no reason the
+     * user could see.
+     */
     fun cleared(): PaneLayout = PaneLayout(
         secondarySessionId = null,
         splitFraction = DEFAULT_SPLIT_FRACTION,
     )
+
+    /**
+     * The divider position mid-drag, before it is committed to a step.
+     *
+     * Deliberately separate from [withSplitFraction], which snaps. Snapping
+     * *during* the drag is what made the handle feel dead: the pane jumped
+     * between four fixed heights while the finger was still moving, so the
+     * window under it never lined up with the finger. Here the pane follows the
+     * finger exactly, and the step is chosen on release by
+     * [commitDraggedFraction].
+     *
+     * The value is allowed past the stepped range, down to [COLLAPSE_FRACTION]
+     * and up to `1 - [COLLAPSE_FRACTION]`. Past those the layout collapses
+     * instead — that is the "drag it all the way to one side and let go" gesture,
+     * and it has to be reachable by dragging, not by a separate control.
+     */
+    fun withDraggedFraction(fraction: Float): PaneLayout {
+        if (!isSplit) return this
+        val dragged = fraction.coerceIn(COLLAPSE_FRACTION, 1f - COLLAPSE_FRACTION)
+        return copy(splitFraction = dragged)
+    }
+
+    /**
+     * Chooses the step for a released drag, or collapses the split.
+     *
+     * A release nearest either edge collapses to a single pane: the divider ends
+     * up as a stub against the edge with no room to grab it again, so the only
+     * honest outcome is that there is no divider any more.
+     *
+     * Otherwise it snaps to the nearest [SPLIT_STEP], which is what makes the
+     * five positions a control rather than a slider.
+     */
+    fun commitDraggedFraction(): PaneLayout {
+        if (!isSplit) return this
+        val dragged = splitFraction
+        if (dragged <= COLLAPSE_FRACTION || dragged >= 1f - COLLAPSE_FRACTION) {
+            return collapsed()
+        }
+        return withSplitFraction(dragged)
+    }
+
+    /**
+     * The split collapses and the surviving session becomes the primary one.
+     *
+     * Dragging the divider *down* shrinks the lower pane, so what is left is the
+     * top one — and [secondarySwapped] decides which session that actually is.
+     * Without the swap, a collapse after a swap would keep the wrong session,
+     * which is the most confusing outcome this feature can produce: the user
+     * swapped, dragged one way, and lost the pane they were looking at.
+     *
+     * The session id itself is dropped either way. The layout does not know
+     * which id is primary — that is the terminal manager's — so it records the
+     * survivor and lets the caller promote it.
+     */
+    fun collapsedSurvivingSlot(): PaneSlot {
+        val bottomSurvives = splitFraction <= 0.5f
+        return if (secondarySwapped) {
+            if (bottomSurvives) PaneSlot.SECONDARY else PaneSlot.PRIMARY
+        } else {
+            if (bottomSurvives) PaneSlot.PRIMARY else PaneSlot.SECONDARY
+        }
+    }
+
+    /**
+     * Drops the split, keeping the session that was on top.
+     *
+     * This is the simple case, used where the caller does not track which id is
+     * in which slot — the divider drag, where the terminal manager promotes the
+     * survivor itself.
+     */
+    fun collapsed(): PaneLayout = copy(secondarySessionId = null)
 
     /**
      * Moves the divider, snapping it to the nearest [SPLIT_STEP].
@@ -132,6 +220,16 @@ data class PaneLayout(
         return copy(splitFraction = snapped)
     }
 
+    /**
+     * Swaps which session is on top.
+     *
+     * The divider position is deliberately left alone. A swap is about *which*
+     * session is where, and carrying the height across means the pane the user
+     * was working in keeps its size — which is the one thing they did not ask to
+     * change.
+     */
+    fun swapped(): PaneLayout = copy(secondarySwapped = !secondarySwapped)
+
     /** The split positions a drag can land on, smallest first. */
     fun splitSteps(): List<Float> = (MIN_SPLIT_STEPS..MAX_SPLIT_STEPS)
         .map { it * SPLIT_STEP }
@@ -143,7 +241,6 @@ data class PaneLayout(
     /** Floats the second pane over the first at its remembered bounds. */
     fun floating(): PaneLayout =
         copy(presentation = PanePresentation.FLOATING, maximized = false)
-
     /** Toggles between docked and floating without losing the split. */
     fun togglePresentation(): PaneLayout = when (presentation) {
         PanePresentation.DOCKED -> floating()
@@ -210,8 +307,29 @@ data class PaneLayout(
         const val MIN_FLOAT_HEIGHT = 0.25f
         const val MAX_FLOAT_HEIGHT = 1.0f
 
-        /** How far past the host edge a floating pane may be dragged. */
-        const val OVERSCAN = 0.04f
+        /**
+         * How far past the host edge a floating pane may be dragged.
+         *
+         * Generous — 30% — because "I want it half off screen to see the thing
+         * behind it" is the entire point of a floating window, and the old 4%
+         * made that impossible.
+         *
+         * Not unlimited, and the limit is deliberate: a window dragged entirely
+         * outside its host has no visible edge to grab, and the only way back is
+         * to kill the process. Thirty percent leaves a strip on one side for
+         * every position, which is as far as "mostly off screen" can go while
+         * staying recoverable by touch.
+         */
+        const val OVERSCAN = 0.30f
+
+        /**
+         * Where a divider drag stops meaning "resize" and means "collapse".
+         *
+         * A tenth of the height from either edge. Below it, the surviving pane
+         * would be too short to show a prompt and some output, which is not a
+         * usable split — so a release there closes it instead.
+         */
+        const val COLLAPSE_FRACTION = 0.1f
 
         /** No second pane. */
         val EMPTY: PaneLayout = PaneLayout(secondarySessionId = null)

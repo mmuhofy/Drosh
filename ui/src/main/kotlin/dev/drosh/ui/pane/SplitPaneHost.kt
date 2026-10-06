@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
@@ -72,7 +75,9 @@ fun SplitPaneHost(
     onSplitFractionChange: (Float) -> Unit,
     onSplitFractionCommit: () -> Unit,
     onFloatingBoundsChange: (NormalizedRect) -> Unit,
-    onToggleMaximized: () -> Unit,
+    onDock: () -> Unit,
+    onClosePane: () -> Unit,
+    onSwapPanes: () -> Unit,
     modifier: Modifier = Modifier,
     floatingTitle: String = "",
     primary: @Composable () -> Unit,
@@ -92,12 +97,12 @@ fun SplitPaneHost(
             primary()
             FloatingPaneWindow(
                 bounds = layout.floatingBounds,
-                maximized = layout.maximized,
                 title = floatingTitle,
                 hostWidthPx = widthPx,
                 hostHeightPx = heightPx,
                 onBoundsChange = onFloatingBoundsChange,
-                onToggleMaximized = onToggleMaximized,
+                onDock = onDock,
+                onClose = onClosePane,
                 modifier = Modifier.fillMaxSize(),
                 content = secondary,
             )
@@ -107,34 +112,53 @@ fun SplitPaneHost(
         // Top pane, divider, bottom pane. Stacked rather than side by side: two
         // 180dp columns of terminal are about ten characters wide, narrower than
         // most paths, while a shorter-but-full-width pane still reads.
+        //
+        // The two panes are replaced by nothing at all while the divider is
+        // held. That is the single change that makes the drag feel like moving
+        // something: a TerminalView is a real View doing a real relayout on every
+        // height change, and two of them re-measuring per frame while a finger is
+        // on the seam is what produced the juddering. The divider follows the
+        // finger alone, and the panes come back on release.
+        var dragging by remember { mutableStateOf(false) }
+
         val topPx = (layout.splitFraction * heightPx)
             .roundToInt()
             .coerceIn(1, (heightPx - 1).toInt())
         val bottomPx = (heightPx - topPx).roundToInt().coerceAtLeast(1)
 
         Box(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier
-                    .size(
-                        width = with(density) { widthPx.toDp() },
-                        height = with(density) { topPx.toDp() },
-                    ),
-            ) { primary() }
+            // Out of composition while dragging rather than made transparent: an
+            // invisible View still lays out, still redraws, and still costs the
+            // frame the drag needs.
+            if (!dragging) {
+                Box(
+                    modifier = Modifier
+                        .size(
+                            width = with(density) { widthPx.toDp() },
+                            height = with(density) { topPx.toDp() },
+                        ),
+                ) { primary() }
 
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(0, topPx) }
-                    .size(
-                        width = with(density) { widthPx.toDp() },
-                        height = with(density) { bottomPx.toDp() },
-                    ),
-            ) { secondary() }
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(0, topPx) }
+                        .size(
+                            width = with(density) { widthPx.toDp() },
+                            height = with(density) { bottomPx.toDp() },
+                        ),
+                ) { secondary() }
+            }
 
             SplitDivider(
-                // Clamped and snapped in the model; this only turns pixels back
-                // into a fraction.
+                // Clamped in the model, in two different ways: freely while
+                // dragging, snapped to a step on release.
                 onDrag = { deltaPx -> onSplitFractionChange((topPx + deltaPx) / heightPx) },
-                onDragEnd = onSplitFractionCommit,
+                onDragStart = { dragging = true },
+                onDragEnd = {
+                    dragging = false
+                    onSplitFractionCommit()
+                },
+                onDoubleTap = onSwapPanes,
                 // Straddles the seam, so the seam line stays visible on both
                 // sides of the grip rather than the grip covering it.
                 modifier = Modifier.offset {
@@ -160,11 +184,22 @@ fun SplitPaneHost(
  * It lights with the accent only while held. A permanently lit pill competes
  * with the output on either side of it, which is the one thing a terminal
  * should not do.
+ *
+ * Two gestures, on purpose, and neither conflicts with the other:
+ *  - **drag** moves the seam, freely, and snaps to a step on release
+ *  - **double tap** swaps the two sessions, which is the only way to change
+ *    which is on top — the divider sets heights, not order
+ *
+ * They do not collide because the drag needs a move and the tap needs two
+ * stationary presses, and Compose's own double-tap detector claims the second
+ * one before a drag could start from it.
  */
 @Composable
 private fun SplitDivider(
     onDrag: (Float) -> Unit,
+    onDragStart: () -> Unit,
     onDragEnd: () -> Unit,
+    onDoubleTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var dragging by remember { mutableStateOf(false) }
@@ -189,9 +224,19 @@ private fun SplitDivider(
         modifier = modifier
             .fillMaxWidth()
             .height(DIVIDER_HIT_HEIGHT)
+            // Tap first, drag second: detectTapGestures installs a
+            // double-tap detector that has to see the second press before any
+            // drag can start from it. Reversing the order means the drag claims
+            // the pointer on the first movement and the tap never completes.
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { onDoubleTap() })
+            }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
-                    onDragStart = { dragging = true },
+                    onDragStart = {
+                        dragging = true
+                        onDragStart()
+                    },
                     onDragEnd = {
                         dragging = false
                         onDragEnd()
@@ -252,36 +297,42 @@ private val SEAM_THICKNESS = 1.dp
 @Composable
 private fun FloatingPaneWindow(
     bounds: NormalizedRect,
-    maximized: Boolean,
     title: String,
     hostWidthPx: Float,
     hostHeightPx: Float,
     onBoundsChange: (NormalizedRect) -> Unit,
-    onToggleMaximized: () -> Unit,
+    onDock: () -> Unit,
+    onClose: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
 
-    if (maximized) {
-        // Full-bleed rather than a card at the host's edges: a maximized window
-        // that still showed its own border and corners would read as a window on
-        // top of a window.
-        Box(modifier = modifier) {
-            content()
-            FloatingPaneTitleBar(
-                title = title,
-                onToggleMaximized = onToggleMaximized,
-                modifier = Modifier.align(Alignment.TopStart),
-            )
-        }
-        return
-    }
-
     val widthPx = (bounds.width * hostWidthPx).roundToInt().coerceAtLeast(1)
     val heightPx = (bounds.height * hostHeightPx).roundToInt().coerceAtLeast(1)
     val leftPx = (bounds.left * hostWidthPx).roundToInt()
     val topPx = (bounds.top * hostHeightPx).roundToInt()
+
+    /**
+     * The bounds the current gesture started from.
+     *
+     * The bug this exists to fix: `pointerInput(Unit)` does not restart when its
+     * captured values change, so a `pointerInput(Unit) { detectDragGestures {
+     * onDrag(bounds.copy(left = bounds.left + dx)) } }` applies every delta to
+     * the bounds as they were when the finger went down. Each event recomputed
+     * from the same stale base, so the window advanced by the *last* delta only
+     * and sprang back when the drag ended — which reads as the pane shuddering
+     * in place rather than moving.
+     *
+     * Accumulating from a remembered start point instead makes each delta
+     * additive on the previous one, which is what a drag means. The
+     * `rememberUpdatedState` keeps the callback itself fresh without restarting
+     * the gesture.
+     */
+    val liveBounds by rememberUpdatedState(bounds)
+    val latestOnBoundsChange by rememberUpdatedState(onBoundsChange)
+
+    var dragOrigin by remember { mutableStateOf<NormalizedRect?>(null) }
 
     Box(modifier = modifier) {
         // A Box around the Column, not a Column around the Box. The resize grip
@@ -303,15 +354,19 @@ private fun FloatingPaneWindow(
             Column(modifier = Modifier.fillMaxSize()) {
                 FloatingPaneTitleBar(
                     title = title,
-                    onToggleMaximized = onToggleMaximized,
+                    onDock = onDock,
+                    onClose = onClose,
+                    onDragStart = { dragOrigin = bounds },
                     onDrag = { deltaX, deltaY ->
-                        onBoundsChange(
-                            bounds.copy(
-                                left = bounds.left + deltaX / hostWidthPx,
-                                top = bounds.top + deltaY / hostHeightPx,
-                            ),
+                        val from = dragOrigin ?: return@FloatingPaneTitleBar
+                        val moved = from.copy(
+                            left = from.left + deltaX / hostWidthPx,
+                            top = from.top + deltaY / hostHeightPx,
                         )
+                        dragOrigin = moved
+                        latestOnBoundsChange(moved)
                     },
+                    onDragEnd = { dragOrigin = null },
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -319,14 +374,17 @@ private fun FloatingPaneWindow(
             }
 
             ResizeGrip(
+                onDragStart = { dragOrigin = bounds },
                 onDrag = { deltaX, deltaY ->
-                    onBoundsChange(
-                        bounds.copy(
-                            width = bounds.width + deltaX / hostWidthPx,
-                            height = bounds.height + deltaY / hostHeightPx,
-                        ),
+                    val from = dragOrigin ?: return@ResizeGrip
+                    val moved = from.copy(
+                        width = from.width + deltaX / hostWidthPx,
+                        height = from.height + deltaY / hostHeightPx,
                     )
+                    dragOrigin = moved
+                    latestOnBoundsChange(moved)
                 },
+                onDragEnd = { dragOrigin = null },
                 modifier = Modifier.align(Alignment.BottomEnd),
             )
         }
@@ -334,34 +392,53 @@ private fun FloatingPaneWindow(
 }
 
 /**
- * The draggable title bar of a floating pane.
+ * The chrome of a floating pane: its title, a dock button and a close button.
  *
- * Carries the session name, so a window that has been moved off to one corner
- * still says what it is — otherwise a floating terminal is just a rectangle
- * someone forgot to close.
+ * ## Why there is no maximise button
+ *
+ * There was one, and it expanded the window to fill the host — which is a mode
+ * with no way out that means anything. Once full-bleed the window *is* the
+ * pane, so the button that shrank it again was the only control left, and a
+ * user who wanted the terminal back had to find it.
+ *
+ * Both buttons now do something that ends in a normal terminal: **dock** makes
+ * the window a proper lower pane with a divider, and **close** drops it and
+ * leaves the single pane underneath. Neither is a mode.
+ *
+ * The title carries the session name, so a window moved off to one corner still
+ * says what it is — otherwise a floating terminal is a rectangle someone forgot
+ * to close.
  */
 @Composable
 private fun FloatingPaneTitleBar(
     title: String,
-    onToggleMaximized: () -> Unit,
+    onDock: () -> Unit,
+    onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onDragStart: () -> Unit = {},
     onDrag: ((Float, Float) -> Unit)? = null,
+    onDragEnd: () -> Unit = {},
 ) {
     Row(
         modifier = modifier
-            .height(40.dp)
+            .height(FLOATING_CHROME_HEIGHT)
             .background(DroshSurfaceHigh)
             .then(
                 if (onDrag == null) Modifier else Modifier.pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        onDrag(dragAmount.x, dragAmount.y)
-                    }
+                    detectDragGestures(
+                        onDragStart = { onDragStart() },
+                        onDragEnd = { onDragEnd() },
+                        onDragCancel = { onDragEnd() },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            onDrag(dragAmount.x, dragAmount.y)
+                        },
+                    )
                 },
             )
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = title,
@@ -374,9 +451,16 @@ private fun FloatingPaneTitleBar(
         )
 
         FloatingPaneButton(
-            icon = DroshIcons.Maximize,
-            contentDescription = "Fill the screen",
-            onClick = onToggleMaximized,
+            icon = DroshIcons.PanelBottom,
+            contentDescription = "Alt pane'e sabitle",
+            onClick = onDock,
+        )
+
+        FloatingPaneButton(
+            icon = DroshIcons.X,
+            contentDescription = "Bu session'i kapat",
+            onClick = onClose,
+            tint = DroshError,
         )
     }
 }
@@ -391,13 +475,19 @@ private fun FloatingPaneTitleBar(
 @Composable
 private fun ResizeGrip(
     onDrag: (Float, Float) -> Unit,
+    onDragStart: () -> Unit,
+    onDragEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .size(GRIP_SIZE)
             .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
+                detectDragGestures(
+                    onDragStart = { onDragStart() },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() },
+                ) { change, dragAmount ->
                     change.consume()
                     if (abs(dragAmount.x) >= abs(dragAmount.y)) {
                         onDrag(dragAmount.x, 0f)
@@ -427,10 +517,11 @@ private fun FloatingPaneButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
+    tint: androidx.compose.ui.graphics.Color = DroshText,
 ) {
     Box(
         modifier = Modifier
-            .size(28.dp)
+            .size(FLOATING_BUTTON_SIZE)
             .clip(CircleShape)
             .background(DroshSurface)
             .clickable(
@@ -443,8 +534,14 @@ private fun FloatingPaneButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = DroshText,
-            modifier = Modifier.size(15.dp),
+            tint = tint,
+            modifier = Modifier.size(FLOATING_BUTTON_ICON),
         )
     }
 }
+
+/** The floating pane's title bar: tall enough to grab, short enough to ignore. */
+private val FLOATING_CHROME_HEIGHT = 40.dp
+
+private val FLOATING_BUTTON_SIZE = 28.dp
+private val FLOATING_BUTTON_ICON = 15.dp

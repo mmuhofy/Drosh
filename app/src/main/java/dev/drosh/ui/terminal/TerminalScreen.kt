@@ -674,7 +674,9 @@ private fun ReadyScreen(
             onSplitFractionChange = paneLayoutViewModel::dragSplitFraction,
             onSplitFractionCommit = paneLayoutViewModel::commitSplitFraction,
             onFloatingBoundsChange = paneLayoutViewModel::dragFloatingBounds,
-            onToggleMaximized = paneLayoutViewModel::toggleMaximized,
+            onDock = paneLayoutViewModel::dock,
+            onClosePane = paneLayoutViewModel::closeFloatingPane,
+            onSwapPanes = paneLayoutViewModel::swapPanes,
             floatingTitle = secondarySessionName,
             // weight, not fillMaxSize. Each pane draws its own extra-key bar, so
             // the host has to take only the height the Column has left over —
@@ -744,6 +746,29 @@ private fun ReadyScreen(
                 )
             },
         )
+
+        /**
+         * One extra-key bar for the whole screen, below the panes.
+         *
+         * It used to be drawn inside each pane, which meant a split carried two
+         * — one under each terminal, both claiming the full width, both
+         * answering for a keyboard that only ever types into one of them. A
+         * special key is not a property of a pane; it is a property of *the*
+         * keyboard. `inputBarViewModel` already routes an intent to whichever
+         * pane `TerminalManager.focusedPane` names, so one bar is both correct
+         * and sufficient.
+         *
+         * Drawn outside [SplitPaneHost] so it stays put when the divider moves —
+         * inside it, the bar would travel with whichever pane it belonged to.
+         */
+        if (!inputBarState.hardwareKeyboardPresent) {
+            FlatKeyBar(
+                ctrlStuck = inputBarState.ctrlStuck,
+                altStuck = inputBarState.altStuck,
+                onIntent = inputBarViewModel::onIntent,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 
         // Selection menu. Anchored to the selection, whose bounds are in
@@ -829,6 +854,7 @@ private fun ReadyScreen(
                 onToggleFloat = paneLayoutViewModel::togglePresentation,
                 onCloseSplit = paneLayoutViewModel::closeSplit,
                 onCycleSplit = paneLayoutViewModel::cycleSplitFraction,
+                onSwapPanes = paneLayoutViewModel::swapPanes,
         )
 
         // Slider overlay trigger — BackHandler kalıyor, SessionSidebar
@@ -1008,12 +1034,43 @@ private fun ReadyScreen(
             null
         },
         isSplit = paneLayout.isSplit,
-        // Only named while both are on screen. A banner listing one session and
-        // a blank would be worse than no banner.
-        splitTitles = if (paneLayout.isSplit) {
-            activeSessionName to secondarySessionName
-        } else {
-            null
+        /**
+         * Ids, not names, and in the order they are drawn: the upper pane
+         * first. The drawer's pair card mirrors the screen, and a swap changes
+         * that order — a pair of names could not express it, so the card would
+         * show the old arrangement while the terminal had already swapped.
+         *
+         * Both halves have to be a real session before the pair is offered.
+         * [activeId] is nullable and the compiler infers a different nullability
+         * for each branch here — one side is `secondary`, which is non-null by
+         * the `let`, the other is `activeId` — so a `top to bottom` pair comes
+         * out as `Pair<String, String?>` and does not fit. Both are resolved to
+         * a local first, and a split missing either session is not drawn rather
+         * than drawn with a blank half: a card naming one session and an empty
+         * space beside it is worse than no card.
+         */
+        splitSessions = paneLayout.secondarySessionId?.let { secondary ->
+            val primaryId = activeId
+            if (primaryId != null) {
+                if (paneLayout.secondarySwapped) secondary to primaryId
+                else primaryId to secondary
+            } else {
+                null
+            }
+        },
+        onCloseSplit = { paneLayoutViewModel.closeSplit() },
+        onSwapPanes = { paneLayoutViewModel.swapPanes() },
+        /**
+         * The press-and-drop split: hold one session, tap another, and the two
+         * share the screen with the held one on top.
+         *
+         * Which one goes on top follows the gesture rather than the terminal's
+         * current session, because the gesture is the whole instruction — hold a
+         * card, drop it on another, and the card you held is the one you were
+         * pointing at.
+         */
+        onDragSplit = { draggedId, targetId ->
+            paneLayoutViewModel.splitWithPrimary(draggedId, targetId)
         },
     )
     }
@@ -1283,15 +1340,15 @@ private fun TerminalPaneBody(
                 )
             }
         }
-
-        if (!inputBarState.hardwareKeyboardPresent) {
-            FlatKeyBar(
-                ctrlStuck = inputBarState.ctrlStuck,
-                altStuck = inputBarState.altStuck,
-                onIntent = inputBarViewModel::onIntent,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        // No extra-key bar here.
+        //
+        // It used to be drawn per pane, which meant a split screen carried two
+        // of them — one under each terminal, both claiming the whole width. A
+        // special key is not a property of a pane, it is a property of *the*
+        // keyboard: the thing being typed goes to whichever pane has focus, so
+        // one bar at the bottom is the honest control. It is drawn by the caller,
+        // outside SplitPaneHost, so it sits below both panes and stays put when
+        // the divider moves.
     }
 }
 

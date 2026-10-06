@@ -24,6 +24,7 @@ import compose.icons.lucideicons.ArrowDown
 import compose.icons.lucideicons.ArrowLeft
 import compose.icons.lucideicons.ArrowRight
 import compose.icons.lucideicons.ArrowUp
+import compose.icons.lucideicons.ArrowUpDown
 import compose.icons.lucideicons.Check
 import compose.icons.lucideicons.ChevronDown
 import compose.icons.lucideicons.ChevronUp
@@ -46,6 +47,7 @@ import compose.icons.lucideicons.Monitor
 import compose.icons.lucideicons.Maximize
 import compose.icons.lucideicons.Minimize
 import compose.icons.lucideicons.Minus
+import compose.icons.lucideicons.PanelBottom
 import compose.icons.lucideicons.PanelLeft
 import compose.icons.lucideicons.Package
 import compose.icons.lucideicons.Pencil
@@ -83,6 +85,7 @@ object DroshIcons {
     val ArrowLeft: ImageVector get() = LucideIcons.ArrowLeft
     val ArrowRight: ImageVector get() = LucideIcons.ArrowRight
     val ArrowUp: ImageVector get() = LucideIcons.ArrowUp
+    val ArrowUpDown: ImageVector get() = LucideIcons.ArrowUpDown
     val ChevronRight: ImageVector get() = LucideIcons.ChevronRight
     val Sun: ImageVector get() = LucideIcons.Sun
     val Moon: ImageVector get() = LucideIcons.Moon
@@ -117,6 +120,7 @@ object DroshIcons {
     val Monitor: ImageVector get() = LucideIcons.Monitor
     val Package: ImageVector get() = LucideIcons.Package
     val PanelLeft: ImageVector get() = LucideIcons.PanelLeft
+    val PanelBottom: ImageVector get() = LucideIcons.PanelBottom
     val Pencil: ImageVector get() = LucideIcons.Pencil
     val Play: ImageVector get() = LucideIcons.Play
     val Plus: ImageVector get() = LucideIcons.Plus
