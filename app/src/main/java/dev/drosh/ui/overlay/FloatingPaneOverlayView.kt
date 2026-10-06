@@ -43,11 +43,13 @@ class FloatingPaneOverlayView(
     /**
      * True while this pane holds the keyboard.
      *
-     * The overlay does not focus itself. A window that takes the IME on appearing
-     * takes it from whatever the user was doing in the app underneath, so the
-     * pane starts unfocused and takes the keyboard only when asked.
+     * Named for the keyboard rather than simply `isFocused` because `View` already
+     * has an `isFocused()` getter with that exact JVM signature, and a property
+     * named after it is an accidental override. The distinction is real too:
+     * Android focus here means "takes key events", while what the user is asking
+     * about is the IME, and a pane can hold one without the other.
      */
-    var isFocused: Boolean = false
+    var paneFocused: Boolean = false
         private set
 
     /** Invoked when the user closes the pane. */
@@ -113,8 +115,8 @@ class FloatingPaneOverlayView(
      * the app underneath would make this pane feel like it had not really let go.
      */
     fun setFocused(focused: Boolean) {
-        if (isFocused == focused) return
-        isFocused = focused
+        if (paneFocused == focused) return
+        paneFocused = focused
         if (focused) {
             terminalManager.focusPane(slot)
             terminalView.requestFocus()
