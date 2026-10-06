@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.core.content.ContextCompat
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.domain.terminal.SystemOverlayController
 import javax.inject.Inject
@@ -26,7 +27,11 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 @Singleton
 class ServiceSystemOverlayController @Inject constructor(
-    private val context: Context,
+    // Qualified because the unqualified Context binding only exists in the
+    // component of an Activity or Service. This one is in the SingletonComponent,
+    // so without the qualifier Dagger reports no binding — and the failure appears
+    // at Hilt's Java compile step, a long way from this constructor.
+    @ApplicationContext private val context: Context,
 ) : SystemOverlayController {
 
     private val _isAttached = MutableStateFlow(false)
