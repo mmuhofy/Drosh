@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
 import net.schmizz.keepalive.KeepAliveProvider
 import net.schmizz.sshj.DefaultConfig
 import net.schmizz.sshj.SSHClient
-import net.schmizz.sshj.connection.channel.direct.Session.PTYMode
+import net.schmizz.sshj.connection.channel.direct.PTYMode
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import java.io.File
 import java.security.MessageDigest
