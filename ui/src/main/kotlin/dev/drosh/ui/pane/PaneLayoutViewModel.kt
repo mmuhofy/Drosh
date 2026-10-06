@@ -6,6 +6,7 @@ import dev.drosh.domain.terminal.NormalizedRect
 import dev.drosh.domain.terminal.PaneLayout
 import dev.drosh.domain.terminal.PaneLayoutRepository
 import dev.drosh.domain.terminal.PaneSessionBinder
+import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.domain.terminal.SystemOverlayController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
