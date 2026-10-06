@@ -92,3 +92,4 @@ secrets.properties
 
 # Native libs decrypted at runtime
 !gradle/wrapper/gradle-wrapper.jar
+mockups/
