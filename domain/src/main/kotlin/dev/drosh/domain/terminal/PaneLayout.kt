@@ -101,6 +101,17 @@ data class PaneLayout(
     val presentation: PanePresentation = PanePresentation.DOCKED,
     val floatingBounds: NormalizedRect = NormalizedRect.DEFAULT,
     /**
+     * The floating bounds the pane had just before it was parked, or null when it
+     * is not parked.
+     *
+     * Parking overwrites [floatingBounds] with a sliver at the edge; remembering the
+     * rect it replaced is the only way back. Without it, bringing the pane back
+     * would restore `NormalizedRect.DEFAULT` — centred, 92% by 70% — rather than
+     * the size and place the user explicitly arranged, which is exactly what
+     * made it "reset to zero" after they had put it somewhere on purpose.
+     */
+    val preEdgeSnapBounds: NormalizedRect? = null,
+    /**
      * True when the floating pane is tucked against an edge as a sliver.
      *
      * A window dragged to the very edge is not really in the way, but it still
@@ -263,7 +274,7 @@ data class PaneLayout(
 
     /** Docks the second pane beside the first, dropping any float state. */
     fun docked(): PaneLayout =
-        copy(presentation = PanePresentation.DOCKED, edgeSnapped = false)
+        copy(presentation = PanePresentation.DOCKED, edgeSnapped = false, preEdgeSnapBounds = null)
 
     /** Floats the second pane over the first at its remembered bounds. */
     fun floating(): PaneLayout =
@@ -301,13 +312,23 @@ data class PaneLayout(
             nearTop -> b.copy(top = 0f, height = EDGE_SLIVER)
             else -> b.copy(top = 1f - EDGE_SLIVER, height = EDGE_SLIVER)
         }
-        return copy(floatingBounds = snapped, edgeSnapped = true)
+        // Already parked? Keep the original reported once, rather than repeatedly
+        // widening the memory of what "normal" size was.
+        return copy(
+            floatingBounds = snapped,
+            edgeSnapped = true,
+            preEdgeSnapBounds = if (edgeSnapped) preEdgeSnapBounds else b,
+        )
     }
 
     /** Undoes [withEdgeSnap], putting the pane back at its remembered size. */
     fun unedgeSnapped(): PaneLayout {
         if (!edgeSnapped) return this
-        return copy(floatingBounds = NormalizedRect.DEFAULT, edgeSnapped = false)
+        return copy(
+            floatingBounds = preEdgeSnapBounds ?: NormalizedRect.DEFAULT,
+            edgeSnapped = false,
+            preEdgeSnapBounds = null,
+        )
     }
 
     /** Toggles between docked and floating without losing the split. */
@@ -345,6 +366,7 @@ data class PaneLayout(
         else copy(
             presentation = PanePresentation.SYSTEM_OVERLAY,
             edgeSnapped = false,
+            preEdgeSnapBounds = null,
         )
 
     /**
