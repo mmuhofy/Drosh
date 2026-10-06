@@ -818,8 +818,7 @@ private fun SessionRow(
                     val touchSlop = with(density) { TOUCH_SLOP.toPx() }
                     val menuAfter = viewConfig.longPressTimeoutMillis
                     val dragAfter = (menuAfter * DRAG_HOLD_MULTIPLIER).toLong()
-                    var armedForDrag = false
-                    var menuShown = false
+                    var dragStarted = false
 
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -835,13 +834,10 @@ private fun SessionRow(
                                 change.consume()
                                 val held = System.currentTimeMillis() - startedAt
                                 when {
-                                    armedForDrag -> Unit
-                                    menuShown -> menuOpen = false
-                                    held >= dragAfter -> {
-                                        armedForDrag = true
-                                        onDragStart()
-                                    }
+                                    dragStarted -> Unit
                                     isDropTarget -> onDrop(snapshot.id)
+                                    held >= menuAfter -> Unit // menu is opened below, not a tap
+                                    menuOpen -> menuOpen = false
                                     else -> onClick()
                                 }
                                 break
@@ -849,17 +845,13 @@ private fun SessionRow(
 
                             val held = System.currentTimeMillis() - startedAt
 
-                            // Movement before the drag threshold means this is a
-                            // scroll, not a press, and the gesture has to be given
-                            // back — otherwise a finger resting on a row while the
-                            // drawer scrolls would pick the row up.
-                            //
-                            // Past the threshold it is ours, and consuming stops
-                            // the drawer scrolling underneath the drag.
+                            // Rolling the finger first means this is a scroll, and the
+                            // gesture has to be returned — otherwise a finger resting on a
+                            // row while the drawer moves would pick the row up.
                             val movement = change.positionChange()
                             val travelled = hypot(movement.x, movement.y)
                             if (travelled != 0f) {
-                                if (held >= dragAfter && dragEnabled) {
+                                if (dragStarted) {
                                     consumedMove = true
                                     change.consume()
                                 } else if (travelled > touchSlop) {
@@ -867,21 +859,23 @@ private fun SessionRow(
                                 }
                             }
 
-                            // Sitting still past the menu threshold opens the menu
-                            // on the way to becoming a drag: the user can see it
-                            // appear and keep holding, which is what tells them
-                            // there is something further along.
-                            if (!menuShown && !armedForDrag && held >= menuAfter) {
-                                menuShown = true
-                                if (!dragEnabled) {
-                                    menuOpen = true
-                                    break
-                                }
+                            // A *longer* hold enters drag mode. The menu is a separate,
+                            // short release; one gesture must not open a menu and also
+                            // start a drag, so the drag path clears it.
+                            if (!dragStarted && dragEnabled && held >= dragAfter) {
+                                dragStarted = true
+                                menuOpen = false
+                                onDragStart()
                             }
                         }
 
-                        if (!consumedMove) {
-                            armedForDrag = false
+                        // Release without ever starting the drag, but past the long-press
+                        // threshold. That is "short hold": open the menu and leave it up.
+                        if (!dragStarted && !consumedMove) {
+                            val held = System.currentTimeMillis() - startedAt
+                            if (held >= menuAfter && !menuOpen) {
+                                menuOpen = true
+                            }
                         }
                     }
                 }

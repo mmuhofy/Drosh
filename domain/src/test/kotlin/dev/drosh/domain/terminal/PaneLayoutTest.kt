@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.Assert.assertNull
 
 /**
  * The divider and the floating window.
@@ -439,6 +440,39 @@ class PaneLayoutTest {
         val floating = split().floating()
 
         assertEquals(floating, floating.dockedFromOverlay())
+    }
+
+    @Test
+    fun `parking at an edge remembers the size it had and restores it`() {
+        val sized = split().floating().withFloatingBounds(
+            NormalizedRect(left = 0.10f, top = 0.20f, width = 0.60f, height = 0.50f),
+        )
+
+        val parked = sized.withEdgeSnap()
+
+        assertTrue(parked.edgeSnapped)
+        // Bringing it back must not reset it to the default rect.
+        assertEquals(sized.floatingBounds, parked.unedgeSnapped().floatingBounds)
+    }
+
+    @Test
+    fun `parking twice keeps the original size, not the second sliver`() {
+        val sized = split().floating().withFloatingBounds(
+            NormalizedRect(left = 0.10f, top = 0.20f, width = 0.60f, height = 0.50f),
+        )
+
+        val parked = sized.withEdgeSnap().withEdgeSnap()
+
+        assertEquals(sized.floatingBounds, parked.unedgeSnapped().floatingBounds)
+    }
+
+    @Test
+    fun `docking forgets the remembered float size`() {
+        val sized = split().floating().withFloatingBounds(
+            NormalizedRect(left = 0.10f, top = 0.20f, width = 0.60f, height = 0.50f),
+        )
+
+        assertNull(sized.withEdgeSnap().docked().preEdgeSnapBounds)
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

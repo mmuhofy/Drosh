@@ -249,8 +249,17 @@ fun SplitPaneHost(
                 onDoubleTap = onSwapPanes,
                 // Straddles the seam, so the seam line stays visible on both
                 // sides of the grip rather than the grip covering it.
+                //
+                // Uses [topPx] rather than the drag's own position when not
+                // dragging. [dragTopPx] is an *absolute* pixel value, but the
+                // model stores fractions — so the moment the host resizes for an
+                // unrelated reason (keyboard, rotation), the stored drag value is
+                // off and the seam sits somewhere the panes are not. The model is
+                // the source of truth between drags; the drag slot is only what
+                // the *current* drag is at.
                 modifier = Modifier.offset {
-                    IntOffset(0, dragTopPx.toInt() - with(density) { DIVIDER_HIT_HEIGHT.toPx() }.toInt() / 2)
+                    val seam = if (dragging) dragTopPx else topPx.toFloat()
+                    IntOffset(0, seam.toInt() - with(density) { DIVIDER_HIT_HEIGHT.toPx() }.toInt() / 2)
                 },
             )
         }
@@ -666,6 +675,22 @@ private fun EdgeSnappedStrip(
                 .padding(horizontal = 8.dp, vertical = 10.dp)
                 .clearAndSetSemantics { },
         )
+        // A small arrow pointing away from the edge, toward the screen. Tapping it
+        // is what un-parks the pane. It exists because the strip itself is small and
+        // its only other affordance would read as "more" or "close" — a one-way
+        // arrow into the screen is the one symbol that always means "bring this
+        // back".
+        val restoreIcon = when {
+            vertical -> if (leftPx <= 0) DroshIcons.ArrowRight else DroshIcons.ArrowLeft
+            topPx <= 0 -> DroshIcons.ArrowDown
+            else -> DroshIcons.ArrowUp
+        }
+        FloatingPaneButton(
+            icon = restoreIcon,
+            contentDescription = "$name geri aç",
+            onClick = onExpand,
+        )
+        Spacer(Modifier.height(6.dp))
         FloatingPaneButton(
             icon = DroshIcons.Maximize,
             contentDescription = "$name geri aç",

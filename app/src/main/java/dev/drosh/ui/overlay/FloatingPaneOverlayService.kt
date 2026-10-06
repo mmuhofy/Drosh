@@ -142,6 +142,12 @@ class FloatingPaneOverlayService : LifecycleService() {
         // The handover. Replaces the activity's view for this slot; the layout now
         // says SYSTEM_OVERLAY so the activity's composition stops building one.
         terminalManager.registerPaneView(target, host.terminalView, this)
+        // Activate this pane as the one the flows describe. Without it, the pane's
+        // output is built for a view that is not the session client's active one, so
+        // typing echoes but the screen never refreshes until some other pane is
+        // tapped. focusPane also attaches the session and binds selection/scroll,
+        // which is what makes the overlay live rather than a snapshot.
+        terminalManager.focusPane(target)
         overlayView = host
         slot = target
     }
