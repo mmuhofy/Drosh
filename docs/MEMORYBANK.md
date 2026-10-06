@@ -1408,6 +1408,12 @@ data class SshHost(
 ⬜ AliasManager.kt — shell alias sync
 ⬜ MultiExec.kt — broadcast SSH commands
     ✅ Workspace.kt, WorkspaceRepository, WorkspacePath, WorkspaceGrouping (§7B)
+    ✅ SSH end-to-end (feature-ssh, PR #36): SshHost/SshKey Room layer,
+       bridged TerminalSession over SSHJ ShellChannel into the vendored
+       termux TerminalEmulator, sidebar → SSH → host list → interactive tab,
+       Trust-On-First-Use host key verifier, EncryptedSharedPreferences
+       credential vault, keep-alive via KeepAliveProvider. Mosh/SFTP/
+       jump-host/port-forwarding still pending.
     ✅ SSH data layer (feature-ssh, PR #36): SshHost/SshKey domain models +
        repositories, SshHostEntity/SshKeyEntity/DAOs, DroshDatabase 4→5 +
        MIGRATION_4_5, Hilt bindings. Interactive session wiring and SSHJ
