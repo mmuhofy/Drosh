@@ -1040,6 +1040,7 @@ private fun ReadyScreen(
             null
         },
         isSplit = paneLayout.isSplit,
+        isFloatingPane = paneLayout.isFloating,
         /**
          * Ids, not names, and in the order they are drawn: the upper pane
          * first. The drawer's pair card mirrors the screen, and a swap changes

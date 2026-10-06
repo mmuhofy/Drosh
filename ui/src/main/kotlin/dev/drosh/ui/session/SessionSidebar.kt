@@ -171,6 +171,20 @@ fun SessionSidebar(
     /** True while a second pane is open, so the rows can show it. */
     isSplit: Boolean = false,
     /**
+     * True while the second pane is a floating window rather than docked.
+     *
+     * The pair card draws a *seam*: a line across a single card, because that is
+     * what a docked split looks like. A floating window is a window on top of
+     * another terminal, and drawing a seam for it says the two halves are
+     * stacked — which is exactly the wrong idea to give someone trying to work
+     * out where their other session went.
+     *
+     * It also changes the card's action: closing a float is `closeSplit`, but
+     * the pane comes *back* to where it was rather than the pair disappearing,
+     * so the wording has to differ.
+     */
+    isFloatingPane: Boolean = false,
+    /**
      * Ids of the two sessions sharing the screen, upper one first.
      *
      * Ids, not names. Swapping the panes changes which session is on top, and a
@@ -219,6 +233,7 @@ fun SessionSidebar(
             onSplitSession = onSplitSession,
             onFloatSession = onFloatSession,
             isSplit = isSplit,
+            isFloatingPane = isFloatingPane,
             splitSessions = splitSessions,
             onCloseSplit = onCloseSplit,
             onSwapPanes = onSwapPanes,
@@ -237,6 +252,7 @@ private fun SidebarContent(
     onSplitSession: ((String) -> Unit)?,
     onFloatSession: ((String) -> Unit)?,
     isSplit: Boolean,
+    isFloatingPane: Boolean,
     splitSessions: Pair<String, String>?,
     onCloseSplit: (() -> Unit)?,
     onSwapPanes: (() -> Unit)?,
@@ -351,6 +367,8 @@ private fun SidebarContent(
                  */
                 val pairAnchor = splitSessions?.first
                 val pairPartner = splitSessions?.second
+                // Both, so a row can ask "am I already in a pane?" in one lookup.
+                val pairOfSessions = setOfNotNull(pairAnchor, pairPartner)
                 // Rank shifts by one for every session drawn inside a pair, so
                 // the recency marks below stay honest.
                 var rankOffset = 0
@@ -359,6 +377,7 @@ private fun SidebarContent(
                     if (snapshot.id == pairAnchor && pairPartner != null) {
                         item(key = "splitpair_${snapshot.id}") {
                             SplitPairCard(
+                                floating = isFloatingPane,
                                 topName = snapshot.name,
                                 bottomName = sessions.firstOrNull { it.id == pairPartner }
                                     ?.name ?: pairPartner,
@@ -395,6 +414,11 @@ private fun SidebarContent(
                                 dragEnabled = onSplitSession != null && onDragSplit != null,
                                 onDragStart = { draggingSessionId = snapshot.id },
                                 isHeldForDrag = draggingSessionId == snapshot.id,
+                                // The session already in a pane cannot be the
+                                // held one: dropping it somewhere would move it,
+                                // not start a split.
+                                isSecondaryPane = snapshot.id in pairOfSessions,
+                                floatingPane = isFloatingPane,
                                 isDropTarget = draggingSessionId != null &&
                                     draggingSessionId != snapshot.id,
                                 onDrop = {
@@ -676,6 +700,17 @@ private fun SessionRow(
     onDrop: (String) -> Unit = {},
     /** True when *this* row is the one currently held. */
     isHeldForDrag: Boolean = false,
+    /**
+     * True when this row's session is the one in the second pane.
+     *
+     * The menu's wording depends on it. "Split below" on the session that is
+     * *already* below describes something that is not what pressing it does —
+     * it replaces the other session — and "Open in window" on the session already
+     * floating offers an action whose result is already on screen.
+     */
+    isSecondaryPane: Boolean = false,
+    /** True while the second pane is a floating window. */
+    floatingPane: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -883,7 +918,12 @@ private fun SessionRow(
             // two detectors race on the same timeout and whichever consumes
             // first wins. A separate grip is unambiguous, and it doubles as the
             // affordance that says a row can be dragged at all.
-            if (onSplit != null && !ended) {
+            //
+            // Hidden on a session that is already in a pane: pressing it there
+            // would replace the pane's other session rather than start a split,
+            // and a grip that means "do something to the other row" is worse than
+            // no grip at all.
+            if (onSplit != null && !ended && !isSecondaryPane) {
                 SplitDragHandle(onSplit = onSplit)
             }
         }
@@ -901,10 +941,32 @@ private fun SessionRow(
                     // artifact is not on this machine to check a name against,
                     // and an icon whose absence only shows up at runtime is not
                     // worth the two lines a custom vector would cost.
-                    add(DroshMenuItem(label = "Split below", icon = DroshIcons.PanelLeft))
+                    add(
+                        DroshMenuItem(
+                            // "Split below" reads as a claim about this session's
+                            // position. Once it *is* the lower pane that claim is
+                            // false — the action swaps the pair — so the entry says
+                            // what it does.
+                            label = if (isSecondaryPane) "Swap into split" else "Split below",
+                            icon = DroshIcons.PanelLeft,
+                        ),
+                    )
                 }
                 if (onFloat != null && !ended) {
-                    add(DroshMenuItem(label = "Open in window", icon = DroshIcons.Square))
+                    add(
+                        DroshMenuItem(
+                            label = when {
+                                isSecondaryPane && floatingPane -> "Dock pane"
+                                isSecondaryPane -> "Open in window"
+                                else -> "Open in window"
+                            },
+                            icon = if (isSecondaryPane && floatingPane) {
+                                DroshIcons.PanelBottom
+                            } else {
+                                DroshIcons.Square
+                            },
+                        ),
+                    )
                 }
                 add(DroshMenuItem(label = "Rename", icon = DroshIcons.Pencil))
                 add(
@@ -963,6 +1025,16 @@ private fun SessionRow(
  */
 @Composable
 private fun SplitPairCard(
+    /**
+     * True when the second pane is a window on top rather than a half below.
+     *
+     * It changes the shape of the card and not just a label: a docked pair is
+     * two stacked terminals, so the card is two names either side of a seam. A
+     * floating window is *over* one of them, so the card is a full-width row with
+     * a small inset one marked as the floating one — drawing a seam for a window
+     * on top is a diagram of something else.
+     */
+    floating: Boolean,
     topName: String,
     bottomName: String,
     isActiveTop: Boolean,
@@ -988,20 +1060,35 @@ private fun SplitPairCard(
             modifier = Modifier.weight(1f),
         )
 
-        // The seam. Matches the divider on the terminal: same colour, same
-        // weight, so the card reads as a miniature of what is on screen.
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .height(28.dp)
-                .background(DroshOutline.copy(alpha = 0.7f)),
-        )
+        // The seam, for a docked pair only. Matches the divider on the terminal:
+        // same colour, same weight, so the card reads as a miniature of what is
+        // on screen.
+        if (!floating) {
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(28.dp)
+                    .background(DroshOutline.copy(alpha = 0.7f)),
+            )
+        }
 
         SplitPairHalf(
             name = bottomName,
             active = isActiveBottom,
             onClick = onOpenBottom,
-            modifier = Modifier.weight(1f),
+            // Inset when floating: the window sits *over* the pane below it, so
+            // it is drawn inside the card's width rather than beside it. Without
+            // the inset the card says "two halves", which is what a docked split
+            // means and not what a floating window means.
+            modifier = if (floating) {
+                Modifier
+                    .weight(1f)
+                    .padding(start = 10.dp, bottom = 6.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DroshSurfaceHigh)
+            } else {
+                Modifier.weight(1f)
+            },
         )
 
         // The same two things the divider and the floating window's chrome can
