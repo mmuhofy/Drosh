@@ -1,5 +1,7 @@
 package dev.drosh.domain.terminal
 
+import kotlin.math.roundToInt
+
 /**
  * A rectangle expressed as fractions of its container, all in 0f..1f.
  *
@@ -54,8 +56,9 @@ enum class PanePresentation {
  * shape.
  *
  * Invariants, all enforced by the constructors below rather than by callers:
- *  - [splitFraction] is clamped to [MIN_SPLIT_FRACTION]..[MAX_SPLIT_FRACTION],
- *    so neither pane can be dragged to zero width and become unrecoverable.
+ *  - [splitFraction] is clamped to [MIN_SPLIT_FRACTION]..[MAX_SPLIT_FRACTION]
+ *    and snapped to a multiple of [SPLIT_STEP], so neither pane can be dragged
+ *    to zero height and become unrecoverable.
  *  - [floatingBounds] never escapes its container by more than
  *    [OVERSCAN], so a pane dragged to the edge still shows a grip to grab.
  *  - There is never a second pane without a session: [withSecondary] refuses
@@ -64,7 +67,18 @@ enum class PanePresentation {
 data class PaneLayout(
     /** Session shown in the second pane, or null when there is no split. */
     val secondarySessionId: String?,
-    /** Width of the primary pane as a fraction of the total, 0.15..0.85. */
+    /**
+     * Height of the top pane as a fraction of the total.
+     *
+     * A height, not a width: the split runs top-to-bottom. Side by side was the
+     * first cut and it was wrong on a phone — two 180dp columns of terminal are
+     * about ten characters wide, which is narrower than most paths, and the
+     * wrapped output is unreadable in a way that a short-but-full-width pane is
+     * not.
+     *
+     * Always a multiple of [SPLIT_STEP], so a stored value and a dragged one
+     * describe the same set of positions.
+     */
     val splitFraction: Float = DEFAULT_SPLIT_FRACTION,
     val presentation: PanePresentation = PanePresentation.DOCKED,
     val floatingBounds: NormalizedRect = NormalizedRect.DEFAULT,
@@ -99,12 +113,28 @@ data class PaneLayout(
     )
 
     /**
-     * Moves the divider. The fraction is clamped rather than rejected, so a
-     * drag that runs past the end of the screen stops at the limit instead of
-     * snapping back.
+     * Moves the divider, snapping it to the nearest [SPLIT_STEP].
+     *
+     * Snapping rather than free positioning: on a phone a divider that stops
+     * anywhere produces panes at heights nobody would have chosen, and the user
+     * has to hold it there with a finger. Five positions is enough to cover any
+     * useful arrangement and each one is reachable with one drag, which is what
+     * makes the divider feel like a control rather than a slider.
+     *
+     * Clamped first, then snapped. Snapping first could round a value that is
+     * past the limit up to a legal step, so a hard drag to the bottom would
+     * land somewhere other than the bottom.
      */
-    fun withSplitFraction(fraction: Float): PaneLayout =
-        copy(splitFraction = fraction.coerceIn(MIN_SPLIT_FRACTION, MAX_SPLIT_FRACTION))
+    fun withSplitFraction(fraction: Float): PaneLayout {
+        val clamped = fraction.coerceIn(MIN_SPLIT_FRACTION, MAX_SPLIT_FRACTION)
+        val steps = (clamped / SPLIT_STEP).roundToInt()
+        val snapped = (steps * SPLIT_STEP).coerceIn(MIN_SPLIT_FRACTION, MAX_SPLIT_FRACTION)
+        return copy(splitFraction = snapped)
+    }
+
+    /** The split positions a drag can land on, smallest first. */
+    fun splitSteps(): List<Float> = (MIN_SPLIT_STEPS..MAX_SPLIT_STEPS)
+        .map { it * SPLIT_STEP }
 
     /** Docks the second pane beside the first, dropping any float state. */
     fun docked(): PaneLayout =
@@ -160,15 +190,20 @@ data class PaneLayout(
         const val DEFAULT_SPLIT_FRACTION = 0.5f
 
         /**
-         * Neither pane may be narrower than this.
+         * One notch of the divider. Twenty percent, five times across.
          *
-         * Below roughly a sixth of a phone's width a terminal fits about ten
-         * characters, which is narrower than most paths — the pane stops being
-         * readable and the user has no way back, because the divider has
-         * scrolled off with the pane it was attached to.
+         * A fifth of the screen is the smallest step that still leaves a pane
+         * tall enough to show a prompt and a few lines of output — which is the
+         * whole use of the lower pane when you split a terminal, watching
+         * something run while you work.
          */
-        const val MIN_SPLIT_FRACTION = 0.15f
-        const val MAX_SPLIT_FRACTION = 0.85f
+        const val SPLIT_STEP = 0.2f
+
+        const val MIN_SPLIT_STEPS = 1
+        const val MAX_SPLIT_STEPS = 4
+
+        const val MIN_SPLIT_FRACTION = 0.2f
+        const val MAX_SPLIT_FRACTION = 0.8f
 
         const val MIN_FLOAT_WIDTH = 0.4f
         const val MAX_FLOAT_WIDTH = 1.0f

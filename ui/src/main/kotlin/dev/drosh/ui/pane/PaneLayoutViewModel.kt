@@ -75,6 +75,18 @@ class PaneLayoutViewModel @Inject constructor(
     fun closeSplit() = apply(_layout.value.cleared(), persist = true)
 
     /**
+     * Opens [sessionId] as a floating window rather than docked below.
+     *
+     * The same "open it in a second pane" intent as [openSplit], with the
+     * presentation chosen up front — so the user does not have to split and
+     * then remember that there was a second thing to toggle.
+     */
+    fun openFloating(sessionId: String, primarySessionId: String?) {
+        if (sessionId.isBlank() || sessionId == primarySessionId) return
+        apply(_layout.value.withSecondary(sessionId).floating())
+    }
+
+    /**
      * Closes the second pane if it is showing [sessionId].
      *
      * Separate from [closeSplit] because the trigger is not a deliberate act:
@@ -115,6 +127,27 @@ class PaneLayoutViewModel @Inject constructor(
     /** Writes the divider position the drag left behind. */
     fun commitSplitFraction() {
         viewModelScope.launch { repository.setSplitFraction(_layout.value.splitFraction) }
+    }
+
+    /**
+     * Steps the divider to its next position.
+     *
+     * The same five positions a drag lands on, reachable without a drag at all
+     * — which is the point of snapping to a small set. A finger that has to find
+     * a 4dp seam while also holding a split open is a worse way to move it than
+     * a menu entry, and this is that entry.
+     *
+     * Wraps rather than stopping at the ends, so it stays a cycle instead of
+     * becoming a no-op the first time it is used past the last step.
+     */
+    fun cycleSplitFraction() {
+        val steps = _layout.value.splitSteps()
+        if (steps.isEmpty()) return
+        val current = _layout.value.splitFraction
+        val next = steps.firstOrNull { it > current + 0.001f } ?: steps.first()
+        val moved = _layout.value.withSplitFraction(next)
+        _layout.value = moved
+        viewModelScope.launch { repository.setSplitFraction(moved.splitFraction) }
     }
 
     /** Moves or resizes the floating window. */

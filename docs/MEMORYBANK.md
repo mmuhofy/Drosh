@@ -507,16 +507,56 @@ sides are canonicalised, which covers `..` and symlinks too.
 
 ### Shape
 
-Two terminal panes, and never more. Docked side by side with a draggable
+Two terminal panes, and never more. **Docked top-to-bottom** with a draggable
 divider, or the second one floating over the first as a movable, resizable,
-expandable window.
+expandable window. *(Vertical, stepped divider, sidebar banner — PR #27.)*
 
 Two ways in:
 - Drag the grip on a session row in the sidebar past half its width.
-- "Split right" in the same row's long-press menu.
+- "Split below" or "Open in window" in the same row's long-press menu.
 
-The overflow menu gains "Float window"/"Dock pane" and "Close second pane",
-and both appear only once a second pane exists.
+The overflow menu gains "Float window"/"Dock pane", "Move divider" and
+"Close second pane", and all appear only once a second pane exists.
+
+### Why top-to-bottom, not side by side
+
+Side by side was the first cut and it was wrong on a phone. Two 180dp columns
+of terminal are about ten characters wide — narrower than most paths — and
+wrapped output is unreadable in a way that a short-but-full-width pane is
+not. `splitFraction` is a **height** fraction.
+
+### Why the divider snaps to five positions
+
+20% apart. A divider that stops anywhere produces pane heights nobody would
+have chosen, and the user has to hold it there with a finger. Five positions
+cover every useful arrangement and each is one drag away, which is what makes
+it a control rather than a slider.
+
+Clamped *before* snapped, because snapping first can round a value past the
+limit up to a legal step — a hard drag to the bottom would then land
+somewhere other than the bottom. "Move divider" in the overflow walks the
+same five positions, since a finger hunting a 4dp seam is a worse way to
+move it than a menu entry.
+
+### What the panes are allowed to overlap
+
+Nothing. `SplitPaneHost` takes `weight(1f)`, not `fillMaxSize()`: each pane
+draws its own extra-key bar, so a host that fills the Column pushes that bar
+past the bottom edge — the lower terminal is drawn under the bar and under
+the keyboard, which reads as "half the screen is empty" rather than as a bug
+in the layout.
+
+### What the drawer says about a split
+
+Both session names, with the split glyph between them. A second terminal on
+screen that nothing in the drawer explains reads as the app having rendered
+twice. Both names ellipsise from the **middle** — sessions are named for what
+they are for, and the distinguishing end is the end a line ending would cut
+off. It names the *focused* pane, since it describes what is on screen.
+
+Float/dock lives in the top bar only. The row menu has "Open in window",
+which starts a float directly rather than making the user split and then find
+a second toggle; having both would give one action two doors.
 
 ### Why exactly two
 
@@ -543,16 +583,17 @@ leave the user with two panes they did not ask for.
 
 `PaneLayout` stores the divider position and the floating window's bounds as
 fractions of the container. All of it is persisted, and a phone rotates: a
-pane saved at 300dp wide is a different fraction of the screen after the
+pane saved at 300dp tall is a different fraction of the screen after the
 process restarts in the other orientation, and a different size again on a
 tablet.
 
 The clamps live in the model, not at the call sites. `MIN_SPLIT_FRACTION`
-keeps both panes readable — below about a sixth of a phone's width a terminal
-fits roughly ten characters, narrower than most paths — and `OVERSCAN` keeps
-a sliver of a floating pane reachable, because a pane pushed entirely off
-screen has no visible edge to drag back in. Clamping rather than rejecting
-means a drag past the end stops at the limit instead of snapping back.
+keeps the top pane tall enough to show a prompt and a few lines — the whole
+use of the lower pane is watching something run while you work — and
+`OVERSCAN` keeps a sliver of a floating pane reachable, because a pane pushed
+entirely off screen has no visible edge to drag back in. Clamping rather than
+rejecting means a drag past the end stops at the limit instead of snapping
+back.
 
 ### The part that was not cosmetic
 
@@ -606,8 +647,9 @@ into this one.
 
 ### Known rough edges
 
-- `FlatKeyBar` renders in both panes when no hardware keyboard is attached,
-  which is correct but means two identical key bars on a half-width screen.
+- `FlatKeyBar` renders in both panes when no hardware keyboard is attached.
+  Correct — each pane needs its own keys — but it means two identical key bars
+  on one screen.
 - The second pane does not repeat the MOTD widget, deliberately.
 - Floating-window position is remembered, but there is no "reset layout".
 
@@ -1332,6 +1374,8 @@ data class SshHost(
 | 14 | sora-editor licence | Accept LGPL-2.1-or-later inside a GPL-3.0 app? | **OPEN — Muhofy must sign off.** Compatible in principle, but blocks F-Droid until confirmed. See §7A. |
 | 15 | zsh `$ENV` breakage | Inject into `~/.zshenv`, or leave OSC 133 dead on zsh? | **OPEN.** Touches a user file, so not done unilaterally. Also fixes the block engine's command lifecycle on the default shell. See §7A. |
 | 16 | Editor surface | Split view with the terminal, or full screen? | Resolved 2026-10-05: full screen, separate route. One document at a time, no tabs. |
+| 17 | Split axis | Side by side, or top-to-bottom? | Resolved 2026-10-05: top-to-bottom (PR #27). Two 180dp columns are ~10 characters wide, narrower than most paths. |
+| 18 | Divider | Free positioning, or snapped steps? | Resolved 2026-10-05: five positions, 20% apart. Free positioning means holding the divider with a finger to keep it where you put it. |
 
 ---
 
