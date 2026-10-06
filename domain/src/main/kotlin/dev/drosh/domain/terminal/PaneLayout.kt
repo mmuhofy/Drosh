@@ -328,10 +328,24 @@ data class PaneLayout(
      *
      * Refused while there is no split, because there is no pane to send — the
      * overlay would come up empty and there would be nothing in it to dock back.
+     *
+     * [edgeSnapped] is dropped rather than carried: parking the pane as a sliver
+     * against an edge is about staying out of the way of the app it floats over
+     * *inside this app*, and an overlay is already somewhere the user put it. The
+     * window is sized on its own terms and a sliver would only hide its output.
+     *
+     * [maximized] is deliberately kept. The flag is meaningless while the pane is
+     * in the overlay, but discarding it here would mean the pane came back collapsed
+     * to a corner after a trip out and back — and a user who expanded it expanded
+     * it on purpose. It is remembered rather than applied, exactly as
+     * [secondarySwapped] is.
      */
     fun systemOverlay(): PaneLayout =
         if (!isSplit) this
-        else copy(presentation = PanePresentation.SYSTEM_OVERLAY, maximized = false)
+        else copy(
+            presentation = PanePresentation.SYSTEM_OVERLAY,
+            edgeSnapped = false,
+        )
 
     /**
      * Takes the pane back from a system overlay into this app's window.

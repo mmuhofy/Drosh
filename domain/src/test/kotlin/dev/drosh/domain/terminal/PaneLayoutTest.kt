@@ -416,11 +416,21 @@ class PaneLayoutTest {
     }
 
     @Test
-    fun `docking from an overlay clears the window state`() {
+    fun `docking from an overlay returns it to a docked pane`() {
         val docked = split().systemOverlay().dockedFromOverlay()
 
         assertEquals(PanePresentation.DOCKED, docked.presentation)
-        assertFalse(docked.maximized)
+        assertFalse(docked.edgeSnapped)
+    }
+
+    @Test
+    fun `docking from an overlay keeps the pane expanded`() {
+        // The counterpart to the toggle test: the pane can neither be expanded nor
+        // collapsed while it is in the overlay, so its size survives the trip and
+        // the user gets back the pane they had.
+        val maximised = split().floating().toggleMaximized().systemOverlay()
+
+        assertTrue(maximised.dockedFromOverlay().maximized)
     }
 
     @Test

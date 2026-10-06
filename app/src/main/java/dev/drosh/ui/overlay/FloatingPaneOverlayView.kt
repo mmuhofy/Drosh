@@ -12,7 +12,7 @@ import android.widget.TextView
 import dev.drosh.R
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.terminal.TerminalManager
-import dev.drosh.terminal.TerminalView
+import com.termux.view.TerminalView
 
 /**
  * The overlay's view tree: a title bar, a [TerminalView], and nothing else.
