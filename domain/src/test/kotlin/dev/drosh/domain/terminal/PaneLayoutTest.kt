@@ -117,12 +117,27 @@ class PaneLayoutTest {
         assertEquals(PaneSlot.PRIMARY, beforeCollapse(SplitSlotCase.BOTTOM_UP))
     }
 
+    /**
+     * Which slot survives depends on the swap flag.
+     *
+     * Asked of [PaneLayout.collapsedSurvivingSlot] on a *dragged* layout, not a
+     * committed one: a commit that reached the collapse threshold returns a
+     * layout with no second pane, and asking a layout without a second pane
+     * which slot survived is a question about nothing. The drag is the state in
+     * which the decision has not been taken yet, which is exactly when the
+     * caller needs it.
+     */
     @Test
-    fun `a swap inverts which session survives a collapse`() {
+    fun `a swap inverts which slot survives a collapse`() {
         val normal = split().withDraggedFraction(0.05f)
         val swapped = split().swapped().withDraggedFraction(0.05f)
-        assertFalse(normal.isSplit || swapped.isSplit)
-        assertTrue(normal.collapsedSurvivingSlot() != swapped.collapsedSurvivingSlot())
+
+        // Still split: the drag has not been released yet.
+        assertTrue(normal.isSplit)
+        assertTrue(swapped.isSplit)
+
+        assertEquals(PaneSlot.PRIMARY, normal.collapsedSurvivingSlot())
+        assertEquals(PaneSlot.SECONDARY, swapped.collapsedSurvivingSlot())
     }
 
     // ── Swapping ──────────────────────────────────────────────────────────────
@@ -158,10 +173,26 @@ class PaneLayoutTest {
 
     // ── The floating window ───────────────────────────────────────────────────
 
+    /**
+     * Generous, not unlimited — and the value asked for here has to be *past*
+     * the limit to prove anything.
+     *
+     * The first version of this test asked to park the pane at -0.25 and
+     * expected -OVERSCAN back, with OVERSCAN at 0.30. It asserted the clamp by
+     * accident: -0.25 was inside the range, so the answer was -0.25, and the
+     * test failed for having picked a number that was not actually extreme.
+     */
     @Test
     fun `a floating pane can be pushed well off the edge`() {
-        val parked = split().floating().withFloatingBounds(NormalizedRect(-0.25f, 0.5f, 0.6f, 0.4f))
-        assertEquals(-PaneLayout.OVERSCAN, parked.floatingBounds.left, 0.001f)
+        val parked = split().floating()
+            .withFloatingBounds(NormalizedRect(-0.25f, 0.5f, 0.6f, 0.4f))
+        // -0.25 is legal under a 0.30 overscan, so it is taken as asked.
+        assertEquals(-0.25f, parked.floatingBounds.left, 0.001f)
+
+        // Past the limit, it stops at the limit rather than leaving the host.
+        val pinned = split().floating()
+            .withFloatingBounds(NormalizedRect(-0.9f, 0.5f, 0.6f, 0.4f))
+        assertEquals(-PaneLayout.OVERSCAN, pinned.floatingBounds.left, 0.001f)
     }
 
     /**
@@ -204,9 +235,25 @@ class PaneLayoutTest {
         assertTrue(split().reconciledAgainst(setOf("a", "b")).isSplit)
     }
 
+    /**
+     * Two separate claims, so a failure says which one broke.
+     *
+     * The first version chained them into one expression, and `split()` already
+     * carries a session — so `withSecondary("")` was a no-op that left it split,
+     * and the assertion failed on the wrong half. The blank-id guard is about
+     * starting from nothing.
+     */
     @Test
     fun `a blank secondary id is refused`() {
-        assertFalse(split().withSecondary("").isSplit || PaneLayout.EMPTY.withSecondary("  ").isSplit)
+        assertFalse(PaneLayout.EMPTY.withSecondary("").isSplit)
+        assertFalse(PaneLayout.EMPTY.withSecondary("   ").isSplit)
+    }
+
+    /** And an existing split is left alone rather than blanked. */
+    @Test
+    fun `a blank secondary id does not blank an existing one`() {
+        assertEquals("b", split().withSecondary("").secondarySessionId)
+        assertEquals("b", split().withSecondary("  ").secondarySessionId)
     }
 
     /** Dropping the session that is already second must not reset the divider. */

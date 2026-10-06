@@ -96,6 +96,7 @@ import dev.drosh.domain.session.DeviceIdentity
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.agent.components.IconAction
 
 /**
  * Slide-in session drawer — a push/translate layout, so the terminal behind
@@ -363,151 +364,159 @@ private fun SidebarContent(
                             rankOffset++
                         }
                     } else {
-                        SessionRow(
-                            snapshot = snapshot,
-                            isActive = snapshot.id == activeId,
-                            recencyRank = index - rankOffset,
-                            onClick = { viewModel.activate(snapshot.id) },
-                            onStartRename = { renamingSession = snapshot },
-                            onDelete = { viewModel.delete(snapshot.id) },
-                            onSplit = onSplitSession?.let { split -> { split(snapshot.id) } },
-                            onFloat = onFloatSession?.let { float -> { float(snapshot.id) } },
-                            // The drag target: hold this row and drop it on
-                            // another to split. Null unless there is somewhere to
-                            // drop it, so a lone session shows no grip rather
-                            // than one that does nothing.
-                            dragEnabled = onSplitSession != null && onDragSplit != null,
-                            onDragStart = { draggingSessionId = snapshot.id },
-                            isHeldForDrag = draggingSessionId == snapshot.id,
-                            isDropTarget = draggingSessionId != null &&
-                                draggingSessionId != snapshot.id,
-                            onDrop = { targetId ->
-                                val dragged = draggingSessionId
-                                draggingSessionId = null
-                                if (dragged != null && dragged != targetId) {
-                                    onDragSplit?.invoke(dragged, targetId)
-                                }
-                            },
-                        )
+                        // `item`, not a bare call: this loop is not an `items {}`
+                        // block, and a composable invoked straight from a
+                        // LazyListScope has no slot to compose into. The error
+                        // says only "a @Composable was invoked from the context
+                        // of a @Composable function", which points at the caller
+                        // rather than at the missing wrapper.
+                        item(key = "live_${snapshot.id}") {
+                            SessionRow(
+                                snapshot = snapshot,
+                                isActive = snapshot.id == activeId,
+                                recencyRank = index - rankOffset,
+                                onClick = { viewModel.activate(snapshot.id) },
+                                onStartRename = { renamingSession = snapshot },
+                                onDelete = { viewModel.delete(snapshot.id) },
+                                onSplit = onSplitSession?.let { split -> { split(snapshot.id) } },
+                                onFloat = onFloatSession?.let { float -> { float(snapshot.id) } },
+                                // The drag target: hold this row and drop it on
+                                // another to split. Both callbacks must exist, or
+                                // a lone session shows a grip that lifts the row
+                                // and then has nowhere to put it.
+                                dragEnabled = onSplitSession != null && onDragSplit != null,
+                                onDragStart = { draggingSessionId = snapshot.id },
+                                isHeldForDrag = draggingSessionId == snapshot.id,
+                                isDropTarget = draggingSessionId != null &&
+                                    draggingSessionId != snapshot.id,
+                                onDrop = {
+                                    val dragged = draggingSessionId
+                                    draggingSessionId = null
+                                    if (dragged != null && dragged != snapshot.id) {
+                                        onDragSplit?.invoke(dragged, snapshot.id)
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
 
             if (ended.isNotEmpty()) {
-                item(key = "ended_header") {
-                    SectionLabel("ENDED", null, "clear ${ended.size}") { viewModel.purgeEnded() }
-                }
-                items(ended.size, key = { "ended_${ended[it].id}" }) { index ->
-                    val snapshot = ended[index]
-                    SessionRow(
-                        snapshot = snapshot,
-                        isActive = false,
-                        recencyRank = 0,
-                        onClick = {},
-                        onStartRename = { renamingSession = snapshot },
-                        onDelete = { viewModel.delete(snapshot.id) },
-                    )
-                }
-            }
-        }
-
-        renamingSession?.let { target ->
-            RenameSessionDialog(
-                initialValue = target.name,
-                onConfirm = { newName ->
-                    viewModel.rename(target.id, newName)
-                    renamingSession = null
-                },
-                onDismiss = { renamingSession = null },
-            )
-        }
-
-        SidebarFooter(
-            searchOpen = searchOpen,
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            onOpenSearch = { searchOpen = true },
-            onCloseSearch = ::closeSearch,
-            onOpenSettings = onOpenSettings,
-        )
-    }
-}
-
-@Composable
-private fun SidebarHeader(
-    identity: DeviceIdentity?,
-    onNewSession: () -> Unit,
-) {
-    val name = identity?.marketingName.orEmpty().ifBlank { "This device" }
-    val subtitle = identity?.takeIf { it.marketingName != it.model }
-        ?.let { it.manufacturer + " " + it.model }
-        ?.takeIf { it.isNotBlank() }
-        ?: identity?.model.orEmpty()
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 20.dp, end = 14.dp)
-            .padding(top = 12.dp, bottom = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DeviceBadge(
-            imageUrl = identity?.visualUrl,
-            fallbackLetter = name.firstOrNull()?.uppercase() ?: "?",
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = name,
-                color = DroshText,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (subtitle.isNotBlank()) {
-                Text(
-                    text = subtitle,
-                    color = DroshTextMuted,
-                    fontSize = 11.5.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        CircleButton(
-            onClick = onNewSession,
-            contentDescription = "New session",
-            icon = DroshIcons.Plus,
-        )
-    }
-}
-
-/**
- * The device in the circle: its product image once one has been looked up and
- * cached, a monogram until then. Wikimedia may simply have nothing for the
- * model, so the monogram is the resting state rather than a failure.
- *
- * Shared with the settings header, which asks the same question.
- */
-@Composable
-fun DeviceBadge(
-    imageUrl: String?,
-    fallbackLetter: String,
-    size: Dp = 36.dp,
-) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(
-                // Tinted with the accent rather than a flat grey, so the
-                // placeholder reads as deliberate instead of as a missing image.
-                brush = Brush.linearGradient(
-                    listOf(
-                        DroshPrimary.copy(alpha = 0.22f),
-                        DroshPrimary.copy(alpha = 0.10f),
-                    ),
+                                    item(key = "ended_header") {
+                                    SectionLabel("ENDED", null, "clear ${ended.size}") { viewModel.purgeEnded() }
+                                    }
+                                    items(ended.size, key = { "ended_${ended[it].id}" }) { index ->
+                                    val snapshot = ended[index]
+                                SessionRow(
+                                    snapshot = snapshot,
+                                    isActive = false,
+                                    recencyRank = 0,
+                                    onClick = {},
+                                    onStartRename = { renamingSession = snapshot },
+                                    onDelete = { viewModel.delete(snapshot.id) },
+                                    )
+                                    }
+                                    }
+                                    }
+                                    
+                                    renamingSession?.let { target ->
+                                    RenameSessionDialog(
+                                    initialValue = target.name,
+                                    onConfirm = { newName ->
+                                    viewModel.rename(target.id, newName)
+                                    renamingSession = null
+                                    },
+                                    onDismiss = { renamingSession = null },
+                                    )
+                                    }
+                                    
+                                    SidebarFooter(
+                                    searchOpen = searchOpen,
+                                    query = searchQuery,
+                                    onQueryChange = { searchQuery = it },
+                                    onOpenSearch = { searchOpen = true },
+                                    onCloseSearch = ::closeSearch,
+                                    onOpenSettings = onOpenSettings,
+                                    )
+                                    }
+                                    }
+                                    
+                                    @Composable
+                                    private fun SidebarHeader(
+                                    identity: DeviceIdentity?,
+                                    onNewSession: () -> Unit,
+                                    ) {
+                                    val name = identity?.marketingName.orEmpty().ifBlank { "This device" }
+                                    val subtitle = identity?.takeIf { it.marketingName != it.model }
+                                    ?.let { it.manufacturer + " " + it.model }
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: identity?.model.orEmpty()
+                                    
+                                    Row(
+                                    modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 20.dp, end = 14.dp)
+                                    .padding(top = 12.dp, bottom = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                    DeviceBadge(
+                                    imageUrl = identity?.visualUrl,
+                                    fallbackLetter = name.firstOrNull()?.uppercase() ?: "?",
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                    text = name,
+                                    color = DroshText,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    )
+                                    if (subtitle.isNotBlank()) {
+                                    Text(
+                                    text = subtitle,
+                                    color = DroshTextMuted,
+                                    fontSize = 11.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    )
+                                    }
+                                    }
+                                    CircleButton(
+                                    onClick = onNewSession,
+                                    contentDescription = "New session",
+                                    icon = DroshIcons.Plus,
+                                    )
+                                    }
+                                    }
+                                    
+                                    /**
+                                    * The device in the circle: its product image once one has been looked up and
+                                    * cached, a monogram until then. Wikimedia may simply have nothing for the
+                                    * model, so the monogram is the resting state rather than a failure.
+                                    *
+                                    * Shared with the settings header, which asks the same question.
+                                    */
+                                    @Composable
+                                    fun DeviceBadge(
+                                    imageUrl: String?,
+                                    fallbackLetter: String,
+                                    size: Dp = 36.dp,
+                                    ) {
+                                    Box(
+                                    modifier = Modifier
+                                    .size(size)
+                                    .clip(CircleShape)
+                                    .background(
+                                    // Tinted with the accent rather than a flat grey, so the
+                                    // placeholder reads as deliberate instead of as a missing image.
+                                    brush = Brush.linearGradient(
+                                    listOf(
+                                    DroshPrimary.copy(alpha = 0.22f),
+                                    DroshPrimary.copy(alpha = 0.10f),
+                                ),
                 ),
             ),
         contentAlignment = Alignment.Center,
@@ -830,7 +839,6 @@ private fun SessionRow(
  * named after what they are for, and the distinguishing end of a name is the
  * one a line ending would cut off.
  */
-@Composable
 /**
  * The two sessions sharing a split, drawn as one card.
  *
