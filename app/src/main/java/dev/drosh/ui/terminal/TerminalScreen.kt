@@ -338,6 +338,25 @@ private fun ReadyScreen(
     var terminalLines by remember { mutableStateOf<List<Pair<String, String?>>>(emptyList()) }
 
     val scope = rememberCoroutineScope()
+
+    /**
+     * Moves the pane in or out of the system overlay.
+     *
+     * Suspends because starting the window can be refused — no permission, or the
+     * pane has no session. A refusal leaves the layout exactly as it was, so there
+     * is nothing to undo afterwards; the reason this is not fire-and-forget is
+     * that a refused tap must leave no trace, and a coroutine that silently gave
+     * up would look identical to one that had worked.
+     */
+    val toggleSystemOverlay: () -> Unit = {
+        scope.launch {
+            if (paneLayout.isSystemOverlay) {
+                paneLayoutViewModel.dockFromOverlay()
+            } else {
+                paneLayoutViewModel.floatOverOtherApps()
+            }
+        }
+    }
     val fontSizeSp by terminalViewModel.fontSizeSp.collectAsState()
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
@@ -861,6 +880,13 @@ private fun ReadyScreen(
                 onCloseSplit = paneLayoutViewModel::closeSplit,
                 onCycleSplit = paneLayoutViewModel::cycleSplitFraction,
                 onSwapPanes = paneLayoutViewModel::swapPanes,
+                isSystemOverlay = paneLayout.isSystemOverlay,
+                // Re-read on every recomposition rather than remembered once: the
+                // user can grant or revoke this in the settings app while this
+                // screen is alive, and a remembered value would keep offering a
+                // menu entry that cannot work.
+                canDrawOverlays = paneLayoutViewModel.canDrawOverlays(),
+                onToggleSystemOverlay = { toggleSystemOverlay() },
         )
 
         // Slider overlay trigger — BackHandler kalıyor, SessionSidebar

@@ -45,6 +45,24 @@ enum class PanePresentation {
 
     /** A window floating over the first pane, movable and resizable. */
     FLOATING,
+
+    /**
+     * A window owned by the system, floating over *other apps*.
+     *
+     * Unlike [FLOATING], which is a frame drawn inside this app's own window and
+     * disappears when the activity does, this one lives in a
+     * `TYPE_APPLICATION_OVERLAY` window added by a foreground service. It
+     * therefore outlives the activity, and it is not part of the composition that
+     * draws it: the pane's `TerminalView` is handed over to the service rather
+     * than laid out here.
+     *
+     * Held apart from [FLOATING] rather than folded into it, because the two
+     * differ in something a caller must respect: a floating pane is a child of
+     * this composition and can be measured against it, whereas a system overlay
+     * cannot be. Anything that needs the pane's on-screen rectangle has to ask
+     * which of the two it is looking at before it uses it.
+     */
+    SYSTEM_OVERLAY,
 }
 
 /**
@@ -296,11 +314,67 @@ data class PaneLayout(
     fun togglePresentation(): PaneLayout = when (presentation) {
         PanePresentation.DOCKED -> floating()
         PanePresentation.FLOATING -> docked()
+        // Deliberately docks rather than coming back in-app. Toggling implies a
+        // round trip between two states of the same thing, and this pane is not
+        // in the app's window — the service owns it, and the only way to take it
+        // back is to stop the service. `docked()` is the honest half of that:
+        // the user asked to bring the pane back, and where it lands afterwards is
+        // a separate question from how it leaves.
+        PanePresentation.SYSTEM_OVERLAY -> docked()
     }
 
-    /** Expands or restores the floating pane. Ignored while docked. */
+    /**
+     * Sends the second pane to a system overlay window.
+     *
+     * Refused while there is no split, because there is no pane to send — the
+     * overlay would come up empty and there would be nothing in it to dock back.
+     *
+     * [edgeSnapped] is dropped rather than carried: parking the pane as a sliver
+     * against an edge is about staying out of the way of the app it floats over
+     * *inside this app*, and an overlay is already somewhere the user put it. The
+     * window is sized on its own terms and a sliver would only hide its output.
+     *
+     * [maximized] is deliberately kept. The flag is meaningless while the pane is
+     * in the overlay, but discarding it here would mean the pane came back collapsed
+     * to a corner after a trip out and back — and a user who expanded it expanded
+     * it on purpose. It is remembered rather than applied, exactly as
+     * [secondarySwapped] is.
+     */
+    fun systemOverlay(): PaneLayout =
+        if (!isSplit) this
+        else copy(
+            presentation = PanePresentation.SYSTEM_OVERLAY,
+            edgeSnapped = false,
+        )
+
+    /**
+     * Takes the pane back from a system overlay into this app's window.
+     *
+     * A no-op in any other presentation, so it is safe to call on the way out of
+     * a configuration change or a teardown: a pane that was never in an overlay
+     * has nothing to reclaim.
+     */
+    fun dockedFromOverlay(): PaneLayout =
+        if (presentation != PanePresentation.SYSTEM_OVERLAY) this else docked()
+
+    /** True when the pane's `TerminalView` is owned by the overlay service. */
+    val isSystemOverlay: Boolean
+        get() = isSplit && presentation == PanePresentation.SYSTEM_OVERLAY
+
+    /**
+     * True when the second pane is a window of any kind rather than a docked one.
+     *
+     * Covers both floating kinds, which is what callers that just want "is this a
+     * window" should ask. It is deliberately *not* [isFloating], which means the
+     * in-app one specifically — code that draws an in-app frame must not mistake
+     * an overlay it has no frame for.
+     */
+    val isWindowed: Boolean
+        get() = isSplit && presentation != PanePresentation.DOCKED
+
+    /** Expands or restores the floating pane. Ignored unless it is an in-app float. */
     fun toggleMaximized(): PaneLayout =
-        if (presentation == PanePresentation.DOCKED) this
+        if (presentation != PanePresentation.FLOATING) this
         else copy(maximized = !maximized)
 
     /**

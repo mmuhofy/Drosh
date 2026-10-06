@@ -6,6 +6,8 @@ import dev.drosh.domain.terminal.NormalizedRect
 import dev.drosh.domain.terminal.PaneLayout
 import dev.drosh.domain.terminal.PaneLayoutRepository
 import dev.drosh.domain.terminal.PaneSessionBinder
+import dev.drosh.domain.terminal.PaneSlot
+import dev.drosh.domain.terminal.SystemOverlayController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +34,7 @@ import javax.inject.Inject
 class PaneLayoutViewModel @Inject constructor(
     private val repository: PaneLayoutRepository,
     private val panes: PaneSessionBinder,
+    private val overlay: SystemOverlayController,
 ) : ViewModel() {
 
     private val _layout = MutableStateFlow(PaneLayout.EMPTY)
@@ -138,6 +141,64 @@ class PaneLayoutViewModel @Inject constructor(
      * which is exactly where a "get this out of my way" button has to be.
      */
     fun closeFloatingPane() = apply(_layout.value.cleared(), persist = true)
+
+    // ── System overlay ────────────────────────────────────────────────────────
+
+    /**
+     * True when the app may draw over other apps.
+     *
+     * Read on demand rather than cached: the user can revoke the permission from
+     * the settings app while this one is in the background, and a value read once
+     * would go on offering a button that cannot work.
+     */
+    fun canDrawOverlays(): Boolean = overlay.canDrawOverlays()
+
+    /**
+     * Sends the second pane to a window above every other app.
+     *
+     * Ordered rather than fire-and-forget, because the three steps fail
+     * independently and the pane must not end up claiming a window it does not
+     * have:
+     *
+     * 1. The permission is checked first, because it can be refused without
+     *    changing anything and there is no point moving the pane if the window can
+     *    never appear.
+     * 2. The layout is set next, so this composition stops drawing the pane. The
+     *    pane's view is being *moved*, and leaving it here as well would put two
+     *    views on one session.
+     * 3. The window comes up last, and if it does not the layout is put back —
+     *    otherwise the split would be marked as floating over other apps with
+     *    nothing on screen, and the only way back would be the button that just
+     *    failed.
+     *
+     * @return true when the pane is in the overlay.
+     */
+    suspend fun floatOverOtherApps(): Boolean {
+        val current = _layout.value
+        if (!current.isSplit || current.isSystemOverlay) return false
+        if (!overlay.canDrawOverlays()) return false
+
+        apply(current.systemOverlay())
+        if (overlay.attach(PaneSlot.SECONDARY)) return true
+
+        apply(current)
+        return false
+    }
+
+    /**
+     * Brings the pane back from the overlay into this app's window.
+     *
+     * The service is stopped before the layout changes, so the pane is released
+     * from the overlay window before anything tries to draw it here. A no-op in
+     * every other presentation, which makes it safe to call on the way out of the
+     * screen.
+     */
+    fun dockFromOverlay() {
+        val current = _layout.value
+        if (!current.isSystemOverlay) return
+        overlay.detach()
+        apply(current.dockedFromOverlay())
+    }
 
     // ── Gestures ──────────────────────────────────────────────────────────────
 
