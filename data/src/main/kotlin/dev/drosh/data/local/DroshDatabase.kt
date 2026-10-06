@@ -69,7 +69,7 @@ abstract class DroshDatabase : RoomDatabase() {
          * CI diffs the exported `data/schemas/` snapshot against the committed one,
          * so a missed update is a red build rather than a crash on every install.
          */
-        const val IDENTITY_HASH = "7a24d67aad74fdf9f5ff71afe52144c9"
+        const val IDENTITY_HASH = "8acb1bfac77b8e61f1e101c7cf9b3679"
 
         /**
          * The identity hash for the version-3 schema — everything except agent
