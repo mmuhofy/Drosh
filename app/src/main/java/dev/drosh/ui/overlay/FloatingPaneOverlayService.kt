@@ -68,6 +68,16 @@ class FloatingPaneOverlayService : LifecycleService() {
     private var overlayView: FloatingPaneOverlayView? = null
     private var slot: PaneSlot? = null
 
+    /**
+     * The window manager the overlay view lives in.
+     *
+     * Held in a field rather than reached through [getSystemService] at each use:
+     * `addView` and `removeView` are the whole point of this service, and having
+     * them be three calls away invites someone to reach for a wrong one.
+     */
+    private val windowManager: WindowManager
+        get() = getSystemService(WINDOW_SERVICE) as WindowManager
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -120,7 +130,7 @@ class FloatingPaneOverlayService : LifecycleService() {
         // view to hand the pane to, and handing it to a view that was never added
         // would move the pane off screen and out of reach.
         try {
-            addView(host, buildLayoutParams())
+            windowManager.addView(host, buildLayoutParams())
         } catch (e: WindowManager.BadTokenException) {
             dismiss()
             return
@@ -170,7 +180,7 @@ class FloatingPaneOverlayService : LifecycleService() {
         overlayView?.let { host ->
             host.setFocused(false)
             slot?.let { terminalManager.unregisterPaneView(it) }
-            runCatching { removeView(host) }
+            runCatching { windowManager.removeView(host) }
         }
         overlayView = null
         slot = null

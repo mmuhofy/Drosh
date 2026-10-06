@@ -379,13 +379,14 @@ class PaneLayoutTest {
     }
 
     @Test
-    fun `an overlay cannot be maximised`() {
-        // Maximised means "fill the host", and the host is this app's window. An
-        // overlay is not in it, so the flag would describe a rectangle nobody can
-        // see.
-        val maximised = split().floating().toggleMaximized().systemOverlay().toggleMaximized()
+    fun `maximising is ignored while the pane is in the overlay`() {
+        // "Maximised" means fill the host, and the host is this app's window. An
+        // overlay is not in it, so the toggle has to do nothing rather than act on
+        // a rectangle nobody can see. Asserted as "unchanged" rather than "false",
+        // because the flag is deliberately carried across the trip.
+        val overlay = split().floating().toggleMaximized().systemOverlay()
 
-        assertFalse(maximised.maximized)
+        assertEquals(overlay.maximized, overlay.toggleMaximized().maximized)
     }
 
     @Test

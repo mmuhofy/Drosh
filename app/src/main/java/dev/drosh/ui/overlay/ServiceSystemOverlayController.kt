@@ -51,6 +51,9 @@ class ServiceSystemOverlayController @Inject constructor(
                     .putExtra(FloatingPaneOverlayView.EXTRA_SLOT, slot.name),
             )
             _isAttached.value = true
+            // Explicit: an assignment is Unit, so letting the block end on one
+            // would make runCatching<Unit> and getOrElse unreachable.
+            true
         }.getOrElse {
             // startForegroundService throws when the app is in the background
             // without an exemption, and no window ever appears. Claiming success
