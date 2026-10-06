@@ -676,6 +676,25 @@ class TerminalManager(
      * here against whichever pane currently has focus.
      */
     fun registerPaneView(slot: PaneSlot, view: TerminalView, context: Context) {
+        // Drop any view this slot already had *before* installing the new one.
+        // This is what makes handing a pane between windows safe: the overlay
+        // service registers its view for a slot whose view may still be attached
+        // in the activity, because the composition that owns the old one has not
+        // necessarily been torn down yet when the service is asked to come up.
+        // Installing over it instead would leave two views on one session, and
+        // since attachSession resets the emulator, the two would overwrite each
+        // other's screen rather than mirror it.
+        //
+        // Torn down quietly rather than through [unregisterPaneView]: that one is
+        // for a pane going away for good, so it republishes focus and picks a
+        // fallback, and none of that is true here. The slot is about to be handed
+        // a view immediately, and a focus that briefly jumped to the other pane
+        // mid-handover would be visible as a jump.
+        paneViews.remove(slot)?.let { stale ->
+            stale.onScrollPositionChanged = null
+            stale.installSelectionMenu(enabled = false, listener = null)
+        }
+
         paneViews[slot] = view
         sessionClient.clipboard =
             context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -683,8 +702,9 @@ class TerminalManager(
 
         // The pane may have been given its session before its view existed —
         // the layout is restored from storage before the first composition
-        // builds anything — so attach now rather than waiting for a change that
-        // has already happened.
+        // builds anything, and a pane arriving in the overlay window has no
+        // composition of its own to wait for — so attach now rather than waiting
+        // for a change that has already happened.
         sessionForSlot(slot)?.let { view.attachSession(it) }
 
         if (slot == focusedPane.value) activatePaneView(slot, view)

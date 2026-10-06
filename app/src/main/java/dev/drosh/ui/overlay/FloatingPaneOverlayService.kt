@@ -1,0 +1,22 @@
+package dev.drosh.ui.overlay
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.graphics.PixelFormat
+import android.provider.Settings
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.WindowManager
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleService
+import dagger.hilt.android.AndroidEntryPoint
+import dev.drosh.MainActivity
+import dev.drosh.R
+import dev.drosh.core.TerminalConstants
+import dev.drosh.domain.terminal.PaneSlot
+import dev.drosh.terminal.TerminalManager

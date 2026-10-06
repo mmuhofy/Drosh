@@ -41,4 +41,14 @@
     <string name="pin_entry_subtitle">Enter a new 4-digit PIN</string>
     <string name="permission_read_command_state_label">Read terminal command state</string>
     <string name="permission_read_command_state_description">Allows Drosh Keyboard to see whether a terminal command is running and how it ended.</string>
+    <!-- System overlay pane -->
+    <string name="overlay_channel_name">Floating pane</string>
+    <string name="overlay_notification_title">Pane floating over other apps</string>
+    <string name="overlay_notification_text">Tap to open, or stop to bring the pane back</string>
+    <string name="overlay_notification_stop">Stop</string>
+    <string name="overlay_pane_title">Floating pane</string>
+    <string name="overlay_pane_close">Close floating pane</string>
+    <string name="overlay_permission_title">Let Drosh draw over other apps</string>
+    <string name="overlay_permission_rationale">A pane can only float over other apps if Drosh is allowed to draw over them. Nothing leaves your device.</string>
+    <string name="overlay_permission_grant">Open settings</string>
 </resources>

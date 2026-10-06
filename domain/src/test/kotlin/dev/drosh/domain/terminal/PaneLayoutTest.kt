@@ -340,6 +340,96 @@ class PaneLayoutTest {
         assertFalse(parked.unedgeSnapped().floating().edgeSnapped)
     }
 
+    // ── System overlay ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `a system overlay is a window but not an in-app float`() {
+        val overlay = split().systemOverlay()
+
+        // Both are "a window", and the in-app one is the only one this
+        // composition draws a frame for.
+        assertTrue(overlay.isWindowed)
+        assertTrue(overlay.isSystemOverlay)
+        assertFalse(overlay.isFloating)
+    }
+
+    @Test
+    fun `a docked pane is neither floating nor an overlay`() {
+        val docked = split().docked()
+
+        assertFalse(docked.isWindowed)
+        assertFalse(docked.isSystemOverlay)
+        assertFalse(docked.isFloating)
+    }
+
+    @Test
+    fun `an in-app float is a window but not an overlay`() {
+        val floating = split().floating()
+
+        assertTrue(floating.isWindowed)
+        assertFalse(floating.isSystemOverlay)
+    }
+
+    @Test
+    fun `there is no overlay without a split`() {
+        val solo = PaneLayout(secondarySessionId = null)
+
+        assertEquals(solo, solo.systemOverlay())
+        assertFalse(solo.isSystemOverlay)
+    }
+
+    @Test
+    fun `an overlay cannot be maximised`() {
+        // Maximised means "fill the host", and the host is this app's window. An
+        // overlay is not in it, so the flag would describe a rectangle nobody can
+        // see.
+        val maximised = split().floating().toggleMaximized().systemOverlay().toggleMaximized()
+
+        assertFalse(maximised.maximized)
+    }
+
+    @Test
+    fun `maximised survives a move to the overlay so it comes back expanded`() {
+        // The opposite of the test above: the flag is remembered rather than
+        // dropped, because a user who expanded the pane wants it back that way.
+        val overlay = split().floating().toggleMaximized().systemOverlay()
+
+        assertTrue(overlay.maximized)
+    }
+
+    @Test
+    fun `toggling an overlay docks it rather than bringing it back in-app`() {
+        // The pane cannot be handed back by a toggle — the service owns it and
+        // only stopping the service releases it. Docking is the honest half of
+        // "bring the pane back".
+        assertEquals(
+            split().docked(),
+            split().systemOverlay().togglePresentation(),
+        )
+    }
+
+    @Test
+    fun `an overlay is not edge-snapped`() {
+        val parked = split().floating().withEdgeSnap().systemOverlay()
+
+        assertFalse(parked.edgeSnapped)
+    }
+
+    @Test
+    fun `docking from an overlay clears the window state`() {
+        val docked = split().systemOverlay().dockedFromOverlay()
+
+        assertEquals(PanePresentation.DOCKED, docked.presentation)
+        assertFalse(docked.maximized)
+    }
+
+    @Test
+    fun `docking from an overlay on a pane that was never in one changes nothing`() {
+        val floating = split().floating()
+
+        assertEquals(floating, floating.dockedFromOverlay())
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private enum class SplitSlotCase { TOP_DOWN, BOTTOM_UP }

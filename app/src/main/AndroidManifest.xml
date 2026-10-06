@@ -31,6 +31,9 @@
         android:description="@string/permission_read_command_state_description" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- The floating pane is a window above other apps, which needs the user's
+         explicit grant; it is checked at runtime, never assumed. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Drosh targets Android 8.0+ but is optimized for Android 16. -->
     <uses-feature
@@ -62,6 +65,15 @@
             android:name=".TerminalService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name=".ui.overlay.FloatingPaneOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a user-initiated terminal pane on screen while the user works in another app." />
+        </service>
 
         <provider
             android:name=".DroshDocumentsProvider"

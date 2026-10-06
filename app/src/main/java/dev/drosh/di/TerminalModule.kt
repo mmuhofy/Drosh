@@ -9,7 +9,9 @@ import dev.drosh.terminal.BlockEngineWire
 import dev.drosh.terminal.BootstrapStatePort
 import dev.drosh.terminal.ProotRunner
 import dev.drosh.domain.terminal.PaneSessionBinder
+import dev.drosh.domain.terminal.SystemOverlayController
 import dev.drosh.terminal.TerminalManager
+import dev.drosh.ui.overlay.ServiceSystemOverlayController
 import dev.drosh.terminal.TerminalSessionClientImpl
 import dev.drosh.terminal.TerminalViewClientImpl
 import dev.drosh.terminal.UbuntuBootstrap
@@ -69,6 +71,17 @@ object TerminalModule {
     @Provides
     @Singleton
     fun providePaneSessionBinder(manager: TerminalManager): PaneSessionBinder = manager
+
+    /**
+     * The overlay controller lives in `:app` because it starts a service declared
+     * in this module's manifest. Bound here so the split screen can reach it
+     * through the domain port without importing anything from `:app`.
+     */
+    @Provides
+    @Singleton
+    fun provideSystemOverlayController(
+        controller: ServiceSystemOverlayController,
+    ): SystemOverlayController = controller
 
     @Provides
     @Singleton
