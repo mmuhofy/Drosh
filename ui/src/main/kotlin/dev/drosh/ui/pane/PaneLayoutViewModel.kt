@@ -243,6 +243,28 @@ class PaneLayoutViewModel @Inject constructor(
     }
 
     /**
+     * Called on release from a move or a resize.
+     *
+     * A drag to the edge parks the pane there; one anywhere else leaves it alone.
+     * The bounds are written through either way, so the pane comes back at the
+     * size and place the user left it rather than at whatever it had before.
+     */
+    fun commitFloatingBounds() {
+        val settled = _layout.value.withEdgeSnap()
+        if (settled == _layout.value) return
+        _layout.value = settled
+        viewModelScope.launch { repository.setLayout(settled) }
+    }
+
+    /** Brings a pane back from the edge, at its remembered size. */
+    fun expandEdgeSnapped() {
+        val restored = _layout.value.unedgeSnapped()
+        if (restored == _layout.value) return
+        _layout.value = restored
+        viewModelScope.launch { repository.setLayout(restored) }
+    }
+
+    /**
      * Applies [next] to the in-memory layout and, unless this is a drag frame,
      * writes it through.
      */

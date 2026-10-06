@@ -263,6 +263,83 @@ class PaneLayoutTest {
         assertEquals(0.6f, arranged.withSecondary("b").splitFraction, 0.001f)
     }
 
+
+    // ── Parking at an edge ─────────────────────────────────────────────────────
+
+    @Test
+    fun `a floating pane released near the left edge parks`() {
+        val parked = split().floating()
+            .withFloatingBounds(NormalizedRect(0.03f, 0.4f, 0.5f, 0.4f))
+            .withEdgeSnap()
+
+        assertTrue(parked.edgeSnapped)
+        assertEquals(0f, parked.floatingBounds.left, 0.001f)
+        assertEquals(PaneLayout.EDGE_SLIVER, parked.floatingBounds.width, 0.001f)
+    }
+
+    @Test
+    fun `a floating pane released near the right edge parks on the right`() {
+        val parked = split().floating()
+            .withFloatingBounds(NormalizedRect(0.45f, 0.4f, 0.5f, 0.4f))
+            .withEdgeSnap()
+
+        assertTrue(parked.edgeSnapped)
+        assertEquals(1f - PaneLayout.EDGE_SLIVER, parked.floatingBounds.left, 0.001f)
+    }
+
+    /**
+     * A pane left in the middle at a silly size is a mistake, not a parking spot,
+     * and snapping it would hide that it was a mistake.
+     */
+    @Test
+    fun `a pane released in the middle does not park`() {
+        val loose = split().floating()
+            .withFloatingBounds(NormalizedRect(0.25f, 0.25f, 0.5f, 0.5f))
+            .withEdgeSnap()
+
+        assertFalse(loose.edgeSnapped)
+        // Untouched entirely: same position and same size it was left at.
+        assertEquals(0.25f, loose.floatingBounds.left, 0.001f)
+        assertEquals(0.5f, loose.floatingBounds.width, 0.001f)
+    }
+
+    @Test
+    fun `a docked pane is never parked`() {
+        val docked = split().withFloatingBounds(NormalizedRect(0f, 0f, 0.5f, 0.5f)).withEdgeSnap()
+        assertFalse(docked.edgeSnapped)
+    }
+
+    /** Coming back has to restore a usable size, not the sliver. */
+    @Test
+    fun `unparking restores a readable pane`() {
+        val parked = split().floating()
+            .withFloatingBounds(NormalizedRect(0.02f, 0.4f, 0.5f, 0.4f))
+            .withEdgeSnap()
+        val back = parked.unedgeSnapped()
+
+        assertFalse(back.edgeSnapped)
+        assertTrue(
+            "a restored pane must be wider than the sliver",
+            back.floatingBounds.width > PaneLayout.EDGE_SLIVER,
+        )
+    }
+
+    @Test
+    fun `unparking a pane that was not parked changes nothing`() {
+        val floating = split().floating()
+        assertEquals(floating, floating.unedgeSnapped())
+    }
+
+    /** Docking and floating must both clear the parked state, or it lingers. */
+    @Test
+    fun `docking clears the parked state`() {
+        val parked = split().floating()
+            .withFloatingBounds(NormalizedRect(0.02f, 0.4f, 0.5f, 0.4f))
+            .withEdgeSnap()
+        assertFalse(parked.docked().edgeSnapped)
+        assertFalse(parked.unedgeSnapped().floating().edgeSnapped)
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private enum class SplitSlotCase { TOP_DOWN, BOTTOM_UP }

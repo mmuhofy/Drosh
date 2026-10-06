@@ -19,6 +19,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -59,6 +61,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -97,6 +102,7 @@ import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.IconAction
+import kotlin.math.hypot
 
 /**
  * Slide-in session drawer — a push/translate layout, so the terminal behind
@@ -551,6 +557,9 @@ private fun SidebarContent(
 private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    // Needed inside `pointerInput`, whose block is not a composable scope: the
+    // touch slop has to be in pixels, and the slop is a dp constant.
+    val density = LocalDensity.current
     val surface by animateFloatAsState(
         targetValue = if (pressed) 1f else 0f,
         animationSpec = tween(durationMillis = 120),
@@ -677,6 +686,9 @@ private fun SessionRow(
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    // Needed inside `pointerInput`, whose block is not a composable scope: the
+    // touch slop has to be in pixels, and the slop is a dp constant.
+    val density = LocalDensity.current
     // Stays raised while the menu is open, not only while a finger is down:
     // the row is still the thing the menu belongs to. Dismissing the menu —
     // including by tapping empty space — puts it back.
@@ -711,38 +723,125 @@ private fun SessionRow(
                         Modifier
                     },
                 )
+                /**
+                 * A held row shrinks and lifts.
+                 *
+                 * Dimming alone was not enough of a signal: the row still looked
+                 * like a row, so releasing the finger on another row was a guess.
+                 * Shrinking to a chip is what says "you are carrying this, it is
+                 * not in place any more" — and it is proportional to how long you
+                 * hold, so a short press visibly returns to full size instead of
+                 * snapping back, which is what tells you the menu was the first
+                 * stage and not a failed drag.
+                 */
                 .then(
                     if (dragging) {
-                        Modifier.alpha(0.4f)
+                        Modifier.graphicsLayer {
+                            scaleX = HELD_SCALE
+                            scaleY = HELD_SCALE
+                            // Lifted off the surface. Without a shadow the shrink
+                            // reads as the row being deleted rather than picked up.
+                            shadowElevation = HELD_ELEVATION
+                            shape = RoundedCornerShape(10.dp)
+                            clip = true
+                        }
                     } else {
                         Modifier
                     },
                 )
-                .combinedClickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = {
-                        // While another row is held, a tap here means "drop it on
-                        // me", not "open me". Two gestures cannot share one tap,
-                        // and which one the user meant is unambiguous from whether
-                        // something is in their other hand.
-                        if (isDropTarget) onDrop(snapshot.id) else onClick()
-                    },
-                    onLongClick = {
-                        // Hold to pick the row up for a drop. The menu moved to a
-                        // double tap for this: `combinedClickable` gives a row
-                        // exactly one long-press, and splitting *is* what most
-                        // people want from a session row now — hiding it behind
-                        // the menu meant the feature existed but nothing pointed
-                        // at it.
-                        if (dragEnabled) {
-                            onDragStart()
-                        } else {
-                            menuOpen = true
+                /**
+                 * One gesture recogniser, because two would race.
+                 *
+                 * The row needs three outcomes from one press: open it, show its
+                 * menu, or pick it up for a drop somewhere else. `combinedClickable`
+                 * spends one long press and one double tap, which is not enough
+                 * once dragging is added — and two `pointerInput` modifiers on the
+                 * same row do not compose either, they compete for the pointer and
+                 * whichever consumes first wins. That is the same trap the top bar
+                 * recorded for its own split gestures.
+                 *
+                 * So the press is timed here, in one recogniser:
+                 *
+                 *  - released before [dragAfter]  → tap: open, or drop
+                 *  - still down at [dragAfter]     → drag: shrink and pick up
+                 *  - released between the two      → the menu, as it always was
+                 *
+                 * The middle window is what the request asked for and what
+                 * `combinedClickable` cannot express: one gesture, two long-press
+                 * thresholds, and the *short* one still belongs to the menu.
+                 */
+                .pointerInput(snapshot.id, dragEnabled, isDropTarget) {
+                    val viewConfig = viewConfiguration
+                    val touchSlop = with(density) { TOUCH_SLOP.toPx() }
+                    val menuAfter = viewConfig.longPressTimeoutMillis
+                    val dragAfter = (menuAfter * DRAG_HOLD_MULTIPLIER).toLong()
+                    var armedForDrag = false
+                    var menuShown = false
+
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val startedAt = System.currentTimeMillis()
+                        var consumedMove = false
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id }
+                                ?: break
+
+                            if (change.changedToUpIgnoreConsumed()) {
+                                change.consume()
+                                val held = System.currentTimeMillis() - startedAt
+                                when {
+                                    armedForDrag -> Unit
+                                    menuShown -> menuOpen = false
+                                    held >= dragAfter -> {
+                                        armedForDrag = true
+                                        onDragStart()
+                                    }
+                                    isDropTarget -> onDrop(snapshot.id)
+                                    else -> onClick()
+                                }
+                                break
+                            }
+
+                            val held = System.currentTimeMillis() - startedAt
+
+                            // Movement before the drag threshold means this is a
+                            // scroll, not a press, and the gesture has to be given
+                            // back — otherwise a finger resting on a row while the
+                            // drawer scrolls would pick the row up.
+                            //
+                            // Past the threshold it is ours, and consuming stops
+                            // the drawer scrolling underneath the drag.
+                            val movement = change.positionChange()
+                            val travelled = hypot(movement.x, movement.y)
+                            if (travelled != 0f) {
+                                if (held >= dragAfter && dragEnabled) {
+                                    consumedMove = true
+                                    change.consume()
+                                } else if (travelled > touchSlop) {
+                                    break
+                                }
+                            }
+
+                            // Sitting still past the menu threshold opens the menu
+                            // on the way to becoming a drag: the user can see it
+                            // appear and keep holding, which is what tells them
+                            // there is something further along.
+                            if (!menuShown && !armedForDrag && held >= menuAfter) {
+                                menuShown = true
+                                if (!dragEnabled) {
+                                    menuOpen = true
+                                    break
+                                }
+                            }
                         }
-                    },
-                    onDoubleClick = { menuOpen = true },
-                )
+
+                        if (!consumedMove) {
+                            armedForDrag = false
+                        }
+                    }
+                }
                 .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -931,6 +1030,23 @@ private fun SplitPairCard(
 
 /** One session's half of a split pair card. */
 @Composable
+/**
+ * How much longer than a plain long press the drag threshold is.
+ *
+ * Two. Long enough that the menu can appear and the user can see it and keep
+ * holding — the only cue that there is a second stage — and short enough that
+ * "hold it a bit longer" is not a wait.
+ */
+private const val DRAG_HOLD_MULTIPLIER = 2
+
+/** How far a finger may travel before a press becomes a drawer scroll. */
+private val TOUCH_SLOP = 12.dp
+
+/** How small a held row shrinks. Small enough to look carried, big enough to read. */
+private const val HELD_SCALE = 0.82f
+
+private val HELD_ELEVATION = 8.dp
+
 private fun SplitPairHalf(
     name: String,
     active: Boolean,
@@ -1206,6 +1322,9 @@ private fun CircleButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    // Needed inside `pointerInput`, whose block is not a composable scope: the
+    // touch slop has to be in pixels, and the slop is a dp constant.
+    val density = LocalDensity.current
     val surface by animateFloatAsState(
         targetValue = if (pressed) 1f else 0f,
         animationSpec = tween(durationMillis = 120),

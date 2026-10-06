@@ -907,6 +907,77 @@ because it lives in `rememberSaveable` and a `Set` has no `Bundle`-compatible
 
 ---
 
+## 9b. System-wide floating pane — **not built, and this is the reason why**
+
+*Requested 2026-10-05. Not attempted, and the reason is structural rather than
+a matter of time.*
+
+### The request
+
+The floating pane should stay on screen over other apps, with permission.
+
+### Why it is not just a service and a window
+
+The obvious implementation is a started service that adds a
+`TYPE_APPLICATION_OVERLAY` window, and it is genuinely most of the work:
+
+| Piece | Size |
+|-------|------|
+| `SYSTEM_ALERT_WINDOW` in the manifest | one line |
+| `Settings.canDrawOverlays` check plus the Settings intent | ~10 lines |
+| A started foreground service with its channel and a permanent notification | ~80 lines |
+| `WindowManager.addView` / `updateViewLayout` from `PaneLayout`'s fractions | ~60 lines |
+| Moving the pane's session between the two windows | **the problem** |
+
+The last row is where it stops being a service.
+
+`TerminalView` is created by an `AndroidView` inside the Activity's composition
+(`TerminalScreen.kt`, `factory = { ctx -> TerminalView(ctx, null) }`). It is not
+an ordinary View that can be reparented — it is the output of a composition, with
+a `LifecycleOwner`, a `Context` and a place in the tree. Putting it in a window
+owned by a service means:
+
+1. **A second composition root.** A window added by a service has no
+   `LifecycleOwner`, no `SavedStateRegistryOwner` and no `ViewModelStore`. The
+   View cannot simply be handed over — something has to own a composition for it,
+   and that is either a `Dialog` or `Popup` (which Compose ties back to the
+   Activity anyway) or a hand-rolled `Recomposer` whose lifecycle, frame clock and
+   callbacks have to be torn down correctly or the app leaks a running frame loop.
+2. **One session, one view.** `TerminalManager.paneForSession` and
+   `registerPaneView` already track which pane holds which session, precisely
+   because a `TerminalSession` cannot be attached to two `TerminalView`s at once —
+   `attachSession` resets the emulator, so two views on one session fight. Moving
+   the pane to the overlay therefore means *removing* it from the Activity's tree
+   first and creating it again in the new one. That is a handover, not a second
+   window, and it has to be atomic or the user sees an empty rectangle for a frame
+   — or forever, if it fails.
+3. **Input routing.** `FLAG_NOT_FOCUSABLE` is mandatory, so the pane must not
+   steal the keyboard from the app underneath. Without focus the pane cannot
+   receive typing; with it, the app underneath stops working. A floating terminal
+   you cannot type into is a wallpaper of a terminal, and a floating terminal that
+   takes the keyboard stops being floating.
+
+Point 3 decides it. Making it typable means taking the IME away from whatever the
+user was actually doing — a behaviour to decide on purpose, not a bug to fix later.
+
+### What a real version needs, in order
+
+1. **Decide the input model.** Read-only (honest, useless), tap-to-focus (usable,
+   steals the keyboard), or a separate IME flag (needs `EditorInfo` work). Every
+   other piece depends on this, and it is a product question.
+2. **Hand the session over atomically.** One `TerminalView` at a time, created by
+   whichever root currently owns the pane. `TerminalManager` needs a "this pane has
+   no view right now" state — `registerPaneView` assumes the pane is on screen.
+3. **Then** the service, the permission, and the window.
+
+### What is built instead
+
+The in-app floating pane — move, resize, drag off screen, dock, park against an
+edge — all works and is tested. That is the same feature minus the part that needs
+an answer to question 1.
+
+---
+
 ## 10. Agent Core
 
 ### Architecture (Phase 6 — implemented)
