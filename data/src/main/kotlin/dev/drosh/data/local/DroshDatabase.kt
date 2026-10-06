@@ -296,6 +296,6 @@ abstract class DroshDatabase : RoomDatabase() {
          * whatever version a device is at, so a device on 1, on 2 or on the broken
          * 3 all reach the current schema.
          */
-        const val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
     }
 }
