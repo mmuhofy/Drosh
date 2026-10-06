@@ -79,4 +79,26 @@ object SecurityModule {
 
     /** Distinct from the PIN store's alias so neither can decrypt the other. */
     private const val AGENT_SECRETS_KEY_ALIAS = "drosh_agent_secrets"
+
+    private const val SSH_KEY_ALIAS = "drosh_ssh_prefs"
+
+    /** Encrypted store for SSH host passwords and private-key PEMs. */
+    @SshPref
+    @Provides
+    @Singleton
+    fun provideSshPrefs(
+        @ApplicationContext context: Context,
+    ): SharedPreferences = EncryptedSharedPreferences.create(
+        context,
+        "drosh_ssh_prefs",
+        MasterKey.Builder(context, SSH_KEY_ALIAS)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build(),
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+    )
+
+    @Qualifier
+    @Retention(AnnotationRetention.BINARY)
+    annotation class SshPref
 }

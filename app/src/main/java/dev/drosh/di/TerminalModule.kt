@@ -15,6 +15,8 @@ import dev.drosh.ui.overlay.ServiceSystemOverlayController
 import dev.drosh.terminal.TerminalSessionClientImpl
 import dev.drosh.terminal.TerminalViewClientImpl
 import dev.drosh.terminal.UbuntuBootstrap
+import dev.drosh.terminal.SshSessionFactory
+import dev.drosh.ssh.SshSessionFactoryImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -94,6 +96,12 @@ object TerminalModule {
     fun provideBlockEngineState(
         wire: BlockEngineWire,
     ): BlockEngineState = wire
+
+    @Provides
+    @Singleton
+    fun provideSshSessionFactory(
+        impl: SshSessionFactoryImpl,
+    ): SshSessionFactory = impl
 
     @Provides
     @Singleton

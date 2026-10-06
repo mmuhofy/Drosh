@@ -168,6 +168,7 @@ fun TerminalScreen(
      */
     onOpenEditor: (String) -> Unit = {},
     onOpenAgent: () -> Unit = {},
+    onOpenSsh: () -> Unit = {},
     onOpenProjects: () -> Unit = {},
 ) {
     var showProgress by remember { mutableStateOf(false) }
@@ -213,6 +214,7 @@ fun TerminalScreen(
                 extraKeyState = extraKeyState,
                 onExit = onExit,
                 onOpenAgent = onOpenAgent,
+                onOpenSsh = onOpenSsh,
                 onOpenProjects = onOpenProjects,
             )
         }
@@ -240,6 +242,7 @@ private fun ReadyScreen(
     paneLayoutViewModel: PaneLayoutViewModel = hiltViewModel(),
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
     onOpenAgent: () -> Unit = {},
+    onOpenSsh: () -> Unit = {},
     onOpenProjects: () -> Unit = {},
 ) {
 
@@ -1050,6 +1053,7 @@ private fun ReadyScreen(
         isOpen = sidebarOpen,
         onOpenSettings = onOpenSettings,
         onOpenAgent = onOpenAgent,
+        onOpenSsh = onOpenSsh,
         onOpenProjects = onOpenProjects,
         pushState = sidebarPush,
         // Offered only when there is something to split into. With one live

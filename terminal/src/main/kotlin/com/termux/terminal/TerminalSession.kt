@@ -50,6 +50,7 @@ class TerminalSession(
     override val shellIntegration: ShellIntegrationState = ShellIntegrationState()
 
     @JvmField
+    @Volatile
     var mEmulator: TerminalEmulator? = null
     
     /** Property accessor for mEmulator for Kotlin interop */
@@ -103,6 +104,39 @@ class TerminalSession(
      * @param client The [TerminalSessionClient] interface implementation to allow
      * for communication between [TerminalSession] and its client.
      */
+    /**
+     * True when the session's byte source is external rather than a local
+     * subprocess — SSHJ drives the emulator through [feedBridgedInput].
+     *
+     * Set before the first [updateSize] call; the constructor cannot know
+     * because the bridge is created at a different layer than the session.
+     */
+    var bridged: Boolean = false
+
+    /** Receives user keystrokes in bridged mode; normally they are queued to the PTY. */
+    var externalInputSink: ((ByteArray, Int, Int) -> Unit)? = null
+
+    /** Notified with the new size in bridged mode so the remote PTY can be resized. */
+    var bridgedResizeListener: ((Int, Int, Int, Int) -> Unit)? = null
+
+    /**
+     * Feed remote output into the emulator. Bytes go through the same queue
+     * the local reader thread uses, drained on the main thread by the same
+     * re-arming [MainThreadHandler] — one wake-up per empty→non-empty
+     * transition, same as the subprocess path.
+     */
+    fun feedBridgedInput(data: ByteArray, count: Int = data.size, offset: Int = 0) {
+        val wasEmpty = !mProcessToTerminalIOQueue.hasBytes()
+        if (!mProcessToTerminalIOQueue.write(data, offset, count)) return
+        if (wasEmpty) mMainThreadHandler.sendEmptyMessage(MSG_NEW_INPUT)
+    }
+
+    /** Mark the bridged session finished: same exit path the process-waiter uses. */
+    fun finishBridged(exitCode: Int) {
+        if (mShellPid == 0) mShellPid = -1
+        mMainThreadHandler.sendMessage(mMainThreadHandler.obtainMessage(MSG_PROCESS_EXITED, exitCode))
+    }
+
     fun updateTerminalSessionClient(client: TerminalSessionClient) {
         mClient = client
         mEmulator?.updateTerminalSessionClient(client)
@@ -113,8 +147,9 @@ class TerminalSession(
         if (mEmulator == null) {
             initializeEmulator(columns, rows, cellWidthPixels, cellHeightPixels)
         } else {
-            JNI.setPtyWindowSize(mTerminalFileDescriptor, rows, columns, cellWidthPixels, cellHeightPixels)
+            if (!bridged) JNI.setPtyWindowSize(mTerminalFileDescriptor, rows, columns, cellWidthPixels, cellHeightPixels)
             mEmulator!!.resize(columns, rows, cellWidthPixels, cellHeightPixels)
+            bridgedResizeListener?.invoke(columns, rows, cellWidthPixels, cellHeightPixels)
         }
     }
 
@@ -127,6 +162,14 @@ class TerminalSession(
      */
     fun initializeEmulator(columns: Int, rows: Int, cellWidthPixels: Int, cellHeightPixels: Int) {
         mEmulator = TerminalEmulator(this, columns, rows, cellWidthPixels, cellHeightPixels, mTranscriptRows ?: 0, mClient)
+
+        if (bridged) {
+            // External byte source (e.g. SSHJ): the handler drains
+            // mProcessToTerminalIOQueue once feedBridgedInput pushes to it,
+            // so no subprocess, no reader/writer/waiter threads.
+            mShellPid = -1
+            return
+        }
 
         val processId = IntArray(1)
         mTerminalFileDescriptor = JNI.createSubprocess(mShellPath, mCwd, mArgs, mEnv, processId, rows, columns, cellWidthPixels, cellHeightPixels)
@@ -190,7 +233,11 @@ class TerminalSession(
 
     /** Write data to the shell process. */
     override fun write(data: ByteArray, offset: Int, count: Int) {
-        if (mShellPid > 0) mTerminalToProcessIOQueue.write(data, offset, count)
+        if (bridged) {
+            externalInputSink?.invoke(data, offset, count)
+        } else if (mShellPid > 0) {
+            mTerminalToProcessIOQueue.write(data, offset, count)
+        }
     }
 
     /** Write the Unicode code point to the terminal encoded in UTF-8. */
@@ -257,7 +304,7 @@ class TerminalSession(
         // Stop the reader and writer threads, and close the I/O streams
         mTerminalToProcessIOQueue.close()
         mProcessToTerminalIOQueue.close()
-        JNI.close(mTerminalFileDescriptor)
+        if (!bridged) JNI.close(mTerminalFileDescriptor)
     }
 
     override fun titleChanged(oldTitle: String?, newTitle: String?) {

@@ -332,6 +332,7 @@ class MainActivity : ComponentActivity() {
                         onExit = { context.finish() },
                         onOpenEditor = { path -> navController.openEditor(path) },
                         onOpenAgent = { navController.navigate("agent_home") },
+                        onOpenSsh = { navController.navigate("ssh") },
                         onOpenProjects = { navController.navigate("workspace") },
                     )
                 }
@@ -350,6 +351,7 @@ class MainActivity : ComponentActivity() {
                     onOpenEditor = { path -> navController.openEditor(path) },
                     onOpenAgent = { navController.navigate("agent_home") },
                     onOpenProjects = { navController.navigate("workspace") },
+                    onOpenSsh = { navController.navigate("ssh") },
                 )
             }
 
@@ -396,6 +398,15 @@ class MainActivity : ComponentActivity() {
             // Projects — workspaces and the sessions filed under them. Reached
             // from Settings, which is why opening a session from here has to pop
             // all the way back to the terminal rather than just one entry.
+            // SSH hosts: sidebar → SSH opens this route; tapping a host
+            // connects and drops back into the terminal with the live session.
+            composable("ssh") {
+                dev.drosh.ui.ssh.SshHomeScreen(
+                    onBack = { navController.popBackStack() },
+                    onConnected = { navController.popBackStack() },
+                )
+            }
+
             composable("workspace") {
                 WorkspaceScreen(
                     onBack = { navController.popBackStack() },

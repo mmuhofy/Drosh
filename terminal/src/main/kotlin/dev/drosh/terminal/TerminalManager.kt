@@ -845,6 +845,39 @@ class TerminalManager(
         irisSessions.getOrNull(index)?.persistentId
 
     /**
+     * Creates an interactive SSH session backed by the bridged TerminalSession
+     * from [sshSessionFactory]. Not reconciled against Room rows — it lives
+     * only as long as the process, like a local PTY session.
+     *
+     * [persistentId] is supplied by the caller via the SshSessionLauncher so
+     * the launch result can be surfaced to the user.
+     */
+    fun addSshSession(
+        persistentId: String,
+        name: String,
+        terminalSession: TerminalSession,
+    ): TerminalSession {
+        val irisSession = DroshSession(
+            terminalSession = terminalSession,
+            persistentId = persistentId,
+            name = name,
+        )
+        irisSessions.add(irisSession)
+        val newIndex = irisSessions.size - 1
+        idToIndex[persistentId] = newIndex
+        paneTabIndices[focusedPane.value] = newIndex
+        _sessionCount.value = irisSessions.size
+        _liveSessionIds.value = liveSessionIds()
+        _noSessionsLeft.value = false
+        blockEngineWire?.onSessionChanged(persistentId, irisSession.terminalSession)
+        paneViews[focusedPane.value]?.attachSession(irisSession.terminalSession)
+        syncActiveTabIndex()
+        publishAltBufferState()
+        publishActiveId()
+        return irisSession.terminalSession
+    }
+
+    /**
      * Look up the positional index of a [TerminalSession] by reference.
      * Returns -1 if the session is not currently managed.
      */
