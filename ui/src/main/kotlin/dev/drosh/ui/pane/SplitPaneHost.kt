@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,10 +37,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,6 +80,8 @@ fun SplitPaneHost(
     onSplitFractionChange: (Float) -> Unit,
     onSplitFractionCommit: () -> Unit,
     onFloatingBoundsChange: (NormalizedRect) -> Unit,
+    onFloatingBoundsCommit: () -> Unit,
+    onExpandEdgeSnapped: () -> Unit,
     onDock: () -> Unit,
     onClosePane: () -> Unit,
     onSwapPanes: () -> Unit,
@@ -97,10 +104,13 @@ fun SplitPaneHost(
             primary()
             FloatingPaneWindow(
                 bounds = layout.floatingBounds,
+                edgeSnapped = layout.edgeSnapped,
                 title = floatingTitle,
                 hostWidthPx = widthPx,
                 hostHeightPx = heightPx,
                 onBoundsChange = onFloatingBoundsChange,
+                onBoundsCommit = onFloatingBoundsCommit,
+                onExpand = onExpandEdgeSnapped,
                 onDock = onDock,
                 onClose = onClosePane,
                 modifier = Modifier.fillMaxSize(),
@@ -126,6 +136,27 @@ fun SplitPaneHost(
             .coerceIn(1, (heightPx - 1).toInt())
         val bottomPx = (heightPx - topPx).roundToInt().coerceAtLeast(1)
 
+        /**
+         * The seam's live position in pixels, during a drag.
+         *
+         * Separate from [topPx] because [topPx] is what the model says and the
+         * model updates through a state write: using it as the base of the next
+         * delta is what made the seam lag and then jump. This one is written
+         * synchronously inside the gesture, so every frame reads the position
+         * the last frame produced.
+         */
+        var dragTopPx by remember { mutableStateOf(topPx.toFloat()) }
+
+        /**
+         * The smallest either pane may become, in pixels.
+         *
+         * Both panes get this floor, so the seam can be dragged anywhere from
+         * "top pane at the minimum" to "bottom pane at the minimum". The old
+         * clamp was against zero, which allowed dragging one pane out of
+         * existence and made the seam stop where the finger did not.
+         */
+        val minTopPx = with(density) { MIN_PANE_HEIGHT.toPx() }
+
         Box(modifier = Modifier.fillMaxSize()) {
             // Out of composition while dragging rather than made transparent: an
             // invisible View still lays out, still redraws, and still costs the
@@ -149,11 +180,53 @@ fun SplitPaneHost(
                 ) { secondary() }
             }
 
+            /**
+             * The steps, as a layer over the whole host rather than part of the
+             * divider.
+             *
+             * They have to span the host to be useful — a tick at each possible
+             * height is what tells the user where releasing will land — and the
+             * divider is a 28dp band that follows the seam, so anything inside
+             * it could only ever be drawn around the seam's own position.
+             */
+            if (dragging) {
+                StepGuides(
+                    stepFractions = layout.splitSteps(),
+                    currentFraction = dragTopPx / heightPx,
+                )
+            }
+
             SplitDivider(
-                // Clamped in the model, in two different ways: freely while
-                // dragging, snapped to a step on release.
-                onDrag = { deltaPx -> onSplitFractionChange((topPx + deltaPx) / heightPx) },
-                onDragStart = { dragging = true },
+                /**
+                 * Each delta is applied to **the current** divider position, not
+                 * to the one the drag started at.
+                 *
+                 * The first version read `(topPx + deltaPx)`, and `topPx` is
+                 * captured from the composition — so every event in the gesture
+                 * computed from the same starting height and the pane only ever
+                 * moved by the last delta. Worse, the sign was wrong: the gesture
+                 * reported a downward drag as a positive delta and that was
+                 * added to the *top* pane's height, so dragging up made the top
+                 * pane taller and the seam followed the finger backwards.
+                 *
+                 * `dragTopPx` is the seam's live position. Clamped here rather
+                 * than in the model so the model only ever sees a fraction of
+                 * the host, and so a drag past either end lands exactly on the
+                 * end instead of overshooting and being clamped by rounding.
+                 */
+                onDrag = { deltaPx ->
+                    dragTopPx = (dragTopPx + deltaPx).coerceIn(
+                        minTopPx,
+                        (heightPx - minTopPx).coerceAtLeast(minTopPx),
+                    )
+                    onSplitFractionChange(dragTopPx / heightPx)
+                },
+                onDragStart = {
+                    dragging = true
+                    // Seeded from where the seam actually is, so the first delta
+                    // continues from the finger rather than from a stale frame.
+                    dragTopPx = topPx.toFloat()
+                },
                 onDragEnd = {
                     dragging = false
                     onSplitFractionCommit()
@@ -162,12 +235,71 @@ fun SplitPaneHost(
                 // Straddles the seam, so the seam line stays visible on both
                 // sides of the grip rather than the grip covering it.
                 modifier = Modifier.offset {
-                    IntOffset(0, topPx - with(density) { DIVIDER_HIT_HEIGHT.toPx() }.toInt() / 2)
+                    IntOffset(0, dragTopPx.toInt() - with(density) { DIVIDER_HIT_HEIGHT.toPx() }.toInt() / 2)
                 },
             )
         }
     }
 }
+
+/**
+ * Faint rules up the screen marking where the divider can land, shown while it
+ * is held.
+ *
+ * ## Why they exist
+ *
+ * The divider snaps to five positions. Without a mark for each, every release is
+ * a guess: the user drags, lets go, and the seam is somewhere they did not aim
+ * for. That reads as the control jumping on its own, and it is the reason
+ * "the divider has no steps" felt true even though the code had five.
+ *
+ * The nearest line to the seam brightens as the finger approaches it, so
+ * "release and it goes *here*" is legible before the finger lifts — which is the
+ * whole point of snapping rather than landing anywhere.
+ *
+ * Only while held. Four permanent rules across a terminal is exactly the thing
+ * a terminal should not look like.
+ */
+@Composable
+private fun StepGuides(
+    stepFractions: List<Float>,
+    currentFraction: Float,
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val hostHeight = constraints.maxHeight
+        if (hostHeight <= 0) return@BoxWithConstraints
+
+        val nearest = stepFractions.minByOrNull { abs(it - currentFraction) }
+
+        stepFractions.forEach { fraction ->
+            val y = (fraction * hostHeight).roundToInt()
+            val isNearest = fraction == nearest
+            val distance = abs(fraction - currentFraction)
+            val strength = (1f - distance / STEP_FADE_RANGE).coerceIn(0f, 1f)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (isNearest) STEP_MARKER_ACTIVE else STEP_MARKER_THICK)
+                    .background(
+                        (if (isNearest) DroshPrimary else DroshOutline).copy(
+                            alpha = if (isNearest) STEP_MARKER_ACTIVE_ALPHA
+                            else STEP_MARKER_ALPHA * strength,
+                        ),
+                    )
+                    .offset { IntOffset(0, y) },
+            )
+        }
+    }
+}
+
+/** How close the seam has to be for a step's line to be at full strength. */
+private const val STEP_FADE_RANGE = 0.12f
+
+private val STEP_MARKER_THICK = 1.dp
+private val STEP_MARKER_ACTIVE = 2.dp
+private const val STEP_MARKER_ALPHA = 0.5f
+private const val STEP_MARKER_ACTIVE_ALPHA = 0.9f
 
 /**
  * The seam between two docked panes, dragging vertically.
@@ -274,6 +406,16 @@ private fun SplitDivider(
     }
 }
 
+/**
+ * The shortest a pane may be dragged to.
+ *
+ * Roughly a prompt plus five lines of output, which is the least that makes the
+ * pane worth having. Clamping the seam against *zero* instead let either pane be
+ * dragged out of existence, and then the seam stopped where the finger did not —
+ * which is what "I cannot drag it as far as I want" looked like.
+ */
+private val MIN_PANE_HEIGHT = 96.dp
+
 /** Height of the divider's touch target, far taller than the pill drawn. */
 private val DIVIDER_HIT_HEIGHT = 28.dp
 
@@ -297,16 +439,48 @@ private val SEAM_THICKNESS = 1.dp
 @Composable
 private fun FloatingPaneWindow(
     bounds: NormalizedRect,
+    edgeSnapped: Boolean,
     title: String,
     hostWidthPx: Float,
     hostHeightPx: Float,
     onBoundsChange: (NormalizedRect) -> Unit,
+    onBoundsCommit: () -> Unit,
+    onExpand: () -> Unit,
     onDock: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
+
+    /**
+     * A pane parked at the edge, drawn as a strip.
+     *
+     * The terminal is *not* drawn here. At 12% of the width it is a column of
+     * clipped characters — unreadable, and still paying for a layout and a redraw
+     * of two TerminalViews per frame behind it. What is drawn instead is the
+     * session's name and a grip, which is what makes the strip findable: the
+     * alternative was a four-pixel sliver the user had to already know about.
+     *
+     * Tapping brings it back at the size it had before. Not a drag: the whole
+     * point is that it is somewhere a finger would rather not go.
+     */
+    if (edgeSnapped) {
+        Box(
+            modifier = modifier,
+        ) {
+            EdgeSnappedStrip(
+                title = title,
+                vertical = bounds.width <= bounds.height,
+                hostWidthPx = hostWidthPx,
+                hostHeightPx = hostHeightPx,
+                bounds = bounds,
+                onExpand = onExpand,
+                onClose = onClose,
+            )
+        }
+        return
+    }
 
     val widthPx = (bounds.width * hostWidthPx).roundToInt().coerceAtLeast(1)
     val heightPx = (bounds.height * hostHeightPx).roundToInt().coerceAtLeast(1)
@@ -329,10 +503,29 @@ private fun FloatingPaneWindow(
      * `rememberUpdatedState` keeps the callback itself fresh without restarting
      * the gesture.
      */
-    val liveBounds by rememberUpdatedState(bounds)
     val latestOnBoundsChange by rememberUpdatedState(onBoundsChange)
 
-    var dragOrigin by remember { mutableStateOf<NormalizedRect?>(null) }
+    /**
+     * The bounds this gesture started from, kept apart for each grip.
+     *
+     * Two state slots rather than one, and the reason is a bug the first version
+     * had: both grips seeded `dragOrigin = bounds`, the single shared slot. So
+     * after resizing, the next *move* started from the bounds captured when the
+     * window was last composed — before the resize was applied — and the window
+     * sprang back to its old position. Same slot, same origin, two gestures that
+     * mean different things.
+     *
+     * Separate slots also fix the second half of it: a move used to write `left`
+     * and `top` onto a copy of the full rect and send the whole thing back, so
+     * its `width`/`height` were whatever the last composition said — which after
+     * a resize was the pre-resize size, and the pane reset itself to full size
+     * the moment you dragged it again.
+     *
+     * A move therefore changes **only** position and a resize **only** size, and
+     * each is written onto the live value.
+     */
+    var moveOrigin by remember { mutableStateOf<NormalizedRect?>(null) }
+    var resizeOrigin by remember { mutableStateOf<NormalizedRect?>(null) }
 
     Box(modifier = modifier) {
         // A Box around the Column, not a Column around the Box. The resize grip
@@ -356,17 +549,21 @@ private fun FloatingPaneWindow(
                     title = title,
                     onDock = onDock,
                     onClose = onClose,
-                    onDragStart = { dragOrigin = bounds },
+                    onDragStart = { moveOrigin = bounds },
                     onDrag = { deltaX, deltaY ->
-                        val from = dragOrigin ?: return@FloatingPaneTitleBar
+                        val from = moveOrigin ?: return@FloatingPaneTitleBar
+                        // Position only. `copy` carries the width and height this
+                        // gesture started with, so a resize made in an earlier
+                        // gesture survives — which is the whole point of a
+                        // separate slot.
                         val moved = from.copy(
                             left = from.left + deltaX / hostWidthPx,
                             top = from.top + deltaY / hostHeightPx,
                         )
-                        dragOrigin = moved
+                        moveOrigin = moved
                         latestOnBoundsChange(moved)
                     },
-                    onDragEnd = { dragOrigin = null },
+                    onDragEnd = { moveOrigin = null },
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -374,20 +571,98 @@ private fun FloatingPaneWindow(
             }
 
             ResizeGrip(
-                onDragStart = { dragOrigin = bounds },
+                onDragStart = { resizeOrigin = bounds },
                 onDrag = { deltaX, deltaY ->
-                    val from = dragOrigin ?: return@ResizeGrip
+                    val from = resizeOrigin ?: return@ResizeGrip
+                    // Size only, and the origin is pinned to the top-left: a
+                    // resize that also moved the window would make the corner
+                    // grip feel like a second way to drag.
                     val moved = from.copy(
                         width = from.width + deltaX / hostWidthPx,
                         height = from.height + deltaY / hostHeightPx,
                     )
-                    dragOrigin = moved
+                    resizeOrigin = moved
                     latestOnBoundsChange(moved)
                 },
-                onDragEnd = { dragOrigin = null },
+                onDragEnd = { resizeOrigin = null },
                 modifier = Modifier.align(Alignment.BottomEnd),
             )
         }
+    }
+}
+
+/**
+ * The parked-pane strip: name, a grip, and a way back.
+ *
+ * Orientation follows which edge the pane went to, decided by which dimension
+ * the snap shrank — a left or right snap narrows it, a top or bottom snap
+ * shortens it. Guessing from the aspect ratio would be wrong for a pane that was
+ * nearly square to begin with.
+ */
+@Composable
+private fun EdgeSnappedStrip(
+    title: String,
+    vertical: Boolean,
+    hostWidthPx: Float,
+    hostHeightPx: Float,
+    bounds: NormalizedRect,
+    onExpand: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val density = LocalDensity.current
+    val widthPx = (bounds.width * hostWidthPx).roundToInt().coerceAtLeast(1)
+    val heightPx = (bounds.height * hostHeightPx).roundToInt().coerceAtLeast(1)
+    val leftPx = (bounds.left * hostWidthPx).roundToInt()
+    val topPx = (bounds.top * hostHeightPx).roundToInt()
+
+    val name = if (title.isBlank()) "Session" else title
+
+    Column(
+        modifier = Modifier
+            .offset { IntOffset(leftPx, topPx) }
+            .size(
+                width = with(density) { widthPx.toDp() },
+                height = with(density) { heightPx.toDp() },
+            )
+            .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
+            .background(DroshSurfaceHigh)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onExpand,
+            )
+            .semantics {
+                contentDescription = "$name, kenara yaslandı. Dokun: geri aç"
+            },
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Rotated rather than reflowed when the strip is tall and narrow, so the
+        // name reads along the edge rather than as one character per line.
+        Text(
+            text = if (vertical) name else name,
+            color = DroshText,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = if (vertical) TextAlign.Center else TextAlign.Start,
+            modifier = Modifier
+                .padding(horizontal = 8.dp, vertical = 10.dp)
+                .clearAndSetSemantics { },
+        )
+        FloatingPaneButton(
+            icon = DroshIcons.Maximize,
+            contentDescription = "$name geri aç",
+            onClick = onExpand,
+        )
+        Spacer(Modifier.height(6.dp))
+        FloatingPaneButton(
+            icon = DroshIcons.X,
+            contentDescription = "$name kapat",
+            onClick = onClose,
+            tint = DroshError,
+        )
     }
 }
 

@@ -82,6 +82,15 @@ data class PaneLayout(
     val splitFraction: Float = DEFAULT_SPLIT_FRACTION,
     val presentation: PanePresentation = PanePresentation.DOCKED,
     val floatingBounds: NormalizedRect = NormalizedRect.DEFAULT,
+    /**
+     * True when the floating pane is tucked against an edge as a sliver.
+     *
+     * A window dragged to the very edge is not really in the way, but it still
+     * covers a third of the screen and its content is unreadable at that width.
+     * Parking it edge-on keeps it reachable — a terminal you cannot see the
+     * output of is not usable, and neither is one you cannot find.
+     */
+    val edgeSnapped: Boolean = false,
     /** True when the floating pane is expanded to fill the host. */
     val maximized: Boolean = false,
     /**
@@ -236,11 +245,53 @@ data class PaneLayout(
 
     /** Docks the second pane beside the first, dropping any float state. */
     fun docked(): PaneLayout =
-        copy(presentation = PanePresentation.DOCKED, maximized = false)
+        copy(presentation = PanePresentation.DOCKED, edgeSnapped = false)
 
     /** Floats the second pane over the first at its remembered bounds. */
     fun floating(): PaneLayout =
-        copy(presentation = PanePresentation.FLOATING, maximized = false)
+        copy(presentation = PanePresentation.FLOATING, edgeSnapped = false)
+
+    /**
+     * Tucks the floating pane against whichever edge it was left nearest.
+     *
+     * ## Why this is a state and not a rendering trick
+     *
+     * A pane dragged to the very edge is not really in the way, but it still
+     * covers a third of the screen and its output is unreadable at that width.
+     * Parking it edge-on keeps it reachable — a terminal whose output you cannot
+     * see is not usable, and neither is one you cannot find.
+     *
+     * Only while floating, and only near an edge. A pane parked in the middle of
+     * the screen at that size is not an edge, it is a mistake, and snapping it
+     * would hide that.
+     *
+     * Returns the layout unchanged when the pane is nowhere near an edge, so
+     * dragging it around the middle does not make it jump on release.
+     */
+    fun withEdgeSnap(): PaneLayout {
+        if (presentation != PanePresentation.FLOATING) return this
+        val b = floatingBounds
+        val nearLeft = b.left <= EDGE_SNAP_ZONE
+        val nearRight = b.right >= 1f - EDGE_SNAP_ZONE
+        val nearTop = b.top <= EDGE_SNAP_ZONE
+        val nearBottom = b.bottom >= 1f - EDGE_SNAP_ZONE
+        if (!nearLeft && !nearRight && !nearTop && !nearBottom) return this
+
+        val snapped = when {
+            nearLeft -> b.copy(left = 0f, width = EDGE_SLIVER)
+            nearRight -> b.copy(left = 1f - EDGE_SLIVER, width = EDGE_SLIVER)
+            nearTop -> b.copy(top = 0f, height = EDGE_SLIVER)
+            else -> b.copy(top = 1f - EDGE_SLIVER, height = EDGE_SLIVER)
+        }
+        return copy(floatingBounds = snapped, edgeSnapped = true)
+    }
+
+    /** Undoes [withEdgeSnap], putting the pane back at its remembered size. */
+    fun unedgeSnapped(): PaneLayout {
+        if (!edgeSnapped) return this
+        return copy(floatingBounds = NormalizedRect.DEFAULT, edgeSnapped = false)
+    }
+
     /** Toggles between docked and floating without losing the split. */
     fun togglePresentation(): PaneLayout = when (presentation) {
         PanePresentation.DOCKED -> floating()
@@ -330,6 +381,25 @@ data class PaneLayout(
          * usable split — so a release there closes it instead.
          */
         const val COLLAPSE_FRACTION = 0.1f
+
+        /**
+         * How close to an edge a pane has to be before releasing snaps it.
+         *
+         * A tenth of the shorter side. Wide enough that aiming for an edge is
+         * easy and aiming for the middle is not punished, narrow enough that
+         * merely dragging past an edge on the way somewhere else does not catch.
+         */
+        const val EDGE_SNAP_ZONE = 0.12f
+
+        /**
+         * The width or height a snapped pane collapses to.
+         *
+         * Twelve percent of the shorter side — a strip you can see and hit, not a
+         * few pixels. Too small and it cannot be found again without knowing it is
+         * there; too large and it is still covering the terminal it was moved to
+         * see.
+         */
+        const val EDGE_SLIVER = 0.12f
 
         /** No second pane. */
         val EMPTY: PaneLayout = PaneLayout(secondarySessionId = null)

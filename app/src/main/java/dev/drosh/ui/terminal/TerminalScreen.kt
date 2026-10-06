@@ -667,6 +667,12 @@ private fun ReadyScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // The IME inset belongs to the *screen*, not to the panes: it is
+                // the keyboard's height, and each pane already takes what the
+                // host gives it. Applying it above the host meant the lower pane
+                // was drawn short by that amount and the space below it fell
+                // through to the app background — a black band under the split,
+                // growing with the keyboard.
                 .droshImePadding(),
         ) {
         SplitPaneHost(
@@ -674,15 +680,15 @@ private fun ReadyScreen(
             onSplitFractionChange = paneLayoutViewModel::dragSplitFraction,
             onSplitFractionCommit = paneLayoutViewModel::commitSplitFraction,
             onFloatingBoundsChange = paneLayoutViewModel::dragFloatingBounds,
+            onFloatingBoundsCommit = paneLayoutViewModel::commitFloatingBounds,
+            onExpandEdgeSnapped = paneLayoutViewModel::expandEdgeSnapped,
             onDock = paneLayoutViewModel::dock,
             onClosePane = paneLayoutViewModel::closeFloatingPane,
             onSwapPanes = paneLayoutViewModel::swapPanes,
             floatingTitle = secondarySessionName,
-            // weight, not fillMaxSize. Each pane draws its own extra-key bar, so
-            // the host has to take only the height the Column has left over —
-            // filling it all pushed the key bar past the bottom edge, which is
-            // what made the lower pane look half-empty: it was drawn under the
-            // bar and under the keyboard.
+            // weight, not fillMaxSize: the extra-key bar is drawn by this
+            // Column, below the host, and a host that filled the available height
+            // would push it past the bottom edge.
             modifier = Modifier.weight(1f),
             primary = {
                 TerminalPaneBody(
@@ -1034,6 +1040,7 @@ private fun ReadyScreen(
             null
         },
         isSplit = paneLayout.isSplit,
+        isFloatingPane = paneLayout.isFloating,
         /**
          * Ids, not names, and in the order they are drawn: the upper pane
          * first. The drawer's pair card mirrors the screen, and a swap changes
