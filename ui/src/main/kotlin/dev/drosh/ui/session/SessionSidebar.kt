@@ -92,6 +92,7 @@ import dev.drosh.design.system.DroshMenuItemStyle
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
+import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
@@ -771,14 +772,21 @@ private fun SessionRow(
                  */
                 .then(
                     if (dragging) {
+                        // Every property here is a Float in pixels, not a Dp:
+                        // `graphicsLayer` is the draw-time layer, and it has no
+                        // density to convert with. A Dp passed here is a type
+                        // error, and a value silently scaled would be worse.
                         Modifier.graphicsLayer {
                             scaleX = HELD_SCALE
                             scaleY = HELD_SCALE
                             // Lifted off the surface. Without a shadow the shrink
                             // reads as the row being deleted rather than picked up.
-                            shadowElevation = HELD_ELEVATION
+                            shadowElevation = HELD_ELEVATION_PX
+                            // `shape` and `clip` take Dp-geometry — `clip = true`
+                            // alone would cut the shadow off at the bounds, which
+                            // is the one thing the elevation is for.
                             shape = RoundedCornerShape(10.dp)
-                            clip = true
+                            clip = false
                         }
                     } else {
                         Modifier
@@ -1115,8 +1123,6 @@ private fun SplitPairCard(
     }
 }
 
-/** One session's half of a split pair card. */
-@Composable
 /**
  * How much longer than a plain long press the drag threshold is.
  *
@@ -1132,8 +1138,11 @@ private val TOUCH_SLOP = 12.dp
 /** How small a held row shrinks. Small enough to look carried, big enough to read. */
 private const val HELD_SCALE = 0.82f
 
-private val HELD_ELEVATION = 8.dp
+/** The lift a held row gets, in pixels. `graphicsLayer` takes a Float. */
+private val HELD_ELEVATION_PX = 8f
 
+/** One session's half of a split pair card. */
+@Composable
 private fun SplitPairHalf(
     name: String,
     active: Boolean,
