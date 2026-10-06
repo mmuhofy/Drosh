@@ -15,6 +15,7 @@ import dev.drosh.core.TerminalConstants
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.terminal.PaneSessionBinder
 import dev.drosh.domain.terminal.PaneSlot
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -45,7 +46,12 @@ class TerminalManager(
     application: Application,
     private val blockEngineWire: BlockEngineWire? = null,
     private val settingsRepository: SettingsRepository,
-) {
+) : PaneSessionBinder {
+
+    // PaneSessionBinder: the split screen lives in :ui and cannot import this
+    // class (AGENT.md §139), but it does need to exchange the panes and to
+    // build a split from a chosen pair. Those two operations are the whole
+    // surface; everything else about the layout stays in :domain.
     private val appContext: Context = application.applicationContext
     /**
      * Single source of truth for session storage. Each [DroshSession] bundles
@@ -335,6 +341,66 @@ class TerminalManager(
     fun sessionIdForSlot(slot: PaneSlot): String? = irisSessions
         .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
         ?.persistentId
+
+    /**
+     * Exchanges the two panes' sessions.
+     *
+     * Both the index map and the two Views are swapped, because the views hold
+     * their own attachment: moving the indices alone would leave each view
+     * drawing the session it was attached to, and the split would look correct
+     * in the model while the terminal showed the old pairing.
+     *
+     * A one-pane layout is a no-op rather than an error — there is nothing to
+     * exchange with, and the caller may be a double tap on a divider that was
+     * closed a frame earlier.
+     *
+     * Focus follows the pane the user was looking at, so the swap does not also
+     * move the keyboard somewhere they were not.
+     */
+    override fun swapPanes(): Boolean {
+        val primary = paneTabIndices[PaneSlot.PRIMARY] ?: NO_PANE_SESSION
+        val secondary = paneTabIndices[PaneSlot.SECONDARY] ?: NO_PANE_SESSION
+        if (primary == NO_PANE_SESSION || secondary == NO_PANE_SESSION) return false
+
+        paneTabIndices[PaneSlot.PRIMARY] = secondary
+        paneTabIndices[PaneSlot.SECONDARY] = primary
+
+        val primaryView = paneViews[PaneSlot.PRIMARY]
+        val secondaryView = paneViews[PaneSlot.SECONDARY]
+        if (primaryView != null && secondaryView != null) {
+            val primarySession = sessionForSlot(PaneSlot.PRIMARY)
+            val secondarySession = sessionForSlot(PaneSlot.SECONDARY)
+            primarySession?.let(primaryView::attachSession)
+            secondarySession?.let(secondaryView::attachSession)
+        }
+        return true
+    }
+
+    /**
+     * Puts [sessionId] in the primary pane and [otherId] in the secondary one.
+     *
+     * The gesture that reaches this is "hold this card, drop it on that one", so
+     * the held session is the primary. Making it primary also makes it the
+     * session the rest of the app persists as active — which is what the user
+     * meant by holding it.
+     *
+     * Returns false when either session is not live, and changes nothing in that
+     * case: a half-applied swap would leave the panes bound to sessions that are
+     * not the pair the user chose.
+     */
+    override fun setPaneSessions(primaryId: String, secondaryId: String): Boolean {
+        if (primaryId == secondaryId) return false
+        if (getIndexForId(primaryId) < 0 || getIndexForId(secondaryId) < 0) return false
+        paneTabIndices[PaneSlot.PRIMARY] = getIndexForId(primaryId)
+        paneTabIndices[PaneSlot.SECONDARY] = getIndexForId(secondaryId)
+        paneViews[PaneSlot.PRIMARY]?.let { view ->
+            irisSessions[paneTabIndices[PaneSlot.PRIMARY]!!].terminalSession.let(view::attachSession)
+        }
+        paneViews[PaneSlot.SECONDARY]?.let { view ->
+            irisSessions[paneTabIndices[PaneSlot.SECONDARY]!!].terminalSession.let(view::attachSession)
+        }
+        return true
+    }
 
     /** The session shown in [slot], or null when the pane is empty. */
     fun sessionForSlot(slot: PaneSlot): TerminalSession? = irisSessions

@@ -15,6 +15,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
@@ -56,6 +57,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -161,8 +163,28 @@ fun SessionSidebar(
     onFloatSession: ((String) -> Unit)? = null,
     /** True while a second pane is open, so the rows can show it. */
     isSplit: Boolean = false,
-    /** Names of the two sessions currently sharing the screen. */
-    splitTitles: Pair<String, String>? = null,
+    /**
+     * Ids of the two sessions sharing the screen, upper one first.
+     *
+     * Ids, not names. Swapping the panes changes which session is on top, and a
+     * pair of names cannot express that — the sidebar would draw the card in the
+     * old order while the terminal had already swapped, which is worse than not
+     * showing the arrangement at all. The names are looked up from the session
+     * list the sidebar already has.
+     */
+    splitSessions: Pair<String, String>? = null,
+    /** Drops the second pane. */
+    onCloseSplit: (() -> Unit)? = null,
+    /** Exchanges which session is on top. */
+    onSwapPanes: (() -> Unit)? = null,
+    /**
+     * Splits so that [draggedId] sits above [targetId].
+     *
+     * Both ids rather than a single session because a split is a *pair*: the
+     * sidebar knows which row was held and which row it landed on, and that is
+     * the whole of the user's intent. The terminal resolves the rest.
+     */
+    onDragSplit: ((draggedId: String, targetId: String) -> Unit)? = null,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
     val deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel()
@@ -190,7 +212,10 @@ fun SessionSidebar(
             onSplitSession = onSplitSession,
             onFloatSession = onFloatSession,
             isSplit = isSplit,
-            splitTitles = splitTitles,
+            splitSessions = splitSessions,
+            onCloseSplit = onCloseSplit,
+            onSwapPanes = onSwapPanes,
+            onDragSplit = onDragSplit,
         )
     }
 }
@@ -205,7 +230,10 @@ private fun SidebarContent(
     onSplitSession: ((String) -> Unit)?,
     onFloatSession: ((String) -> Unit)?,
     isSplit: Boolean,
-    splitTitles: Pair<String, String>?,
+    splitSessions: Pair<String, String>?,
+    onCloseSplit: (() -> Unit)?,
+    onSwapPanes: (() -> Unit)?,
+    onDragSplit: ((String, String) -> Unit)?,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
@@ -214,6 +242,18 @@ private fun SidebarContent(
     var searchQuery by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
     var renamingSession by remember { mutableStateOf<SessionSnapshot?>(null) }
+
+    /**
+     * The session currently being held for a drop, if any.
+     *
+     * Plain state rather than a drag-and-drop implementation: this is a
+     * press-and-hold on one row followed by a tap on another, and Compose has no
+     * reliable cross-item drag that survives a LazyColumn's recycling — the item
+     * that started the gesture may not be the one under the finger at the end.
+     * A held id plus a per-row highlight gives the same outcome without
+     * depending on which row survived.
+     */
+    var draggingSessionId by remember { mutableStateOf<String?>(null) }
 
     val filtered = remember(sessions, searchQuery) {
         if (searchQuery.isBlank()) sessions else sessions.filter { it.name.contains(searchQuery, ignoreCase = true) }
@@ -247,13 +287,6 @@ private fun SidebarContent(
             onNewSession = { viewModel.createNew("shell") },
         )
 
-        // The split itself, named. A second terminal on screen with no mention
-        // of it in the drawer reads as the app having drawn something twice —
-        // there is nothing on the left half to explain the right one.
-        splitTitles?.let { (top, bottom) ->
-            SplitBanner(top = top, bottom = bottom)
-        }
-
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(bottom = 8.dp),
@@ -285,18 +318,78 @@ private fun SidebarContent(
                     )
                 }
             } else {
-                items(live.size, key = { "live_${live[it].id}" }) { index ->
-                    val snapshot = live[index]
-                    SessionRow(
-                        snapshot = snapshot,
-                        isActive = snapshot.id == activeId,
-                        recencyRank = index,
-                        onClick = { viewModel.activate(snapshot.id) },
-                        onStartRename = { renamingSession = snapshot },
-                        onDelete = { viewModel.delete(snapshot.id) },
-                        onSplit = onSplitSession?.let { split -> { split(snapshot.id) } },
-                        onFloat = onFloatSession?.let { float -> { float(snapshot.id) } },
-                    )
+                // The two sessions sharing a split are drawn as one card, not as
+                // two rows. They are not two sessions any more from the drawer's
+                // point of view — they are one arrangement, and listing them one
+                // under the other said so, while giving no way to act on them
+                // together: closing one left a half-split behind, and swapping
+                // them meant two taps on rows that look unrelated.
+                //
+                // So they collapse into a single card showing both names, either
+                // side of the divider, in the order they are on screen. What
+                // the user sees on the terminal is what the card shows.
+                // The pair is lifted out of the row list and drawn first, as one
+                // item. Doing it inside `items` would mean asking a row to emit
+                // a sibling, which LazyListScope does not allow — one item, one
+                // key — so the pairing is a pass over the list instead.
+                val pairIds = splitSessions
+                val pairedWith = pairIds?.let { (top, bottom) ->
+                    mapOf(top to bottom, bottom to top)
+                }
+                val pairAnchor = pairIds?.first
+                // Rank shifts by one for every session drawn inside a pair, so
+                // the recency marks below stay honest.
+                var rankOffset = 0
+
+                live.forEachIndexed { index, snapshot ->
+                    val partner = pairedWith?.get(snapshot.id)
+
+                    if (partner != null) {
+                        if (snapshot.id == pairAnchor) {
+                            item(key = "splitpair_${snapshot.id}") {
+                                SplitPairCard(
+                                    topName = sessions.firstOrNull { it.id == pairAnchor }?.name
+                                        ?: pairAnchor,
+                                    bottomName = sessions.firstOrNull { it.id == partner }?.name
+                                        ?: partner,
+                                    isActiveTop = pairAnchor == activeId,
+                                    isActiveBottom = partner == activeId,
+                                    onOpenTop = { viewModel.activate(pairAnchor) },
+                                    onOpenBottom = { viewModel.activate(partner) },
+                                    onCloseSplit = onCloseSplit,
+                                    onSwapPanes = onSwapPanes,
+                                )
+                            }
+                            rankOffset++
+                        }
+                    } else {
+                        SessionRow(
+                            snapshot = snapshot,
+                            isActive = snapshot.id == activeId,
+                            recencyRank = index - rankOffset,
+                            onClick = { viewModel.activate(snapshot.id) },
+                            onStartRename = { renamingSession = snapshot },
+                            onDelete = { viewModel.delete(snapshot.id) },
+                            onSplit = onSplitSession?.let { split -> { split(snapshot.id) } },
+                            onFloat = onFloatSession?.let { float -> { float(snapshot.id) } },
+                            // The drag target: hold this row and drop it on
+                            // another to split. Null unless there is somewhere to
+                            // drop it, so a lone session shows no grip rather
+                            // than one that does nothing.
+                            dragEnabled = onSplitSession != null && onDragSplit != null,
+                            onDragStart = { draggingSessionId = snapshot.id },
+                            isHeldForDrag = draggingSessionId == snapshot.id,
+                            isDropTarget = draggingSessionId != null &&
+                                draggingSessionId != snapshot.id,
+                            onDrop = { targetId ->
+                                val dragged = draggingSessionId
+                                draggingSessionId = null
+                                if (dragged != null && dragged != targetId) {
+                                    onDragSplit?.invoke(dragged, targetId)
+                                }
+                            },
+                        )
+                    }
                 }
             }
 
@@ -547,8 +640,28 @@ private fun SessionRow(
     onSplit: (() -> Unit)? = null,
     /** Opens this session straight into a floating window. */
     onFloat: (() -> Unit)? = null,
+    /**
+     * Whether holding this row arms it for a drop on another row.
+     *
+     * Only true when there is somewhere to drop it *and* something to drop it
+     * into. A lone session shows no grip at all rather than one that lifts the
+     * row and then has nowhere to put it.
+     */
+    dragEnabled: Boolean = false,
+    /** Called when the row is picked up. */
+    onDragStart: () -> Unit = {},
+    /** True while some *other* row is held, so this one reads as a target. */
+    isDropTarget: Boolean = false,
+    /** Called when this row is tapped while another one is held. */
+    onDrop: (String) -> Unit = {},
+    /** True when *this* row is the one currently held. */
+    isHeldForDrag: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+
+    /** True while this row is the one being held for a drop. */
+    val dragging = dragEnabled && isHeldForDrag
+
     val ended = snapshot.state == SessionState.Closed
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -572,11 +685,52 @@ private fun SessionRow(
                 .height(44.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(DroshSurfaceVariant.copy(alpha = surface))
+                // The drop target lights with the accent, not just a raised
+                // surface. A held row and a target row are otherwise identical
+                // apart from the recency mark, and the user has to see at a
+                // glance which one their finger should land on.
+                .then(
+                    if (isDropTarget) {
+                        Modifier.border(
+                            width = 1.dp,
+                            color = DroshPrimary,
+                            shape = RoundedCornerShape(10.dp),
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+                .then(
+                    if (dragging) {
+                        Modifier.alpha(0.4f)
+                    } else {
+                        Modifier
+                    },
+                )
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = null,
-                    onClick = onClick,
-                    onLongClick = { menuOpen = true },
+                    onClick = {
+                        // While another row is held, a tap here means "drop it on
+                        // me", not "open me". Two gestures cannot share one tap,
+                        // and which one the user meant is unambiguous from whether
+                        // something is in their other hand.
+                        if (isDropTarget) onDrop(snapshot.id) else onClick()
+                    },
+                    onLongClick = {
+                        // Hold to pick the row up for a drop. The menu moved to a
+                        // double tap for this: `combinedClickable` gives a row
+                        // exactly one long-press, and splitting *is* what most
+                        // people want from a session row now — hiding it behind
+                        // the menu meant the feature existed but nothing pointed
+                        // at it.
+                        if (dragEnabled) {
+                            onDragStart()
+                        } else {
+                            menuOpen = true
+                        }
+                    },
+                    onDoubleClick = { menuOpen = true },
                 )
                 .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -677,47 +831,128 @@ private fun SessionRow(
  * one a line ending would cut off.
  */
 @Composable
-private fun SplitBanner(
-    top: String,
-    bottom: String,
+/**
+ * The two sessions sharing a split, drawn as one card.
+ *
+ * ## Why one card and not two rows
+ *
+ * They are not two sessions any more from the drawer's point of view — they are
+ * one arrangement. Listed one under the other, the drawer said "two" while the
+ * terminal said "one split", and every action on them acted on one at a time:
+ * closing one left a half-split behind, and swapping them meant two taps on rows
+ * that looked unrelated.
+ *
+ * ## Why the divider is drawn between them
+ *
+ * The card is a diagram of the screen, so it has the screen's shape: two names
+ * either side of a seam, in the order they are on it. A vertical divider between
+ * two stacked terminals is a line across the card; drawing anything else — an
+ * arrow, a chevron — would be describing something the card does not look like.
+ *
+ * Both halves are independently tappable, because switching between the two is
+ * the most common thing anyone does with a split.
+ */
+@Composable
+private fun SplitPairCard(
+    topName: String,
+    bottomName: String,
+    isActiveTop: Boolean,
+    isActiveBottom: Boolean,
+    onOpenTop: () -> Unit,
+    onOpenBottom: () -> Unit,
+    onCloseSplit: (() -> Unit)?,
+    onSwapPanes: (() -> Unit)?,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .height(44.dp)
+            .padding(horizontal = 10.dp)
+            .height(52.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(DroshSurfaceVariant)
-            .padding(horizontal = 12.dp),
+            .background(DroshSurfaceVariant),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = top,
-            color = DroshTextSecondary,
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
+        SplitPairHalf(
+            name = topName,
+            active = isActiveTop,
+            onClick = onOpenTop,
             modifier = Modifier.weight(1f),
         )
 
-        Icon(
-            imageVector = DroshIcons.PanelLeft,
-            contentDescription = "Split",
-            tint = DroshPrimary,
+        // The seam. Matches the divider on the terminal: same colour, same
+        // weight, so the card reads as a miniature of what is on screen.
+        Box(
             modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .size(14.dp),
+                .width(1.dp)
+                .height(28.dp)
+                .background(DroshOutline.copy(alpha = 0.7f)),
         )
 
+        SplitPairHalf(
+            name = bottomName,
+            active = isActiveBottom,
+            onClick = onOpenBottom,
+            modifier = Modifier.weight(1f),
+        )
+
+        // The same two things the divider and the floating window's chrome can
+        // do, in the same order. A control that exists on the terminal but not on
+        // its own diagram is a control the drawer does not admit exists.
+        if (onSwapPanes != null) {
+            IconAction(
+                icon = DroshIcons.ArrowUpDown,
+                contentDescription = "Paneleri degistir",
+                onClick = onSwapPanes,
+                modifier = Modifier.size(34.dp),
+                tint = DroshTextMuted,
+            )
+        }
+        if (onCloseSplit != null) {
+            IconAction(
+                icon = DroshIcons.X,
+                contentDescription = "Bolmeyi kapat",
+                onClick = onCloseSplit,
+                modifier = Modifier.size(34.dp),
+                tint = DroshTextMuted,
+            )
+        }
+    }
+}
+
+/** One session's half of a split pair card. */
+@Composable
+private fun SplitPairHalf(
+    name: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(if (active) 20.dp else 10.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(if (active) DroshPrimary else DroshOutline),
+        )
+        Spacer(Modifier.width(8.dp))
         Text(
-            text = bottom,
-            color = DroshTextSecondary,
+            text = name,
+            color = if (active) DroshText else DroshTextSecondary,
             fontSize = 12.5.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.MiddleEllipsis,
-            modifier = Modifier.weight(1f),
         )
     }
 }

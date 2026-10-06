@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.terminal.NormalizedRect
 import dev.drosh.domain.terminal.PaneLayout
 import dev.drosh.domain.terminal.PaneLayoutRepository
+import dev.drosh.domain.terminal.PaneSessionBinder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,7 @@ import javax.inject.Inject
 @HiltViewModel
 class PaneLayoutViewModel @Inject constructor(
     private val repository: PaneLayoutRepository,
+    private val panes: PaneSessionBinder,
 ) : ViewModel() {
 
     private val _layout = MutableStateFlow(PaneLayout.EMPTY)
@@ -50,9 +52,20 @@ class PaneLayoutViewModel @Inject constructor(
         // — the font size, a colour — re-emits and would overwrite an
         // un-persisted drag with the last saved value. Nothing writes to this
         // repository, so there is nothing to listen for after the first read.
+        //
+        // The stored *geometry* is read — where the divider was, where the
+        // floating window sat — but **never the split itself**. A saved split
+        // restored on launch is what made the app come up already divided,
+        // which is not what "split" means to anyone: it is something you did in
+        // this session, with this arrangement, and relaunching into it looks
+        // like a bug rather than a feature. The two sessions stay where they
+        // were; they are simply not sharing the screen until asked to.
         viewModelScope.launch {
             val stored = repository.layout.first()
-            if (_layout.value == PaneLayout.EMPTY) _layout.value = stored
+            _layout.value = PaneLayout.EMPTY.copy(
+                splitFraction = stored.splitFraction,
+                floatingBounds = stored.floatingBounds,
+            )
         }
     }
 
@@ -106,27 +119,101 @@ class PaneLayoutViewModel @Inject constructor(
 
     fun float() = apply(_layout.value.floating())
 
+    /**
+     * Turns a floating window into a proper lower pane, with a divider.
+     *
+     * Replaces the maximise button, which expanded the window to fill the host.
+     * That mode was a dead end: once full-bleed the window *was* the pane, so
+     * the only way back was the same button, and a user who wanted their
+     * terminal back had to go looking for it. Docking ends in a terminal you can
+     * keep using.
+     */
     fun dock() = apply(_layout.value.docked())
 
-    /** Expands the floating window to fill the host, or restores it. */
-    fun toggleMaximized() = apply(_layout.value.toggleMaximized())
+    /**
+     * Drops the second pane and leaves the single one underneath.
+     *
+     * The close button on a floating window. Not [closeSplit] by another name:
+     * this is reachable in one tap from a window that may be half off screen,
+     * which is exactly where a "get this out of my way" button has to be.
+     */
+    fun closeFloatingPane() = apply(_layout.value.cleared(), persist = true)
 
     // ── Gestures ──────────────────────────────────────────────────────────────
 
     /**
      * Moves the divider.
      *
-     * Not persisted. A drag emits a value per frame and DataStore would rewrite
-     * the same session id on every one of them; the position is written once,
-     * on [commitSplitFraction], when the finger lifts.
+     * Not persisted, and not snapped. A drag emits a value per frame and
+     * DataStore would rewrite the same session id on every one of them; the
+     * position is written once, in [commitSplitFraction], when the finger lifts.
+     *
+     * Snapping is [PaneLayout.withDraggedFraction]'s job and is deliberately
+     * *not* applied here: the pane has to follow the finger exactly while it is
+     * moving, or the seam appears not to be under the finger at all.
      */
     fun dragSplitFraction(fraction: Float) {
-        _layout.value = _layout.value.withSplitFraction(fraction)
+        _layout.value = _layout.value.withDraggedFraction(fraction)
     }
 
-    /** Writes the divider position the drag left behind. */
+    /**
+     * Writes the divider position the drag left behind.
+     *
+     * A release at either end closes the split rather than committing a stub,
+     * which is why this can end up with no second pane at all.
+     */
     fun commitSplitFraction() {
-        viewModelScope.launch { repository.setSplitFraction(_layout.value.splitFraction) }
+        val settled = _layout.value.commitDraggedFraction()
+        _layout.value = settled
+        viewModelScope.launch { repository.setSplitFraction(settled.splitFraction) }
+        if (!settled.isSplit) {
+            viewModelScope.launch { repository.setLayout(settled) }
+        }
+    }
+
+    /**
+     * Splits so that [draggedId] is on top and [targetId] underneath.
+     *
+     * The drawer gesture: hold a session card, tap another one. The held card is
+     * the primary, which is also what makes it the session the rest of the app
+     * treats as active — the user pointed at it, so it is the one they are
+     * looking at now.
+     *
+     * The layout's own swap flag is cleared rather than toggled: the panes are
+     * being *built* here, not exchanged, so carrying a swap over from a previous
+     * split would put the held session underneath, which is the exact opposite
+     * of the gesture.
+     *
+     * A refused pair changes nothing. The terminal manager returns false when
+     * either session is gone, and a half-applied split would leave panes bound
+     * to a pair the user never chose.
+     */
+    fun splitWithPrimary(draggedId: String, targetId: String) {
+        if (draggedId.isBlank() || targetId.isBlank() || draggedId == targetId) return
+        if (!panes.setPaneSessions(draggedId, targetId)) return
+        apply(
+            _layout.value
+                .withSecondary(targetId)
+                .copy(secondarySwapped = false)
+                .docked(),
+        )
+    }
+
+    /**
+     * Swaps which session is on top.
+     *
+     * The layout records the swap and the terminal manager does the exchanging,
+     * because only the terminal layer knows which session is attached to which view.
+     * A refusal — one pane empty, which happens if the divider was closed a
+     * frame earlier — leaves the flag alone, so the card in the drawer cannot
+     * claim an order the screen is not showing.
+     */
+    fun swapPanes() {
+        if (!panes.swapPanes()) return
+        val swapped = _layout.value.swapped()
+        if (swapped == _layout.value) return
+        _layout.value = swapped
+        viewModelScope.launch { repository.setLayout(swapped) }
     }
 
     /**

@@ -8,6 +8,7 @@ import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.terminal.BlockEngineWire
 import dev.drosh.terminal.BootstrapStatePort
 import dev.drosh.terminal.ProotRunner
+import dev.drosh.domain.terminal.PaneSessionBinder
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalSessionClientImpl
 import dev.drosh.terminal.TerminalViewClientImpl
@@ -55,6 +56,19 @@ object TerminalModule {
         blockEngineWire = blockEngineWire,
         settingsRepository = settingsRepository,
     )
+
+    /**
+     * The pane operations the split screen needs, as a domain port.
+     *
+     * The same singleton as [provideTerminalManager], bound to the interface
+     * rather than the class: the split ViewModel lives in `:ui`, which is
+     * forbidden from importing `:terminal` (AGENT.md §139), so it asks for this
+     * port instead. A second instance would be two sets of pane bindings over
+     * one set of sessions.
+     */
+    @Provides
+    @Singleton
+    fun providePaneSessionBinder(manager: TerminalManager): PaneSessionBinder = manager
 
     @Provides
     @Singleton
