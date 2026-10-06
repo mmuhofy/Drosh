@@ -5,6 +5,8 @@ import androidx.room.Room
 import dev.drosh.data.agent.AgentChatDao
 import dev.drosh.data.agent.AgentMessageDao
 import dev.drosh.data.local.DroshDatabase
+import dev.drosh.data.ssh.SshHostDao
+import dev.drosh.data.ssh.SshKeyDao
 import dev.drosh.data.workspace.WorkspaceDao
 import dagger.Module
 import dagger.Provides
@@ -62,4 +64,10 @@ object DatabaseModule {
      */
     @Provides
     fun provideWorkspaceDao(database: DroshDatabase): WorkspaceDao = database.workspaceDao()
+
+    @Provides
+    fun provideSshHostDao(database: DroshDatabase): SshHostDao = database.sshHostDao()
+
+    @Provides
+    fun provideSshKeyDao(database: DroshDatabase): SshKeyDao = database.sshKeyDao()
 }
