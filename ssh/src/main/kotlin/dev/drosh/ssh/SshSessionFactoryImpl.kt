@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import net.schmizz.keepalive.KeepAliveProvider
 import net.schmizz.sshj.DefaultConfig
 import net.schmizz.sshj.SSHClient
+import net.schmizz.sshj.connection.channel.direct.Session.PTYMode
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import java.io.File
 import java.security.MessageDigest
@@ -39,7 +40,7 @@ class SshSessionFactoryImpl @Inject constructor(
         withContext(Dispatchers.IO) {
             try {
                 ssh.connect(host.hostname, host.port)
-                ssh.connection.keepAlive.keepAliveInterval = KEEP_ALIVE_INTERVAL_S_MS
+                ssh.connection.keepAlive.keepAliveInterval = KEEP_ALIVE_INTERVAL_S
                 authenticate(ssh, host)
             } catch (t: Throwable) {
                 runCatching { ssh.disconnect() }
@@ -48,7 +49,7 @@ class SshSessionFactoryImpl @Inject constructor(
         }
 
         val channel = ssh.startSession()
-        channel.allocatePTY("xterm-256color", DEFAULT_COLS, DEFAULT_ROWS, 0, 0, emptyMap<net.schmizz.sshj.connection.channel.direct.Session.PTYMode, Int>())
+        channel.allocatePTY("xterm-256color", DEFAULT_COLS, DEFAULT_ROWS, 0, 0, emptyMap<PTYMode, Int>())
         val shell = channel.startShell()
 
         val session = TerminalSession(
@@ -153,10 +154,12 @@ class SshSessionFactoryImpl @Inject constructor(
                 else -> false
             }
         }
+
+        override fun findExistingAlgorithms(hostname: String, port: Int): List<String> = emptyList()
     }
 
     private companion object {
-        const val KEEP_ALIVE_INTERVAL_S_MS = 30_000L
+        const val KEEP_ALIVE_INTERVAL_S = 30
         const val DEFAULT_COLS = 80
         const val DEFAULT_ROWS = 24
     }
