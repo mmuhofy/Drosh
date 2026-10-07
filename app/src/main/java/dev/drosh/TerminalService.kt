@@ -62,6 +62,12 @@ class TerminalService : LifecycleService() {
      * is created by the framework and has no access to the terminal. The
      * notification on every change is what lets the keyboard observe instead
      * of polling; it fires at most a few times per command.
+     *
+     * Snippets piggyback on the same flow. There is no watcher and no extra
+     * loop: the file is re-read here, and only a content change notifies.
+     * Editing snippets means running commands (the editor exits, the file
+     * changes, the next transition publishes), so the keyboard sees an edit
+     * no later than the next command boundary — without any polling.
      */
     private fun publishCommandState() {
         lifecycleScope.launch {
@@ -73,8 +79,20 @@ class TerminalService : LifecycleService() {
                     terminalManager.currentAmbientTint,
                 )
                 contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_COMMAND), null)
+                publishSnippetsIfChanged()
             }
         }
+    }
+
+    private var lastPublishedSnippets: List<dev.drosh.terminal.SnippetsStore.Snippet> =
+        emptyList()
+
+    private fun publishSnippetsIfChanged() {
+        val current = terminalManager.readSnippets()
+        if (current == lastPublishedSnippets) return
+        lastPublishedSnippets = current
+        CommandStateBus.publishSnippets(current)
+        contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_SNIPPETS), null)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -106,7 +124,9 @@ class TerminalService : LifecycleService() {
         // Leave nothing stale behind: a keyboard querying afterwards would
         // otherwise see the last command of a session that no longer exists.
         CommandStateBus.clear()
+        lastPublishedSnippets = emptyList()
         contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_COMMAND), null)
+        contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_SNIPPETS), null)
         terminalManager.destroy()
         super.onDestroy()
     }

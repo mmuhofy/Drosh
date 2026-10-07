@@ -910,6 +910,15 @@ class TerminalManager(
     fun activePersistentId(): String? = sessionIdForSlot(focusedPane.value)
 
     /**
+     * Snippets for the keyboard. Read fresh on every call — the file is
+     * small, and the service only calls this on command-state transitions,
+     * so there is no hot loop to worry about. See [SnippetsStore] for the
+     * format and the failure contract (missing or malformed reads as empty).
+     */
+    fun readSnippets(): List<SnippetsStore.Snippet> =
+        SnippetsStore.load(File(ubuntuBootstrap.rootfsDir, "home"))
+
+    /**
      * Snapshot of all session ids currently live in the terminal manager
      * (i.e. in [irisSessions] with a non-null [DroshSession.persistentId]).
      * Used by [SessionManagerAdapter] to reconcile Room state with live

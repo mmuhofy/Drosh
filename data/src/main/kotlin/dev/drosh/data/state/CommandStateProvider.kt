@@ -55,6 +55,9 @@ class CommandStateProvider : ContentProvider() {
         const val PATH_COMMAND = "command"
         const val URI_COMMAND = "content://$AUTHORITY/$PATH_COMMAND"
 
+        const val PATH_SNIPPETS = "snippets"
+        const val URI_SNIPPETS = "content://$AUTHORITY/$PATH_SNIPPETS"
+
         const val COLUMN_SESSION = "session"
         const val COLUMN_STATUS = "status"
         const val COLUMN_COMMAND = "command"
@@ -79,6 +82,14 @@ class CommandStateProvider : ContentProvider() {
             COLUMN_ACTIVITY,
             COLUMN_AMBIENT_TINT,
         )
+
+        const val COLUMN_SNIPPET_ALIAS = "alias"
+        const val COLUMN_SNIPPET_COMMAND = "command"
+
+        private val SNIPPET_COLUMNS = arrayOf(
+            COLUMN_SNIPPET_ALIAS,
+            COLUMN_SNIPPET_COMMAND,
+        )
     }
 
     override fun onCreate(): Boolean = true
@@ -90,8 +101,14 @@ class CommandStateProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?,
     ): Cursor? {
-        if (uri.pathSegments.firstOrNull() != PATH_COMMAND) return null
+        return when (uri.pathSegments.firstOrNull()) {
+            PATH_COMMAND -> queryCommand()
+            PATH_SNIPPETS -> querySnippets()
+            else -> null
+        }
+    }
 
+    private fun queryCommand(): Cursor {
         val cursor = MatrixCursor(COLUMNS)
         val entry = CommandStateBus.read() ?: return cursor
 
@@ -111,6 +128,18 @@ class CommandStateProvider : ContentProvider() {
                 entry.ambientTint ?: -1,
             ),
         )
+        return cursor
+    }
+
+    /**
+     * One row per snippet. Empty cursor when Drosh has none — which also
+     * covers "file missing" and "file malformed", since both read as empty.
+     */
+    private fun querySnippets(): Cursor {
+        val cursor = MatrixCursor(SNIPPET_COLUMNS)
+        for (snippet in CommandStateBus.readSnippets()) {
+            cursor.addRow(arrayOf(snippet.alias, snippet.command))
+        }
         return cursor
     }
 
