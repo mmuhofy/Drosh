@@ -157,6 +157,7 @@ fun SessionSidebar(
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit = {},
     onOpenProjects: () -> Unit = {},
+    onOpenSsh: () -> Unit = {},
     pushState: SidebarPushState? = null,
     /**
      * Opens [sessionId] in the second terminal pane.
@@ -231,6 +232,7 @@ fun SessionSidebar(
             onOpenSettings = onOpenSettings,
             onOpenAgent = onOpenAgent,
             onOpenProjects = onOpenProjects,
+            onOpenSsh = onOpenSsh,
             onSplitSession = onSplitSession,
             onFloatSession = onFloatSession,
             isSplit = isSplit,
@@ -250,6 +252,7 @@ private fun SidebarContent(
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
     onOpenProjects: () -> Unit,
+    onOpenSsh: () -> Unit,
     onSplitSession: ((String) -> Unit)?,
     onFloatSession: ((String) -> Unit)?,
     isSplit: Boolean,
@@ -323,6 +326,7 @@ private fun SidebarContent(
             }
             item(key = "nav_projects") {
                 PressableRow(DroshIcons.Folder, "Projects", onOpenProjects)
+                PressableRow(DroshIcons.Terminal, "SSH", onOpenSsh)
             }
             item(key = "nav_settings") {
                 PressableRow(DroshIcons.Settings, "Settings", onOpenSettings)

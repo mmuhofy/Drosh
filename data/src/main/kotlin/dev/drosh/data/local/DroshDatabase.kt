@@ -8,6 +8,10 @@ import dev.drosh.data.agent.AgentChatDao
 import dev.drosh.data.agent.AgentChatEntity
 import dev.drosh.data.agent.AgentMessageDao
 import dev.drosh.data.agent.AgentMessageEntity
+import dev.drosh.data.ssh.SshHostDao
+import dev.drosh.data.ssh.SshHostEntity
+import dev.drosh.data.ssh.SshKeyDao
+import dev.drosh.data.ssh.SshKeyEntity
 import dev.drosh.data.session.SessionDao
 import dev.drosh.data.session.SessionEntity
 import dev.drosh.data.workspace.WorkspaceDao
@@ -31,13 +35,17 @@ import dev.drosh.data.workspace.WorkspaceEntity
         WorkspaceEntity::class,
         AgentChatEntity::class,
         AgentMessageEntity::class,
+        SshHostEntity::class,
+        SshKeyEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class DroshDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun workspaceDao(): WorkspaceDao
+    abstract fun sshHostDao(): SshHostDao
+    abstract fun sshKeyDao(): SshKeyDao
     abstract fun agentChatDao(): AgentChatDao
     abstract fun agentMessageDao(): AgentMessageDao
 
@@ -61,7 +69,7 @@ abstract class DroshDatabase : RoomDatabase() {
          * CI diffs the exported `data/schemas/` snapshot against the committed one,
          * so a missed update is a red build rather than a crash on every install.
          */
-        const val IDENTITY_HASH = "7a24d67aad74fdf9f5ff71afe52144c9"
+        const val IDENTITY_HASH = "8acb1bfac77b8e61f1e101c7cf9b3679"
 
         /**
          * The identity hash for the version-3 schema — everything except agent
@@ -238,12 +246,56 @@ abstract class DroshDatabase : RoomDatabase() {
         }
 
         /**
+         * 4 → 5: ssh hosts and keys.
+         *
+         * Additive — both tables are new, nothing is rebuilt.
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `ssh_hosts` (
+                        `id` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `hostname` TEXT NOT NULL,
+                        `port` INTEGER NOT NULL,
+                        `username` TEXT NOT NULL,
+                        `auth_method` TEXT NOT NULL,
+                        `key_id` TEXT,
+                        `jump_host_id` TEXT,
+                        `is_production` INTEGER NOT NULL,
+                        `tags_json` TEXT NOT NULL,
+                        `last_used_at_ms` INTEGER NOT NULL,
+                        `created_at_ms` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `ssh_keys` (
+                        `id` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `algorithm` TEXT NOT NULL,
+                        `public_key_openssh` TEXT NOT NULL,
+                        `comment` TEXT NOT NULL,
+                        `created_at_ms` INTEGER NOT NULL,
+                        `last_used_at_ms` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                writeIdentityHash(db)
+            }
+        }
+
+        /**
          * Every migration, in order.
          *
          * Registered in `DatabaseModule`. Room walks this to find a path from
          * whatever version a device is at, so a device on 1, on 2 or on the broken
          * 3 all reach the current schema.
          */
-        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
     }
 }

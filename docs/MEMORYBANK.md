@@ -1407,7 +1407,20 @@ data class SshHost(
 ⬜ ThemeStore.kt — theme engine
 ⬜ AliasManager.kt — shell alias sync
 ⬜ MultiExec.kt — broadcast SSH commands
-   ✅ Workspace.kt, WorkspaceRepository, WorkspacePath, WorkspaceGrouping (§7B)
+    ✅ Workspace.kt, WorkspaceRepository, WorkspacePath, WorkspaceGrouping (§7B)
+    ✅ SSH end-to-end (feature-ssh, PR #36): SshHost/SshKey Room layer,
+       bridged TerminalSession over SSHJ ShellChannel into the vendored
+       termux TerminalEmulator, sidebar → SSH → host list → interactive tab,
+       Trust-On-First-Use host key verifier, EncryptedSharedPreferences
+       credential vault, keep-alive via KeepAliveProvider. Mosh/SFTP/
+       jump-host/port-forwarding still pending.
+    ✅ SSH data layer (feature-ssh, PR #36): SshHost/SshKey domain models +
+       repositories, SshHostEntity/SshKeyEntity/DAOs, DroshDatabase 4→5 +
+       MIGRATION_4_5, Hilt bindings. Interactive session wiring and SSHJ
+       manager still pending; SSHJ ShellChannel will bridge into the vendored
+       termux TerminalEmulator (no local openssh shell). SSH UX: sidebar entry
+       → host list → tap opens an interactive SSH session as a regular
+       terminal session.
 
 ### WebViewSheet (browser)
 - back/forward/reload toolbar icons (enabled via `canGoBack`/`canGoForward`); `WebChromeClient.onProgressChanged` → Material3 progress bar; 3-dot dropdown (`DroshDropdownMenu`: Copy URL / Open in Browser / Reload).

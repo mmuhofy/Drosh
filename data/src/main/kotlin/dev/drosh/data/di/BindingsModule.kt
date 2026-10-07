@@ -21,6 +21,10 @@ import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
 import dev.drosh.data.terminal.TriggerBootstrap
 import dev.drosh.data.workspace.WorkspaceRepositoryImpl
+import dev.drosh.data.ssh.SshHostRepositoryImpl
+import dev.drosh.data.ssh.SshKeyRepositoryImpl
+import dev.drosh.data.ssh.SshCredentialVaultImpl
+import dev.drosh.data.ssh.SshSessionLauncherImpl
 import dev.drosh.domain.agent.AgentChatRepository
 import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmProviderRepository
@@ -43,6 +47,10 @@ import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
 import dev.drosh.domain.terminal.SubmitBlockCommandUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.domain.workspace.WorkspaceRepository
+import dev.drosh.domain.ssh.SshHostRepository
+import dev.drosh.domain.ssh.SshKeyRepository
+import dev.drosh.domain.ssh.SshCredentialVault
+import dev.drosh.domain.ssh.SshSessionLauncher
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -107,6 +115,30 @@ abstract class BindingsModule {
     abstract fun bindWorkspaceRepository(
         impl: WorkspaceRepositoryImpl,
     ): WorkspaceRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSshHostRepository(
+        impl: SshHostRepositoryImpl,
+    ): SshHostRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSshKeyRepository(
+        impl: SshKeyRepositoryImpl,
+    ): SshKeyRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSshCredentialVault(
+        impl: SshCredentialVaultImpl,
+    ): SshCredentialVault
+
+    @Binds
+    @Singleton
+    abstract fun bindSshSessionLauncher(
+        impl: SshSessionLauncherImpl,
+    ): SshSessionLauncher
 
     @Binds
     @Singleton

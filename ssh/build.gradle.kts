@@ -17,6 +17,8 @@ android {
 dependencies {
     api(project(":domain"))
     implementation(project(":core"))
+    // The bridged TerminalSession lives here — the SSH wire is the byte source.
+    implementation(project(":terminal"))
 
     // SSH client — MEMORYBANK.md §671: SSHJ 0.38.x (libs.versions.toml pinned 0.39.0
     // as most current 0.38.x-line release).

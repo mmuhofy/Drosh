@@ -17,6 +17,7 @@ package dev.drosh.data.state
 import com.termux.terminal.CommandSnapshot
 import com.termux.terminal.CommandStatus
 import com.termux.terminal.ShellIntegrationLevel
+import dev.drosh.terminal.SnippetsStore.Snippet
 
 /**
  * Holds the latest command state for cross-process readers.
@@ -53,9 +54,24 @@ object CommandStateBus {
 
     fun clear() {
         latest = null
+        latestSnippets = emptyList()
     }
 
     fun read(): Entry? = latest
+
+    @Volatile
+    private var latestSnippets: List<Snippet> = emptyList()
+
+    /**
+     * Snippets for the keyboard tab. A plain list, not versioned: the
+     * service only calls this when the content changed, and the provider
+     * serves whatever is here on every query.
+     */
+    fun publishSnippets(snippets: List<Snippet>) {
+        latestSnippets = snippets
+    }
+
+    fun readSnippets(): List<Snippet> = latestSnippets
 
     // ── Encoding ────────────────────────────────────────────────────────────
     // Single letters so a reader can never mis-parse a value added later.
