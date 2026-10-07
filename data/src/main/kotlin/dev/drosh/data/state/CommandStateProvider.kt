@@ -19,6 +19,7 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import dev.drosh.terminal.SnippetsStore
 
 /**
  * Read-only bridge from Drosh to Drosh Keyboard.
