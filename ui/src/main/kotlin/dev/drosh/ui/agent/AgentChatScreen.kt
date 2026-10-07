@@ -105,6 +105,7 @@ import dev.drosh.ui.agent.components.AgentPill
 import dev.drosh.ui.agent.components.AgentSelectableText
 import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.LocalAgentGlass
+import dev.drosh.ui.agent.components.glassSurface
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.agentGlassStyle
 import dev.drosh.ui.agent.components.rememberAgentClipboard

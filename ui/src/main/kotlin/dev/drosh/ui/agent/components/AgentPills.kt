@@ -214,7 +214,7 @@ fun ProvideAgentGlass(glass: AgentGlass, content: @Composable () -> Unit) {
  * transcript.
  */
 @Composable
-private fun Modifier.glassSurface(
+fun Modifier.glassSurface(
     glass: AgentGlass?,
     pressed: Boolean,
     primary: Boolean = false,
