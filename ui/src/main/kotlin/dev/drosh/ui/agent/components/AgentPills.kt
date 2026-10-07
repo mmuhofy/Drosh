@@ -3,6 +3,10 @@ package dev.drosh.ui.agent.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -182,19 +186,84 @@ fun ProvideAgentGlass(glass: AgentGlass, content: @Composable () -> Unit) {
 }
 
 /**
- * The blur, when there is something to blur.
+ * The liquid-glass surface: a gradient fill, a hairline edge, and an inner
+ * reflection at the top.
  *
- * A control previewed outside a screen gets the fill and no blur rather than a
- * crash, so its shape is still reviewable on its own.
+ * ## Why it is not a flat fill
+ *
+ * A flat translucent colour reads as a grey chip. Apple's glass reads as glass
+ * because it has depth: it is lighter where the light would catch it and darker
+ * where it would fall away, and it has an edge that separates it from whatever is
+ * behind. A vertical gradient at 13%→6% white gives the first; a 1dp border at
+ * 9% gives the second.
+ *
+ * ## The inner reflection
+ *
+ * A gradient from 7% white to transparent over the top 45% of the surface. This is
+ * the highlight a curved piece of glass throws at its top edge, and it is the
+ * detail that makes the surface read as a solid object rather than as a tint. It is
+ * drawn over the content, so it brightens the glyphs slightly — at 7% that is
+ * enough to see and not enough to hurt legibility.
+ *
+ * ## Why the blur is still Haze
+ *
+ * The gradient and the border are the "fake glass" part: they are painted, so they
+ * cost nothing and work everywhere. The blur is the real part, and it is Haze
+ * because the alternative — sampling the backdrop into a bitmap — is what the
+ * terminal's selection menu does, and it cannot keep up with a scrolling
+ * transcript.
  */
 @Composable
-private fun Modifier.glassFill(glass: AgentGlass?, fill: Color): Modifier {
+private fun Modifier.glassSurface(
+    glass: AgentGlass?,
+    pressed: Boolean,
+    primary: Boolean = false,
+    shape: Shape = AgentPillDefaults.Shape,
+): Modifier {
     val state = glass?.state
-    return if (state == null) {
-        background(fill)
+    val blur = if (state == null) Modifier else Modifier.hazeEffect(state, agentGlassStyle())
+
+    val fill = if (primary) {
+        Brush.verticalGradient(
+            listOf(
+                DroshPrimary.copy(alpha = 0.88f),
+                DroshPrimary,
+            ),
+        )
     } else {
-        hazeEffect(state, agentGlassStyle()).background(fill)
+        Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = if (pressed) 0.20f else 0.13f),
+                Color.White.copy(alpha = if (pressed) 0.10f else 0.06f),
+            ),
+        )
     }
+
+    val edge = if (primary) {
+        Color.White.copy(alpha = 0.16f)
+    } else {
+        Color.White.copy(alpha = if (pressed) 0.15f else 0.09f)
+    }
+
+    return this
+        .clip(shape)
+        .then(blur)
+        .background(fill)
+        .border(1.dp, edge, shape)
+        .drawWithContent {
+            drawContent()
+            if (!primary) {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.07f),
+                            Color.Transparent,
+                        ),
+                    ),
+                    size = Size(size.width, size.height * 0.45f),
+                )
+            }
+        }
 }
 
 /**
@@ -265,8 +334,7 @@ fun AgentPill(
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = AgentPillDefaults.Height)
-            .clip(AgentPillDefaults.Shape)
-            .glassFill(glass, fill)
+            .glassSurface(glass, pressed, primary)
             .semantics { this.contentDescription = contentDescription }
             .pressable(interaction, enabled, onClick)
             .padding(horizontal = AgentPillDefaults.LabelPadding, vertical = 9.dp),
@@ -345,8 +413,7 @@ fun AgentIconPill(
         Box(
             modifier = Modifier
                 .size(AgentPillDefaults.Height)
-                .clip(CircleShape)
-                .glassFill(glass, fill),
+                .glassSurface(glass, pressed, shape = CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

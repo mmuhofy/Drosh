@@ -44,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -604,18 +606,22 @@ private fun AgentComposer(
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
+        // The same liquid glass as the pills, at a larger radius. One surface for
+        // the whole app's controls, so the composer and the pill row read as the
+        // same material rather than as two things that happen to be on the same
+        // screen.
+        val glass = LocalAgentGlass.current
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(DroshSurfaceVariant)
+                .glassSurface(glass, pressed = false, shape = RoundedCornerShape(20.dp))
                 .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
         ) {
             Column {
                 Box {
                     if (text.isEmpty()) {
                         Text(
-                            text = if (enabled) "Agent'a bir şey sor…" else "çalışıyor…",
+                            text = if (enabled) "Ne yapmamı istiyorsun?" else "çalışıyor…",
                             fontSize = 14.5.sp,
                             color = DroshTextMuted,
                         )
