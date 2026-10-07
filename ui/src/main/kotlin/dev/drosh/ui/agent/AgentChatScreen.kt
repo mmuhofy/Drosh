@@ -1875,6 +1875,7 @@ private fun toolVerbs(name: String): Pair<String, String> = when (name) {
  * A failure is red whether or not the reader parses "Ran" — the verb says it
  * finished, the colour says how.
  */
+@Composable
 private fun verbColor(state: ToolCallState): Color = when (state) {
     ToolCallState.Running -> DroshPrimary
     ToolCallState.Succeeded -> DroshText
