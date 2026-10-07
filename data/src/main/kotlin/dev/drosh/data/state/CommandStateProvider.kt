@@ -144,20 +144,82 @@ class CommandStateProvider : ContentProvider() {
     }
 
     /** Read-only for consumers. */
-    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+    override fun insert(uri: Uri, values: ContentValues?): Uri? {
+        if (uri.pathSegments.firstOrNull() != PATH_SNIPPETS || values == null) return null
+        val alias = values.getAsString(COLUMN_SNIPPET_ALIAS).orEmpty()
+        val command = values.getAsString(COLUMN_SNIPPET_COMMAND).orEmpty()
+        if (alias.isBlank() || command.isBlank()) return null
+        synchronized(writeLock) {
+            val current = readSnippetMap() ?: return null
+            // No silent overwrite: the caller asked to add, so an existing
+            // alias is a conflict, not an update. Update goes through update().
+            if (current.containsKey(alias)) return null
+            val next = current + (alias to command)
+            if (!SnippetsStore.save(homeDir() ?: return null, next)) return null
+        }
+        context?.contentResolver?.notifyChange(Uri.parse(URI_SNIPPETS), null)
+        return Uri.parse("$URI_SNIPPETS/${Uri.encode(alias)}")
+    }
 
     override fun update(
         uri: Uri,
         values: ContentValues?,
         selection: String?,
         selectionArgs: Array<out String>?,
-    ): Int = 0
+    ): Int {
+        if (uri.pathSegments.firstOrNull() != PATH_SNIPPETS || values == null) return 0
+        val alias = aliasFromSelection(selection, selectionArgs) ?: return 0
+        val command = values.getAsString(COLUMN_SNIPPET_COMMAND).orEmpty()
+        if (command.isBlank()) return 0
+        synchronized(writeLock) {
+            val current = readSnippetMap() ?: return 0
+            if (!current.containsKey(alias)) return 0
+            if (!SnippetsStore.save(homeDir() ?: return 0, current + (alias to command))) return 0
+        }
+        context?.contentResolver?.notifyChange(Uri.parse(URI_SNIPPETS), null)
+        return 1
+    }
 
     override fun delete(
         uri: Uri,
         selection: String?,
         selectionArgs: Array<out String>?,
-    ): Int = 0
+    ): Int {
+        if (uri.pathSegments.firstOrNull() != PATH_SNIPPETS) return 0
+        val alias = aliasFromSelection(selection, selectionArgs) ?: return 0
+        synchronized(writeLock) {
+            val current = readSnippetMap() ?: return 0
+            if (!current.containsKey(alias)) return 0
+            if (!SnippetsStore.save(homeDir() ?: return 0, current - alias)) return 0
+        }
+        context?.contentResolver?.notifyChange(Uri.parse(URI_SNIPPETS), null)
+        return 1
+    }
 
     override fun getType(uri: Uri): String? = null
+
+    /** Serializes read-modify-write so two writers cannot interleave. */
+    private val writeLock = Any()
+
+    private fun homeDir(): java.io.File? {
+        val ctx = context?.applicationContext ?: return null
+        return SnippetsStore.guestHomeDir(ctx)
+    }
+
+    private fun readSnippetMap(): Map<String, String>? {
+        val dir = homeDir() ?: return null
+        val list = SnippetsStore.load(dir)
+        // load() already drops blanks and failures read as empty — but an
+        // empty result here is ambiguous with "file missing". For writes
+        // that distinction matters less than it seems: writing to a missing
+        // file creates it, which is exactly the first-run case.
+        return list.associate { it.alias to it.command }
+    }
+
+    /** Only `alias = ?` is accepted; anything else selects nothing. */
+    private fun aliasFromSelection(selection: String?, args: Array<out String>?): String? {
+        if (selection?.trim() != "$COLUMN_SNIPPET_ALIAS = ?") return null
+        val alias = args?.firstOrNull().orEmpty()
+        return alias.ifBlank { null }
+    }
 }

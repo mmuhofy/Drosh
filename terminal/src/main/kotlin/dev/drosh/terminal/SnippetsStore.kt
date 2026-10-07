@@ -14,6 +14,7 @@
 
 package dev.drosh.terminal
 
+import android.content.Context
 import java.io.File
 import kotlinx.serialization.json.Json
 
@@ -70,4 +71,67 @@ object SnippetsStore {
     }
 
     fun location(homeDir: File): File = File(File(homeDir, DIR_NAME), FILE_NAME)
+
+    /**
+     * Guest home for a plain [Context], without touching Hilt or the
+     * bootstrap. Mirrors the derivation in [UbuntuBootstrap] (`filesDir /
+     * ubuntu / rootfs / home`), which stays the single place that defines
+     * the layout — this only re-derives it for callers that cannot reach
+     * the bootstrap, like the command-state provider.
+     */
+    fun guestHomeDir(appContext: Context): File =
+        File(File(File(appContext.filesDir, "ubuntu"), "rootfs"), "home")
+
+    /**
+     * Overwrites the whole file atomically (temp + rename, so a reader never
+     * sees a torn object). The caller owns read-modify-write: pass the
+     * complete new map. Returns false when the write failed, in which case
+     * the old content is untouched.
+     */
+    fun save(homeDir: File, snippets: Map<String, String>): Boolean {
+        val dir = File(homeDir, DIR_NAME)
+        if (!dir.exists() && !dir.mkdirs()) return false
+        val target = File(dir, FILE_NAME)
+        val tmp = File(dir, "$FILE_NAME.tmp")
+        val text = runCatching {
+            buildString {
+                append('{')
+                snippets.entries
+                    .filter { (alias, command) -> alias.isNotBlank() && command.isNotBlank() }
+                    .sortedBy { (alias, _) -> alias.trim() }
+                    .forEachIndexed { index, (alias, command) ->
+                        if (index > 0) append(',')
+                        append('"')
+                        append(escape(alias.trim()))
+                        append("\":\"")
+                        append(escape(command.trim()))
+                        append('"')
+                    }
+                append('}')
+            }
+        }.getOrNull() ?: return false
+        return runCatching {
+            tmp.writeText(text)
+            // renameTo is atomic inside one filesystem, which this always is.
+            if (!tmp.renameTo(target)) {
+                tmp.delete()
+                false
+            } else {
+                true
+            }
+        }.getOrNull() ?: false
+    }
+
+    private fun escape(raw: String): String = buildString(raw.length + 16) {
+        for (c in raw) {
+            when (c) {
+                '"' -> append("\\\"")
+                '\\' -> append("\\\\")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> if (c < ' ') append("\\u%04x".format(c.code)) else append(c)
+            }
+        }
+    }
 }
