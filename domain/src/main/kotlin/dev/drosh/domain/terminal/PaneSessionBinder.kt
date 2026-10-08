@@ -58,4 +58,15 @@ interface PaneSessionBinder {
      *         choose.
      */
     fun promoteSecondaryToPrimary(): Boolean
+
+    /**
+     * The session id in the primary pane, or null when it is empty.
+     *
+     * Not the *active* session, which the rest of the app also has. They differ
+     * whenever a split is up and the user has touched the lower pane, and the
+     * question "is this session already on screen" is about a specific pane.
+     * Answering it with the active session let the upper pane's own session be
+     * bound to the lower one.
+     */
+    fun primarySessionId(): String?
 }

@@ -525,6 +525,31 @@ class PaneLayoutTest {
         assertFalse(PaneLayout.EMPTY.isSplit)
     }
 
+    /**
+     * Closing the split keeps the window where the user put it.
+     *
+     * `cleared()` used to rebuild the layout from its defaults, which reset the
+     * floating window's geometry *and persisted the default*. So closing a
+     * floating pane and opening it again gave a centred window rather than the
+     * one the user had arranged — the split closed, and took their layout with it.
+     *
+     * What is about a pair of sessions goes; what is about one window stays.
+     */
+    @Test
+    fun `clearing the split keeps the floating window geometry`() {
+        val arranged = NormalizedRect(left = 0.08f, top = 0.31f, width = 0.55f, height = 0.4f)
+        val layout = split().floating().copy(floatingBounds = arranged, secondarySwapped = true)
+
+        val closed = layout.cleared()
+
+        assertEquals(arranged, closed.floatingBounds)
+        assertFalse(closed.isSplit)
+        assertFalse(closed.isFloating)
+        // A swap describes which of two sessions is on top, so it cannot outlive
+        // the second one.
+        assertFalse(closed.secondarySwapped)
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private enum class SplitSlotCase { TOP_DOWN, BOTTOM_UP }

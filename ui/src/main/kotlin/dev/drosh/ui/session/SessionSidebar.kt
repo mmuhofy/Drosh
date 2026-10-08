@@ -200,6 +200,8 @@ fun SessionSidebar(
     onCloseSplit: (() -> Unit)? = null,
     /** Exchanges which session is on top. */
     onSwapPanes: (() -> Unit)? = null,
+    /** Turns the floating window back into a lower pane. */
+    onDock: (() -> Unit)? = null,
     /**
      * Splits so that [draggedId] sits above [targetId].
      *
@@ -240,6 +242,7 @@ fun SessionSidebar(
             splitSessions = splitSessions,
             onCloseSplit = onCloseSplit,
             onSwapPanes = onSwapPanes,
+            onDock = onDock,
             onDragSplit = onDragSplit,
         )
     }
@@ -260,6 +263,7 @@ private fun SidebarContent(
     splitSessions: Pair<String, String>?,
     onCloseSplit: (() -> Unit)?,
     onSwapPanes: (() -> Unit)?,
+    onDock: (() -> Unit)?,
     onDragSplit: ((String, String) -> Unit)?,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
@@ -424,6 +428,7 @@ private fun SidebarContent(
                                 // not start a split.
                                 isSecondaryPane = snapshot.id in pairOfSessions,
                                 floatingPane = isFloatingPane,
+                                onDock = onDock,
                                 isDropTarget = draggingSessionId != null &&
                                     draggingSessionId != snapshot.id,
                                 onDrop = {
@@ -689,6 +694,24 @@ private fun SessionRow(
     onSplit: (() -> Unit)? = null,
     /** Opens this session straight into a floating window. */
     onFloat: (() -> Unit)? = null,
+    /**
+     * Swaps the two panes.
+     *
+     * Exists because the row menu offers "Swap into split" on the lower pane's
+     * row, and that entry did nothing: the label was chosen at render time and
+     * `onItemClick` only matched "Split below". A menu entry that is drawn and
+     * then ignored is worse than one that is absent, and this one was drawn on
+     * exactly the row where a user would try it.
+     */
+    onSwapPanes: (() -> Unit)? = null,
+    /**
+     * Turns a floating window back into a lower pane.
+     *
+     * Only offered on a row that is already floating, and only wired when the
+     * caller can do it. It was rendered before with nothing behind it, so "Dock
+     * pane" was one of two entries that appeared and then did nothing.
+     */
+    onDock: (() -> Unit)? = null,
     /**
      * Whether holding this row arms it for a drop on another row.
      *
@@ -961,10 +984,13 @@ private fun SessionRow(
                 if (onFloat != null && !ended) {
                     add(
                         DroshMenuItem(
-                            label = when {
-                                isSecondaryPane && floatingPane -> "Dock pane"
-                                isSecondaryPane -> "Open in window"
-                                else -> "Open in window"
+                            // "Dock pane" only where it can be acted on: it is the
+                            // inverse of "Open in window", so it belongs to a
+                            // row that is already floating and to nothing else.
+                            label = if (isSecondaryPane && floatingPane) {
+                                "Dock pane"
+                            } else {
+                                "Open in window"
                             },
                             icon = if (isSecondaryPane && floatingPane) {
                                 DroshIcons.PanelBottom
@@ -986,6 +1012,10 @@ private fun SessionRow(
             onItemClick = { item ->
                 when (item.label) {
                     "Split below" -> onSplit?.invoke()
+                    // Both of these are reachable only on a row that is already
+                    // in the split, and both used to fall through to nothing.
+                    "Swap into split" -> onSwapPanes?.invoke()
+                    "Dock pane" -> onDock?.invoke()
                     "Open in window" -> onFloat?.invoke()
                     "Rename" -> onStartRename()
                     "Delete" -> onDelete()

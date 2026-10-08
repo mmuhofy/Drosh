@@ -340,6 +340,15 @@ class TerminalManager(
         return true
     }
 
+    /**
+     * The primary pane's session id, for [PaneSessionBinder].
+     *
+     * Distinct from [activePersistentId], which is the *focused* pane's and is
+     * what the sidebar highlights. The split needs to know which session the
+     * upper pane is holding, and with a split up the two routinely differ.
+     */
+    override fun primarySessionId(): String? = sessionIdForSlot(PaneSlot.PRIMARY)
+
     /** The session id shown in [slot], or null when the pane is empty. */
     fun sessionIdForSlot(slot: PaneSlot): String? = irisSessions
         .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
@@ -442,6 +451,23 @@ class TerminalManager(
         // would keep reporting the session the user just closed as the active one
         // — a name that no longer had a terminal behind it.
         syncActiveTabIndex()
+        // Focus has to follow the survivor.
+        //
+        // The primary pane is where the promoted session now lives, and leaving
+        // focus on the second slot points it at a slot this function has just
+        // emptied. `activePersistentId()` would then answer null, and since that
+        // is what gets written back as the app's persisted active session, the
+        // sidebar's highlight and the stored id would both disappear — the app
+        // forgetting which session the user was in, from a gesture that was
+        // meant to keep one.
+        if (focusedPane.value != PaneSlot.PRIMARY) {
+            paneViews[PaneSlot.PRIMARY]?.let { view ->
+                _focusedPane.value = PaneSlot.PRIMARY
+                _selectionBounds.value = null
+                _hasSelection.value = false
+                activatePaneView(PaneSlot.PRIMARY, view)
+            }
+        }
         val promoted = sessionForSlot(PaneSlot.PRIMARY)
         blockEngineWire?.onSessionChanged(sessionIdForSlot(PaneSlot.PRIMARY), promoted)
         publishAltBufferState()

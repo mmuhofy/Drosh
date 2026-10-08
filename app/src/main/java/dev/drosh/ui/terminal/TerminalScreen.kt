@@ -1103,18 +1103,21 @@ private fun ReadyScreen(
          * that order — a pair of names could not express it, so the card would
          * show the old arrangement while the terminal had already swapped.
          *
-         * Both halves have to be a real session before the pair is offered.
-         * [activeId] is nullable and the compiler infers a different nullability
-         * for each branch here — one side is `secondary`, which is non-null by
-         * the `let`, the other is `activeId` — so a `top to bottom` pair comes
-         * out as `Pair<String, String?>` and does not fit. Both are resolved to
-         * a local first, and a split missing either session is not drawn rather
-         * than drawn with a blank half: a card naming one session and an empty
-         * space beside it is worse than no card.
+         * The upper pane is **the primary pane**, which is not the same thing as
+         * the active session. [activeId] follows focus, and with the split up the
+         * user taps the lower pane more often than not — so reading it here named
+         * the lower session on *both* halves of the card, made both of its taps
+         * activate the same session, and left the upper session listed as an
+         * ordinary row. [PaneSlot.PRIMARY]'s own session is the only value that
+         * answers "which one is on top".
+         *
+         * A split missing either session is not drawn rather than drawn with a
+         * blank half: a card naming one session and an empty space beside it is
+         * worse than no card.
          */
         splitSessions = paneLayout.secondarySessionId?.let { secondary ->
-            val primaryId = activeId
-            if (primaryId != null) {
+            val primaryId = terminalManager.sessionIdForSlot(PaneSlot.PRIMARY)
+            if (primaryId != null && primaryId != secondary) {
                 if (paneLayout.secondarySwapped) secondary to primaryId
                 else primaryId to secondary
             } else {
@@ -1123,6 +1126,12 @@ private fun ReadyScreen(
         },
         onCloseSplit = { paneLayoutViewModel.closeSplit() },
         onSwapPanes = { paneLayoutViewModel.swapPanes() },
+        /**
+         * The row menu's "Dock pane", on a row that is already a floating
+         * window. It was drawn with nothing behind it before, so it did
+         * nothing when tapped.
+         */
+        onDock = { paneLayoutViewModel.dock() },
         /**
          * The press-and-drop split: hold one session, tap another, and the two
          * share the screen with the held one on top.

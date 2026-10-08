@@ -153,18 +153,29 @@ data class PaneLayout(
         return copy(secondarySessionId = sessionId)
     }
 
-    /** Closes the second pane and returns to a single full-width terminal. */
-    /**
+/**
      * Closes the second pane and returns to a single full-width terminal.
      *
-     * Resets [secondarySwapped] as well: the flag describes a relationship
-     * between two sessions, and there is no second session any more. Carrying it
-     * would put the next split's session in the wrong pane for no reason the
-     * user could see.
+     * Resets the flag that describes a *relationship* between two sessions, since
+     * there is no second session any more: carrying it would put the next
+     * split's session in the wrong pane for no reason the user could see. Same
+     * for the edge-snap state, which only has meaning while a window is parked.
+     *
+     * Everything about **one** window survives, most of all [floatingBounds].
+     * This used to rebuild the layout from nothing, which reset the floating
+     * window's geometry *and persisted the default* — so closing a floating pane
+     * and reopening it gave a centred 92%-by-70% window instead of the one the
+     * user had arranged. Where a window sits is the user's, not a property of the
+     * split that happened to be closed.
      */
-    fun cleared(): PaneLayout = PaneLayout(
+    fun cleared(): PaneLayout = copy(
         secondarySessionId = null,
         splitFraction = DEFAULT_SPLIT_FRACTION,
+        presentation = PanePresentation.DOCKED,
+        secondarySwapped = false,
+        preEdgeSnapBounds = null,
+        edgeSnapped = false,
+        maximized = false,
     )
 
     /**

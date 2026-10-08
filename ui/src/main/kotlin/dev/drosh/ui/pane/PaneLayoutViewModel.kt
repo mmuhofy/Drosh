@@ -74,21 +74,41 @@ class PaneLayoutViewModel @Inject constructor(
 
     // ── Opening and closing ───────────────────────────────────────────────────
 
-    /**
+/**
      * Opens [sessionId] in the second pane, docked.
      *
-     * A session already in the primary pane is refused. Two views driven by one
-     * session is not something the emulator can serve — each attach resets the
-     * other's scroll position — so this would render a pane fighting the first
-     * one rather than a second terminal.
+     * A session already in the **primary** pane is refused. Two views driven by
+     * one session is not something the emulator can serve — each attach resets
+     * the other's scroll position — so this would render a pane fighting the
+     * first one rather than a second terminal.
+     *
+     * The check is against `PaneSlot.PRIMARY`'s session, not against
+     * [primarySessionId]. That argument is the *active* session, which follows
+     * focus: with a split up and the user working in the lower pane, the active
+     * session is the secondary one, and comparing against it would let the upper
+     * pane's own session be bound to the lower pane.
      */
     fun openSplit(sessionId: String, primarySessionId: String?) {
-        if (sessionId.isBlank() || sessionId == primarySessionId) return
+        if (sessionId.isBlank()) return
+        if (sessionId == panes.primarySessionId()) return
         apply(_layout.value.withSecondary(sessionId).docked())
     }
 
-    /** Closes the second pane. */
-    fun closeSplit() = apply(_layout.value.cleared(), persist = true)
+    /**
+     * Closes the second pane.
+     *
+     * The overlay is detached first, and it has to be. Only [dockFromOverlay]
+     * did that, so closing a pane that was floating over other apps dropped the
+     * layout while the overlay service kept running with its own `TerminalView`
+     * still registered for the second slot: the pane stayed on top of every other
+     * app with no way back, and the controller's "already attached" flag made
+     * every later attempt to float a pane fail. The overflow offers "Close second
+     * pane" while the pane is in the overlay, so this is reachable in one tap.
+     */
+    fun closeSplit() {
+        if (_layout.value.isSystemOverlay) overlay.detach()
+        apply(_layout.value.cleared(), persist = true)
+    }
 
     /**
      * Opens [sessionId] as a floating window rather than docked below.
@@ -140,7 +160,19 @@ class PaneLayoutViewModel @Inject constructor(
      * this is reachable in one tap from a window that may be half off screen,
      * which is exactly where a "get this out of my way" button has to be.
      */
-    fun closeFloatingPane() = apply(_layout.value.cleared(), persist = true)
+    /**
+     * Drops the second pane and leaves the single one underneath.
+     *
+     * The close button on a floating window. Not [closeSplit] by another name:
+     * this is reachable in one tap from a window that may be half off screen,
+     * which is exactly where a "get this out of my way" button has to be.
+     */
+    fun closeFloatingPane() {
+        // Same reason as [closeSplit]: a window above other apps outlives the
+        // layout that asked for it.
+        if (_layout.value.isSystemOverlay) overlay.detach()
+        apply(_layout.value.cleared(), persist = true)
+    }
 
     // ── System overlay ────────────────────────────────────────────────────────
 

@@ -134,6 +134,27 @@ fun SplitPaneHost(
             return@BoxWithConstraints
         }
 
+        // **The single-pane case, and it has to come before everything else.**
+        //
+        // This branch was missing, which meant the docked path below ran for
+        // *every* screen in the app, split or not: the primary terminal at 50%
+        // height, a second `TerminalPaneBody` underneath painting
+        // `canvas.drawColor(0xFF000000)` because its slot had no session, a
+        // hairline seam between them and a draggable pill on it. The app did not
+        // "sometimes start split" — it was always split, and the bottom half was
+        // black.
+        //
+        // Not invoking `secondary` is the whole mechanism, for the same reason
+        // the two branches above state: it holds the pane's `AndroidView`, so not
+        // composing it is what keeps a second view from claiming a session that
+        // the primary pane already has. That view was also *registered*, which is
+        // why focus could end up in the empty pane and why sessions opened in the
+        // bottom half — `switchTab` writes to whichever pane has focus.
+        if (!layout.isSplit) {
+            primary()
+            return@BoxWithConstraints
+        }
+
         // Top pane, divider, bottom pane. Stacked rather than side by side: two
         // 180dp columns of terminal are about ten characters wide, narrower than
         // most paths, while a shorter-but-full-width pane still reads.
@@ -197,6 +218,25 @@ fun SplitPaneHost(
          */
         val dragMaxPx = (heightPx - 1f).coerceAtLeast(1f)
 
+        /**
+         * The same three numbers, for the gesture rather than for this frame.
+         *
+         * `SplitDivider` detects the drag inside `pointerInput(Unit)`, which never
+         * restarts, so its lambdas keep the values captured when the node was
+         * first created. Reading `topPx` and `heightPx` out of the composition
+         * there meant every drag after the first one seeded itself from the
+         * split's original geometry and jumped on the first delta — and divided by
+         * a stale host height, so the keyboard opening under the host changed
+         * neither the fraction that got written nor how far the seam could travel.
+         *
+         * The float state objects are the fix: the gesture reads them through
+         * `by`, so it sees this frame's values without the pointer input having to
+         * restart.
+         */
+        val liveTopRow = rememberUpdatedState(topPx.toFloat())
+        val liveHeightPx = rememberUpdatedState(heightPx)
+        val liveDragMaxPx = rememberUpdatedState(dragMaxPx)
+
         Box(modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
@@ -250,14 +290,16 @@ fun SplitPaneHost(
                  * end instead of overshooting and being clamped by rounding.
                  */
                 onDrag = { deltaPx ->
-                    dragTopPx = (dragTopPx + deltaPx).coerceIn(0f, dragMaxPx)
-                    onSplitFractionChange(dragTopPx / heightPx)
+                    val host = liveHeightPx.value
+                    val next = (dragTopPx + deltaPx).coerceIn(0f, liveDragMaxPx.value)
+                    dragTopPx = next
+                    if (host > 0f) onSplitFractionChange(next / host)
                 },
                 onDragStart = {
                     dragging = true
-                    // Seeded from where the seam actually is, so the first delta
-                    // continues from the finger rather than from a stale frame.
-                    dragTopPx = topPx.toFloat()
+                    // Seeded from where the seam actually is *now*, read live rather
+                    // than captured at first composition.
+                    dragTopPx = liveTopRow.value
                 },
                 onDragEnd = {
                     dragging = false
@@ -552,6 +594,13 @@ private fun FloatingPaneWindow(
     var moveOrigin by remember { mutableStateOf<NormalizedRect?>(null) }
     var resizeOrigin by remember { mutableStateOf<NormalizedRect?>(null) }
 
+    // The origins have to come from the *current* bounds, and both grips detect
+    // inside `pointerInput(Unit)`, which never restarts — so a plain `bounds`
+    // read there is the value from whenever the window was first composed. The
+    // first move would land correctly and the second would snap the window back
+    // to where it started, and a resize after a move would jump it back too.
+    val liveBounds = rememberUpdatedState(bounds)
+
     Box(modifier = modifier) {
         // A Box around the Column, not a Column around the Box. The resize grip
         // has to sit *over* the terminal output in the corner — that is where a
@@ -574,7 +623,7 @@ private fun FloatingPaneWindow(
                     title = title,
                     onDock = onDock,
                     onClose = onClose,
-                    onDragStart = { moveOrigin = bounds },
+                    onDragStart = { moveOrigin = liveBounds.value },
                     onDrag = { deltaX, deltaY ->
                         val from = moveOrigin ?: return@FloatingPaneTitleBar
                         // Position only. `copy` carries the width and height this
@@ -588,7 +637,14 @@ private fun FloatingPaneWindow(
                         moveOrigin = moved
                         latestOnBoundsChange(moved)
                     },
-                    onDragEnd = { moveOrigin = null },
+                    onDragEnd = {
+                        moveOrigin = null
+                        // Without this the edge-snap threshold in the model is
+                        // never consulted: `onBoundsCommit` was passed in and
+                        // never called, so `withEdgeSnap` and the whole
+                        // park-at-the-edge gesture were unreachable.
+                        onBoundsCommit()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -596,7 +652,7 @@ private fun FloatingPaneWindow(
             }
 
             ResizeGrip(
-                onDragStart = { resizeOrigin = bounds },
+                onDragStart = { resizeOrigin = liveBounds.value },
                 onDrag = { deltaX, deltaY ->
                     val from = resizeOrigin ?: return@ResizeGrip
                     // Size only, and the origin is pinned to the top-left: a
@@ -609,7 +665,10 @@ private fun FloatingPaneWindow(
                     resizeOrigin = moved
                     latestOnBoundsChange(moved)
                 },
-                onDragEnd = { resizeOrigin = null },
+                onDragEnd = {
+                    resizeOrigin = null
+                    onBoundsCommit()
+                },
                 modifier = Modifier.align(Alignment.BottomEnd),
             )
         }
