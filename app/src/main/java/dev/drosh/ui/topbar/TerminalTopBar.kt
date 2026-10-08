@@ -101,15 +101,15 @@ private const val BAR_TOP_OFFSET_DP = 10
 private const val BAR_BOTTOM_OFFSET_DP = 6
 
 /**
- * Clearance above the pills while collapsed.
+ * The floor for the collapsed row's height.
  *
- * The prototype's `top: 4px`. Small enough that the row reads as sitting in the
- * band the status bar vacated rather than below it, and it is the value the
- * topmost pill's own surface clears the display cutout on devices that have one
- * large enough to matter — a notch taller than this would be handled by the
- * cutout inset rather than by growing the band.
+ * The collapsed row is the status bar's band, so on a device with a very short
+ * bar the icons would be sized to a strip that is too short to hit. This is the
+ * bottom of what a finger can be expected to land on, and it is only ever
+ * *above* the bar's own height, never below it — the strip is the band, not
+ * something near it.
  */
-private val COLLAPSED_TOP_OFFSET = 4.dp
+private val MIN_COLLAPSED_ROW = 30.dp
 
 /**
  * How long the row and the strip take to travel.
@@ -223,38 +223,55 @@ fun TerminalTopBar(
         .asPaddingValues()
         .calculateTopPadding()
 
-    // Collapsed, the row rides inside the space the status bar vacated: the top
-    // of the row lands at COLLAPSED_TOP_OFFSET rather than at the strip's own top
-    // inset, which is why this subtracts the gap as well as the inset. Both terms
-    // are undone, because the Box below already pads by them.
+    // One animated height for the row, and one animated offset, and one animated
+    // strip — all from the same trigger and the same spec, so they cannot be
+    // caught disagreeing on a frame.
+    val chromeTween = tween<Dp>(
+        durationMillis = CHROME_ANIMATION_MILLIS,
+        delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
+    )
+
+    // Collapsed, the row is the status bar's band and nothing else.
+    //
+    // The prototype's `.status-bar { height: 34px }` and
+    // `.pill-row.top-state { top: 4px; height: 34px }` are the same height: the
+    // pills *are* the band, filling the space the clock left rather than sitting
+    // under a strip of their own. Sized to the row instead — a fixed 44dp with a
+    // strip tall enough to hold it — what you get is a row that hangs below the
+    // band, and the band plus the overhang reads as two things rather than one.
+    //
+    // Floored at MIN_COLLAPSED_ROW so a short status bar cannot leave the icons
+    // below a usable touch target.
+    val collapsedRowHeight = statusBarH.coerceAtLeast(MIN_COLLAPSED_ROW)
+
+    val rowHeight by animateDpAsState(
+        targetValue = if (chromeCollapsed) collapsedRowHeight else BAR_ROW_HEIGHT,
+        animationSpec = chromeTween,
+        label = "chromeRowHeight",
+    )
+
     val rowOffset by animateDpAsState(
-        targetValue = if (chromeCollapsed) {
-            -(statusBarH + BAR_TOP_OFFSET - COLLAPSED_TOP_OFFSET)
-        } else {
-            0.dp
-        },
-        animationSpec = tween(
-            durationMillis = CHROME_ANIMATION_MILLIS,
-            delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
-        ),
+        // Expanded the row sits clear of the band; collapsed it is flush with the
+        // top of it, which is the whole difference the prototype draws.
+        targetValue = if (chromeCollapsed) 0.dp else statusBarH + BAR_TOP_OFFSET,
+        animationSpec = chromeTween,
         label = "chromeRowOffset",
     )
 
-    // The strip the chrome collapses into, in Drosh's own background.
-    //
-    // It has to be able to disappear entirely: expanded, the terminal runs on
-    // behind the system bar with nothing between them, and a strip left at a
-    // fraction of a pixel would be a hairline of app colour across the output.
+    /**
+     * The icon, sized to the row it is in.
+     *
+     * A 22dp glyph inside a 30dp band leaves no breathing room and reads as
+     * cropped, so it follows the row with a little air on each side. Clamped to
+     * the row's own height so it can never be the thing that overflows.
+     */
+    val pillIconSize = (rowHeight - 12.dp).coerceIn(16.dp, 22.dp)
+
+    // Exactly the band, and nothing below it. A strip taller than this is the
+    // separate band the pills are supposed to have replaced.
     val stripHeight by animateDpAsState(
-        targetValue = if (chromeCollapsed) {
-            COLLAPSED_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET
-        } else {
-            0.dp
-        },
-        animationSpec = tween(
-            durationMillis = CHROME_ANIMATION_MILLIS,
-            delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
-        ),
+        targetValue = if (chromeCollapsed) collapsedRowHeight else 0.dp,
+        animationSpec = chromeTween,
         label = "collapsedStripHeight",
     )
 
@@ -273,8 +290,8 @@ fun TerminalTopBar(
         // sidebar, so the pills sit in Drosh rather than on top of it.
         //
         // A sibling of the row rather than the row's background, because the row
-        // is offset out of the strip when collapsed and a background set on the
-        // row would travel with it, leaving the strip empty behind it.
+        // moves inside the band when the state changes and a background set on
+        // the row would travel with it, leaving the strip empty behind it.
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -293,11 +310,8 @@ fun TerminalTopBar(
                 // target position rather than as two offsets that have to be kept
                 // in step by hand.
                 .offset(y = rowOffset)
-                .padding(
-                    top = statusBarH + BAR_TOP_OFFSET,
-                    start = 12.dp,
-                    end = 12.dp,
-                ),
+                .height(rowHeight)
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start,
         ) {
@@ -311,13 +325,15 @@ fun TerminalTopBar(
                     terminalBounds = terminalBounds,
                     icon = DroshIcons.PanelLeft,
                     contentDescription = "Open sessions",
+                    height = rowHeight,
+                    iconSize = pillIconSize,
                     onClick = onOpenSidebar,
                 )
 
                  val nameShape = RoundedCornerShape(percent = 50)
                  Box(
                      modifier = Modifier
-                         .height(BAR_ROW_HEIGHT)
+                         .height(rowHeight)
                          .clip(nameShape)
                          .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA)),
                      contentAlignment = Alignment.Center,
@@ -359,6 +375,8 @@ fun TerminalTopBar(
                     terminalBounds = terminalBounds,
                     drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
                     contentDescription = "Agent",
+                    height = rowHeight,
+                    iconSize = pillIconSize,
                     // 22dp, matching every lucide glyph in this row. The mark is drawn
                     // on a 24 viewport that it fills, so it needs no correcting —
                     // unlike the old 2048 mark, which sat at 46% of its own canvas and
@@ -372,6 +390,8 @@ fun TerminalTopBar(
                     terminalBounds = terminalBounds,
                     icon = DroshIcons.EllipsisVertical,
                     contentDescription = "More actions",
+                    height = rowHeight,
+                    iconSize = pillIconSize,
                     onClick = { moreExpanded = true },
                 )
             }
