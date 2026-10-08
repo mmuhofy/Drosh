@@ -79,24 +79,34 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
  * of whatever the build file last happened to say. `-PversionCode=` overrides it
  * for a release, where the number has to come from the store rather than from
  * this repository.
+ *
+ * Through [Project.providers].exec and not [ProcessBuilder]. This runs during
+ * configuration, and a raw external process at configuration time is not
+ * something the configuration cache can record — Gradle fails the whole build
+ * with "external process started" rather than degrading. `providers.exec` is
+ * the supported way to run a command from a build script and it is recorded as
+ * an input, so the value is replayed from cache on the next build instead of
+ * being re-derived.
  */
 private fun gitCommitCount(project: Project): Int? = runCatching {
-    val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
-        .directory(project.rootDir)
-        .redirectErrorStream(true)
-        .start()
-    val output = process.inputStream.bufferedReader().readText().trim()
-    // A non-numeric line here is git's own error text ("fatal: not a git
-    // repository"), not a count. A tarball or a source export has no history,
-    // and guessing a version for one would be worse than the override.
-    process.waitFor()
+    val output = project.providers.exec {
+        commandLine("git", "rev-list", "--count", "HEAD")
+        workingDir(project.rootDir)
+        // git's own errors come back on stderr and a non-zero exit. Both mean
+        // "no count here", which is null, not a crash.
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim()
+
+    // Empty rather than git's error text, because this reads stdout only — a
+    // tarball or a source export has no history, and guessing a version for one
+    // would be worse than the override.
     val count = output.toIntOrNull() ?: return@runCatching null
 
     // A shallow clone counts what it was given, not what exists. `actions/
     // checkout` defaults to depth 1, so without this the CI build would come out
     // numbered 10001 forever and every CI APK would be interchangeable with
     // every other — reintroducing the downgrade this numbering exists to prevent.
-    if (project.rootDir.resolve(".git").exists() && isShallow(project)) {
+    if (isShallowCheckout(project)) {
         project.logger.warn(
             "Drosh: the git checkout is shallow, so versionCode was derived from " +
                 "${count} commit(s) instead of the real history. Fetch the full " +
@@ -107,14 +117,12 @@ private fun gitCommitCount(project: Project): Int? = runCatching {
     count
 }.getOrNull()
 
-private fun isShallow(project: Project): Boolean = runCatching {
-    val process = ProcessBuilder("git", "rev-parse", "--is-shallow-repository")
-        .directory(project.rootDir)
-        .redirectErrorStream(true)
-        .start()
-    val output = process.inputStream.bufferedReader().readText().trim()
-    process.waitFor()
-    output.equals("true", ignoreCase = true)
+private fun isShallowCheckout(project: Project): Boolean = runCatching {
+    project.providers.exec {
+        commandLine("git", "rev-parse", "--is-shallow-repository")
+        workingDir(project.rootDir)
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().equals("true", ignoreCase = true)
 }.getOrDefault(false)
 
 /**
