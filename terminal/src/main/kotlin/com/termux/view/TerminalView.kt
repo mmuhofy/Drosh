@@ -237,6 +237,24 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     var onScrollPositionChanged: ((Int) -> Unit)? = null
 
     /**
+     * Called when the *user* moved the viewport, as opposed to
+     * [onScrollPositionChanged] which also fires every time the screen is
+     * redrawn.
+     *
+     * Drosh-added. [onScrollPositionChanged] cannot be used to answer "has this
+     * person touched this terminal yet": it is invoked from `onScreenUpdated`,
+     * which runs on **every** PTY chunk, so the shell's own first line of output
+     * answered "yes" before a finger had been anywhere near the screen. Anything
+     * that means "untouched" — the top chrome's collapsed state is exactly that —
+     * has to be told apart from "the terminal wrote something".
+     *
+     * Fires alongside the position callback at the three sites a person can move
+     * the viewport: a drag, the settle after one, and a wheel notch or a
+     * PageUp/PageDown. Never from `onScreenUpdated`.
+     */
+    var onUserScroll: (() -> Unit)? = null
+
+    /**
      * Bumped every time the screen content changes. Used by the top bar to
      * resample its backdrop only when there is something new behind it, rather
      * than on a blind timer — resampling draws the whole terminal a second
@@ -934,6 +952,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             mScrollOffsetPx = offset
             if (!awakenScrollBars()) invalidate()
             onScrollPositionChanged?.invoke(mTopRow)
+            onUserScroll?.invoke()
         }
     }
 
@@ -964,6 +983,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                     mScrollOffsetPx = to
                     if (!awakenScrollBars()) invalidate()
                     onScrollPositionChanged?.invoke(mTopRow)
+                    onUserScroll?.invoke()
                 }
             }
         }
@@ -991,6 +1011,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 if (mScrollOffsetPx != 0f) snapToWholeRow()
                 if (!awakenScrollBars()) invalidate()
                 onScrollPositionChanged?.invoke(mTopRow)
+                onUserScroll?.invoke()
             }
         }
     }

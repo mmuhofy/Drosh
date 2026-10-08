@@ -798,6 +798,7 @@ private val _hasScrolled = MutableStateFlow(false)
         // mid-handover would be visible as a jump.
         paneViews.remove(slot)?.let { stale ->
             stale.onScrollPositionChanged = null
+            stale.onUserScroll = null
             stale.installSelectionMenu(enabled = false, listener = null)
         }
 
@@ -825,7 +826,10 @@ private val _hasScrolled = MutableStateFlow(false)
      */
     private fun activatePaneView(slot: PaneSlot, view: TerminalView) {
         paneViews.forEach { (other, otherView) ->
-            if (other != slot) otherView.onScrollPositionChanged = null
+            if (other != slot) {
+                otherView.onScrollPositionChanged = null
+                otherView.onUserScroll = null
+            }
         }
         sessionClient.terminalView = view
         // Whichever pane takes focus is the one being read, and it starts at its
@@ -834,13 +838,19 @@ private val _hasScrolled = MutableStateFlow(false)
         publishScroll(view)
         view.onScrollPositionChanged = { topRow ->
             if (slot == focusedPane.value) {
-                // One-way. The first scroll of a session is what stops it being
-                // "new", and only the focused pane's scrolling counts — the other
-                // pane's view has this callback removed by [activatePaneView].
-                if (!_hasScrolled.value) _hasScrolled.value = true
                 _scrollTopRow.value = topRow
                 val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
                 if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
+            }
+        }
+        view.onUserScroll = {
+            // Separate from the position callback on purpose. That one also runs
+            // from onScreenUpdated, i.e. on every chunk of PTY output, so reading
+            // "has the user scrolled" out of it meant the shell's own first line
+            // of output answered yes — and the collapsed chrome, which is the
+            // untouched-terminal state, never appeared at all.
+            if (slot == focusedPane.value && !_hasScrolled.value) {
+                _hasScrolled.value = true
             }
         }
         bindSelectionMenu(view, slot)
@@ -886,6 +896,7 @@ private val _hasScrolled = MutableStateFlow(false)
         // Drop the callbacks before dropping the reference, or the view keeps a
         // strong reference to this manager after the pane is gone.
         view.onScrollPositionChanged = null
+        view.onUserScroll = null
         view.installSelectionMenu(enabled = false, listener = null)
 
         if (slot != focusedPane.value) return
@@ -1363,6 +1374,7 @@ private val _hasScrolled = MutableStateFlow(false)
         // screens that built it are gone.
         paneViews.values.forEach { view ->
             view.onScrollPositionChanged = null
+            view.onUserScroll = null
             view.installSelectionMenu(enabled = false, listener = null)
         }
         paneViews.clear()
