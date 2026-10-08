@@ -42,7 +42,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -102,6 +105,7 @@ import dev.drosh.ui.agent.components.AgentPill
 import dev.drosh.ui.agent.components.AgentSelectableText
 import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.LocalAgentGlass
+import dev.drosh.ui.agent.components.glassSurface
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.agentGlassStyle
 import dev.drosh.ui.agent.components.rememberAgentClipboard
@@ -113,8 +117,11 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import dev.drosh.design.system.DroshSurfaceContainerLowest
 import dev.drosh.ui.agent.components.MOTION_MS
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import kotlinx.coroutines.delay
 
 /**
  * One agent chat.
@@ -600,18 +607,22 @@ private fun AgentComposer(
             .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
+        // The same liquid glass as the pills, at a larger radius. One surface for
+        // the whole app's controls, so the composer and the pill row read as the
+        // same material rather than as two things that happen to be on the same
+        // screen.
+        val glass = LocalAgentGlass.current
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(DroshSurfaceVariant)
+                .glassSurface(glass, pressed = false, shape = RoundedCornerShape(20.dp))
                 .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
         ) {
             Column {
                 Box {
                     if (text.isEmpty()) {
                         Text(
-                            text = if (enabled) "Agent'a bir şey sor…" else "çalışıyor…",
+                            text = if (enabled) "Ne yapmamı istiyorsun?" else "çalışıyor…",
                             fontSize = 14.5.sp,
                             color = DroshTextMuted,
                         )
@@ -817,34 +828,49 @@ private fun AssistantText(
  * the answer visibly grows out of the same place instead of appearing under a
  * spinner-shaped widget.
  */
+/**
+ * The "still working" indicator.
+ *
+ * One line: `Thinking 12s`. No dots, no card, no separate widget — the label is the
+ * whole thing, and it carries the elapsed time so the user can see how long the
+ * model has been at it without looking for a timer.
+ *
+ * The sweep is a highlight travelling left to right across the text, not a pulse.
+ * A pulse says "something is happening"; a sweep says "something is happening and it
+ * is moving", which is closer to what a model doing several things in a row actually
+ * looks like. It is clipped to the glyphs, so it brightens the text rather than
+ * drawing a bar over it.
+ */
 @Composable
 private fun ThinkingDots(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "thinking")
-
-    Row(
-        modifier = modifier.semantics { contentDescription = "düşünüyor" },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        repeat(3) { index ->
-            // Each dot starts a third of the cycle behind the one before it.
-            val alpha by transition.animateFloat(
-                initialValue = 0.18f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 420, delayMillis = index * 150),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-                label = "thinking-dot-$index",
-            )
-            Box(
-                modifier = Modifier
-                    .size(5.dp)
-                    .clip(CircleShape)
-                    .background(DroshTextMuted.copy(alpha = alpha)),
-            )
+    var elapsed by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            elapsed++
         }
     }
+
+    val transition = rememberInfiniteTransition(label = "thinkingSweep")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "thinkingSweepProgress",
+    )
+
+    Text(
+        text = "Thinking ${elapsed}s",
+        fontSize = 11.5.sp,
+        fontFamily = FontFamily.Monospace,
+        color = DroshPrimary,
+        modifier = modifier
+            .semantics { contentDescription = "düşünüyor" }
+            .sweepHighlight(progress),
+    )
 }
 
 @Composable
@@ -900,6 +926,34 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
  * running call expands without a tap. Waiting to see whether `npm install` is alive
  * is the thing people are actually here for.
  */
+/**
+ * One tool call: a single line.
+ *
+ * ## The verb is the status
+ *
+ * The tool name is replaced by a verb, and the verb's tense is the status. While
+ * running it is present tense — `Running`, `Reading`, `Writing` — and when the call
+ * finishes it becomes past tense: `Ran`, `Read`, `Wrote`. The user does not have to
+ * look for a separate indicator to learn whether something is still going; the word
+ * itself says so, the way "is running" and "ran" do in a sentence.
+ *
+ * Colour carries the outcome on top of that: a failure is red whether or not the
+ * reader parses the verb.
+ *
+ * ## One line, no card
+ *
+ * Icon, verb, the command or path, the elapsed time while running, and a chevron.
+ * Nothing is boxed. The output, when the row is opened, hangs off a 1dp hairline —
+ * the grouping cue a card's background used to provide, at a weight that reads as a
+ * rule rather than as a container.
+ *
+ * ## The sweep
+ *
+ * While running, a highlight travels left to right across the verb. Same reasoning
+ * as the thinking label: a pulse says "happening", a sweep says "happening and
+ * moving". It stops the instant the call finishes, which is the signal that the
+ * result has arrived.
+ */
 @Composable
 private fun ToolCallRow(message: ChatMessage.ToolCall) {
     var open by rememberSaveable(message.id) {
@@ -910,6 +964,41 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
     LaunchedEffect(running) {
         if (running) open = true
     }
+
+    // Elapsed seconds, counted rather than measured. A timer that reads a start
+    // timestamp drifts with frame timing; incrementing once a second is exact to the
+    // second, which is the only resolution this is shown at.
+    var elapsed by remember(message.id) { mutableStateOf(0) }
+    LaunchedEffect(message.id, running) {
+        if (running) {
+            elapsed = 0
+            while (true) {
+                delay(1000)
+                elapsed++
+            }
+        }
+    }
+
+    val transition = rememberInfiniteTransition(label = "toolSweep")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "toolSweepProgress",
+    )
+
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (open) 90f else 0f,
+        animationSpec = tween(MOTION_MS),
+        label = "toolChevronRotation",
+    )
+
+    val clipboard = rememberAgentClipboard()
+    val (present, past) = toolVerbs(message.name)
+    val verb = if (running) present else past
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -925,11 +1014,12 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
             Spacer(Modifier.width(9.dp))
 
             Text(
-                text = message.name,
+                text = verb,
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium,
-                color = if (running) DroshPrimary else DroshText,
+                color = verbColor(message.state),
+                modifier = if (running) Modifier.sweepHighlight(progress) else Modifier,
             )
 
             if (message.summary.isNotEmpty()) {
@@ -947,8 +1037,25 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
 
             Spacer(Modifier.weight(1f))
 
-            if (running) ThinkingDots()
-            ToolStatus(message)
+            // Only while running. Once the call is done the duration is a fact about
+            // the past and belongs with the output, not in the row.
+            if (running) {
+                Text(
+                    text = "${elapsed}s",
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = DroshPrimary,
+                )
+            }
+
+            Icon(
+                imageVector = DroshIcons.ChevronRight,
+                contentDescription = if (open) "Daralt" else "Genişlet",
+                tint = DroshTextMuted,
+                modifier = Modifier
+                    .size(16.dp)
+                    .rotate(chevronRotation),
+            )
         }
 
         AnimatedVisibility(
@@ -957,15 +1064,15 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
             exit = fadeOut(tween(MOTION_MS)) + shrinkVertically(tween(MOTION_MS)),
         ) {
             Row(modifier = Modifier.padding(top = 2.dp)) {
-                // The rule the card used to be, reduced to what a grouping cue
-                // actually needs: a line from under the glyph down past the output.
+                // A hairline from under the glyph down past the output: what ties the
+                // output to the line that produced it, without a second surface.
                 Box(
                     modifier = Modifier
                         .padding(start = 7.dp)
-                        .width(2.dp)
+                        .width(1.dp)
                         .heightIn(min = 16.dp)
                         .clip(RoundedCornerShape(1.dp))
-                        .background(DroshOutline.copy(alpha = 0.55f)),
+                        .background(DroshOutline.copy(alpha = 0.4f)),
                 )
 
                 Column(
@@ -974,9 +1081,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                         .padding(start = 12.dp, top = 2.dp, bottom = 4.dp),
                 ) {
                     // A checklist is the tool's result, not its output text, so it is
-                    // rendered as a list and the text version is not shown. Printing
-                    // "[x] 1. Read the failing test" under the row would make the
-                    // user read a diff format to learn what the agent is doing.
+                    // rendered as a list and the text version is not shown.
                     if (message.todos.isNotEmpty()) {
                         TodoCard(todos = message.todos)
                     }
@@ -984,9 +1089,6 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                     val finalOutput = message.finalOutput
                     val liveOutput = message.output
                     val body = when {
-                        // A checklist already says everything its text does, in a
-                        // shape a person can read. Showing both is the same fact
-                        // twice, once formatted for a model.
                         message.todos.isNotEmpty() -> null
                         liveOutput.isNotEmpty() ->
                             liveOutput.takeLast(MAX_LIVE_LINES).joinToString("\n")
@@ -994,17 +1096,15 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                         else -> null
                     }
                     if (body != null) {
+                        // Plain text on the transcript's own background. A fill here
+                        // would make every result a panel again.
                         Text(
                             text = body,
                             fontSize = 11.5.sp,
                             lineHeight = 16.sp,
                             fontFamily = FontFamily.Monospace,
                             color = DroshTextSecondary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(DroshSurfaceContainerLowest)
-                                .padding(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
 
@@ -1018,13 +1118,30 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                     }
 
                     message.durationMs?.let { duration ->
-                        Text(
-                            text = formatToolDuration(duration),
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = DroshTextMuted,
+                        Row(
                             modifier = Modifier.padding(top = 6.dp),
-                        )
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = formatToolDuration(duration),
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = DroshTextMuted,
+                            )
+                            if (body != null) {
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = "Kopyala",
+                                    fontSize = 11.sp,
+                                    color = DroshTextMuted,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { clipboard(body) }
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                        .semantics { contentDescription = "Çıktıyı kopyala" },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1703,4 +1820,67 @@ private fun UsageStrip(usage: TokenUsage) {
             color = DroshTextMuted,
         )
     }
+}
+
+/**
+ * A highlight travelling left to right across whatever it is applied to.
+ *
+ * Clipped to the content by `SrcAtop`, so it brightens the glyphs rather than
+ * drawing a bar over them — the difference between a shimmer and a highlight
+ * sweep. The band is 40% of the width and fades at both edges, so it reads as
+ * something passing over the text rather than as a colour change.
+ */
+private fun Modifier.sweepHighlight(progress: Float): Modifier = this.drawWithContent {
+    drawContent()
+    val band = size.width * 0.4f
+    val x = (size.width + band) * progress - band
+    drawRect(
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.Transparent,
+                Color.White.copy(alpha = 0.18f),
+                Color.Transparent,
+            ),
+            start = Offset(x, 0f),
+            end = Offset(x + band, size.height),
+        ),
+        blendMode = BlendMode.SrcAtop,
+    )
+}
+
+/**
+ * The verb for a tool, in present and past tense.
+ *
+ * Present while the call runs, past once it finishes — the tense is the status, so
+ * the row does not need a separate indicator to say whether something is still going.
+ *
+ * `write_file` is `Wrote` rather than `Edited` because the model creates as often as
+ * it modifies, and a verb that only fits one of the two would be wrong half the time.
+ */
+private fun toolVerbs(name: String): Pair<String, String> = when (name) {
+    "shell" -> "Running" to "Ran"
+    "read_file" -> "Reading" to "Read"
+    "write_file" -> "Writing" to "Wrote"
+    "grep" -> "Searching" to "Searched"
+    "move_file" -> "Moving" to "Moved"
+    "ask_user" -> "Asking" to "Asked"
+    "update_todo" -> "Updating" to "Updated"
+    "web_search" -> "Searching" to "Searched"
+    else -> "Working" to "Done"
+}
+
+/**
+ * The verb's colour, which carries the outcome the tense does not.
+ *
+ * A failure is red whether or not the reader parses "Ran" — the verb says it
+ * finished, the colour says how.
+ */
+@Composable
+private fun verbColor(state: ToolCallState): Color = when (state) {
+    ToolCallState.Running -> DroshPrimary
+    ToolCallState.Succeeded -> DroshText
+    ToolCallState.Failed -> DroshError
+    ToolCallState.Cancelled -> DroshTextMuted
+    ToolCallState.AwaitingApproval -> DroshWarning
+    ToolCallState.Pending -> DroshTextMuted
 }
