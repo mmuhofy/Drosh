@@ -16,22 +16,36 @@ import com.termux.terminal.WcWidth
  * Font metrics are recomputed by [updateTextSize] rather than by building a new
  * renderer: a pinch that follows the fingers re-measures every glyph width on
  * every frame, and allocating a renderer per frame is what made zooming stutter.
- * Everything the size change invalidates is therefore mutable, and the paint is
- * kept — only the typeface changes needs a fresh renderer.
+ * Everything the size change invalidates is therefore mutable — behind private
+ * setters, since only [measureFont] may write them — and the paint is kept; only
+ * a typeface change needs a fresh renderer.
  */
 class TerminalRenderer(
-    @JvmField var mTextSize: Float,
+    /**
+     * Font size in sp.
+     *
+     * Written only through [updateTextSize]; a caller that sets it directly
+     * desynchronises every measured value below, which is why the metrics are
+     * behind private setters and this one is not.
+     */
+    var mTextSize: Float,
     @JvmField val mTypeface: Typeface
 ) {
     private val mTextPaint = Paint()
 
-    /** The width of a single mono spaced character obtained by [Paint.measureText] on a single 'X'. */
-    @JvmField
+    /**
+     * The width of a single mono spaced character obtained by [Paint.measureText]
+     * on a single 'X'.
+     *
+     * No `@JvmField`: a private setter is a custom accessor, and `@JvmField`
+     * cannot be combined with one. Every consumer is Kotlin, so the property
+     * accessor is not a cost — and the private setter is what stops a caller
+     * from setting a width that was never measured.
+     */
     var mFontWidth: Float = 0f
         private set
 
     /** The [Paint.getFontSpacing]. See http://www.fampennings.nl/maarten/android/08numgrid/font.png */
-    @JvmField
     var mFontLineSpacing: Int = 0
         private set
 
@@ -39,7 +53,6 @@ class TerminalRenderer(
     private var mFontAscent: Int = 0
 
     /** The [mFontLineSpacing] + [mFontAscent]. */
-    @JvmField
     var mFontLineSpacingAndAscent: Int = 0
         private set
 

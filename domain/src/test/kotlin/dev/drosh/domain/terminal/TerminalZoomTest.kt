@@ -86,18 +86,22 @@ class TerminalZoomTest {
      *
      * The size is recomputed from the gesture's origin every frame, so a pinch
      * out and back is not allowed to leave a fraction behind — the drift a
-     * step-by-step accumulation produces.
+     * step-by-step accumulation produces. The frames are chosen to multiply
+     * back to 1, which is what "returned to where it started" means here.
      */
     @Test
     fun `a pinch that returns to its origin returns to its size`() {
         val base = 14.2f
+        val frames = listOf(1.06f, 1.12f, 1 / 1.06f, 1 / 1.12f)
         var accumulated = 1f
-        val frames = listOf(1.06f, 1.12f, 0.95f, 1.03f, 1f)
         var last = base
         for (scale in frames) {
             accumulated *= clampStep(scale)
             if (pastDeadZone(accumulated)) last = quantise(base * accumulated)
         }
+        // The size during the gesture tracked the fingers...
+        assertEquals(quantise(base * 1.06f * 1.12f), last, TOLERANCE)
+        // ...and the size after it is the size it started at.
         assertEquals(base, quantise(base * accumulated), TOLERANCE)
     }
 
