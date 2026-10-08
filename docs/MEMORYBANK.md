@@ -296,40 +296,53 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 
 The system status bar and the floating pill row are one decision, not two:
 
-| State | When | Status bar | Behind it | Pills |
-|-------|------|-----------|-----------|-------|
-| **Collapsed** | a session nobody has scrolled yet, **or** the viewport is up in the scrollback, **or** a TUI owns the terminal | hidden | **Drosh's own background** | inside the vacated band, 4dp from the top |
-| **Expanded** | at the live edge, and the session has been scrolled | shown, **transparent** — the terminal runs on behind the clock | nothing | below the strip, floating over the output, with the backdrop blur |
+| State | When | Status bar | Terminal's top inset | Pills |
+|-------|------|-----------|---------------------|-------|
+| **Collapsed** | a session still on its first screen, **or** the viewport is up in the scrollback, **or** a TUI owns the terminal | **fullscreen** — hidden outright | collapsed chrome height | at the very top of the screen |
+| **Expanded** | at the live edge, past the first screen | shown, terminal runs on behind it | the same, constant | below the bar, floating over the output, with the backdrop blur |
+
+**Nothing is painted behind the collapsed chrome.** The app is fullscreen, so the
+top of the screen belongs to the app's own frame. A rectangle of app colour there
+is a band drawn over nothing, and it read as a black bar sitting on the terminal —
+which is exactly what it was reported as. Two earlier attempts painted it: the
+terminal's own background, and a scrim over it. Both put a surface from the
+terminal's world at the top of a screen the rest of which belongs to the app.
 
 ```
 chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge
 ```
 
-**`hasScrolled` is not optional, and position cannot express it.** A session
-that has just opened sits at the live edge — `topRow == 0`, exactly like a busy
-terminal at its prompt — and still wants the collapsed state. Without the flag the
-app *opens* in the wrong state and hides the bar on the first flick, which reads
-as flapping. One-way, cleared by `TerminalManager.resetViewportState()` wherever
-the session on screen is replaced: `switchTab`, `addTabWithId`, `addSshSession`,
-`reattachPanesAt`, `activatePaneView`, `swapPanes`, `setPaneSessions`,
-`promoteSecondaryToPrimary`, `closeAll`.
+**`hasScrolled` means "has left the first screen", not "moved at all".** A
+session that has just opened sits at the live edge — `topRow == 0`, exactly like
+a busy terminal at its prompt — and still wants the collapsed state. Without the
+flag the app *opens* in the wrong state.
 
-**A user scroll is not a screen update.** `hasScrolled` is set from
-`TerminalView.onUserScroll`, a Drosh-added callback fired only from
-`scrollByPixels`, the settle after one, and `doScroll`. It must **not** be read
-off `onScrollPositionChanged`: that one also fires from `onScreenUpdated`, which
-`redrawPanesShowing` runs on **every** PTY chunk, so the shell's own MOTD
-answered "has anyone touched this" with yes. That bug shipped, and the symptom
-was the collapsed state never appearing at all.
+It flips at **the same threshold `isAtLiveEdge` uses**, never on the first row.
+That is the whole flapping bug: with the two thresholds a row apart, one flick up
+turned the status bar on and the fifth row turned it off again — two transitions
+inside one gesture. One-way, cleared by `TerminalManager.resetViewportState()`
+wherever the session on screen is replaced: `switchTab`, `addTabWithId`,
+`addSshSession`, `reattachPanesAt`, `activatePaneView`, `swapPanes`,
+`setPaneSessions`, `promoteSecondaryToPrimary`, `closeAll`.
 
-**The strip is Drosh's colour.** Collapsed, what sits behind the pills is
-`DroshBackground` — the same colour behind the terminal frame and the sidebar.
-Both of the alternatives were tried and both were wrong: the terminal background
-(default true black) and a scrim over it put a surface from the terminal's own
-world at the top of a screen the rest of which belongs to the app, and it read as
-a foreign bar laid over the terminal. The pills move rather than disappearing,
-which is the other half of the Obsidian reference: they are how you get back to
-search, sessions and the agent.
+**It is safe to read off `onScrollPositionChanged`**, which also fires from
+`onScreenUpdated` on every PTY chunk. An earlier version needed a separate
+`onUserScroll` callback because it set the flag unconditionally, and the shell's
+own MOTD answered yes. Once the flag is gated on the same threshold, anything
+`onScreenUpdated` fires reports the live edge — it snaps `mTopRow` back to 0
+first — so the second callback was a second way to say the same thing, and is
+gone.
+
+**The terminal's top inset is constant and equal to the collapsed chrome's
+height**, shared with the row through `rememberCollapsedChromeHeight()`. Collapsed
+the pills sit above the grid, so nothing is hidden behind them; expanded they
+float over it, which is what floating is for. Constant on purpose: an inset that
+tracked the status bar's visibility resized the grid on every boundary crossing
+and re-wrapped every line of output, which is a far worse trade than one state
+having the top row under a control.
+
+The pills move rather than disappearing, which is the other half of the Obsidian
+reference: they are how you get back to search, sessions and the agent.
 
 **Every layout measurement reads `statusBarsIgnoringVisibility`, never
 `statusBars`.** The bar's visibility changes on scroll and `statusBars` reads
