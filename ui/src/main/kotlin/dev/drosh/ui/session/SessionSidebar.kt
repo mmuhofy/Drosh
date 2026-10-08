@@ -1221,32 +1221,32 @@ private fun SplitDragHandle(
             .width(24.dp)
             .fillMaxHeight()
             .clip(RoundedCornerShape(6.dp))
-            .draggable(
+.draggable(
                 orientation = Orientation.Horizontal,
-                state = rememberDraggableState(
-                    onDelta = { delta ->
-                        dragged += delta
-                        // Fires the moment the threshold is *crossed*, not on
-                        // release, so the split appears while the finger is still
-                        // down and the gesture reads as a cause. `dragged` resets
-                        // at the same moment so a long drag past the threshold
-                        // cannot re-fire it every frame.
-                        if (dragged >= thresholdPx) {
-                            dragged = 0f
-                            onSplit()
-                        } else if (dragged <= -thresholdPx) {
-                            dragged = 0f
-                        }
-                    },
-                    // The part that was missing. Without this the accumulator
-                    // kept its value after the finger lifted, so a drag stopped
-                    // at 90% of the threshold armed the grip for good: the next
-                    // incidental brush of 10% opened a split the user had
-                    // abandoned a moment ago. Accumulated travel is a property of
-                    // one gesture and has to die with it, or the grip stops being
-                    // a deliberate act and becomes something that happens to you.
-                    onDeltaStopped = { dragged = 0f },
-                ),
+                state = rememberDraggableState { delta ->
+                    dragged += delta
+                    // Fires the moment the threshold is *crossed*, not on
+                    // release, so the split appears while the finger is still
+                    // down and the gesture reads as a cause. `dragged` resets at
+                    // the same moment so a long drag past the threshold cannot
+                    // re-fire it every frame.
+                    if (dragged >= thresholdPx) {
+                        dragged = 0f
+                        onSplit()
+                    } else if (dragged <= -thresholdPx) {
+                        dragged = 0f
+                    }
+                },
+                // The part that was missing, and the whole of the "it split on
+                // its own". Without it the accumulator kept its value after the
+                // finger lifted, so a drag stopped at 90% of the threshold armed
+                // the grip for good: the next incidental brush opened a split the
+                // user had abandoned a moment ago. Accumulated travel is a
+                // property of one gesture and has to die with it, or the grip
+                // stops being a deliberate act and becomes something that happens
+                // to you.
+                onDragStopped = { dragged = 0f },
+            ),
             ),
         contentAlignment = Alignment.Center,
     ) {

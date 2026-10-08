@@ -56,7 +56,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshError
 import kotlin.math.roundToInt
-import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
@@ -73,14 +72,20 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  * is the prototype's:
  *
  *  - **Collapsed** — the viewport is up in the scrollback, or a TUI has the
- *    terminal. The system status bar is hidden outright, the band it leaves is
- *    painted in the terminal's own background, and the pills sit *inside* that
- *    band rather than below it. Nothing of the terminal shows through behind them.
+ *    terminal. The system status bar is hidden outright and the pills ride up
+ *    into the space it left rather than sitting below it. What is behind them is
+ *    a **scrim over the terminal**, not a filled bar: see
+ *    [COLLAPSED_SCRIM_ALPHA] for why a fill reads as a second surface and a scrim
+ *    does not.
  *  - **Expanded** — the viewport is at the live edge. The system status bar is
  *    shown with no background of its own, so the terminal runs on behind the
- *    clock, and the pills drop below the band to float over the output.
+ *    clock, and the pills drop below the strip to float over the output.
  *
- * Both the band and the row are positioned off
+ * The pills never disappear. Obsidian's chrome lifts away entirely and leaves a
+ * dim behind it; here the pills are how you get back to search, sessions and the
+ * agent, so they move rather than go. Only the status bar closes.
+ *
+ * Both the scrim and the row are positioned off
  * [WindowInsets.statusBarsIgnoringVisibility] rather than [WindowInsets.statusBars].
  * The bar's visibility now changes on every scroll, and `statusBars` is zero the
  * moment it hides — so measuring layout with it would collapse the whole top of
@@ -106,7 +111,26 @@ private const val BAR_BOTTOM_OFFSET_DP = 6
 private val COLLAPSED_TOP_OFFSET = 4.dp
 
 /**
- * How long the row and the band take to travel.
+ * How dark the collapsed chrome strip goes.
+ *
+ * A scrim over the terminal, not a fill under it. This is the difference between
+ * this and a bar drawn at the top of the screen: a solid fill of any colour is
+ * a second surface, and a terminal with a second surface above it reads as a
+ * header sitting on a document — a band, with an edge, and a mismatch against
+ * whatever terminal background the user picked.
+ *
+ * Dimming what is already there keeps the terminal one continuous surface from
+ * the top pixel to the bottom, which is what lets the chrome collapse into it.
+ * The strip still needs to be *slightly* darker, because the pills are about to
+ * sit in the place the clock was and the area has to read as having changed.
+ *
+ * Light enough that the terminal's own background is still what you see: this
+ * is a dim, not a fill.
+ */
+private const val COLLAPSED_SCRIM_ALPHA = 0.35f
+
+/**
+ * How long the row and the scrim take to travel.
  *
  * Just under the platform's own status-bar transition. Ours finishing first
  * means the last thing to settle is the system's own bar, rather than two
@@ -178,10 +202,10 @@ fun TerminalTopBar(
     /**
      * The viewport is up in the scrollback, or a TUI owns the terminal.
      *
-     * One flag for both halves of the state on purpose. "Hide the status bar"
-     * and "tuck the pills into the band it left" are the same decision — the band
-     * only exists to be filled while the bar is away — and driving them from two
-     * booleans is how they end up disagreeing for a frame on every crossing.
+     * One flag for both halves of the state on purpose. "Hide the status bar" and
+     * "tuck the pills into the space it left" are the same decision, and driving
+     * them from two booleans is how they end up disagreeing for a frame on every
+     * crossing.
      */
     chromeCollapsed: Boolean,
     /** Strip sampled from the terminal, or null when there is nothing to sample. */
@@ -211,16 +235,16 @@ fun TerminalTopBar(
 
     // Deliberately the visibility-agnostic inset. `statusBars` reports zero
     // while the bar is hidden, and this bar's state changes on scroll, so
-    // reading it here would collapse the band's height and fling the row upward
+    // reading it here would collapse the strip's height and fling the row upward
     // at the exact moment the row is supposed to move upward on purpose.
     val statusBarH = WindowInsets.statusBarsIgnoringVisibility
         .asPaddingValues()
         .calculateTopPadding()
 
-    // Collapsed, the row rides inside the band the status bar vacated: the top
-    // of the row lands at COLLAPSED_TOP_OFFSET rather than at the band's own
-    // top inset, which is why this subtracts the gap as well as the inset. Both
-    // terms are undone, because the Box below already pads by them.
+    // Collapsed, the row rides inside the space the status bar vacated: the top
+    // of the row lands at COLLAPSED_TOP_OFFSET rather than at the strip's own top
+    // inset, which is why this subtracts the gap as well as the inset. Both terms
+    // are undone, because the Box below already pads by them.
     val rowOffset by animateDpAsState(
         targetValue = if (chromeCollapsed) {
             -(statusBarH + BAR_TOP_OFFSET - COLLAPSED_TOP_OFFSET)
@@ -234,11 +258,11 @@ fun TerminalTopBar(
         label = "chromeRowOffset",
     )
 
-    // The opaque band, on its own animation rather than the row's. It has to be
-    // able to disappear entirely: expanded, the terminal is meant to run on
-    // behind the system bar, and a band left at a fraction of a pixel would be a
-    // hairline of solid colour across the top of the output.
-    val bandHeight by animateDpAsState(
+    // The strip the chrome collapses into. It has to be able to disappear
+    // entirely: expanded, the terminal is meant to run on behind the system bar
+    // with nothing between them, and a strip left at a fraction of a pixel would
+    // be a hairline of darker colour across the top of the output.
+    val scrimHeight by animateDpAsState(
         targetValue = if (chromeCollapsed) {
             COLLAPSED_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET
         } else {
@@ -248,7 +272,7 @@ fun TerminalTopBar(
             durationMillis = CHROME_ANIMATION_MILLIS,
             delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
         ),
-        label = "collapsedBandHeight",
+        label = "collapsedScrimHeight",
     )
 
     Box(
@@ -256,22 +280,17 @@ fun TerminalTopBar(
             .fillMaxWidth()
             .height(statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET),
     ) {
-        // A sibling of the row, not the row's background. The row is offset out
-        // of the band when collapsed, so a background set on it would travel with
-        // it and leave the band behind it empty — which is the opposite of what
-        // the band is for.
-        //
-        // Drosh's own background, not the terminal's. The terminal background is
-        // a user setting and defaults to true black, so a band painted in it
-        // was a black bar sitting on top of the output rather than the app's
-        // surface holding its chrome. The band is the app's, and it should look
-        // like the app's.
+        // A scrim over whatever is behind it, never a fill of its own — see
+        // COLLAPSED_SCRIM_ALPHA. It is a sibling of the row rather than the row's
+        // background because the row is offset out of the strip when collapsed,
+        // and a background set on the row would travel with it and leave the
+        // strip empty behind it.
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(bandHeight)
-                .background(DroshBackground),
+                .height(scrimHeight)
+                .background(Color.Black.copy(alpha = COLLAPSED_SCRIM_ALPHA)),
         )
 
         var moreExpanded by remember { mutableStateOf(false) }
