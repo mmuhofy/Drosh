@@ -376,12 +376,12 @@ fun TerminalTopBar(
                     drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
                     contentDescription = "Agent",
                     height = rowHeight,
+                    // The mark is drawn on a 24 viewport that it fills, so it needs
+                    // no correcting — unlike the old 2048 mark, which sat at 46% of
+                    // its own canvas and looked half the size of its neighbours.
+                    // It does follow the row, though: 22dp in a 30dp band reads as
+                    // cropped.
                     iconSize = pillIconSize,
-                    // 22dp, matching every lucide glyph in this row. The mark is drawn
-                    // on a 24 viewport that it fills, so it needs no correcting —
-                    // unlike the old 2048 mark, which sat at 46% of its own canvas and
-                    // looked half the size of its neighbours.
-                    iconSize = 22.dp,
                     onClick = { onOpenAgent() },
                 )
 
