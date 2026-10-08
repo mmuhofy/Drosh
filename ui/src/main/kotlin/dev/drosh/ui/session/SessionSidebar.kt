@@ -1221,7 +1221,7 @@ private fun SplitDragHandle(
             .width(24.dp)
             .fillMaxHeight()
             .clip(RoundedCornerShape(6.dp))
-.draggable(
+            .draggable(
                 orientation = Orientation.Horizontal,
                 state = rememberDraggableState { delta ->
                     dragged += delta
@@ -1246,7 +1246,6 @@ private fun SplitDragHandle(
                 // stops being a deliberate act and becomes something that happens
                 // to you.
                 onDragStopped = { dragged = 0f },
-            ),
             ),
         contentAlignment = Alignment.Center,
     ) {
