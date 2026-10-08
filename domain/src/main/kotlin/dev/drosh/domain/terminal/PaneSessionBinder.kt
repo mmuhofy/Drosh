@@ -38,4 +38,24 @@ interface PaneSessionBinder {
      *         intended pair and one from somewhere else is worse than no split.
      */
     fun setPaneSessions(primaryId: String, secondaryId: String): Boolean
+
+    /**
+     * Moves the second pane's session into the primary pane, leaving the second
+     * empty.
+     *
+     * The collapse half of a divider drag. Dragging the seam to either end grows
+     * one pane to full height, and the user closing the split that way plainly
+     * means *that* pane — dropping the other session would throw away the one
+     * they had just made room for. The primary pane is the app's active pane, so
+     * the survivor has to be moved into it rather than merely left in place.
+     *
+     * No ids, because the caller does not hold them: the primary pane always
+     * shows whichever session is active, and the split UI never sees the
+     * terminal layer's pane bookkeeping.
+     *
+     * @return false when the second pane is empty, so a collapse cannot promote
+     *         nothing and leave the primary holding a session the user did not
+     *         choose.
+     */
+    fun promoteSecondaryToPrimary(): Boolean
 }

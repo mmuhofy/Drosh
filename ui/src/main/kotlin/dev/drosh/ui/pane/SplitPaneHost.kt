@@ -138,19 +138,21 @@ fun SplitPaneHost(
         // 180dp columns of terminal are about ten characters wide, narrower than
         // most paths, while a shorter-but-full-width pane still reads.
         //
-        // The two panes are replaced by nothing at all while the divider is
-        // held. That is the single change that makes the drag feel like moving
-        // something: a TerminalView is a real View doing a real relayout on every
-        // height change, and two of them re-measuring per frame while a finger is
-        // on the seam is what produced the juddering. The divider follows the
-        // finger alone, and the panes come back on release.
+        // Both panes stay in composition for the whole drag and take their
+        // heights from the seam's live position. They used to be replaced by
+        // nothing at all while the divider was held, on the theory that two
+        // TerminalViews re-measuring per frame juddered: the model was still
+        // written every frame, nothing consumed it visually, and the panes
+        // reappeared snapped to a step on release. That is a divider that does
+        // not do the one thing a divider is for — the seam moved and the panes
+        // did not, so there was nothing to drag. The panes now follow the finger,
+        // and the seam still leads them rather than trailing the finger by a
+        // frame.
         var dragging by remember { mutableStateOf(false) }
 
         val topPx = (layout.splitFraction * heightPx)
             .roundToInt()
             .coerceIn(1, (heightPx - 1).toInt())
-        val bottomPx = (heightPx - topPx).roundToInt().coerceAtLeast(1)
-
         /**
          * The seam's live position in pixels, during a drag.
          *
@@ -163,37 +165,55 @@ fun SplitPaneHost(
         var dragTopPx by remember { mutableStateOf(topPx.toFloat()) }
 
         /**
-         * The smallest either pane may become, in pixels.
+         * Where the seam actually is, and the heights that follow from it.
          *
-         * Both panes get this floor, so the seam can be dragged anywhere from
-         * "top pane at the minimum" to "bottom pane at the minimum". The old
-         * clamp was against zero, which allowed dragging one pane out of
-         * existence and made the seam stop where the finger did not.
+         * Read from the drag while one is in progress and from the model the rest
+         * of the time. [dragTopPx] is an *absolute* pixel value, so the moment the
+         * host resizes for an unrelated reason — keyboard, rotation — the stored
+         * drag value is off and the seam would sit somewhere the panes are not.
+         * The model is the source of truth between drags; the drag slot is only
+         * what the *current* drag is at.
          */
-        val minTopPx = with(density) { MIN_PANE_HEIGHT.toPx() }
+        val seamPx = if (dragging) dragTopPx else topPx.toFloat()
+        val liveTopPx = seamPx.roundToInt().coerceIn(1, (heightPx - 1).toInt())
+        val liveBottomPx = (heightPx - liveTopPx).roundToInt().coerceAtLeast(1)
+
+        /**
+         * The furthest down the seam may travel, in pixels.
+         *
+         * Paired with a floor of zero, so the seam can reach either end of the
+         * host. It used to be clamped to a 96dp minimum at both ends — and 96dp
+         * is more than [PaneLayout.COLLAPSE_FRACTION] of the host on every phone
+         * there is, which meant the seam could never reach the threshold that
+         * collapses the split. The gesture that was supposed to leave split view
+         * could not be performed at all.
+         *
+         * [PaneLayout.withDraggedFraction] is what holds the *model* at or inside
+         * the collapse band; a larger clamp here only hid it.
+         *
+         * A pane is allowed to pass through zero during the drag, because until
+         * release it is only a size on screen and the drag has not decided
+         * anything. The decision is [PaneLayout.commitDraggedFraction]'s.
+         */
+        val dragMaxPx = (heightPx - 1f).coerceAtLeast(1f)
 
         Box(modifier = Modifier.fillMaxSize()) {
-            // Out of composition while dragging rather than made transparent: an
-            // invisible View still lays out, still redraws, and still costs the
-            // frame the drag needs.
-            if (!dragging) {
-                Box(
-                    modifier = Modifier
-                        .size(
-                            width = with(density) { widthPx.toDp() },
-                            height = with(density) { topPx.toDp() },
-                        ),
-                ) { primary() }
+            Box(
+                modifier = Modifier
+                    .size(
+                        width = with(density) { widthPx.toDp() },
+                        height = with(density) { liveTopPx.toDp() },
+                    ),
+            ) { primary() }
 
-                Box(
-                    modifier = Modifier
-                        .offset { IntOffset(0, topPx) }
-                        .size(
-                            width = with(density) { widthPx.toDp() },
-                            height = with(density) { bottomPx.toDp() },
-                        ),
-                ) { secondary() }
-            }
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(0, liveTopPx) }
+                    .size(
+                        width = with(density) { widthPx.toDp() },
+                        height = with(density) { liveBottomPx.toDp() },
+                    ),
+            ) { secondary() }
 
             /**
              * The steps, as a layer over the whole host rather than part of the
@@ -207,7 +227,7 @@ fun SplitPaneHost(
             if (dragging) {
                 StepGuides(
                     stepFractions = layout.splitSteps(),
-                    currentFraction = dragTopPx / heightPx,
+                    currentFraction = seamPx / heightPx,
                 )
             }
 
@@ -230,10 +250,7 @@ fun SplitPaneHost(
                  * end instead of overshooting and being clamped by rounding.
                  */
                 onDrag = { deltaPx ->
-                    dragTopPx = (dragTopPx + deltaPx).coerceIn(
-                        minTopPx,
-                        (heightPx - minTopPx).coerceAtLeast(minTopPx),
-                    )
+                    dragTopPx = (dragTopPx + deltaPx).coerceIn(0f, dragMaxPx)
                     onSplitFractionChange(dragTopPx / heightPx)
                 },
                 onDragStart = {
@@ -249,17 +266,11 @@ fun SplitPaneHost(
                 onDoubleTap = onSwapPanes,
                 // Straddles the seam, so the seam line stays visible on both
                 // sides of the grip rather than the grip covering it.
-                //
-                // Uses [topPx] rather than the drag's own position when not
-                // dragging. [dragTopPx] is an *absolute* pixel value, but the
-                // model stores fractions — so the moment the host resizes for an
-                // unrelated reason (keyboard, rotation), the stored drag value is
-                // off and the seam sits somewhere the panes are not. The model is
-                // the source of truth between drags; the drag slot is only what
-                // the *current* drag is at.
                 modifier = Modifier.offset {
-                    val seam = if (dragging) dragTopPx else topPx.toFloat()
-                    IntOffset(0, seam.toInt() - with(density) { DIVIDER_HIT_HEIGHT.toPx() }.toInt() / 2)
+                    IntOffset(
+                        0,
+                        seamPx.toInt() - with(density) { DIVIDER_HIT_HEIGHT.toPx() }.toInt() / 2,
+                    )
                 },
             )
         }
@@ -429,16 +440,6 @@ private fun SplitDivider(
         )
     }
 }
-
-/**
- * The shortest a pane may be dragged to.
- *
- * Roughly a prompt plus five lines of output, which is the least that makes the
- * pane worth having. Clamping the seam against *zero* instead let either pane be
- * dragged out of existence, and then the seam stopped where the finger did not —
- * which is what "I cannot drag it as far as I want" looked like.
- */
-private val MIN_PANE_HEIGHT = 96.dp
 
 /** Height of the divider's touch target, far taller than the pill drawn. */
 private val DIVIDER_HIT_HEIGHT = 28.dp

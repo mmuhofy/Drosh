@@ -221,10 +221,32 @@ class PaneLayoutViewModel @Inject constructor(
      * Writes the divider position the drag left behind.
      *
      * A release at either end closes the split rather than committing a stub,
-     * which is why this can end up with no second pane at all.
+     * which is why this can end up with no second pane at all — and it is the
+     * only path that reaches that state from the divider. [withDraggedFraction]
+     * clamps to [PaneLayout.COLLAPSE_FRACTION] and `commitDraggedFraction` tests
+     * against the same bound, so a drag that reaches the end collapses here.
+     *
+     * Which pane survives is the pane the user grew, not the one that happened
+     * to be primary: dragging the seam down leaves the top one at full height,
+     * and closing the split by dropping the bottom session would throw away the
+     * terminal they had just made room for. [PaneLayout.collapsedSurvivingSlot]
+     * answers that, and the promotion happens *before* the layout drops the
+     * second pane, because afterwards the secondary pane no longer exists to
+     * promote anything out of.
+     *
+     * A refused promotion is not treated as a failure: it means the second pane
+     * was already empty, in which case there was only one session to keep and
+     * collapsing is the right outcome anyway.
      */
     fun commitSplitFraction() {
-        val settled = _layout.value.commitDraggedFraction()
+        val dragged = _layout.value
+        val settled = dragged.commitDraggedFraction()
+        if (!settled.isSplit && settled != dragged) {
+            val survivor = dragged.collapsedSurvivingSlot()
+            if (survivor == PaneSlot.SECONDARY) {
+                panes.promoteSecondaryToPrimary()
+            }
+        }
         _layout.value = settled
         viewModelScope.launch { repository.setSplitFraction(settled.splitFraction) }
         if (!settled.isSplit) {

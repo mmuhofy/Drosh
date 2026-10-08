@@ -235,8 +235,17 @@ data class PaneLayout(
      * This is the simple case, used where the caller does not track which id is
      * in which slot — the divider drag, where the terminal manager promotes the
      * survivor itself.
+     *
+     * The fraction goes back to [DEFAULT_SPLIT_FRACTION] with it. It was
+     * collapsed *at* [COLLAPSE_FRACTION] or at its mirror, so keeping it would
+     * mean the next split opens with one pane a tenth of the screen tall — and
+     * nothing else resets it, since [withSecondary] and [docked] deliberately do
+     * not touch geometry.
      */
-    fun collapsed(): PaneLayout = copy(secondarySessionId = null)
+    fun collapsed(): PaneLayout = copy(
+        secondarySessionId = null,
+        splitFraction = DEFAULT_SPLIT_FRACTION,
+    )
 
     /**
      * Moves the divider, snapping it to the nearest [SPLIT_STEP].
