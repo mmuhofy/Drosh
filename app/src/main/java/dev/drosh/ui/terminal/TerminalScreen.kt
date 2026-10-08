@@ -312,25 +312,31 @@ private fun ReadyScreen(
     }
 
 
-    // ── Chrome: status bar and top bar follow the scroll ────────────────────
+// ── Chrome: status bar and top bar follow the scroll ────────────────────
     //
     // Two states, and nothing else:
     //
-    //  - At the live edge the system status bar is shown with no background of
-    //    its own, so the terminal runs on behind the clock, and the top bar's
-    //    pills drop below the band to float over the output.
-    //  - Up in the scrollback the status bar is hidden, the band it leaves is
-    //    painted in the terminal's own background, and the pills move up into
-    //    that band. Nothing of the terminal shows through behind them.
+    //  - At the live edge *and* already scrolled — the status bar is shown with
+    //    no background of its own, so the terminal runs on behind the clock, and
+    //    the pills drop below the strip to float over the output.
+    //  - Otherwise — the status bar is hidden, the pills ride up into the space
+    //    it left, and the terminal keeps the whole viewport.
     //
-    // A TUI takes the second state unconditionally and stops consulting the
+    // "Otherwise" is two different situations and both of them are the same
+    // answer. One is a scroll back into history. The other is a terminal nobody
+    // has touched yet, which is where a session starts and where it comes back
+    // to after a switch — and that one is *at* the live edge, so position alone
+    // cannot express it. `hasScrolled` is what tells them apart.
+    //
+    // A TUI takes the collapsed state unconditionally and stops consulting the
     // scroll entirely: nano, vim and htop own the whole screen, so a status bar
     // over them is in the way whether or not anything has been scrolled.
     val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
+    val hasScrolled by terminalManager.hasScrolled.collectAsStateWithLifecycle()
     val tuiActive by terminalManager.focusedPaneAltBuffer
         .collectAsStateWithLifecycle()
 
-    val chromeCollapsed = tuiActive || !atLiveEdge
+    val chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge
 
     val activity = LocalDroshActivity.current
     LaunchedEffect(chromeCollapsed) {

@@ -367,6 +367,7 @@ class TerminalManager(
 
         paneTabIndices[PaneSlot.PRIMARY] = secondary
         paneTabIndices[PaneSlot.SECONDARY] = primary
+        resetViewportState()
 
         val primaryView = paneViews[PaneSlot.PRIMARY]
         val secondaryView = paneViews[PaneSlot.SECONDARY]
@@ -396,6 +397,7 @@ class TerminalManager(
         if (getIndexForId(primaryId) < 0 || getIndexForId(secondaryId) < 0) return false
         paneTabIndices[PaneSlot.PRIMARY] = getIndexForId(primaryId)
         paneTabIndices[PaneSlot.SECONDARY] = getIndexForId(secondaryId)
+        resetViewportState()
         paneViews[PaneSlot.PRIMARY]?.let { view ->
             irisSessions[paneTabIndices[PaneSlot.PRIMARY]!!].terminalSession.let(view::attachSession)
         }
@@ -423,6 +425,7 @@ class TerminalManager(
 
         paneTabIndices[PaneSlot.PRIMARY] = secondary
         paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
+        resetViewportState()
 
         paneViews[PaneSlot.PRIMARY]?.let { view ->
             irisSessions.getOrNull(secondary)?.terminalSession?.let(view::attachSession)
@@ -461,6 +464,9 @@ class TerminalManager(
      * from a restart that touched only one of them.
      */
     private fun reattachPanesAt(index: Int) {
+        // The shell behind this session is a new process with a new screen. If it
+        // is on screen at all, what it is showing is not what the user scrolled.
+        if (index == paneTabIndices[focusedPane.value]) resetViewportState()
         paneTabIndices.forEach { (slot, slotIndex) ->
             if (slotIndex != index) return@forEach
             val session = irisSessions.getOrNull(index)?.terminalSession ?: return@forEach
@@ -550,6 +556,41 @@ private val _isAtLiveEdge = MutableStateFlow(true)
      * is the dead zone — see [chromeIsAtLiveEdge].
      */
     val isAtLiveEdge: StateFlow<Boolean> = _isAtLiveEdge.asStateFlow()
+
+private val _hasScrolled = MutableStateFlow(false)
+
+    /**
+     * Whether the user has moved this terminal's viewport at all since the
+     * session it is showing was attached.
+     *
+     * The top chrome's first state is **a terminal nobody has touched**: status
+     * bar hidden, pills in the space it left, terminal full. That is not a
+     * scroll position and cannot be expressed as one, because a freshly opened
+     * terminal sits at the live edge exactly like a busy one does. Position
+     * alone cannot tell "just opened, first screen" from "sitting at the
+     * prompt", so the distinction has to be its own piece of state.
+     *
+     * Cleared by [resetViewportState] wherever the session on screen is
+     * replaced — a switch, a new session, a restart, another pane taking focus.
+     * One-way: the first scroll of a session is the moment it stops being "new",
+     * and nothing in the app should make that untrue.
+     */
+    val hasScrolled: StateFlow<Boolean> = _hasScrolled.asStateFlow()
+
+    /**
+     * Back to "a terminal nobody has touched".
+     *
+     * Called wherever the focused pane's contents are replaced rather than
+     * scrolled. Also puts the live edge back to true so the two flags cannot
+     * disagree: a new session is at its live edge by definition, and leaving the
+     * old answer in place would let a stale `isAtLiveEdge = false` reach the
+     * chrome before the next scroll event corrects it.
+     */
+    private fun resetViewportState() {
+        _hasScrolled.value = false
+        _scrollTopRow.value = 0
+        _isAtLiveEdge.value = true
+    }
 
     private val prootRunner: ProotRunner by lazy {
         ProotRunner(ubuntuBootstrap, application.applicationInfo.nativeLibraryDir)
@@ -787,9 +828,16 @@ private val _isAtLiveEdge = MutableStateFlow(true)
             if (other != slot) otherView.onScrollPositionChanged = null
         }
         sessionClient.terminalView = view
+        // Whichever pane takes focus is the one being read, and it starts at its
+        // first screen as far as the chrome is concerned.
+        resetViewportState()
         publishScroll(view)
         view.onScrollPositionChanged = { topRow ->
             if (slot == focusedPane.value) {
+                // One-way. The first scroll of a session is what stops it being
+                // "new", and only the focused pane's scrolling counts — the other
+                // pane's view has this callback removed by [activatePaneView].
+                if (!_hasScrolled.value) _hasScrolled.value = true
                 _scrollTopRow.value = topRow
                 val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
                 if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
@@ -883,6 +931,9 @@ private val _isAtLiveEdge = MutableStateFlow(true)
         // and keeps its place in the sidebar — it simply is not on screen,
         // which is exactly what happened before the split existed.
         paneTabIndices[focusedPane.value] = newIndex
+        // A brand new session has no scrollback and has not been touched, which
+        // is exactly the state the chrome treats as "first screen".
+        resetViewportState()
         _sessionCount.value = irisSessions.size
         _liveSessionIds.value = liveSessionIds()
         // A session exists again, so the exit dialog no longer applies.
@@ -931,6 +982,9 @@ private val _isAtLiveEdge = MutableStateFlow(true)
         val newIndex = irisSessions.size - 1
         idToIndex[persistentId] = newIndex
         paneTabIndices[focusedPane.value] = newIndex
+        // A brand new session has no scrollback and has not been touched, which
+        // is exactly the state the chrome treats as "first screen".
+        resetViewportState()
         _sessionCount.value = irisSessions.size
         _liveSessionIds.value = liveSessionIds()
         _noSessionsLeft.value = false
@@ -1073,6 +1127,7 @@ private val _isAtLiveEdge = MutableStateFlow(true)
         paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
         _focusedPane.value = PaneSlot.DEFAULT
         _activeTabIndex.value = 0
+        resetViewportState()
         _sessionCount.value = 0
         _altBufferByPane.value = emptyMap()
         _liveSessionIds.value = emptySet()
@@ -1141,6 +1196,9 @@ private val _isAtLiveEdge = MutableStateFlow(true)
 
         paneTabIndices[slot] = index
         val target = irisSessions[index]
+        // A different session is now what the user is looking at, so whatever
+        // they had scrolled to belongs to the one that was there before.
+        resetViewportState()
         // Blocks are stored per session, so switching shows that session's
         // history instead of clearing the engine.
         blockEngineWire?.onSessionChanged(target.persistentId, target.terminalSession)

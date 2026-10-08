@@ -490,6 +490,41 @@ class PaneLayoutTest {
         assertNull(sized.withEdgeSnap().docked().preEdgeSnapBounds)
     }
 
+    // ── What a relaunch is allowed to restore ─────────────────────────────────
+
+    /**
+     * A relaunch restores the divider's geometry and never the split.
+     *
+     * The app must come up as one full-width terminal. A split is something the
+     * user arranged *in this session*, with a particular pair of sessions, and
+     * arriving into one on launch looks like a bug rather than a convenience —
+     * especially since the pair itself is not being restored, so the two halves
+     * would not be the ones that were side by side last time.
+     *
+     * This is the one path where a stored layout is turned back into a live one,
+     * and it is the only place that could quietly produce a split on its own, so
+     * it gets its own test rather than relying on nothing having changed.
+     */
+    @Test
+    fun `restoring stored geometry never restores a split`() {
+        val stored = split().docked().withDraggedFraction(0.6f)
+
+        val restored = PaneLayout.EMPTY.copy(
+            splitFraction = stored.splitFraction,
+            floatingBounds = stored.floatingBounds,
+        )
+
+        assertEquals(0.6f, restored.splitFraction, 0.001f)
+        assertFalse(restored.isSplit)
+        assertFalse(restored.isFloating)
+        assertFalse(restored.isSystemOverlay)
+    }
+
+    @Test
+    fun `an empty layout is not a split`() {
+        assertFalse(PaneLayout.EMPTY.isSplit)
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private enum class SplitSlotCase { TOP_DOWN, BOTTOM_UP }
