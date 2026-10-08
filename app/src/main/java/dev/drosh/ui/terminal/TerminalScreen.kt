@@ -853,11 +853,28 @@ private fun ReadyScreen(
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(
                 immersive = immersive,
-                // Both the status bar and the row's position follow the
-                // setting. Scrolling no longer moves anything: when fullscreen
-                // is on the bar is gone and the pills sit where it was; when it
-                // is off the status bar is there and the pills sit below it.
-                rowInBand = immersive,
+                // The status bar visibility follows the setting alone (see the
+                // LaunchedEffect above). The row's position follows BOTH the
+                // setting and scroll — but in the OPPOSITE sense from the
+                // `active` gate below (`immersive && atLiveEdge`), which is a
+                // separate concern (backdrop sampling / selection menu).
+                //
+                // Here: pills tuck into the band while the user is scrolled
+                // UP into scrollback (NOT at the live edge) — reading the
+                // oldest lines, where the opening banner and early output
+                // live, and every row of vertical space matters most.
+                // Scrolling back down to the live edge (current prompt, new
+                // output streaming in) returns the row to its normal position
+                // below the status bar, since that is the "actively working"
+                // state where the controls (search, sessions, agent) are
+                // most likely to be reached for.
+                //
+                // A previous pass wired this to `immersive` alone, which
+                // froze the row in one spot regardless of scroll; a pass
+                // before that had it following `atLiveEdge` directly, which
+                // tucked the row away at the live edge instead of at the top
+                // — backwards from the intended mechanic.
+                rowInBand = immersive && !atLiveEdge,
                 backdrop = backdrop,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
