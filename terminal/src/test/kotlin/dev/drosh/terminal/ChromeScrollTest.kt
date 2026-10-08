@@ -16,7 +16,16 @@ private fun chromeCollapsed(
     hasScrolled: Boolean,
     topRow: Int,
     wasAtLiveEdge: Boolean,
-): Boolean = !hasScrolled || !chromeIsAtLiveEdge(topRow, wasAtLiveEdge)
+): Boolean {
+    val atEdge = chromeIsAtLiveEdge(topRow, wasAtLiveEdge)
+    // `TerminalManager` sets hasScrolled at the same threshold the live-edge flag
+    // uses, so the two can never disagree about which side of it the viewport is
+    // on. Modelling that here rather than taking hasScrolled as a free input is
+    // the point: taking it as a free input is what let the two thresholds sit a
+    // row apart and flap.
+    val nowTouched = hasScrolled || !atEdge
+    return !nowTouched || !atEdge
+}
 
 /**
  * The dead zone that keeps the top chrome still while the viewport is passing
@@ -148,48 +157,33 @@ class ChromeScrollTest {
     /**
      * The whole gesture, start to finish.
      *
-     * Open a session → collapsed. Move at all → the terminal is no longer new,
-     * and the chrome is normal. Keep going into history → collapsed again. Come
-     * back down → normal.
+     * Open a session → collapsed. Flick up a few rows → **still** collapsed,
+     * because the terminal still fills the screen and nothing has been read yet.
+     * Keep going into history → still collapsed. Come back to the live edge →
+     * normal. Exactly one transition across the whole thing.
      *
-     * Three changes across an entire session's worth of scrolling, and the first
-     * one is the point of `hasScrolled` existing: without it the app *opened* in
-     * the normal state and the very first flick turned the system bar off, which
-     * read as the bar flapping rather than as a state changing.
-     *
-     * The one-to-four-row boundary is not arbitrary. Up to four rows back the
-     * terminal still fills the screen — you are reading the last lines of what
-     * just printed, not history — so the chrome stays normal there, and only
-     * real travel into the scrollback collapses it.
+     * One is the number that matters. With `hasScrolled` flipping on the first
+     * row instead of at the threshold, the same gesture produced two: the status
+     * bar appeared on the first row and vanished again five rows later, which is
+     * the flapping.
      */
     @Test
-    fun `a session opens collapsed, then follows the viewport`() {
+    fun `a session opens collapsed and one gesture changes it once`() {
         var hasScrolled = false
         var atEdge = true
         var transitions = 0
         var wasCollapsed = chromeCollapsed(hasScrolled, 0, atEdge)
         assertTrue("a new session opens collapsed", wasCollapsed)
 
-        // The first flick. The terminal is no longer untouched, so the chrome is
-        // normal from here until the viewport actually leaves the first screen.
-        for (topRow in listOf(-1, -2, -3, -4)) {
-            hasScrolled = true
+        // Up, all the way into history, in one gesture.
+        for (topRow in -1 downTo -40) {
             atEdge = chromeIsAtLiveEdge(topRow, atEdge)
+            if (!atEdge) hasScrolled = true
             val collapsed = chromeCollapsed(hasScrolled, topRow, atEdge)
             if (collapsed != wasCollapsed) transitions++
             wasCollapsed = collapsed
         }
-        assertEquals("one change when the session stops being new", 1, transitions)
-        assertFalse("the last lines of output are still the first screen", wasCollapsed)
-
-        // On into history.
-        for (topRow in -5 downTo -40) {
-            atEdge = chromeIsAtLiveEdge(topRow, atEdge)
-            val collapsed = chromeCollapsed(hasScrolled, topRow, atEdge)
-            if (collapsed != wasCollapsed) transitions++
-            wasCollapsed = collapsed
-        }
-        assertEquals("one change on the way into history", 2, transitions)
+        assertEquals("nothing changed on the way up", 0, transitions)
         assertTrue("history is collapsed", wasCollapsed)
 
         // And back down.
@@ -199,12 +193,36 @@ class ChromeScrollTest {
             if (collapsed != wasCollapsed) transitions++
             wasCollapsed = collapsed
         }
-        assertEquals("one change on the way back", 3, transitions)
+        assertEquals("one change for the whole return", 1, transitions)
         assertFalse("the live edge is normal", wasCollapsed)
     }
 
     /**
-     * Coming back to the live edge is what makes it normal again.
+     * A flick up and straight back is not a scroll.
+     *
+     * It never reached the first screen, so the chrome never moved and a
+     * one-flick gesture cannot leave the top of the screen in a different state
+     * than it started it.
+     */
+    @Test
+    fun `a scroll that never leaves the first screen moves nothing`() {
+        var hasScrolled = false
+        var atEdge = true
+        var transitions = 0
+        var wasCollapsed = chromeCollapsed(hasScrolled, 0, atEdge)
+        for (topRow in listOf(-1, -2, -3, -4, -3, -2, -1, 0)) {
+            atEdge = chromeIsAtLiveEdge(topRow, atEdge)
+            if (!atEdge) hasScrolled = true
+            val collapsed = chromeCollapsed(hasScrolled, topRow, atEdge)
+            if (collapsed != wasCollapsed) transitions++
+            wasCollapsed = collapsed
+        }
+        assertEquals(0, transitions)
+        assertTrue(wasCollapsed)
+    }
+
+    /**
+     * Coming back to the live edge is what makes it normal.
      *
      * Stated on its own because it is the half that is easy to get backwards:
      * returning to the newest output is the "actively working" state, where the
@@ -214,24 +232,5 @@ class ChromeScrollTest {
     fun `back at the live edge is the normal state`() {
         assertFalse(chromeCollapsed(hasScrolled = true, topRow = 0, wasAtLiveEdge = false))
         assertFalse(chromeCollapsed(hasScrolled = true, topRow = -1, wasAtLiveEdge = false))
-    }
-
-    /**
-     * Reading the last four lines is not history.
-     *
-     * The dead zone seen through the whole rule rather than on its own.
-     */
-    @Test
-    fun `one to four rows back is still the first screen`() {
-        var atEdge = true
-        for (topRow in -1 downTo -4) {
-            atEdge = chromeIsAtLiveEdge(topRow, atEdge)
-            assertFalse(
-                "topRow $topRow should still be normal",
-                chromeCollapsed(true, topRow, atEdge),
-            )
-        }
-        atEdge = chromeIsAtLiveEdge(-5, atEdge)
-        assertTrue("five rows back is history", chromeCollapsed(true, -5, atEdge))
     }
 }

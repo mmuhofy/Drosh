@@ -824,7 +824,6 @@ private val _hasScrolled = MutableStateFlow(false)
         // mid-handover would be visible as a jump.
         paneViews.remove(slot)?.let { stale ->
             stale.onScrollPositionChanged = null
-            stale.onUserScroll = null
             stale.installSelectionMenu(enabled = false, listener = null)
         }
 
@@ -854,7 +853,6 @@ private val _hasScrolled = MutableStateFlow(false)
         paneViews.forEach { (other, otherView) ->
             if (other != slot) {
                 otherView.onScrollPositionChanged = null
-                otherView.onUserScroll = null
             }
         }
         sessionClient.terminalView = view
@@ -867,16 +865,21 @@ private val _hasScrolled = MutableStateFlow(false)
                 _scrollTopRow.value = topRow
                 val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
                 if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
-            }
-        }
-        view.onUserScroll = {
-            // Separate from the position callback on purpose. That one also runs
-            // from onScreenUpdated, i.e. on every chunk of PTY output, so reading
-            // "has the user scrolled" out of it meant the shell's own first line
-            // of output answered yes — and the collapsed chrome, which is the
-            // untouched-terminal state, never appeared at all.
-            if (slot == focusedPane.value && !_hasScrolled.value) {
-                _hasScrolled.value = true
+                // "Has been touched" means **has left the first screen**, not
+                // "moved at all".
+                //
+                // Setting it on the first row put the two thresholds a row apart:
+                // one flick up turned the status bar on, and the fifth row turned
+                // it off again — both inside a single gesture, which is the
+                // flapping. Gating it on the same threshold the live-edge flag
+                // uses means one direction change is one transition.
+                //
+                // Safe to read off this callback even though it also runs on
+                // every chunk of PTY output: `onScreenUpdated` snaps `mTopRow`
+                // back to the live edge before reporting, so `atEdge` is true for
+                // anything it fires and the shell's own output can never answer
+                // this with yes.
+                if (!atEdge) _hasScrolled.value = true
             }
         }
         bindSelectionMenu(view, slot)
@@ -922,7 +925,6 @@ private val _hasScrolled = MutableStateFlow(false)
         // Drop the callbacks before dropping the reference, or the view keeps a
         // strong reference to this manager after the pane is gone.
         view.onScrollPositionChanged = null
-        view.onUserScroll = null
         view.installSelectionMenu(enabled = false, listener = null)
 
         if (slot != focusedPane.value) return
@@ -1400,7 +1402,6 @@ private val _hasScrolled = MutableStateFlow(false)
         // screens that built it are gone.
         paneViews.values.forEach { view ->
             view.onScrollPositionChanged = null
-            view.onUserScroll = null
             view.installSelectionMenu(enabled = false, listener = null)
         }
         paneViews.clear()

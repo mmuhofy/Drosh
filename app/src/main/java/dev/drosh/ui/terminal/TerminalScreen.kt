@@ -104,6 +104,7 @@ import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
 import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.ui.topbar.TerminalTopBar
+import dev.drosh.ui.topbar.rememberCollapsedChromeHeight
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -337,6 +338,11 @@ private fun ReadyScreen(
         .collectAsStateWithLifecycle()
 
     val chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge
+
+    // The terminal's top inset, in both states. Read from the same source the top
+    // bar's row is sized from, so the grid and the pills cannot end up out of
+    // step — and constant, so the grid never resizes when the chrome changes.
+    val collapsedChromeHeight = rememberCollapsedChromeHeight()
 
     val activity = LocalDroshActivity.current
     LaunchedEffect(chromeCollapsed) {
@@ -1278,6 +1284,8 @@ private fun TerminalPaneBody(
     extraKeyState: dev.drosh.terminal.ExtraKeyState?,
     useBlockEngine: Boolean,
     terminalBgColor: Color,
+    /** The top bar's collapsed height, and the terminal's constant top inset. */
+    collapsedChromeHeight: Dp,
     inputBarState: dev.drosh.ui.input.InputBarUiState,
     motdMode: MotdMode,
     motdText: String,
@@ -1406,22 +1414,22 @@ private fun TerminalPaneBody(
                     onBoundsChanged = onBoundsChanged,
                     modifier = Modifier
                         .fillMaxSize()
-                        // Full-bleed, deliberately. The grid used to start below
-                        // the system bar so the prompt was never under the clock,
-                        // but that inset is a function of whether the bar is
-                        // showing, and the bar now follows the scroll position —
-                        // so a padding that tracked it resized the grid on every
-                        // crossing of the boundary, re-wrapping every line of
-                        // output. A padding that ignores visibility would fix the
-                        // jumping and lose the guarantee anyway.
+                        // One inset, constant, for both chrome states.
                         //
-                        // The trade is the prototype's: at the live edge the top
-                        // couple of rows sit under the status bar and under the
-                        // pills, which is what lets the terminal read as running
-                        // on behind both. The rows are not lost — the emulator
-                        // still holds them, they just scroll — and the band the
-                        // chrome collapses into is painted in the terminal's own
-                        // background, so there is never a foreign bar across it.
+                        // Collapsed, the app goes fullscreen and the pills sit at
+                        // the very top of the screen, so the terminal starts just
+                        // below them and no output is ever hidden behind them.
+                        // Expanded, the pills drop below the status bar and float
+                        // over this grid — which is the point of them floating.
+                        //
+                        // Constant on purpose. The inset is the collapsed chrome's
+                        // height and nothing else, so it is not a function of
+                        // whether the status bar is showing. Making it track that
+                        // resized the grid on every crossing of the boundary and
+                        // re-wrapped every line of output with it, which is a far
+                        // worse trade than the top row sitting under a control in
+                        // one state.
+                        .padding(top = collapsedChromeHeight),
                 )
             }
         }

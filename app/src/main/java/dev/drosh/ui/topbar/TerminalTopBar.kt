@@ -56,7 +56,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshError
 import kotlin.math.roundToInt
-import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
@@ -112,7 +111,22 @@ private const val BAR_BOTTOM_OFFSET_DP = 6
 private val MIN_COLLAPSED_ROW = 30.dp
 
 /**
- * How long the row and the strip take to travel.
+ * How tall the chrome is while collapsed: the status bar's band, or a floor.
+ *
+ * Public because the terminal's top inset is this and the top bar's row is this,
+ * and a screen's inset measured in one file and a row measured in another is two
+ * numbers that have to be kept in step by hand.
+ */
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+fun rememberCollapsedChromeHeight(): Dp =
+    WindowInsets.statusBarsIgnoringVisibility
+        .asPaddingValues()
+        .calculateTopPadding()
+        .coerceAtLeast(MIN_COLLAPSED_ROW)
+
+/**
+ * How long the row takes to travel.
  *
  * Just under the platform's own status-bar transition. Ours finishing first
  * means the last thing to settle is the system's own bar, rather than two
@@ -215,13 +229,11 @@ fun TerminalTopBar(
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
 
-    // Deliberately the visibility-agnostic inset. `statusBars` reports zero
-    // while the bar is hidden, and this bar's state changes on scroll, so
-    // reading it here would collapse the strip's height and fling the row upward
-    // at the exact moment the row is supposed to move upward on purpose.
-    val statusBarH = WindowInsets.statusBarsIgnoringVisibility
-        .asPaddingValues()
-        .calculateTopPadding()
+    // Deliberately the visibility-agnostic inset. `statusBars` reports zero while
+    // the bar is hidden, and this bar's state changes on scroll, so reading it
+    // here would collapse the row's own height the moment the row is supposed to
+    // be moving upward on purpose.
+    val collapsedHeight = rememberCollapsedChromeHeight()
 
     // One animated height for the row, and one animated offset, and one animated
     // strip — all from the same trigger and the same spec, so they cannot be
@@ -240,12 +252,8 @@ fun TerminalTopBar(
     // strip tall enough to hold it — what you get is a row that hangs below the
     // band, and the band plus the overhang reads as two things rather than one.
     //
-    // Floored at MIN_COLLAPSED_ROW so a short status bar cannot leave the icons
-    // below a usable touch target.
-    val collapsedRowHeight = statusBarH.coerceAtLeast(MIN_COLLAPSED_ROW)
-
     val rowHeight by animateDpAsState(
-        targetValue = if (chromeCollapsed) collapsedRowHeight else BAR_ROW_HEIGHT,
+        targetValue = if (chromeCollapsed) collapsedHeight else BAR_ROW_HEIGHT,
         animationSpec = chromeTween,
         label = "chromeRowHeight",
     )
@@ -253,7 +261,7 @@ fun TerminalTopBar(
     val rowOffset by animateDpAsState(
         // Expanded the row sits clear of the band; collapsed it is flush with the
         // top of it, which is the whole difference the prototype draws.
-        targetValue = if (chromeCollapsed) 0.dp else statusBarH + BAR_TOP_OFFSET,
+        targetValue = if (chromeCollapsed) 0.dp else collapsedHeight + BAR_TOP_OFFSET,
         animationSpec = chromeTween,
         label = "chromeRowOffset",
     )
@@ -267,39 +275,11 @@ fun TerminalTopBar(
      */
     val pillIconSize = (rowHeight - 12.dp).coerceIn(16.dp, 22.dp)
 
-    // Exactly the band, and nothing below it. A strip taller than this is the
-    // separate band the pills are supposed to have replaced.
-    val stripHeight by animateDpAsState(
-        targetValue = if (chromeCollapsed) collapsedRowHeight else 0.dp,
-        animationSpec = chromeTween,
-        label = "collapsedStripHeight",
-    )
-
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET),
+            .height(collapsedHeight + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET),
     ) {
-        // Drosh's background, not the terminal's, and not a scrim over it.
-        //
-        // The terminal background is a user setting and defaults to true black,
-        // so either of those put a *terminal-coloured* or *nearly-black* surface
-        // at the top of the screen that belongs to nothing: it read as a foreign
-        // bar rather than as this app holding its own chrome. The strip is the
-        // app's own colour, the same one behind the terminal frame and the
-        // sidebar, so the pills sit in Drosh rather than on top of it.
-        //
-        // A sibling of the row rather than the row's background, because the row
-        // moves inside the band when the state changes and a background set on
-        // the row would travel with it, leaving the strip empty behind it.
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(stripHeight)
-                .background(DroshBackground),
-        )
-
         var moreExpanded by remember { mutableStateOf(false) }
 
         Row(
