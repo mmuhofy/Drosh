@@ -30,11 +30,9 @@ internal class GestureAndScaleRecognizer(context: Context, val mListener: Listen
         /**
          * Fingers lifted, so a zoom gesture is over.
          *
-         * Not reachable from the gesture detector — [android.view.ScaleGestureDetector]
-         * reports the end of a scale, which is not the same as the fingers
-         * leaving: the last frame of a pinch already arrives before this does.
-         * It matters because the value a pinch produces is worth persisting
-         * once, at the end, rather than on every frame.
+         * Distinct from [onScale], which reports each frame of the pinch: the
+         * value a pinch produces is worth persisting once, at the end, rather
+         * than on every frame — and only here is it known to be final.
          */
         fun onScaleEnd()
 

@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshText
+import java.util.Locale
 
 /**
  * The size chip shown while the terminal is being pinched.
@@ -33,6 +34,10 @@ import dev.drosh.design.system.DroshText
  * It fades rather than disappearing so it does not blink on every 0.1sp step,
  * and the caller keeps it alive briefly after the gesture ends (see
  * [ZoomChipState]) so the size is still readable when the fingers are gone.
+ *
+ * Not interactive and never focusable, so it cannot intercept a touch meant for
+ * the terminal underneath: Compose hit-testing only consumes where a gesture
+ * modifier sits, and this has none.
  */
 @Composable
 fun TerminalZoomChip(
@@ -54,7 +59,13 @@ fun TerminalZoomChip(
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
-            text = String.format("%.1fsp", state.textSizeSp),
+            // US locale explicitly: this chip sits over a terminal, and a Turkish or
+            // German locale would print "14,3sp" — and in a locale where the
+            // separator is a comma, "14,3" reads as fourteen-point-three to a
+            // Turkish user and as fourteen comma three to a German one, while
+            // the value it reports is neither. The terminal's own number is
+            // the sp setting, not prose, so it keeps one format everywhere.
+            text = String.format(Locale.US, "%.1fsp", state.textSizeSp),
             color = DroshText,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,

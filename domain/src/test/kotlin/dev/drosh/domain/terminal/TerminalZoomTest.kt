@@ -8,23 +8,29 @@ import org.junit.Test
  * The zoom gesture's arithmetic, which is the part that decides whether a pinch
  * feels attached to the fingers or merely happens near them.
  *
- * Pure maths over the constants in [TerminalZoom] — the behaviour around it
- * (reflow, anchoring, persistence) is Android-side and covered by the device.
+ * The helpers below re-implement what `TerminalView` does rather than calling
+ * it, because that class is a View: instantiating one here needs a Looper and a
+ * `Paint`, and the arithmetic is deliberately separable from both. They are kept
+ * in step by hand — which is the cost, and the reason each one is named after
+ * the decision it encodes rather than after the view method it mirrors.
+ *
+ * Everything around the arithmetic (reflow, anchoring, the chip, persistence)
+ * is Android-side and has no test here; it has not been run on a device at all.
  */
 class TerminalZoomTest {
 
-    /** The quantisation a view applies to a zoomed size. */
+    /** The rounding a view applies to a zoomed size. */
     private fun quantise(value: Float): Float {
         val clamped = value.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
         val steps = Math.round(clamped / TerminalZoom.STEP_SP)
         return (steps * TerminalZoom.STEP_SP).coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
     }
 
-    /** Whether a gesture's total travel is past the dead zone. */
+    /** Whether a gesture's accumulated travel is past the dead zone. */
     private fun pastDeadZone(accumulated: Float): Boolean =
         Math.abs(Math.log(accumulated.toDouble())) >= TerminalZoom.DEAD_ZONE
 
-    /** Per-event clamp the recognizer applies before accumulating. */
+    /** The per-event clamp applied before accumulating travel. */
     private fun clampStep(scale: Float): Float =
         scale.coerceIn(1f / TerminalZoom.MAX_STEP_FACTOR, TerminalZoom.MAX_STEP_FACTOR)
 
@@ -51,6 +57,42 @@ class TerminalZoomTest {
     fun `quantise clamps to the limits`() {
         assertEquals(TerminalZoom.MIN_SP, quantise(1f), 0f)
         assertEquals(TerminalZoom.MAX_SP, quantise(500f), 0f)
+    }
+
+    /**
+     * The limits themselves have to survive quantisation.
+     *
+     * Both are whole tenths, so rounding cannot move them today — but the point
+     * of the second clamp in `quantiseTextSize` is that this holds even if a
+     * future limit is not a multiple of the step, which would otherwise let a
+     * size the user could not reach be the one persisted.
+     */
+    @Test
+    fun `the limits are on the step grid`() {
+        assertEquals(TerminalZoom.MIN_SP, quantise(TerminalZoom.MIN_SP), 0f)
+        assertEquals(TerminalZoom.MAX_SP, quantise(TerminalZoom.MAX_SP), 0f)
+    }
+
+    /**
+     * A size the user can reach by dragging the slider is one the pinch can also
+     * reach.
+     *
+     * The slider's detent count is derived from these same constants at the call
+     * site, so this fails the moment the two drift apart — which is how a
+     * slider that offers sizes the pinch cannot produce would be caught.
+     */
+    @Test
+    fun `every slider detent is a pinch step`() {
+        val detents = ((TerminalZoom.MAX_SP - TerminalZoom.MIN_SP) / TerminalZoom.STEP_SP).toInt()
+        for (i in 0..detents) {
+            val detent = TerminalZoom.MIN_SP + i * TerminalZoom.STEP_SP
+            assertEquals(
+                "detent $i must be exactly representable",
+                detent,
+                quantise(detent),
+                0.001f,
+            )
+        }
     }
 
     @Test
@@ -86,6 +128,9 @@ class TerminalZoomTest {
         val base = 14f
         var accumulated = 1f
         var latched = false
+        // NaN while the gesture is still inside the dead zone: "no size change
+        // yet", which a Float cannot otherwise express without a sentinel that
+        // a real size could collide with.
         fun apply(scale: Float): Float {
             accumulated *= clampStep(scale)
             if (!latched) {
@@ -94,10 +139,11 @@ class TerminalZoomTest {
             }
             return quantise(base * accumulated)
         }
-        // Out past the zone...
+        // Out past the zone, and the size responds...
         assertTrue(apply(1.08f) > base)
-        // ...all the way to the stop...
-        assertTrue(apply(1.6f) > 0f)
+        // ...and on...
+        val peak = apply(1.6f)
+        assertTrue(peak > 0f)
         // ...and back to the origin: the size follows the fingers home.
         apply(1 / 1.08f)
         val backHome = apply(1 / 1.6f)

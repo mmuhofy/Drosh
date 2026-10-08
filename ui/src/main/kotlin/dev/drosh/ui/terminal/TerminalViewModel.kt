@@ -25,7 +25,7 @@ import javax.inject.Inject
  *
  * The value is fractional because a pinch follows the fingers: the terminal
  * itself owns the live size while the gesture runs (see
- * [TerminalView.zoomBy]), and this ViewModel is told the result twice — once
+ * [TerminalView.zoomTo]), and this ViewModel is told the result twice — once
  * per frame for display ([onZoomFrame]), once when the fingers lift
  * ([onZoomCommitted]) to publish and persist.
  *
@@ -125,9 +125,9 @@ class TerminalViewModel @Inject constructor(
     }
 
     /**
-     * A pinch finished: publish and persist, once.
+     * A pinch (or a double-tap) finished: publish and persist, once.
      *
-     * [TerminalView.zoomBy] has already drawn at this size, so nothing here is
+     * [TerminalView.zoomTo] has already drawn at this size, so nothing here is
      * needed for the terminal to look right — this is what makes the size
      * outlive the process, and what a settings change elsewhere in the app
      * reads.
@@ -135,10 +135,6 @@ class TerminalViewModel @Inject constructor(
     fun onZoomCommitted(textSizeSp: Float) {
         setFontSize(textSizeSp)
     }
-
-    /** What a double-tap returns to: the size the app is configured for. */
-    val defaultFontSizeSp: Float
-        get() = _fontSizeSp.value.takeIf { it > 0f } ?: TerminalZoom.DEFAULT_SP
 
     fun setProotStartCommand(command: String) {
         viewModelScope.launch {
@@ -149,15 +145,6 @@ class TerminalViewModel @Inject constructor(
     override fun onCleared() {
         pendingPersistJob?.cancel()
         super.onCleared()
-    }
-
-    companion object {
-        // Kept for callers that still spell the limits the old way; the values
-        // themselves now live in TerminalZoom so the view and this ViewModel
-        // cannot disagree about where the ends are.
-        const val MIN_FONT_SP: Float = TerminalZoom.MIN_SP
-        const val MAX_FONT_SP: Float = TerminalZoom.MAX_SP
-        const val DEFAULT_FONT_SP: Float = TerminalZoom.DEFAULT_SP
     }
 }
 

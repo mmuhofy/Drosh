@@ -27,7 +27,7 @@
     <string name="settings_font_geist_desc">Geist Mono ile Geist Sans</string>
     <string name="settings_font_inter_desc">JetBrains Mono ile Inter</string>
 
-    <string name="settings_font_size_value">%1$ds</string>
+    <string name="settings_font_size_value">%1$ssp</string>
     <string name="settings_cursor_blink">İmleç yanıp sönmesi</string>
     <string name="settings_cursor_blink_off">Kapalı</string>
     <string name="settings_cursor_blink_value">%1$dms</string>

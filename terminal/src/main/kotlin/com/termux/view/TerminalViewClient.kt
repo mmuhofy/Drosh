@@ -15,9 +15,10 @@ interface TerminalViewClient {
     /**
      * The terminal font size a double-tap returns to.
      *
-     * Asked of the client rather than hard-coded: the default is a setting, and
-     * a terminal that reset to 14sp while the app's default was 18sp would look
-     * like it had ignored the setting.
+     * Asked of the client rather than hard-coded, so the reset target can follow
+     * the app rather than a constant baked into a vendored view. It is the app's
+     * default — not the current size: after a pinch, the current size is whatever
+     * the pinch produced, and a reset to that would do nothing.
      */
     fun defaultFontSizeSp(): Float
 

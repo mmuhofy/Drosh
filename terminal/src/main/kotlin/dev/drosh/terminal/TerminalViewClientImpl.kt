@@ -4,6 +4,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import dev.drosh.domain.UrlDetector
+import dev.drosh.domain.terminal.TerminalZoom
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
@@ -14,7 +15,7 @@ class TerminalViewClientImpl(
     /** Notified once when the fingers lift, with the size to persist. */
     private val onZoomEndChange: ((textSizeSp: Float) -> Unit)? = null,
     /** What a double-tap returns to. */
-    private val defaultFontSizeSp: Float = dev.drosh.domain.terminal.TerminalZoom.DEFAULT_SP,
+    private val defaultFontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     val extraKeyState: ExtraKeyState? = null,
     private val context: android.content.Context? = null,
     private val onUrlClick: ((String) -> Unit)? = null,
