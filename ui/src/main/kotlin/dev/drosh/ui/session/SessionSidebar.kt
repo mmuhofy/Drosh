@@ -1197,7 +1197,12 @@ private fun SplitDragHandle(
 ) {
     var dragged by remember { mutableFloatStateOf(0f) }
 
-    val progress = (dragged / SPLIT_DRAG_THRESHOLD_PX.coerceAtLeast(1f)).coerceIn(0f, 1f)
+    // In dp, not pixels. This was a raw 96f, which on a 3x device is about 32dp
+    // of travel — a brush, not a drag — and on a 1x device is 96dp, so the same
+    // gesture needed a wildly different amount of finger on different phones.
+    val thresholdPx = with(LocalDensity.current) { SPLIT_DRAG_THRESHOLD.toPx() }
+
+    val progress = (dragged / thresholdPx.coerceAtLeast(1f)).coerceIn(0f, 1f)
     val armed = progress >= 1f
 
     val barColor by animateColorAsState(
@@ -1218,15 +1223,30 @@ private fun SplitDragHandle(
             .clip(RoundedCornerShape(6.dp))
             .draggable(
                 orientation = Orientation.Horizontal,
-                state = rememberDraggableState { delta ->
-                    dragged += delta
-                    if (dragged >= SPLIT_DRAG_THRESHOLD_PX) {
-                        dragged = 0f
-                        onSplit()
-                    } else if (dragged <= -SPLIT_DRAG_THRESHOLD_PX) {
-                        dragged = 0f
-                    }
-                },
+                state = rememberDraggableState(
+                    onDelta = { delta ->
+                        dragged += delta
+                        // Fires the moment the threshold is *crossed*, not on
+                        // release, so the split appears while the finger is still
+                        // down and the gesture reads as a cause. `dragged` resets
+                        // at the same moment so a long drag past the threshold
+                        // cannot re-fire it every frame.
+                        if (dragged >= thresholdPx) {
+                            dragged = 0f
+                            onSplit()
+                        } else if (dragged <= -thresholdPx) {
+                            dragged = 0f
+                        }
+                    },
+                    // The part that was missing. Without this the accumulator
+                    // kept its value after the finger lifted, so a drag stopped
+                    // at 90% of the threshold armed the grip for good: the next
+                    // incidental brush of 10% opened a split the user had
+                    // abandoned a moment ago. Accumulated travel is a property of
+                    // one gesture and has to die with it, or the grip stops being
+                    // a deliberate act and becomes something that happens to you.
+                    onDeltaStopped = { dragged = 0f },
+                ),
             ),
         contentAlignment = Alignment.Center,
     ) {
@@ -1248,8 +1268,14 @@ private fun SplitDragHandle(
     }
 }
 
-/** How far the grip must be dragged before the split opens, in pixels. */
-private val SPLIT_DRAG_THRESHOLD_PX = 96f
+/**
+ * How far the grip must be dragged before the split opens.
+ *
+ * Deliberate rather than incidental. Past the row's own width would be too far
+ * to be comfortable on a narrow phone, and short enough to be crossed by a
+ * careless brush is not a threshold at all.
+ */
+private val SPLIT_DRAG_THRESHOLD = 64.dp
 
 @Composable
 private fun SidebarFooter(

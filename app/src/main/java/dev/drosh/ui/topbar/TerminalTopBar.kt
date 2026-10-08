@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshError
 import kotlin.math.roundToInt
+import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
@@ -104,8 +105,28 @@ private const val BAR_BOTTOM_OFFSET_DP = 6
  */
 private val COLLAPSED_TOP_OFFSET = 4.dp
 
-/** Matches the prototype's 0.25s. */
-private const val CHROME_ANIMATION_MILLIS = 250
+/**
+ * How long the row and the band take to travel.
+ *
+ * Just under the platform's own status-bar transition. Ours finishing first
+ * means the last thing to settle is the system's own bar, rather than two
+ * motions ending on top of each other.
+ */
+private const val CHROME_ANIMATION_MILLIS = 220
+
+/**
+ * How long the pills wait before starting to move.
+ *
+ * Only when collapsing, and only because the clock has to leave first. The
+ * status bar is the system window's, drawn above the app, so there is no way to
+ * cover it — it has to be told to hide, and that takes its own time. Moving the
+ * pills while the clock is still fading out puts two things in motion at once in
+ * the same 40dp, which is what read as the bar going back and forth.
+ *
+ * Expanding does not wait: the pills are already where the clock is going, and
+ * delaying them would just make the chrome feel like it had stalled.
+ */
+private const val CHROME_COLLAPSE_DELAY_MILLIS = 70
 
 /**
  * Over the blurred slice, so the terminal shows through as a smudge rather
@@ -165,11 +186,6 @@ fun TerminalTopBar(
     chromeCollapsed: Boolean,
     /** Strip sampled from the terminal, or null when there is nothing to sample. */
     backdrop: ImageBitmap?,
-    /**
-     * Painted behind the collapsed band. The terminal's own background, so the
-     * band reads as more terminal rather than as a bar drawn on top of it.
-     */
-    collapsedBandColor: Color,
     /** Where the terminal sits in root space, so a pill can find its slice. */
     terminalBounds: Rect?,
     viewModel: SessionSwitcherViewModel,
@@ -211,7 +227,10 @@ fun TerminalTopBar(
         } else {
             0.dp
         },
-        animationSpec = tween(durationMillis = CHROME_ANIMATION_MILLIS),
+        animationSpec = tween(
+            durationMillis = CHROME_ANIMATION_MILLIS,
+            delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
+        ),
         label = "chromeRowOffset",
     )
 
@@ -225,7 +244,10 @@ fun TerminalTopBar(
         } else {
             0.dp
         },
-        animationSpec = tween(durationMillis = CHROME_ANIMATION_MILLIS),
+        animationSpec = tween(
+            durationMillis = CHROME_ANIMATION_MILLIS,
+            delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
+        ),
         label = "collapsedBandHeight",
     )
 
@@ -238,12 +260,18 @@ fun TerminalTopBar(
         // of the band when collapsed, so a background set on it would travel with
         // it and leave the band behind it empty — which is the opposite of what
         // the band is for.
+        //
+        // Drosh's own background, not the terminal's. The terminal background is
+        // a user setting and defaults to true black, so a band painted in it
+        // was a black bar sitting on top of the output rather than the app's
+        // surface holding its chrome. The band is the app's, and it should look
+        // like the app's.
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .height(bandHeight)
-                .background(collapsedBandColor),
+                .background(DroshBackground),
         )
 
         var moreExpanded by remember { mutableStateOf(false) }

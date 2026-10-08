@@ -189,14 +189,24 @@ data class PaneLayout(
     }
 
     /**
-     * Chooses the step for a released drag, or collapses the split.
+     * Settles a released drag: keeps the position, or collapses the split.
      *
-     * A release nearest either edge collapses to a single pane: the divider ends
-     * up as a stub against the edge with no room to grab it again, so the only
-     * honest outcome is that there is no divider any more.
+     * A release past either edge collapses to a single pane. The divider would
+     * otherwise end up as a stub against the edge with no room to grab it again,
+     * so the only honest outcome there is that there is no divider any more.
      *
-     * Otherwise it snaps to the nearest [SPLIT_STEP], which is what makes the
-     * five positions a control rather than a slider.
+     * **Between those edges the dragged position is kept.** It used to snap to
+     * the nearest [SPLIT_STEP], and that made the divider feel broken: the split
+     * opens at `DEFAULT_SPLIT_FRACTION` = 0.5, which is not one of the four
+     * steps, so a drag of a few pixels released in the middle landed back on
+     * 0.4 or 0.6 — the panes visibly snapped away from where they had just been
+     * dropped, and a small nudge looked like the drag had been undone. Keeping
+     * the position is also what "the size changed" has to mean for the gesture
+     * to feel like it did anything.
+     *
+     * The steps are still what the overflow's "Move divider" walks, through
+     * [withSplitFraction]: that entry is a button with no position to remember,
+     * so a fixed set is the right thing for it and only for it.
      */
     fun commitDraggedFraction(): PaneLayout {
         if (!isSplit) return this
@@ -204,7 +214,7 @@ data class PaneLayout(
         if (dragged <= COLLAPSE_FRACTION || dragged >= 1f - COLLAPSE_FRACTION) {
             return collapsed()
         }
-        return withSplitFraction(dragged)
+        return copy(splitFraction = dragged.coerceIn(MIN_SPLIT_FRACTION, MAX_SPLIT_FRACTION))
     }
 
     /**

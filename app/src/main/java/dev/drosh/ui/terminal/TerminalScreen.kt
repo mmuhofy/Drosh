@@ -879,7 +879,6 @@ private fun ReadyScreen(
                 // frame on every crossing of the boundary.
                 chromeCollapsed = chromeCollapsed,
                 backdrop = backdrop,
-                collapsedBandColor = terminalBgColor,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
                 onOpenSidebar = {

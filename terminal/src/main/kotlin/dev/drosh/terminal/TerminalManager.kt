@@ -533,7 +533,7 @@ class TerminalManager(
      */
     val scrollTopRow: StateFlow<Int> = _scrollTopRow.asStateFlow()
 
-    private val _isAtLiveEdge = MutableStateFlow(true)
+private val _isAtLiveEdge = MutableStateFlow(true)
 
     /**
      * True while the viewport is at the live edge. This, not [scrollTopRow], is
@@ -542,9 +542,12 @@ class TerminalManager(
      * scrollTopRow changes once per row, and a fling through 30 rows emitted 30
      * updates, each one recomposing the whole terminal screen on the frame it
      * landed. The only thing the UI actually needs is which side of the live
-     * edge it is on, so this flips at the boundary and is silent the rest of
-     * the time. That is the difference between the bar gliding and the bar
+     * edge it is on, so this flips at a threshold and is silent the rest of the
+     * time. That is the difference between the bar gliding and the bar
      * stuttering along with your thumb.
+     *
+     * The threshold is not the edge itself. It is two, and the gap between them
+     * is the dead zone — see [chromeIsAtLiveEdge].
      */
     val isAtLiveEdge: StateFlow<Boolean> = _isAtLiveEdge.asStateFlow()
 
@@ -788,7 +791,7 @@ class TerminalManager(
         view.onScrollPositionChanged = { topRow ->
             if (slot == focusedPane.value) {
                 _scrollTopRow.value = topRow
-                val atEdge = topRow == 0
+                val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
                 if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
             }
         }
@@ -801,7 +804,7 @@ class TerminalManager(
         // otherwise start with a stale zero and only correct itself on the next
         // scroll.
         _scrollTopRow.value = view.mTopRow
-        val atEdge = view.mTopRow == 0
+        val atEdge = chromeIsAtLiveEdge(view.mTopRow, _isAtLiveEdge.value)
         if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
     }
 
@@ -1396,4 +1399,48 @@ class TerminalManager(
          */
         const val DEFAULT_CURSOR_BLINK_MS = 600
     }
+}
+
+/**
+ * How far the viewport must move past the live edge before the chrome gives way.
+ *
+ * In rows, not pixels: the emulator scrolls a row at a time, and a row is the
+ * smallest thing the user can actually look at.
+ */
+private const val CHROME_COLLAPSE_ROWS = -5
+
+/** How close to the live edge the viewport has to come for the chrome to return. */
+private const val CHROME_EXPAND_ROWS = -1
+
+/**
+ * Whether the viewport counts as "at the live edge" for the top chrome.
+ *
+ * Two thresholds and a dead zone between them, which is the whole point.
+ *
+ * The chrome is not a decoration that follows the viewport exactly — it *is* the
+ * system status bar, which Android animates on its own schedule. Testing
+ * `topRow == 0` meant a fling that brushed the boundary changed the answer on
+ * every single row it crossed, so the status bar began and ended its own
+ * animation several times during one gesture and the whole top of the screen
+ * went back and forth. Two things had to be true of a scroll for it to look
+ * deliberate: you have to have actually gone somewhere, and you have to have
+ * actually come back.
+ *
+ * `wasAtLiveEdge` is kept inside the dead zone rather than resolved from
+ * `topRow` alone, which is what makes it hysteresis rather than just a wider
+ * band — a value in the middle is ambiguous, and the previous answer is the
+ * least surprising thing to do with an ambiguous one.
+ *
+ * @param topRow the terminal's first visible row; 0 is the live edge, negative
+ *   is the scrollback above it.
+ * @param wasAtLiveEdge what the chrome is currently showing.
+ */
+internal fun chromeIsAtLiveEdge(topRow: Int, wasAtLiveEdge: Boolean): Boolean = when {
+    // Deep enough into the scrollback to be reading history rather than nudging
+    // the viewport by a line.
+    topRow <= CHROME_COLLAPSE_ROWS -> false
+    // Back at the live edge, or the row above it.
+    topRow >= CHROME_EXPAND_ROWS -> true
+    // Between the two: hold still.
+    else -> wasAtLiveEdge
 }

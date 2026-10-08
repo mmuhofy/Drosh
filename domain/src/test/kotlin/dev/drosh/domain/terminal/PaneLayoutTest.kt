@@ -52,32 +52,47 @@ class PaneLayoutTest {
 
     // ── Releasing ─────────────────────────────────────────────────────────────
 
+    /**
+     * A release keeps the position the drag reached.
+     *
+     * It used to snap to the nearest step, which read as the drag being undone:
+     * the split opens at 0.5, which is not one of the four steps, so a few
+     * pixels of movement released in the middle landed back on 0.4 or 0.6 and
+     * the panes visibly sprang away from where they had been dropped.
+     */
     @Test
-    fun `a release snaps to the nearest step`() {
-        // 0.46 is nearer 0.4 than 0.6.
-        assertEquals(0.4f, split().withDraggedFraction(0.46f).commitDraggedFraction().splitFraction, 0.001f)
-        assertEquals(0.6f, split().withDraggedFraction(0.54f).commitDraggedFraction().splitFraction, 0.001f)
+    fun `a release keeps the dragged position`() {
+        assertEquals(0.46f, split().withDraggedFraction(0.46f).commitDraggedFraction().splitFraction, 0.001f)
+        assertEquals(0.54f, split().withDraggedFraction(0.54f).commitDraggedFraction().splitFraction, 0.001f)
     }
 
+    /** Anywhere between the collapse thresholds is a legal resting place. */
     @Test
-    fun `a release lands exactly on a step unchanged`() {
-        for (step in split().splitSteps()) {
-            val committed = split().withDraggedFraction(step).commitDraggedFraction()
-            assertEquals(step, committed.splitFraction, 0.001f)
-            assertTrue("step $step should survive", committed.isSplit)
+    fun `a release anywhere inside the thresholds survives`() {
+        for (fraction in listOf(0.22f, 0.35f, 0.5f, 0.61f, 0.78f)) {
+            val committed = split().withDraggedFraction(fraction).commitDraggedFraction()
+            assertTrue("$fraction should stay split", committed.isSplit)
+            assertEquals(fraction, committed.splitFraction, 0.001f)
         }
     }
 
+    /**
+     * The overflow's "Move divider" still walks the four steps.
+     *
+     * The steps moved out of the drag and into the button: a button has no
+     * position to remember, so a fixed set is right for it and only for it.
+     */
     @Test
-    fun `every step is reachable by dragging`() {
+    fun `every step is reachable and snapped by the menu`() {
         val steps = split().splitSteps()
         assertEquals(4, steps.size)
         steps.forEach { step ->
-            val round = split().withDraggedFraction(step).commitDraggedFraction()
             // Delta, not equality: 0.2 * 3 is not 0.6 in binary floating point,
             // and a test asserting bit equality would fail on the arithmetic
             // rather than on the behaviour.
-            assertEquals(step, round.splitFraction, 0.001f)
+            assertEquals(step, split().withSplitFraction(step).splitFraction, 0.001f)
+            // And a release still lands on it when it was dragged there.
+            assertEquals(step, split().withDraggedFraction(step).commitDraggedFraction().splitFraction, 0.001f)
         }
     }
 
