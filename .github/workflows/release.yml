@@ -19,6 +19,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history, because the build derives its versionCode from the
+          # commit count (AndroidApplicationConventionPlugin). The default is
+          # fetch-depth: 1, which would make every CI build the same version —
+          # and an equal versionCode is exactly what lets an older APK install
+          # over a newer one and downgrade the database out from under Room.
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4

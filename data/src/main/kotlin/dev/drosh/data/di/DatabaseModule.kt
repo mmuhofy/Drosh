@@ -35,11 +35,31 @@ object DatabaseModule {
         DroshDatabase::class.java,
         DroshDatabase.DATABASE_NAME,
     )
-        // Every version bump must add its migration here. Room does not fall back
-        // to a destructive migration or to dropping the table — it throws at open
-        // time — so an unregistered migration takes every existing install down
-        // with it rather than degrading quietly.
+        // Every version bump must add its migration here. On the way *up* Room does
+        // not fall back to a destructive migration or to dropping the table — it
+        // throws at open time — so an unregistered migration takes every existing
+        // install down with it rather than degrading quietly. That is the right
+        // way round: shipping a schema change without the migration that carries
+        // it is a mistake, and it should be loud.
         .addMigrations(*DroshDatabase.ALL_MIGRATIONS)
+        // On the way *down* it is the opposite. A downgrade happens when an older
+        // build is installed over a newer one, which is a developer action and
+        // not a shipping defect: this project shipped every build as the same
+        // versionCode, so Android treated an older commit as an equal-or-newer
+        // version and installed it without an uninstall, leaving a database at a
+        // version the older APK has no migration for. Room then found no path
+        // and threw out of the Hilt graph at startup — the app could not launch
+        // at all, with no way to recover short of clearing app data.
+        //
+        // Losing the sessions, workspaces and agent transcripts is a real cost,
+        // and it is the right one to pay here: the alternative is an app that
+        // cannot start, and the data belongs to a build that is no longer
+        // installed. Upgrades stay fail-loud, which is where a mistake would
+        // actually be made.
+        //
+        // dropAllTables = true, because leaving tables behind across a downgrade
+        // would strand rows no version knows how to read.
+        .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
         .build()
 
     /**
