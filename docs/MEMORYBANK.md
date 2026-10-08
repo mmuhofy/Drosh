@@ -294,31 +294,43 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 
 The system status bar and the floating pill row are one decision, not two:
 
-| State | When | Status bar | Band behind it | Pills |
-|-------|------|-----------|----------------|-------|
-| **Collapsed** | viewport scrolled up into the scrollback, **or** a TUI owns the terminal | hidden | opaque, painted in the terminal's own background | inside the band, 4dp from the top |
-| **Expanded** | viewport at the live edge | shown, **transparent** — the terminal runs on behind the clock | none | below the band, floating over the output |
+| State | When | Status bar | Behind it | Pills |
+|-------|------|-----------|-----------|-------|
+| **Collapsed** | a session nobody has scrolled yet, **or** the viewport is up in the scrollback, **or** a TUI owns the terminal | hidden | a **scrim over the terminal**, not a fill | inside the vacated band, 4dp from the top |
+| **Expanded** | at the live edge, and the session has been scrolled | shown, **transparent** — the terminal runs on behind the clock | nothing | below the strip, floating over the output, with the backdrop blur |
 
-A TUI takes the collapsed state unconditionally and stops consulting the
-scroll: nano, vim and htop own the whole screen, so a status bar over them is
-in the way whether or not anything has been scrolled. The signal is
-`TerminalManager.focusedPaneAltBuffer` — per **focused** pane, so a vim in the
-background pane does not collapse the controls out from under a shell the user
-is still reading.
+```
+chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge
+```
 
-**The terminal is full-bleed and there is no reserved band above it.** This is
-the prototype's model and it is what lets the expanded state's bar be
-transparent with the output behind it. The consequence is that at the live edge
-the top couple of rows sit under the status bar and under the pills. That is
-accepted: a fixed grid cannot be inset without resizing, and resizing re-wraps
-every line of output.
+**`hasScrolled` is not optional, and position cannot express it.** A session
+that has just opened sits at the live edge — `topRow == 0`, exactly like a busy
+terminal at its prompt — and still wants the collapsed state. Without the flag the
+app *opens* in the wrong state and hides the bar on the first flick, which reads
+as flapping. One-way, cleared by `TerminalManager.resetViewportState()` wherever
+the session on screen is replaced: `switchTab`, `addTabWithId`, `addSshSession`,
+`reattachPanesAt`, `activatePaneView`, `swapPanes`, `setPaneSessions`,
+`promoteSecondaryToPrimary`, `closeAll`.
+
+**A user scroll is not a screen update.** `hasScrolled` is set from
+`TerminalView.onUserScroll`, a Drosh-added callback fired only from
+`scrollByPixels`, the settle after one, and `doScroll`. It must **not** be read
+off `onScrollPositionChanged`: that one also fires from `onScreenUpdated`, which
+`redrawPanesShowing` runs on **every** PTY chunk, so the shell's own MOTD
+answered "has anyone touched this" with yes. That bug shipped, and the symptom
+was the collapsed state never appearing at all.
+
+**The scrim, not a fill.** Collapsed, what sits behind the pills is a ~35% black
+scrim over the terminal. Any solid fill is a second surface, and a terminal with a
+second surface above it reads as a header on a document — a band, with an edge,
+and a mismatch against whatever terminal background the user picked. The pills
+move rather than disappearing, which is the other half of the Obsidian reference:
+they are how you get back to search, sessions and the agent.
 
 **Every layout measurement reads `statusBarsIgnoringVisibility`, never
-`statusBars`.** The bar's visibility now changes on every scroll and
-`statusBars` reads zero the moment it hides, so a live-inset measurement would
-collapse the top of the screen at the exact moment the row is supposed to move
-upward on purpose. The earlier `remember { }` capture was a workaround for the
-old always-hidden setting and is gone.
+`statusBars`.** The bar's visibility changes on scroll and `statusBars` reads
+zero the moment it hides, so a live-inset measurement would collapse the top of
+the screen at the moment the row is meant to move upward on purpose.
 
 **The settings toggle is deleted, not deprecated.** `autoHideStatusBar` is
 removed from the repository interface, the DataStore, the ViewModel and the
@@ -635,6 +647,49 @@ use of the lower pane is watching something run while you work — and
 entirely off screen has no visible edge to drag back in. Clamping rather than
 rejecting means a drag past the end stops at the limit instead of snapping
 back.
+
+### The host must ask `isSplit` first
+
+*Corrected 2026-10-08. This was the big one.*
+
+`SplitPaneHost` had **no `isSplit` guard**, so the docked branch ran for every
+screen in the app: the primary terminal at 50% height, a second
+`TerminalPaneBody` underneath painting `canvas.drawColor(0xFF000000)` because its
+slot had no session, a hairline seam, and a draggable pill. The app did not
+"sometimes start split" — the bottom half was always black.
+
+It explains most of what looked broken. The empty pane *registered a view* for
+the second slot, so focus could land in it and `switchTab` writes to whichever
+pane has focus — opening a session put it in the bottom half. Closing a split
+could not unmount the pane, so it kept painting the session that had been in it.
+And the divider was draggable over a layout the model refused to move, so it slid
+and snapped back.
+
+`if (!layout.isSplit) { primary(); return@BoxWithConstraints }` sits with the
+other two early returns, **above** them in importance: not invoking `secondary` is
+what keeps a second `AndroidView` from claiming a session the primary pane has.
+
+### `pointerInput(Unit)` captures values forever
+
+*Corrected 2026-10-08. Worth stating as a rule, not as a bug.*
+
+`Modifier.pointerInput(Unit)` never restarts, so every value its lambdas close
+over is the one from when the node was **first composed**. Three bugs were all
+this:
+
+- The divider's `onDragStart` seeded `dragTopPx` from `topPx` as it was at first
+  composition, so the second drag and every one after it jumped on the first
+  delta; and `onDrag` divided by that frame's `heightPx`, so opening the keyboard
+  changed neither the fraction written nor how far the seam could travel.
+- The floating window's move and resize origins were seeded from `bounds` the same
+  way, so the second move snapped the window back to where it started.
+- `FloatingPaneWindow` already had `rememberUpdatedState` for its callback, which
+  is why the callback was fine and the origin was not.
+
+Anything a gesture needs from the current frame goes through
+`rememberUpdatedState`, read by `by` inside the detector. The file's own comment
+about the first divider bug ("every event in the gesture computed from the same
+starting height") was this, diagnosed one level too low.
 
 ### The part that was not cosmetic
 
