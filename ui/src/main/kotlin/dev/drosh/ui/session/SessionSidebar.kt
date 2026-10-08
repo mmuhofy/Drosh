@@ -237,6 +237,7 @@ fun SessionSidebar(
             onOpenSsh = onOpenSsh,
             onSplitSession = onSplitSession,
             onFloatSession = onFloatSession,
+            isOpen = isOpen,
             isSplit = isSplit,
             isFloatingPane = isFloatingPane,
             splitSessions = splitSessions,
@@ -258,6 +259,14 @@ private fun SidebarContent(
     onOpenSsh: () -> Unit,
     onSplitSession: ((String) -> Unit)?,
     onFloatSession: ((String) -> Unit)?,
+    /**
+     * Whether the drawer is showing.
+     *
+     * Not the push progress, which animates through every value on the way out.
+     * A hold is cancelled here so it cannot outlive the drawer, and cancelling it
+     * on the progress would cancel it the moment the drawer started to move.
+     */
+    isOpen: Boolean,
     isSplit: Boolean,
     isFloatingPane: Boolean,
     splitSessions: Pair<String, String>?,
