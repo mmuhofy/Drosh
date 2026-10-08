@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -55,6 +56,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import dev.drosh.core.copyToClipboard
 import dev.drosh.core.shareText
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
@@ -78,6 +81,7 @@ import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
+import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.terminal.UbuntuSetupState
 import dev.drosh.ui.block.BlockEngineViewModel
 import dev.drosh.ui.block.BlockInputField
@@ -1266,7 +1270,7 @@ private fun SetupFailure(
 private fun TerminalPaneBody(
     paneSlot: PaneSlot,
     terminalManager: TerminalManager,
-    fontSizeSp: Int,
+    fontSizeSp: Float,
     colorProps: Properties,
     terminalViewModel: TerminalViewModel,
     blockEngineViewModel: BlockEngineViewModel,
@@ -1417,13 +1421,11 @@ private fun TerminalPaneBody(
     }
 }
 
-private const val TERMINAL_PINCH_THRESHOLD = 0.04f
-
 @Composable
 private fun TerminalViewHost(
     paneSlot: PaneSlot,
     terminalManager: TerminalManager,
-    fontSizeSp: Int,
+    fontSizeSp: Float,
     colorProps: Properties,
     terminalViewModel: TerminalViewModel,
     terminalViewRef: MutableState<TerminalView?>,
@@ -1449,16 +1451,40 @@ private fun TerminalViewHost(
      */
     val ownView = remember { mutableStateOf<TerminalView?>(null) }
 
+    /**
+     * The size chip, shown only while the terminal is being pinched.
+     *
+     * Local rather than in the ViewModel: this changes 60 times a second, and
+     * a flow read at the screen's root would recompose both panes and the whole
+     * chrome for a number only this overlay shows. The chip keeps it, the
+     * terminal view keeps the real size, and the ViewModel only ever hears
+     * about it once, when the fingers lift.
+     */
+    var zoomChip by remember { mutableStateOf(ZoomChipState.Hidden) }
+
+    // Kept alive briefly after the gesture so the size is readable once the
+    // fingers are gone — the value is otherwise only ever seen mid-gesture.
+    LaunchedEffect(zoomChip.textSizeSp, zoomChip.visible) {
+        if (!zoomChip.visible && zoomChip.textSizeSp > 0f) {
+            delay(ZOOM_CHIP_LINGER_MS)
+            zoomChip = ZoomChipState.Hidden
+        }
+    }
+
     val viewClient = remember(
         terminalViewModel,
         extraKeyState,
         onUrlClick,
     ) {
         TerminalViewClientImpl(
-            onScaleChange = { factor ->
-                terminalViewModel.bumpFontSize(factor)
-                factor
+            onZoomChange = { sizeSp, focusX, focusY ->
+                zoomChip = ZoomChipState(sizeSp, focusX, focusY, visible = true)
             },
+            onZoomEndChange = { sizeSp ->
+                zoomChip = ZoomChipState(sizeSp, zoomChip.focusX, zoomChip.focusY, visible = false)
+                terminalViewModel.onZoomCommitted(sizeSp)
+            },
+            defaultFontSizeSp = TerminalZoom.DEFAULT_SP,
             extraKeyState = extraKeyState,
             context = context,
             onUrlClick = onUrlClick,
@@ -1511,8 +1537,9 @@ private fun TerminalViewHost(
         }
     }
 
+    BoxWithConstraints(modifier = modifier) {
     AndroidView(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             // Compose does not clip children to layout bounds the way a
             // ViewGroup does, and TerminalView draws a full-bleed background.
@@ -1603,7 +1630,54 @@ private fun TerminalViewHost(
             overlay?.updateQuery(searchQuery)
         },
     )
+
+    // The chip, above the terminal and out of its way. Positioned at the point
+    // the fingers are on so it reads as attached to the gesture rather than
+    // dropped in a corner — but clamped inside the pane, because a pinch near
+    // an edge would otherwise put the one number the user wants to see
+    // off-screen.
+    val chipVisible = zoomChip.textSizeSp > 0f
+    if (chipVisible) {
+        val density = LocalDensity.current
+        TerminalZoomChip(
+            state = zoomChip,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset {
+                    val maxX = (constraints.maxWidth - ZOOM_CHIP_ESTIMATED_WIDTH_PX).coerceAtLeast(0)
+                    val maxY = (constraints.maxHeight - ZOOM_CHIP_ESTIMATED_HEIGHT_PX).coerceAtLeast(0)
+                    val x = (zoomChip.focusX * density.density - ZOOM_CHIP_OFFSET_PX)
+                        .coerceIn(0f, maxX.toFloat())
+                    val y = (zoomChip.focusY * density.density - ZOOM_CHIP_OFFSET_PX)
+                        .coerceIn(0f, maxY.toFloat())
+                    IntOffset(x.roundToInt(), y.roundToInt())
+                },
+        )
+    }
 }
+
+/**
+ * How long the chip lingers after the fingers lift.
+ *
+ * Long enough to read a number that has stopped moving, short enough that it
+ * is not part of the terminal by the time the user looks at the text.
+ */
+private const val ZOOM_CHIP_LINGER_MS = 900L
+
+/**
+ * Chip size used to keep it on screen.
+ *
+ * Measured rather than laid out: the chip is positioned by offset, so it needs
+ * its extent before it is composed, and asking a composable to measure itself
+ * to place itself is a circular dependency for a few dozen pixels. It only has
+ * to be an over-estimate — the chip is centred on the clamped point, so
+ * overshooting the real size by a little just pulls it further from the edge.
+ */
+private const val ZOOM_CHIP_ESTIMATED_WIDTH_PX = 140
+private const val ZOOM_CHIP_ESTIMATED_HEIGHT_PX = 80
+
+/** How far above the fingers the chip sits, in pixels. */
+private const val ZOOM_CHIP_OFFSET_PX = 64f
 
 private fun humanReadableBytes(bytes: Long): String {
     val unit = 1024L

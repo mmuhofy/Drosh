@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
+import dev.drosh.domain.terminal.TerminalZoom
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -40,6 +41,6 @@ class TerminalFontSizeRepositoryImpl @Inject constructor(
 
     private companion object {
         val KEY_TERMINAL_FONT_SP = floatPreferencesKey("terminal_font_sp")
-        const val DEFAULT_FONT_SP: Float = 14f
+        const val DEFAULT_FONT_SP: Float = TerminalZoom.DEFAULT_SP
     }
 }

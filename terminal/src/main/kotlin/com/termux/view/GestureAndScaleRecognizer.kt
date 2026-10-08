@@ -14,6 +14,30 @@ internal class GestureAndScaleRecognizer(context: Context, val mListener: Listen
         fun onScroll(e2: MotionEvent, dx: Float, dy: Float): Boolean
         fun onFling(e: MotionEvent, velocityX: Float, velocityY: Float): Boolean
         fun onScale(focusX: Float, focusY: Float, scale: Float): Boolean
+
+        /**
+         * Fingers down, scale about to start.
+         *
+         * Lets the listener remember where the gesture began, so the size can
+         * be recomputed from the total finger distance rather than accumulated
+         * step by step. Accumulating multiplies one rounding error per frame
+         * into a visible drift over a long pinch, and it cannot be undone —
+         * shrinking back to where the gesture started leaves a slightly
+         * different size than it found.
+         */
+        fun onScaleBegin()
+
+        /**
+         * Fingers lifted, so a zoom gesture is over.
+         *
+         * Not reachable from the gesture detector — [android.view.ScaleGestureDetector]
+         * reports the end of a scale, which is not the same as the fingers
+         * leaving: the last frame of a pinch already arrives before this does.
+         * It matters because the value a pinch produces is worth persisting
+         * once, at the end, rather than on every frame.
+         */
+        fun onScaleEnd()
+
         fun onDown(x: Float, y: Float): Boolean
         fun onUp(e: MotionEvent): Boolean
         fun onLongPress(e: MotionEvent)
@@ -59,11 +83,16 @@ internal class GestureAndScaleRecognizer(context: Context, val mListener: Listen
 
         mScaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                mListener.onScaleBegin()
                 return true
             }
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 return mListener.onScale(detector.focusX, detector.focusY, detector.scaleFactor)
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                mListener.onScaleEnd()
             }
         })
         mScaleDetector.isQuickScaleEnabled = false

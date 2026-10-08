@@ -37,6 +37,7 @@ import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.ThemeMode
+import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.session.DeviceBadge
 import dev.drosh.ui.session.DeviceIdentityViewModel
@@ -74,7 +75,7 @@ fun SettingsScreen(
     val fontPack          by viewModel.fontPack.collectAsStateWithLifecycle(FontPack.Geist)
     val locale            by viewModel.locale.collectAsStateWithLifecycle("")
     val useBlockEngine    by viewModel.useBlockEngine.collectAsStateWithLifecycle(false)
-    val fontSizeSp        by viewModel.fontSizeSp.collectAsStateWithLifecycle(14)
+    val fontSizeSp        by viewModel.fontSizeSp.collectAsStateWithLifecycle(TerminalZoom.DEFAULT_SP)
     val prootStartCommand by viewModel.prootStartCommand.collectAsStateWithLifecycle("")
     val isPinLockEnabled  by viewModel.isPinLockEnabled.collectAsStateWithLifecycle(false)
     val cursorBlinkRateMs by viewModel.cursorBlinkRateMs.collectAsStateWithLifecycle(500)
@@ -205,13 +206,24 @@ fun SettingsScreen(
                         stacked = true,
                         title = stringResource(R.string.settings_font_size),
                         icon = DroshIcons.Resize,
-                        supporting = stringResource(R.string.settings_font_size_value, fontSizeSp),
+                        // One decimal, because the value can be fractional: a
+                        // pinch that stops at 14.3sp persisted 14.3sp, and
+                        // showing "14" would claim a precision the terminal does
+                        // not have.
+                        supporting = stringResource(
+                            R.string.settings_font_size_value,
+                            String.format("%.1f", fontSizeSp),
+                        ),
                     ) {
                         SettingsSlider(
-                            value = fontSizeSp.toFloat(),
-                            onValueChange = { viewModel.setFontSize(it.toInt()) },
-                            valueRange = 8f..24f,
-                            steps = 15,
+                            // The same limits the pinch obeys. The slider used
+                            // to run 8..24 while the pinch ran 10..32, so a
+                            // value set by one gesture could not be reproduced
+                            // by the other.
+                            value = fontSizeSp,
+                            onValueChange = { viewModel.setFontSize(it) },
+                            valueRange = TerminalZoom.MIN_SP..TerminalZoom.MAX_SP,
+                            steps = 78,
                         )
                     }
 

@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.drosh.core.TerminalConstants
@@ -68,10 +69,10 @@ class SettingsRepositoryImpl @Inject constructor(
 
     // ── Font Size ─────────────────────────────────────────────────────────────
 
-    override val fontSizeSp: Flow<Int> =
+    override val fontSizeSp: Flow<Float> =
         dataStore.data.map { prefs -> prefs[KEY_FONT_SIZE_SP] ?: DEFAULT_FONT_SIZE_SP }
 
-    override suspend fun setFontSize(size: Int) {
+    override suspend fun setFontSize(size: Float) {
         dataStore.edit { prefs -> prefs[KEY_FONT_SIZE_SP] = size }
     }
 
@@ -177,7 +178,13 @@ class SettingsRepositoryImpl @Inject constructor(
         val KEY_FONT_PACK              = stringPreferencesKey("font_pack")
         val KEY_USE_BLOCK_ENGINE        = booleanPreferencesKey("use_block_engine")
         val KEY_EXTRA_KEYS_BAR_VISIBLE  = booleanPreferencesKey("extra_keys_bar_visible")
-        val KEY_FONT_SIZE_SP            = intPreferencesKey("font_size_sp")
+        // Float, and the same key name as the Int this replaced. DataStore keys
+        // are typed: the Int a previous build wrote is not readable through a
+        // float key, so an install that upgrades falls back to the default once
+        // and keeps a fractional size from then on. Keeping the name means
+        // there is one key to reason about; renaming it would leave the old Int
+        // in storage forever with nothing reading it.
+        val KEY_FONT_SIZE_SP            = floatPreferencesKey("font_size_sp")
         val KEY_TERMINAL_BG_COLOR       = stringPreferencesKey("terminal_bg_color")
         val KEY_ACCENT_COLOR            = stringPreferencesKey("accent_color")
         val KEY_TERMINAL_TEXT_COLOR     = stringPreferencesKey("terminal_text_color")
@@ -191,7 +198,7 @@ class SettingsRepositoryImpl @Inject constructor(
 
         const val DEFAULT_USE_BLOCK_ENGINE       = false
         const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = true
-        const val DEFAULT_FONT_SIZE_SP           = 14
+        const val DEFAULT_FONT_SIZE_SP           = 14f
         const val DEFAULT_TERMINAL_BG_COLOR      = "#000000"
         const val DEFAULT_ACCENT_COLOR           = "#3B82F6"
         const val DEFAULT_TERMINAL_TEXT_COLOR    = "#E8E8E8"

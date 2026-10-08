@@ -6,6 +6,7 @@ import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
+import dev.drosh.domain.terminal.TerminalZoom
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Properties
 import kotlinx.coroutines.Job
@@ -22,14 +23,18 @@ import javax.inject.Inject
 /**
  * Holds the terminal font size for [TerminalScreen].
  *
- * Pinch gestures on the terminal area call [bumpFontSize] with a relative
- * fraction (factor > 1 grows the font, < 1 shrinks it). The new value is
- * clamped to [MIN_FONT_SP]..[MAX_FONT_SP] and written to
- * [SetTerminalFontSizeUseCase] (DataStore) for process-death survival, while
- * [fontSizeSp] (a hot [MutableStateFlow]) emits instantly so the terminal
- * view can [TerminalView.setTextSize] on every scale event — giving the
- * smooth, jank-free pinch zoom that the previous persist-then-emit path
- * could not deliver.
+ * The value is fractional because a pinch follows the fingers: the terminal
+ * itself owns the live size while the gesture runs (see
+ * [TerminalView.zoomBy]), and this ViewModel is told the result twice — once
+ * per frame for display ([onZoomFrame]), once when the fingers lift
+ * ([onZoomCommitted]) to publish and persist.
+ *
+ * Publishing on every frame is what this deliberately does **not** do. The
+ * screen reads [fontSizeSp] at its root and hands it to both panes, so an emit
+ * per frame would recompose the whole terminal screen at 60Hz to change one
+ * number that only a chip is showing. The live value reaches the chip through
+ * the client's zoom callback instead, and only the committed value travels
+ * through the flow.
  */
 @HiltViewModel
 class TerminalViewModel @Inject constructor(
@@ -86,13 +91,13 @@ class TerminalViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, Properties())
 
-    private val _fontSizeSp = MutableStateFlow(DEFAULT_FONT_SP)
-    val fontSizeSp: StateFlow<Int> = _fontSizeSp.asStateFlow()
+    private val _fontSizeSp = MutableStateFlow(TerminalZoom.DEFAULT_SP)
+    val fontSizeSp: StateFlow<Float> = _fontSizeSp.asStateFlow()
 
     init {
         viewModelScope.launch {
             persist.observe().collect { stored ->
-                _fontSizeSp.value = stored.toInt().coerceIn(MIN_FONT_SP, MAX_FONT_SP)
+                _fontSizeSp.value = stored.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
             }
         }
     }
@@ -111,18 +116,29 @@ class TerminalViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setAccentColor(hex) }
     }
 
-    fun setFontSize(value: Int) {
-        val clamped = value.coerceIn(MIN_FONT_SP, MAX_FONT_SP)
+    /** From Settings. Publishes immediately — there is no gesture to wait for. */
+    fun setFontSize(value: Float) {
+        val clamped = value.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
         _fontSizeSp.value = clamped
         pendingPersistJob?.cancel()
-        pendingPersistJob = viewModelScope.launch { persist.set(clamped.toFloat()) }
+        pendingPersistJob = viewModelScope.launch { persist.set(clamped) }
     }
 
-    fun bumpFontSize(factor: Float) {
-        val current = _fontSizeSp.value.toFloat()
-        val target = (current * factor).coerceIn(MIN_FONT_SP.toFloat(), MAX_FONT_SP.toFloat())
-        setFontSize(target.toInt())
+    /**
+     * A pinch finished: publish and persist, once.
+     *
+     * [TerminalView.zoomBy] has already drawn at this size, so nothing here is
+     * needed for the terminal to look right — this is what makes the size
+     * outlive the process, and what a settings change elsewhere in the app
+     * reads.
+     */
+    fun onZoomCommitted(textSizeSp: Float) {
+        setFontSize(textSizeSp)
     }
+
+    /** What a double-tap returns to: the size the app is configured for. */
+    val defaultFontSizeSp: Float
+        get() = _fontSizeSp.value.takeIf { it > 0f } ?: TerminalZoom.DEFAULT_SP
 
     fun setProotStartCommand(command: String) {
         viewModelScope.launch {
@@ -136,9 +152,12 @@ class TerminalViewModel @Inject constructor(
     }
 
     companion object {
-        const val MIN_FONT_SP: Int = 10
-        const val MAX_FONT_SP: Int = 32
-        const val DEFAULT_FONT_SP: Int = 14
+        // Kept for callers that still spell the limits the old way; the values
+        // themselves now live in TerminalZoom so the view and this ViewModel
+        // cannot disagree about where the ends are.
+        const val MIN_FONT_SP: Float = TerminalZoom.MIN_SP
+        const val MAX_FONT_SP: Float = TerminalZoom.MAX_SP
+        const val DEFAULT_FONT_SP: Float = TerminalZoom.DEFAULT_SP
     }
 }
 
