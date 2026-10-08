@@ -1,5 +1,5 @@
 # Drosh — Memory Bank
-_Last updated: 2026-10-05_
+_Last updated: 2026-10-08_
 
 ---
 
@@ -41,6 +41,7 @@ Termux brought the terminal to Android in 2012. Drosh reinvents it for 2026. Not
 | Min SDK         | 26                                     | Android 8.0+                       |
 | Target SDK      | 36                                     | Android 16                         |
 | Terminal Engine | termux-view + termux-terminal-emulator | Vendored from Iris Code            |
+| Font size       | Fractional sp, 0.1 step                 | Pinch follows the fingers; limits in `TerminalZoom` (§7C) |
 | Editor Engine | **sora-editor** (`io.github.rosemoe:editor`) | Native Android widget, LGPL-2.1-or-later |
 | PTY             | libtermux.so (JNI)                     | Prebuilt, port from Iris Code      |
 | Linux Env       | PRoot v5.2.0 + Ubuntu 24.04 rootfs     | Port from Iris Code                |
@@ -74,13 +75,13 @@ ui/
   shortcuts/        → Shortcut overlay, keyboard panel
   settings/         → Settings, theme store, API vault
   hud/              → HUD widgets, status panel
-  workspace/        → Project workspace (grouping + metadata, §7B)
+  workspace/        → Project workspace (grouping + metadata, §7D)
 
 domain/
   terminal/         → TerminalSession, Block, SemanticToken,
                       BootstrapStep, BootstrapProgress,
                       ObserveBootstrapUseCase, TriggerBootstrapUseCase,
-                      ObserveFirstLaunchUseCase
+                      ObserveFirstLaunchUseCase, TerminalZoom
   agent/            → AgentLoop, Tool interfaces, StreamEvent
   session/          → SessionEntity, CommandDNA, Replay
   ssh/              → SshHost, SshKey, SshConnection
@@ -103,7 +104,8 @@ agent/
 terminal/
   engine/           → PTY bridge, ANSI parser
   renderer/         → BlockRenderer, SemanticHighlighter, RichRenderer
-  input/            → GhostTextEngine, InputQueue
+input/           → GhostTextEngine, InputQueue
+  zoom/            → TerminalRenderer.updateTextSize, zoomTo + focal anchoring
 
 di/                 → Hilt modules
 util/               → Constants, extensions
@@ -785,6 +787,97 @@ split opened with one pane a tenth of the screen tall.
 
 ---
 
+## 7C. Smooth Pinch-to-Zoom
+
+**Status:** shipped — `feature/pinch-zoom`, PR #38.
+
+### What it does
+
+Pinch the terminal and the font follows the fingers continuously, in **0.1sp
+steps**, up to 9sp–48sp. A **size chip** follows the pinch (above the fingers,
+clamped inside the pane) and lingers ~900ms after they lift. **Double-tap**
+returns to the default size. The size is written to DataStore when the fingers
+lift, not per frame.
+
+### Why it had to be rebuilt rather than tuned
+
+The old path went scale event → `bumpFontSize` → `Int` → StateFlow emit →
+recomposition → `setTextSize` → a **new `TerminalRenderer` per event** (which
+re-measures 127 glyph widths) → `TerminalEmulator.resize`/reflow. Three
+separate costs per frame, and a font size that only ever moved in whole sp.
+
+### How it is built now
+
+| Piece | Where | Why there |
+|---|---|---|
+| `TerminalZoom` (limits, 0.1 step, 4% dead zone, per-event clamp) | `:domain` | `TerminalView` is in `:terminal`, the ViewModel in `:ui`, and `:ui` may not import `:terminal`. `:domain` is the one module both depend on. |
+| `TerminalRenderer.updateTextSize()` | `:terminal` | Re-measures in place behind private setters. No `@JvmField` on them — a private setter is a custom accessor and the two cannot be combined. |
+| `TerminalView.zoomTo()` + focal anchoring | `:terminal` | The row under the fingers is pinned by absolute row index, which survives the reflow that a viewport-relative one does not. |
+| `onScale` / `onScaleBegin` / `onScaleEnd` on the client | `:terminal` | Notifications, not requests: the view has already applied the size. Replaced the old `onScale(scale): Float`. |
+| `ZoomChipState` + `TerminalZoomChip` | `:app` (ui/terminal) | Local state, **not** in the ViewModel — a flow read at the screen root would recompose both panes at 60Hz for a number only the chip shows. |
+| `TerminalViewModel.onZoomCommitted()` | `:ui` | Publishes and persists once, on release. |
+
+### Gesture decisions worth keeping
+
+- **The size is recomputed from the gesture's origin** every frame, never
+  accumulated. Accumulating multiplies one rounding error per frame, and cannot
+  be undone: shrinking back leaves a different size than it found.
+- **The dead zone is latched**, not re-tested per frame. Testing it per frame
+  froze a pinch at its peak once the fingers came back — a zoom the same
+  gesture could not undo. `TerminalZoomTest` covers exactly that.
+- **Per-event step clamp** (`MAX_STEP_FACTOR = 1.35`): a third finger landing
+  reads as a large ratio, which would otherwise be worth several steps in one
+  frame.
+- **0.1sp quantisation** is below what the eye resolves, and it keeps a long
+  float tail (14.300000000000001) out of storage.
+
+### Storage
+
+`SettingsRepository.fontSizeSp` is `Flow<Float>` and its DataStore key became
+`floatPreferencesKey("font_size_sp")`. DataStore keys are typed, so an install
+that upgrades cannot read the Int a previous build wrote and **falls back to
+the default once**; it keeps fractional sizes from then on. The key name was
+deliberately left alone so there is one key to reason about.
+
+`TerminalZoom.MIN_SP/MAX_SP` (9/48) are wider than the slider's old 8..24, and
+the Settings slider now uses the same limits as the pinch — the two used to
+disagree, so a size set by one could not be reproduced by the other.
+
+### Not covered
+
+Block mode does not pinch-zoom: it renders in Compose and has no
+`TerminalView` behind it. The block renderer keeps its own font size path.
+
+### Prototype
+
+An HTML prototype compared four models — continuous 0.1sp, 0.5sp steps, 1sp
+steps, and a reflow-free canvas scale — with a live fps/reflow counter.
+0.1sp continuous was chosen from it (Muhofy, 2026-10-08). `mockups/` is
+gitignored, so the prototype is not in the repository; rebuild it from this
+description if the question comes up again.
+
+### Verification still owed
+
+Everything above is what the code and `:domain:test` say. None of it has been
+run on a device: the CI here builds and tests, it does not measure whether a
+pinch feels right. In particular worth checking on real hardware:
+
+- that the font tracks the fingers without visible stepping at 0.1sp,
+- that the anchored row does not drift over a long pinch,
+- that the chip does not flicker or linger wrongly,
+- that a two-finger scroll no longer nudges the size at all.
+
+### Open
+
+- Block mode does not pinch-zoom (Compose, no `TerminalView`). Whether it
+  should is a product call.
+- 48sp is about ten rows on a phone. Whether the top of the range is worth
+  having is untested on a device.
+- The DataStore key type change costs an install its saved font size once.
+  Unverified on a real upgrade.
+
+---
+
 ## 8. Input System
 
 ### Keyboard Handle & Extra Keys Bar (Phase 3 Sprint 1 — scope confirmed 2026-08-08)
@@ -851,7 +944,7 @@ See §6 Navigation. Shared Element Transition — card thumbnail morphs into ful
 - **Recents** — auto-sorted by last used
 
 ### Workspace (Project-Based)
-*Implemented 2026-10-05. Branch `feat/workspace` — see §7B.*
+*Implemented 2026-10-05. Branch `feat/workspace` — see §7D.*
 
 Each workspace is a project:
 ```
@@ -868,7 +961,7 @@ Workspace: MyApp
 
 ---
 
-## 7C. Workspace / Project System
+## 7D. Workspace / Project System
 
 *Added 2026-10-05. Branch `feat/workspace`.*
 
@@ -1559,6 +1652,10 @@ data class SshHost(
 
 ### To Build from Scratch
 ```
+✅ Smooth Pinch-to-Zoom (feature/pinch-zoom, PR #38) — §7C.
+       0.1sp continuous zoom, focal anchoring, size chip, double-tap reset,
+       dead-zone latch, `TerminalRenderer.updateTextSize` in place.
+       Block mode: no pinch (renders in Compose) — tracked in TODO.md.
 ⬜ BlockEngine.kt — block-based output
 ⬜ SemanticParser.kt — output intelligence
 ⬜ GhostTextEngine.kt — inline autocomplete
@@ -1575,7 +1672,7 @@ data class SshHost(
 ⬜ ThemeStore.kt — theme engine
 ⬜ AliasManager.kt — shell alias sync
 ⬜ MultiExec.kt — broadcast SSH commands
-    ✅ Workspace.kt, WorkspaceRepository, WorkspacePath, WorkspaceGrouping (§7B)
+    ✅ Workspace.kt, WorkspaceRepository, WorkspacePath, WorkspaceGrouping (§7D)
     ✅ SSH end-to-end (feature-ssh, PR #36): SshHost/SshKey Room layer,
        bridged TerminalSession over SSHJ ShellChannel into the vendored
        termux TerminalEmulator, sidebar → SSH → host list → interactive tab,
@@ -1624,6 +1721,7 @@ data class SshHost(
 | 12 | Split gesture | Drag the row, or a dedicated grip? | Resolved 2026-10-05: dedicated grip. One gesture cannot reliably mean two things in Compose — the detectors race on the same timeout. |
 | 13 | Split depth | Arbitrary nesting, or two panes? | Resolved 2026-10-05: two. Nested panes on a phone are too narrow to read, and each is another divider to discover. |
 | 14 | sora-editor licence | Accept LGPL-2.1-or-later inside a GPL-3.0 app? | **OPEN — Muhofy must sign off.** Compatible in principle, but blocks F-Droid until confirmed. See §7A. |
+| 19 | Pinch zoom step | Whole sp, 0.5sp, or continuous 0.1sp? | Resolved 2026-10-08: continuous 0.1sp, chosen from an HTML prototype. Block mode does not zoom. See §7C. |
 | 15 | zsh `$ENV` breakage | Inject into `~/.zshenv`, or leave OSC 133 dead on zsh? | **OPEN.** Touches a user file, so not done unilaterally. Also fixes the block engine's command lifecycle on the default shell. See §7A. |
 | 16 | Editor surface | Split view with the terminal, or full screen? | Resolved 2026-10-05: full screen, separate route. One document at a time, no tabs. |
 | 17 | Split axis | Side by side, or top-to-bottom? | Resolved 2026-10-05: top-to-bottom (PR #27). Two 180dp columns are ~10 characters wide, narrower than most paths. |
