@@ -286,6 +286,21 @@ private fun SidebarContent(
      */
     var draggingSessionId by remember { mutableStateOf<String?>(null) }
 
+    // A hold that outlives the drawer.
+    //
+    // The drawer stays composed while it is closed — it is translated off screen,
+    // not disposed — so a session picked up and then closed over left its row
+    // drawn as "held" and every other row outlined as a drop target. The next tap
+    // on any row then dropped it and opened a split, long after the user had
+    // stopped holding anything.
+    //
+    // `isOpen` rather than the push progress: the progress is an animation that
+    // passes through every value on the way out, so clearing on it would also
+    // cancel the hold the moment the drawer started to move.
+    LaunchedEffect(isOpen) {
+        if (!isOpen) draggingSessionId = null
+    }
+
     val filtered = remember(sessions, searchQuery) {
         if (searchQuery.isBlank()) sessions else sessions.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
@@ -378,8 +393,8 @@ private fun SidebarContent(
                 val pairPartner = splitSessions?.second
                 // Both, so a row can ask "am I already in a pane?" in one lookup.
                 val pairOfSessions = setOfNotNull(pairAnchor, pairPartner)
-                // Rank shifts by one for every session drawn inside a pair, so
-                // the recency marks below stay honest.
+                // Rank shifts by two for a pair, since the card stands in for both
+                // sessions and only one of them is reached in this loop.
                 var rankOffset = 0
 
                 live.forEachIndexed { index, snapshot ->
@@ -398,8 +413,15 @@ private fun SidebarContent(
                                 onSwapPanes = onSwapPanes,
                             )
                         }
-                        rankOffset++
-                    } else {
+                        // Two, not one: only the anchor row was being replaced, so
+                        // the partner fell through to the branch below and was
+                        // drawn a second time as an ordinary row — the same session
+                        // listed once inside the card and once under it, with its
+                        // own menu, and both copies' recency mark off by one.
+                        rankOffset += 2
+                    } else if (snapshot.id != pairPartner) {
+                        // The partner is already drawn inside the card above, so it
+                        // gets no row of its own.
                         // `item`, not a bare call: this loop is not an `items {}`
                         // block, and a composable invoked straight from a
                         // LazyListScope has no slot to compose into. The error

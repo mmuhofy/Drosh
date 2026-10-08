@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshError
 import kotlin.math.roundToInt
+import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
@@ -71,12 +72,12 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
  * The bar is driven by a single piece of state, [chromeCollapsed], and that state
  * is the prototype's:
  *
- *  - **Collapsed** — the viewport is up in the scrollback, or a TUI has the
- *    terminal. The system status bar is hidden outright and the pills ride up
- *    into the space it left rather than sitting below it. What is behind them is
- *    a **scrim over the terminal**, not a filled bar: see
- *    [COLLAPSED_SCRIM_ALPHA] for why a fill reads as a second surface and a scrim
- *    does not.
+ *  - **Collapsed** — a session nobody has scrolled yet, the viewport is up in
+ *    the scrollback, or a TUI has the terminal. The system status bar is hidden
+ *    outright and the pills ride up into the space it left rather than sitting
+ *    below it. The strip behind them is Drosh's own background — the same colour
+ *    behind the terminal frame and the sidebar — so the chrome reads as the app's
+ *    rather than as a bar laid over the terminal.
  *  - **Expanded** — the viewport is at the live edge. The system status bar is
  *    shown with no background of its own, so the terminal runs on behind the
  *    clock, and the pills drop below the strip to float over the output.
@@ -111,26 +112,7 @@ private const val BAR_BOTTOM_OFFSET_DP = 6
 private val COLLAPSED_TOP_OFFSET = 4.dp
 
 /**
- * How dark the collapsed chrome strip goes.
- *
- * A scrim over the terminal, not a fill under it. This is the difference between
- * this and a bar drawn at the top of the screen: a solid fill of any colour is
- * a second surface, and a terminal with a second surface above it reads as a
- * header sitting on a document — a band, with an edge, and a mismatch against
- * whatever terminal background the user picked.
- *
- * Dimming what is already there keeps the terminal one continuous surface from
- * the top pixel to the bottom, which is what lets the chrome collapse into it.
- * The strip still needs to be *slightly* darker, because the pills are about to
- * sit in the place the clock was and the area has to read as having changed.
- *
- * Light enough that the terminal's own background is still what you see: this
- * is a dim, not a fill.
- */
-private const val COLLAPSED_SCRIM_ALPHA = 0.35f
-
-/**
- * How long the row and the scrim take to travel.
+ * How long the row and the strip take to travel.
  *
  * Just under the platform's own status-bar transition. Ours finishing first
  * means the last thing to settle is the system's own bar, rather than two
@@ -258,11 +240,12 @@ fun TerminalTopBar(
         label = "chromeRowOffset",
     )
 
-    // The strip the chrome collapses into. It has to be able to disappear
-    // entirely: expanded, the terminal is meant to run on behind the system bar
-    // with nothing between them, and a strip left at a fraction of a pixel would
-    // be a hairline of darker colour across the top of the output.
-    val scrimHeight by animateDpAsState(
+    // The strip the chrome collapses into, in Drosh's own background.
+    //
+    // It has to be able to disappear entirely: expanded, the terminal runs on
+    // behind the system bar with nothing between them, and a strip left at a
+    // fraction of a pixel would be a hairline of app colour across the output.
+    val stripHeight by animateDpAsState(
         targetValue = if (chromeCollapsed) {
             COLLAPSED_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET
         } else {
@@ -272,7 +255,7 @@ fun TerminalTopBar(
             durationMillis = CHROME_ANIMATION_MILLIS,
             delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
         ),
-        label = "collapsedScrimHeight",
+        label = "collapsedStripHeight",
     )
 
     Box(
@@ -280,17 +263,24 @@ fun TerminalTopBar(
             .fillMaxWidth()
             .height(statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET),
     ) {
-        // A scrim over whatever is behind it, never a fill of its own — see
-        // COLLAPSED_SCRIM_ALPHA. It is a sibling of the row rather than the row's
-        // background because the row is offset out of the strip when collapsed,
-        // and a background set on the row would travel with it and leave the
-        // strip empty behind it.
+        // Drosh's background, not the terminal's, and not a scrim over it.
+        //
+        // The terminal background is a user setting and defaults to true black,
+        // so either of those put a *terminal-coloured* or *nearly-black* surface
+        // at the top of the screen that belongs to nothing: it read as a foreign
+        // bar rather than as this app holding its own chrome. The strip is the
+        // app's own colour, the same one behind the terminal frame and the
+        // sidebar, so the pills sit in Drosh rather than on top of it.
+        //
+        // A sibling of the row rather than the row's background, because the row
+        // is offset out of the strip when collapsed and a background set on the
+        // row would travel with it, leaving the strip empty behind it.
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(scrimHeight)
-                .background(Color.Black.copy(alpha = COLLAPSED_SCRIM_ALPHA)),
+                .height(stripHeight)
+                .background(DroshBackground),
         )
 
         var moreExpanded by remember { mutableStateOf(false) }

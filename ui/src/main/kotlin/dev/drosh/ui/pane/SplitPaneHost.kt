@@ -265,10 +265,7 @@ fun SplitPaneHost(
              * it could only ever be drawn around the seam's own position.
              */
             if (dragging) {
-                StepGuides(
-                    stepFractions = layout.splitSteps(),
-                    currentFraction = seamPx / heightPx,
-                )
+                StepGuides(currentFraction = seamPx / heightPx)
             }
 
             SplitDivider(
@@ -320,49 +317,58 @@ fun SplitPaneHost(
 }
 
 /**
- * Faint rules up the screen marking where the divider can land, shown while it
- * is held.
+ * Faint rules at the two heights where releasing collapses the split, shown only
+ * while the divider is held.
  *
  * ## Why they exist
  *
- * The divider snaps to five positions. Without a mark for each, every release is
- * a guess: the user drags, lets go, and the seam is somewhere they did not aim
- * for. That reads as the control jumping on its own, and it is the reason
- * "the divider has no steps" felt true even though the code had five.
+ * A drag that keeps its position has no steps to mark, so the only release
+ * outcomes left worth warning about are the two ends. These lines say where they
+ * are, and they fade out as the seam approaches — so the answer to "how much
+ * further do I have to drag" is legible before the finger lifts.
  *
- * The nearest line to the seam brightens as the finger approaches it, so
- * "release and it goes *here*" is legible before the finger lifts — which is the
- * whole point of snapping rather than landing anywhere.
+ * They used to mark four stepped positions and brighten the nearest one, on the
+ * theory that a release would snap. It stopped snapping when it started keeping
+ * the position the user dragged to; the steps moved to the overflow's "Move
+ * divider", which is the only control with no position of its own to remember. A
+ * guide that brightens a line the seam will not reach is worse than none.
  *
- * Only while held. Four permanent rules across a terminal is exactly the thing
- * a terminal should not look like.
+ * Only while held. Permanent rules across a terminal is exactly the thing a
+ * terminal should not look like.
  */
 @Composable
 private fun StepGuides(
-    stepFractions: List<Float>,
     currentFraction: Float,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val hostHeight = constraints.maxHeight
         if (hostHeight <= 0) return@BoxWithConstraints
 
-        val nearest = stepFractions.minByOrNull { abs(it - currentFraction) }
+        // Two ends, not the nearest step.
+        //
+        // These lines used to mark the four stepped positions and brighten the
+        // nearest one, which said "release and it lands here". The divider stopped
+        // snapping when it started keeping the position the user dragged to — the
+        // steps moved to the overflow's "Move divider", which is the only thing
+        // that still steps — so the guides went on promising a snap that no longer
+        // exists, and brightening a line the seam was not going to reach.
+        //
+        // What they can honestly say now is where the *edges* are: drag far enough
+        // and the split closes and the surviving pane takes the screen.
+        val collapseAt = PaneLayout.COLLAPSE_FRACTION
+        val edges = listOf(collapseAt, 1f - collapseAt)
 
-        stepFractions.forEach { fraction ->
+        edges.forEach { fraction ->
             val y = (fraction * hostHeight).roundToInt()
-            val isNearest = fraction == nearest
             val distance = abs(fraction - currentFraction)
             val strength = (1f - distance / STEP_FADE_RANGE).coerceIn(0f, 1f)
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (isNearest) STEP_MARKER_ACTIVE else STEP_MARKER_THICK)
+                    .height(STEP_MARKER_ACTIVE)
                     .background(
-                        (if (isNearest) DroshPrimary else DroshOutline).copy(
-                            alpha = if (isNearest) STEP_MARKER_ACTIVE_ALPHA
-                            else STEP_MARKER_ALPHA * strength,
-                        ),
+                        DroshOutline.copy(alpha = STEP_MARKER_ALPHA * strength),
                     )
                     .offset { IntOffset(0, y) },
             )
@@ -373,10 +379,8 @@ private fun StepGuides(
 /** How close the seam has to be for a step's line to be at full strength. */
 private const val STEP_FADE_RANGE = 0.12f
 
-private val STEP_MARKER_THICK = 1.dp
 private val STEP_MARKER_ACTIVE = 2.dp
 private const val STEP_MARKER_ALPHA = 0.5f
-private const val STEP_MARKER_ACTIVE_ALPHA = 0.9f
 
 /**
  * The seam between two docked panes, dragging vertically.
@@ -538,7 +542,17 @@ private fun FloatingPaneWindow(
         ) {
             EdgeSnappedStrip(
                 title = title,
-                vertical = bounds.width <= bounds.height,
+                // From the *strip*, not from the pane it used to be.
+                //
+                // A parked pane is a thin bar: about 12% of one dimension and most
+                // of the other, so which one is thin says which edge it went to.
+                // The pane's own proportions cannot — a nearly square pane snaps to
+                // a strip on either axis and reads the same way both times, which
+                // put the restore arrow pointing sideways for a pane parked at the
+                // top. That is the guess this very function's comment rejects.
+                parkedOnSide = (
+                    bounds.width * hostWidthPx
+                    ) < (bounds.height * hostHeightPx),
                 hostWidthPx = hostWidthPx,
                 hostHeightPx = hostHeightPx,
                 bounds = bounds,
@@ -678,15 +692,17 @@ private fun FloatingPaneWindow(
 /**
  * The parked-pane strip: name, a grip, and a way back.
  *
- * Orientation follows which edge the pane went to, decided by which dimension
- * the snap shrank — a left or right snap narrows it, a top or bottom snap
- * shortens it. Guessing from the aspect ratio would be wrong for a pane that was
- * nearly square to begin with.
+ * Orientation follows the shape of the **strip**, which is a thin bar — about 12%
+ * of one dimension and most of the other — so the thin one says which edge the
+ * pane went to. The pane's own proportions before the snap cannot say it: a
+ * nearly square pane reads the same either way and picked a side for a pane
+ * parked at the top, which is what this function's comment said not to do.
  */
 @Composable
 private fun EdgeSnappedStrip(
     title: String,
-    vertical: Boolean,
+    /** True when the pane is parked against the left or right edge. */
+    parkedOnSide: Boolean,
     hostWidthPx: Float,
     hostHeightPx: Float,
     bounds: NormalizedRect,
@@ -724,13 +740,18 @@ private fun EdgeSnappedStrip(
         // Rotated rather than reflowed when the strip is tall and narrow, so the
         // name reads along the edge rather than as one character per line.
         Text(
-            text = if (vertical) name else name,
+            // Both branches are the name. Rotating the label so it reads along a
+            // side-parked strip was the intent; the transform was never written,
+            // so what shipped was a plain centred label — which is right for a
+            // top-parked strip and merely acceptable for a side one. Stated as
+            // the name rather than as a branch that does nothing.
+            text = name,
             color = DroshText,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            textAlign = if (vertical) TextAlign.Center else TextAlign.Start,
+            textAlign = TextAlign.Center,
             modifier = Modifier
                 .padding(horizontal = 8.dp, vertical = 10.dp)
                 .clearAndSetSemantics { },
@@ -741,7 +762,8 @@ private fun EdgeSnappedStrip(
         // arrow into the screen is the one symbol that always means "bring this
         // back".
         val restoreIcon = when {
-            vertical -> if (leftPx <= 0) DroshIcons.ArrowRight else DroshIcons.ArrowLeft
+            parkedOnSide ->
+                if (leftPx <= 0) DroshIcons.ArrowRight else DroshIcons.ArrowLeft
             topPx <= 0 -> DroshIcons.ArrowDown
             else -> DroshIcons.ArrowUp
         }
