@@ -36,6 +36,10 @@ object TerminalZoom {
      * pinching to get closer both move the font a little. 4% is roughly the
      * width of one character at the default size — smaller than that, the
      * terminal looks unchanged anyway, so nothing is lost by ignoring it.
+     *
+     * A threshold on *starting*, not a cap on travel: once a gesture has crossed
+     * it, returning to the origin has to undo it. Re-testing it per frame would
+     * freeze a pinch at its peak, which is the one behaviour a zoom cannot have.
      */
     const val DEAD_ZONE: Float = 0.04f
 

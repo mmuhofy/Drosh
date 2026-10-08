@@ -1,6 +1,7 @@
 package dev.drosh.domain.terminal
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -72,6 +73,37 @@ class TerminalZoomTest {
         assertEquals(pastDeadZone(1.05f), pastDeadZone(0.95f))
     }
 
+    /**
+     * Crossing the dead zone once does not limit how far the same gesture may
+     * then travel, in either direction.
+     *
+     * The regression this exists for: gating every frame on the zone left the
+     * terminal at the peak of a pinch once the fingers came back, so the zoom
+     * could not be undone by the gesture that made it.
+     */
+    @Test
+    fun `once past the dead zone the zone stops gating`() {
+        val base = 14f
+        var accumulated = 1f
+        var latched = false
+        fun apply(scale: Float): Float {
+            accumulated *= clampStep(scale)
+            if (!latched) {
+                if (!pastDeadZone(accumulated)) return Float.NaN
+                latched = true
+            }
+            return quantise(base * accumulated)
+        }
+        // Out past the zone...
+        assertTrue(apply(1.08f) > base)
+        // ...all the way to the stop...
+        assertTrue(apply(1.6f) > 0f)
+        // ...and back to the origin: the size follows the fingers home.
+        apply(1 / 1.08f)
+        val backHome = apply(1 / 1.6f)
+        assertEquals(base, backHome, 0.05f)
+    }
+
     @Test
     fun `one event cannot be worth more than a bounded step`() {
         // A third finger landing reads as a large ratio; without the clamp it
@@ -95,25 +127,34 @@ class TerminalZoomTest {
         val frames = listOf(1.06f, 1.12f, 1 / 1.06f, 1 / 1.12f)
         var accumulated = 1f
         var last = base
+        var latched = false
+        var peak = base
         for (scale in frames) {
             accumulated *= clampStep(scale)
-            if (pastDeadZone(accumulated)) last = quantise(base * accumulated)
+            if (!latched) {
+                if (!pastDeadZone(accumulated)) continue
+                latched = true
+            }
+            last = quantise(base * accumulated)
+            if (last > peak) peak = last
         }
         // The size during the gesture tracked the fingers...
-        assertEquals(quantise(base * 1.06f * 1.12f), last, TOLERANCE)
-        // ...and the size after it is the size it started at.
-        assertEquals(base, quantise(base * accumulated), TOLERANCE)
+        assertEquals(quantise(base * 1.06f * 1.12f), peak, TOLERANCE)
+        // ...and the size after it is the size it started at, not the peak.
+        assertEquals(base, last, TOLERANCE)
     }
 
     /**
      * Zooming in and out by the same gesture ends at the original size, not
      * near it.
+     *
+     * 20 frames out and 20 back is roughly a two-second pinch each way, which
+     * is where an accumulating implementation would visibly drift.
      */
     @Test
     fun `symmetric gesture is size neutral`() {
         val base = 14f
         var accumulated = 1f
-        // 20 frames out, 20 frames back, in the same increments.
         repeat(20) { accumulated *= clampStep(1.02f) }
         repeat(20) { accumulated *= clampStep(1 / 1.02f) }
         assertEquals(base, quantise(base * accumulated), 0.05f)

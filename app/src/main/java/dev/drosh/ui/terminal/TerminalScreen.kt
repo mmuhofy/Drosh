@@ -1655,6 +1655,7 @@ private fun TerminalViewHost(
         )
     }
 }
+}
 
 /**
  * How long the chip lingers after the fingers lift.

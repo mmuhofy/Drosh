@@ -179,6 +179,16 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
      */
     private var mZoomGestureBaseSp: Float = 0f
 
+    /**
+     * True once the current pinch has moved far enough to count as a zoom.
+     *
+     * Latched for the rest of the gesture, and reset when it ends. The dead
+     * zone exists to ignore a two-finger landing wobble — it is not a limit on
+     * how far a zoom may travel, so once a gesture has crossed it, coming back
+     * to the origin has to be able to undo what going out did.
+     */
+    private var mZoomGesturePassedDeadZone: Boolean = false
+
     internal lateinit var mGestureRecognizer: GestureAndScaleRecognizer
 
     /** Keep track of where mouse touch event started which we report as mouse scroll. */
@@ -335,6 +345,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 // rounded value.
                 mZoomGestureBaseSp = textSizeSp
                 mScaleFactor = 1f
+                mZoomGesturePassedDeadZone = false
             }
 
             override fun onScale(focusX: Float, focusY: Float, scale: Float): Boolean {
@@ -349,15 +360,24 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 mScaleFactor *= step
 
                 // Dead zone, in log-scale so it is symmetric: 4% either way
-                // reads as no movement at this size, and applying it per event
+                // reads as no movement at this size, and testing it per event
                 // would accumulate — 1.04^n passes the threshold during a
                 // gesture that was never a zoom.
-                if (Math.abs(Math.log(mScaleFactor.toDouble())) < TerminalZoom.DEAD_ZONE) return true
+                //
+                // Latched once crossed, and that latch is the whole point of
+                // tracking it separately: without it, returning the fingers to
+                // where they started puts the total back inside the dead zone
+                // and the terminal keeps the size from the peak of the pinch —
+                // a zoom that cannot be undone by the same gesture.
+                if (!mZoomGesturePassedDeadZone) {
+                    if (Math.abs(Math.log(mScaleFactor.toDouble())) < TerminalZoom.DEAD_ZONE) return true
+                    mZoomGesturePassedDeadZone = true
+                }
 
                 // From the gesture's origin, not from the current size: past
-                // the dead zone the terminal jumps to where the fingers
-                // actually are, rather than starting the ramp from the size it
-                // stalled at.
+                // the dead zone the terminal goes to where the fingers
+                // actually are, rather than ramping from the size it stalled
+                // at.
                 val base = if (mZoomGestureBaseSp > 0f) mZoomGestureBaseSp else textSizeSp
                 zoomTo(base * mScaleFactor, focusX, focusY)
                 mClient?.onZoom(textSizeSp, focusX, focusY)
@@ -369,6 +389,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 // size is now worth persisting.
                 mScaleFactor = 1f
                 mZoomGestureBaseSp = 0f
+                mZoomGesturePassedDeadZone = false
                 mClient?.onZoomEnd(textSizeSp)
             }
 
