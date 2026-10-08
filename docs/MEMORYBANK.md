@@ -296,7 +296,7 @@ The system status bar and the floating pill row are one decision, not two:
 
 | State | When | Status bar | Behind it | Pills |
 |-------|------|-----------|-----------|-------|
-| **Collapsed** | a session nobody has scrolled yet, **or** the viewport is up in the scrollback, **or** a TUI owns the terminal | hidden | a **scrim over the terminal**, not a fill | inside the vacated band, 4dp from the top |
+| **Collapsed** | a session nobody has scrolled yet, **or** the viewport is up in the scrollback, **or** a TUI owns the terminal | hidden | **Drosh's own background** | inside the vacated band, 4dp from the top |
 | **Expanded** | at the live edge, and the session has been scrolled | shown, **transparent** — the terminal runs on behind the clock | nothing | below the strip, floating over the output, with the backdrop blur |
 
 ```
@@ -320,12 +320,14 @@ off `onScrollPositionChanged`: that one also fires from `onScreenUpdated`, which
 answered "has anyone touched this" with yes. That bug shipped, and the symptom
 was the collapsed state never appearing at all.
 
-**The scrim, not a fill.** Collapsed, what sits behind the pills is a ~35% black
-scrim over the terminal. Any solid fill is a second surface, and a terminal with a
-second surface above it reads as a header on a document — a band, with an edge,
-and a mismatch against whatever terminal background the user picked. The pills
-move rather than disappearing, which is the other half of the Obsidian reference:
-they are how you get back to search, sessions and the agent.
+**The strip is Drosh's colour.** Collapsed, what sits behind the pills is
+`DroshBackground` — the same colour behind the terminal frame and the sidebar.
+Both of the alternatives were tried and both were wrong: the terminal background
+(default true black) and a scrim over it put a surface from the terminal's own
+world at the top of a screen the rest of which belongs to the app, and it read as
+a foreign bar laid over the terminal. The pills move rather than disappearing,
+which is the other half of the Obsidian reference: they are how you get back to
+search, sessions and the agent.
 
 **Every layout measurement reads `statusBarsIgnoringVisibility`, never
 `statusBars`.** The bar's visibility changes on scroll and `statusBars` reads
