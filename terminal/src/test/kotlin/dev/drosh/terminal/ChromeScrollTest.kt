@@ -71,7 +71,7 @@ class ChromeScrollTest {
         var atEdge = true
         var transitions = 0
 
-        for (topRow in -1..-30) {
+        for (topRow in -1 downTo -30) {
             val next = chromeIsAtLiveEdge(topRow, atEdge)
             if (next != atEdge) transitions++
             atEdge = next
@@ -98,7 +98,7 @@ class ChromeScrollTest {
     fun `reading one or two rows back does not move the chrome`() {
         var atEdge = true
         var transitions = 0
-        for (topRow in 0..-2..-1) {
+        for (topRow in 0 downTo -1) {
             val next = chromeIsAtLiveEdge(topRow, atEdge)
             if (next != atEdge) transitions++
             atEdge = next
