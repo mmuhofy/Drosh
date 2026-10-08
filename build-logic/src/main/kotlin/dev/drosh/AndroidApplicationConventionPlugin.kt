@@ -23,8 +23,13 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
         // handed the Project explicitly. Inside `extensions.configure<…>` the
         // receiver is the extension, which happens to expose a `project` of its
         // own — relying on which `project` that resolves to is a trap.
-        val versionCode = resolveVersionCode(target)
-        val versionName = resolveVersionName(target)
+        //
+        // Named `publishVersion*` rather than `version*` for the same class of
+        // reason: `defaultConfig { versionCode = versionCode }` resolves the
+        // right-hand side to `ApplicationDefaultConfig.versionCode` — the
+        // property being assigned — and tries to reassign a val.
+        val publishVersionCode = resolveVersionCode(target)
+        val publishVersionName = resolveVersionName(target)
 
         with(target) {
             with(pluginManager) {
@@ -46,8 +51,8 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     applicationId = DroshBuildConfig.APPLICATION_ID
                     minSdk = DroshBuildConfig.MIN_SDK
                     targetSdk = DroshBuildConfig.TARGET_SDK
-                    versionCode = versionCode
-                    versionName = versionName
+                    versionCode = publishVersionCode
+                    versionName = publishVersionName
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
                     vectorDrawables.useSupportLibrary = true
                 }
