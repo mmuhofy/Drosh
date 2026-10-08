@@ -115,6 +115,14 @@ class MainActivity : ComponentActivity() {
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
+            // A shown status bar over the terminal has to be see-through for the
+            // clock to sit on the output rather than on a grey slab. Below API 35
+            // Android paints a translucent scrim behind the bar on its own the
+            // moment it is shown over content, and no amount of
+            // `statusBarColor = TRANSPARENT` suppresses it. The terminal screen
+            // shows the bar whenever the viewport is at the live edge, so this
+            // would be a bar appearing and disappearing with its own background.
+            window.isStatusBarContrastEnforced = false
         }
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = false

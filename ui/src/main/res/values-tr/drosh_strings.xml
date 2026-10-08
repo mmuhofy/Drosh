@@ -73,8 +73,6 @@
     <string name="settings_terminal_mode_desc">Bir komut ve çıktısının nasıl yerleştiği</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Blok</string>
-    <string name="settings_fullscreen_mode">Tam ekran modu</string>
-    <string name="settings_fullscreen_mode_desc">Çalışırken status bar gizlenir, geri scroll edince geri gelir</string>
     <string name="settings_section_ai">Yapay zekâ</string>
     <string name="settings_agent">Agent</string>
     <string name="settings_agent_desc">OpenRouter anahtarı, Exa arama anahtarı ve model</string>

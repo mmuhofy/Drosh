@@ -50,7 +50,7 @@ Termux brought the terminal to Android in 2012. Drosh reinvents it for 2026. Not
 | LLM (v2.0+)     | + Ollama, llama.cpp                    | Local optional                     |
 | HTTP/Stream     | OkHttp 4.12.x + SSE                    | Agent streaming                    |
 | SSH             | SSHJ 0.38.x                            | Modern, actively maintained        |
-| Storage         | Room 2.8.4 + FTS5                      | Command DNA, session history       |
+| Storage         | Room 2.8.5                            | Command DNA, session history       |
 | Preferences     | DataStore 1.1.x                        | Settings, shortcuts                |
 | Security        | AndroidX Security Crypto 1.1.x         | API keys, SSH Key Vault            |
 | Serialization   | Kotlinx Serialization 1.7.x            | Shortcut export/import, themes     |
@@ -287,6 +287,47 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 ---
 
 ## 7. Terminal Core
+
+### Top chrome follows the scroll — two states, no setting
+
+*Decided 2026-10-08. Replaces the "Fullscreen mode" setting, which is deleted.*
+
+The system status bar and the floating pill row are one decision, not two:
+
+| State | When | Status bar | Band behind it | Pills |
+|-------|------|-----------|----------------|-------|
+| **Collapsed** | viewport scrolled up into the scrollback, **or** a TUI owns the terminal | hidden | opaque, painted in the terminal's own background | inside the band, 4dp from the top |
+| **Expanded** | viewport at the live edge | shown, **transparent** — the terminal runs on behind the clock | none | below the band, floating over the output |
+
+A TUI takes the collapsed state unconditionally and stops consulting the
+scroll: nano, vim and htop own the whole screen, so a status bar over them is
+in the way whether or not anything has been scrolled. The signal is
+`TerminalManager.focusedPaneAltBuffer` — per **focused** pane, so a vim in the
+background pane does not collapse the controls out from under a shell the user
+is still reading.
+
+**The terminal is full-bleed and there is no reserved band above it.** This is
+the prototype's model and it is what lets the expanded state's bar be
+transparent with the output behind it. The consequence is that at the live edge
+the top couple of rows sit under the status bar and under the pills. That is
+accepted: a fixed grid cannot be inset without resizing, and resizing re-wraps
+every line of output.
+
+**Every layout measurement reads `statusBarsIgnoringVisibility`, never
+`statusBars`.** The bar's visibility now changes on every scroll and
+`statusBars` reads zero the moment it hides, so a live-inset measurement would
+collapse the top of the screen at the exact moment the row is supposed to move
+upward on purpose. The earlier `remember { }` capture was a workaround for the
+old always-hidden setting and is gone.
+
+**The settings toggle is deleted, not deprecated.** `autoHideStatusBar` is
+removed from the repository interface, the DataStore, the ViewModel and the
+settings screen. A setting for this could only ever have meant "ignore the
+scroll", which is the one behaviour the mechanic must not have.
+
+`isStatusBarContrastEnforced = false` in `MainActivity`. Below API 35 Android
+paints its own translucent scrim behind a shown status bar over content, and no
+`statusBarColor = TRANSPARENT` suppresses it.
 
 ### Block-Based Output
 Every command execution produces a Block:
@@ -653,6 +694,38 @@ into this one.
 - The second pane does not repeat the MOTD widget, deliberately.
 - Floating-window position is remembered, but there is no "reset layout".
 
+### The divider resizes live, and a drag past the end leaves split view
+
+*Corrected 2026-10-08. Both halves of this were broken, and in opposite ways.*
+
+The panes used to be **removed from composition for the whole drag** and put
+back on release, on the theory that two `TerminalView`s re-measuring per frame
+juddered. The model was still written every frame and nothing consumed it
+visually, so the seam moved and nothing else did — a divider that cannot do
+the one thing a divider is for. Both panes now stay composed and take their
+heights from the seam's live pixel position.
+
+The second half was a clamp that disagreed with the model. The seam was
+floored at 96dp at both ends, while the collapse threshold is
+`COLLAPSE_FRACTION` = 0.1 — and 96dp is more than 10% of the host on every
+phone that exists, so `commitDraggedFraction`'s `<=` test could never fire.
+`collapsed()` was unreachable from the gesture, which is what "split viewden
+çıkılmıyor" was. The seam is now clamped to `[0, height - 1]` and the model
+does the real clamping.
+
+Which pane survives the collapse is **the pane the user grew**, not the one
+that happened to be primary. Dragging the seam down leaves the top pane full
+height, and dropping the bottom session there would throw away the terminal
+they had just made room for. `PaneLayout.collapsedSurvivingSlot()` decides;
+`PaneSessionBinder.promoteSecondaryToPrimary()` carries it out, and the
+promotion re-publishes the active session, the alt-buffer state and the block
+engine's binding, because the primary pane's *contents* changed even though
+its view and its focus did not.
+
+`collapsed()` also resets `splitFraction` to `DEFAULT_SPLIT_FRACTION`. It used
+to keep the collapse-zone value, and nothing else resets geometry, so the next
+split opened with one pane a tenth of the screen tall.
+
 ---
 
 ## 8. Input System
@@ -844,10 +917,48 @@ so a plain `ADD COLUMN` would take every existing install down at launch. The
 column is appended last so the `INSERT ... SELECT` can name the original six and
 read NULL — the correct value, since every session predates grouping.
 
+### Downgrades wipe; upgrades stay fail-loud
+
+*Decided 2026-10-08.*
+
+Room is asymmetric on purpose:
+
+- **Up** — an unregistered migration **throws**. Shipping a schema change
+  without the migration that carries it is a mistake, and it should be loud.
+- **Down** — `fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)`
+  recreates the tables. A downgrade is a developer action, not a shipping
+  defect, and the alternative was an app that could not launch at all with no
+  way out short of clearing app data.
+
+The root cause was not Room. **Every build shipped `versionCode = 1`**, and
+Android refuses a *lower* versionCode but accepts an *equal* one — so
+checking out an older commit and installing it over a newer one succeeded
+silently (same application id, same committed debug keystore, no uninstall) and
+carried `databases/irisshell.db` over untouched at the newer schema version. The
+older build then had no migration in either direction.
+
+`versionCode` is now `10_000 + <commit count>`, read from git in
+`AndroidApplicationConventionPlugin`, so the ordering of versions *is* the
+ordering of history and an older commit cannot be installed at all.
+`-PversionCode=` / `-PversionName=` override it.
+
+Two consequences that are easy to get wrong:
+
+- **CI needs `fetch-depth: 0`.** `actions/checkout` defaults to depth 1, and a
+  shallow clone counts 1 — every CI APK would come out as 10001 and be
+  interchangeable with every other, reintroducing the downgrade. All three
+  workflows now fetch full history, and the plugin warns loudly if it detects
+  a shallow checkout.
+- **The downgrade fallback is the second line of defence, not the only one.**
+  History can be rewritten and the commit count is not a guarantee.
+
+`data/schemas/*.json` are committed and CI diffs them after `assembleDebug`,
+which is what turned three stale-identity-hash crashes into red builds.
+
 ### Tests
 
 `:domain:test` (runs in `tests.yml`) — `WorkspacePathTest`,
-`WorkspaceEditTest`, `WorkspaceGroupingTest`.
+`WorkspaceEditTest`, `WorkspaceGroupingTest`, `PaneLayoutTest`.
 
 ### Not built
 

@@ -68,18 +68,25 @@ Gruplama çalışıyordu; çevresi çalışmıyordu.
 - [~] **Agent chat'ler gruplanmıyor** — §9 sadece session diyor; ayrı ürün kararı.
 
 ### Next
-- [ ] **`MIGRATION_2_3` gerçek v2 kurulumda denenmedi.** `data/schemas/` bu
-      projede hiç commit edilmediği için Room'un `MigrationTestHelper`'ı için v2
-      fixture yok ve derleme zamanında şema karşılaştırması da yapılmıyor — bu
-      SQL'i yakalayabilecek iki kontrolün ikisi de o dosyalara bağlı. SQL entity
-      şekline göre elle yazıldı ve Room sonucu cihazda açılışta doğruluyor, yani
-      hata sessiz bozulma değil açılış çökmesi olur. **Denediğin yer: eski build
-      çalıştırmış bir cihaz.** Yeni kurulum v3'ü doğrudan açar, migration'ı
-      hiç çalıştırmaz.
-- [ ] **`data/schemas/`'ı commit etmeye başla.** `exportSchema = true` zaten açık
-      ama dizin yok; `DroshDatabase` notu "CI runs exportSchemaDebug" diyor,
-      workflow'da böyle bir adım da yok. Şemalar commit edilirse migration'lar
-      derleme zamanında doğrulanır.
+- [ ] **`MIGRATION_2_3` gerçek v2 kurulumda denenmedi.** Şemalar artık commit
+      edildiği için CI'da diff var, ama **v1/v2 fixture hâlâ yok** — ilk export
+      v3'te yapıldı. `MigrationTestHelper` testi yazılabilmesi için önce o iki
+      sürümün şeması üretilmeli. SQL entity şekline göre elle yazıldı ve Room
+      sonucu cihazda açılışta doğruluyor, yani hata sessiz bozulma değil açılış
+      çökmesi olur. **Denediğin yer: eski build çalıştırmış bir cihaz.**
+- [ ] **`MigrationTestHelper` testi yok.** `room-testing` `:data` classpath'inde
+      ama hiç kullanılmıyor. `3.json`/`4.json` commit edildiği için `3→4` ve
+      `4→5` testleri bugün yazılabilir — elle kopyalanmış `IDENTITY_HASH`
+      sabitlerini yakalayan tek kontrol bu.
+- [ ] **`SshHostEntity.key_id` / `jump_host_id` FK ve index'siz.** Boş nullable
+      kolonlar, `ssh_keys.id` ve `ssh_hosts.id`'yi gösteriyor. Diğer tüm
+      çapraz referanslar (`SessionEntity.workspace_id`) FK tanımlıyor. v6 bump
+      + tablo yeniden kurma gerektirir; şablon `MIGRATION_2_3`'teki `sessions`
+      rebuild'i.
+- [x] ~~**`data/schemas/`'ı commit etmeye başla.**~~ — **çözüldü**, `8d8872b`.
+      `data/schemas/3.json`, `4.json`, `5.json` commit edildi ve
+      `debug.yml`, `assembleDebug` sonrası şemayı diff'leyip uyuşmazlığı
+      artifact olarak yüklüyor. Üç identity-hash çökmesi kırmızı build'e dönüştü.
 - [ ] **Arşiv ekranı.** ~~`archived` kolonu ve `observeArchived()` var ama kimse
       çağırmıyor~~ — **çözüldü**, `feat/workspace-ux`. Arşiv bölümü, geri al ve
       arşivle/arzivden çıkar eylemleri var. Kalan: arşivdeki projeye de session
@@ -221,6 +228,18 @@ Gruplama çalışıyordu; çevresi çalışmıyordu.
 - [x] Floating window: title-bar drag, corner resize, expand to fill, dock back
 - [x] Overflow menu: "Float window" / "Dock pane" / "Close second pane", shown only when split
 - [x] A pane whose session ends is reconciled away
+
+### Corrected (2026-10-08)
+- [x] **Ayrıcı sürükleyince pane'ler canlı boyut değiştiriyor.** Paneler sürükleme
+      boyunca composition'dan çıkarılıp bırakılma anında geri konuyordu; model
+      her karede yazılıyor ama görsel olarak kimse okumuyordu, yani dikiş
+      hareket ediyor, paneler etmiyordu.
+- [x] **Sürükleme uca kadar gidince split view otomatik kapanıyor.** Dikiş 96dp
+      tabanla sınırlıydı, `COLLAPSE_FRACTION` = 0.1 ise her telefonda bu 96dp'den
+      küçük — yani `commitDraggedFraction`'ın `<=` testi hiç ateşlenemiyordu.
+      Kullanıcının büyüttüğü pane hayatta kalıyor (`promoteSecondaryToPrimary`).
+- [x] **`collapsed()` artık `splitFraction`'ı sıfırlıyor.** Bir sonraki split
+      0.1'lik bir stub pane ile açılıyordu.
 
 ### Corrected (PR #27)
 - [x] **Top-to-bottom, not side by side.** Two 180dp columns are ~10 characters wide.

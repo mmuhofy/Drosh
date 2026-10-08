@@ -82,8 +82,6 @@
     <string name="settings_terminal_mode_desc">How a command and its output are laid out</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Block</string>
-    <string name="settings_fullscreen_mode">Fullscreen mode</string>
-    <string name="settings_fullscreen_mode_desc">Hide the status bar while you work; the bar returns when you scroll back</string>
     <string name="settings_section_ai">AI</string>
     <string name="settings_agent">Agent</string>
     <string name="settings_agent_desc">OpenRouter key, Exa search key and model</string>

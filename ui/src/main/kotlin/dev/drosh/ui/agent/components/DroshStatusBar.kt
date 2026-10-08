@@ -15,9 +15,9 @@ import androidx.core.view.WindowInsetsControllerCompat
  *
  * ## Why an agent screen has to ask
  *
- * `TerminalScreen` hides the status bar outright when the immersive setting is on,
- * which is the right call there: a terminal is full-bleed text and the bar is a row
- * of pixels stolen from it.
+ * `TerminalScreen` hides the status bar whenever the viewport is scrolled up into
+ * the scrollback or a TUI owns the terminal, which is the right call there: a
+ * terminal is full-bleed text and the bar is a row of pixels stolen from it.
  *
  * But it hides it through `WindowInsetsControllerCompat` on the *window*, and that
  * state outlives the composable. Nothing in the terminal screen restores it, so

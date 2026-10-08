@@ -16,15 +16,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxWidth
 import dev.drosh.ui.keyboard.droshImePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -130,10 +130,18 @@ import androidx.compose.ui.platform.LocalContext
  */
 private const val PROGRAM_PROMPT_MARKER = "›"
 
-/** Clearance for the system bar, without insetting the background behind it. */
+/**
+ * Clearance for the system bar, without insetting the background behind it.
+ *
+ * The visibility-agnostic inset, deliberately. The system status bar is shown
+ * and hidden by the scroll position, and `statusBars` reads zero the moment it
+ * hides — so anything measured with it here would jump a bar's height every time
+ * the viewport crossed the live edge.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun statusBarInset(): Dp =
-    WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
 
 /** Selection menu metrics. */
 private val MENU_GUTTER = 12.dp
@@ -147,6 +155,15 @@ private val MENU_HEIGHT_PX = 64.dp
 
 /** How much of the terminal's top edge the top bar backdrop samples. */
 private val BACKDROP_STRIP = 72.dp
+
+/**
+ * Room the top bar's row needs below the system bar, for content that can be
+ * padded rather than overlayed.
+ *
+ * Mirrors TerminalTopBar's own geometry — its top offset, its 44dp row and its
+ * bottom gap — so the block list starts under the pills instead of behind them.
+ */
+private val TOP_BAR_CLEARANCE = 60.dp
 
 @Composable
 fun TerminalScreen(
@@ -295,36 +312,35 @@ private fun ReadyScreen(
     }
 
 
-    // ── Immersive status bar ───────────────────────────────────────────────
-    // At the live edge the system status bar is hidden and the Drosh bar's
-    // pills move up into the band it leaves. Scrolling back into the scrollback
-    // puts it back, because that is when the row of controls is actually
-    // wanted. Nothing is drawn over the band: the pills simply move.
+    // ── Chrome: status bar and top bar follow the scroll ────────────────────
     //
-    // The dead zone matters. mTopRow is an integer that changes one row at a
-    // time, and the bar translates on the first row of scrollback, so without
-    // one the bar would strobe while the user reads the last few lines.
+    // Two states, and nothing else:
+    //
+    //  - At the live edge the system status bar is shown with no background of
+    //    its own, so the terminal runs on behind the clock, and the top bar's
+    //    pills drop below the band to float over the output.
+    //  - Up in the scrollback the status bar is hidden, the band it leaves is
+    //    painted in the terminal's own background, and the pills move up into
+    //    that band. Nothing of the terminal shows through behind them.
+    //
+    // A TUI takes the second state unconditionally and stops consulting the
+    // scroll entirely: nano, vim and htop own the whole screen, so a status bar
+    // over them is in the way whether or not anything has been scrolled.
     val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
+    val tuiActive by terminalManager.focusedPaneAltBuffer
+        .collectAsStateWithLifecycle()
 
-    val immersiveSetting by settingsRepository.autoHideStatusBar
-        .collectAsStateWithLifecycle(initialValue = true)
-    // The system status bar is hidden outright when the setting is on, rather
-    // than coming and going with scroll. Hiding and showing it was the visible
-    // part of the jitter: every row of scroll crossed the boundary and the
-    // system bars animated with it. The buttons still move, and that is a small
-    // contained animation on a 44dp row.
-    val immersive = immersiveSetting
-
+    val chromeCollapsed = tuiActive || !atLiveEdge
 
     val activity = LocalDroshActivity.current
-    LaunchedEffect(immersive) {
+    LaunchedEffect(chromeCollapsed) {
         val window = (activity as? android.app.Activity)?.window ?: return@LaunchedEffect
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         // BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE: a swipe from the top edge can
         // still summon the bars, so the user is never trapped out of them.
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        if (immersive) {
+        if (chromeCollapsed) {
             controller.hide(WindowInsetsCompat.Type.statusBars())
         } else {
             controller.show(WindowInsetsCompat.Type.statusBars())
@@ -499,11 +515,16 @@ private fun ReadyScreen(
 
     // Only the classic path has a View to sample; the block engine is a
     // LazyColumn and the alt buffer is a TUI, neither of which needs this.
+    //
+    // Sampling is for when the pills float over output, which is the expanded
+    // state only. Collapsed they sit on the opaque band instead, so there is
+    // nothing behind them to take — and the capture draws the whole terminal, so
+    // asking for it anyway is a full extra render per interval for a slice that
+    // is never drawn.
     val backdrop by rememberTerminalBackdrop(
         terminalView = terminalViewRef.value,
         stripHeight = BACKDROP_STRIP,
-        // In the band there is no terminal behind the row at all.
-        active = immersive && atLiveEdge,
+        active = !chromeCollapsed,
     )
 
     val searchOverlayRef = remember {
@@ -852,30 +873,13 @@ private fun ReadyScreen(
 
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(
-                immersive = immersive,
-                // The status bar visibility follows the setting alone (see the
-                // LaunchedEffect above). The row's position follows BOTH the
-                // setting and scroll — but in the OPPOSITE sense from the
-                // `active` gate below (`immersive && atLiveEdge`), which is a
-                // separate concern (backdrop sampling / selection menu).
-                //
-                // Here: pills tuck into the band while the user is scrolled
-                // UP into scrollback (NOT at the live edge) — reading the
-                // oldest lines, where the opening banner and early output
-                // live, and every row of vertical space matters most.
-                // Scrolling back down to the live edge (current prompt, new
-                // output streaming in) returns the row to its normal position
-                // below the status bar, since that is the "actively working"
-                // state where the controls (search, sessions, agent) are
-                // most likely to be reached for.
-                //
-                // A previous pass wired this to `immersive` alone, which
-                // froze the row in one spot regardless of scroll; a pass
-                // before that had it following `atLiveEdge` directly, which
-                // tucked the row away at the live edge instead of at the top
-                // — backwards from the intended mechanic.
-                rowInBand = immersive && !atLiveEdge,
+                // One flag, because the band only exists while the status bar is
+                // away: hiding the bar and tucking the pills into the space it
+                // left are the same decision, and two booleans drift apart for a
+                // frame on every crossing of the boundary.
+                chromeCollapsed = chromeCollapsed,
                 backdrop = backdrop,
+                collapsedBandColor = terminalBgColor,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
                 onOpenSidebar = {
@@ -1286,15 +1290,15 @@ private fun TerminalPaneBody(
                 .fillMaxWidth()
                 .weight(1f),
         ) {
-            // Behind the frame's own background, so the strip matches the
-            // terminal it sits above without tinting anything else.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .height(statusBarInset())
-                    .background(terminalBgColor),
-            )
+            // No reserved band above the terminal, and no top padding on it.
+            //
+            // The terminal is full-bleed and the chrome is an overlay on top of
+            // it, which is what the prototype does and what the requirement is:
+            // at the live edge the system status bar has no background of its own
+            // so the output runs on behind the clock. A reserved band could only
+            // be given up when the status bar was visible, and giving it up on
+            // scroll would resize the terminal grid — reflowing every wrapped
+            // line of output each time the viewport crossed the boundary.
 
             if (useBlockEngine && !altBufferActive) {
                 val blocks by blockEngineViewModel.blocks.collectAsState()
@@ -1302,9 +1306,7 @@ private fun TerminalPaneBody(
                 val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()
 
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = statusBarInset()),
+                    modifier = Modifier.fillMaxSize(),
                 ) {
                     if (motdMode == MotdMode.Compose && !motdDismissed) {
                         MotdWidget(
@@ -1319,6 +1321,13 @@ private fun TerminalPaneBody(
                             .fillMaxWidth()
                             .weight(1f),
                         state = rememberLazyListState(),
+                        // Scrolls, so it pads for the chrome instead of being
+                        // padded. The classic path cannot do this — a fixed grid
+                        // has no content to inset — which is why the terminal is
+                        // full-bleed there and the pills float over it. Block mode
+                        // has nothing worth overlaying, so the first block is
+                        // pushed clear of them outright.
+                        contentPadding = PaddingValues(top = statusBarInset() + TOP_BAR_CLEARANCE),
                     ) {
                         items(blocks, key = { it.id }) { block ->
                             PromptBlock(
@@ -1383,14 +1392,22 @@ private fun TerminalPaneBody(
                     onBoundsChanged = onBoundsChanged,
                     modifier = Modifier
                         .fillMaxSize()
-                        // The grid still starts below the system bar. Letting the
-                        // first row run behind it puts the prompt under the clock,
-                        // which is unreadable — a fixed grid is not scrolling
-                        // content, so there is nothing to gain from it passing
-                        // underneath. The band itself is painted with the
-                        // terminal's own background just above, so it reads as
-                        // part of the terminal rather than as a strip of its own.
-                        .padding(top = statusBarInset()),
+                        // Full-bleed, deliberately. The grid used to start below
+                        // the system bar so the prompt was never under the clock,
+                        // but that inset is a function of whether the bar is
+                        // showing, and the bar now follows the scroll position —
+                        // so a padding that tracked it resized the grid on every
+                        // crossing of the boundary, re-wrapping every line of
+                        // output. A padding that ignores visibility would fix the
+                        // jumping and lose the guarantee anyway.
+                        //
+                        // The trade is the prototype's: at the live edge the top
+                        // couple of rows sit under the status bar and under the
+                        // pills, which is what lets the terminal read as running
+                        // on behind both. The rows are not lost — the emulator
+                        // still holds them, they just scroll — and the band the
+                        // chrome collapses into is painted in the terminal's own
+                        // background, so there is never a foreign bar across it.
                 )
             }
         }

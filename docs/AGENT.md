@@ -277,7 +277,7 @@ When porting a module from Iris Code:
 1. **Always fetch the latest version** of the file from `mmuhofy/IrisCode` — never reconstruct from memory.
 2. **Adapt package names:** `com.iris.iriscode` → `dev.drosh`
 3. **Adapt color references:** Iris Code uses `#7C3AED` purple. Drosh uses `#E8C547` gold.
-4. **Check dependency versions:** Drosh uses Kotlin `2.3.20`. Confirm compatibility before porting.
+4. **Check dependency versions:** Drosh uses Kotlin `2.2.0` (KGP). Confirm compatibility before porting.
 5. **Document the port** at the top of the file:
    ```kotlin
    // Ported from: mmuhofy/IrisCode — agent/AgentLoop.kt
@@ -378,7 +378,7 @@ Phase 6 — Agent Intelligence ← last
 | Component | Technology | Version |
 |-----------|------------|---------|
 | Package | `dev.drosh` | — |
-| Language | Kotlin | `2.3.20` |
+| Language | Kotlin | `2.2.0` |
 | UI | Jetpack Compose BOM | `2026.04.01` |
 | Material | Material 3 | via BOM |
 | Min SDK | 26 | Android 8.0+ |
@@ -387,7 +387,7 @@ Phase 6 — Agent Intelligence ← last
 | Architecture | MVVM + Clean Architecture | — |
 | DI | Hilt | `2.57` |
 | Navigation | Navigation Compose | via BOM |
-| Local DB | Room + FTS5 | `2.8.4` |
+| Local DB | Room + FTS5 | `2.8.5` |
 | Preferences | DataStore | `1.1.x` |
 | Async | Kotlin Coroutines + Flow | `1.10.x` |
 | SSH | SSHJ | `0.38.x` |
@@ -399,7 +399,7 @@ Phase 6 — Agent Intelligence ← last
 | Image | Coil Compose | `3.x` |
 | Animation | Lottie Compose | `6.x` |
 | Build | Gradle KTS + Version Catalog | — |
-| Annotation | KSP | match Kotlin `2.3.20` |
+| Annotation | KSP | match Kotlin `2.2.0` |
 | Terminal | termux-view + termux-emulator | vendored |
 | Linux | PRoot `5.2.0` + Ubuntu `24.04` | runtime download |
 | LLM (Phase 6 v1.0) | Gemini 3.5 Flash | Google GenAI SDK |
@@ -409,4 +409,4 @@ Phase 6 — Agent Intelligence ← last
 
 > ⚠️ Always confirm versions against `gradle/libs.versions.toml` before referencing any API.
 > ⚠️ Gemini model strings change frequently — always verify before use.
-> ⚠️ Kotlin 2.3.20 + KSP must match — use KSP `2.3.20-x.x.x`.
+> ⚠️ Kotlin 2.2.0 + KSP must match — use KSP `2.2.0-2.0.2`.

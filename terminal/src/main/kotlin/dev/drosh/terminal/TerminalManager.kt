@@ -5,12 +5,15 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import dev.drosh.core.TerminalConstants
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.settings.MotdMode
@@ -402,6 +405,47 @@ class TerminalManager(
         return true
     }
 
+    /**
+     * Moves the second pane's session into the primary pane.
+     *
+     * What a divider drag to either end means. The pane the user grew to full
+     * height is the one they are keeping, and the primary pane is the one the
+     * rest of the app treats as active — so the survivor has to be moved into
+     * it, not just left where it is. Without this the split closed by dragging
+     * the seam down discarded the top pane and kept the bottom one, which is the
+     * opposite of what the gesture asked for.
+     *
+     * Returns false, and changes nothing, when the second pane is empty.
+     */
+    override fun promoteSecondaryToPrimary(): Boolean {
+        val secondary = paneTabIndices[PaneSlot.SECONDARY] ?: NO_PANE_SESSION
+        if (secondary == NO_PANE_SESSION) return false
+
+        paneTabIndices[PaneSlot.PRIMARY] = secondary
+        paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
+
+        paneViews[PaneSlot.PRIMARY]?.let { view ->
+            irisSessions.getOrNull(secondary)?.terminalSession?.let(view::attachSession)
+        }
+        // The second pane keeps whatever it last had until the layout drops it:
+        // the split UI unbinds it on the next composition, and clearing the index
+        // first means anything reading it in between sees "empty" rather than a
+        // session that is no longer supposed to be on screen.
+        //
+        // Everything below is the same tail [focusPane] runs, and for the same
+        // reason: the primary pane's *contents* changed even though its view and
+        // its focus did not, so the active session, the per-session command state
+        // and the block engine's binding all have to be told. Without them the app
+        // would keep reporting the session the user just closed as the active one
+        // — a name that no longer had a terminal behind it.
+        syncActiveTabIndex()
+        val promoted = sessionForSlot(PaneSlot.PRIMARY)
+        blockEngineWire?.onSessionChanged(sessionIdForSlot(PaneSlot.PRIMARY), promoted)
+        publishAltBufferState()
+        publishActiveId()
+        return true
+    }
+
     /** The session shown in [slot], or null when the pane is empty. */
     fun sessionForSlot(slot: PaneSlot): TerminalSession? = irisSessions
         .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
@@ -509,6 +553,24 @@ class TerminalManager(
     }
 
     private val managerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    /**
+     * Whether the pane the user is actually looking at is running a TUI.
+     *
+     * [isAltBufferActive] answers the same question but is a plain function over
+     * a `.value` read, so a composable collecting nothing would only ever see the
+     * answer on the frame it happened to recompose for another reason. The top
+     * bar's chrome is driven by this instead: a TUI owns the whole screen, so the
+     * status bar has to go regardless of where the viewport is scrolled to.
+     *
+     * Joined on focus rather than published per pane, because the question the
+     * chrome asks is about one screen — the foreground pane — and a vim in the
+     * background pane must not collapse the controls out from under a shell the
+     * user is still reading.
+     */
+    val focusedPaneAltBuffer: StateFlow<Boolean> =
+        combine(_focusedPane, _altBufferByPane) { slot, byPane -> byPane[slot] == true }
+            .stateIn(managerScope, SharingStarted.Eagerly, false)
 
     private var prootStartCommand: String = ""
 

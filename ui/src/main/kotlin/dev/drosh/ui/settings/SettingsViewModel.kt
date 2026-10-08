@@ -51,13 +51,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setThemeMode(mode) }
     }
 
-    val autoHideStatusBar: StateFlow<Boolean> = settings.autoHideStatusBar
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
-
-    fun setAutoHideStatusBar(enabled: Boolean) {
-        viewModelScope.launch { settings.setAutoHideStatusBar(enabled) }
-    }
-
     val useBlockEngine: StateFlow<Boolean> = settings.useBlockEngine
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 

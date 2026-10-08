@@ -72,7 +72,6 @@ fun SettingsScreen(
     val themeMode         by viewModel.themeMode.collectAsStateWithLifecycle()
     val locale            by viewModel.locale.collectAsStateWithLifecycle("")
     val useBlockEngine    by viewModel.useBlockEngine.collectAsStateWithLifecycle(false)
-    val autoHideStatusBar by viewModel.autoHideStatusBar.collectAsStateWithLifecycle(true)
     val fontSizeSp        by viewModel.fontSizeSp.collectAsStateWithLifecycle(14)
     val prootStartCommand by viewModel.prootStartCommand.collectAsStateWithLifecycle("")
     val isPinLockEnabled  by viewModel.isPinLockEnabled.collectAsStateWithLifecycle(false)
@@ -156,7 +155,7 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = stringResource(R.string.settings_section_terminal), items = 5) { index, cap ->
+            SettingsGroupColumn(label = stringResource(R.string.settings_section_terminal), items = 4) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
@@ -173,15 +172,6 @@ fun SettingsScreen(
 
                     1 -> SettingsTile(
                         cap = cap,
-                        title = stringResource(R.string.settings_fullscreen_mode),
-                        icon = DroshIcons.Maximize,
-                        supporting = stringResource(R.string.settings_fullscreen_mode_desc),
-                    ) {
-                        SettingsSwitch(autoHideStatusBar, viewModel::setAutoHideStatusBar)
-                    }
-
-                    2 -> SettingsTile(
-                        cap = cap,
                         stacked = true,
                         title = stringResource(R.string.settings_font_size),
                         icon = DroshIcons.Resize,
@@ -195,7 +185,7 @@ fun SettingsScreen(
                         )
                     }
 
-                    3 -> SettingsTile(
+                    2 -> SettingsTile(
                         cap = cap,
                         stacked = true,
                         title = stringResource(R.string.settings_cursor_blink),
