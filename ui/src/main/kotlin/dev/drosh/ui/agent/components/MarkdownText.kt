@@ -110,7 +110,9 @@ fun MarkdownText(
  * as a paragraph of literal `|` characters, which is worse than not supporting them:
  * it looks like the renderer failed rather than like the syntax being off.
  */
-private val parser: Parser = Parser.builder(TablesExtension()).build()
+private val parser: Parser = Parser.builder()
+    .extensions(listOf(TablesExtension()))
+    .build()
 
 /** Parsed outside composition — flexmark is not cheap enough to run per frame. */
 private fun parse(markdown: String): List<FlexNode> =
@@ -258,6 +260,17 @@ private fun MarkdownList(
  * The scroll is on the block and not on the document, so a wide table is panned with
  * a horizontal drag of its own and the transcript keeps its vertical scroll.
  */
+/**
+ * A node's text, for the two places that need a flat string.
+ *
+ * `literal` exists only on the delimited leaf nodes, so it cannot be read off an
+ * arbitrary child — a table cell holds text, links and emphasis at once. The child
+ * list stringifies, which is what a cell's contents and a code block's body both
+ * are: a sequence of segments in document order.
+ */
+private fun nodeText(node: FlexNode): String =
+    node.literal?.toString() ?: node.children.joinToString("") { nodeText(it) }
+
 @Composable
 private fun MarkdownTable(node: TableBlock, onCopy: (String) -> Unit) {
     val palette = CodeColors
@@ -274,7 +287,10 @@ private fun MarkdownTable(node: TableBlock, onCopy: (String) -> Unit) {
             val header = row.parent is TableHead
             Row {
                 row.children.toList().filterIsInstance<TableCell>().forEach { cell ->
-                    val text = cell.children.joinToString("") { it.literal?.toString().orEmpty() }
+                    // `literal` is only on the delimited leaf nodes, so a cell's
+                    // text is whatever its children stringify to. Reading literal
+                    // off the child does not resolve for every child type.
+                    val text = cell.children.joinToString("") { nodeText(it) }
                     Text(
                         text = text,
                         fontSize = 12.sp,
@@ -298,7 +314,7 @@ private fun CodeBlockView(
     val language = SyntaxLanguages.resolve(
         (node as? com.vladsch.flexmark.ast.FencedCodeBlock)?.info?.toString(),
     )
-    val raw = node.children.joinToString("\n") { it.literal?.toString().orEmpty() }
+    val raw = node.children.joinToString("\n") { nodeText(it) }
     val highlighted = remember(raw, language) {
         SyntaxHighlighter(language, palette).highlight(raw)
     }
@@ -375,7 +391,26 @@ private fun InlineText(
  * searching for `**` afterwards, gets confused by a literal `*` inside a code span,
  * which is exactly what a path glob or a regex looks like.
  */
-private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
+/**
+ * An autolink's visible text.
+ *
+ * `AutoLink` extends `DelimitedLinkNode`, which is not a `Node`, so it has neither
+ * children nor a literal. Its text is in `segments` — the bracketed runs flexmark
+ * splits the URL into, which is exactly the part a reader should see.
+ */
+private fun childLabel(link: com.vladsch.flexmark.ast.AutoLink): String =
+    link.segments.joinToString("") { it.toString() }
+
+@Composable
+private fun inlineText(node: FlexNode): AnnotatedString {
+    // Inline code's chip and a link's tint both read theme tokens, which are
+    // @Composable getters over LocalDroshColors. Reading them here rather than
+    // inside the builder lambda is what keeps this function composable — a
+    // buildAnnotatedString block is not a composable scope.
+    val inlineCodeBackground = DroshSurfaceHigh.copy(alpha = 0.55f)
+    val linkColor = DroshPrimary
+
+    return buildAnnotatedString {
     fun walk(current: FlexNode, emphasis: SpanStyle) {
         current.children.toList().forEach { child ->
             when (child) {
@@ -390,9 +425,6 @@ private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
                 is com.vladsch.flexmark.ast.StrongEmphasis ->
                     walk(child, emphasis.merge(SpanStyle(fontWeight = FontWeight.Bold)))
 
-                is com.vladsch.flexmark.ast.Strikethrough ->
-                    walk(child, emphasis.merge(SpanStyle(textDecoration = TextDecoration.LineThrough)))
-
                 is com.vladsch.flexmark.ast.Code ->
                     // Inline code is a monospace chip, not just a font change: the
                     // background is what tells a path from a word.
@@ -401,23 +433,26 @@ private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
                             SpanStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 13.sp,
-                                background = DroshSurfaceHigh.copy(alpha = 0.55f),
+                                background = inlineCodeBackground,
                             ),
                         ),
                     )
                     append(child.literal?.toString().orEmpty())
                     pop()
 
-                is com.vladsch.flexmark.ast.AutoLink ->
-                    pushStyle(emphasis.merge(SpanStyle(color = DroshPrimary)))
-                    append(child.children.joinToString("") { it.literal?.toString().orEmpty() })
+                is com.vladsch.flexmark.ast.AutoLink -> {
+                    // AutoLink is not a Node, so it has no children to walk: its
+                    // label is carried on the class itself.
+                    pushStyle(emphasis.merge(SpanStyle(color = linkColor)))
+                    append(childLabel(child))
                     pop()
+                }
 
                 is com.vladsch.flexmark.ast.Link ->
                     pushStyle(
                         emphasis.merge(
                             SpanStyle(
-                                color = DroshPrimary,
+                                color = linkColor,
                                 textDecoration = TextDecoration.Underline,
                             ),
                         ),
@@ -447,6 +482,6 @@ private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
                 }
             }
         }
+        walk(node, SpanStyle())
     }
-    walk(node, SpanStyle())
 }
