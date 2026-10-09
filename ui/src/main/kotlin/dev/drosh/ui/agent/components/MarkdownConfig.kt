@@ -1,5 +1,6 @@
 package dev.drosh.ui.agent.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -11,7 +12,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mikepenz.markdown.compose.components.MarkdownComponentModel
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownDimens
@@ -21,7 +21,6 @@ import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.OutfitFontFamily
 
@@ -107,14 +106,17 @@ private class DroshMarkdownDimens : MarkdownDimens {
 }
 
 private class DroshMarkdownPadding : MarkdownPadding {
-    override val block: Dp get() = 6.dp
-    override val list: Dp get() = 4.dp
-    override val listItemBottom: Dp get() = 2.dp
-    override val indentList: Dp get() = 16.dp
-    override val codeBlock: Dp get() = 8.dp
-    override val blockQuote: Dp get() = 8.dp
-    override val blockQuoteText: Dp get() = 2.dp
-    override val blockQuoteBar: Dp get() = 10.dp
+    // Several of these are PaddingValues rather than a single Dp, because the library
+    // applies different edges to them — a block quote pads its bar away from its text,
+    // which one number cannot express.
+override val block: PaddingValues get() = PaddingValues(vertical = 6.dp)
+    override val list: PaddingValues get() = PaddingValues(vertical = 4.dp)
+    override val listItemBottom: PaddingValues get() = PaddingValues(bottom = 2.dp)
+    override val indentList: PaddingValues get() = PaddingValues(start = 16.dp)
+    override val codeBlock: PaddingValues get() = PaddingValues(all = 8.dp)
+    override val blockQuote: PaddingValues get() = PaddingValues(vertical = 8.dp)
+    override val blockQuoteText: PaddingValues get() = PaddingValues(horizontal = 2.dp)
+    override val blockQuoteBar: PaddingValues get() = PaddingValues(end = 10.dp)
 }
 
 /** Matches the corner radius the code block draws itself with. */
