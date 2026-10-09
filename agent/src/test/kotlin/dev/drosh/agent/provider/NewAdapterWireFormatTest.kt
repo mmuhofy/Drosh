@@ -400,7 +400,8 @@ class NewAdapterWireFormatTest {
     fun `responses does not double the arguments when both deltas and the final item carry them`() {
         // `output_item.done` repeats the complete arguments. Appending them to a
         // buffer that already holds them yields `{"a":1}{"a":1}`, which parses
-        // as nothing and hands the tool an empty argument object.
+        // as nothing and hands the tool an empty argument object. The delta is
+        // parsed here to assert the two are distinguishable at all.
         val opened = responses.parseFrame(
             """{"type":"response.output_item.added","item":{"type":"function_call",""" +
                 """"id":"fc_1","call_id":"call_a","name":"shell"}}""",
@@ -415,12 +416,19 @@ class NewAdapterWireFormatTest {
                 """"arguments":"{\\"command\\":\\"ls\\"}"}}""",
         )
 
-        // The done event must still close the call, not just top up the buffer.
+        assertEquals("call_a", opened.callId)
+        // The two sources of the same arguments, told apart.
+        assertFalse(delta.fromFinalEvent)
+
+        // The call is closed here rather than left for the end-of-stream sweep,
+        // and the repeated arguments are marked as a repeat so the pump can drop
+        // them.
         val closed = done.filterIsInstance<OpenAiResponsesAdapter.Frame.ToolDone>()
-        assertTrue(closed.isNotEmpty())
+        assertEquals(1, closed.size)
         assertEquals("fc_1", closed.single().itemId)
-        // And it must not ask for the arguments again.
-        assertTrue(done.none { it is OpenAiResponsesAdapter.Frame.ToolArgs })
+
+        val repeat = done.filterIsInstance<OpenAiResponsesAdapter.Frame.ToolArgs>().single()
+        assertTrue(repeat.fromFinalEvent)
     }
 
     @Test
@@ -433,9 +441,12 @@ class NewAdapterWireFormatTest {
                 """"arguments":"{\\"command\\":\\"ls\\"}"}}""",
         )
 
-        // Seeded from the final item, then closed — in that order.
+        // Seeded from the final item, then closed — in that order. The seed is
+        // marked as a final-event copy, which is what lets the pump treat it as
+        // the only copy when no deltas arrived.
         assertEquals(2, frames.size)
         assertTrue(frames[0] is OpenAiResponsesAdapter.Frame.ToolArgs)
+        assertTrue((frames[0] as OpenAiResponsesAdapter.Frame.ToolArgs).fromFinalEvent)
         assertTrue(frames[1] is OpenAiResponsesAdapter.Frame.ToolDone)
     }
 
@@ -569,11 +580,14 @@ class NewAdapterWireFormatTest {
         val args = responses.parseFrame(
             """{"type":"response.function_call_arguments.delta","item_id":"item_1",""" +
                 """"delta":"{\"a\":"}""",
-        )
+        ).single() as OpenAiResponsesAdapter.Frame.ToolArgs
 
         assertEquals("Hello", (text.single() as OpenAiResponsesAdapter.Frame.Text).delta)
         assertEquals("hmm", (reasoning.single() as OpenAiResponsesAdapter.Frame.Reasoning).delta)
-        assertEquals("item_1", (args.single() as OpenAiResponsesAdapter.Frame.ToolArgs).itemId)
+        assertEquals("item_1", args.itemId)
+        // A delta, not the final repeat: the pump records the first kind and
+        // drops the second.
+        assertFalse(args.fromFinalEvent)
     }
 
     @Test

@@ -172,6 +172,11 @@ class OpenAiResponsesAdapter @Inject constructor(
                     }
 
                     is Frame.ToolArgs -> {
+                        // The final event repeats every argument the deltas
+                        // already delivered. Skipping the repeat is the whole
+                        // point of tracking which items streamed.
+                        if (frame.fromFinalEvent && frame.itemId in streamedArgs) return@forEach
+
                         val index = itemIndices.getOrPut(frame.itemId) { itemIndices.size }
                         toolCalls.append(
                             index = index,
@@ -179,9 +184,10 @@ class OpenAiResponsesAdapter @Inject constructor(
                             name = null,
                             argsDelta = frame.delta,
                         )
-                        // Remembered so `output_item.done` knows the complete
-                        // string is a repeat rather than the only copy.
-                        streamedArgs += frame.itemId
+                        // Only deltas are recorded: the final event's copy is
+                        // evidence of nothing, and recording it would make the
+                        // next repeat look like a first delivery.
+                        if (!frame.fromFinalEvent) streamedArgs += frame.itemId
                     }
 
                     is Frame.ToolDone -> {
@@ -267,7 +273,20 @@ class OpenAiResponsesAdapter @Inject constructor(
         data class Text(val delta: String) : Frame
         data class Reasoning(val delta: String) : Frame
         data class ToolStart(val itemId: String, val callId: String?, val name: String?) : Frame
-        data class ToolArgs(val itemId: String, val delta: String) : Frame
+        /**
+         * A fragment of a tool call's arguments.
+         *
+         * @param fromFinalEvent true when the fragment is the complete string
+         *        repeated by `output_item.done` rather than a delta. The two are
+         *        distinguished because the final one may duplicate everything the
+         *        deltas already delivered, and only the pump — which owns the
+         *        streaming state — can tell whether it did.
+         */
+        data class ToolArgs(
+            val itemId: String,
+            val delta: String,
+            val fromFinalEvent: Boolean = false,
+        ) : Frame
         data class ToolDone(val itemId: String) : Frame
         data class Finish(val reason: FinishReason, val usage: TokenUsage? = null) : Frame
         data class Usage(val usage: TokenUsage) : Frame
@@ -330,7 +349,9 @@ class OpenAiResponsesAdapter @Inject constructor(
 
             "response.function_call_arguments.delta" -> {
                 val itemId = root.stringField("item_id") ?: return listOf(Frame.Ignore)
-                root.stringField("delta")?.let { listOf(Frame.ToolArgs(itemId, it)) } ?: listOf(Frame.Ignore)
+                root.stringField("delta")
+                    ?.let { listOf(Frame.ToolArgs(itemId, it, fromFinalEvent = false)) }
+                    ?: listOf(Frame.Ignore)
             }
 
             "response.output_item.done" -> {
@@ -341,19 +362,15 @@ class OpenAiResponsesAdapter @Inject constructor(
                 }
 
                 // `output_item.done` closes the call and repeats the complete
-                // arguments. Whether they are needed depends on whether the
-                // deltas already carried them: appending the whole string to a
-                // buffer that already holds it produces
-                // `{"a":1}{"a":1}`, which parses as nothing and hands the tool
-                // an empty argument object. Only the parser knows, so the frames
-                // are emitted in the order that makes the outcome right either
-                // way — and the call is always closed here rather than being
-                // left for the end-of-stream sweep.
-                val alreadyStreamed = itemId in streamedArgs
+                // arguments. The call is always closed here rather than being
+                // left for the end-of-stream sweep, and the repeat is marked as
+                // such so the pump can drop it when the deltas already carried
+                // everything — appending it twice produces `{"a":1}{"a":1}`,
+                // which parses as nothing and hands the tool an empty object.
                 val complete = item.stringField("arguments")
                 buildList {
-                    if (!alreadyStreamed && !complete.isNullOrEmpty()) {
-                        add(Frame.ToolArgs(itemId, complete))
+                    if (!complete.isNullOrEmpty()) {
+                        add(Frame.ToolArgs(itemId, complete, fromFinalEvent = true))
                     }
                     add(Frame.ToolDone(itemId))
                 }
