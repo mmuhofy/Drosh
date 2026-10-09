@@ -7,7 +7,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import dagger.multibindings.Multibinds
+import dev.drosh.agent.provider.AnthropicAdapter
+import dev.drosh.agent.provider.GeminiAdapter
 import dev.drosh.agent.provider.OpenAiCompatAdapter
+import dev.drosh.agent.provider.OpenAiResponsesAdapter
 import dev.drosh.domain.agent.ChatAdapter
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
@@ -56,6 +59,27 @@ abstract class AdapterModule {
     @Binds
     @IntoSet
     abstract fun bindOpenAiCompatAdapter(impl: OpenAiCompatAdapter): ChatAdapter
+
+    /**
+     * Anthropic's Messages API — `anthropic`, `minimax` and the other
+     * Anthropic-shaped gateways in the catalog.
+     */
+    @Binds
+    @IntoSet
+    abstract fun bindAnthropicAdapter(impl: AnthropicAdapter): ChatAdapter
+
+    /** Google's `generateContent` — one provider, `google`. */
+    @Binds
+    @IntoSet
+    abstract fun bindGeminiAdapter(impl: GeminiAdapter): ChatAdapter
+
+    /**
+     * OpenAI's Responses API — `openai`, `meta`, `perplexity-agent`, `infer`,
+     * `neosmith`, `vivgrid`.
+     */
+    @Binds
+    @IntoSet
+    abstract fun bindOpenAiResponsesAdapter(impl: OpenAiResponsesAdapter): ChatAdapter
 
     @Multibinds
     abstract fun adapters(): Set<@JvmSuppressWildcards ChatAdapter>

@@ -90,6 +90,23 @@ internal class ToolCallBuffer(private val json: Json) {
         return calls
     }
 
+    /**
+     * Finish one call, by its protocol-local key.
+     *
+     * Anthropic closes each content block with its own `content_block_stop`,
+     * so a call is complete the moment its arguments stop arriving rather than
+     * when the message ends. Emitting it early is what lets a long write_file
+     * argument stream show up in the transcript while the model is still
+     * finishing the turn.
+     *
+     * @return the resolved call, or null when the key was already finished or
+     *         never seen
+     */
+    fun finish(index: Int): LlmToolCall? {
+        val p = pending.remove(index) ?: return null
+        return toCall(index, p)
+    }
+
     private fun toCall(index: Int, p: Pending): LlmToolCall = LlmToolCall(
         // A call that never got an id still needs a stable handle so its result
         // can be correlated back. Only visible to this run.

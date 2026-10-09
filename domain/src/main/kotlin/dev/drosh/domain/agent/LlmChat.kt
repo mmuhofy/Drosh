@@ -112,6 +112,15 @@ data class LlmToolCall(
     val id: String,
     val name: String,
     val arguments: JsonObject,
+    /**
+     * Gemini 3's signature for this call, echoed back on the next request.
+     *
+     * Only Gemini produces one, and only Gemini needs it: the `generateContent`
+     * API has no dedicated thought blocks, so the signature is metadata attached
+     * to a part — commonly the `functionCall` part — and a follow-up request that
+     * omits it is rejected. Everything else leaves this null.
+     */
+    val thoughtSignature: String? = null,
 )
 
 /** A tool declaration as sent to the model. */

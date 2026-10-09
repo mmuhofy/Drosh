@@ -49,6 +49,9 @@ class ProviderRegistryTest {
 
     @Test
     fun `an unimplemented protocol names itself and what is available`() {
+        // Gemini is the protocol nothing implements in this test's registry —
+        // not in the app, where all four are bound. Kept as the "missing
+        // adapter" case because a future protocol will need it again.
         val registry = ProviderRegistry(setOf(StubAdapter(ProviderKind.OPENAI_COMPAT)))
 
         val error = runCatching { registry.adapterFor(gemini) }.exceptionOrNull()
@@ -80,10 +83,20 @@ class ProviderRegistryTest {
             setOf(
                 StubAdapter(ProviderKind.OPENAI_COMPAT),
                 StubAdapter(ProviderKind.GEMINI),
+                StubAdapter(ProviderKind.ANTHROPIC),
+                StubAdapter(ProviderKind.OPENAI_RESPONSES),
             ),
         )
 
-        assertEquals(setOf(ProviderKind.OPENAI_COMPAT, ProviderKind.GEMINI), registry.supportedKinds())
+        assertEquals(
+            setOf(
+                ProviderKind.OPENAI_COMPAT,
+                ProviderKind.GEMINI,
+                ProviderKind.ANTHROPIC,
+                ProviderKind.OPENAI_RESPONSES,
+            ),
+            registry.supportedKinds(),
+        )
     }
 
     private class StubAdapter(override val kind: ProviderKind) : ChatAdapter {
