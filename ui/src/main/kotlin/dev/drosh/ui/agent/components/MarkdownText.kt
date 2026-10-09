@@ -110,7 +110,9 @@ fun MarkdownText(
  * as a paragraph of literal `|` characters, which is worse than not supporting them:
  * it looks like the renderer failed rather than like the syntax being off.
  */
-private val parser: Parser = Parser.builder(TablesExtension()).build()
+private val parser: Parser = Parser.builder()
+    .extensions(listOf(TablesExtension()))
+    .build()
 
 /** Parsed outside composition — flexmark is not cheap enough to run per frame. */
 private fun parse(markdown: String): List<FlexNode> =
@@ -159,9 +161,8 @@ private fun MarkdownBlock(
             Spacer(Modifier.size(2.dp))
         }
 
-        // Bare text under a heading or a list item. `ast.Text` is not a Node — it
-        // implements TextContainer and carries no literal of its own — so its text is
-        // reached through its children, which is where flexmark puts the segments.
+        // Bare text under a heading or a list item. `ast.Text` is not a Node, so it
+        // cannot be walked as one; inlineText handles it through its segments.
         is com.vladsch.flexmark.ast.Text -> {
             InlineText(
                 annotated = inlineText(node),
@@ -258,6 +259,23 @@ private fun MarkdownList(
  * The scroll is on the block and not on the document, so a wide table is panned with
  * a horizontal drag of its own and the transcript keeps its vertical scroll.
  */
+/**
+ * A node's text, for the two places that need a flat string.
+ *
+ * flexmark 0.64 has no `literal` accessor at all — text lives on `segments`, and a
+ * container has only children. So the rule is: a delimited leaf is its own segments,
+ * and anything else is its children concatenated. A table cell holds text, links and
+ * emphasis at once, and a code block holds one text node, so both flatten correctly.
+ */
+private fun nodeText(node: FlexNode): String = when (node) {
+    // A delimited leaf carries its text directly. Everything else is a container
+    // whose text is the concatenation of its children, in document order.
+    is com.vladsch.flexmark.ast.DelimitedNodeImpl ->
+        node.segments.joinToString("") { it.toString() }
+
+    else -> node.children.joinToString("") { nodeText(it) }
+}
+
 @Composable
 private fun MarkdownTable(node: TableBlock, onCopy: (String) -> Unit) {
     val palette = CodeColors
@@ -274,7 +292,9 @@ private fun MarkdownTable(node: TableBlock, onCopy: (String) -> Unit) {
             val header = row.parent is TableHead
             Row {
                 row.children.toList().filterIsInstance<TableCell>().forEach { cell ->
-                    val text = cell.children.joinToString("") { it.literal?.toString().orEmpty() }
+                    // A cell's text is whatever its children flatten to, which is
+                    // how a cell holding text, a link and emphasis comes out whole.
+                    val text = cell.children.joinToString("") { nodeText(it) }
                     Text(
                         text = text,
                         fontSize = 12.sp,
@@ -298,7 +318,7 @@ private fun CodeBlockView(
     val language = SyntaxLanguages.resolve(
         (node as? com.vladsch.flexmark.ast.FencedCodeBlock)?.info?.toString(),
     )
-    val raw = node.children.joinToString("\n") { it.literal?.toString().orEmpty() }
+    val raw = node.children.joinToString("\n") { nodeText(it) }
     val highlighted = remember(raw, language) {
         SyntaxHighlighter(language, palette).highlight(raw)
     }
@@ -371,82 +391,100 @@ private fun InlineText(
  * Flatten a paragraph's children into a styled string.
  *
  * Inline styling is carried on the AST nodes themselves, so this walks the tree
- * rather than re-parsing the literal — the alternative, stripping the markers and
+ * rather than re-parsing the segments — the alternative, stripping the markers and
  * searching for `**` afterwards, gets confused by a literal `*` inside a code span,
  * which is exactly what a path glob or a regex looks like.
  */
-private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
-    fun walk(current: FlexNode, emphasis: SpanStyle) {
-        current.children.toList().forEach { child ->
-            when (child) {
-                is com.vladsch.flexmark.ast.Emphasis ->
-                    walk(
-                        child,
-                        emphasis.merge(
-                            SpanStyle(fontStyle = FontStyle.Italic, fontWeight = FontWeight.Medium),
-                        ),
-                    )
+/**
+ * An autolink's visible text.
+ *
+ * `AutoLink` extends `DelimitedLinkNode`, which is not a `Node`, so it has neither
+ * children nor a literal. Its text is in `segments` — the bracketed runs flexmark
+ * splits the URL into, which is exactly the part a reader should see.
+ */
+private fun childLabel(link: com.vladsch.flexmark.ast.AutoLink): String =
+    link.segments.joinToString("") { it.toString() }
 
-                is com.vladsch.flexmark.ast.StrongEmphasis ->
-                    walk(child, emphasis.merge(SpanStyle(fontWeight = FontWeight.Bold)))
+@Composable
+private fun inlineText(node: FlexNode): AnnotatedString {
+    // Inline code's chip and a link's tint both read theme tokens, which are
+    // @Composable getters over LocalDroshColors. Reading them here rather than
+    // inside the builder is what keeps this function composable — a
+    // buildAnnotatedString block is not a composable scope.
+    val codeBackground = DroshSurfaceHigh.copy(alpha = 0.55f)
+    val linkColor = DroshPrimary
 
-                is com.vladsch.flexmark.ast.Strikethrough ->
-                    walk(child, emphasis.merge(SpanStyle(textDecoration = TextDecoration.LineThrough)))
-
-                is com.vladsch.flexmark.ast.Code ->
-                    // Inline code is a monospace chip, not just a font change: the
-                    // background is what tells a path from a word.
-                    pushStyle(
-                        emphasis.merge(
-                            SpanStyle(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 13.sp,
-                                background = DroshSurfaceHigh.copy(alpha = 0.55f),
+    return buildAnnotatedString {
+        fun walk(current: FlexNode, emphasis: SpanStyle) {
+            current.children.toList().forEach { child ->
+                when (child) {
+                    is com.vladsch.flexmark.ast.Emphasis ->
+                        walk(
+                            child,
+                            emphasis.merge(
+                                SpanStyle(
+                                    fontStyle = FontStyle.Italic,
+                                    fontWeight = FontWeight.Medium,
+                                ),
                             ),
-                        ),
-                    )
-                    append(child.literal?.toString().orEmpty())
-                    pop()
+                        )
 
-                is com.vladsch.flexmark.ast.AutoLink ->
-                    pushStyle(emphasis.merge(SpanStyle(color = DroshPrimary)))
-                    append(child.children.joinToString("") { it.literal?.toString().orEmpty() })
-                    pop()
+                    is com.vladsch.flexmark.ast.StrongEmphasis ->
+                        walk(child, emphasis.merge(SpanStyle(fontWeight = FontWeight.Bold)))
 
-                is com.vladsch.flexmark.ast.Link ->
-                    pushStyle(
-                        emphasis.merge(
-                            SpanStyle(
-                                color = DroshPrimary,
-                                textDecoration = TextDecoration.Underline,
+                    is com.vladsch.flexmark.ast.Code -> {
+                        // Inline code is a monospace chip, not just a font change:
+                        // the background is what tells a path from a word.
+                        pushStyle(
+                            emphasis.merge(
+                                SpanStyle(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 13.sp,
+                                    background = codeBackground,
+                                ),
                             ),
-                        ),
-                    )
-                    child.children.toList().forEach { append(it.literal?.toString().orEmpty()) }
-                    pop()
-
-                is com.vladsch.flexmark.ast.Text -> {
-                    pushStyle(emphasis)
-                    append(child.literal?.toString().orEmpty())
-                    pop()
-                }
-
-                is com.vladsch.flexmark.ast.HardLineBreak -> append("\\n")
-
-                else -> {
-                    // SoftLineBreak is a newline in the source that markdown says is
-                    // a space; rendering it literally would make every wrapped
-                    // paragraph look like a line break.
-                    if (child.literal != null) {
-                        pushStyle(emphasis)
-                        append(child.literal.toString())
+                        )
+                        append(child.segments.joinToString("") { it.toString() })
                         pop()
-                    } else {
-                        walk(child, emphasis)
                     }
+
+                    is com.vladsch.flexmark.ast.AutoLink -> {
+                        // Not a Node — no children, no literal. Its text is in the
+                        // bracketed segments flexmark splits the URL into, which is
+                        // the part a reader should see.
+                        pushStyle(emphasis.merge(SpanStyle(color = linkColor)))
+                        append(child.segments.joinToString("") { it.toString() })
+                        pop()
+                    }
+
+                    is com.vladsch.flexmark.ast.Link -> {
+                        pushStyle(
+                            emphasis.merge(
+                                SpanStyle(
+                                    color = linkColor,
+                                    textDecoration = TextDecoration.Underline,
+                                ),
+                            ),
+                        )
+                        child.children.toList().forEach { walk(it, emphasis) }
+                        pop()
+                    }
+
+                    is com.vladsch.flexmark.ast.Text -> {
+                        // A soft break is a newline in the source that markdown says
+                        // is a space. Rendering it literally would make every wrapped
+                        // paragraph look like it has a line break in it.
+                        pushStyle(emphasis)
+                        append(child.segments.joinToString("") { it.toString() })
+                        pop()
+                    }
+
+                    is com.vladsch.flexmark.ast.HardLineBreak -> append("\n")
+
+                    else -> walk(child, emphasis)
                 }
             }
         }
+        walk(node, SpanStyle())
     }
-    walk(node, SpanStyle())
 }
