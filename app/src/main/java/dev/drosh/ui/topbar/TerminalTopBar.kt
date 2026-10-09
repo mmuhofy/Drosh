@@ -223,19 +223,26 @@ fun TerminalTopBar(
     // states: the row shrinking to the status bar's height is what made it read
     // as squashed, and fitting it inside a band was never what that bought.
     //
-    // Collapsed it is 0 — flush with the top of the screen, in the band the
-    // status bar vacated. Expanded it sits below the bar.
+    // Collapsed: the app goes true fullscreen (the real status bar is gone, no
+    // inset reserved by the system at all). The row sits flush at y=0 — the
+    // very top of the screen, which IS the status bar's now-vacant space.
+    // Expanded: the real status bar is back, so the row sits below it.
     val rowOffset by animateDpAsState(
         targetValue = if (chromeCollapsed) 0.dp else statusBarH + BAR_TOP_OFFSET,
         animationSpec = chromeTween,
         label = "chromeRowOffset",
     )
 
-    // The band behind it: the terminal's own background, exactly as tall as the
-    // terminal's clearance. Same colour on both sides of the join, so there is no
-    // join. Gone entirely when expanded.
+    // The band behind it: the terminal's own background, filling the exact
+    // space the real status bar would occupy plus the row's own top
+    // clearance. This MUST include statusBarH — a band only as tall as
+    // CHROME_CLEARANCE left a visible gap between the simulated strip and
+    // where the row actually sits (y=0), which is what made the pills read
+    // as "sitting below the status bar in their own separate band" instead
+    // of "sitting inside the status bar's vacated row." Gone entirely when
+    // expanded, since the real status bar already fills that space.
     val bandHeight by animateDpAsState(
-        targetValue = if (chromeCollapsed) CHROME_CLEARANCE else 0.dp,
+        targetValue = if (chromeCollapsed) statusBarH + BAR_TOP_OFFSET + CHROME_CLEARANCE else 0.dp,
         animationSpec = chromeTween,
         label = "collapsedBandHeight",
     )
