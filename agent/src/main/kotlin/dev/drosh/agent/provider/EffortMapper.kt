@@ -2,6 +2,7 @@ package dev.drosh.agent.provider
 
 import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.domain.agent.ProviderKind
+import dev.drosh.domain.agent.ReasoningEffort
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -40,8 +41,10 @@ import javax.inject.Singleton
  *
  * The catalog, not this file. Each model declares
  * `reasoning_options: [{ type: "effort", values: [...] }]`, and that list is
- * per-model and maintained. This file only removes values a protocol cannot
- * express, which is a different question.
+ * per-model and maintained. Which of those a protocol can send is a separate
+ * question, answered by [ReasoningEffort] in `:domain` — where the settings
+ * screen can reach it too — and this file only turns the surviving value into
+ * wire fields.
  *
  * OpenCode additionally maintains a hand-written GPT-5 effort-tier table
  * (`openaiCompatibleReasoningEfforts`, transform.ts line 646) keyed off model
@@ -52,56 +55,7 @@ import javax.inject.Singleton
 @Singleton
 class EffortMapper @Inject constructor() {
 
-    /**
-     * Values the user may pick for [modelId], in catalog order.
-     *
-     * @param declared the model's catalog list; the source of truth for order and content
-     * @return the subset [provider]'s protocol can actually send
-     */
-    fun allowedEfforts(
-        provider: LlmProvider,
-        modelId: String,
-        declared: List<String>,
-    ): List<String> = when (provider.kind) {
-        // Every gateway in this bucket takes the same flat spelling. Whether a
-        // given upstream honours all seven values is a different question, and
-        // the catalog's per-model list is the answer to it.
-        ProviderKind.OPENAI_COMPAT -> declared
-
-        // OpenCode filters `max` out of the Responses union
-        // (llm/src/protocols/utils/openai-options.ts line 5). The catalog still
-        // advertises it for OpenAI models, so this is a real narrowing.
-        //
-        // UNTESTED — OpenAI may accept `max` on Responses now; verified only
-        // against OpenCode's own filter, not against the live API.
-        ProviderKind.OPENAI_RESPONSES -> declared.filterNot { it == EFFORT_MAX }
-
-        // Anthropic ties the permitted set to the thinking mode the model
-        // supports, which is what OpenCode's `anthropicAdaptiveEfforts()`
-        // encodes. Returns null for models outside every known tier, where the
-        // catalog list is left to speak for itself.
-        ProviderKind.ANTHROPIC -> {
-            val tier = anthropicEffortTier(modelId)
-            if (tier == null) declared else declared.filter { it in tier }
-        }
-
-        // Gemini 3 introduced `thinkingLevel`; 2.5 still takes the numeric
-        // `thinkingBudget` this adapter does not send. Verified from Google's
-        // thinking docs, so the 2.5 family gets no selector rather than a field
-        // the endpoint ignores.
-        ProviderKind.GEMINI -> {
-            val tier = geminiThinkingLevels(modelId)
-            if (tier == null) emptyList() else declared.filter { it in tier }
-        }
-    }
-
-    /**
-     * Top-level body fields carrying [effort], for the three protocols that put
-     * it at the top level.
-     *
-     * Gemini is absent by design: its effort nests inside `generationConfig`,
-     * which the adapter owns. Use [geminiThinkingConfig] there.
-     */
+    /** Top-level body fields carrying [effort]. */
     fun bodyFields(
         provider: LlmProvider,
         modelId: String,
@@ -132,13 +86,22 @@ class EffortMapper @Inject constructor() {
     }
 
     /**
-     * Gemini's `thinkingConfig`, or null when the model predates `thinkingLevel`.
+     * Gemini's `thinkingConfig`, or null when the model cannot take one.
      *
      * `includeThoughts` is always sent: without it the thought parts arrive as
      * ordinary text and the UI cannot tell reasoning from an answer.
+     *
+     * Whether the model can take one at all is asked of [ReasoningEffort] rather
+     * than re-derived here, so the settings screen's selector and the request
+     * body cannot disagree about which models have a `thinkingLevel`.
      */
-    fun geminiThinkingConfig(modelId: String, effort: String): JsonObject? {
-        if (geminiThinkingLevels(modelId) == null) return null
+    fun geminiThinkingConfig(
+        provider: LlmProvider,
+        modelId: String,
+        effort: String,
+    ): JsonObject? {
+        val expressible = ReasoningEffort.allowed(provider, modelId, ALL_GEMINI_LEVELS)
+        if (effort !in expressible) return null
         return buildJsonObject {
             put("includeThoughts", true)
             put("thinkingLevel", effort)
@@ -206,25 +169,11 @@ class EffortMapper @Inject constructor() {
         minOf(OPUS45_BUDGET_CAP, outputTokenLimit / 2 - 1)
 
     /**
-     * The effort values Anthropic accepts for this model, or null when the
-     * model matches no known tier and the catalog list stands.
-     *
-     * Ported from `anthropicAdaptiveEfforts()` (transform.ts line 669), which
-     * is where OpenCode gets the same information.
-     */
-    private fun anthropicEffortTier(modelId: String): List<String>? {
-        val id = modelId.lowercase()
-        if (usesModernAdaptiveThinking(id)) return MODERN_ANTHROPIC_EFFORTS
-        if (listOf("opus-4-6", "opus-4.6", "4-6-opus", "4.6-opus", "sonnet-4-6", "sonnet-4.6", "4-6-sonnet", "4.6-sonnet")
-                .any { id.contains(it) }
-        ) {
-            return ANTHROPIC_46_EFFORTS
-        }
-        return null
-    }
-
-    /**
      * True for Claude 4.7 and later, which use adaptive thinking.
+     *
+     * Only the wire shape still needs this. Which *values* a model may be run at
+     * lives in [ReasoningEffort], so the selector and the request body cannot
+     * disagree about it.
      *
      * Ported from `anthropicUsesModernAdaptiveThinking()` (transform.ts line
      * 654). Family-first (`claude-opus-4.7`) and version-first
@@ -261,43 +210,11 @@ class EffortMapper @Inject constructor() {
         return KIMI_HOSTS.any { host.contains(it) }
     }
 
-    // ── Gemini ─────────────────────────────────────────────────────────────
-
-    /**
-     * `thinkingLevel` values this model accepts, or null when it predates the
-     * parameter.
-     *
-     * Verified from Google's Gemini thinking docs: `thinkingLevel` replaced the
-     * numeric `thinkingBudget` with the Gemini 3 line, and the accepted subset
-     * varies by model — notably `minimal` is rejected by Gemini 3.1 Pro and by
-     * 3.8 Flash. Gemini 2.5 returns null here because it wants a budget, which
-     * this adapter does not send.
-     */
-    private fun geminiThinkingLevels(modelId: String): List<String>? {
-        val id = modelId.lowercase()
-        if (id.contains("gemini-2.5")) return null
-        return when {
-            id.contains("gemini-3.1-pro") -> listOf("low", "medium", "high")
-            id.contains("gemini-3-pro") -> listOf("low", "high")
-            id.contains("gemini-3.8-flash") || id.contains("gemini-3.7-flash") ->
-                listOf("low", "medium", "high")
-            id.contains("gemini-3.1-flash-lite-image") -> listOf("minimal", "high")
-            else -> ALL_GEMINI_LEVELS
-        }
-    }
-
     private companion object {
         const val NPM_OPENROUTER = "@openrouter/ai-sdk-provider"
-        const val EFFORT_MAX = "max"
 
         /** Ported from `OUTPUT_TOKEN_MAX` (transform.ts line 18). */
         const val OPUS45_BUDGET_CAP = 16_000
-
-        /** `anthropicAdaptiveEfforts()` for Claude 4.7+. */
-        val MODERN_ANTHROPIC_EFFORTS = listOf("low", "medium", "high", "xhigh", "max")
-
-        /** The same, for the 4.6 generation. */
-        val ANTHROPIC_46_EFFORTS = listOf("low", "medium", "high", "max")
 
         val ALL_GEMINI_LEVELS = listOf("minimal", "low", "medium", "high")
 

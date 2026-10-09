@@ -168,6 +168,14 @@ interface LlmProviderRepository {
     suspend fun clearCredential(providerId: String)
 
     /**
+     * Store the base URL for the custom OpenAI-compatible provider.
+     *
+     * On the interface rather than only on the implementation because the
+     * settings sheet writes it and can only see `:domain`. Blank removes the row.
+     */
+    suspend fun setCustomBaseUrl(baseUrl: String)
+
+    /**
      * Store one non-secret config value.
      *
      * Blank removes it, matching [setCredential], so an emptied field is not a

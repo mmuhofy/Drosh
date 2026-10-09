@@ -117,6 +117,8 @@ internal class FakeProviderRepository(
 
     override suspend fun setConfigValue(providerId: String, key: String, value: String) = Unit
 
+    override suspend fun setCustomBaseUrl(baseUrl: String) = Unit
+
     override suspend fun fetchModels(providerId: String, forceRefresh: Boolean): List<LlmModel> =
         emptyList()
 

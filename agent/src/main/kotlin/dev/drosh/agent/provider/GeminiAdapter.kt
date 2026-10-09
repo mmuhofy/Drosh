@@ -337,7 +337,8 @@ class GeminiAdapter @Inject constructor(
                 // Nested inside generationConfig rather than at the top level,
                 // which is why EffortMapper exposes a separate accessor for this
                 // protocol.
-                efforts.geminiThinkingConfig(request.model, effort)?.let { put("thinkingConfig", it) }
+                efforts.geminiThinkingConfig(provider, request.model, effort)
+                    ?.let { put("thinkingConfig", it) }
             }
         }
         if (generationConfig.isNotEmpty()) put("generationConfig", generationConfig)
