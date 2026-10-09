@@ -1,11 +1,16 @@
 package dev.drosh.ui.topbar
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
@@ -59,14 +65,24 @@ import dev.drosh.ui.session.SessionSwitcherViewModel
 /**
  * The terminal's floating pill row.
  *
- * One position, and it does not move. The system status bar is always showing,
- * and the row sits below it with a constant clearance above it — the same number
- * the terminal's grid is padded by, so the first line of output is never under a
- * control and the grid is never resized.
+ * Two positions, and nothing else moves between them.
  *
- * The pills are translucent over the terminal's own backdrop: sampled from the
- * terminal view and blurred, because Compose has no native backdrop blur and
- * anything else shows a rectangle.
+ *  - **Collapsed** — the viewport is up in the scrollback, or a TUI owns the
+ *    terminal. The app is **fullscreen**, the pills are **flush with the top of
+ *    the screen**, and the grid's top padding shrinks to the band the status bar
+ *    vacated.
+ *  - **Expanded** — at the live edge. The status bar is back, and the pills sit
+ *    below it at `statusBarH + 10dp`.
+ *
+ * The row is [BAR_ROW_HEIGHT] in both states. Only its offset moves: the row
+ * shrinking to the status bar's height while collapsed read as a squashed control
+ * that could not decide where it belonged, and fitting it inside a band was never
+ * what putting it at the top of the screen required.
+ *
+ * The terminal's top padding moves with it, on the same tween — see
+ * [rememberTerminalTopPadding]. A fixed clearance is wrong in both directions at
+ * once: it wastes the status bar's height where there is no status bar, and lets
+ * the first line of output go under the row where there is.
  */
 private const val BAR_ROW_HEIGHT_DP = 44
 private const val BAR_TOP_OFFSET_DP = 10
@@ -80,6 +96,25 @@ private const val BAR_BOTTOM_OFFSET_DP = 6
  * not be.
  */
 val CHROME_CLEARANCE = 52.dp
+
+/**
+ * How long the row and the terminal's padding take to travel.
+ *
+ * Just under the platform's own status-bar transition, so the last thing to
+ * settle is the system's rather than two motions ending on top of each other.
+ */
+private const val CHROME_ANIMATION_MILLIS = 220
+
+/**
+ * How long they wait before starting on the way *in*.
+ *
+ * Because the clock has to leave first. The status bar belongs to the system
+ * window and is drawn above the app, so it has to be told to hide and that takes
+ * its own time; moving the pills while the clock is still fading puts two things
+ * in motion in the same 40dp, which is what read as the row going back and
+ * forth.
+ */
+private const val CHROME_COLLAPSE_DELAY_MILLIS = 70
 
 /**
  * Over the blurred slice, so the terminal shows through as a smudge rather
@@ -120,6 +155,57 @@ private const val PILL_WIDTH_DP = 52
  */
 private val PILL_BLUR_RADIUS = 14.dp
 
+/**
+ * The system status bar's height, whether or not it is currently showing.
+ *
+ * Deliberately the visibility-agnostic inset. `statusBars` is zero the moment the
+ * bar hides, and this row's state changes on scroll, so reading that one here
+ * would fling the row downward exactly as it is meant to be moving up.
+ *
+ * One function for both the row and the terminal's padding: they are two halves
+ * of the same movement and must agree about where the status bar ends.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun statusBarHeight(): Dp =
+    WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+
+/**
+ * The terminal's top padding, in step with the row.
+ *
+ * It moves with the chrome because it has to. A constant clearance gets both
+ * states wrong: it wastes the status bar's height in the collapsed state, where
+ * nothing is showing, and lets the first line of output go under the row in the
+ * expanded state, where it is.
+ *
+ * Derived from the same constants the row uses rather than a second set, and on
+ * the same tween, so the grid cannot end up out of step with the control it is
+ * making room for.
+ */
+@Composable
+fun rememberTerminalTopPadding(collapsed: Boolean): Dp {
+    val statusBarH = statusBarHeight()
+    val target = if (collapsed) {
+        // The status bar is gone, so the grid starts where it used to end — the
+        // row sits above it, inside the vacated band, and the first line is not
+        // lost. Never less than the row's own height, on a device whose status bar
+        // is shorter than the buttons replacing it.
+        maxOf(statusBarH, BAR_ROW_HEIGHT + CHROME_CLEARANCE)
+    } else {
+        // The status bar is back and the row sits below it, so the grid has to
+        // clear that offset and the row itself.
+        statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + CHROME_CLEARANCE
+    }
+    return animateDpAsState(
+        targetValue = target,
+        animationSpec = tween<Dp>(
+            durationMillis = CHROME_ANIMATION_MILLIS,
+            delayMillis = if (collapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
+        ),
+        label = "terminalTopPadding",
+    ).value
+}
+
 private val BAR_ROW_HEIGHT = BAR_ROW_HEIGHT_DP.dp
 private val PILL_WIDTH = PILL_WIDTH_DP.dp
 private val BAR_TOP_OFFSET = BAR_TOP_OFFSET_DP.dp
@@ -127,6 +213,12 @@ private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 
 @Composable
 fun TerminalTopBar(
+    /**
+     * Fullscreen: the viewport is up in the scrollback, or a TUI owns the
+     * terminal. The row goes to the very top of the screen, into the space the
+     * status bar vacated, and the grid pads itself to match.
+     */
+    chromeCollapsed: Boolean,
     /** Strip sampled from the terminal, or null when there is nothing to sample. */
     backdrop: ImageBitmap?,
     /** Where the terminal sits in root space, so a pill can find its slice. */
@@ -152,6 +244,29 @@ fun TerminalTopBar(
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
 
+    val statusBarH = statusBarHeight()
+
+    // One spec for the row and the terminal's padding, so they cannot be caught
+    // disagreeing.
+    val chromeTween = tween<Dp>(
+        durationMillis = CHROME_ANIMATION_MILLIS,
+        delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
+    )
+
+    // The row's **offset**, and nothing else. Its height is fixed at 44dp in both
+    // states: the row shrinking to the status bar's height is what made it read as
+    // squashed, and fitting it inside a band was never what that bought.
+    //
+    // Collapsed: the app goes true fullscreen (the real status bar is gone, no
+    // inset reserved by the system at all). The row sits flush at y=0 — the very
+    // top of the screen, which IS the status bar's now-vacant space.
+    // Expanded: the real status bar is back, so the row sits below it.
+    val rowOffset by animateDpAsState(
+        targetValue = if (chromeCollapsed) 0.dp else statusBarH + BAR_TOP_OFFSET,
+        animationSpec = chromeTween,
+        label = "chromeRowOffset",
+    )
+
     val rowHeight = BAR_ROW_HEIGHT
 
     /** The icon's size, matching every lucide glyph in the row. */
@@ -167,11 +282,11 @@ fun TerminalTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // The row's whole travel, and it does not travel: it sits where
-                // the padding below puts it, one line for the lifetime of the
-                // screen. Nothing here moves, so the grid never resizes and no
-                // line of output is ever re-wrapped by a scroll.
-                .offset(y = BAR_TOP_OFFSET)
+                // The row's whole travel. Collapsed that is 0 — flush with the
+                // top of the screen, inside the band the status bar left. Expanded
+                // it is the status bar's inset plus a gap, so the row sits below
+                // the clock rather than under it.
+                .offset(y = rowOffset)
                 .height(rowHeight)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

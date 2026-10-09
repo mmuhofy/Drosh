@@ -317,34 +317,64 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 
 ## 7. Terminal Core
 
-### One top bar position, and no band
+### Two chrome states: fullscreen up, normal at the live edge
 
-*Settled 2026-10-09, reversing three attempts at an immersive status bar.*
+*Decided 2026-10-09. An earlier build of this was removed outright on the belief
+that it was contradictory; it is not — the mistake was the direction, and the
+platform gotcha that made one direction look impossible.*
 
-The top chrome has **one position**. The system status bar is always showing, and
-the pill row sits below it with a constant clearance above it. There is no
-immersive state, no scroll signal, and nothing to configure.
+**Up in the scrollback** — the viewport has been scrolled back into history, or a
+TUI owns the terminal. The app goes fullscreen (`hide(systemBars())`), the pill
+row's offset is **0** — flush with the top of the screen, in the space the status
+bar vacated — and the grid's top padding shrinks to that band. **At the live
+edge** — the prompt, a session nobody has scrolled, or one that has come back
+after a scroll. Status bar back, pills at `statusBarH + 10dp`, band gone.
 
-**Why it was abandoned.** The feature was asked for three separate times and each
-implementation was reported wrong. What was being asked for was a contradiction:
-the pills were to sit *in the status bar's band*, flush with the very top of the
-screen, while the status bar was hidden — and on a phone with a display cutout
-that is not reachable at all. Android letterboxes a window with
-`layoutInDisplayCutoutMode = DEFAULT` as soon as the system bars are hidden, which
-pushes the whole top of the app down; the SDK-35 reinterpretation of `DEFAULT` as
-`ALWAYS` does not apply at this project's `targetSdk = 28`. So `offset = 0.dp`
-would still not have put anything at the top of the screen, and the cutout area
-itself would sit under a button.
+```
+chromeCollapsed = tuiActive || !chromeIsAtLiveEdge(topRow, was)
+```
 
-**What shipped instead.** One constant clearance — `CHROME_CLEARANCE`, 52dp, read
-by the bar and the terminal's grid alike — and the row never moves. The status bar
-stays. That was the state the app was in before any of this started, which is the
-point of reverting to it: three attempts had been spent trying to make an idea
-work that had already been shown, on device, not to.
+**Why the cutout is not an obstacle after all.** An earlier removal argued the
+opposite, and the argument was wrong about one thing: `layoutInDisplayCutoutMode`
+is now `always` in `Theme.Drosh`, so the window may extend into the cutout in both
+states. What *is* true is that with the default mode it could not: AOSP's
+`WindowLayout.java` gates the cutout exemption on `requestedVisibleTypes`, so
+hiding the status bar withdraws the permission and letterboxes the window — which
+is why `offset = 0.dp` appeared not to put anything at the top of the screen. That
+reinterpretation only applies at `targetSdk` 35+, and this project is on 28, so the
+default could not be relied on. `always` is also Google's own guidance for
+anything that transitions in and out of immersive mode, because the default makes
+content jump between the two states.
 
-**No band.** Nothing is painted behind the row. The pills are translucent over
-the terminal's own backdrop — sampled from the terminal view and blurred —
-because Compose has no native backdrop blur and anything else shows a rectangle.
+**The dead zone stays.** `-5` collapses, `-1` expands. One flick up and back is one
+transition per direction. It is hysteresis, not a threshold: a value between the
+two holds whatever the chrome was already doing, and that is what stops a slow
+drag from moving the bar several times.
+
+**The terminal's top padding follows the chrome.** A constant clearance gets both
+states wrong at once — it wastes the status bar's height where nothing is showing,
+and lets the first line of output go under the row where it is. `chromeCollapsed`
+= `max(statusBarH, BAR_ROW_HEIGHT + CHROME_CLEARANCE)`; expanded = the row's own
+offset plus its height plus the clearance. Same tween as the row, so the two
+cannot drift apart.
+
+**A fixed grid is not a scrolling document, so the padding change costs a resize.**
+There is only so much room above and below. Every crossing of the live edge
+changes the row count, sends a SIGWINCH, and the shell answers by redrawing its
+prompt — which `onScreenUpdated` would otherwise take for new output and use to
+throw the viewport to the bottom, undoing the change. Two things in `TerminalView`
+make it survivable:
+
+- `updateSize` **clamps** `mTopRow` instead of zeroing it.
+- Output arriving within `RESIZE_GRACE_MILLIS` (400ms) of a resize is taken as the
+  shell answering us rather than as something new, and does not pull the viewport
+  down.
+
+**`BEHAVIOR_DEFAULT`, kept.** The pills live at the very top of the screen, which is
+where Android's edge gesture lives. `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`
+reveals the bars transiently over the app and then times itself out, so a slow
+upward drag had the system drawing a status bar across the row over and over. A
+deliberate top-edge swipe still brings the bars back for good.
 
 ### Block-Based Output
 Every command execution produces a Block:

@@ -17,5 +17,25 @@
         <item name="android:navigationBarColor">#FF0A0A0A</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
+        <!--
+          Required for the immersive chrome to work: the app draws into the display
+          cutout so that hiding the system bars can actually move content to the
+          top of the screen.
+
+          With the default mode Android only permits the window to extend into the
+          cutout while the status bar is requested visible — AOSP's
+          WindowLayout.java gates the exemption on `requestedVisibleTypes`. So
+          hiding the bars withdraws the permission, the window is letterboxed to
+          the cutout-safe area, and `offset = 0.dp` still does not put anything at
+          the top of the screen. Google's own guidance for anything transitioning
+          in and out of immersive mode is to set `always`.
+
+          Not the default here: this project is targetSdk 28, so the SDK-35
+          reinterpretation of DEFAULT as ALWAYS does not apply.
+
+          The consequence is that content may draw under the notch, which the
+          terminal's constant top clearance already accounts for.
+        -->
+        <item name="android:windowLayoutInDisplayCutoutMode">always</item>
     </style>
 </resources>
