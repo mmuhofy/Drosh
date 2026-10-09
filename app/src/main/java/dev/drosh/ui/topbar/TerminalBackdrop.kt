@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
@@ -24,9 +23,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.termux.view.TerminalView
+import android.os.Build
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -124,13 +125,22 @@ private fun capture(view: View, stripHeightPx: Float): Bitmap? {
 }
 
 /**
+ * Whether the platform can carry a real blur at all.
+ *
+ * `Modifier.blur` needs a RenderEffect, which is API 31. Below it the modifier is
+ * a no-op rather than a fallback, so a pill built on the assumption of a blur
+ * would show the terminal's text at full strength. Anything reading this picks a
+ * tint that does not depend on the blur to hide the text.
+ */
+val BLUR_SUPPORTED: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+/**
  * One pill's slice of [backdrop], blurred and clipped to [shape].
  *
  * Modifier.blur is where the RenderEffect comes from: it blurs whatever the
- * canvas draws, which here is the terminal slice belonging to this pill.
- * BlurredEdgeTreatment carries the pill's own shape so the result is clipped to
- * it rather than to a rectangle, which is what the default Rectangle treatment
- * would have produced.
+ * canvas draws, which here is the terminal slice belonging to this pill. The clip
+ * comes after, so the shape is applied to the blurred result rather than the blur
+ * being told the shape up front.
  *
  * [sourceOffset] is this pill's position inside the sampled strip, in pixels.
  */
@@ -145,8 +155,20 @@ fun TerminalBackdropSlice(
 ) {
     if (backdrop == null) return
     Canvas(
-        modifier
-            .blur(radius = blurRadius, edgeTreatment = BlurredEdgeTreatment(shape))
+        // No `edgeTreatment`. The shape treatment clips the blur to the shape
+        // *before* it spreads, which on a radius larger than the node leaves
+        // almost nothing spread at all — and a canvas this small with a radius
+        // this large is exactly that case. The default rectangle treatment blurs
+        // the whole node, and [clip] then keeps the pill.
+        //
+        // `blur` is not applied where it is unsupported: RenderEffect needs API
+        // 31, and where there is no blur the pill's own tint carries the job of
+        // hiding the text — see PILL_SURFACE_ALPHA_UNBLURRED.
+        if (blurRadius > 0.dp && BLUR_SUPPORTED) {
+            Modifier.blur(radius = blurRadius)
+        } else {
+            Modifier
+        }.then(modifier)
             .clip(shape)
     ) {
         drawImage(
