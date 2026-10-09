@@ -139,69 +139,71 @@ class OpenAiResponsesAdapter @Inject constructor(
         val itemIndices = LinkedHashMap<String, Int>()
 
         suspend fun handleFrame(payload: String) {
-            when (val frame = parseFrame(payload)) {
-                is Frame.Text -> emit(LlmStreamEvent.TextDelta(frame.delta))
+            parseFrame(payload).forEach { frame ->
+                when (frame) {
+                    is Frame.Text -> emit(LlmStreamEvent.TextDelta(frame.delta))
 
-                is Frame.Reasoning -> {
-                    reasoning.append(frame.delta)
-                    emit(LlmStreamEvent.ReasoningDelta(frame.delta))
-                }
+                    is Frame.Reasoning -> {
+                        reasoning.append(frame.delta)
+                        emit(LlmStreamEvent.ReasoningDelta(frame.delta))
+                    }
 
-                is Frame.ToolStart -> {
-                    // Registered before the append so a fragment arriving for an
-                    // item that was never opened still lands somewhere stable.
-                    val index = itemIndices.getOrPut(frame.itemId) { itemIndices.size }
-                    val appended = toolCalls.append(
-                        index = index,
-                        id = frame.callId,
-                        name = frame.name,
-                        argsDelta = null,
-                    )
-                    if (appended != null && appended.id != null && appended.name != null) {
-                        val id = appended.id
-                        val name = appended.name
-                        if (id !in announcedCalls) {
-                            announcedCalls += id
-                            emit(LlmStreamEvent.ToolCallStarted(id, name))
+                    is Frame.ToolStart -> {
+                        // Registered before the append so a fragment arriving for an
+                        // item that was never opened still lands somewhere stable.
+                        val index = itemIndices.getOrPut(frame.itemId) { itemIndices.size }
+                        val appended = toolCalls.append(
+                            index = index,
+                            id = frame.callId,
+                            name = frame.name,
+                            argsDelta = null,
+                        )
+                        if (appended != null && appended.id != null && appended.name != null) {
+                            val id = appended.id
+                            val name = appended.name
+                            if (id !in announcedCalls) {
+                                announcedCalls += id
+                                emit(LlmStreamEvent.ToolCallStarted(id, name))
+                            }
                         }
                     }
-                }
 
-                is Frame.ToolArgs -> {
-                    val index = itemIndices.getOrPut(frame.itemId) { itemIndices.size }
-                    toolCalls.append(
-                        index = index,
-                        id = null,
-                        name = null,
-                        argsDelta = frame.delta,
-                    )
-                }
-
-                is Frame.ToolDone -> {
-                    val index = itemIndices[frame.itemId] ?: return
-                    toolCalls.finish(index)?.let { resolved ->
-                        if (resolved.id !in announcedCalls) {
-                            emit(LlmStreamEvent.ToolCallStarted(resolved.id, resolved.name))
-                        }
-                        emit(
-                            LlmStreamEvent.ToolCallCompleted(
-                                callId = resolved.id,
-                                name = resolved.name,
-                                arguments = resolved.arguments,
-                            ),
+                    is Frame.ToolArgs -> {
+                        val index = itemIndices.getOrPut(frame.itemId) { itemIndices.size }
+                        toolCalls.append(
+                            index = index,
+                            id = null,
+                            name = null,
+                            argsDelta = frame.delta,
                         )
                     }
-                }
 
-                is Frame.Finish -> {
-                    finishReason = frame.reason
-                    sawComplete = true
-                    frame.usage?.let { usage = it }
-                }
+                    is Frame.ToolDone -> {
+                        val index = itemIndices[frame.itemId] ?: return
+                        toolCalls.finish(index)?.let { resolved ->
+                            if (resolved.id !in announcedCalls) {
+                                emit(LlmStreamEvent.ToolCallStarted(resolved.id, resolved.name))
+                            }
+                            emit(
+                                LlmStreamEvent.ToolCallCompleted(
+                                    callId = resolved.id,
+                                    name = resolved.name,
+                                    arguments = resolved.arguments,
+                                ),
+                            )
+                        }
+                    }
 
-                is Frame.Usage -> usage = frame.usage
-                is Frame.Failure -> providerError = frame.message
-                Frame.Ignore -> Unit
+                    is Frame.Finish -> {
+                        finishReason = frame.reason
+                        sawComplete = true
+                        frame.usage?.let { usage = it }
+                    }
+
+                    is Frame.Usage -> usage = frame.usage
+                    is Frame.Failure -> providerError = frame.message
+                    Frame.Ignore -> Unit
+                }
             }
         }
 
@@ -266,78 +268,96 @@ class OpenAiResponsesAdapter @Inject constructor(
         data class Failure(val message: String) : Frame
     }
 
-    internal fun parseFrame(payload: String): Frame {
+    /**
+     * Every frame an event carries.
+     *
+     * A list for the same reason as the other two adapters' parsers: an event can
+     * carry a delta and a terminal signal together, and dropping one of them is
+     * how token counts go missing. Uniform with them so the pump code reads the
+     * same in all three.
+     */
+    internal fun parseFrame(payload: String): List<Frame> {
         val root = runCatching { json.parseToJsonElement(payload) }.getOrNull() as? JsonObject
-            ?: return Frame.Ignore
+            ?: return listOf(Frame.Ignore)
 
-        val type = root.stringField("type") ?: return Frame.Ignore
+        val type = root.stringField("type") ?: return listOf(Frame.Ignore)
 
         // A `response.failed` and an `error` event both carry the same nested
         // shape, and both mean the turn is over with nothing usable.
         if (type == "response.failed" || type == "error") {
             val nested = (root["response"] as? JsonObject)?.get("error") as? JsonObject
-            return Frame.Failure(
-                root.stringField("message")
-                    ?: nested?.stringField("message")
-                    ?: "Provider reported an error mid-stream",
+            return listOf(
+                Frame.Failure(
+                    root.stringField("message")
+                        ?: nested?.stringField("message")
+                        ?: "Provider reported an error mid-stream",
+                ),
             )
         }
 
         return when (type) {
             "response.output_text.delta" ->
-                root.stringField("delta")?.let { Frame.Text(it) } ?: Frame.Ignore
+                root.stringField("delta")?.let { listOf(Frame.Text(it)) } ?: listOf(Frame.Ignore)
 
             "response.reasoning_text.delta",
             "response.reasoning_summary.delta",
             "response.reasoning_summary_text.delta",
-            -> root.stringField("delta")?.let { Frame.Reasoning(it) } ?: Frame.Ignore
+            -> root.stringField("delta")?.let { listOf(Frame.Reasoning(it)) } ?: listOf(Frame.Ignore)
 
             "response.output_item.added" -> {
-                val item = root["item"] as? JsonObject ?: return Frame.Ignore
+                val item = root["item"] as? JsonObject ?: return listOf(Frame.Ignore)
                 // `call_id` is the model-visible id; `item_id` is the stream key
                 // that the argument deltas are addressed by. They are different
                 // and both are needed.
                 if (item.stringField("type") != "function_call") {
-                    Frame.Ignore
+                    listOf(Frame.Ignore)
                 } else {
-                    Frame.ToolStart(
-                        itemId = item.stringField("id").orEmpty(),
-                        callId = item.stringField("call_id") ?: item.stringField("id"),
-                        name = item.stringField("name"),
+                    listOf(
+                        Frame.ToolStart(
+                            itemId = item.stringField("id").orEmpty(),
+                            callId = item.stringField("call_id") ?: item.stringField("id"),
+                            name = item.stringField("name"),
+                        ),
                     )
                 }
             }
 
             "response.function_call_arguments.delta" -> {
-                val itemId = root.stringField("item_id") ?: return Frame.Ignore
-                root.stringField("delta")?.let { Frame.ToolArgs(itemId, it) } ?: Frame.Ignore
+                val itemId = root.stringField("item_id") ?: return listOf(Frame.Ignore)
+                root.stringField("delta")?.let { listOf(Frame.ToolArgs(itemId, it)) } ?: listOf(Frame.Ignore)
             }
 
             "response.output_item.done" -> {
-                val item = root["item"] as? JsonObject ?: return Frame.Ignore
+                val item = root["item"] as? JsonObject ?: return listOf(Frame.Ignore)
                 val itemId = item.stringField("id")
                 if (item.stringField("type") == "function_call" && itemId != null) {
                     // Arguments can arrive whole on `output_item.done` rather than
                     // as deltas, so the buffer is topped up here rather than
                     // assuming the deltas carried everything.
                     val delta = item.stringField("arguments")
-                    if (!delta.isNullOrEmpty()) Frame.ToolArgs(itemId, delta) else Frame.ToolDone(itemId)
+                    if (!delta.isNullOrEmpty()) {
+                        listOf(Frame.ToolArgs(itemId, delta))
+                    } else {
+                        listOf(Frame.ToolDone(itemId))
+                    }
                 } else {
-                    Frame.Ignore
+                    listOf(Frame.Ignore)
                 }
             }
 
+            // Usage rides along with the terminal event rather than arriving as
+            // an event of its own, so the finish frame carries both.
             "response.completed", "response.incomplete" -> {
                 val response = root["response"] as? JsonObject
-                // Usage rides along with the terminal event rather than arriving
-                // as an event of its own, so the finish frame carries both.
-                Frame.Finish(
-                    reason = mapFinishReason(response),
-                    usage = (response?.get("usage") as? JsonObject)?.let { parseUsage(it) },
+                listOf(
+                    Frame.Finish(
+                        reason = mapFinishReason(response),
+                        usage = (response?.get("usage") as? JsonObject)?.let { parseUsage(it) },
+                    ),
                 )
             }
 
-            else -> Frame.Ignore
+            else -> listOf(Frame.Ignore)
         }
     }
 

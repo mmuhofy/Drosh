@@ -292,7 +292,7 @@ class AnthropicAdapter @Inject constructor(
             }
 
             "content_block_start" -> {
-                val block = root["content_block"] as? JsonObject ?: return Frame.Ignore
+                val block = root["content_block"] as? JsonObject ?: return listOf(Frame.Ignore)
                 val index = root.intFieldOrNull("index") ?: 0
                 when (block.stringField("type")) {
                     "tool_use", "server_tool_use" -> listOf(
@@ -314,7 +314,7 @@ class AnthropicAdapter @Inject constructor(
             }
 
             "content_block_delta" -> {
-                val delta = root["delta"] as? JsonObject ?: return Frame.Ignore
+                val delta = root["delta"] as? JsonObject ?: return listOf(Frame.Ignore)
                 val index = root.intFieldOrNull("index") ?: 0
                 when (delta.stringField("type")) {
                     "text_delta" -> delta.stringField("text")
