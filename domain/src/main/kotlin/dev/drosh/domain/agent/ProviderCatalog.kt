@@ -27,6 +27,15 @@ import kotlinx.serialization.Serializable
  * actually send is a different question, answered by
  * `dev.drosh.agent.provider.EffortMapper`.
  */
+/**
+ * A `${VAR}` placeholder in a catalog endpoint.
+ *
+ * Private to this file rather than on the class: the kotlinx plugin makes the
+ * generated `serializer()` reach for a class's companion object, and anything
+ * narrower than public on it breaks a caller in another module.
+ */
+private val ENDPOINT_PLACEHOLDER = Regex("""\$\{([A-Z0-9_]+)}""")
+
 @Serializable
 data class CatalogProvider(
     val id: String,
@@ -72,7 +81,7 @@ data class CatalogProvider(
      * into the template.
      */
     val configKeys: List<String>
-        get() = PLACEHOLDER.findAll(apiTemplate.orEmpty())
+        get() = ENDPOINT_PLACEHOLDER.findAll(apiTemplate.orEmpty())
             .map { it.groupValues[1] }
             .distinct()
             .toList()
@@ -80,9 +89,6 @@ data class CatalogProvider(
     /** True when this provider cannot be used at all. */
     val isUnsupported: Boolean get() = unsupportedReason != null
 
-    internal companion object {
-        val PLACEHOLDER = Regex("""\$\{([A-Z0-9_]+)}""")
-    }
 }
 
 /**

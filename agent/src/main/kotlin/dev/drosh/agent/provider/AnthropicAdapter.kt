@@ -144,52 +144,54 @@ class AnthropicAdapter @Inject constructor(
         var sawMessageStop = false
 
         suspend fun handleFrame(payload: String) {
-            when (val frame = parseFrame(payload)) {
-                is Frame.Text -> emit(LlmStreamEvent.TextDelta(frame.delta))
+            parseFrame(payload).forEach { frame ->
+                when (frame) {
+                    is Frame.Text -> emit(LlmStreamEvent.TextDelta(frame.delta))
 
-                is Frame.Reasoning -> {
-                    reasoning.append(frame.delta)
-                    emit(LlmStreamEvent.ReasoningDelta(frame.delta))
-                }
-
-                is Frame.ToolStart -> {
-                    val appended = toolCalls.append(
-                        index = frame.blockIndex,
-                        id = frame.id,
-                        name = frame.name,
-                        argsDelta = null,
-                    ) ?: return
-                    val id = appended.id
-                    val name = appended.name
-                    if (id != null && name != null && id !in announcedCalls) {
-                        announcedCalls += id
-                        emit(LlmStreamEvent.ToolCallStarted(id, name))
+                    is Frame.Reasoning -> {
+                        reasoning.append(frame.delta)
+                        emit(LlmStreamEvent.ReasoningDelta(frame.delta))
                     }
-                }
 
-                is Frame.ToolArgs -> {
-                    toolCalls.append(
-                        index = frame.blockIndex,
-                        id = null,
-                        name = null,
-                        argsDelta = frame.delta,
-                    )
-                }
-
-                is Frame.ToolDone -> {
-                    toolCalls.finish(frame.blockIndex)?.let { resolved ->
-                        if (resolved.id !in announcedCalls) {
-                            emit(LlmStreamEvent.ToolCallStarted(resolved.id, resolved.name))
+                    is Frame.ToolStart -> {
+                        val appended = toolCalls.append(
+                            index = frame.blockIndex,
+                            id = frame.id,
+                            name = frame.name,
+                            argsDelta = null,
+                        ) ?: return
+                        val id = appended.id
+                        val name = appended.name
+                        if (id != null && name != null && id !in announcedCalls) {
+                            announcedCalls += id
+                            emit(LlmStreamEvent.ToolCallStarted(id, name))
                         }
-                        emit(LlmStreamEvent.ToolCallCompleted(resolved.id, resolved.name, resolved.arguments))
                     }
-                }
 
-                is Frame.Stop -> finishReason = frame.reason
-                is Frame.Usage -> usage = mergeUsage(usage, frame.usage)
-                is Frame.Failure -> providerError = frame.message
-                is Frame.Done -> sawMessageStop = true
-                Frame.Ignore -> Unit
+                    is Frame.ToolArgs -> {
+                        toolCalls.append(
+                            index = frame.blockIndex,
+                            id = null,
+                            name = null,
+                            argsDelta = frame.delta,
+                        )
+                    }
+
+                    is Frame.ToolDone -> {
+                        toolCalls.finish(frame.blockIndex)?.let { resolved ->
+                            if (resolved.id !in announcedCalls) {
+                                emit(LlmStreamEvent.ToolCallStarted(resolved.id, resolved.name))
+                            }
+                            emit(LlmStreamEvent.ToolCallCompleted(resolved.id, resolved.name, resolved.arguments))
+                        }
+                    }
+
+                    is Frame.Stop -> finishReason = frame.reason
+                    is Frame.Usage -> usage = mergeUsage(usage, frame.usage)
+                    is Frame.Failure -> providerError = frame.message
+                    is Frame.Done -> sawMessageStop = true
+                    Frame.Ignore -> Unit
+                }
             }
         }
 
@@ -265,37 +267,49 @@ class AnthropicAdapter @Inject constructor(
         data object Done : Frame
     }
 
-    internal fun parseFrame(payload: String): Frame {
+    /**
+     * Every frame an event carries, in order.
+     *
+     * A list, because `message_delta` holds the stop reason and the final token
+     * counts together — and the final counts are the ones that include the
+     * thinking tokens. Returning one frame per event would drop whichever of
+     * the two was checked second.
+     */
+    internal fun parseFrame(payload: String): List<Frame> {
         val root = runCatching { json.parseToJsonElement(payload) }.getOrNull() as? JsonObject
-            ?: return Frame.Ignore
+            ?: return listOf(Frame.Ignore)
 
         (root["error"] as? JsonObject)?.let { error ->
-            return Frame.Failure(error.stringField("message") ?: "Provider reported an error mid-stream")
+            return listOf(
+                Frame.Failure(error.stringField("message") ?: "Provider reported an error mid-stream"),
+            )
         }
 
         return when (val type = root.stringField("type")) {
             "message_start" -> {
                 val usage = (root["message"] as? JsonObject)?.get("usage") as? JsonObject
-                usage?.let { Frame.Usage(parseUsage(it)) } ?: Frame.Ignore
+                usage?.let { listOf(Frame.Usage(parseUsage(it))) } ?: listOf(Frame.Ignore)
             }
 
             "content_block_start" -> {
                 val block = root["content_block"] as? JsonObject ?: return Frame.Ignore
                 val index = root.intFieldOrNull("index") ?: 0
                 when (block.stringField("type")) {
-                    "tool_use", "server_tool_use" -> Frame.ToolStart(
-                        blockIndex = index,
-                        id = block.stringField("id"),
-                        name = block.stringField("name"),
+                    "tool_use", "server_tool_use" -> listOf(
+                        Frame.ToolStart(
+                            blockIndex = index,
+                            id = block.stringField("id"),
+                            name = block.stringField("name"),
+                        ),
                     )
 
                     "text" -> block.stringField("text")?.takeIf { it.isNotEmpty() }
-                        ?.let { Frame.Text(it) } ?: Frame.Ignore
+                        ?.let { listOf(Frame.Text(it)) } ?: listOf(Frame.Ignore)
 
                     "thinking" -> block.stringField("thinking")?.takeIf { it.isNotEmpty() }
-                        ?.let { Frame.Reasoning(it) } ?: Frame.Ignore
+                        ?.let { listOf(Frame.Reasoning(it)) } ?: listOf(Frame.Ignore)
 
-                    else -> Frame.Ignore
+                    else -> listOf(Frame.Ignore)
                 }
             }
 
@@ -303,37 +317,36 @@ class AnthropicAdapter @Inject constructor(
                 val delta = root["delta"] as? JsonObject ?: return Frame.Ignore
                 val index = root.intFieldOrNull("index") ?: 0
                 when (delta.stringField("type")) {
-                    "text_delta" -> delta.stringField("text")?.let { Frame.Text(it) } ?: Frame.Ignore
-                    "thinking_delta" -> delta.stringField("thinking")?.let { Frame.Reasoning(it) }
-                        ?: Frame.Ignore
+                    "text_delta" -> delta.stringField("text")
+                        ?.let { listOf(Frame.Text(it)) } ?: listOf(Frame.Ignore)
+
+                    "thinking_delta" -> delta.stringField("thinking")
+                        ?.let { listOf(Frame.Reasoning(it)) } ?: listOf(Frame.Ignore)
 
                     // Raw JSON, split at arbitrary boundaries. Assembled as text
                     // and parsed once the block closes.
                     "input_json_delta" -> delta.stringField("partial_json")
-                        ?.let { Frame.ToolArgs(index, it) } ?: Frame.Ignore
+                        ?.let { listOf(Frame.ToolArgs(index, it)) } ?: listOf(Frame.Ignore)
 
                     // Signature deltas carry no visible text; the signature is
                     // only needed to replay the block, which this loop does not.
-                    else -> Frame.Ignore
+                    else -> listOf(Frame.Ignore)
                 }
             }
 
-            "content_block_stop" -> Frame.ToolDone(root.intFieldOrNull("index") ?: 0)
+            "content_block_stop" -> listOf(Frame.ToolDone(root.intFieldOrNull("index") ?: 0))
 
-            "message_delta" -> {
-                val usage = root["usage"] as? JsonObject
-                val delta = root["delta"] as? JsonObject
-                val reason = delta?.stringField("stop_reason")
-                when {
-                    reason != null -> Frame.Stop(mapFinishReason(reason))
-                    usage != null -> Frame.Usage(parseUsage(usage))
-                    else -> Frame.Ignore
+            // Both fields arrive on this one event, and both are needed.
+            "message_delta" -> buildList {
+                (root["delta"] as? JsonObject)?.stringField("stop_reason")?.let { reason ->
+                    add(Frame.Stop(mapFinishReason(reason)))
                 }
-            }
+                (root["usage"] as? JsonObject)?.let { add(Frame.Usage(parseUsage(it))) }
+            }.ifEmpty { listOf(Frame.Ignore) }
 
-            "message_stop" -> Frame.Done
-            "ping" -> Frame.Ignore
-            else -> Frame.Ignore
+            "message_stop" -> listOf(Frame.Done)
+            "ping" -> listOf(Frame.Ignore)
+            else -> listOf(Frame.Ignore)
         }
     }
 

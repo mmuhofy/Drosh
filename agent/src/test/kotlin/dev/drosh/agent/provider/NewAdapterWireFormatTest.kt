@@ -113,6 +113,56 @@ class NewAdapterWireFormatTest {
         assertEquals("Bearer sk-test", request.header("Authorization"))
     }
 
+    @Test
+    fun `anthropic reads the stop reason and the final usage off one event`() {
+        // `message_delta` carries both, and the final counts are the ones that
+        // include the thinking tokens. A parser that returned one frame per
+        // event dropped whichever it checked second.
+        val frames = anthropic.parseFrame(
+            """{"type":"message_delta","delta":{"stop_reason":"end_turn"},""" +
+                """"usage":{"input_tokens":12,"output_tokens":48,""" +
+                """"output_tokens_details":{"thinking_tokens":31}}}""",
+        )
+
+        val stop = frames.filterIsInstance<AnthropicAdapter.Frame.Stop>().single()
+        val usage = frames.filterIsInstance<AnthropicAdapter.Frame.Usage>().single()
+        assertEquals(FinishReason.STOP, stop.reason)
+        assertEquals(48, usage.usage.output)
+        assertEquals(31, usage.usage.reasoning)
+    }
+
+    @Test
+    fun `gemini emits text and the finish together, in that order`() {
+        // The last chunk carries content and the terminal signal at once.
+        val frames = gemini.parseFrame(
+            """{"candidates":[{"content":{"role":"model","parts":[{"text":"Done"}]},""" +
+                """"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":11,""" +
+                """"candidatesTokenCount":7,"thoughtsTokenCount":40}}""",
+        )
+
+        assertEquals(2, frames.size)
+        assertEquals("Done", (frames[0] as GeminiAdapter.Frame.Text).delta)
+        val finish = frames[1] as GeminiAdapter.Frame.Finish
+        assertEquals(FinishReason.STOP, finish.reason)
+        // Usage rides on the terminal frame, so it is not lost to the text.
+        assertEquals(47, finish.usage!!.output)
+        assertEquals(40, finish.usage!!.reasoning)
+    }
+
+    @Test
+    fun `gemini emits several parts from one chunk`() {
+        // A chunk with both a thought and an answer yields two frames, in the
+        // order the parts appeared.
+        val frames = gemini.parseFrame(
+            """{"candidates":[{"content":{"parts":[{"text":"planning","thought":true},""" +
+                """{"text":"Done"}]}}]}""",
+        )
+
+        assertEquals(2, frames.size)
+        assertEquals("planning", (frames[0] as GeminiAdapter.Frame.Reasoning).delta)
+        assertEquals("Done", (frames[1] as GeminiAdapter.Frame.Text).delta)
+    }
+
     // ── request bodies ─────────────────────────────────────────────────────
 
     @Test
@@ -359,8 +409,8 @@ class NewAdapterWireFormatTest {
                 """"delta":{"type":"thinking_delta","thinking":"hmm"}}""",
         )
 
-        assertEquals("Hello", (text as AnthropicAdapter.Frame.Text).delta)
-        assertEquals("hmm", (thinking as AnthropicAdapter.Frame.Reasoning).delta)
+        assertEquals("Hello", (text.single() as AnthropicAdapter.Frame.Text).delta)
+        assertEquals("hmm", (thinking.single() as AnthropicAdapter.Frame.Reasoning).delta)
     }
 
     @Test
@@ -370,7 +420,7 @@ class NewAdapterWireFormatTest {
                 """"cache_read_input_tokens":512,"output_tokens":3}}}""",
         )
 
-        val usage = (frame as AnthropicAdapter.Frame.Usage).usage
+        val usage = (frame.single() as AnthropicAdapter.Frame.Usage).usage
         assertEquals(812, usage.input)
         assertEquals(512, usage.cacheRead)
     }
@@ -379,7 +429,7 @@ class NewAdapterWireFormatTest {
     fun `anthropic maps each stop reason`() {
         fun reasonOf(raw: String): FinishReason {
             val payload = """{"type":"message_delta","delta":{"stop_reason":"$raw"}}"""
-            return (anthropic.parseFrame(payload) as AnthropicAdapter.Frame.Stop).reason
+            return (anthropic.parseFrame(payload).single() as AnthropicAdapter.Frame.Stop).reason
         }
 
         assertEquals(FinishReason.STOP, reasonOf("end_turn"))
@@ -402,11 +452,11 @@ class NewAdapterWireFormatTest {
         )
         val done = anthropic.parseFrame("""{"type":"content_block_stop","index":0}""")
 
-        assertEquals(0, (start as AnthropicAdapter.Frame.ToolStart).blockIndex)
+        assertEquals(0, (start.single() as AnthropicAdapter.Frame.ToolStart).blockIndex)
         assertEquals("toolu_1", start.id)
         assertEquals("shell", start.name)
-        assertEquals("""{"a":""", (args as AnthropicAdapter.Frame.ToolArgs).delta)
-        assertEquals(0, (done as AnthropicAdapter.Frame.ToolDone).blockIndex)
+        assertEquals("""{"a":""", (args.single() as AnthropicAdapter.Frame.ToolArgs).delta)
+        assertEquals(0, (done.single() as AnthropicAdapter.Frame.ToolDone).blockIndex)
     }
 
     @Test
@@ -419,8 +469,8 @@ class NewAdapterWireFormatTest {
             """{"candidates":[{"content":{"role":"model","parts":[{"text":"Done"}]}}]}""",
         )
 
-        assertEquals("planning", (thought as GeminiAdapter.Frame.Reasoning).delta)
-        assertEquals("Done", (answer as GeminiAdapter.Frame.Text).delta)
+        assertEquals("planning", (thought.single() as GeminiAdapter.Frame.Reasoning).delta)
+        assertEquals("Done", (answer.single() as GeminiAdapter.Frame.Text).delta)
     }
 
     @Test
@@ -430,7 +480,7 @@ class NewAdapterWireFormatTest {
                 """"functionCall":{"name":"shell","args":{"command":"ls"}}}]}}]}""",
         )
 
-        val call = frame as GeminiAdapter.Frame.ToolCall
+        val call = frame.single() as GeminiAdapter.Frame.ToolCall
         assertEquals("shell", call.name)
         assertEquals("ls", call.arguments["command"]!!.jsonPrimitive.content)
         // Required back on the next request; Gemini 3 rejects without it.
@@ -447,7 +497,7 @@ class NewAdapterWireFormatTest {
                 """"candidatesTokenCount":7,"thoughtsTokenCount":40,"totalTokenCount":58}}""",
         )
 
-        val finish = frame as GeminiAdapter.Frame.Finish
+        val finish = frame.single() as GeminiAdapter.Frame.Finish
         assertEquals(FinishReason.STOP, finish.reason)
         assertEquals(11, finish.usage!!.input)
         // candidatesTokenCount is visible-only, so thoughts are added.
@@ -460,8 +510,8 @@ class NewAdapterWireFormatTest {
         val truncated = gemini.parseFrame("""{"candidates":[{"finishReason":"MAX_TOKENS"}]}""")
         val blocked = gemini.parseFrame("""{"candidates":[{"finishReason":"SAFETY"}]}""")
 
-        assertEquals(FinishReason.MAX_TOKENS, (truncated as GeminiAdapter.Frame.Finish).reason)
-        assertEquals(FinishReason.ERROR, (blocked as GeminiAdapter.Frame.Finish).reason)
+        assertEquals(FinishReason.MAX_TOKENS, (truncated.single() as GeminiAdapter.Frame.Finish).reason)
+        assertEquals(FinishReason.ERROR, (blocked.single() as GeminiAdapter.Frame.Finish).reason)
     }
 
     @Test
@@ -477,9 +527,9 @@ class NewAdapterWireFormatTest {
                 """"delta":"{\"a\":"}""",
         )
 
-        assertEquals("Hello", (text as OpenAiResponsesAdapter.Frame.Text).delta)
-        assertEquals("hmm", (reasoning as OpenAiResponsesAdapter.Frame.Reasoning).delta)
-        assertEquals("item_1", (args as OpenAiResponsesAdapter.Frame.ToolArgs).itemId)
+        assertEquals("Hello", (text.single() as OpenAiResponsesAdapter.Frame.Text).delta)
+        assertEquals("hmm", (reasoning.single() as OpenAiResponsesAdapter.Frame.Reasoning).delta)
+        assertEquals("item_1", (args.single() as OpenAiResponsesAdapter.Frame.ToolArgs).itemId)
     }
 
     @Test
@@ -489,7 +539,7 @@ class NewAdapterWireFormatTest {
                 """"id":"fc_1","call_id":"call_a","name":"shell"}}""",
         )
 
-        val start = frame as OpenAiResponsesAdapter.Frame.ToolStart
+        val start = frame.single() as OpenAiResponsesAdapter.Frame.ToolStart
         // `item_id` is the stream key, `call_id` is the model-visible id, and
         // they are different values.
         assertEquals("fc_1", start.itemId)
@@ -505,7 +555,7 @@ class NewAdapterWireFormatTest {
                 """{"cached_tokens":512},"output_tokens_details":{"reasoning_tokens":40}}}}""",
         )
 
-        val finish = frame as OpenAiResponsesAdapter.Frame.Finish
+        val finish = frame.single() as OpenAiResponsesAdapter.Frame.Finish
         assertEquals(FinishReason.STOP, finish.reason)
         assertEquals(812, finish.usage!!.input)
         assertEquals(512, finish.usage!!.cacheRead)
@@ -521,7 +571,7 @@ class NewAdapterWireFormatTest {
 
         assertEquals(
             FinishReason.MAX_TOKENS,
-            (frame as OpenAiResponsesAdapter.Frame.Finish).reason,
+            (frame.single() as OpenAiResponsesAdapter.Frame.Finish).reason,
         )
     }
 
@@ -534,7 +584,7 @@ class NewAdapterWireFormatTest {
         val error = responses.parseFrame("""{"type":"error","message":"boom"}""")
 
         // Both spellings carry the same nested shape and both end the turn.
-        assertEquals("Slow down", (failed as OpenAiResponsesAdapter.Frame.Failure).message)
-        assertEquals("boom", (error as OpenAiResponsesAdapter.Frame.Failure).message)
+        assertEquals("Slow down", (failed.single() as OpenAiResponsesAdapter.Frame.Failure).message)
+        assertEquals("boom", (error.single() as OpenAiResponsesAdapter.Frame.Failure).message)
     }
 }

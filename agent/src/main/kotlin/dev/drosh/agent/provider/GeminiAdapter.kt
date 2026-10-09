@@ -126,47 +126,49 @@ class GeminiAdapter @Inject constructor(
         var nextCallId = 0
 
         suspend fun handleFrame(payload: String) {
-            when (val frame = parseFrame(payload)) {
-                is Frame.Text -> emit(LlmStreamEvent.TextDelta(frame.delta))
+            parseFrame(payload).forEach { frame ->
+                when (frame) {
+                    is Frame.Text -> emit(LlmStreamEvent.TextDelta(frame.delta))
 
-                is Frame.Reasoning -> {
-                    reasoning.append(frame.delta)
-                    emit(LlmStreamEvent.ReasoningDelta(frame.delta))
+                    is Frame.Reasoning -> {
+                        reasoning.append(frame.delta)
+                        emit(LlmStreamEvent.ReasoningDelta(frame.delta))
+                    }
+
+                    is Frame.ToolCall -> {
+                        val toolCall = LlmToolCall(
+                            id = "call_${nextCallId++}",
+                            name = frame.name,
+                            arguments = frame.arguments,
+                            thoughtSignature = frame.thoughtSignature,
+                        )
+                        // Gemini delivers arguments whole, so a call is announced and
+                        // completed in the same step rather than across fragments.
+                        emit(LlmStreamEvent.ToolCallStarted(toolCall.id, toolCall.name))
+                        emit(
+                            LlmStreamEvent.ToolCallCompleted(
+                                callId = toolCall.id,
+                                name = toolCall.name,
+                                arguments = toolCall.arguments,
+                            ),
+                        )
+                    }
+
+                    // Cumulative on every chunk, so the last value wins rather than
+                    // being summed — Anthropic's per-event deltas are the opposite.
+                    is Frame.Usage -> usage = frame.usage
+
+                    // The terminal chunk carries both the finish reason and the final
+                    // usage counts, so they arrive together rather than needing to be
+                    // reconciled across two frames.
+                    is Frame.Finish -> {
+                        finishReason = frame.reason
+                        frame.usage?.let { usage = it }
+                    }
+
+                    is Frame.Failure -> providerError = frame.message
+                    Frame.Ignore -> Unit
                 }
-
-                is Frame.ToolCall -> {
-                    val toolCall = LlmToolCall(
-                        id = "call_${nextCallId++}",
-                        name = frame.name,
-                        arguments = frame.arguments,
-                        thoughtSignature = frame.thoughtSignature,
-                    )
-                    // Gemini delivers arguments whole, so a call is announced and
-                    // completed in the same step rather than across fragments.
-                    emit(LlmStreamEvent.ToolCallStarted(toolCall.id, toolCall.name))
-                    emit(
-                        LlmStreamEvent.ToolCallCompleted(
-                            callId = toolCall.id,
-                            name = toolCall.name,
-                            arguments = toolCall.arguments,
-                        ),
-                    )
-                }
-
-                // Cumulative on every chunk, so the last value wins rather than
-                // being summed — Anthropic's per-event deltas are the opposite.
-                is Frame.Usage -> usage = frame.usage
-
-                // The terminal chunk carries both the finish reason and the final
-                // usage counts, so they arrive together rather than needing to be
-                // reconciled across two frames.
-                is Frame.Finish -> {
-                    finishReason = frame.reason
-                    frame.usage?.let { usage = it }
-                }
-
-                is Frame.Failure -> providerError = frame.message
-                Frame.Ignore -> Unit
             }
         }
 
@@ -230,49 +232,60 @@ class GeminiAdapter @Inject constructor(
         data class Failure(val message: String) : Frame
     }
 
-    internal fun parseFrame(payload: String): Frame {
+    /**
+     * Every frame a payload carries, in order.
+     *
+     * A list, because one Gemini chunk routinely holds several things at once:
+     * a part with text, a `finishReason`, and the cumulative `usageMetadata`.
+     * A parser that returned one frame per payload would have to drop two of
+     * the three, and the one it drops is usually the token counts.
+     */
+    internal fun parseFrame(payload: String): List<Frame> {
         val root = runCatching { json.parseToJsonElement(payload) }.getOrNull() as? JsonObject
-            ?: return Frame.Ignore
+            ?: return listOf(Frame.Ignore)
 
         (root["error"] as? JsonObject)?.let { error ->
-            return Frame.Failure(error.stringField("message") ?: "Provider reported an error mid-stream")
+            return listOf(
+                Frame.Failure(error.stringField("message") ?: "Provider reported an error mid-stream"),
+            )
         }
 
-        // Read first but not returned: the same chunk usually carries content
-        // too, and the terminal chunk carries this alongside finishReason.
+        // Read but not returned straight away: the same chunk usually carries
+        // content too, and the terminal chunk carries this alongside finishReason.
         val usage = (root["usageMetadata"] as? JsonObject)?.let { parseUsage(it) }
-
         val candidate = (root["candidates"] as? JsonArray)?.firstOrNull() as? JsonObject
+        val frames = mutableListOf<Frame>()
 
         candidate?.get("content")?.let { raw ->
             val parts = (raw as? JsonObject)?.get("parts") as? JsonArray
-            if (parts != null) {
-                for (part in parts) {
-                    val obj = part as? JsonObject ?: continue
-                    val isThought = obj["thought"]?.let { it as? JsonPrimitive }?.content == "true"
+            parts?.forEach { part ->
+                val obj = part as? JsonObject ?: return@forEach
+                val isThought = obj["thought"]?.let { it as? JsonPrimitive }?.content == "true"
 
-                    (obj["functionCall"] as? JsonObject)?.let { fn ->
-                        return Frame.ToolCall(
-                            name = fn.stringField("name").orEmpty(),
-                            arguments = fn["args"] as? JsonObject ?: JsonObject(emptyMap()),
-                            thoughtSignature = obj.stringField("thoughtSignature"),
-                        )
-                    }
+                (obj["functionCall"] as? JsonObject)?.let { fn ->
+                    frames += Frame.ToolCall(
+                        name = fn.stringField("name").orEmpty(),
+                        arguments = fn["args"] as? JsonObject ?: JsonObject(emptyMap()),
+                        thoughtSignature = obj.stringField("thoughtSignature"),
+                    )
+                    return@forEach
+                }
 
-                    obj.stringField("text")?.takeIf { it.isNotEmpty() }?.let { text ->
-                        return if (isThought) Frame.Reasoning(text) else Frame.Text(text)
-                    }
+                obj.stringField("text")?.takeIf { it.isNotEmpty() }?.let { text ->
+                    frames += if (isThought) Frame.Reasoning(text) else Frame.Text(text)
                 }
             }
         }
 
-        // The finish reason is the signal the stream is over, so it wins over a
-        // usage-only chunk — and it carries the counts with it when present.
+        // The finish reason is the signal the stream is over, and it carries the
+        // final counts with it when the same chunk reported them.
         candidate?.stringField("finishReason")?.let { raw ->
-            return Frame.Finish(mapFinishReason(raw), usage)
+            frames += Frame.Finish(mapFinishReason(raw), usage)
+            return frames
         }
 
-        return usage?.let { Frame.Usage(it) } ?: Frame.Ignore
+        usage?.let { frames += Frame.Usage(it) }
+        return frames.ifEmpty { listOf(Frame.Ignore) }
     }
 
     /**
