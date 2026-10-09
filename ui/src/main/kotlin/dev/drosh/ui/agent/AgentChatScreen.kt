@@ -89,7 +89,6 @@ import dev.drosh.ui.agent.components.CollapsibleRow
 import dev.drosh.ui.agent.components.DiffBlock
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.IconAction
-import dev.drosh.ui.agent.components.MonoBlock
 import dev.drosh.ui.agent.components.StatusPill
 import dev.drosh.ui.agent.components.TOUCH_TARGET
 import androidx.compose.foundation.clickable
@@ -175,6 +174,9 @@ fun AgentChatScreen(
 
     val terminalLines = remember(messages) { TerminalProjection.project(messages) }
     val listState = rememberLazyListState()
+
+    // Recomputed only when the transcript changes; grouping walks the whole list.
+    val groupedTranscript = remember(messages) { groupTranscript(messages) }
     val clipboard = rememberAgentClipboard()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -235,15 +237,25 @@ fun AgentChatScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
-                    items(messages, key = { it.id }) { message ->
-                        MessageRow(
-                            message = message,
-                            onAnswer = viewModel::answer,
-                            onCopy = clipboard,
-                            onShare = { picked ->
-                                scope.launch { shareText(context, picked) }
-                            },
-                        )
+                    items(groupedTranscript, key = { rowKey(it) }) { row ->
+                        when (row) {
+                            is TranscriptRow.Single -> MessageRow(
+                                message = row.message,
+                                onAnswer = viewModel::answer,
+                                onCopy = clipboard,
+                                onShare = { picked ->
+                                    scope.launch { shareText(context, picked) }
+                                },
+                            )
+
+                            is TranscriptRow.ToolGroup -> Column(
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                row.tools.forEach { tool ->
+                                    ToolCallRow(tool)
+                                }
+                            }
+                        }
                     }
 
                     if (messages.isEmpty()) {
@@ -873,32 +885,125 @@ private fun ThinkingDots(modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * The agent's reasoning, as a line of text.
+ *
+ * ## Not a card
+ *
+ * This was a `CollapsibleRow` — a `DroshSurfaceLow` container with a radius, which
+ * put a grey box around every moment the model thought. Reasoning is the most
+ * frequent non-answer row in a transcript, so a box there meant most of the screen
+ * was boxes.
+ *
+ * Now it is the same shape as a tool row: verb, elapsed time while running, chevron.
+ * "düşünüyor" is past-tense English for the same reason the tool rows are: the verb
+ * is the status, so there is no separate indicator to look for.
+ *
+ * Closed by default. Reasoning is worth reading when it is surprising and noise when
+ * it is not, and the user asked for the log; opening it should be their call.
+ */
 @Composable
 private fun ReasoningBlock(message: ChatMessage.Reasoning) {
     var open by rememberSaveable(message.id) { mutableStateOf(false) }
-    CollapsibleRow(
-        expanded = open,
-        onToggle = { open = !open },
-        summary = {
-            Text(
-                text = if (open) "düşünüyor" else "düşündü",
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                color = DroshTextMuted,
-            )
-        },
-        content = { MonoBlock(text = message.text) },
+
+    // Elapsed, counted rather than measured, for the same reason as the tool rows.
+    var elapsed by remember(message.id) { mutableStateOf(0) }
+    val running = message.text.isEmpty() || message.text.endsWith("…")
+    LaunchedEffect(message.id, running) {
+        if (running) {
+            elapsed = 0
+            while (true) {
+                delay(1000)
+                elapsed++
+            }
+        }
+    }
+
+    val transition = rememberInfiniteTransition(label = "reasoningSweep")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "reasoningSweepProgress",
     )
+
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (open) 90f else 0f,
+        animationSpec = tween(MOTION_MS),
+        label = "reasoningChevronRotation",
+    )
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { open = !open }
+                .padding(vertical = 1.dp)
+                .semantics { contentDescription = "Düşünme" },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = DroshIcons.Info,
+                contentDescription = null,
+                tint = DroshTextMuted,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.width(7.dp))
+
+            Text(
+                text = if (running) "Reasoning ${elapsed}s" else "Reasoned",
+                fontSize = 11.5.sp,
+                fontFamily = FontFamily.Monospace,
+                color = if (running) DroshPrimary else DroshTextMuted,
+                modifier = if (running) Modifier.sweepHighlight(progress) else Modifier,
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Icon(
+                imageVector = DroshIcons.ChevronRight,
+                contentDescription = if (open) "Daralt" else "Genişlet",
+                tint = DroshTextMuted,
+                modifier = Modifier
+                    .size(12.dp)
+                    .rotate(chevronRotation),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = open,
+            enter = fadeIn(tween(MOTION_MS)) + expandVertically(tween(MOTION_MS)),
+            exit = fadeOut(tween(MOTION_MS)) + shrinkVertically(tween(MOTION_MS)),
+        ) {
+            Row(modifier = Modifier.padding(top = 1.dp)) {
+                // A hairline, not a card: the grouping cue the container used to
+                // provide, at a weight that reads as a rule.
+                Box(
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .width(1.dp)
+                        .heightIn(min = 12.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(DroshOutline.copy(alpha = 0.4f)),
+                )
+                Text(
+                    text = message.text,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = DroshTextMuted,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 10.dp, top = 1.dp, bottom = 3.dp),
+                )
+            }
+        }
+    }
 }
 
-/**
- * One tool call.
- *
- * Collapsed to a single line by default. The summary is the tool's own
- * one-liner — `npm run build`, `src/App.ktx` — rather than its argument JSON,
- * because the point of the collapsed row is "what did it just do", not "what were
- * the exact arguments".
- */
 /**
  * One tool call: a line, not a card.
  *
@@ -1004,14 +1109,13 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = TOUCH_TARGET)
                 .clickable { open = !open }
-                .padding(end = 4.dp)
+                .padding(vertical = 1.dp)
                 .semantics { contentDescription = toolRowDescription(message) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ToolIcon(message.name)
-            Spacer(Modifier.width(9.dp))
+            Spacer(Modifier.width(7.dp))
 
             Text(
                 text = verb,
@@ -1053,7 +1157,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                 contentDescription = if (open) "Daralt" else "Genişlet",
                 tint = DroshTextMuted,
                 modifier = Modifier
-                    .size(16.dp)
+                    .size(12.dp)
                     .rotate(chevronRotation),
             )
         }
@@ -1078,7 +1182,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 12.dp, top = 2.dp, bottom = 4.dp),
+                        .padding(start = 10.dp, top = 1.dp, bottom = 3.dp),
                 ) {
                     // A checklist is the tool's result, not its output text, so it is
                     // rendered as a list and the text version is not shown.
@@ -1883,4 +1987,58 @@ private fun verbColor(state: ToolCallState): Color = when (state) {
     ToolCallState.Cancelled -> DroshTextMuted
     ToolCallState.AwaitingApproval -> DroshWarning
     ToolCallState.Pending -> DroshTextMuted
+}
+
+/**
+ * Consecutive tool calls, grouped for layout.
+ *
+ * A turn that runs five tools is not five things the user reads between; it is one
+ * block. With 18dp between every message those five rows were as tall as five
+ * paragraphs of prose, and the list stopped reading as a list.
+ *
+ * So runs of tool calls collapse into one list item with 2dp between rows, and
+ * everything else keeps the 18dp that separates one thought from the next. The
+ * grouping is computed here rather than in the transcript because it is a property
+ * of *what is on screen*, not of what the agent did.
+ */
+/**
+ * A stable key for a grouped row.
+ *
+ * A group is keyed by its first member rather than its size: two adjacent runs
+ * that happen to hold the same number of tools are still different rows, and a
+ * key built from the count alone would make Compose reuse the wrong one.
+ */
+private fun rowKey(row: TranscriptRow): String = when (row) {
+    is TranscriptRow.Single -> "m_${row.message.id}"
+    is TranscriptRow.ToolGroup -> "g_${row.tools.first().id}"
+}
+
+private sealed interface TranscriptRow {
+    /** One or more adjacent tool calls, rendered as a tight group. */
+    data class ToolGroup(val tools: List<ChatMessage.ToolCall>) : TranscriptRow
+
+    /** Anything else: user, assistant, reasoning, approval, notice. */
+    data class Single(val message: ChatMessage) : TranscriptRow
+}
+
+private fun groupTranscript(messages: List<ChatMessage>): List<TranscriptRow> {
+    val rows = mutableListOf<TranscriptRow>()
+    var pendingTools = mutableListOf<ChatMessage.ToolCall>()
+
+    fun flushTools() {
+        if (pendingTools.isEmpty()) return
+        rows += TranscriptRow.ToolGroup(pendingTools.toList())
+        pendingTools = mutableListOf()
+    }
+
+    messages.forEach { message ->
+        if (message is ChatMessage.ToolCall) {
+            pendingTools += message
+        } else {
+            flushTools()
+            rows += TranscriptRow.Single(message)
+        }
+    }
+    flushTools()
+    return rows
 }
