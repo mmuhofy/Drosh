@@ -408,12 +408,12 @@ class NewAdapterWireFormatTest {
         ).single() as OpenAiResponsesAdapter.Frame.ToolStart
         val delta = responses.parseFrame(
             """{"type":"response.function_call_arguments.delta","item_id":"fc_1",""" +
-                """"delta":"{\\"command\\":\\"ls\\"}"}""",
+                """"delta":"{\"command\":\"ls\"}"}""",
         ).single() as OpenAiResponsesAdapter.Frame.ToolArgs
         val done = responses.parseFrame(
             """{"type":"response.output_item.done","item":{"type":"function_call",""" +
                 """"id":"fc_1","call_id":"call_a","name":"shell",""" +
-                """"arguments":"{\\"command\\":\\"ls\\"}"}}""",
+                """"arguments":"{\"command\":\"ls\"}"}}""",
         )
 
         assertEquals("call_a", opened.callId)
@@ -438,7 +438,7 @@ class NewAdapterWireFormatTest {
         val frames = responses.parseFrame(
             """{"type":"response.output_item.done","item":{"type":"function_call",""" +
                 """"id":"fc_1","call_id":"call_a","name":"shell",""" +
-                """"arguments":"{\\"command\\":\\"ls\\"}"}}""",
+                """"arguments":"{\"command\":\"ls\"}"}}""",
         )
 
         // Seeded from the final item, then closed — in that order. The seed is
@@ -546,13 +546,17 @@ class NewAdapterWireFormatTest {
     fun `gemini reads the finish reason and the usage off the same chunk`() {
         // Both arrive together on the terminal chunk, which is why the finish
         // frame carries the counts.
-        val frame = gemini.parseFrame(
+        val frames = gemini.parseFrame(
             """{"candidates":[{"content":{"role":"model","parts":[{"text":"Done"}]},""" +
                 """"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":11,""" +
                 """"candidatesTokenCount":7,"thoughtsTokenCount":40,"totalTokenCount":58}}""",
         )
 
-        val finish = frame.single() as GeminiAdapter.Frame.Finish
+        // Two frames, in the order the payload carried them: the text, then the
+        // terminal event with the counts attached.
+        assertEquals(2, frames.size)
+        assertEquals("Done", (frames[0] as GeminiAdapter.Frame.Text).delta)
+        val finish = frames[1] as GeminiAdapter.Frame.Finish
         assertEquals(FinishReason.STOP, finish.reason)
         assertEquals(11, finish.usage!!.input)
         // candidatesTokenCount is visible-only, so thoughts are added.
