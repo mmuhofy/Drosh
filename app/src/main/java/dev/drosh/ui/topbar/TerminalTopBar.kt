@@ -144,34 +144,17 @@ private const val PILL_SURFACE_ALPHA = 0.28f
  * The tint where the platform cannot blur, so the text has to be hidden by
  * opacity instead.
  *
- * `Modifier.blur` is a no-op below API 31 — there is no fallback, just no blur —
+ * `Modifier.blur` is a no-op below API 31 -- there is no fallback, just no blur --
  * so a 28% tint there leaves the terminal's text behind the pill perfectly
- * readable. This is the tint that does not depend on the blur for anything.
+ * readable. This tint does not depend on the blur for anything.
  */
 private const val PILL_SURFACE_ALPHA_UNBLURRED = 0.88f
 
 /**
  * The tint for a pill whose blur is actually rendering.
- *
- * Read once rather than per pill: [BLUR_SUPPORTED] is a platform constant, and a
- * pill has no business re-deciding it.
  */
 private val PILL_TINT_ALPHA: Float =
     if (BLUR_SUPPORTED) PILL_SURFACE_ALPHA else PILL_SURFACE_ALPHA_UNBLURRED
-
-/**
- * How hard the pill's backdrop is blurred.
- *
- * 22dp was not enough: the glyphs behind a button were still legible as shapes,
- * which is the opposite of frosted glass. 34dp was not enough either. Past 44dp
- * the radius is as large as the pill itself, so nothing resolves and what shows
- * through is the terminal's colour and brightness rather than its contents.
- *
- * Applied through Modifier.blur, so this is a real RenderEffect on a real layer --
- * and where [BLUR_SUPPORTED] is false there is no blur at all and the tint has to
- * carry the whole job.
- */
-private val PILL_BLUR_RADIUS = 44.dp
 
 /**
  * The hairline around and between pills. The prototype's `rgba(255,255,255,.14)`.
@@ -189,10 +172,9 @@ private val PILL_BORDER = Color.White.copy(alpha = 0.14f)
 /**
  * How thick the glass edge's stroke is.
  *
- * A hairline was too fine to read as light at all: at 0.75dp on a 3x display it
- * was a couple of pixels, and two arcs that thin are easy to miss entirely -- which
- * is also what made them hard to place by eye. 1.5dp reads as a highlight rather
- * than as an artefact of rendering.
+ * A hairline was too fine to read as light at all: at 0.75dp on a 3x panel it was
+ * a couple of pixels, and two arcs that thin are easy to miss entirely -- which is
+ * also what made them hard to place by eye.
  */
 private val PILL_EDGE_WIDTH = 1.5.dp
 
@@ -204,9 +186,13 @@ private val PILL_EDGE_WIDTH = 1.5.dp
  * makes a drawn box look drawn. Compose's angles start at 3 o'clock and run
  * clockwise, so those two arcs are 180..270 and 0..90.
  *
- * Drawn through [drawWithContent], not `drawBehind`, because on a Row the content
- * is drawn after the modifier chain and an edge laid down first ends up underneath
- * it -- invisible against anything opaque drawn inside.
+ * [shape] is not read. The arcs are the ellipse inscribed in the node's bounds,
+ * which is what a circle- or capsule-clipped child wants, and every pill already
+ * clips itself to that same ellipse.
+ *
+ * Drawn through `drawWithContent` rather than `drawBehind` because in a Row the
+ * content is drawn after the modifier chain, so an edge laid down first ends up
+ * underneath it -- invisible against anything opaque drawn inside.
  */
 private fun Modifier.liquidGlassEdge(strokeWidth: Dp, color: Color = PILL_BORDER): Modifier =
     this.drawWithContent {
@@ -217,8 +203,6 @@ private fun Modifier.liquidGlassEdge(strokeWidth: Dp, color: Color = PILL_BORDER
         // bounds and the edge reads as thinner than asked for.
         val inset = stroke / 2f
         val arc = Size(size.width - stroke, size.height - stroke)
-        // Centred on the two diagonals rather than starting on the axes, so the
-        // stroke sits *in* the corner instead of straddling it.
         val topLeft = Offset(inset, inset)
         listOf(180f, 0f).forEach { startAngle ->
             drawArc(
@@ -232,6 +216,113 @@ private fun Modifier.liquidGlassEdge(strokeWidth: Dp, color: Color = PILL_BORDER
             )
         }
     }
+
+/**
+ * Where a pill sits inside the sampled terminal strip.
+ *
+ * A plain mutable holder on purpose. This is written during layout and read
+ * during draw, and routing it through Compose state makes layout invalidate
+ * itself: onGloballyPositioned wrote state, which re-ran layout, which called
+ * it again, and the leftmost buttons visibly climbed the screen during a
+ * scroll.
+ */
+private class PillSlice {
+    var pillBounds: Rect? = null
+
+    fun offsetIn(terminal: Rect?): IntOffset {
+        val p = pillBounds ?: return IntOffset.Zero
+        if (terminal == null) return IntOffset.Zero
+        return IntOffset(
+            (p.left - terminal.left).roundToInt(),
+            (p.top - terminal.top).roundToInt(),
+        )
+    }
+}
+
+/**
+ * A pill's width, equal to its height, so the buttons read as full circles.
+ *
+ * It was wider than tall — a stadium — which left the icon floating in an oval
+ * with dead space at both ends. [BAR_ROW_HEIGHT] on both sides is the disc the
+ * name of the thing implies.
+ */
+private const val PILL_WIDTH_DP = 44
+
+/**
+ * How hard the pill's backdrop is blurred.
+ *
+ * 22dp was not enough: the glyphs behind a button were still legible as shapes,
+ * which is the opposite of frosted glass. 34dp was not enough either. Past 44dp
+ * the radius equals the pill's own height, so nothing resolves and what shows
+ * through is the terminal's colour and brightness rather than its contents.
+ *
+ * Applied through Modifier.blur, so this is a real RenderEffect on a real layer --
+ * and where BLUR_SUPPORTED is false there is no blur at all and the tint has to
+ * carry the whole job.
+ */
+private val PILL_BLUR_RADIUS = 44.dp
+
+/**
+ * The system status bar's height, whether or not it is currently showing.
+ *
+ * Deliberately the visibility-agnostic inset. `statusBars` is zero the moment the
+ * bar hides, and this row's state changes on scroll, so reading that one here
+ * would fling the row downward exactly as it is meant to be moving up.
+ *
+ * One function for both the row and the terminal's padding: they are two halves
+ * of the same movement and must agree about where the status bar ends.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun statusBarHeight(): Dp =
+    WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+
+/**
+ * The terminal's top padding, in step with the row.
+ *
+ * The two states are not mirror images, and should not be:
+ *
+ *  - **Collapsed** the status bar is gone, so its height is free and the grid
+ *    starts right where the row ends. Everything past that first line is output
+ *    the user was not getting.
+ *  - **Expanded** the status bar is back, so the grid starts below it and the row
+ *    **floats over the output**. That is the point of it floating: the pills are
+ *    translucent and blurred, and the terminal runs on behind them. There is no
+ *    clearance behind them, so the first line is not pushed out of the way.
+ *
+ * Derived from the same constants the row uses rather than a second set, and on
+ * the same tween, so the grid cannot end up out of step with the control.
+ */
+@Composable
+fun rememberTerminalTopPadding(collapsed: Boolean): Dp {
+    val statusBarH = statusBarHeight()
+    val target = if (collapsed) {
+        // The status bar is gone, so its height is free. CHROME_CLEARANCE already
+        // carries the row, its offset and the gap.
+        CHROME_CLEARANCE
+    } else {
+        // The status bar is back and the row floats over the terminal, so the only
+        // thing to clear is the bar itself.
+        statusBarH
+    }
+    return animateDpAsState(
+        targetValue = target,
+        animationSpec = tween<Dp>(
+            durationMillis = CHROME_ANIMATION_MILLIS,
+            delayMillis = if (collapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
+        ),
+        label = "terminalTopPadding",
+    ).value
+}
+
+private val BAR_ROW_HEIGHT = BAR_ROW_HEIGHT_DP.dp
+private val PILL_WIDTH = PILL_WIDTH_DP.dp
+private val BAR_TOP_OFFSET = BAR_TOP_OFFSET_DP.dp
+private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
+
+/** The row's offset once fullscreen. See COLLAPSED_ROW_OFFSET_DP. */
+private val COLLAPSED_ROW_OFFSET = COLLAPSED_ROW_OFFSET_DP.dp
+private val COLLAPSED_GRID_GAP = COLLAPSED_GRID_GAP_DP.dp
 
 /**
  * The terminal's top clearance once fullscreen: the row, its offset, and the gap.
@@ -391,16 +482,11 @@ fun TerminalTopBar(
             // same side of the screen read as two unrelated actions; touching
             // circles read as one group with two things in it, and the divider
             // says where one ends.
-            // The group carries the shared edge and nothing else. Each button
-            // draws its own tint over its own backdrop, so the pair and the lone
-            // button on the left are the same glass rather than one being a
-            // different recipe -- and where there is no backdrop at all, the two
-            // circles' tints and the divider's sit side by side at the same
-            // strength, which still reads as one surface.
             Row(
                 modifier = Modifier
                     .height(rowHeight)
                     .clip(CircleShape)
+                    .background(DroshSurfaceHigh.copy(alpha = PILL_TINT_ALPHA))
                     .liquidGlassEdge(PILL_EDGE_WIDTH),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
@@ -416,6 +502,9 @@ fun TerminalTopBar(
                     // no correcting — unlike the old 2048 mark, which sat at 46% of
                     // its own canvas and looked half the size of its neighbours.
                     iconSize = pillIconSize,
+                    // No surface of its own: the group carries it, so there is one
+                    // colour and one blur across both halves.
+                    ownSurface = false,
                     onClick = { onOpenAgent() },
                 )
 
@@ -425,7 +514,7 @@ fun TerminalTopBar(
                     modifier = Modifier
                         .width(1.dp)
                         .height(rowHeight - 12.dp)
-                        .background(DroshSurfaceHigh.copy(alpha = PILL_TINT_ALPHA)),
+                        .background(PILL_BORDER),
                 )
 
                 GlassPillButton(
@@ -436,6 +525,7 @@ fun TerminalTopBar(
                     width = PILL_WIDTH,
                     height = rowHeight,
                     iconSize = pillIconSize,
+                    ownSurface = false,
                     onClick = { moreExpanded = true },
                 )
             }
@@ -586,9 +676,17 @@ private fun GlassPillButton(
     width: Dp = PILL_WIDTH,
     height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
+    /**
+     * False when this button sits inside a group that already carries the surface.
+     *
+     * The backdrop and the icon are the button's own; the fill, the border and the
+     * press-scale are the group's, so several buttons in one surface do not each
+     * redraw a box inside it.
+     */
+    ownSurface: Boolean = true,
 ) {
     GlassPillBody(
-        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds,
+        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds, ownSurface,
     ) { tint ->
         when {
             drawableRes != null -> Icon(
@@ -617,6 +715,7 @@ private fun GlassPillBody(
     iconSize: Dp = 22.dp,
     backdrop: ImageBitmap?,
     terminalBounds: Rect?,
+    ownSurface: Boolean,
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
     val shape = RoundedCornerShape(percent = 50)
@@ -662,11 +761,15 @@ private fun GlassPillBody(
             shape = shape,
             modifier = Modifier.matchParentSize(),
         )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(DroshSurfaceHigh.copy(alpha = PILL_TINT_ALPHA)),
-        )
+        if (ownSurface) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(DroshSurfaceHigh.copy(alpha = PILL_TINT_ALPHA))
+                    // Half a stroke, on the two arcs light would catch.
+                    .liquidGlassEdge(PILL_EDGE_WIDTH),
+            )
+        }
         Box(
             modifier = Modifier.size(iconSize),
             contentAlignment = Alignment.Center,
