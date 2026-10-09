@@ -122,6 +122,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import dev.drosh.ui.agent.components.MOTION_MS
+import dev.drosh.ui.agent.components.MarkdownText
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -815,11 +816,8 @@ private fun AssistantText(
     onShare: (String) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        AgentSelectableText(
-            text = message.text,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-            color = DroshText,
+        MarkdownText(
+            markdown = message.text,
             onCopy = onCopy,
             onShare = onShare,
             // Announced as it grows, so a screen-reader user hears the answer arrive

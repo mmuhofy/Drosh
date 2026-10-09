@@ -12,6 +12,12 @@
 # NOTE: KSP version MUST match Kotlin 2.3.20 — use KSP 2.3.20-x.x.x.
 
 [versions]
+# Markdown parser for assistant messages. Pure Java, no Kotlin in the POM, so
+# it carries no compiler-metadata constraint — which is the trap the Haze pin
+# walked into. We render the AST ourselves rather than take a Compose markdown
+# library: the obvious one (mikepenz) has 0.45.0 directories on Maven Central
+# whose artifacts 404, so its newest version cannot be resolved at all.
+flexmark = "0.64.8"
 # Real backdrop blur. 2.x is built with Kotlin 2.4 and 1.7.x with 2.3.20; this
 # project is on KGP 2.2.0, whose metadata reader cannot load either. 1.6.10 is
 # the newest release built with Kotlin 2.1.0.
@@ -121,6 +127,8 @@ spotless = "7.0.2"
 detekt = "1.23.7"
 
 [libraries]
+flexmark = { group = "com.vladsch.flexmark", name = "flexmark", version.ref = "flexmark" }
+flexmark-util-ast = { group = "com.vladsch.flexmark", name = "flexmark-util-ast", version.ref = "flexmark" }
 haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 # AndroidX core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }

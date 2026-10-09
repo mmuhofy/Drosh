@@ -63,6 +63,11 @@ dependencies {
     // because RenderEffect does not exist before API 31.
     implementation(libs.haze)
 
+    // Markdown for assistant messages. Pure Java, so it adds nothing to the
+    // Kotlin toolchain; the AST is rendered by MarkdownText in this module.
+    implementation(libs.flexmark)
+    implementation(libs.flexmark.util.ast)
+
     // coroutines
     implementation(libs.kotlinx.coroutines.android)
 

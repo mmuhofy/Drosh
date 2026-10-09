@@ -99,7 +99,13 @@ fun DroshTheme(
         MaterialTheme(
             colorScheme = schemeFor(useDark),
             typography = DroshTypography,
-            content = content,
+            content = {
+                // The syntax palette follows the theme, and is provided here rather
+                // than read from the app palette at each use site: it is a separate
+                // set of colours entirely, so it needs its own scope to follow the
+                // theme rather than a second theme lookup per token.
+                provideCodePalette(dark = useDark) { content() }
+            },
         )
     }
 }
