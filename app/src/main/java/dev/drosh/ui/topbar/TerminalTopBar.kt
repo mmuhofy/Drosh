@@ -1,6 +1,7 @@
 package dev.drosh.ui.topbar
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -164,6 +165,22 @@ private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TerminalTopBar(
+    /**
+     * Fullscreen: the viewport is in the scrollback, a session nobody has
+     * scrolled, or a TUI. The row goes to the very top of the screen and the area
+     * behind it takes the terminal's own background.
+     */
+    chromeCollapsed: Boolean,
+    /**
+     * The colour behind the collapsed row: **the terminal's** background.
+     *
+     * Not the app's. The terminal background is a user setting, and matching it
+     * means the colour above the grid and the colour of the grid are the same — so
+     * the top of the screen continues into the terminal rather than being banded
+     * off from it. An app-coloured fill read as a separate surface, and a
+     * nearly-black one read as a black bar.
+     */
+    collapsedBandColor: Color,
     /** Strip sampled from the terminal, or null when there is nothing to sample. */
     backdrop: ImageBitmap?,
     /** Where the terminal sits in root space, so a pill can find its slice. */
