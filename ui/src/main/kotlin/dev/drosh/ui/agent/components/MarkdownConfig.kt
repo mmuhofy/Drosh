@@ -20,8 +20,7 @@ import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownDimens
 import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
-import dev.drosh.design.system.DroshColors
-import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.DroshThemeColors
 import dev.drosh.design.system.LocalDroshColors
 import dev.drosh.design.system.OutfitFontFamily
 
@@ -41,7 +40,7 @@ fun provideMarkdownTheme(content: @Composable () -> Unit) {
     val code = CodeColors
     androidx.compose.runtime.CompositionLocalProvider(
         LocalMarkdownColors provides remember(app, code) { DroshMarkdownColors(app, code) },
-        LocalMarkdownTypography provides remember { DroshMarkdownTypography() },
+        LocalMarkdownTypography provides remember(app) { DroshMarkdownTypography(app.textSecondary) },
         LocalMarkdownDimens provides remember { DroshMarkdownDimens() },
         LocalMarkdownPadding provides remember { DroshMarkdownPadding() },
         content = content,
@@ -49,7 +48,7 @@ fun provideMarkdownTheme(content: @Composable () -> Unit) {
 }
 
 /**
- * Holds the whole `DroshColors` rather than the five fields it needs.
+ * Holds the whole `DroshThemeColors` rather than the five fields it needs.
  *
  * Naming the constructor parameters `text`, `primary` and so on would clash with the
  * interface properties they are meant to implement, and renaming them to dodge that
@@ -58,7 +57,7 @@ fun provideMarkdownTheme(content: @Composable () -> Unit) {
  * what gets remembered.
  */
 private class DroshMarkdownColors(
-    private val app: DroshColors,
+    private val app: DroshThemeColors,
     private val code: CodePalette,
 ) : MarkdownColors {
     override val text: Color get() = app.text
@@ -70,7 +69,7 @@ private class DroshMarkdownColors(
     override val dividerColor: Color get() = app.outline
 }
 
-private class DroshMarkdownTypography : MarkdownTypography {
+private class DroshMarkdownTypography(private val secondary: Color) : MarkdownTypography {
     // Headings step down from h1 in a ratio that stays legible at reading size on a
     // phone. A library default of 2x for h1 would be a headline in the transcript.
     override val text: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 21.sp)
@@ -80,8 +79,8 @@ private class DroshMarkdownTypography : MarkdownTypography {
     override val h3: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
     override val h4: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
     override val h5: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
-    override val h6: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, color = DroshTextSecondary)
-    override val quote: TextStyle get() = text.copy(color = DroshTextSecondary)
+    override val h6: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, color = secondary)
+    override val quote: TextStyle get() = text.copy(color = secondary)
     override val code: TextStyle get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp)
     override val inlineCode: TextStyle get() = code.copy(fontSize = 13.sp)
     override val ordered: TextStyle get() = text
