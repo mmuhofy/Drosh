@@ -89,28 +89,23 @@ private const val BAR_TOP_OFFSET_DP = 10
 private const val BAR_BOTTOM_OFFSET_DP = 6
 
 /**
- * The terminal's top clearance: enough for the row and a gap above it.
- *
- * Read by `TerminalScreen` too, so the grid's inset and the row above it are one
- * number. Two constants that have to be kept in step by hand are two that will
- * not be.
- *
- * It is the **total** distance from the top of the screen to the first line of
- * output, so it already contains the row's own height. Callers must not add
- * [BAR_ROW_HEIGHT] to it — doing so double-counts and leaves a clearance-sized
- * hole below the pills, which is exactly what that mistake looked like.
- */
-val CHROME_CLEARANCE = 52.dp
-
-/**
  * Where the row's top edge sits once the app is fullscreen.
  *
- * Not zero. The prototype puts its pill row at `top: 4px`, and a row flush
- * against y=0 reads as pinned to the edge of the screen rather than as a control
- * — and on a device with a cutout, a few dp is the difference between the row
- * sitting in the band and sitting under the notch.
+ * Not zero. A row flush against y=0 reads as pinned to the edge of the screen
+ * rather than as a control, and on a device with a cutout a few dp is the
+ * difference between the row sitting in the band and sitting under the notch.
+ * Small on purpose: the band is the status bar's, not the row's.
  */
-private const val COLLAPSED_ROW_OFFSET_DP = 4
+private const val COLLAPSED_ROW_OFFSET_DP = 6
+
+/**
+ * How far below the row the terminal's grid starts once fullscreen.
+ *
+ * Almost nothing. Collapsed, the grid picks up right where the buttons end, so
+ * the scrollback gets back every line the status-bar clearance was taking.
+ */
+private const val COLLAPSED_GRID_GAP_DP = 2
+
 
 /**
  * How long the row and the terminal's padding take to travel.
@@ -188,29 +183,30 @@ private fun statusBarHeight(): Dp =
 /**
  * The terminal's top padding, in step with the row.
  *
- * It moves with the chrome because it has to. A constant clearance gets both
- * states wrong: it wastes the status bar's height in the collapsed state, where
- * nothing is showing, and lets the first line of output go under the row in the
- * expanded state, where it is.
+ * The two states are not mirror images, and should not be:
+ *
+ *  - **Collapsed** the status bar is gone, so its height is free and the grid
+ *    starts right where the row ends. Everything past that first line is output
+ *    the user was not getting.
+ *  - **Expanded** the status bar is back, so the grid starts below it and the row
+ *    **floats over the output**. That is the point of it floating: the pills are
+ *    translucent and blurred, and the terminal runs on behind them. There is no
+ *    clearance behind them, so the first line is not pushed out of the way.
  *
  * Derived from the same constants the row uses rather than a second set, and on
- * the same tween, so the grid cannot end up out of step with the control it is
- * making room for.
+ * the same tween, so the grid cannot end up out of step with the control.
  */
 @Composable
 fun rememberTerminalTopPadding(collapsed: Boolean): Dp {
     val statusBarH = statusBarHeight()
     val target = if (collapsed) {
-        // The status bar is gone, so the grid starts where the row ends plus the
-        // gap. Never `maxOf(statusBarH, …)` — that reserves the height of a status
-        // bar that is not showing, which is the half of the immersive state that
-        // is supposed to be free.
-        COLLAPSED_ROW_OFFSET + CHROME_CLEARANCE
+        // The status bar is gone, so its height is free. CHROME_CLEARANCE already
+        // carries the row, its offset and the gap.
+        CHROME_CLEARANCE
     } else {
-        // The status bar is back and the row sits below it. CHROME_CLEARANCE is
-        // the row plus its gap, so adding BAR_ROW_HEIGHT again here is what left
-        // a clearance-sized hole under the pills.
-        statusBarH + BAR_TOP_OFFSET + CHROME_CLEARANCE
+        // The status bar is back and the row floats over the terminal, so the only
+        // thing to clear is the bar itself.
+        statusBarH
     }
     return animateDpAsState(
         targetValue = target,
@@ -229,6 +225,28 @@ private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 
 /** The row's offset once fullscreen. See COLLAPSED_ROW_OFFSET_DP. */
 private val COLLAPSED_ROW_OFFSET = COLLAPSED_ROW_OFFSET_DP.dp
+private val COLLAPSED_GRID_GAP = COLLAPSED_GRID_GAP_DP.dp
+
+/**
+ * The terminal's top clearance once fullscreen: the row, its offset, and the gap.
+ *
+ * Read by `TerminalScreen` too, so the grid's inset and the row above it are one
+ * number. It is a **total**, not a gap, and already contains the row's own height,
+ * so nothing may add `BAR_ROW_HEIGHT` to it.
+ *
+ * Declared here rather than with the other dp constants because it is derived from
+ * them, and top-level initialisation order is declaration order.
+ */
+val CHROME_CLEARANCE = COLLAPSED_ROW_OFFSET + BAR_ROW_HEIGHT + COLLAPSED_GRID_GAP
+
+/**
+ * How much of the terminal's top edge the top bar backdrop samples.
+ *
+ * The row's own offset plus its height, because that is where the pills sit once
+ * they are floating over output. Nothing taller is reachable — a pill samples only
+ * its own slice of the strip.
+ */
+val TOP_BAR_BACKDROP_STRIP = BAR_TOP_OFFSET + BAR_ROW_HEIGHT
 
 @Composable
 fun TerminalTopBar(
