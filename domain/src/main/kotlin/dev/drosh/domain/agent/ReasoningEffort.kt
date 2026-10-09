@@ -106,9 +106,9 @@ object ReasoningEffort {
         return when {
             id.contains("gemini-3.1-pro") -> listOf("low", "medium", "high")
             id.contains("gemini-3-pro") -> listOf("low", "high")
-            id.contains("gemini-3.8-flash"),
-            id.contains("gemini-3.7-flash"),
-            -> listOf("low", "medium", "high")
+            // Both reject `minimal`, which they would otherwise inherit.
+            id.contains("gemini-3.8-flash") || id.contains("gemini-3.7-flash") ->
+                listOf("low", "medium", "high")
 
             id.contains("gemini-3.1-flash-lite-image") -> listOf("minimal", "high")
             else -> ALL_GEMINI_LEVELS
