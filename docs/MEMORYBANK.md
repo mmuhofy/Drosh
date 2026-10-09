@@ -290,73 +290,50 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 
 ## 7. Terminal Core
 
-### Top chrome follows the scroll — two states, no setting
+### The terminal is fullscreen; the pill row never moves
 
-*Decided 2026-10-08. Replaces the "Fullscreen mode" setting, which is deleted.*
+*Decided 2026-10-08. Replaces two earlier attempts at a scroll-linked chrome.*
 
-The system status bar and the floating pill row are one decision, not two:
+The system bars are hidden outright while `TerminalScreen` is composed
+(`hide(systemBars())`) and restored on the way out. The pill row is a fixed
+44dp at the very top of the screen, and the terminal's top clearance is a
+constant 52dp — the row plus a gap. Nothing about any of it changes with the
+scroll.
 
-| State | When | Status bar | Terminal's top inset | Pills |
-|-------|------|-----------|---------------------|-------|
-| **Collapsed** | a session still on its first screen, **or** the viewport is up in the scrollback, **or** a TUI owns the terminal | **fullscreen** — hidden outright | collapsed chrome height | at the very top of the screen |
-| **Expanded** | at the live edge, past the first screen | shown, terminal runs on behind it | the same, constant | below the bar, floating over the output, with the backdrop blur |
+**Why there is no scroll-linked chrome.** There were two states: up in the
+scrollback the status bar hid and the pills rode into the space it left, at the
+live edge the bar came back and they dropped below it. That could not work, and
+the reason is geometric rather than a mistake in the logic.
 
-**Nothing is painted behind the collapsed chrome.** The app is fullscreen, so the
-top of the screen belongs to the app's own frame. A rectangle of app colour there
-is a band drawn over nothing, and it read as a black bar sitting on the terminal —
-which is exactly what it was reported as. Two earlier attempts painted it: the
-terminal's own background, and a scrim over it. Both put a surface from the
-terminal's world at the top of a screen the rest of which belongs to the app.
+The pills live at the very top of the screen, which is exactly where Android's
+edge gesture lives. `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` is documented as
+revealing the bars **transiently** on such a gesture: *"these transient system
+bars overlay your app's content … and are automatically hidden after a short
+timeout."* A drag starting there made the system draw a status bar over the row
+the user was reaching for, then take it away again. Linger on that gesture — a
+slow upward scroll — and it happened continuously; a fast decisive one got
+through before it started. That was the flapping.
 
-```
-chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge
-```
+It also explains a symptom that looked like a layout bug: the row kept reading
+as a 30dp half-height control sitting below the bar. It was at the top and 44dp
+tall, **covered** by a bar that was not there a moment later.
 
-**`hasScrolled` means "has left the first screen", not "moved at all".** A
-session that has just opened sits at the live edge — `topRow == 0`, exactly like
-a busy terminal at its prompt — and still wants the collapsed state. Without the
-flag the app *opens* in the wrong state.
+A control in the system's gesture zone cannot also be something the system keeps
+covering. `BEHAVIOR_DEFAULT` rather than the transient one, so a deliberate
+top-edge swipe still brings the bars back for good instead of overlaying the app
+and timing itself out.
 
-It flips at **the same threshold `isAtLiveEdge` uses**, never on the first row.
-That is the whole flapping bug: with the two thresholds a row apart, one flick up
-turned the status bar on and the fifth row turned it off again — two transitions
-inside one gesture. One-way, cleared by `TerminalManager.resetViewportState()`
-wherever the session on screen is replaced: `switchTab`, `addTabWithId`,
-`addSshSession`, `reattachPanesAt`, `activatePaneView`, `swapPanes`,
-`setPaneSessions`, `promoteSecondaryToPrimary`, `closeAll`.
+**The terminal is padded, not full-bleed.** A constant clearance, and never a
+function of what is showing at the top of the screen: an inset that tracked the
+status bar resized the grid on every change, and resizing re-wraps every line of
+output. One number that never moves also means nothing is ever hidden behind a
+control.
 
-**It is safe to read off `onScrollPositionChanged`**, which also fires from
-`onScreenUpdated` on every PTY chunk. An earlier version needed a separate
-`onUserScroll` callback because it set the flag unconditionally, and the shell's
-own MOTD answered yes. Once the flag is gated on the same threshold, anything
-`onScreenUpdated` fires reports the live edge — it snaps `mTopRow` back to 0
-first — so the second callback was a second way to say the same thing, and is
-gone.
-
-**The terminal's top inset is constant and equal to the collapsed chrome's
-height**, shared with the row through `rememberCollapsedChromeHeight()`. Collapsed
-the pills sit above the grid, so nothing is hidden behind them; expanded they
-float over it, which is what floating is for. Constant on purpose: an inset that
-tracked the status bar's visibility resized the grid on every boundary crossing
-and re-wrapped every line of output, which is a far worse trade than one state
-having the top row under a control.
-
-The pills move rather than disappearing, which is the other half of the Obsidian
-reference: they are how you get back to search, sessions and the agent.
-
-**Every layout measurement reads `statusBarsIgnoringVisibility`, never
-`statusBars`.** The bar's visibility changes on scroll and `statusBars` reads
-zero the moment it hides, so a live-inset measurement would collapse the top of
-the screen at the moment the row is meant to move upward on purpose.
-
-**The settings toggle is deleted, not deprecated.** `autoHideStatusBar` is
-removed from the repository interface, the DataStore, the ViewModel and the
-settings screen. A setting for this could only ever have meant "ignore the
-scroll", which is the one behaviour the mechanic must not have.
-
-`isStatusBarContrastEnforced = false` in `MainActivity`. Below API 35 Android
-paints its own translucent scrim behind a shown status bar over content, and no
-`statusBarColor = TRANSPARENT` suppresses it.
+Deleted with the mechanic, since only it used them: `chromeCollapsed`,
+`hasScrolled`, `focusedPaneAltBuffer`, `isAtLiveEdge`, `scrollTopRow`,
+`chromeIsAtLiveEdge`, `resetViewportState`, and `ChromeScrollTest`. The terminal
+view's scroll callbacks remain — they are the vendored view's API — but nothing
+assigns them.
 
 ### Block-Based Output
 Every command execution produces a Block:
