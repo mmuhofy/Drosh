@@ -290,37 +290,30 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 
 ## 7. Terminal Core
 
-### Two chrome states, and there is no band
+### Two chrome states, and the band is the terminal's own colour
 
 *Decided 2026-10-09. Replaces the always-fullscreen attempt of 2026-10-08, and
-the three band/colours that preceded both. Rebuilt from scratch the same day.*
+the three band/colours that preceded both.*
 
-**Immersive** — at the prompt, on a session that has just opened, or with a TUI
-in control. The app goes fullscreen (`hide(systemBars())`), the pill row's offset
-is **0** — flush with the top of the screen, in the space the status bar vacated —
-and the grid's top padding is the status bar's height. **Normal** — anywhere in
-the scrollback. Status bar back, pills at `statusBarH + 4dp`, grid padded clear
-of them.
+**Collapsed** — the viewport is up in the scrollback, or a session nobody has
+scrolled, or a TUI owns the terminal. The app goes fullscreen
+(`hide(systemBars())`), the pill row's offset is **0** (flush with the top of the
+screen, in the space the status bar vacated), and the area behind it is painted
+in **`terminalBgColor`**. **Expanded** — at the live edge, past the first screen:
+status bar back, pills at `statusBarH + 10dp`, band gone.
 
-```
-chromeCollapsed = tuiActive || mTopRow == 0
-```
+`chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge`.
 
-That is the whole rule, and it lives in the terminal module as a plain function
-so the tests can walk it. `mTopRow` is an integer, so `0` and `< 0` already draw
-a sharp line. The optional dead zone (0 / 24 / 80px) is **off**: hysteresis here
-means two answers to "which side of the line is the viewport on", which is how the
-previous version managed to disagree with itself mid-gesture.
+**Why "not the live edge" is two situations.** A scroll back into history, and a
+terminal nobody has touched yet — which is where a session starts and where it
+returns to after a switch. The second *is* at the live edge, so position alone
+cannot express it; `hasScrolled` is what tells them apart.
 
-**The direction is the point.** You are not looking for the clock while you are
-typing; you are definitely looking for it while reading something that scrolled
-off. The bar disappears exactly when it is not needed, which is what the first
-attempt got backwards — it left a clock permanently on screen over the prompt.
-
-**There is no band.** Nothing is painted over anything: no scrim, no gradient,
-no dimming, no separate surface. The pills are translucent and what is behind them
-is the pane, painted in `terminalBgColor`. Three earlier attempts each failed the
-same way — by treating the top of the terminal as something that needed painting:
+**The band is not a band.** It is the terminal's background colour, exactly as
+tall as the terminal's clearance. Same colour on both sides of the join, so there
+is no join: the top of the screen continues into the terminal. Three earlier
+attempts got this wrong and each was a different way of making the same mistake —
+treating the top of the terminal as something that needed painting:
 
 | Attempt | What it looked like |
 |---|---|
@@ -328,11 +321,11 @@ same way — by treating the top of the terminal as something that needed painti
 | A near-black scrim | A black bar |
 | Row shrunk to the bar's height | A 30dp squashed control caught mid-transition |
 
-The fix was to stop painting and start moving things. The row is **44dp in both
-states**; only its offset moves. It used to shrink to the status bar's height
-while collapsed, on the theory that the pills *were* the band — caught in the
-middle of that transition it read as a control that could not decide where it
-belonged, and it was the thing being complained about.
+The first is the app's colour where the terminal's should be. The second is the
+app's colour in dark mode. The third was an attempt to make the pills *fit* a
+band, which is not what putting a control at the top of the screen requires —
+and it was the thing being complained about. **The row is 44dp in both states.**
+Only its offset moves.
 
 **`BEHAVIOR_DEFAULT`, kept.** The pills live at the very top of the screen, which
 is exactly where Android's edge gesture lives.
@@ -342,36 +335,16 @@ short timeout."* A slow upward drag therefore had the system drawing a status ba
 across the row the user was reaching for, repeatedly. That was the flapping. A
 deliberate top-edge swipe still brings the bars back for good.
 
-**The grid is padded, and the padding follows the chrome.** This is the part that
-was wrong for a long time and is right now. A *constant* clearance either wastes
-a status bar's height at the prompt, where nothing is showing, or lets the first
-line of output go under the pill row in the scrollback, where the status bar is
-back — which is exactly the bug the prototype had. So:
+**The terminal is padded, not full-bleed.** A constant clearance — one number,
+`CHROME_CLEARANCE`, shared by the bar and the grid — and never a function of what
+is showing at the top of the screen: an inset that tracked the status bar resized
+the grid on every change, and resizing re-wraps every line of output. A number
+that never moves also means nothing is ever hidden behind a control.
 
-```
-immersive → padding-top = max(statusBarH, PILL_ROW_H + CHROME_CLEARANCE)
-normal    → padding-top = statusBarH + PILL_TOP_GAP + PILL_ROW_H + CHROME_CLEARANCE
-```
-
-`CHROME_CLEARANCE` stays a constant and is read by the row and the grid alike.
-What changes between states is the row's **offset**, not the clearance.
-
-**A terminal grid is not a web page, so this costs a resize.** A scrolling
-document can be padded for free; a fixed grid cannot — there is only so much room
-above and below. Every crossing of the live edge therefore changes the number of
-rows, sends a SIGWINCH, and the shell answers by redrawing its prompt. Two things
-make that survivable, both in `TerminalView`:
-
-- `updateSize` **clamps** `mTopRow` instead of zeroing it. Zeroing meant the
-  chrome's own transition threw the user back to the newest output, which is the
-  one thing a scrollback is not for.
-- `onScreenUpdated` treats output arriving within `RESIZE_GRACE_MILLIS` (400ms)
-  of a resize as the shell answering us rather than as new output, and does not
-  pull the viewport to the live edge for it. Without this the repaint that closes
-  the transition is mistaken for new output and the transition undoes itself.
-
-**`autoHideStatusBar`, a setting.** Off: the bar stays where it is and the pills
-never travel. Default on.
+The transition runs 220ms, delayed 70ms on the way in: the clock has to leave
+before the pills move, because the status bar is drawn above the app by the
+system window and needs its own time. Two motions in the same 40dp read as the
+row going back and forth.
 
 ### Block-Based Output
 Every command execution produces a Block:
