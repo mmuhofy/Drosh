@@ -380,14 +380,26 @@ draws nothing — so a pill is only its own tinted surface. Down, the row floats
 over output and the pills are glass: a 34dp blur of the terminal behind them, a
 28% tint over that, and a hairline on two arcs.
 
-Two numbers carry the glass and both were wrong before they were right:
+Four things carry the glass, and each was wrong before it was right:
 
-- **The blur is 34dp, not 22dp or 14dp.** At 22 the glyphs behind a button were
-  still legible as shapes, which is the opposite of frosted glass. Past 34dp no
-  text resolves and what shows through is colour and brightness.
+- **The blur is 44dp, and 14/22/34dp were each not enough.** The radius now
+  equals the pill's whole height, which is the point: a smaller radius leaves
+  glyphs legible as shapes, and legible-as-shapes is the opposite of frosted
+  glass.
 - **The tint is 28%, not 72%.** At 72% three quarters of the pill was a solid
   surface and only a quarter glass — it read as a grey box. The prototype's own
   pill is `rgba(255,255,255,.08)`; a pill cannot be both frosted and opaque.
+- **`BlurredEdgeTreatment` was what was eating the blur.** It clips the blur to
+  the shape *before* it spreads, so on a radius larger than the node — a 44dp
+  radius on a 44dp pill — almost nothing spreads at all. The blur is now the
+  default rectangle treatment over the whole node, with `clip(shape)` after it,
+  so the shape is a cut of a blurred result rather than a constraint on the
+  blurring.
+- **`Modifier.blur` is a no-op below API 31.** It is not a fallback. So
+  `BLUR_SUPPORTED` gates it and the tint becomes 88% where there is no blur: a
+  pill that hides the text by opacity rather than by blur. Without that gate every
+  device on API 26..30 showed the terminal's text behind the toolbar at full
+  strength, which is what "the blur is still wrong, the text still shows" was.
 
 **The capture was sampling the wrong end of the terminal.** `capture()`
 translated the canvas by `-(view.height - h)`, which lands the view's rows
@@ -400,8 +412,14 @@ line of the terminal behind it. No translation is what captures the top.
 180..270 and 0..90 in Compose's angle space — the top-left and bottom-right arcs.
 That is the shape light makes on a curved surface: it catches the crest on one
 side and grazes the trough on the other, and a stroke all the way round is what
-makes a drawn box look drawn. It belongs on the surface that owns the pill, never
-on the pill inside a group, or the pair's seam doubles to 2dp.
+makes a drawn box look drawn. Three details carry it:
+
+- **1.5dp, not 0.75dp.** A hairline on a 3x panel was two pixels, and two arcs that
+  thin are invisible — which is also why they were hard to place by eye.
+- **`drawWithContent`, not `drawBehind`.** In a Row the content is drawn after the
+  modifier chain, so an edge laid down first ends up underneath it.
+- **It belongs to the group, not to each pill.** Two pills each drawing their own
+  edge inside a group that also has one double the seam to 2dp.
 
 **Press is Compose's own ripple**, bounded and clipped to the pill's shape. It
 used to be a 0.88 scale on the icon, which read as the glyph being squashed
