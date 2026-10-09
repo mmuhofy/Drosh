@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -12,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mikepenz.markdown.compose.components.MarkdownComponents
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownDimens
@@ -45,31 +47,34 @@ data class MarkdownTheme(
 )
 
 /** The theme for the active app theme, or the default before one is provided. */
-val LocalMarkdownTheme = staticCompositionLocalOf { markdownThemeFor(dark = true) }
+val LocalMarkdownTheme = staticCompositionLocalOf { markdownThemeFor(darkCodePalette = true) }
 
 val MarkdownThemeValue: MarkdownTheme
     @Composable @ReadOnlyComposable get() = LocalMarkdownTheme.current
 
 @Composable
 fun provideMarkdownTheme(dark: Boolean, content: @Composable () -> Unit) {
+    // The code palette is read here rather than inside DroshMarkdownColors, because
+    // reading a CompositionLocal from a getter of a plain class is not composable —
+    // the class has no way to be called in a composition context.
+    val theme = remember(dark) { markdownThemeFor(codePalette(dark)) }
     androidx.compose.runtime.CompositionLocalProvider(
-        LocalMarkdownTheme provides markdownThemeFor(dark),
+        LocalMarkdownTheme provides theme,
         content = content,
     )
 }
 
-private fun markdownThemeFor(dark: Boolean): MarkdownTheme = MarkdownTheme(
-    colors = DroshMarkdownColors(),
+private fun markdownThemeFor(darkCodePalette: Boolean): MarkdownTheme =
+    markdownThemeFor(codePalette(darkCodePalette))
+
+private fun markdownThemeFor(code: CodePalette): MarkdownTheme = MarkdownTheme(
+    colors = DroshMarkdownColors(code),
     typography = DroshMarkdownTypography(),
     dimens = DroshMarkdownDimens(),
     padding = DroshMarkdownPadding(),
 )
 
-private class DroshMarkdownColors : MarkdownColors {
-    // Code text is syntax-coloured by [CodeBlock], but the library still asks for a
-    // base colour — a fenced block with no recognisable language falls back to this.
-    private val code = CodeColors
-
+private class DroshMarkdownColors(private val code: CodePalette) : MarkdownColors {
     override val text: Color get() = DroshText
     override val codeText: Color get() = code.plain
     override val inlineCodeText: Color get() = code.string
@@ -106,17 +111,18 @@ private class DroshMarkdownDimens : MarkdownDimens {
 }
 
 private class DroshMarkdownPadding : MarkdownPadding {
-    // Several of these are PaddingValues rather than a single Dp, because the library
-    // applies different edges to them — a block quote pads its bar away from its text,
-    // which one number cannot express.
-override val block: PaddingValues get() = PaddingValues(vertical = 6.dp)
-    override val list: PaddingValues get() = PaddingValues(vertical = 4.dp)
-    override val listItemBottom: PaddingValues get() = PaddingValues(bottom = 2.dp)
-    override val indentList: PaddingValues get() = PaddingValues(start = 16.dp)
+    // Mixed on purpose, matching the interface: the first four are a single edge, while
+    // the block quote needs PaddingValues because the bar is padded away from the text,
+    // which one number cannot express. blockQuoteBar is Absolute so it is not resolved
+    // against a layout direction — the bar sits on the same side in both.
+override val block: Dp get() = 6.dp
+    override val list: Dp get() = 4.dp
+    override val listItemBottom: Dp get() = 2.dp
+    override val indentList: Dp get() = 16.dp
     override val codeBlock: PaddingValues get() = PaddingValues(all = 8.dp)
     override val blockQuote: PaddingValues get() = PaddingValues(vertical = 8.dp)
     override val blockQuoteText: PaddingValues get() = PaddingValues(horizontal = 2.dp)
-    override val blockQuoteBar: PaddingValues get() = PaddingValues(end = 10.dp)
+    override val blockQuoteBar: PaddingValues.Absolute get() = PaddingValues.Absolute(right = 10.dp)
 }
 
 /** Matches the corner radius the code block draws itself with. */

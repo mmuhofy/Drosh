@@ -22,7 +22,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
-import com.mikepenz.markdown.utils.findChildOfType
+import com.mikepenz.markdown.utils.findChildOfTypeRecursive
+import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
 
@@ -52,8 +53,8 @@ fun DroshCodeBlock(
 
 /** The language tag and the code, split out of a fenced block's AST node. */
 private fun ASTNode.fencedCode(content: String): FencedCode {
-    val language = findChildOfType(MarkdownTokenTypes.FENCE_LANG)
-        ?.getTextInNode(content)
+    val language = findChildOfTypeRecursive(MarkdownTokenTypes.FENCE_LANG)
+        ?.getUnescapedTextInNode(content)
         ?.toString()
     // An unterminated fence — which is what a streaming answer looks like most of the
     // time — has the opening marker as its only child, and that offset spans the

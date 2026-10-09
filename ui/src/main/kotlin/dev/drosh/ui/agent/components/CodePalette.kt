@@ -91,6 +91,14 @@ private val LightCode = CodePalette(
 val CodeColors: CodePalette
     @Composable @ReadOnlyComposable get() = LocalCodePalette.current
 
+/**
+ * The same choice without a composition.
+ *
+ * Needed to build the markdown theme's default, which a CompositionLocal's default
+ * cannot read from another CompositionLocal — it is read outside a composition.
+ */
+internal fun codePalette(dark: Boolean): CodePalette = if (dark) DarkCode else LightCode
+
 @Composable
 fun provideCodePalette(dark: Boolean, content: @Composable () -> Unit) {
     androidx.compose.runtime.CompositionLocalProvider(
