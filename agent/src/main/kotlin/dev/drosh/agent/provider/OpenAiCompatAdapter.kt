@@ -255,6 +255,15 @@ class OpenAiCompatAdapter @Inject constructor(
         data class Failure(val message: String) : Frame
     }
 
+    /**
+     * Parse one SSE payload.
+     *
+     * Returns a single frame, unlike the three newer adapters' parsers. Chat
+     * Completions sends `finish_reason` on its own final chunk with an empty
+     * `delta`, so content and the terminal signal never arrive together and
+     * there is nothing to lose by picking one. The other protocols co-locate
+     * them, which is why their parsers return a list.
+     */
     internal fun parseFrame(payload: String): Frame {
         val root = runCatching { json.parseToJsonElement(payload) }.getOrNull() as? JsonObject
             ?: return Frame.Ignore
