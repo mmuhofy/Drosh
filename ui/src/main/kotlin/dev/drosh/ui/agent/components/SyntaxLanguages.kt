@@ -23,6 +23,20 @@ package dev.drosh.ui.agent.components
  */
 object SyntaxLanguages {
 
+    /**
+     * The ECMAScript keyword set, before the two dialects add their own.
+     *
+     * Declared above [KEYWORDS] because it is read while that map is being built:
+     * a `val` initialised later would be uninitialised at the point of use, which
+     * the compiler catches and I had not.
+     */
+    private val COMMON_JS = setOf(
+        "break", "case", "catch", "class", "const", "continue", "debugger", "default",
+        "delete", "do", "else", "false", "finally", "for", "function", "if", "in",
+        "instanceof", "new", "null", "return", "super", "switch", "this", "throw",
+        "true", "try", "typeof", "undefined", "var", "void", "while", "with",
+    )
+
     private val KEYWORDS: Map<String, Set<String>> = mapOf(
         "kotlin" to setOf(
             "as", "break", "class", "continue", "do", "else", "false", "for", "fun",
@@ -98,13 +112,6 @@ object SyntaxLanguages {
         ),
         "html" to emptySet(),
         "css" to emptySet(),
-    )
-
-    private val COMMON_JS = setOf(
-        "break", "case", "catch", "class", "const", "continue", "debugger", "default",
-        "delete", "do", "else", "false", "finally", "for", "function", "if", "in",
-        "instanceof", "new", "null", "return", "super", "switch", "this", "throw",
-        "true", "try", "typeof", "undefined", "var", "void", "while", "with",
     )
 
     /**
