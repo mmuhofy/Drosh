@@ -5,12 +5,15 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import dev.drosh.core.TerminalConstants
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.settings.MotdMode
@@ -373,6 +376,7 @@ class TerminalManager(
 
         paneTabIndices[PaneSlot.PRIMARY] = secondary
         paneTabIndices[PaneSlot.SECONDARY] = primary
+        resetViewportState()
 
         val primaryView = paneViews[PaneSlot.PRIMARY]
         val secondaryView = paneViews[PaneSlot.SECONDARY]
@@ -402,6 +406,7 @@ class TerminalManager(
         if (getIndexForId(primaryId) < 0 || getIndexForId(secondaryId) < 0) return false
         paneTabIndices[PaneSlot.PRIMARY] = getIndexForId(primaryId)
         paneTabIndices[PaneSlot.SECONDARY] = getIndexForId(secondaryId)
+        resetViewportState()
         paneViews[PaneSlot.PRIMARY]?.let { view ->
             irisSessions[paneTabIndices[PaneSlot.PRIMARY]!!].terminalSession.let(view::attachSession)
         }
@@ -429,6 +434,7 @@ class TerminalManager(
 
         paneTabIndices[PaneSlot.PRIMARY] = secondary
         paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
+        resetViewportState()
 
         paneViews[PaneSlot.PRIMARY]?.let { view ->
             irisSessions.getOrNull(secondary)?.terminalSession?.let(view::attachSession)
@@ -486,6 +492,7 @@ class TerminalManager(
     private fun reattachPanesAt(index: Int) {
         // The shell behind this session is a new process with a new screen. If it
         // is on screen at all, what it is showing is not what the user scrolled.
+        if (index == paneTabIndices[focusedPane.value]) resetViewportState()
         paneTabIndices.forEach { (slot, slotIndex) ->
             if (slotIndex != index) return@forEach
             val session = irisSessions.getOrNull(index)?.terminalSession ?: return@forEach
@@ -544,11 +551,96 @@ class TerminalManager(
         _altBufferByPane.value = next
     }
 
+    private val _scrollTopRow = MutableStateFlow(0)
+
+    /**
+     * The terminal's first visible transcript row. 0 is the live edge, where
+     * the prompt is; negative means the viewport has been scrolled back into
+     * the scrollback.
+     *
+     * Fed by [TerminalView.onScrollPositionChanged], which fires on touch,
+     * fling, wheel and keyboard scrolling, and again when new output snaps the
+     * viewport back to the live edge. The UI uses it to collapse the top bar
+     * while the user is reading history.
+     */
+    val scrollTopRow: StateFlow<Int> = _scrollTopRow.asStateFlow()
+
+private val _isAtLiveEdge = MutableStateFlow(true)
+
+    /**
+     * True while the viewport is at the live edge. This, not [scrollTopRow], is
+     * what the UI collects.
+     *
+     * scrollTopRow changes once per row, and a fling through 30 rows emitted 30
+     * updates, each one recomposing the whole terminal screen on the frame it
+     * landed. The only thing the UI actually needs is which side of the live
+     * edge it is on, so this flips at a threshold and is silent the rest of the
+     * time. That is the difference between the bar gliding and the bar
+     * stuttering along with your thumb.
+     *
+     * The threshold is not the edge itself. It is two, and the gap between them
+     * is the dead zone — see [chromeIsAtLiveEdge].
+     */
+    val isAtLiveEdge: StateFlow<Boolean> = _isAtLiveEdge.asStateFlow()
+
+private val _hasScrolled = MutableStateFlow(false)
+
+    /**
+     * Whether the user has moved this terminal's viewport at all since the
+     * session it is showing was attached.
+     *
+     * The top chrome's first state is **a terminal nobody has touched**: status
+     * bar hidden, pills in the space it left, terminal full. That is not a
+     * scroll position and cannot be expressed as one, because a freshly opened
+     * terminal sits at the live edge exactly like a busy one does. Position
+     * alone cannot tell "just opened, first screen" from "sitting at the
+     * prompt", so the distinction has to be its own piece of state.
+     *
+     * Cleared by [resetViewportState] wherever the session on screen is
+     * replaced — a switch, a new session, a restart, another pane taking focus.
+     * One-way: the first scroll of a session is the moment it stops being "new",
+     * and nothing in the app should make that untrue.
+     */
+    val hasScrolled: StateFlow<Boolean> = _hasScrolled.asStateFlow()
+
+    /**
+     * Back to "a terminal nobody has touched".
+     *
+     * Called wherever the focused pane's contents are replaced rather than
+     * scrolled. Also puts the live edge back to true so the two flags cannot
+     * disagree: a new session is at its live edge by definition, and leaving the
+     * old answer in place would let a stale `isAtLiveEdge = false` reach the
+     * chrome before the next scroll event corrects it.
+     */
+    private fun resetViewportState() {
+        _hasScrolled.value = false
+        _scrollTopRow.value = 0
+        _isAtLiveEdge.value = true
+    }
+
     private val prootRunner: ProotRunner by lazy {
         ProotRunner(ubuntuBootstrap, application.applicationInfo.nativeLibraryDir)
     }
 
     private val managerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    /**
+     * Whether the pane the user is actually looking at is running a TUI.
+     *
+     * [isAltBufferActive] answers the same question but is a plain function over
+     * a `.value` read, so a composable collecting nothing would only ever see the
+     * answer on the frame it happened to recompose for another reason. The top
+     * bar's chrome is driven by this instead: a TUI owns the whole screen, so the
+     * status bar has to go regardless of where the viewport is scrolled to.
+     *
+     * Joined on focus rather than published per pane, because the question the
+     * chrome asks is about one screen — the foreground pane — and a vim in the
+     * background pane must not collapse the controls out from under a shell the
+     * user is still reading.
+     */
+    val focusedPaneAltBuffer: StateFlow<Boolean> =
+        combine(_focusedPane, _altBufferByPane) { slot, byPane -> byPane[slot] == true }
+            .stateIn(managerScope, SharingStarted.Eagerly, false)
 
     private var prootStartCommand: String = ""
 
@@ -764,7 +856,43 @@ class TerminalManager(
             }
         }
         sessionClient.terminalView = view
+        // Whichever pane takes focus is the one being read, and it starts at its
+        // first screen as far as the chrome is concerned.
+        resetViewportState()
+        publishScroll(view)
+        view.onScrollPositionChanged = { topRow ->
+            if (slot == focusedPane.value) {
+                _scrollTopRow.value = topRow
+                val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
+                if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
+                // "Has been touched" means **has left the first screen**, not
+                // "moved at all".
+                //
+                // Setting it on the first row put the two thresholds a row apart:
+                // one flick up turned the status bar on, and the fifth row turned
+                // it off again — both inside a single gesture, which is the
+                // flapping. Gating it on the same threshold the live-edge flag
+                // uses means one direction change is one transition.
+                //
+                // Safe to read off this callback even though it also runs on
+                // every chunk of PTY output: `onScreenUpdated` snaps `mTopRow`
+                // back to the live edge before reporting, so `atEdge` is true for
+                // anything it fires and the shell's own output can never answer
+                // this with yes.
+                if (!atEdge) _hasScrolled.value = true
+            }
+        }
+        bindSelectionMenu(view, slot)
+    }
 
+    /** Reports a view's current scroll position immediately. */
+    private fun publishScroll(view: TerminalView) {
+        // A session restored straight into the middle of its scrollback would
+        // otherwise start with a stale zero and only correct itself on the next
+        // scroll.
+        _scrollTopRow.value = view.mTopRow
+        val atEdge = chromeIsAtLiveEdge(view.mTopRow, _isAtLiveEdge.value)
+        if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
     }
 
     /**
@@ -811,6 +939,8 @@ class TerminalManager(
             paneViews[fallback]?.let { activatePaneView(fallback, it) }
         } else {
             // Nothing on screen left to be active.
+            sessionClient.terminalView = null
+            _isAtLiveEdge.value = true
         }
         publishActiveId()
     }
@@ -842,6 +972,7 @@ class TerminalManager(
         paneTabIndices[focusedPane.value] = newIndex
         // A brand new session has no scrollback and has not been touched, which
         // is exactly the state the chrome treats as "first screen".
+        resetViewportState()
         _sessionCount.value = irisSessions.size
         _liveSessionIds.value = liveSessionIds()
         // A session exists again, so the exit dialog no longer applies.
@@ -892,6 +1023,7 @@ class TerminalManager(
         paneTabIndices[focusedPane.value] = newIndex
         // A brand new session has no scrollback and has not been touched, which
         // is exactly the state the chrome treats as "first screen".
+        resetViewportState()
         _sessionCount.value = irisSessions.size
         _liveSessionIds.value = liveSessionIds()
         _noSessionsLeft.value = false
@@ -1034,6 +1166,7 @@ class TerminalManager(
         paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
         _focusedPane.value = PaneSlot.DEFAULT
         _activeTabIndex.value = 0
+        resetViewportState()
         _sessionCount.value = 0
         _altBufferByPane.value = emptyMap()
         _liveSessionIds.value = emptySet()
@@ -1104,6 +1237,7 @@ class TerminalManager(
         val target = irisSessions[index]
         // A different session is now what the user is looking at, so whatever
         // they had scrolled to belongs to the one that was there before.
+        resetViewportState()
         // Blocks are stored per session, so switching shows that session's
         // history instead of clearing the engine.
         blockEngineWire?.onSessionChanged(target.persistentId, target.terminalSession)
@@ -1364,3 +1498,46 @@ class TerminalManager(
     }
 }
 
+/**
+ * How far the viewport must move past the live edge before the chrome gives way.
+ *
+ * In rows, not pixels: the emulator scrolls a row at a time, and a row is the
+ * smallest thing the user can actually look at.
+ */
+private const val CHROME_COLLAPSE_ROWS = -5
+
+/** How close to the live edge the viewport has to come for the chrome to return. */
+private const val CHROME_EXPAND_ROWS = -1
+
+/**
+ * Whether the viewport counts as "at the live edge" for the top chrome.
+ *
+ * Two thresholds and a dead zone between them, which is the whole point.
+ *
+ * The chrome is not a decoration that follows the viewport exactly — it *is* the
+ * system status bar, which Android animates on its own schedule. Testing
+ * `topRow == 0` meant a fling that brushed the boundary changed the answer on
+ * every single row it crossed, so the status bar began and ended its own
+ * animation several times during one gesture and the whole top of the screen
+ * went back and forth. Two things had to be true of a scroll for it to look
+ * deliberate: you have to have actually gone somewhere, and you have to have
+ * actually come back.
+ *
+ * `wasAtLiveEdge` is kept inside the dead zone rather than resolved from
+ * `topRow` alone, which is what makes it hysteresis rather than just a wider
+ * band — a value in the middle is ambiguous, and the previous answer is the
+ * least surprising thing to do with an ambiguous one.
+ *
+ * @param topRow the terminal's first visible row; 0 is the live edge, negative
+ *   is the scrollback above it.
+ * @param wasAtLiveEdge what the chrome is currently showing.
+ */
+internal fun chromeIsAtLiveEdge(topRow: Int, wasAtLiveEdge: Boolean): Boolean = when {
+    // Deep enough into the scrollback to be reading history rather than nudging
+    // the viewport by a line.
+    topRow <= CHROME_COLLAPSE_ROWS -> false
+    // Back at the live edge, or the row above it.
+    topRow >= CHROME_EXPAND_ROWS -> true
+    // Between the two: hold still.
+    else -> wasAtLiveEdge
+}

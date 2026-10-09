@@ -157,16 +157,14 @@ private val MENU_HEIGHT_PX = 64.dp
 private val BACKDROP_STRIP = 72.dp
 
 /**
- * The terminal's constant top clearance, for content that is padded rather than
- * overlaid.
+ * The terminal's top clearance is `CHROME_CLEARANCE`, from the top bar.
  *
- * The pill row's 44dp plus a gap. Constant on purpose, and not a function of
- * whether anything is showing at the top of the screen: an inset that tracked
- * that resized the terminal grid on every change, and resizing re-wraps every
- * line of output. One number, never moves, and nothing is ever hidden behind a
- * control.
+ * Constant on purpose, and not a function of whether the chrome is collapsed: an
+ * inset that tracked that resized the grid on every change, and resizing
+ * re-wraps every line of output. One number that never moves also means nothing
+ * is ever hidden behind a control.
  */
-private val CHROME_CLEARANCE = 52.dp
+private val CHROME_CLEARANCE = dev.drosh.ui.topbar.CHROME_CLEARANCE
 
 @Composable
 fun TerminalScreen(
@@ -313,38 +311,49 @@ private fun ReadyScreen(
         runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
             .getOrDefault(Color.Black)
     }
-    // ── Immersive ───────────────────────────────────────────────────────────
+    // ── Chrome: fullscreen when up, normal when down ─────────────────────────
     //
-    // The system bars are hidden outright for as long as this screen is on
-    // screen, and restored on the way out. They are not tied to the scroll.
+    // Two states, and nothing else:
     //
-    // They were, and it could not work: the pills live at the very top of the
-    // screen, which is exactly where Android's edge gesture lives. Any drag that
-    // started there made the system reveal the bars *transiently* — overlaying
-    // the app, then hiding themselves after a timeout — so a slow upward scroll
-    // produced the bar appearing and vanishing over and over, and a fast one
-    // managed to get through before it started. A control that lives in the
-    // system's gesture zone cannot also be something the system keeps putting a
-    // bar on top of.
+    //  - **Collapsed** — the viewport is up in the scrollback, a session nobody
+    //    has scrolled yet, or a TUI owns the terminal. The app goes fullscreen,
+    //    the pills go to the very top of the screen, and the area behind them
+    //    takes the terminal's own background so the top of the screen continues
+    //    into the terminal instead of being banded off from it.
+    //  - **Expanded** — at the live edge, past the first screen. The status bar is
+    //    back and the pills sit below it, over the output.
     //
-    // So there is one state. A terminal is full-bleed text; the bar is a row of
-    // pixels stolen from it, and the clock is available from anywhere else in
-    // the app.
+    // "Not the live edge" is two situations with the same answer: a scroll back
+    // into history, and a terminal nobody has touched yet — which is where a
+    // session starts and where it comes back to after a switch. The second one is
+    // *at* the live edge, so position alone cannot express it; `hasScrolled` is
+    // what tells them apart.
+    //
+    // A TUI takes the collapsed state unconditionally: nano, vim and htop own
+    // the whole screen, and a clock over them is in the way whether or not
+    // anything has been scrolled.
+    val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
+    val hasScrolled by terminalManager.hasScrolled.collectAsStateWithLifecycle()
+    val tuiActive by terminalManager.focusedPaneAltBuffer
+        .collectAsStateWithLifecycle()
+
+    val chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge
+
     val activity = LocalDroshActivity.current
-    DisposableEffect(activity) {
-        val window = (activity as? android.app.Activity)?.window
-        val controller = window?.let {
-            WindowInsetsControllerCompat(it, it.decorView)
-        }
-        controller?.apply {
-            // BEHAVIOR_DEFAULT, not BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE: a
-            // swipe from the top edge can still summon the bars, but they are not
-            // overlaid on the app and then timed out on their own.
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-            hide(WindowInsetsCompat.Type.systemBars())
-        }
-        onDispose {
-            controller?.show(WindowInsetsCompat.Type.systemBars())
+    LaunchedEffect(chromeCollapsed) {
+        val window = (activity as? android.app.Activity)?.window ?: return@LaunchedEffect
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        // BEHAVIOR_DEFAULT, not BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE. The pills
+        // live at the very top of the screen — which is where Android's edge
+        // gesture lives — and the transient behaviour reveals the bars *over the
+        // app* and then times itself out, which on a slow upward scroll meant the
+        // system drawing a status bar across the row over and over. With this one,
+        // a deliberate top-edge swipe brings the bars back for good.
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+        if (chromeCollapsed) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
         }
     }
     var sidebarOpen by remember { mutableStateOf(false) }
@@ -525,7 +534,10 @@ private fun ReadyScreen(
     val backdrop by rememberTerminalBackdrop(
         terminalView = terminalViewRef.value,
         stripHeight = BACKDROP_STRIP,
-        active = true,
+        // Only while the pills float over output. Collapsed they sit on the
+        // terminal's own background, and the capture draws the whole terminal to
+        // produce a slice nothing shows.
+        active = !chromeCollapsed,
     )
 
     val searchOverlayRef = remember {
@@ -876,6 +888,10 @@ private fun ReadyScreen(
 
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(
+                chromeCollapsed = chromeCollapsed,
+                // The terminal's background, so the band above the grid is the
+                // same colour as the grid and there is no edge between them.
+                collapsedBandColor = terminalBgColor,
                 backdrop = backdrop,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
