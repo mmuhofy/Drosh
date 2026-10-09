@@ -6,21 +6,16 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
@@ -66,87 +61,32 @@ import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.ui.session.SessionSwitcherViewModel
 
 /**
- * Modern minimalist top bar — iOS/Obsidian-style floating pills.
+ * The terminal's floating pill row.
  *
- * The bar is driven by a single piece of state, [chromeCollapsed], and that state
- * is the prototype's:
+ * A fixed row at the top of the screen, over the terminal. It does not move, and
+ * nothing about it changes with the scroll.
  *
- *  - **Collapsed** — a session nobody has scrolled yet, the viewport is up in
- *    the scrollback, or a TUI has the terminal. The system status bar is hidden
- *    outright and the pills ride up into the space it left rather than sitting
- *    below it. The strip behind them is Drosh's own background — the same colour
- *    behind the terminal frame and the sidebar — so the chrome reads as the app's
- *    rather than as a bar laid over the terminal.
- *  - **Expanded** — the viewport is at the live edge. The system status bar is
- *    shown with no background of its own, so the terminal runs on behind the
- *    clock, and the pills drop below the strip to float over the output.
+ * ## Why there is only one state
  *
- * The pills never disappear. Obsidian's chrome lifts away entirely and leaves a
- * dim behind it; here the pills are how you get back to search, sessions and the
- * agent, so they move rather than go. Only the status bar closes.
+ * It used to have two, tied to the system status bar: up in the scrollback the
+ * bar was hidden and the pills rode into the space it left, and at the live edge
+ * the bar came back and they dropped below it.
  *
- * Both the scrim and the row are positioned off
- * [WindowInsets.statusBarsIgnoringVisibility] rather than [WindowInsets.statusBars].
- * The bar's visibility now changes on every scroll, and `statusBars` is zero the
- * moment it hides — so measuring layout with it would collapse the whole top of
- * the screen the instant the state flipped.
+ * That could not work. The pills live at the very top of the screen, which is
+ * exactly where Android's edge gesture lives — a drag starting there makes the
+ * system reveal the status bar *transiently*, overlaying the app and then hiding
+ * itself after a timeout. So the row could not sit where the user was reaching for
+ * it without the system intermittently drawing a bar over it. On a slow upward
+ * scroll that happened continuously, which is the flapping.
  *
- * Nothing here reserves space. The terminal is full-bleed and these are overlays,
- * which is what keeps the grid from resizing — and every line of output reflowing
- * — on each crossing of the boundary.
+ * A control that lives in the system's gesture zone cannot also be something the
+ * system keeps covering. So the screen is fullscreen, the row is at the top at its
+ * own size, and the terminal's clearance below it is a constant. One state, no
+ * animation to catch mid-move, and the grid never resizes.
  */
 private const val BAR_ROW_HEIGHT_DP = 44
 private const val BAR_TOP_OFFSET_DP = 10
 private const val BAR_BOTTOM_OFFSET_DP = 6
-
-/**
- * The floor for the collapsed row's height.
- *
- * The collapsed row is the status bar's band, so on a device with a very short
- * bar the icons would be sized to a strip that is too short to hit. This is the
- * bottom of what a finger can be expected to land on, and it is only ever
- * *above* the bar's own height, never below it — the strip is the band, not
- * something near it.
- */
-private val MIN_COLLAPSED_ROW = 30.dp
-
-/**
- * How tall the chrome is while collapsed: the status bar's band, or a floor.
- *
- * Public because the terminal's top inset is this and the top bar's row is this,
- * and a screen's inset measured in one file and a row measured in another is two
- * numbers that have to be kept in step by hand.
- */
-@Composable
-@OptIn(ExperimentalLayoutApi::class)
-fun rememberCollapsedChromeHeight(): Dp =
-    WindowInsets.statusBarsIgnoringVisibility
-        .asPaddingValues()
-        .calculateTopPadding()
-        .coerceAtLeast(MIN_COLLAPSED_ROW)
-
-/**
- * How long the row takes to travel.
- *
- * Just under the platform's own status-bar transition. Ours finishing first
- * means the last thing to settle is the system's own bar, rather than two
- * motions ending on top of each other.
- */
-private const val CHROME_ANIMATION_MILLIS = 220
-
-/**
- * How long the pills wait before starting to move.
- *
- * Only when collapsing, and only because the clock has to leave first. The
- * status bar is the system window's, drawn above the app, so there is no way to
- * cover it — it has to be told to hide, and that takes its own time. Moving the
- * pills while the clock is still fading out puts two things in motion at once in
- * the same 40dp, which is what read as the bar going back and forth.
- *
- * Expanding does not wait: the pills are already where the clock is going, and
- * delaying them would just make the chrome feel like it had stalled.
- */
-private const val CHROME_COLLAPSE_DELAY_MILLIS = 70
 
 /**
  * Over the blurred slice, so the terminal shows through as a smudge rather
@@ -192,18 +132,8 @@ private val PILL_WIDTH = PILL_WIDTH_DP.dp
 private val BAR_TOP_OFFSET = BAR_TOP_OFFSET_DP.dp
 private val BAR_BOTTOM_OFFSET = BAR_BOTTOM_OFFSET_DP.dp
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TerminalTopBar(
-    /**
-     * The viewport is up in the scrollback, or a TUI owns the terminal.
-     *
-     * One flag for both halves of the state on purpose. "Hide the status bar" and
-     * "tuck the pills into the space it left" are the same decision, and driving
-     * them from two booleans is how they end up disagreeing for a frame on every
-     * crossing.
-     */
-    chromeCollapsed: Boolean,
     /** Strip sampled from the terminal, or null when there is nothing to sample. */
     backdrop: ImageBitmap?,
     /** Where the terminal sits in root space, so a pill can find its slice. */
@@ -229,56 +159,22 @@ fun TerminalTopBar(
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
 
-    // Deliberately the visibility-agnostic inset. `statusBars` reports zero while
-    // the bar is hidden, and this bar's state changes on scroll, so reading it
-    // here would collapse the row's own height the moment the row is supposed to
-    // be moving upward on purpose.
-    val collapsedHeight = rememberCollapsedChromeHeight()
-
-    // One animated height for the row, and one animated offset, and one animated
-    // strip — all from the same trigger and the same spec, so they cannot be
-    // caught disagreeing on a frame.
-    val chromeTween = tween<Dp>(
-        durationMillis = CHROME_ANIMATION_MILLIS,
-        delayMillis = if (chromeCollapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
-    )
-
-    // Collapsed, the row is the status bar's band and nothing else.
+    // One place, one value: the row's height. The screen is fullscreen, so there
+    // is no band for the row to move out of and no two states to animate between
+    // — it sits at the top of the screen, at its own size, permanently.
     //
-    // The prototype's `.status-bar { height: 34px }` and
-    // `.pill-row.top-state { top: 4px; height: 34px }` are the same height: the
-    // pills *are* the band, filling the space the clock left rather than sitting
-    // under a strip of their own. Sized to the row instead — a fixed 44dp with a
-    // strip tall enough to hold it — what you get is a row that hangs below the
-    // band, and the band plus the overhang reads as two things rather than one.
-    //
-    val rowHeight by animateDpAsState(
-        targetValue = if (chromeCollapsed) collapsedHeight else BAR_ROW_HEIGHT,
-        animationSpec = chromeTween,
-        label = "chromeRowHeight",
-    )
+    // Animating it is what made it look like a control that could not decide
+    // where it belonged: caught mid-transition at 30dp, it read as shrunk and
+    // wrong. A row that never moves cannot be caught mid-move.
+    val rowHeight = BAR_ROW_HEIGHT
 
-    val rowOffset by animateDpAsState(
-        // Expanded the row sits clear of the band; collapsed it is flush with the
-        // top of it, which is the whole difference the prototype draws.
-        targetValue = if (chromeCollapsed) 0.dp else collapsedHeight + BAR_TOP_OFFSET,
-        animationSpec = chromeTween,
-        label = "chromeRowOffset",
-    )
-
-    /**
-     * The icon, sized to the row it is in.
-     *
-     * A 22dp glyph inside a 30dp band leaves no breathing room and reads as
-     * cropped, so it follows the row with a little air on each side. Clamped to
-     * the row's own height so it can never be the thing that overflows.
-     */
-    val pillIconSize = (rowHeight - 12.dp).coerceIn(16.dp, 22.dp)
+    /** The icon's size, matching every lucide glyph in the row. */
+    val pillIconSize = 22.dp
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(collapsedHeight + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET),
+            .height(BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET),
     ) {
         var moreExpanded by remember { mutableStateOf(false) }
 
@@ -289,7 +185,6 @@ fun TerminalTopBar(
                 // padding positions the row inside it, so the pair reads as one
                 // target position rather than as two offsets that have to be kept
                 // in step by hand.
-                .offset(y = rowOffset)
                 .height(rowHeight)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

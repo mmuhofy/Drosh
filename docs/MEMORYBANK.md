@@ -802,22 +802,32 @@ split opened with one pane a tenth of the screen tall.
 
 ## 7C. Smooth Pinch-to-Zoom
 
-**Status:** shipped — `feature/pinch-zoom`, PR #38.
+**Status:** `feature/pinch-zoom`, PR #38 — merged into `feature-ssh` as
+`feat(terminal): smooth pinch-to-zoom`. **Not yet run on a device**; see
+*Verification still owed*.
 
 ### What it does
 
 Pinch the terminal and the font follows the fingers continuously, in **0.1sp
 steps**, up to 9sp–48sp. A **size chip** follows the pinch (above the fingers,
 clamped inside the pane) and lingers ~900ms after they lift. **Double-tap**
-returns to the default size. The size is written to DataStore when the fingers
-lift, not per frame.
+returns to the app default, 14sp. The size is written to DataStore when the
+fingers lift, not per frame. The Settings slider uses the same limits and the
+same 0.1sp detent, so a size set by dragging is one the pinch can reach.
 
-### Why it had to be rebuilt rather than tuned
+### Why it is smooth
 
-The old path went scale event → `bumpFontSize` → `Int` → StateFlow emit →
-recomposition → `setTextSize` → a **new `TerminalRenderer` per event** (which
-re-measures 127 glyph widths) → `TerminalEmulator.resize`/reflow. Three
-separate costs per frame, and a font size that only ever moved in whole sp.
+Three costs landed in the same frame, and only one of them was visible:
+
+| Cost | Removed by |
+|---|---|
+| A new renderer per event, each re-measuring 127 glyph widths | `TerminalRenderer.updateTextSize()` re-measures in place |
+| Whole-sp rounding, so the size could only move in 1sp steps however little the fingers moved | the 0.1sp grid (`TerminalZoom.STEP_SP`) |
+| A StateFlow emit per event, recomposing the whole screen because the size lived in a ViewModel the screen read at its root | the view owns the live size; the flow is told once, at the end |
+
+The 0.1sp steps that do **not** change the column count cost only a repaint —
+`updateSize()` reflows when the column count moves, not when the font size does.
+That is the rest of it.
 
 ### How it is built now
 
@@ -826,9 +836,12 @@ separate costs per frame, and a font size that only ever moved in whole sp.
 | `TerminalZoom` (limits, 0.1 step, 4% dead zone, per-event clamp) | `:domain` | `TerminalView` is in `:terminal`, the ViewModel in `:ui`, and `:ui` may not import `:terminal`. `:domain` is the one module both depend on. |
 | `TerminalRenderer.updateTextSize()` | `:terminal` | Re-measures in place behind private setters. No `@JvmField` on them — a private setter is a custom accessor and the two cannot be combined. |
 | `TerminalView.zoomTo()` + focal anchoring | `:terminal` | The row under the fingers is pinned by absolute row index, which survives the reflow that a viewport-relative one does not. |
-| `onScale` / `onScaleBegin` / `onScaleEnd` on the client | `:terminal` | Notifications, not requests: the view has already applied the size. Replaced the old `onScale(scale): Float`. |
+| `TerminalViewClient.defaultFontSizeSp()` | `:terminal` | Double-tap's reset target, asked of the client so the vendored view holds no constant. |
+| `onScaleBegin` / `onScale` / `onScaleEnd` in the recognizer | `:terminal` | `onScaleBegin` records the gesture's origin, `onScaleEnd` says the fingers are gone — neither is reachable from `ScaleGestureDetector`'s scale callback alone. |
+| `onZoom` / `onZoomEnd` on the client | `:terminal` | Notifications, not requests: the view has already applied the size. Replaced the old `onScale(scale): Float`. |
 | `ZoomChipState` + `TerminalZoomChip` | `:app` (ui/terminal) | Local state, **not** in the ViewModel — a flow read at the screen root would recompose both panes at 60Hz for a number only the chip shows. |
 | `TerminalViewModel.onZoomCommitted()` | `:ui` | Publishes and persists once, on release. |
+| `FONT_SIZE_DETENTS` in Settings | `:ui` | Derived from `TerminalZoom`, so the slider cannot offer a size the pinch cannot produce. |
 
 ### Gesture decisions worth keeping
 
@@ -841,25 +854,66 @@ separate costs per frame, and a font size that only ever moved in whole sp.
 - **Per-event step clamp** (`MAX_STEP_FACTOR = 1.35`): a third finger landing
   reads as a large ratio, which would otherwise be worth several steps in one
   frame.
+- **Double-tap → app default (14sp).** Deferred one frame: `onDoubleTap` arrives
+  on the second ACTION_DOWN, before the gesture is known, so resetting there
+  would zoom and un-zoom a double-tap that turned into a pinch. The posted block
+  re-checks whether a scale is in progress — see *Double-tap reset* below.
 - **0.1sp quantisation** is below what the eye resolves, and it keeps a long
   float tail (14.300000000000001) out of storage.
 
+### Double-tap reset, and what it resets to
+
+**It resets to the app default (14sp), not to the current size.** The current
+size is what the last pinch produced, so a reset to that would do nothing. The
+reset target comes from `TerminalViewClient.defaultFontSizeSp()` rather than a
+constant baked into the vendored view, but it is a *default*, not a "settings
+value": after a pinch there is no way to tell a size the user chose from one
+the pinch produced, and treating the pinch result as the default would make
+double-tap a no-op the moment anyone pinched.
+
+The reset is **deferred by one frame** (`post {}`). `onDoubleTap` fires on the
+second ACTION_DOWN, before the gesture is known — a double-tap that becomes a
+pinch would zoom and then un-zoom, which is the flicker the deferral avoids.
+The posted block re-checks `isInProgress()`, so a pinch that starts on the same
+frame wins.
+
 ### Storage
 
-`SettingsRepository.fontSizeSp` is `Flow<Float>` and its DataStore key became
+The DataStore key behind `SettingsRepository.fontSizeSp` became
 `floatPreferencesKey("font_size_sp")`. DataStore keys are typed, so an install
 that upgrades cannot read the Int a previous build wrote and **falls back to
 the default once**; it keeps fractional sizes from then on. The key name was
 deliberately left alone so there is one key to reason about.
 
 `TerminalZoom.MIN_SP/MAX_SP` (9/48) are wider than the slider's old 8..24, and
-the Settings slider now uses the same limits as the pinch — the two used to
-disagree, so a size set by one could not be reproduced by the other.
+the Settings slider now uses the same limits *and* the same 0.1sp detent — the
+two used to disagree in both range and granularity.
 
-### Not covered
+### Changed elsewhere as a consequence
 
-Block mode does not pinch-zoom: it renders in Compose and has no
-`TerminalView` behind it. The block renderer keeps its own font size path.
+- `TerminalViewClient.onScale(scale): Float` — the old callback, which asked the
+  client to *apply* a scale and returned a scale factor — is replaced by
+  `onZoom` / `onZoomEnd` / `defaultFontSizeSp`. The view now applies the size
+  itself and notifies; a client cannot decline or alter it.
+- `TerminalViewClientImpl`'s constructor takes `onZoomChange` /
+  `onZoomEndChange` callbacks instead of `onScaleChange`.
+- `TerminalViewModel.bumpFontSize()` is gone; `onZoomCommitted()` replaces it,
+  and `setFontSize` takes a `Float`.
+- `SettingsRepository.fontSizeSp` is `Flow<Float>`, and its setter takes a
+  `Float`.
+- `settings_font_size_value` takes `%1$s`, not `%1$d` — a float into `%1$d`
+  throws at format time. `values/` and `values-tr/` changed together.
+
+### Deliberately not done
+
+- **Block mode does not pinch-zoom.** It renders in Compose with no
+  `TerminalView` behind it: no gesture to claim, nothing to anchor against. Its
+  font size path is untouched. Whether it *should* zoom is a product call, not
+  a port of this work.
+- **A pinch does not reflow on every step.** `updateSize()` reflows when the
+  column count changes, not when the font size does, so the 0.1sp steps between
+  two grid changes cost a repaint. Reflowing per step would make the gesture
+  smooth and the terminal unusable.
 
 ### Prototype
 
@@ -869,6 +923,20 @@ steps, and a reflow-free canvas scale — with a live fps/reflow counter.
 gitignored, so the prototype is not in the repository; rebuild it from this
 description if the question comes up again.
 
+### Tests
+
+`domain/src/test/.../TerminalZoomTest.kt` covers the arithmetic: rounding onto
+the 0.1sp grid and its absence of a float tail, the limits surviving rounding,
+every slider detent being a representable pinch step, dead-zone symmetry and the
+latch that stops it gating mid-gesture, the per-event step clamp, and a
+symmetric 20-frames-out-and-back gesture ending at the size it started from.
+
+The helpers in that test **re-implement** what `TerminalView` does rather than
+calling it — the class is a View, and instantiating one in a JVM test needs a
+Looper and a `Paint`. They are kept in step by hand, which is the cost of that
+choice and the reason each helper is named after the decision it encodes rather
+than after the method it mirrors.
+
 ### Verification still owed
 
 Everything above is what the code and `:domain:test` say. None of it has been
@@ -877,13 +945,14 @@ pinch feels right. In particular worth checking on real hardware:
 
 - that the font tracks the fingers without visible stepping at 0.1sp,
 - that the anchored row does not drift over a long pinch,
-- that the chip does not flicker or linger wrongly,
-- that a two-finger scroll no longer nudges the size at all.
+- that the chip follows, clamps at the edges and does not flicker,
+- that a two-finger scroll no longer nudges the size at all,
+- that a double-tap really returns to 14sp, and that a double-tap which grows
+  into a pinch does not flash.
 
 ### Open
 
-- Block mode does not pinch-zoom (Compose, no `TerminalView`). Whether it
-  should is a product call.
+- Block mode: see *Deliberately not done* above.
 - 48sp is about ten rows on a phone. Whether the top of the range is worth
   having is untested on a device.
 - The DataStore key type change costs an install its saved font size once.
@@ -1735,6 +1804,7 @@ data class SshHost(
 | 13 | Split depth | Arbitrary nesting, or two panes? | Resolved 2026-10-05: two. Nested panes on a phone are too narrow to read, and each is another divider to discover. |
 | 14 | sora-editor licence | Accept LGPL-2.1-or-later inside a GPL-3.0 app? | **OPEN — Muhofy must sign off.** Compatible in principle, but blocks F-Droid until confirmed. See §7A. |
 | 19 | Pinch zoom step | Whole sp, 0.5sp, or continuous 0.1sp? | Resolved 2026-10-08: continuous 0.1sp, chosen from an HTML prototype. Block mode does not zoom. See §7C. |
+| 20 | Double-tap zoom reset | Back to 14sp, or to the last size set in Settings? | Resolved 2026-10-08: back to the app default (14sp). After a pinch the persisted size *is* the pinched one, so "the settings value" is indistinguishable from "what the pinch just produced" — resetting to it would be a no-op the moment anyone pinched. |
 | 15 | zsh `$ENV` breakage | Inject into `~/.zshenv`, or leave OSC 133 dead on zsh? | **OPEN.** Touches a user file, so not done unilaterally. Also fixes the block engine's command lifecycle on the default shell. See §7A. |
 | 16 | Editor surface | Split view with the terminal, or full screen? | Resolved 2026-10-05: full screen, separate route. One document at a time, no tabs. |
 | 17 | Split axis | Side by side, or top-to-bottom? | Resolved 2026-10-05: top-to-bottom (PR #27). Two 180dp columns are ~10 characters wide, narrower than most paths. |

@@ -1,7 +1,7 @@
-# Drosh — TODO (Phase 6: Agent Bölümü + Native Editor + Workspace)
-_Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence, Native Editor ve Workspace bölümlerini içerir. Diğer fazlar buraya dahil edilmemiştir._
+# Drosh — TODO (Phase 6: Agent Bölümü + Native Editor + Workspace + Pinch Zoom)
+_Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence, Native Editor, Workspace ve Smooth Pinch-to-Zoom bölümlerini içerir. Diğer fazlar buraya dahil edilmemiştir._
 
-_Son güncelleme: 2026-10-05_
+_Son güncelleme: 2026-10-08_
 
 ---
 
@@ -26,7 +26,7 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 - [x] `WorkspaceScreen` + `WorkspaceViewModel` + edit/assign sheet'leri
 - [x] Erişim: sidebar → Projects, Settings → Projects
 - [x] `:domain:test` — `WorkspacePathTest`, `WorkspaceEditTest`, `WorkspaceGroupingTest`
-- [x] MEMORYBANK §7B
+- [x] MEMORYBANK §7D
 
 ### Shipped (2026-10-05) — `feat/workspace-ux`
 Gruplama çalışıyordu; çevresi çalışmıyordu.
@@ -213,6 +213,78 @@ Gruplama çalışıyordu; çevresi çalışmıyordu.
       Gerçek davranış `PendingRequestsTest` içinde deterministik olarak test
       ediliyor (8 test). Dışarıdan gözlemleyen test `runBlocking` + açık job
       handle ile yeniden yazılmalı. İptal yolu yeniden ele alındığında yapılacak.
+
+---
+
+## Smooth Pinch-to-Zoom
+
+*Goal: pinch follows the fingers. Branch `feature/pinch-zoom` → PR #38 → merged
+into `feature-ssh` as `feat(terminal): smooth pinch-to-zoom`.*
+
+### Shipped (2026-10-08)
+- [x] **0.1sp continuous zoom** — was whole-sp steps via `Int`; `fontSizeSp` is
+      now `Float` from DataStore through the renderer to the view.
+- [x] **`TerminalRenderer.updateTextSize()`** — re-measures in place. The old
+      path allocated a renderer per scale event, and each one re-measures 127
+      glyph widths; that was the jank, not the reflow.
+- [x] **Focal anchoring** — `TerminalView.zoomTo()` pins the row under the
+      fingers by absolute row index, so the line being read survives the reflow.
+- [x] **Gesture decisions** — size recomputed from the gesture's origin (no
+      accumulation drift), dead zone **latched** per gesture so a pinch can be
+      undone by the same pinch, per-event step clamp for a third finger landing,
+      double-tap returns to the app default (14sp), deferred one frame so a
+      double-tap that becomes a pinch does not zoom-then-un-zoom.
+      Limits 9–48sp, now shared with the Settings slider — pinch (10–32) and
+      slider (8–24) used to disagree, so a size set by one could not be
+      reproduced by the other. Slider detents derived from the same 0.1sp step.
+- [x] **Size chip** — `TerminalZoomChip` follows the focus point, clamped inside
+      the pane, lingers 900ms after release and fades rather than blinking on
+      every step. Local state, not a flow: a root-level read would recompose both
+      panes at 60Hz for one number.
+- [x] **Persist on release only** — `TerminalViewModel.onZoomCommitted()`.
+- [x] `:domain:test` — `TerminalZoomTest` (quantisation and the step grid,
+      dead-zone symmetry and latch, per-event step clamp, gesture
+      neutral-to-origin).
+- [x] MEMORYBANK §7C (new section; the old §7C Workspace renumbered to §7D)
+
+### API değişiklikleri (bu PR'da)
+- [x] `TerminalViewClient`: `onScale(scale): Float` → `onZoom` / `onZoomEnd` /
+      `defaultFontSizeSp`. View artık boyutu kendisi uygular, istemci sadece
+      bilgilendirilir.
+- [x] `TerminalViewClientImpl`: `onScaleChange` → `onZoomChange` +
+      `onZoomEndChange`
+- [x] `TerminalViewModel.bumpFontSize()` kaldırıldı → `onZoomCommitted()`;
+      `setFontSize(Float)`
+- [x] `SettingsRepository.fontSizeSp`: `Flow<Int>` → `Flow<Float>`
+- [x] `settings_font_size_value`: `%1$d` → `%1$s`. Float'ı `%1$d`'ye vermek
+      format anında hata fırlatır. `values/` ve `values-tr/` birlikte.
+
+### Kasıtlı kapsam dışı
+- Block modda pinch-yok: Compose ile çiziyor, arkasında `TerminalView` yok.
+      Karar ürüne ait, bkz. yukarıdaki izlenacaklar.
+- Boyut değişimi **her frame'de reflow etmiyor**: `updateSize()` sadece sütun
+      sayısı gerçekten değiştiğinde yeniden boyutlar. O sütun sayısı
+      değişmeden kalan 0.1sp adımları bir repaint'ten ibaret — bu, ölçeklemenin
+      akıcı olmasının asıl nedeni ve kasıtlı.
+
+### Bilinmeyen / izlenacak
+- ⏳ Block mode doesn't pinch-zoom: it renders in Compose with no `TerminalView`
+      behind it. Its font path is untouched. Needs a product decision on whether
+      block mode should zoom at all.
+- ⏳ The `font_size_sp` DataStore key became a float key. Installs that upgrade
+      fall back to the default size **once** (typed keys cannot read the old
+      Int). Verify on a real upgrade that it lands on 14sp and that the next
+      change persists.
+- ⏳ Zoom limits are 9–48sp; the widest terminal font is now a very tall grid
+      (48sp ≈ 10 rows). Worth confirming the top of the range is usable.
+- ⏳ 9–48sp is a 390-detent slider. `SettingsSlider` draws a smooth handle, so
+      it should still feel like a slider rather than a ruler — verify it does
+      not feel sticky or twitchy at that many detents.
+- ⏳ **Nothing has been run on a device.** CI builds and unit-tests; it cannot
+      say whether a pinch feels smooth. Check: 0.1sp tracking, anchored-row
+      drift over a long pinch, chip position/clamp/flicker, that a two-finger
+      scroll no longer nudges the size, and that a double-tap returns to 14sp
+      without flashing when it turns into a pinch.
 
 ---
 
