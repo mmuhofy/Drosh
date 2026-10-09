@@ -44,6 +44,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
@@ -1117,22 +1122,29 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
             ToolIcon(message.name)
             Spacer(Modifier.width(7.dp))
 
-            Text(
-                text = verb,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Medium,
-                color = verbColor(message.state),
-                modifier = if (running) Modifier.sweepHighlight(progress) else Modifier,
-            )
-
-            if (message.summary.isNotEmpty()) {
-                Spacer(Modifier.width(8.dp))
+            // Verb and summary are one string, not two Texts.
+            //
+            // Two Texts cannot be selected together: a long press lands on whichever
+            // one is under the finger and the selection stops at its edge, so
+            // selecting "npm test" out of "Ran npm test" means dragging off the verb
+            // and into the summary. One Text is one selectable run, and the styled
+            // span is what keeps the two halves looking different.
+            SelectionContainer {
                 Text(
-                    text = message.summary,
-                    fontSize = 11.5.sp,
+                    text = toolRowText(
+                        verb = verb,
+                        summary = message.summary,
+                        verbColor = verbColor(message.state),
+                        summaryColor = DroshTextSecondary,
+                        // While running, the gradient sweep paints the verb rather
+                        // than the whole row: the summary is already the dim half and
+                        // sweeping it too would make the command harder to read than
+                        // the word saying it is running.
+                        sweeping = running,
+                        progress = progress,
+                    ),
+                    fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = DroshTextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
@@ -2041,4 +2053,73 @@ private fun groupTranscript(messages: List<ChatMessage>): List<TranscriptRow> {
     }
     flushTools()
     return rows
+}
+
+/**
+ * The verb and the summary as one selectable string.
+ *
+ * One `Text` rather than two, so a long press selects across both halves instead of
+ * stopping at whichever one the finger landed in. The visual difference between
+ * "Ran" and the command is carried by colour and weight on spans, so nothing is lost
+ * by merging them.
+ *
+ * The gap is a non-breaking space rather than layout padding because padding is not
+ * part of the selected text — a selection that ended at the verb would exclude the
+ * space and paste "Ran" where "Ran npm test" was meant.
+ */
+private fun toolRowText(
+    verb: String,
+    summary: String,
+    verbColor: Color,
+    summaryColor: Color,
+    sweeping: Boolean,
+    progress: Float,
+): AnnotatedString = buildAnnotatedString {
+    // The sweep is a gradient across the verb's own width, so it needs the verb's
+    // length in characters to place its band — which is why this cannot stay a
+    // plain colour while running. A `SpanStyle` takes a brush *or* a colour, not
+    // both, so the two states are separate rather than one style with a null field.
+    if (sweeping) {
+        withStyle(
+            SpanStyle(
+                brush = sweepingBrush(progress, verb.length),
+                fontWeight = FontWeight.Medium,
+            ),
+        ) {
+            append(verb)
+        }
+    } else {
+        withStyle(
+            SpanStyle(color = verbColor, fontWeight = FontWeight.Medium),
+        ) {
+            append(verb)
+        }
+    }
+    if (summary.isNotEmpty()) {
+        append(" ")
+        withStyle(SpanStyle(color = summaryColor)) { append(summary) }
+    }
+}
+
+/**
+ * A band of [DroshPrimary] travelling across the verb, as a gradient brush.
+ *
+ * The span's own colour is the destination and the band's edges fade to the verb's
+ * resting colour, so the sweep arrives and leaves without a hard edge. Laid out in
+ * character counts rather than pixels because a `SpanStyle` gradient is measured
+ * against the annotated string's text — which is why the summary is not swept: it
+ * would have to share the same coordinate space, and the band is sized to the verb.
+ */
+private fun sweepingBrush(progress: Float, length: Int): Brush {
+    val band = (length * 0.4f).coerceAtLeast(1f)
+    val x = (length + band) * progress - band
+    return Brush.linearGradient(
+        colorStops = arrayOf(
+            0f to Color.Transparent,
+            (x / length).coerceIn(0f, 1f) to Color.Transparent,
+            ((x + band) / length).coerceIn(0f, 1f) to DroshPrimary,
+            ((x + band * 2) / length).coerceIn(0f, 1f) to Color.Transparent,
+            1f to Color.Transparent,
+        ),
+    )
 }
