@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -360,8 +359,9 @@ class OpenAiCompatAdapter @Inject constructor(
                 put("tools", buildJsonArray { request.tools.forEach { add(encodeTool(it)) } })
             }
 
-            // Reasoning effort, spelled per protocol. Set before extraBody so a
-            // provider that wants it elsewhere can override rather than duplicate.
+            // Reasoning effort, spelled per protocol. Set before the override
+            // merge so a provider that wants it elsewhere can replace it rather
+            // than end up carrying both spellings.
             request.reasoningEffort?.takeIf { it.isNotBlank() }?.let { effort ->
                 efforts.bodyFields(
                     provider = provider,
@@ -370,24 +370,28 @@ class OpenAiCompatAdapter @Inject constructor(
                     outputTokenLimit = request.maxOutputTokens,
                 ).forEach { (key, value) -> put(key, value) }
             }
-
-            // Last, and the only thing allowed to override the adapter: a field
-            // set to JSON null deletes the key rather than sending null, which is
-            // the only way to express "do not send stream_options here".
-            applyOverrides(provider.extraBody)
         }
-        return built
+
+        // Last, and the only thing allowed to override the adapter: a field set
+        // to JSON null deletes the key rather than sending null, which is the
+        // only way to express "do not send stream_options here".
+        return applyOverrides(built, provider.extraBody)
     }
 
-    /** Merge provider overrides, where an explicit null removes the key. */
-    private fun MutableMap<String, JsonElement>.applyOverrides(overrides: JsonObject) {
-        if (overrides.isEmpty()) return
-        val merged = LinkedHashMap(this)
+    /**
+     * Merge provider overrides into a finished body.
+     *
+     * Applied after the body is built rather than inside the builder, because the
+     * builder's own map is not the thing being shaped here — an override has to be
+     * able to remove a key, which a builder cannot express.
+     */
+    private fun applyOverrides(body: JsonObject, overrides: JsonObject): JsonObject {
+        if (overrides.isEmpty()) return body
+        val merged = LinkedHashMap(body)
         overrides.forEach { (key, value) ->
             if (value is JsonNull) merged.remove(key) else merged[key] = value
         }
-        clear()
-        putAll(merged)
+        return JsonObject(merged)
     }
 
     private fun encodeMessage(message: LlmMessage): JsonObject = when (message) {
