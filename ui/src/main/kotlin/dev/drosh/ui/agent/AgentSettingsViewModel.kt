@@ -100,6 +100,13 @@ class AgentSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             providers.observeCatalogState().collect { catalogState ->
                 _state.value = _state.value.copy(catalogState = catalogState)
+
+                // Whatever is selected becomes resolvable the moment the catalog
+                // lands. Without this the screen resolves once on open, finds
+                // nothing, and stays blank while a full list sits behind it.
+                val id = _state.value.selectedProviderId ?: return@collect
+                if (catalogState is CatalogState.Failed) return@collect
+                applySelection(id)
             }
         }
     }

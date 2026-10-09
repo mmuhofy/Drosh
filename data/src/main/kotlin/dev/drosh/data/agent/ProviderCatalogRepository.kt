@@ -1,11 +1,14 @@
 package dev.drosh.data.agent
 
+import dev.drosh.data.di.ApplicationScope
 import dev.drosh.domain.agent.CatalogProvider
 import dev.drosh.domain.agent.CatalogState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,10 +35,24 @@ import javax.inject.Singleton
 @Singleton
 class ProviderCatalogRepository @Inject constructor(
     private val source: ProviderCatalogSource,
+    @ApplicationScope private val scope: CoroutineScope,
 ) {
 
     private val _state = MutableStateFlow<CatalogState>(CatalogState.Loading)
     val state: StateFlow<CatalogState> = _state.asStateFlow()
+
+    /**
+     * Serve from disk when possible; fetch only when there is nothing there.
+     *
+     * Launched in the application scope rather than from a screen, because the
+     * catalog backs more than one surface: the chat screen reads a provider
+     * before a run, and the home screen reads whether a key exists. Waiting for
+     * the first screen to ask would put a fetch between the user tapping the
+     * agent button and the button doing anything.
+     */
+    fun loadInBackground() {
+        scope.launch { load() }
+    }
 
     /** Providers currently loaded, or empty before the first [load] completes. */
     val providers: List<CatalogProvider>

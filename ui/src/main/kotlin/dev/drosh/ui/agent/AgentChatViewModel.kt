@@ -68,6 +68,9 @@ class AgentChatViewModel @Inject constructor(
 
     private var runJob: Job? = null
     private var chatId: String? = null
+
+    /** Guards the single catalog collector, which must outlive one [attach]. */
+    private var watchingCatalog = false
     private var onChatCreatedCallback: (String) -> Unit = {}
 
     /**
@@ -131,6 +134,15 @@ class AgentChatViewModel @Inject constructor(
      */
     fun attach(id: String, onCreated: (String) -> Unit = {}) {
         if (chatId == id) return
+
+        // One collector for the screen's lifetime, so a catalog that lands after
+        // the screen is already up still resolves the provider.
+        if (!watchingCatalog) {
+            watchingCatalog = true
+            viewModelScope.launch {
+                providers.observeCatalogState().collect { resolveProvider() }
+            }
+        }
 
         if (id == NEW_CHAT_ID) {
             // No chat exists yet. Nothing is written until the first prompt, so a
@@ -311,33 +323,44 @@ class AgentChatViewModel @Inject constructor(
 
     fun loadProvider() {
         viewModelScope.launch {
-            // The provider the user chose last, not a hardcoded one. With 225 to
-            // choose from there is no default that is right, and asking on every
-            // chat would make the first prompt of every session a detour through
-            // settings.
-            val providerId = providers.selectedProvider() ?: DEFAULT_PROVIDER_ID
-            val provider = providers.provider(providerId) ?: run {
-                _providerState.value = _providerState.value.copy(
-                    error = "${providerId} could not be loaded — pick a provider in Settings",
-                )
-                return@launch
-            }
-            val hasKey = providers.credential(provider.id) != null
-            val selected = providers.selectedModel(provider.id).orEmpty()
-            _providerState.value = _providerState.value.copy(
-                provider = provider,
-                hasKey = hasKey,
-                selectedModelId = selected,
-            )
-            // The list, not just the id.
-            //
-            // This only ever set the selected id, so `models` stayed empty until the
-            // key was re-saved from settings — which meant the model picker on a chat
-            // opened empty for anyone whose key was already stored, and the pill fell
-            // back to its "first model or model seç" placeholder with nothing behind
-            // it. The catalogue has to be loaded wherever the id is read.
-            if (hasKey) fetchModels()
+            resolveProvider()
         }
+    }
+
+    /**
+     * Resolve the selected provider, once the catalog can answer.
+     *
+     * Runs on every catalog state change rather than once on open. A chat
+     * opened before the catalog landed would otherwise report "could not be
+     * loaded" for a provider that is simply not there yet — and the catalog
+     * starts its fetch in the application scope, so it usually lands after the
+     * screen is already up.
+     */
+    private suspend fun resolveProvider() {
+        // The provider the user chose last, not a hardcoded one. With 225 to
+        // choose from there is no default that is right, and asking on every
+        // chat would make the first prompt of every session a detour through
+        // settings.
+        val providerId = providers.selectedProvider() ?: DEFAULT_PROVIDER_ID
+        val provider = providers.provider(providerId) ?: return
+        if (_providerState.value.provider?.id == provider.id) return
+
+        val hasKey = providers.credential(provider.id) != null
+        val selected = providers.selectedModel(provider.id).orEmpty()
+        _providerState.value = _providerState.value.copy(
+            provider = provider,
+            hasKey = hasKey,
+            selectedModelId = selected,
+            error = null,
+        )
+        // The list, not just the id.
+        //
+        // This only ever set the selected id, so `models` stayed empty until the
+        // key was re-saved from settings — which meant the model picker on a chat
+        // opened empty for anyone whose key was already stored, and the pill fell
+        // back to its "first model or model seç" placeholder with nothing behind
+        // it. The catalogue has to be loaded wherever the id is read.
+        if (hasKey) fetchModels()
     }
 
     /**

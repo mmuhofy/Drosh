@@ -9,6 +9,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.drosh.data.agent.ProviderCatalogRepository
 import dev.drosh.data.agent.ProviderCatalogSource
 import dev.drosh.domain.agent.LlmProviderRepository
+import kotlinx.coroutines.CoroutineScope
 import java.io.File
 import javax.inject.Singleton
 
@@ -38,5 +39,12 @@ object CatalogModule {
     @Singleton
     fun provideProviderCatalogRepository(
         source: ProviderCatalogSource,
-    ): ProviderCatalogRepository = ProviderCatalogRepository(source)
+        @ApplicationScope scope: CoroutineScope,
+    ): ProviderCatalogRepository = ProviderCatalogRepository(source, scope).also {
+        // Started here rather than from a screen: the catalog backs the chat
+        // screen's provider lookup and the home screen's key check as well as
+        // settings, and a first fetch landing between a tap and its effect is
+        // exactly the "yükleniyor that never loads" this fixes.
+        it.loadInBackground()
+    }
 }
