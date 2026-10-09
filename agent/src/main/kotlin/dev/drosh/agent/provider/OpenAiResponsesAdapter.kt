@@ -138,6 +138,9 @@ class OpenAiResponsesAdapter @Inject constructor(
          */
         val itemIndices = LinkedHashMap<String, Int>()
 
+        /** Items whose arguments have already arrived as deltas. */
+        val streamedArgs = mutableSetOf<String>()
+
         suspend fun handleFrame(payload: String) {
             parseFrame(payload).forEach { frame ->
                 when (frame) {
@@ -176,6 +179,9 @@ class OpenAiResponsesAdapter @Inject constructor(
                             name = null,
                             argsDelta = frame.delta,
                         )
+                        // Remembered so `output_item.done` knows the complete
+                        // string is a repeat rather than the only copy.
+                        streamedArgs += frame.itemId
                     }
 
                     is Frame.ToolDone -> {
@@ -330,18 +336,26 @@ class OpenAiResponsesAdapter @Inject constructor(
             "response.output_item.done" -> {
                 val item = root["item"] as? JsonObject ?: return listOf(Frame.Ignore)
                 val itemId = item.stringField("id")
-                if (item.stringField("type") == "function_call" && itemId != null) {
-                    // Arguments can arrive whole on `output_item.done` rather than
-                    // as deltas, so the buffer is topped up here rather than
-                    // assuming the deltas carried everything.
-                    val delta = item.stringField("arguments")
-                    if (!delta.isNullOrEmpty()) {
-                        listOf(Frame.ToolArgs(itemId, delta))
-                    } else {
-                        listOf(Frame.ToolDone(itemId))
+                if (item.stringField("type") != "function_call" || itemId == null) {
+                    return listOf(Frame.Ignore)
+                }
+
+                // `output_item.done` closes the call and repeats the complete
+                // arguments. Whether they are needed depends on whether the
+                // deltas already carried them: appending the whole string to a
+                // buffer that already holds it produces
+                // `{"a":1}{"a":1}`, which parses as nothing and hands the tool
+                // an empty argument object. Only the parser knows, so the frames
+                // are emitted in the order that makes the outcome right either
+                // way — and the call is always closed here rather than being
+                // left for the end-of-stream sweep.
+                val alreadyStreamed = itemId in streamedArgs
+                val complete = item.stringField("arguments")
+                buildList {
+                    if (!alreadyStreamed && !complete.isNullOrEmpty()) {
+                        add(Frame.ToolArgs(itemId, complete))
                     }
-                } else {
-                    listOf(Frame.Ignore)
+                    add(Frame.ToolDone(itemId))
                 }
             }
 

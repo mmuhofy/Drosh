@@ -396,6 +396,49 @@ class NewAdapterWireFormatTest {
         assertEquals("total 0", input[1].jsonObject["output"]!!.jsonPrimitive.content)
     }
 
+    @Test
+    fun `responses does not double the arguments when both deltas and the final item carry them`() {
+        // `output_item.done` repeats the complete arguments. Appending them to a
+        // buffer that already holds them yields `{"a":1}{"a":1}`, which parses
+        // as nothing and hands the tool an empty argument object.
+        val opened = responses.parseFrame(
+            """{"type":"response.output_item.added","item":{"type":"function_call",""" +
+                """"id":"fc_1","call_id":"call_a","name":"shell"}}""",
+        ).single() as OpenAiResponsesAdapter.Frame.ToolStart
+        val delta = responses.parseFrame(
+            """{"type":"response.function_call_arguments.delta","item_id":"fc_1",""" +
+                """"delta":"{\\"command\\":\\"ls\\"}"}""",
+        ).single() as OpenAiResponsesAdapter.Frame.ToolArgs
+        val done = responses.parseFrame(
+            """{"type":"response.output_item.done","item":{"type":"function_call",""" +
+                """"id":"fc_1","call_id":"call_a","name":"shell",""" +
+                """"arguments":"{\\"command\\":\\"ls\\"}"}}""",
+        )
+
+        // The done event must still close the call, not just top up the buffer.
+        val closed = done.filterIsInstance<OpenAiResponsesAdapter.Frame.ToolDone>()
+        assertTrue(closed.isNotEmpty())
+        assertEquals("fc_1", closed.single().itemId)
+        // And it must not ask for the arguments again.
+        assertTrue(done.none { it is OpenAiResponsesAdapter.Frame.ToolArgs })
+    }
+
+    @Test
+    fun `responses takes the arguments from the final item when there were no deltas`() {
+        // Some gateways stream the whole argument string in one piece on
+        // `output_item.done` and send no deltas at all.
+        val frames = responses.parseFrame(
+            """{"type":"response.output_item.done","item":{"type":"function_call",""" +
+                """"id":"fc_1","call_id":"call_a","name":"shell",""" +
+                """"arguments":"{\\"command\\":\\"ls\\"}"}}""",
+        )
+
+        // Seeded from the final item, then closed — in that order.
+        assertEquals(2, frames.size)
+        assertTrue(frames[0] is OpenAiResponsesAdapter.Frame.ToolArgs)
+        assertTrue(frames[1] is OpenAiResponsesAdapter.Frame.ToolDone)
+    }
+
     // ── stream parsing ─────────────────────────────────────────────────────
 
     @Test
