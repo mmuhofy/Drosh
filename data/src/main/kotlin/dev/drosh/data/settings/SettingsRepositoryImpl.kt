@@ -58,6 +58,15 @@ class SettingsRepositoryImpl @Inject constructor(
         dataStore.edit { prefs -> prefs[KEY_EXTRA_KEYS_BAR_VISIBLE] = visible }
     }
 
+    // ── Immersive status bar ───────────────────────────────────────────────────
+
+    override val autoHideStatusBar: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[KEY_AUTO_HIDE_STATUS_BAR] ?: DEFAULT_AUTO_HIDE_STATUS_BAR }
+
+    override suspend fun setAutoHideStatusBar(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[KEY_AUTO_HIDE_STATUS_BAR] = enabled }
+    }
+
     // ── Font Size ─────────────────────────────────────────────────────────────
 
     override val fontSizeSp: Flow<Int> =
@@ -168,6 +177,7 @@ class SettingsRepositoryImpl @Inject constructor(
         val KEY_THEME_MODE             = stringPreferencesKey("theme_mode")
         val KEY_USE_BLOCK_ENGINE        = booleanPreferencesKey("use_block_engine")
         val KEY_EXTRA_KEYS_BAR_VISIBLE  = booleanPreferencesKey("extra_keys_bar_visible")
+        val KEY_AUTO_HIDE_STATUS_BAR    = booleanPreferencesKey("auto_hide_status_bar")
         val KEY_FONT_SIZE_SP            = intPreferencesKey("font_size_sp")
         val KEY_TERMINAL_BG_COLOR       = stringPreferencesKey("terminal_bg_color")
         val KEY_ACCENT_COLOR            = stringPreferencesKey("accent_color")
@@ -182,6 +192,7 @@ class SettingsRepositoryImpl @Inject constructor(
 
         const val DEFAULT_USE_BLOCK_ENGINE       = false
         const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = true
+        const val DEFAULT_AUTO_HIDE_STATUS_BAR   = true
         const val DEFAULT_FONT_SIZE_SP           = 14
         const val DEFAULT_TERMINAL_BG_COLOR      = "#000000"
         const val DEFAULT_ACCENT_COLOR           = "#3B82F6"

@@ -73,6 +73,8 @@
     <string name="settings_terminal_mode_desc">Bir komut ve çıktısının nasıl yerleştiği</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Blok</string>
+    <string name="settings_auto_hide_status_bar">Sistem barını gizle</string>
+    <string name="settings_auto_hide_status_bar_desc">Prompt'tayken sistem barı gizlenir; geçmişe girince geri gelir</string>
     <string name="settings_section_ai">Yapay zekâ</string>
     <string name="settings_agent">Agent</string>
     <string name="settings_agent_desc">OpenRouter anahtarı, Exa arama anahtarı ve model</string>

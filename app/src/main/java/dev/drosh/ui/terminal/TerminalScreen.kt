@@ -38,7 +38,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -48,7 +47,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.drosh.ui.LocalDroshActivity
 import dev.drosh.domain.UrlDetector
@@ -104,7 +102,8 @@ import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
 import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.ui.topbar.TerminalTopBar
-import dev.drosh.ui.topbar.rememberTerminalBackdrop
+import dev.drosh.ui.topbar.rememberTerminalTopPadding
+import dev.drosh.terminal.chromeCollapsed
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -118,8 +117,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 
 /**
@@ -152,19 +149,6 @@ private val MENU_MIN_WIDTH = 210.dp
 private val MENU_BLUR = 10.dp
 
 private val MENU_HEIGHT_PX = 64.dp
-
-/** How much of the terminal's top edge the top bar backdrop samples. */
-private val BACKDROP_STRIP = 72.dp
-
-/**
- * The terminal's top clearance is `CHROME_CLEARANCE`, from the top bar.
- *
- * Constant on purpose, and not a function of whether the chrome is collapsed: an
- * inset that tracked that resized the grid on every change, and resizing
- * re-wraps every line of output. One number that never moves also means nothing
- * is ever hidden behind a control.
- */
-private val CHROME_CLEARANCE = dev.drosh.ui.topbar.CHROME_CLEARANCE
 
 @Composable
 fun TerminalScreen(
@@ -295,62 +279,61 @@ private fun ReadyScreen(
         if (secondary !in liveSessionIds) paneLayoutViewModel.closeSplit()
     }
 
-    // Haze is gone. It records Compose's own draw commands, and the terminal is
-    // a View inside an AndroidView, so it is not in the display list Haze sees
-    // and the blur over the top bar had nothing to sample. The backdrop is
-    // taken from the view directly now — see TerminalBackdrop.kt.
+    // The pane is painted in the terminal's own background.
     //
-    var terminalBounds by remember { mutableStateOf<Rect?>(null) }
-
-    // The band above the grid, in the terminal's own background. Without it the
-    // gap showed the app background and read as a black bar sitting on top of
-    // the output; with it there is no seam at all.
+    // This is what the strip above the grid used to need a painted band for. The
+    // grid's top padding changes with the chrome, so there is always a strip of
+    // pane between the top of the screen and the first line of output; painting
+    // the pane rather than a band on the row means that strip is the terminal's
+    // colour by construction, in both states, with no code that has to know
+    // which one it is.
     val terminalBg by settingsRepository.terminalBgColor
         .collectAsStateWithLifecycle(initialValue = "#0B0B0F")
     val terminalBgColor = remember(terminalBg) {
         runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
             .getOrDefault(Color.Black)
     }
-    // ── Chrome: fullscreen when up, normal when down ─────────────────────────
+    // ── Chrome: immersive at the live edge, normal in the scrollback ──────────
     //
-    // Two states, and nothing else:
+    // Two states, and the whole rule is one line — `chromeCollapsed`, in the
+    // terminal module, which the tests walk:
     //
-    //  - **Collapsed** — the viewport is up in the scrollback, a session nobody
-    //    has scrolled yet, or a TUI owns the terminal. The app goes fullscreen,
-    //    the pills go to the very top of the screen, and the area behind them
-    //    takes the terminal's own background so the top of the screen continues
-    //    into the terminal instead of being banded off from it.
-    //  - **Expanded** — at the live edge, past the first screen. The status bar is
-    //    back and the pills sit below it, over the output.
+    //  - **Immersive** — at the prompt, on a session that has just opened, or with
+    //    a TUI owning the terminal. The system bars are hidden and the pill row
+    //    has moved up into the space the status bar left.
+    //  - **Normal** — anywhere in the scrollback. The status bar comes back.
     //
-    // "Not the live edge" is two situations with the same answer: a scroll back
-    // into history, and a terminal nobody has touched yet — which is where a
-    // session starts and where it comes back to after a switch. The second one is
-    // *at* the live edge, so position alone cannot express it; `hasScrolled` is
-    // what tells them apart.
-    //
-    // A TUI takes the collapsed state unconditionally: nano, vim and htop own
-    // the whole screen, and a clock over them is in the way whether or not
-    // anything has been scrolled.
-    val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
-    val hasScrolled by terminalManager.hasScrolled.collectAsStateWithLifecycle()
+    // The direction is the point, and it is the reverse of the first attempt:
+    // you are not looking for the clock while you are typing, and you are
+    // definitely looking for it while reading something that scrolled off. The
+    // old rule had it the other way round and so put a clock permanently on
+    // screen over the prompt, which is the one place it is never wanted.
+    val topRow by terminalManager.scrollTopRow.collectAsStateWithLifecycle()
     val tuiActive by terminalManager.focusedPaneAltBuffer
         .collectAsStateWithLifecycle()
+    val autoHideStatusBar by settingsRepository.autoHideStatusBar
+        .collectAsStateWithLifecycle(initialValue = true)
 
-    val chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge
+    // Named `immersive` rather than `chromeCollapsed` so the call reads as a
+    // call: a local of the same name would shadow the function it is calling.
+    val immersive = chromeCollapsed(topRow, tuiActive, autoHideStatusBar)
+
+    // The grid's own top padding follows the row, on the same tween. See
+    // `rememberTerminalTopPadding` for why it cannot be a constant.
+    val terminalTopPadding = rememberTerminalTopPadding(immersive)
 
     val activity = LocalDroshActivity.current
-    LaunchedEffect(chromeCollapsed) {
+    LaunchedEffect(immersive) {
         val window = (activity as? android.app.Activity)?.window ?: return@LaunchedEffect
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         // BEHAVIOR_DEFAULT, not BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE. The pills
         // live at the very top of the screen — which is where Android's edge
         // gesture lives — and the transient behaviour reveals the bars *over the
-        // app* and then times itself out, which on a slow upward scroll meant the
-        // system drawing a status bar across the row over and over. With this one,
-        // a deliberate top-edge swipe brings the bars back for good.
+        // app* and then times itself out, so on a slow upward scroll the system
+        // drew a status bar across the row over and over. With this one, a
+        // deliberate top-edge swipe brings the bars back for good.
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-        if (chromeCollapsed) {
+        if (immersive) {
             controller.hide(WindowInsetsCompat.Type.systemBars())
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
@@ -522,23 +505,6 @@ private fun ReadyScreen(
             ?.hasPrimaryClip() == true
     }
 
-
-    // Only the classic path has a View to sample; the block engine is a
-    // LazyColumn and the alt buffer is a TUI, neither of which needs this.
-    //
-    // Sampling is for when the pills float over output, which is the expanded
-    // state only. Collapsed they sit on the opaque band instead, so there is
-    // nothing behind them to take — and the capture draws the whole terminal, so
-    // asking for it anyway is a full extra render per interval for a slice that
-    // is never drawn.
-    val backdrop by rememberTerminalBackdrop(
-        terminalView = terminalViewRef.value,
-        stripHeight = BACKDROP_STRIP,
-        // Only while the pills float over output. Collapsed they sit on the
-        // terminal's own background, and the capture draws the whole terminal to
-        // produce a slice nothing shows.
-        active = !chromeCollapsed,
-    )
 
     val searchOverlayRef = remember {
         mutableStateOf<SearchHighlightOverlay?>(null)
@@ -758,7 +724,7 @@ private fun ReadyScreen(
                     extraKeyState = extraKeyState,
                     useBlockEngine = useBlockEngine,
                     terminalBgColor = terminalBgColor,
-                    chromeClearance = CHROME_CLEARANCE,
+                    topPadding = terminalTopPadding,
                     inputBarState = inputBarState,
                     motdMode = motdMode,
                     motdText = motdText,
@@ -770,7 +736,6 @@ private fun ReadyScreen(
                     searchQuery = searchQuery,
                     searchOverlayRef = searchOverlayRef,
                     terminalViewRef = terminalViewRef,
-                    onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
                 )
             },
@@ -786,7 +751,7 @@ private fun ReadyScreen(
                     extraKeyState = extraKeyState,
                     useBlockEngine = useBlockEngine,
                     terminalBgColor = terminalBgColor,
-                    chromeClearance = CHROME_CLEARANCE,
+                    topPadding = terminalTopPadding,
                     inputBarState = inputBarState,
                     motdMode = motdMode,
                     motdText = motdText,
@@ -801,11 +766,6 @@ private fun ReadyScreen(
                     searchQuery = searchQuery,
                     searchOverlayRef = remember { mutableStateOf<SearchHighlightOverlay?>(null) },
                     terminalViewRef = terminalViewRef,
-                    // Bounds are the top bar's backdrop sample, and the top bar
-                    // reads whichever pane has focus. Letting the unfocused pane
-                    // report would leave the bar sampling a terminal the user is
-                    // not looking at.
-                    onBoundsChanged = {},
                     onUrlClick = { browserUrl = it },
                 )
             },
@@ -888,12 +848,7 @@ private fun ReadyScreen(
 
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(
-                chromeCollapsed = chromeCollapsed,
-                // The terminal's background, so the band above the grid is the
-                // same colour as the grid and there is no edge between them.
-                collapsedBandColor = terminalBgColor,
-                backdrop = backdrop,
-                terminalBounds = terminalBounds,
+                chromeCollapsed = immersive,
                 viewModel = sessionSwitcherViewModel,
                 onOpenSidebar = {
                     hideKeyboard()
@@ -909,7 +864,6 @@ private fun ReadyScreen(
                 onRefresh = {
                     terminalManager.restartCurrentTab()
                 },
-                onOpenSettings = onOpenSettings,
                 onOpenAgent = onOpenAgent,
                 isSplit = paneLayout.isSplit,
                 isFloating = paneLayout.isFloating,
@@ -1286,8 +1240,15 @@ private fun TerminalPaneBody(
     extraKeyState: dev.drosh.terminal.ExtraKeyState?,
     useBlockEngine: Boolean,
     terminalBgColor: Color,
-    /** The top bar's height plus a gap: the terminal's constant top inset. */
-    chromeClearance: Dp,
+    /**
+     * The grid's top padding, already animated in step with the pill row.
+     *
+     * Passed in rather than derived here because it is a property of the screen,
+     * not of a pane: both panes share one status bar and one row, and a pane that
+     * computed its own would answer a moment later than the row it is supposed
+     * to be clearing.
+     */
+    topPadding: Dp,
     inputBarState: dev.drosh.ui.input.InputBarUiState,
     motdMode: MotdMode,
     motdText: String,
@@ -1299,7 +1260,6 @@ private fun TerminalPaneBody(
     searchQuery: String,
     searchOverlayRef: MutableState<SearchHighlightOverlay?>,
     terminalViewRef: MutableState<TerminalView?>,
-    onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
 ) {
     // A TUI (nano, vim, htop) takes over the alternate screen buffer, so the raw
@@ -1312,18 +1272,24 @@ private fun TerminalPaneBody(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                // The pane is the terminal, all the way to its top edge. This is
+                // what makes the strip above the grid the terminal's own colour:
+                // the chrome floats over the pane rather than over the app, so
+                // there is no join between the two and nothing to paint to hide
+                // one.
+                .background(terminalBgColor)
+                // The grid's top padding, and it moves with the chrome.
+                //
+                // A constant here would be wrong in both directions at once: the
+                // status bar's height is wasted at the prompt where it is
+                // hidden, and the first line of output goes under the pill row
+                // in the scrollback where it is not. It does mean the grid is a
+                // few rows shorter while the pills are down, and TerminalView
+                // holds the viewport across that resize rather than dropping it
+                // back to the live edge — see `updateSize`.
+                .padding(top = topPadding),
         ) {
-            // No reserved band above the terminal, and no top padding on it.
-            //
-            // The terminal is full-bleed and the chrome is an overlay on top of
-            // it, which is what the prototype does and what the requirement is:
-            // at the live edge the system status bar has no background of its own
-            // so the output runs on behind the clock. A reserved band could only
-            // be given up when the status bar was visible, and giving it up on
-            // scroll would resize the terminal grid — reflowing every wrapped
-            // line of output each time the viewport crossed the boundary.
-
             if (useBlockEngine && !altBufferActive) {
                 val blocks by blockEngineViewModel.blocks.collectAsState()
                 val promptDir by blockEngineViewModel.lastDir.collectAsState()
@@ -1345,13 +1311,6 @@ private fun TerminalPaneBody(
                             .fillMaxWidth()
                             .weight(1f),
                         state = rememberLazyListState(),
-                        // Scrolls, so it pads for the chrome instead of being
-                        // padded. The classic path cannot do this — a fixed grid
-                        // has no content to inset — which is why the terminal is
-                        // full-bleed there and the pills float over it. Block mode
-                        // has nothing worth overlaying, so the first block is
-                        // pushed clear of them outright.
-                        contentPadding = PaddingValues(top = CHROME_CLEARANCE),
                     ) {
                         items(blocks, key = { it.id }) { block ->
                             PromptBlock(
@@ -1396,11 +1355,9 @@ private fun TerminalPaneBody(
                 /*
                  * CLASSIC TERMINAL PATH
                  *
-                 * terminalViewRef is handed to the caller so overlays (search
-                 * highlight, WebView chrome) can sample this exact TerminalView.
-                 * Only the focused pane reports its bounds: the top bar samples
-                 * one terminal to blur behind itself, and there is no sensible
-                 * answer while two are on screen.
+                 * terminalViewRef is handed to the caller so the keyboard, the
+                 * selection menu and the search overlay can all reach this exact
+                 * TerminalView — and only the pane that has focus publishes it.
                  */
                 TerminalViewHost(
                     paneSlot = paneSlot,
@@ -1413,25 +1370,7 @@ private fun TerminalPaneBody(
                     onUrlClick = onUrlClick,
                     searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
                     searchOverlayRef = searchOverlayRef,
-                    onBoundsChanged = onBoundsChanged,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        // One inset, constant, for both chrome states.
-                        //
-                        // Collapsed, the app goes fullscreen and the pills sit at
-                        // the very top of the screen, so the terminal starts just
-                        // below them and no output is ever hidden behind them.
-                        // Expanded, the pills drop below the status bar and float
-                        // over this grid — which is the point of them floating.
-                        //
-                        // Constant on purpose. The inset is the collapsed chrome's
-                        // height and nothing else, so it is not a function of
-                        // whether the status bar is showing. Making it track that
-                        // resized the grid on every crossing of the boundary and
-                        // re-wrapped every line of output with it, which is a far
-                        // worse trade than the top row sitting under a control in
-                        // one state.
-                        .padding(top = CHROME_CLEARANCE),
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
@@ -1462,8 +1401,6 @@ private fun TerminalViewHost(
     searchOverlayRef: MutableState<SearchHighlightOverlay?>,
     modifier: Modifier = Modifier,
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
-    /** Root-space bounds, for sampling the terminal as the top bar's backdrop. */
-    onBoundsChanged: (androidx.compose.ui.geometry.Rect) -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
@@ -1531,8 +1468,7 @@ private fun TerminalViewHost(
             .fillMaxSize()
             // Compose does not clip children to layout bounds the way a
             // ViewGroup does, and TerminalView draws a full-bleed background.
-            .clipToBounds()
-            .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) },
+            .clipToBounds(),
 
         factory = { ctx ->
             val frameLayout = android.widget.FrameLayout(ctx).apply {

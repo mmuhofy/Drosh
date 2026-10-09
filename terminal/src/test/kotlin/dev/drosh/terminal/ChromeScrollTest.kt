@@ -8,229 +8,190 @@ import org.junit.Test
 /**
  * The two top-chrome states, as the screen decides between them.
  *
- * Mirrors `TerminalScreen`'s expression rather than calling into it, because the
- * screen is a composable and the interesting part is the *sequence* of decisions,
- * which only shows up if the rule is a plain function someone can walk.
- */
-private fun chromeCollapsed(
-    hasScrolled: Boolean,
-    topRow: Int,
-    wasAtLiveEdge: Boolean,
-): Boolean {
-    val atEdge = chromeIsAtLiveEdge(topRow, wasAtLiveEdge)
-    // `TerminalManager` sets hasScrolled at the same threshold the live-edge flag
-    // uses, so the two can never disagree about which side of it the viewport is
-    // on. Modelling that here rather than taking hasScrolled as a free input is
-    // the point: taking it as a free input is what let the two thresholds sit a
-    // row apart and flap.
-    val nowTouched = hasScrolled || !atEdge
-    return !nowTouched || !atEdge
-}
-
-/**
- * The dead zone that keeps the top chrome still while the viewport is passing
- * through it.
- *
- * These are all one-line rules, and the one-line version of them shipped once
- * already: `topRow == 0`. It looked equivalent and it was not, because the
- * chrome this feeds *is* the system status bar, and the system bar animates on
- * its own schedule. Every row that crossed the boundary started and cancelled
- * that animation, so one scroll gesture produced several.
- *
- * The tests are written as walks rather than as single assertions because the
- * bug was never one wrong value — it was a sequence of correct ones arriving in
- * the wrong order.
+ * `chromeCollapsed` is a plain function rather than an expression inside a
+ * composable, so the rule can be walked here. That matters because the rule is
+ * not interesting as a value — every individual answer is defensible, and the
+ * bug was always a *sequence* of defensable answers arriving in the wrong order.
+ * A fling through thirty rows produced a different answer on most of them, and
+ * the status bar began and cancelled its own animation each time.
  */
 class ChromeScrollTest {
 
-    @Test
-    fun `at the live edge the chrome is showing`() {
-        assertTrue(chromeIsAtLiveEdge(0, wasAtLiveEdge = false))
-    }
-
-    @Test
-    fun `one row above the live edge is still showing`() {
-        assertTrue(chromeIsAtLiveEdge(-1, wasAtLiveEdge = false))
-    }
-
-    @Test
-    fun `far into the scrollback the chrome has given way`() {
-        assertFalse(chromeIsAtLiveEdge(-5, wasAtLiveEdge = true))
-        assertFalse(chromeIsAtLiveEdge(-40, wasAtLiveEdge = true))
-    }
+    // ── The live edge ─────────────────────────────────────────────────────────
 
     /**
-     * The dead zone holds whatever the chrome was already doing.
+     * At the prompt the system status bar is gone and the pills have taken the
+     * space it left.
      *
-     * Both directions, because the asymmetry is the mechanism: -2 following -1
-     * must not collapse, and -4 following -5 must not come back. Resolve these
-     * from `topRow` alone and you have simply replaced a flapping boundary with a
-     * jittering one.
+     * `mTopRow == 0` is the whole test. The previous rule ran the other way —
+     * the bar was visible at the prompt and hid itself when the user scrolled —
+     * so the one thing you want out of the way while typing was the one thing
+     * permanently on screen.
      */
     @Test
-    fun `the dead zone keeps the previous answer`() {
-        for (topRow in -4..-2) {
-            assertTrue(
-                "topRow $topRow should not collapse a showing chrome",
-                chromeIsAtLiveEdge(topRow, wasAtLiveEdge = true),
-            )
-            assertFalse(
-                "topRow $topRow should not restore a collapsed chrome",
-                chromeIsAtLiveEdge(topRow, wasAtLiveEdge = false),
-            )
-        }
+    fun `at the live edge the chrome is collapsed`() {
+        assertTrue(chromeCollapsed(topRow = 0, tuiActive = false, autoHideStatusBar = true))
     }
 
     /**
-     * A fling all the way up and all the way back changes the answer once each.
+     * A session that has just opened is at the live edge too, and gets the same
+     * answer for free.
      *
-     * This is the actual complaint. Walking the rows in order and counting the
-     * transitions is the only way to catch it: every individual call returns a
-     * defensible value, and the sequence is what a user sees.
-     */
-    @Test
-    fun `a fling up and back flips the chrome once, not once per row`() {
-        var atEdge = true
-        var transitions = 0
-
-        for (topRow in -1 downTo -30) {
-            val next = chromeIsAtLiveEdge(topRow, atEdge)
-            if (next != atEdge) transitions++
-            atEdge = next
-        }
-        assertEquals("one collapse for the whole fling up", 1, transitions)
-
-        for (topRow in -29..0) {
-            val next = chromeIsAtLiveEdge(topRow, atEdge)
-            if (next != atEdge) transitions++
-            atEdge = next
-        }
-        assertEquals("one restore for the whole fling back", 2, transitions)
-        assertTrue(atEdge)
-    }
-
-    /**
-     * A drag that reverses inside the dead zone is not a scroll at all.
-     *
-     * Reading the last two lines of output — which is what scrolled up one or
-     * two rows is — has to leave the screen alone. Before the dead zone it moved
-     * the status bar, for a distance nobody would call a scroll.
-     */
-    @Test
-    fun `reading one or two rows back does not move the chrome`() {
-        var atEdge = true
-        var transitions = 0
-        for (topRow in 0 downTo -1) {
-            val next = chromeIsAtLiveEdge(topRow, atEdge)
-            if (next != atEdge) transitions++
-            atEdge = next
-        }
-        assertEquals(0, transitions)
-        assertTrue(atEdge)
-    }
-
-    // ── A terminal nobody has touched ────────────────────────────────────────
-
-    /**
-     * A session that has just opened is collapsed, and this is the case that
-     * position alone cannot express.
-     *
-     * It sits at the live edge — `topRow == 0`, same as a busy terminal at its
-     * prompt — and it is still collapsed. Any rule written over scroll position
-     * alone gets this exactly backwards, which is what shipped: the status bar
-     * was visible at launch and then hid itself the first time the user moved,
-     * so one flick of the thumb turned the system bar on and off.
+     * This is the case the old rule needed a second flag for. A freshly opened
+     * terminal sits at `mTopRow == 0`, exactly like one sitting at a busy prompt,
+     * so position alone already says the right thing — "has this ever been
+     * scrolled" was a distinction without a difference and cost a StateFlow.
      */
     @Test
     fun `a session that has never been scrolled is collapsed`() {
-        assertTrue(chromeCollapsed(hasScrolled = false, topRow = 0, wasAtLiveEdge = true))
+        assertTrue(chromeCollapsed(topRow = 0, tuiActive = false, autoHideStatusBar = true))
     }
 
-    /** A TUI has no scroll position at all, and is collapsed either way. */
+    // ── The scrollback ────────────────────────────────────────────────────────
+
     @Test
-    fun `hasScrolled does not rescue a terminal that is at the live edge`() {
-        // Scrolled and back at the edge: this is the normal state, and the only
-        // one that shows the status bar.
-        assertFalse(chromeCollapsed(hasScrolled = true, topRow = 0, wasAtLiveEdge = false))
+    fun `one row into the scrollback the status bar is back`() {
+        assertFalse(chromeCollapsed(topRow = -1, tuiActive = false, autoHideStatusBar = true))
+    }
+
+    @Test
+    fun `deep into the scrollback it stays back`() {
+        assertFalse(chromeCollapsed(topRow = -5, tuiActive = false, autoHideStatusBar = true))
+        assertFalse(chromeCollapsed(topRow = -4000, tuiActive = false, autoHideStatusBar = true))
     }
 
     /**
-     * The whole gesture, start to finish.
+     * The boundary is at zero and nowhere else.
      *
-     * Open a session → collapsed. Flick up a few rows → **still** collapsed,
-     * because the terminal still fills the screen and nothing has been read yet.
-     * Keep going into history → still collapsed. Come back to the live edge →
-     * normal. Exactly one transition across the whole thing.
-     *
-     * One is the number that matters. With `hasScrolled` flipping on the first
-     * row instead of at the threshold, the same gesture produced two: the status
-     * bar appeared on the first row and vanished again five rows later, which is
-     * the flapping.
+     * `mTopRow` is an integer, so there is no partial state to resolve and no
+     * previous answer to fall back on. The dead zone is off, which means one row
+     * of movement is one transition — stated as a test so that reintroducing a
+     * threshold has to delete a test rather than slip past one.
      */
     @Test
-    fun `a session opens collapsed and one gesture changes it once`() {
-        var hasScrolled = false
-        var atEdge = true
+    fun `the boundary is exactly the live edge`() {
+        assertTrue(chromeCollapsed(topRow = 0, tuiActive = false, autoHideStatusBar = true))
+        assertFalse(chromeCollapsed(topRow = -1, tuiActive = false, autoHideStatusBar = true))
+    }
+
+    // ── TUI ───────────────────────────────────────────────────────────────────
+
+    /**
+     * A TUI is collapsed whatever the scroll position says.
+     *
+     * nano, vim and htop own the alternate screen buffer: fullscreen, no
+     * scrollback, nothing to scroll. It is the live edge by definition. Stated
+     * rather than left to fall out of the `topRow == 0` arm because it is the
+     * case where a clock over somebody else's fullscreen interface is most in
+     * the way.
+     */
+    @Test
+    fun `a TUI is always collapsed`() {
+        assertTrue(chromeCollapsed(topRow = 0, tuiActive = true, autoHideStatusBar = true))
+        assertTrue(chromeCollapsed(topRow = -1, tuiActive = true, autoHideStatusBar = true))
+        assertTrue(chromeCollapsed(topRow = -500, tuiActive = true, autoHideStatusBar = true))
+    }
+
+    // ── The setting ───────────────────────────────────────────────────────────
+
+    /**
+     * Off means the bar stays exactly where it is and nothing moves.
+     *
+     * Not "collapsed less often" — the pills do not travel either, so the top of
+     * the screen is one fixed arrangement whatever the user does with the
+     * viewport.
+     */
+    @Test
+    fun `the setting off pins the chrome`() {
+        assertFalse(chromeCollapsed(topRow = 0, tuiActive = false, autoHideStatusBar = false))
+        assertFalse(chromeCollapsed(topRow = -1, tuiActive = false, autoHideStatusBar = false))
+        assertFalse(chromeCollapsed(topRow = -500, tuiActive = true, autoHideStatusBar = false))
+    }
+
+    // ── The whole gesture ─────────────────────────────────────────────────────
+
+    /**
+     * A fling up and all the way back changes the answer once per direction.
+     *
+     * This is the actual complaint, and counting transitions over a walk is the
+     * only way to catch it: every individual call in the loop returns a
+     * defensible value and the sequence is what a user sees.
+     */
+    @Test
+    fun `a fling up and back flips the chrome once per direction`() {
+        var collapsed = chromeCollapsed(0, tuiActive = false, autoHideStatusBar = true)
         var transitions = 0
-        var wasCollapsed = chromeCollapsed(hasScrolled, 0, atEdge)
-        assertTrue("a new session opens collapsed", wasCollapsed)
 
-        // Up, all the way into history, in one gesture.
-        for (topRow in -1 downTo -40) {
-            atEdge = chromeIsAtLiveEdge(topRow, atEdge)
-            if (!atEdge) hasScrolled = true
-            val collapsed = chromeCollapsed(hasScrolled, topRow, atEdge)
-            if (collapsed != wasCollapsed) transitions++
-            wasCollapsed = collapsed
+        for (topRow in -1 downTo -30) {
+            val next = chromeCollapsed(topRow, tuiActive = false, autoHideStatusBar = true)
+            if (next != collapsed) transitions++
+            collapsed = next
         }
-        assertEquals("nothing changed on the way up", 0, transitions)
-        assertTrue("history is collapsed", wasCollapsed)
+        assertEquals("one change for the whole fling up", 1, transitions)
+        assertFalse("history shows the status bar", collapsed)
 
-        // And back down.
-        for (topRow in -39..0) {
-            atEdge = chromeIsAtLiveEdge(topRow, atEdge)
-            val collapsed = chromeCollapsed(hasScrolled, topRow, atEdge)
-            if (collapsed != wasCollapsed) transitions++
-            wasCollapsed = collapsed
+        for (topRow in -29..0) {
+            val next = chromeCollapsed(topRow, tuiActive = false, autoHideStatusBar = true)
+            if (next != collapsed) transitions++
+            collapsed = next
         }
-        assertEquals("one change for the whole return", 1, transitions)
-        assertFalse("the live edge is normal", wasCollapsed)
+        assertEquals("one change for the whole return", 2, transitions)
+        assertTrue("the live edge hides it again", collapsed)
     }
 
     /**
-     * A flick up and straight back is not a scroll.
+     * A drag that reverses inside the last few rows still moves it, twice.
      *
-     * It never reached the first screen, so the chrome never moved and a
-     * one-flick gesture cannot leave the top of the screen in a different state
-     * than it started it.
+     * Said plainly because it is the cost of a dead zone of zero and it is a
+     * choice, not an accident: reading one row back is still a scroll, and the
+     * alternative — a band where the chrome holds still — is two answers to one
+     * question. If it is judged wrong on a device, the fix is a threshold and
+     * these two assertions are what should fail.
      */
     @Test
-    fun `a scroll that never leaves the first screen moves nothing`() {
-        var hasScrolled = false
-        var atEdge = true
+    fun `reading one row back does move the chrome`() {
+        var collapsed = chromeCollapsed(0, tuiActive = false, autoHideStatusBar = true)
         var transitions = 0
-        var wasCollapsed = chromeCollapsed(hasScrolled, 0, atEdge)
-        for (topRow in listOf(-1, -2, -3, -4, -3, -2, -1, 0)) {
-            atEdge = chromeIsAtLiveEdge(topRow, atEdge)
-            if (!atEdge) hasScrolled = true
-            val collapsed = chromeCollapsed(hasScrolled, topRow, atEdge)
-            if (collapsed != wasCollapsed) transitions++
-            wasCollapsed = collapsed
+        for (topRow in listOf(-1, 0, -1, 0)) {
+            val next = chromeCollapsed(topRow, tuiActive = false, autoHideStatusBar = true)
+            if (next != collapsed) transitions++
+            collapsed = next
         }
-        assertEquals(0, transitions)
-        assertTrue(wasCollapsed)
+        assertEquals(4, transitions)
     }
 
     /**
-     * Coming back to the live edge is what makes it normal.
+     * Opening a session and working in it, start to finish.
      *
-     * Stated on its own because it is the half that is easy to get backwards:
-     * returning to the newest output is the "actively working" state, where the
-     * clock is welcome, and the chrome has to come back with it.
+     * Open → collapsed. Type, run things, watch output arrive: the viewport is
+     * pinned at 0 the whole time, so it stays collapsed and the status bar never
+     * flickers on a single chunk of PTY output. Scroll up → exactly one change.
+     * Come back → exactly one more.
      */
     @Test
-    fun `back at the live edge is the normal state`() {
-        assertFalse(chromeCollapsed(hasScrolled = true, topRow = 0, wasAtLiveEdge = false))
-        assertFalse(chromeCollapsed(hasScrolled = true, topRow = -1, wasAtLiveEdge = false))
+    fun `a whole session changes state exactly twice`() {
+        var collapsed = chromeCollapsed(0, tuiActive = false, autoHideStatusBar = true)
+        var transitions = 0
+        assertTrue("a new session opens collapsed", collapsed)
+
+        // Working: every chunk of output reports the live edge.
+        repeat(200) {
+            val next = chromeCollapsed(0, tuiActive = false, autoHideStatusBar = true)
+            if (next != collapsed) transitions++
+            collapsed = next
+        }
+        assertEquals("output alone never moves it", 0, transitions)
+
+        for (topRow in -1 downTo -60) {
+            val next = chromeCollapsed(topRow, tuiActive = false, autoHideStatusBar = true)
+            if (next != collapsed) transitions++
+            collapsed = next
+        }
+        for (topRow in -59..0) {
+            val next = chromeCollapsed(topRow, tuiActive = false, autoHideStatusBar = true)
+            if (next != collapsed) transitions++
+            collapsed = next
+        }
+        assertEquals("one up, one back", 2, transitions)
     }
 }

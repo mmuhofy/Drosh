@@ -49,6 +49,19 @@ import dev.drosh.terminal.SearchHighlightOverlay
 import java.util.Properties
 import kotlin.math.abs
 
+/**
+ * How long after a resize new output is taken to be the shell's reaction to that
+ * resize rather than something the user did.
+ *
+ * Comfortably longer than the chrome transition that causes the resize. The
+ * shell's repaint is scheduled by its own SIGWINCH handler and arrives a frame
+ * or two later, so a window shorter than the transition would let the repaint
+ * that closes it be mistaken for new output.
+ *
+ * Drosh-added.
+ */
+private const val RESIZE_GRACE_MILLIS = 400L
+
 /** View displaying and interacting with a [TerminalSession]. */
 class TerminalView(context: Context, attributes: AttributeSet?) : View(context, attributes) {
 
@@ -184,6 +197,25 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
     /** What was left in from scrolling movement. */
     @JvmField var mScrollRemainder: Float = 0f
+
+    /**
+     * When the emulator was last resized by [updateSize], in uptime millis.
+     *
+     * A resize is not free: the PTY is sent a SIGWINCH and an interactive shell
+     * answers by redrawing its prompt, and that redraw is indistinguishable from
+     * new output by the time it arrives. Left alone, [onScreenUpdated] treats it
+     * as output and throws the viewport to the live edge — so a change the app
+     * made to its own chrome came back as a scroll to the bottom, and the change
+     * undid itself.
+     *
+     * Recording the time is how the two are told apart: output arriving inside
+     * [RESIZE_GRACE_MILLIS] of a resize is the shell answering us.
+     */
+    private var mResizedAtUptime: Long = 0L
+
+    /** Whether output arriving now is a reaction to a resize this app caused. */
+    private fun justResized(): Boolean =
+        SystemClock.uptimeMillis() - mResizedAtUptime < RESIZE_GRACE_MILLIS
 
     @JvmField
     var spaceKeyDown: Boolean = false
@@ -717,7 +749,12 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             }
         }
 
-        if (!skipScroll && mTopRow != 0) {
+        // New output pulls the viewport back to the live edge. That is right for
+        // output the shell produced on its own, and wrong for the repaint a
+        // shell produces because *we* resized it — see [justResized], whose whole
+        // reason to exist is that the second case is indistinguishable from the
+        // first by the time it gets here.
+        if (!skipScroll && mTopRow != 0 && !justResized()) {
             // Scroll down if not already there.
             if (mTopRow < -3) {
                 // Awaken scroll bars only if scrolling a noticeable amount
@@ -1378,10 +1415,18 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             // Update mTerminalCursorBlinkerRunnable inner class mEmulator on session change
             mTerminalCursorBlinkerRunnable?.setEmulator(mEmulator!!)
 
-            mTopRow = 0
+            // Clamped rather than zeroed. Drosh changes the grid's height on
+            // purpose — the terminal's top padding follows the status bar — and
+            // zeroing here meant that every crossing of the live edge snapped
+            // the user back to the newest output, which is the one thing a
+            // scrollback is not for. The clamp is still needed: a shorter grid
+            // can leave the old top row past the end of what the transcript
+            // still holds.
+            mTopRow = mTopRow.coerceIn(-mEmulator!!.getScreen().activeTranscriptRows, 0)
             // The grid is about to be rebuilt at a new size; a sub-line offset
             // measured against the old metrics means nothing against the new.
             mScrollOffsetPx = 0f
+            mResizedAtUptime = SystemClock.uptimeMillis()
             scrollTo(0, 0)
             invalidate()
         }

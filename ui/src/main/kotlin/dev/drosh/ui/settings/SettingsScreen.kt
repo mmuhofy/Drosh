@@ -72,6 +72,7 @@ fun SettingsScreen(
     val themeMode         by viewModel.themeMode.collectAsStateWithLifecycle()
     val locale            by viewModel.locale.collectAsStateWithLifecycle("")
     val useBlockEngine    by viewModel.useBlockEngine.collectAsStateWithLifecycle(false)
+    val autoHideStatusBar by viewModel.autoHideStatusBar.collectAsStateWithLifecycle(true)
     val fontSizeSp        by viewModel.fontSizeSp.collectAsStateWithLifecycle(14)
     val prootStartCommand by viewModel.prootStartCommand.collectAsStateWithLifecycle("")
     val isPinLockEnabled  by viewModel.isPinLockEnabled.collectAsStateWithLifecycle(false)
@@ -155,7 +156,7 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = stringResource(R.string.settings_section_terminal), items = 4) { index, cap ->
+            SettingsGroupColumn(label = stringResource(R.string.settings_section_terminal), items = 5) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
@@ -201,7 +202,7 @@ fun SettingsScreen(
                         )
                     }
 
-                    else -> SettingsTile(
+                    3 -> SettingsTile(
                         cap = cap,
                         stacked = true,
                         title = stringResource(R.string.settings_cursor_style),
@@ -225,6 +226,20 @@ fun SettingsScreen(
                             ),
                             selected = currentCursorStyle,
                             onSelect = viewModel::setCursorStyle,
+                        )
+                    }
+
+                    // Last, because it is the one terminal setting that is about
+                    // the screen rather than about what the terminal prints.
+                    else -> SettingsTile(
+                        cap = cap,
+                        title = stringResource(R.string.settings_auto_hide_status_bar),
+                        icon = DroshIcons.EyeOff,
+                        supporting = stringResource(R.string.settings_auto_hide_status_bar_desc),
+                    ) {
+                        SettingsSwitch(
+                            checked = autoHideStatusBar,
+                            onCheckedChange = viewModel::setAutoHideStatusBar,
                         )
                     }
                 }
