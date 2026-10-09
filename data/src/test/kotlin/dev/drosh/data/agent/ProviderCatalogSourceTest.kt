@@ -196,6 +196,25 @@ class ProviderCatalogSourceTest {
     }
 
     @Test
+    fun `a blank value is treated as missing rather than as an empty string`() {
+        // The field was cleared: leaving the placeholder is what makes the
+        // provider read as unconfigured instead of as one with a URL in it.
+        val provider = CatalogProvider(
+            id = "cf",
+            label = "Cloudflare",
+            apiTemplate = """https://x.test/accounts/${'$'}{CLOUDFLARE_ACCOUNT_ID}/v1""",
+            models = mapOf("m" to CatalogModel(id = "m", label = "M")),
+        )
+
+        val resolved = provider.resolveEndpoint(mapOf("CLOUDFLARE_ACCOUNT_ID" to "   "))
+
+        assertEquals(
+            """https://x.test/accounts/${'$'}{CLOUDFLARE_ACCOUNT_ID}/v1""",
+            resolved,
+        )
+    }
+
+    @Test
     fun `an endpoint with no placeholders is returned unchanged`() {
         val provider = CatalogProvider(
             id = "x",

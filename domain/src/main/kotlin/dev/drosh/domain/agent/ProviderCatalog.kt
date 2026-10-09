@@ -87,8 +87,15 @@ data class CatalogProvider(
             .toList()
 
     /**
-     * The template with [values] substituted, still containing `${...}` for any
+     * The template with [values] substituted, leaving `${...}` in place for any
      * key that is missing.
+     *
+     * A key with no value keeps its placeholder rather than being deleted, so
+     * the caller can tell "the user has not filled this in" from "the value is
+     * an empty string". Substituting empty for both would turn
+     * `.../accounts/${ACCOUNT_ID}/ai/v1` into `.../accounts//ai/v1`, which is a
+     * URL the provider answers with a routing error rather than a message
+     * naming the field that is missing.
      *
      * Shared with the data layer, which resolves an endpoint from stored
      * config values. Written as one function because two regexes that must
@@ -98,7 +105,7 @@ data class CatalogProvider(
     fun resolveEndpoint(values: Map<String, String>): String? {
         val template = apiTemplate ?: return null
         return ENDPOINT_PLACEHOLDER.replace(template) { match ->
-            values[match.groupValues[1]].orEmpty()
+            values[match.groupValues[1]]?.takeIf { it.isNotBlank() } ?: match.value
         }
     }
 
