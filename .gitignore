@@ -95,3 +95,8 @@ secrets.properties
 
 # Design mockups and interaction prototypes — scratch, not source.
 mockups/
+
+# Android file manager's recycle bin, dropped into the working tree when
+# something is deleted from the device. Metadata records, not source — and it
+# shows up as untracked on every run that deleted a file.
+.recycle/
