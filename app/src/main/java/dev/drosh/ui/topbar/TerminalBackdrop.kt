@@ -110,13 +110,16 @@ private fun capture(view: View, stripHeightPx: Float): Bitmap? {
     val h = stripHeightPx.roundToInt().coerceIn(1, view.height)
     val bitmap = runCatching { Bitmap.createBitmap(view.width, h, Bitmap.Config.ARGB_8888) }
         .getOrNull() ?: return null
-    // The strip is the top of the view, so the source is translated up by
-    // however much taller the view is than the strip.
-    val ok = runCatching {
-        view.draw(
-            AndroidCanvas(bitmap).apply { translate(0f, -(view.height - h).toFloat()) }
-        )
-    }.isSuccess
+    // No translation. The bitmap is h tall and the view is drawn into it as-is, so
+    // the view's own rows 0..h land in it and the rest falls outside — which is the
+    // *top* strip the pills sit over.
+    //
+    // It used to translate by -(view.height - h), which lands the view's rows
+    // [view.height - h, view.height) in the bitmap: the **bottom** strip. The
+    // comment said top, so the mistake was invisible until the pills actually
+    // floated over the terminal — and then it showed the last line of output
+    // behind the first button on screen.
+    val ok = runCatching { view.draw(AndroidCanvas(bitmap)) }.isSuccess
     return if (ok) bitmap else bitmap.also { it.recycle() }
 }
 

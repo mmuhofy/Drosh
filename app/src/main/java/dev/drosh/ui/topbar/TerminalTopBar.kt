@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import dev.drosh.R
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -133,6 +134,19 @@ private const val CHROME_COLLAPSE_DELAY_MILLIS = 70
 private const val PILL_SURFACE_ALPHA = 0.72f
 
 /**
+ * The hairline around and between pills. The prototype's `rgba(255,255,255,.14)`.
+ *
+ * A plain colour rather than a token: `DroshSurfaceHigh` is a composable getter
+ * over `LocalDroshColors`, and a top-level `val` cannot call one -- the border
+ * would be read at class-load time, before any composition existed.
+ *
+ * Carried on the surface it belongs to: a button drawing its own border inside a
+ * group that already has one would double it to 2dp, which reads as a seam rather
+ * than as an edge.
+ */
+private val PILL_BORDER = Color.White.copy(alpha = 0.14f)
+
+/**
  * Where a pill sits inside the sampled terminal strip.
  *
  * A plain mutable holder on purpose. This is written during layout and read
@@ -154,16 +168,25 @@ private class PillSlice {
     }
 }
 
-/** Wider than it is tall, so the ends read as a stadium and not a disc. */
-private const val PILL_WIDTH_DP = 52
+/**
+ * A pill's width, equal to its height, so the buttons read as full circles.
+ *
+ * It was wider than tall — a stadium — which left the icon floating in an oval
+ * with dead space at both ends. [BAR_ROW_HEIGHT] on both sides is the disc the
+ * name of the thing implies.
+ */
+private const val PILL_WIDTH_DP = 44
 
 /**
- * 14dp at 12sp monospace leaves the output behind a button as a light and dark
- * smudge with no legible glyphs. Applied through Modifier.blur, so this is a
- * real RenderEffect on a real layer, and below API 31 the caller falls back to
- * a plain surface.
+ * How hard the pill's backdrop is blurred.
+ *
+ * 14dp at 12sp monospace left the output behind a button readable as a light and
+ * dark smudge, which is not frosted glass. 22dp takes it past the point where
+ * glyphs resolve, so the terminal behind reads as colour and not as text. Applied
+ * through Modifier.blur, so this is a real RenderEffect on a real layer, and below
+ * API 31 the caller falls back to a plain surface.
  */
-private val PILL_BLUR_RADIUS = 14.dp
+private val PILL_BLUR_RADIUS = 22.dp
 
 /**
  * The system status bar's height, whether or not it is currently showing.
@@ -369,35 +392,50 @@ fun TerminalTopBar(
             Spacer(Modifier.weight(1f))
 
 
-            // ── Right: pill buttons ────────────────────────────────────────
+            // ── Right: the joined pair ────────────────────────────────────────
             // Same Row as the left group rather than a sibling Box aligned by
             // hand. Two separate parents let the clusters settle on different
             // baselines whenever their content differed in height, which is why
             // the left and right buttons looked vertically offset.
+            //
+            // Agent and more are one surface with a hairline between them, not two
+            // pills with a gap. Two floating controls a hand's width apart on the
+            // same side of the screen read as two unrelated actions; touching
+            // circles read as one group with two things in it, and the divider
+            // says where one ends.
             Row(
+                modifier = Modifier
+                    .height(rowHeight)
+                    .clip(CircleShape)
+                    .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
+                    .border(1.dp, PILL_BORDER, CircleShape),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                // The agent button, where the keyboard toggle used to be.
-                //
-                // It was on the left, first in the row, which made it the first thing
-                // under the thumb on a right-handed grip and put the least used
-                // control in the most reachable slot. On the right it sits with the
-                // other secondary actions, and the left cluster is left for what the
-                // screen is actually about: the sessions and which one is open.
                 GlassPillButton(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
                     drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
                     contentDescription = "Agent",
+                    width = PILL_WIDTH,
                     height = rowHeight,
                     // The mark is drawn on a 24 viewport that it fills, so it needs
                     // no correcting — unlike the old 2048 mark, which sat at 46% of
                     // its own canvas and looked half the size of its neighbours.
-                    // It does follow the row, though: 22dp in a 30dp band reads as
-                    // cropped.
                     iconSize = pillIconSize,
+                    // No surface of its own: the group carries it, so there is one
+                    // colour and one blur across both halves.
+                    ownSurface = false,
                     onClick = { onOpenAgent() },
+                )
+
+                // The seam. A hairline rather than a gap, so the pair still reads
+                // as one control.
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(rowHeight - 12.dp)
+                        .background(PILL_BORDER),
                 )
 
                 GlassPillButton(
@@ -405,8 +443,10 @@ fun TerminalTopBar(
                     terminalBounds = terminalBounds,
                     icon = DroshIcons.EllipsisVertical,
                     contentDescription = "More actions",
+                    width = PILL_WIDTH,
                     height = rowHeight,
                     iconSize = pillIconSize,
+                    ownSurface = false,
                     onClick = { moreExpanded = true },
                 )
             }
@@ -557,9 +597,17 @@ private fun GlassPillButton(
     width: Dp = PILL_WIDTH,
     height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
+    /**
+     * False when this button sits inside a group that already carries the surface.
+     *
+     * The backdrop and the icon are the button's own; the fill, the border and the
+     * press-scale are the group's, so several buttons in one surface do not each
+     * redraw a box inside it.
+     */
+    ownSurface: Boolean = true,
 ) {
     GlassPillBody(
-        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds,
+        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds, ownSurface,
     ) { tint ->
         when {
             drawableRes != null -> Icon(
@@ -588,6 +636,7 @@ private fun GlassPillBody(
     iconSize: Dp = 22.dp,
     backdrop: ImageBitmap?,
     terminalBounds: Rect?,
+    ownSurface: Boolean,
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
     val shape = RoundedCornerShape(percent = 50)
@@ -628,6 +677,10 @@ private fun GlassPillBody(
         // Blurred terminal first, then the tint over it, then the icon. The
         // order is the prototype's: the tint sits on top of the backdrop, so
         // putting it on the Box as a background would hide the blur entirely.
+        //
+        // Only while row is an overlay on the terminal: collapsed, the row sits in
+        // the band above the grid and `backdrop` is null, so the slice draws
+        // nothing and the pill is its own surface.
         TerminalBackdropSlice(
             backdrop = backdrop,
             sourceOffset = { slice.offsetIn(terminalBounds) },
@@ -635,11 +688,14 @@ private fun GlassPillBody(
             shape = shape,
             modifier = Modifier.matchParentSize(),
         )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA)),
-        )
+        if (ownSurface) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
+                    .border(1.dp, PILL_BORDER, shape),
+            )
+        }
         Box(
             modifier = Modifier
                 .size(iconSize)

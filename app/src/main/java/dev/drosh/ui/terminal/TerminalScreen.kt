@@ -293,24 +293,29 @@ private fun ReadyScreen(
     //
     // Two states, and nothing else:
     //
-    //  - **Collapsed** — the viewport is up in the scrollback, or a TUI owns the
-    //    terminal. The app goes fullscreen, the pills go to the very top of the
-    //    screen into the space the status bar vacated, and the grid's padding
-    //    shrinks to that band so the first line is not lost to it.
-    //  - **Expanded** — at the live edge, past the first screen. The status bar is
-    //    back and the pills sit below it, over the output.
+    //  - **Collapsed** — the viewport is up in the scrollback, a session nobody
+    //    has scrolled yet, or a TUI owns the terminal. The app goes fullscreen, the
+    //    pills move up into the space the status bar vacated, and the grid's
+    //    padding shrinks to that band so the first line is not lost to it.
+    //  - **Expanded** — at the live edge, once the user has scrolled and come
+    //    back. The status bar is back and the pills sit below it, over the output.
+    //
+    // A session opens collapsed. There is nothing to have come back from yet, so
+    // `hasScrolled` is what tells "just opened" from "sitting at the prompt" --
+    // position alone cannot, because both sit at the same row.
     //
     // The direction is the point: you are not looking for the clock while you are
     // typing, and you are definitely looking for it while reading something that
     // scrolled off. The bar disappears exactly when it is not needed.
     val topRow by terminalManager.scrollTopRow.collectAsStateWithLifecycle()
     val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
+    val hasScrolled by terminalManager.hasScrolled.collectAsStateWithLifecycle()
     val tuiActive by terminalManager.focusedPaneAltBuffer
         .collectAsStateWithLifecycle()
 
     // Named `immersive` rather than `chromeCollapsed` so the call reads as a
     // call: a local of the same name would shadow the function it is calling.
-    val immersive = chromeCollapsed(topRow, atLiveEdge, tuiActive)
+    val immersive = chromeCollapsed(topRow, atLiveEdge, tuiActive, hasScrolled)
 
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.

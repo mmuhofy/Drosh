@@ -20,13 +20,24 @@ import org.junit.Test
  */
 class ChromeScrollTest {
 
-    /** Mirrors the screen: the manager resolves the hysteresis, then the rule. */
+    /**
+     * Mirrors the screen: the manager resolves the hysteresis, then the rule.
+     *
+     * `hasScrolled` defaults to true, which is the case every test about where the
+     * viewport *is* wants. The tests about a session's first moments pass false.
+     */
     private fun collapsed(
         topRow: Int,
         wasAtLiveEdge: Boolean,
         tuiActive: Boolean = false,
+        hasScrolled: Boolean = true,
     ): Boolean =
-        chromeCollapsed(topRow, chromeIsAtLiveEdge(topRow, wasAtLiveEdge), tuiActive)
+        chromeCollapsed(
+            topRow,
+            chromeIsAtLiveEdge(topRow, wasAtLiveEdge),
+            tuiActive,
+            hasScrolled,
+        )
 
     // ── The scrollback ────────────────────────────────────────────────────────
 
@@ -58,16 +69,28 @@ class ChromeScrollTest {
     }
 
     /**
-     * A session that has just opened gets the same answer, and needs no flag of
-     * its own to get it.
+     * A session that has just opened is **collapsed**.
      *
      * It sits at `topRow == 0`, exactly like one sitting at a busy prompt, so
-     * position already says the right thing — "has this ever been scrolled" was a
-     * distinction without a difference and cost a StateFlow.
+     * position alone cannot tell them apart — which is why `hasScrolled` exists
+     * and why a session must not be inferred from its row. Without this the app
+     * would open with the status bar showing over a terminal nobody has looked at
+     * yet, which is the one place it is least wanted.
      */
     @Test
-    fun `a session that has never been scrolled is at the live edge`() {
-        assertFalse(collapsed(topRow = 0, wasAtLiveEdge = true))
+    fun `a session that has just opened is collapsed`() {
+        assertTrue(collapsed(topRow = 0, wasAtLiveEdge = true, hasScrolled = false))
+    }
+
+    /**
+     * The same terminal, once scrolled and returned to, is not collapsed.
+     *
+     * The pair of these two tests is the point: identical position, opposite
+     * chrome, and the difference is a flag.
+     */
+    @Test
+    fun `a session that has been scrolled and come back is not collapsed`() {
+        assertFalse(collapsed(topRow = 0, wasAtLiveEdge = false, hasScrolled = true))
     }
 
     // ── The dead zone ─────────────────────────────────────────────────────────
@@ -176,35 +199,37 @@ class ChromeScrollTest {
      * again five rows later, and came back on the way down.
      */
     @Test
-    fun `a whole session changes state exactly twice`() {
+    fun `a whole session changes state once`() {
         var atEdge = true
-        var wasCollapsed = collapsed(0, atEdge)
+        var hasScrolled = false
+        var wasCollapsed = collapsed(0, atEdge, hasScrolled = false)
         var transitions = 0
-        assertFalse("a new session opens at the live edge", wasCollapsed)
+        assertTrue("a new session opens collapsed", wasCollapsed)
 
-        // Working: every chunk of output reports the live edge.
+        // Working: every chunk of output reports the live edge, and none of it
+        // counts as the user having scrolled -- output arrives with the viewport
+        // still pinned, so `hasScrolled` stays false and the chrome never moves.
         repeat(200) {
             atEdge = chromeIsAtLiveEdge(0, atEdge)
-            val collapsed = collapsed(0, atEdge)
+            val collapsed = collapsed(0, atEdge, hasScrolled = false)
             if (collapsed != wasCollapsed) transitions++
             wasCollapsed = collapsed
         }
         assertEquals("output alone never moves it", 0, transitions)
+        assertTrue(atEdge)
 
-        for (topRow in -1 downTo -60) {
+        // The user scrolls up into history and comes back. One change, on the way
+        // down: going up the session is already collapsed, so only the return to
+        // the prompt has anything left to do.
+        for (topRow in (-1 downTo -60) + (-59..0)) {
             atEdge = chromeIsAtLiveEdge(topRow, atEdge)
-            val collapsed = collapsed(topRow, atEdge)
+            if (!atEdge) hasScrolled = true
+            val collapsed = collapsed(topRow, atEdge, hasScrolled = hasScrolled)
             if (collapsed != wasCollapsed) transitions++
             wasCollapsed = collapsed
         }
-        for (topRow in -59..0) {
-            atEdge = chromeIsAtLiveEdge(topRow, atEdge)
-            val collapsed = collapsed(topRow, atEdge)
-            if (collapsed != wasCollapsed) transitions++
-            wasCollapsed = collapsed
-        }
-        assertEquals("one up, one back", 2, transitions)
-        assertFalse("the live edge is the normal state", wasCollapsed)
+        assertEquals("one change for the whole trip", 1, transitions)
+        assertFalse("back at the prompt, once scrolled, is the normal state", wasCollapsed)
     }
 
     /**

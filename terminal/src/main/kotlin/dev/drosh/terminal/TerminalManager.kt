@@ -580,6 +580,25 @@ class TerminalManager(
     val isAtLiveEdge: StateFlow<Boolean> = _isAtLiveEdge.asStateFlow()
 
     /**
+     * Whether the user has moved this terminal's viewport at all since the session
+     * it is showing was attached.
+     *
+     * The top chrome opens **collapsed** — a terminal nobody has touched goes
+     * fullscreen and the pills sit in the status bar's band. That is not a scroll
+     * position and cannot be expressed as one, because a freshly opened terminal
+     * sits at the live edge exactly like a busy one does. Position alone cannot
+     * tell "just opened, first screen" from "sitting at the prompt", so the
+     * distinction has to be its own piece of state.
+     *
+     * One-way: the first scroll of a session is the moment it stops being "new",
+     * and nothing in the app should make that untrue. Cleared by
+     * [resetViewportState] wherever the session on screen is replaced.
+     */
+    private val _hasScrolled = MutableStateFlow(false)
+
+    val hasScrolled: StateFlow<Boolean> = _hasScrolled.asStateFlow()
+
+    /**
      * Back to "a terminal nobody has touched".
      *
      * Called wherever the focused pane's contents are replaced rather than
@@ -591,6 +610,7 @@ class TerminalManager(
     private fun resetViewportState() {
         _scrollTopRow.value = 0
         _isAtLiveEdge.value = true
+        _hasScrolled.value = false
     }
 
     private val prootRunner: ProotRunner by lazy {
@@ -843,6 +863,21 @@ class TerminalManager(
                 _scrollTopRow.value = topRow
                 val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
                 if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
+                // "Has been touched" means **has left the first screen**, not
+                // "moved at all".
+                //
+                // Setting it on the first row put the two thresholds a row apart:
+                // one flick up turned the status bar on, and the fifth row turned
+                // it off again -- both inside a single gesture, which is the
+                // flapping. Gating it on the same threshold the live-edge flag
+                // uses means one direction change is one transition.
+                //
+                // Safe to read off this callback even though it also runs on
+                // every chunk of PTY output: `onScreenUpdated` snaps `mTopRow`
+                // back to the live edge before reporting, so `atEdge` is true for
+                // anything it fires and the shell's own output can never answer
+                // this with yes.
+                if (!atEdge) _hasScrolled.value = true
             }
         }
         bindSelectionMenu(view, slot)
@@ -904,6 +939,7 @@ class TerminalManager(
             // Nothing on screen left to be active.
             sessionClient.terminalView = null
             _isAtLiveEdge.value = true
+            _hasScrolled.value = false
         }
         publishActiveId()
     }
@@ -1506,12 +1542,18 @@ internal fun chromeIsAtLiveEdge(topRow: Int, wasAtLiveEdge: Boolean): Boolean = 
  *
  * The whole rule.
  *
- *  - **Up in the scrollback** — they are reading older output. The system bars go,
- *    the pill row's offset is **0**, and the grid's top padding shrinks to the
- *    vacated band so the first line is not lost to it.
- *  - **At the live edge** — the prompt, a session nobody has scrolled, or one that
- *    has come back after a scroll. The status bar is back and the row sits below
- *    it at `statusBarH + 10dp`.
+ *  - **Up** — the viewport is in the scrollback, a session nobody has scrolled
+ *    yet, or a TUI owns the terminal. The app goes fullscreen, the pill row moves
+ *    up into the band the status bar vacated, and the grid's top padding shrinks to
+ *    that band.
+ *  - **At the live edge** — the prompt, once the user has actually scrolled and
+ *    come back. The status bar is back and the row sits below it at
+ *    `statusBarH + 10dp`, floating over the output.
+ *
+ * **A session that has never been scrolled opens up.** It is not at the live edge
+ * in any sense the user can observe -- there is nothing to have come back to. So
+ * `hasScrolled` is its own piece of state, and a freshly opened terminal, or one
+ * returned to by switching sessions, starts fullscreen.
  *  - **A TUI** (nano, vim, htop) draws fullscreen and has no scrollback, so it is
  *    always collapsed. Stated rather than left implicit because it is the case
  *    where a clock over somebody else's fullscreen interface is most in the way.
@@ -1525,9 +1567,12 @@ internal fun chromeIsAtLiveEdge(topRow: Int, wasAtLiveEdge: Boolean): Boolean = 
  * @param topRow the focused terminal's first visible row.
  * @param wasAtLiveEdge the hysteresis input [chromeIsAtLiveEdge] resolves from.
  * @param tuiActive the focused pane is showing the alternate screen buffer.
+ * @param hasScrolled the user has moved this terminal's viewport at all. False
+ *   opens a session collapsed, which is the state a new session is meant to be in.
  */
 fun chromeCollapsed(
     topRow: Int,
     wasAtLiveEdge: Boolean,
     tuiActive: Boolean,
-): Boolean = tuiActive || !chromeIsAtLiveEdge(topRow, wasAtLiveEdge)
+    hasScrolled: Boolean,
+): Boolean = tuiActive || !hasScrolled || !chromeIsAtLiveEdge(topRow, wasAtLiveEdge)
