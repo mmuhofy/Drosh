@@ -115,12 +115,26 @@ internal class FakeProviderRepository(
         key = null
     }
 
+    override suspend fun setConfigValue(providerId: String, key: String, value: String) = Unit
+
     override suspend fun fetchModels(providerId: String, forceRefresh: Boolean): List<LlmModel> =
         emptyList()
 
     override suspend fun setSelectedModel(providerId: String, modelId: String) = Unit
 
     override suspend fun selectedModel(providerId: String): String? = null
+
+    /** Empty by default: no model declares effort, so the loop asks for none. */
+    var effortsByModel: Map<String, List<String>> = emptyMap()
+
+    override fun reasoningEfforts(providerId: String, modelId: String): List<String> =
+        effortsByModel[modelId].orEmpty()
+
+    override suspend fun setReasoningEffort(providerId: String, modelId: String, effort: String?) = Unit
+
+    override suspend fun reasoningEffort(providerId: String, modelId: String): String? = null
+
+    override fun outputTokenLimit(providerId: String, modelId: String): Int? = 4096
 }
 
 /** Convenience for building tool arguments in tests. */

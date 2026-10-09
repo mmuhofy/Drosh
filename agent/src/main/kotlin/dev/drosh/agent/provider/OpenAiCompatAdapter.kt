@@ -25,12 +25,14 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -74,6 +76,7 @@ import javax.inject.Singleton
 class OpenAiCompatAdapter @Inject constructor(
     @AgentHttpClient private val httpClient: OkHttpClient,
     private val json: Json,
+    private val efforts: EffortMapper,
 ) : ChatAdapter {
 
     override val kind: ProviderKind = ProviderKind.OPENAI_COMPAT
@@ -325,30 +328,65 @@ class OpenAiCompatAdapter @Inject constructor(
      *
      * Internal rather than private so the wire format is asserted directly in
      * tests, which is cheaper and less brittle than standing up a server.
+     *
+     * Takes [provider] as well as the request because two of the fields it emits
+     * are provider policy rather than conversation state: the effort spelling,
+     * which differs between OpenRouter and every other gateway, and [LlmProvider.extraBody],
+     * which exists for endpoints that reject something this sends unconditionally.
      */
-    internal fun buildBody(request: LlmRequest): JsonObject = buildJsonObject {
-        put("model", request.model)
-        put("stream", true)
-        // Without this, streaming responses carry no token counts at all and the
-        // UI has nothing to show after a long run.
-        put("stream_options", buildJsonObject { put("include_usage", true) })
+    internal fun buildBody(provider: LlmProvider, request: LlmRequest): JsonObject {
+        val built = buildJsonObject {
+            put("model", request.model)
+            put("stream", true)
+            // Without this, streaming responses carry no token counts at all and the
+            // UI has nothing to show after a long run.
+            put("stream_options", buildJsonObject { put("include_usage", true) })
 
-        request.temperature?.let { put("temperature", it) }
-        request.maxOutputTokens?.let { put("max_tokens", it) }
+            request.temperature?.let { put("temperature", it) }
+            request.maxOutputTokens?.let { put("max_tokens", it) }
 
-        put("messages", buildJsonArray {
-            request.systemPrompt?.takeIf { it.isNotBlank() }?.let { system ->
-                add(buildJsonObject {
-                    put("role", "system")
-                    put("content", system)
-                })
+            put("messages", buildJsonArray {
+                request.systemPrompt?.takeIf { it.isNotBlank() }?.let { system ->
+                    add(buildJsonObject {
+                        put("role", "system")
+                        put("content", system)
+                    })
+                }
+                request.messages.forEach { message -> add(encodeMessage(message)) }
+            })
+
+            if (request.tools.isNotEmpty()) {
+                put("tools", buildJsonArray { request.tools.forEach { add(encodeTool(it)) } })
             }
-            request.messages.forEach { message -> add(encodeMessage(message)) }
-        })
 
-        if (request.tools.isNotEmpty()) {
-            put("tools", buildJsonArray { request.tools.forEach { add(encodeTool(it)) } })
+            // Reasoning effort, spelled per protocol. Set before extraBody so a
+            // provider that wants it elsewhere can override rather than duplicate.
+            request.reasoningEffort?.takeIf { it.isNotBlank() }?.let { effort ->
+                efforts.bodyFields(
+                    provider = provider,
+                    modelId = request.model,
+                    effort = effort,
+                    outputTokenLimit = request.maxOutputTokens,
+                ).forEach { (key, value) -> put(key, value) }
+            }
+
+            // Last, and the only thing allowed to override the adapter: a field
+            // set to JSON null deletes the key rather than sending null, which is
+            // the only way to express "do not send stream_options here".
+            applyOverrides(provider.extraBody)
         }
+        return built
+    }
+
+    /** Merge provider overrides, where an explicit null removes the key. */
+    private fun MutableMap<String, JsonElement>.applyOverrides(overrides: JsonObject) {
+        if (overrides.isEmpty()) return
+        val merged = LinkedHashMap(this)
+        overrides.forEach { (key, value) ->
+            if (value is JsonNull) merged.remove(key) else merged[key] = value
+        }
+        clear()
+        putAll(merged)
     }
 
     private fun encodeMessage(message: LlmMessage): JsonObject = when (message) {
@@ -404,16 +442,25 @@ class OpenAiCompatAdapter @Inject constructor(
         provider: LlmProvider,
         request: LlmRequest,
         credential: LlmCredential,
-    ): Request = Request.Builder()
-        .url(provider.chatCompletionsUrl)
-        .post(buildBody(request).toString().toRequestBody(JSON_MEDIA_TYPE))
-        .header("Authorization", "Bearer ${credential.apiKey}")
-        .header("Accept", "text/event-stream")
-        // OpenRouter attributes traffic by referer and app name. Both are
-        // recommended rather than required, so they arrive as provider config
-        // instead of being hardcoded here.
-        .apply { provider.extraHeaders.forEach { (name, value) -> header(name, value) } }
-        .build()
+    ): Request {
+        val url = provider.chatCompletionsUrl.toHttpUrl().newBuilder()
+            // Appended rather than baked into baseUrl because they are a property
+            // of the request, not of the endpoint — Azure's `api-version` being
+            // the one the catalog cannot express.
+            .apply { provider.extraQuery.forEach { (name, value) -> addQueryParameter(name, value) } }
+            .build()
+
+        return Request.Builder()
+            .url(url)
+            .post(buildBody(provider, request).toString().toRequestBody(JSON_MEDIA_TYPE))
+            .header("Authorization", "Bearer ${credential.apiKey}")
+            .header("Accept", "text/event-stream")
+            // OpenRouter attributes traffic by referer and app name. Both are
+            // recommended rather than required, so they arrive as provider config
+            // instead of being hardcoded here.
+            .apply { provider.extraHeaders.forEach { (name, value) -> header(name, value) } }
+            .build()
+    }
 
     private fun describeHttpFailure(code: Int, body: String): String {
         val message = runCatching {

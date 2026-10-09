@@ -73,6 +73,16 @@ data class LlmRequest(
     val maxOutputTokens: Int? = null,
     /** Sent as a system/developer instruction where the protocol supports it. */
     val systemPrompt: String? = null,
+    /**
+     * Reasoning effort, as the model names it — `low`, `medium`, `high`, …
+     *
+     * Opaque here on purpose. The catalog is the source of truth for which
+     * values a model declares, and each protocol spells them differently on the
+     * wire (`reasoning_effort`, `reasoning.effort`, `output_config.effort`,
+     * `thinkingConfig.thinkingLevel`), so domain stays a plain string and
+     * `EffortMapper` does the translating.
+     */
+    val reasoningEffort: String? = null,
 )
 
 /** Model-facing conversation history. Distinct from [ChatMessage]. */

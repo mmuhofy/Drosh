@@ -69,6 +69,8 @@ interface AgentSession {
  * @param prompt the user's message
  * @param workingDirectory absolute path inside the guest filesystem the agent
  *                         is scoped to for this run
+ * @param reasoningEffort the user's stored effort choice for this model, or
+ *        null for the model's own default. See `LlmRequest.reasoningEffort`.
  */
 data class AgentRequest(
     val chatId: String,
@@ -76,6 +78,7 @@ data class AgentRequest(
     val modelId: String,
     val prompt: String,
     val workingDirectory: String,
+    val reasoningEffort: String? = null,
 )
 
 /** Aggregate run state across all chats. */

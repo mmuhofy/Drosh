@@ -40,7 +40,7 @@ import java.io.IOException
 class OpenAiCompatAdapterTest {
 
     private val json = Json { ignoreUnknownKeys = true }
-    private val adapter = OpenAiCompatAdapter(OkHttpClient(), json)
+    private val adapter = OpenAiCompatAdapter(OkHttpClient(), json, EffortMapper())
 
     private val provider = LlmProvider(
         id = "openrouter",
@@ -184,7 +184,7 @@ class OpenAiCompatAdapterTest {
     fun `body requests a stream and opts into usage`() {
         // Without stream_options.include_usage, streaming responses carry no token
         // counts at all and the UI has nothing to show after a long run.
-        val body = adapter.buildBody(
+        val body = adapter.buildBody(provider, 
             LlmRequest(model = "anthropic/claude-sonnet-4", messages = listOf(LlmMessage.User("hi"))),
         )
 
@@ -198,7 +198,7 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `system prompt is sent as a system message`() {
-        val body = adapter.buildBody(
+        val body = adapter.buildBody(provider, 
             LlmRequest(
                 model = "m",
                 messages = listOf(LlmMessage.User("hi")),
@@ -214,7 +214,7 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `a blank system prompt is omitted entirely`() {
-        val body = adapter.buildBody(
+        val body = adapter.buildBody(provider, 
             LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi")), systemPrompt = "   "),
         )
 
@@ -224,7 +224,7 @@ class OpenAiCompatAdapterTest {
     @Test
     fun `an assistant turn that only called tools sends null content`() {
         // The protocol requires the key to be present, as null, in this case.
-        val body = adapter.buildBody(
+        val body = adapter.buildBody(provider, 
             LlmRequest(
                 model = "m",
                 messages = listOf(
@@ -256,7 +256,7 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `an assistant turn with text keeps both text and tool calls`() {
-        val body = adapter.buildBody(
+        val body = adapter.buildBody(provider, 
             LlmRequest(
                 model = "m",
                 messages = listOf(
@@ -277,7 +277,7 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `tool results are sent with their call id`() {
-        val body = adapter.buildBody(
+        val body = adapter.buildBody(provider, 
             LlmRequest(
                 model = "m",
                 messages = listOf(
@@ -294,7 +294,7 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `tools are encoded in function form`() {
-        val body = adapter.buildBody(
+        val body = adapter.buildBody(provider, 
             LlmRequest(
                 model = "m",
                 messages = listOf(LlmMessage.User("list files")),
@@ -325,7 +325,7 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `no tools key is sent when the tool list is empty`() {
-        val body = adapter.buildBody(
+        val body = adapter.buildBody(provider, 
             LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi"))),
         )
 
@@ -334,13 +334,13 @@ class OpenAiCompatAdapterTest {
 
     @Test
     fun `sampling params are omitted unless set`() {
-        val plain = adapter.buildBody(
+        val plain = adapter.buildBody(provider, 
             LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi"))),
         )
         assertFalse(plain.containsKey("temperature"))
         assertFalse(plain.containsKey("max_tokens"))
 
-        val tuned = adapter.buildBody(
+        val tuned = adapter.buildBody(provider, 
             LlmRequest(
                 model = "m",
                 messages = listOf(LlmMessage.User("hi")),
@@ -350,6 +350,102 @@ class OpenAiCompatAdapterTest {
         )
         assertEquals("0.2", tuned["temperature"]!!.jsonPrimitive.content)
         assertEquals("4096", tuned["max_tokens"]!!.jsonPrimitive.content)
+    }
+
+    // ── reasoning effort ───────────────────────────────────────────────────
+
+    @Test
+    fun `effort is sent flat as reasoning_effort on a plain gateway`() {
+        val body = adapter.buildBody(
+            provider,
+            LlmRequest(
+                model = "m",
+                messages = listOf(LlmMessage.User("hi")),
+                reasoningEffort = "high",
+            ),
+        )
+
+        assertEquals("high", body["reasoning_effort"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `effort is nested on openrouter, which rejects the flat spelling`() {
+        // Same protocol, different gateway, different body. This is why
+        // LlmProvider.npm is carried rather than keying off the kind.
+        val body = adapter.buildBody(
+            provider.copy(npm = "@openrouter/ai-sdk-provider"),
+            LlmRequest(
+                model = "m",
+                messages = listOf(LlmMessage.User("hi")),
+                reasoningEffort = "high",
+            ),
+        )
+
+        assertEquals("high", body["reasoning"]!!.jsonObject["effort"]!!.jsonPrimitive.content)
+        assertFalse(body.containsKey("reasoning_effort"))
+    }
+
+    @Test
+    fun `no effort fields are sent when the model has no effort choice`() {
+        val body = adapter.buildBody(
+            provider,
+            LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi"))),
+        )
+
+        assertFalse(body.containsKey("reasoning_effort"))
+        assertFalse(body.containsKey("reasoning"))
+    }
+
+    @Test
+    fun `a blank effort choice is ignored`() {
+        val body = adapter.buildBody(
+            provider,
+            LlmRequest(
+                model = "m",
+                messages = listOf(LlmMessage.User("hi")),
+                reasoningEffort = "   ",
+            ),
+        )
+
+        assertFalse(body.containsKey("reasoning_effort"))
+    }
+
+    // ── provider overrides ─────────────────────────────────────────────────
+
+    @Test
+    fun `extra body fields are merged in`() {
+        val body = adapter.buildBody(
+            provider.copy(extraBody = buildJsonObject { put("some_flag", true) }),
+            LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi"))),
+        )
+
+        assertEquals("true", body["some_flag"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `an explicit null in extra body removes the key`() {
+        // The only way to tell a gateway that rejects stream_options to stop
+        // receiving it; there is no "override" that can express removal.
+        val body = adapter.buildBody(
+            provider.copy(extraBody = buildJsonObject { put("stream_options", JsonNull) }),
+            LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi"))),
+        )
+
+        assertFalse(body.containsKey("stream_options"))
+    }
+
+    @Test
+    fun `extra query parameters are appended to the url`() {
+        val request = adapter.buildHttpRequest(
+            provider = provider.copy(extraQuery = mapOf("api-version" to "2025-01-01")),
+            request = LlmRequest(model = "m", messages = listOf(LlmMessage.User("hi"))),
+            credential = LlmCredential("openrouter", "sk-test"),
+        )
+
+        assertEquals(
+            "https://openrouter.ai/api/v1/chat/completions?api-version=2025-01-01",
+            request.url.toString(),
+        )
     }
 
     // ── http request ──────────────────────────────────────────────────────
