@@ -166,8 +166,7 @@ class ProviderCatalogSourceTest {
         val provider = CatalogProvider(
             id = "cf",
             label = "Cloudflare",
-            apiTemplate = "https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID_PLACEHOLDER/ai/v1"
-                .replace("ACCOUNT_ID_PLACEHOLDER", "\${CLOUDFLARE_ACCOUNT_ID}"),
+            apiTemplate = """https://api.cloudflare.com/client/v4/accounts/${'$'}{CLOUDFLARE_ACCOUNT_ID}/ai/v1""",
             models = mapOf("m" to CatalogModel(id = "m", label = "M")),
         )
 
@@ -185,14 +184,15 @@ class ProviderCatalogSourceTest {
         val provider = CatalogProvider(
             id = "cf",
             label = "Cloudflare",
-            apiTemplate = "https://x.test/accounts/\${MISSING}/v1",
+            apiTemplate = """https://x.test/accounts/${'$'}{MISSING}/v1""",
             models = mapOf("m" to CatalogModel(id = "m", label = "M")),
         )
 
         val resolved = provider.resolveEndpoint(emptyMap())
 
-        assertEquals("https://x.test/accounts/\${MISSING}/v1", resolved)
-        assertTrue(resolved!!.contains("\${"))
+        val expected = """https://x.test/accounts/${'$'}{MISSING}/v1"""
+        assertEquals(expected, resolved)
+        assertTrue(resolved!!.contains("${'$'}{"))
     }
 
     @Test
