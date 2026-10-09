@@ -80,7 +80,7 @@ data class CatalogProvider(
     /** True when this provider cannot be used at all. */
     val isUnsupported: Boolean get() = unsupportedReason != null
 
-    private companion object {
+    internal companion object {
         val PLACEHOLDER = Regex("""\$\{([A-Z0-9_]+)}""")
     }
 }

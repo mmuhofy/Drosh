@@ -138,9 +138,15 @@ class ProviderCatalogSource @Inject constructor(
         val api = body["api"]?.jsonPrimitive?.contentOrNull
         val env = body["env"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
 
-        val models = body["models"]?.jsonObject?.entries?.mapNotNull { (modelId, raw) ->
-            runCatching { foldModel(modelId, raw as? JsonObject ?: return@mapNotNull null) }.getOrNull()
-        }?.toMap().orEmpty()
+        val models = body["models"]?.jsonObject?.entries
+            ?.mapNotNull { (modelId, raw) ->
+                runCatching { foldModel(modelId, raw as? JsonObject ?: return@mapNotNull null) }.getOrNull()
+            }
+            // Associate by the declared id rather than the map key: the two are
+            // the same string in the catalog, but the model's own `id` is what
+            // gets sent in a request.
+            ?.associateBy { it.id }
+            .orEmpty()
 
         // A provider with no models has nothing to offer and no reason to appear.
         if (models.isEmpty()) return null

@@ -1,5 +1,6 @@
 package dev.drosh.agent.runtime
 
+import dev.drosh.domain.agent.CatalogState
 import dev.drosh.domain.agent.ChatAdapter
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.TranscriptStore
@@ -15,6 +16,7 @@ import dev.drosh.domain.agent.LlmStreamEvent
 import dev.drosh.domain.agent.ProviderKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -118,6 +120,11 @@ internal class FakeProviderRepository(
     override suspend fun setConfigValue(providerId: String, key: String, value: String) = Unit
 
     override suspend fun setCustomBaseUrl(baseUrl: String) = Unit
+
+    /** Loading by default, which is what the repository starts as. */
+    override fun observeCatalogState(): Flow<CatalogState> = flowOf(CatalogState.Loading)
+
+    override suspend fun refreshCatalog() = Unit
 
     override suspend fun fetchModels(providerId: String, forceRefresh: Boolean): List<LlmModel> =
         emptyList()
