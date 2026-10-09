@@ -143,10 +143,14 @@ fun AgentSettingsScreen(
                 }
 
                 state.provider?.let { provider ->
-                    if (provider.unsupportedReason != null) {
+                    // Hoisted into a local because `unsupportedReason` is a
+                    // public property of a data class in another module, which
+                    // Kotlin will not smart-cast.
+                    val unsupported = provider.unsupportedReason
+                    if (unsupported != null) {
                         item(key = "unsupported") {
                             Text(
-                                text = provider.unsupportedReason,
+                                text = unsupported,
                                 fontSize = 12.sp,
                                 lineHeight = 17.sp,
                                 color = DroshError,

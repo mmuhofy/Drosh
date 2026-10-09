@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -329,7 +331,7 @@ internal fun EffortPicker(
     if (efforts.isEmpty()) return
 
     Column(modifier = modifier) {
-        SectionHeader(title = "DÜŞÜNME EFFORTU")
+        SectionHeader("DÜŞÜNME EFFORTU")
 
         // "Varsayılan" first: the model's own default is a real choice and is
         // what a user who never touched this should be on.
@@ -377,7 +379,7 @@ internal fun ConfigFields(
     if (fields.isEmpty()) return
 
     Column(modifier = modifier) {
-        SectionHeader(title = "EK AYARLAR")
+        SectionHeader("EK AYARLAR")
         fields.forEach { field ->
             ConfigFieldRow(field = field, onValueChange = onValueChange)
         }
