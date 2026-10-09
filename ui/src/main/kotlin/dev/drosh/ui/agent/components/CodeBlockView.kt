@@ -22,8 +22,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
-import com.mikepenz.markdown.utils.findChildOfTypeRecursive
-import com.mikepenz.markdown.utils.getUnescapedTextInNode
+import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
 
@@ -53,9 +52,10 @@ fun DroshCodeBlock(
 
 /** The language tag and the code, split out of a fenced block's AST node. */
 private fun ASTNode.fencedCode(content: String): FencedCode {
-    val language = findChildOfTypeRecursive(MarkdownTokenTypes.FENCE_LANG)
-        ?.getUnescapedTextInNode(content)
-        ?.toString()
+    // The library has these as helpers but they are internal to it, so they are written
+    // out here: a depth-first walk for the fence's info string, and offsets for the body.
+    val language = findDescendant(MarkdownTokenTypes.FENCE_LANG)
+        ?.let { content.substring(it.startOffset, it.endOffset) }
     // An unterminated fence — which is what a streaming answer looks like most of the
     // time — has the opening marker as its only child, and that offset spans the
     // whole remaining content. Clamping to the end keeps a half-written block visible
@@ -66,6 +66,15 @@ private fun ASTNode.fencedCode(content: String): FencedCode {
         code = content.substring(start.coerceAtLeast(0), end.coerceIn(0, content.length)),
         language = language,
     )
+}
+
+private fun ASTNode.findDescendant(type: IElementType): ASTNode? {
+    var current: ASTNode? = this
+    while (current != null) {
+        if (current.type == type) return current
+        current = current.firstChildNode
+    }
+    return null
 }
 
 private data class FencedCode(val code: String, val language: String?)

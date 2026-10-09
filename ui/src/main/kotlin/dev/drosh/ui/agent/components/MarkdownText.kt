@@ -42,7 +42,6 @@ fun MarkdownText(
     onCopy: ((String) -> Unit)? = null,
 ) {
     val clipboard = rememberAgentClipboard()
-    val theme = MarkdownThemeValue
     val components = droshMarkdownComponents(onCopy = onCopy ?: { clipboard(markdown) })
     val split = StableMarkdown.split(markdown)
 
@@ -51,17 +50,7 @@ fun MarkdownText(
         // keeps streaming, this subtree is skipped rather than recomposed. It is not
         // worth a key() — a key would force the subtree to be rebuilt from scratch
         // every time the cut moves, which is the opposite of the point.
-        Markdown(
-            markdown = split.stable,
-            colors = theme.colors,
-            typography = theme.typography,
-            components = components,
-        )
-        Markdown(
-            markdown = split.tail,
-            colors = theme.colors,
-            typography = theme.typography,
-            components = components,
-        )
+        Markdown(markdown = split.stable, components = components)
+        Markdown(markdown = split.tail, components = components)
     }
 }

@@ -2,10 +2,7 @@ package dev.drosh.ui.agent.components
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -13,75 +10,66 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mikepenz.markdown.compose.LocalMarkdownColors
+import com.mikepenz.markdown.compose.LocalMarkdownDimens
+import com.mikepenz.markdown.compose.LocalMarkdownPadding
+import com.mikepenz.markdown.compose.LocalMarkdownTypography
 import com.mikepenz.markdown.compose.components.MarkdownComponents
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownDimens
 import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurfaceVariant
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalDroshColors
 import dev.drosh.design.system.OutfitFontFamily
 
 /**
- * App tokens, expressed in the four shapes the markdown renderer asks for.
+ * Installs our tokens where the renderer will read them.
  *
- * The renderer takes its styling through four interfaces rather than through
- * MaterialTheme, which is the right call for it — it is a library, and it does not
- * know what this app's surface hierarchy is. Implementing them here rather than
- * passing MaterialTheme's values through means a heading cannot drift from
- * `DroshText` if the app theme changes later.
+ * The library exposes each of the four as its own `LocalMarkdown*`, and reads them
+ * from inside the components rather than from arguments — so providing those is the
+ * whole job, and `Markdown` needs no explicit styling passed at all.
  *
- * Only the code-block colours come from [CodePalette]. Everything else is prose, and
- * prose belongs to the app palette.
+ * `LocalDroshColors` is read once and the fields copied out, because every `Drosh*`
+ * token is a composable getter over that local and a plain class cannot make one.
  */
-@Immutable
-data class MarkdownTheme(
-    val colors: MarkdownColors,
-    val typography: MarkdownTypography,
-    val dimens: MarkdownDimens,
-    val padding: MarkdownPadding,
-)
-
-/** The theme for the active app theme, or the default before one is provided. */
-val LocalMarkdownTheme = staticCompositionLocalOf { markdownThemeFor(darkCodePalette = true) }
-
-val MarkdownThemeValue: MarkdownTheme
-    @Composable @ReadOnlyComposable get() = LocalMarkdownTheme.current
-
 @Composable
-fun provideMarkdownTheme(dark: Boolean, content: @Composable () -> Unit) {
-    // The code palette is read here rather than inside DroshMarkdownColors, because
-    // reading a CompositionLocal from a getter of a plain class is not composable —
-    // the class has no way to be called in a composition context.
-    val theme = remember(dark) { markdownThemeFor(codePalette(dark)) }
+fun provideMarkdownTheme(content: @Composable () -> Unit) {
+    val app = LocalDroshColors.current
+    val code = CodeColors
     androidx.compose.runtime.CompositionLocalProvider(
-        LocalMarkdownTheme provides theme,
+        LocalMarkdownColors provides remember(app, code) {
+            DroshMarkdownColors(
+                text = app.text,
+                textSecondary = app.textSecondary,
+                primary = app.primary,
+                surfaceVariant = app.surfaceVariant,
+                outline = app.outline,
+                code = code,
+            )
+        },
+        LocalMarkdownTypography provides remember { DroshMarkdownTypography() },
+        LocalMarkdownDimens provides remember { DroshMarkdownDimens() },
+        LocalMarkdownPadding provides remember { DroshMarkdownPadding() },
         content = content,
     )
 }
 
-private fun markdownThemeFor(darkCodePalette: Boolean): MarkdownTheme =
-    markdownThemeFor(codePalette(darkCodePalette))
-
-private fun markdownThemeFor(code: CodePalette): MarkdownTheme = MarkdownTheme(
-    colors = DroshMarkdownColors(code),
-    typography = DroshMarkdownTypography(),
-    dimens = DroshMarkdownDimens(),
-    padding = DroshMarkdownPadding(),
-)
-
-private class DroshMarkdownColors(private val code: CodePalette) : MarkdownColors {
-    override val text: Color get() = DroshText
+private class DroshMarkdownColors(
+    private val text: Color,
+    private val textSecondary: Color,
+    private val primary: Color,
+    private val surfaceVariant: Color,
+    private val outline: Color,
+    private val code: CodePalette,
+) : MarkdownColors {
+    override val text: Color get() = text
     override val codeText: Color get() = code.plain
     override val inlineCodeText: Color get() = code.string
-    override val linkText: Color get() = DroshPrimary
+    override val linkText: Color get() = primary
     override val codeBackground: Color get() = code.background
-    override val inlineCodeBackground: Color get() = DroshSurfaceVariant
-    override val dividerColor: Color get() = DroshOutline
+    override val inlineCodeBackground: Color get() = surfaceVariant
+    override val dividerColor: Color get() = outline
 }
 
 private class DroshMarkdownTypography : MarkdownTypography {

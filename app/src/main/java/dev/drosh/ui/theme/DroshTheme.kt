@@ -111,7 +111,7 @@ fun DroshTheme(
                     // tokens. Without this the renderer falls back to its defaults,
                     // which are Material's, and an assistant answer stops matching
                     // the message it sits under.
-                    provideMarkdownTheme(dark = useDark) { content() }
+                    provideMarkdownTheme { content() }
                 }
             },
         )
