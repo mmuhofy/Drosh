@@ -65,8 +65,12 @@ internal object StableMarkdown {
             if (!insideFence && line.isBlank()) {
                 val afterBlankLine = lineEnd + 1
                 // Needs a character after the blank line, otherwise there is no tail to
-                // separate and the whole message is one still-growing block.
-                if (afterBlankLine in 1 until text.length) cut = afterBlankLine
+                // separate and the whole message is one still-growing block. And a blank
+                // line in first position means the first block has not started, so
+                // cutting there would settle an empty paragraph.
+                if (afterBlankLine in 1 until text.length && lineStart > 0) {
+                    cut = afterBlankLine
+                }
             }
 
             if (lineEnd == text.length) break
