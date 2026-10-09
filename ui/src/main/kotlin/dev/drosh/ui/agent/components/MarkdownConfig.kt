@@ -20,6 +20,8 @@ import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownDimens
 import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
+import dev.drosh.design.system.DroshColors
+import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.LocalDroshColors
 import dev.drosh.design.system.OutfitFontFamily
 
@@ -38,16 +40,7 @@ fun provideMarkdownTheme(content: @Composable () -> Unit) {
     val app = LocalDroshColors.current
     val code = CodeColors
     androidx.compose.runtime.CompositionLocalProvider(
-        LocalMarkdownColors provides remember(app, code) {
-            DroshMarkdownColors(
-                text = app.text,
-                textSecondary = app.textSecondary,
-                primary = app.primary,
-                surfaceVariant = app.surfaceVariant,
-                outline = app.outline,
-                code = code,
-            )
-        },
+        LocalMarkdownColors provides remember(app, code) { DroshMarkdownColors(app, code) },
         LocalMarkdownTypography provides remember { DroshMarkdownTypography() },
         LocalMarkdownDimens provides remember { DroshMarkdownDimens() },
         LocalMarkdownPadding provides remember { DroshMarkdownPadding() },
@@ -55,21 +48,26 @@ fun provideMarkdownTheme(content: @Composable () -> Unit) {
     )
 }
 
+/**
+ * Holds the whole `DroshColors` rather than the five fields it needs.
+ *
+ * Naming the constructor parameters `text`, `primary` and so on would clash with the
+ * interface properties they are meant to implement, and renaming them to dodge that
+ * would leave a constructor that reads as a list of near-identical colours. The
+ * palette object is already a value, and it is stable across a theme change, so it is
+ * what gets remembered.
+ */
 private class DroshMarkdownColors(
-    private val text: Color,
-    private val textSecondary: Color,
-    private val primary: Color,
-    private val surfaceVariant: Color,
-    private val outline: Color,
+    private val app: DroshColors,
     private val code: CodePalette,
 ) : MarkdownColors {
-    override val text: Color get() = text
+    override val text: Color get() = app.text
     override val codeText: Color get() = code.plain
     override val inlineCodeText: Color get() = code.string
-    override val linkText: Color get() = primary
+    override val linkText: Color get() = app.primary
     override val codeBackground: Color get() = code.background
-    override val inlineCodeBackground: Color get() = surfaceVariant
-    override val dividerColor: Color get() = outline
+    override val inlineCodeBackground: Color get() = app.surfaceVariant
+    override val dividerColor: Color get() = app.outline
 }
 
 private class DroshMarkdownTypography : MarkdownTypography {

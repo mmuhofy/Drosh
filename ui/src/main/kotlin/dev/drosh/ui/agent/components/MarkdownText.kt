@@ -50,7 +50,7 @@ fun MarkdownText(
         // keeps streaming, this subtree is skipped rather than recomposed. It is not
         // worth a key() — a key would force the subtree to be rebuilt from scratch
         // every time the cut moves, which is the opposite of the point.
-        Markdown(markdown = split.stable, components = components)
-        Markdown(markdown = split.tail, components = components)
+        Markdown(content = split.stable, components = components)
+        Markdown(content = split.tail, components = components)
     }
 }

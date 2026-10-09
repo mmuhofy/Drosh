@@ -69,10 +69,9 @@ private fun ASTNode.fencedCode(content: String): FencedCode {
 }
 
 private fun ASTNode.findDescendant(type: IElementType): ASTNode? {
-    var current: ASTNode? = this
-    while (current != null) {
-        if (current.type == type) return current
-        current = current.firstChildNode
+    for (child in children) {
+        if (child.type == type) return child
+        child.findDescendant(type)?.let { return it }
     }
     return null
 }
