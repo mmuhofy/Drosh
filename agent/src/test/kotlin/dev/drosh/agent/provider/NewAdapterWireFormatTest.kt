@@ -495,9 +495,10 @@ class NewAdapterWireFormatTest {
         )
         val done = anthropic.parseFrame("""{"type":"content_block_stop","index":0}""")
 
-        assertEquals(0, (start.single() as AnthropicAdapter.Frame.ToolStart).blockIndex)
-        assertEquals("toolu_1", start.id)
-        assertEquals("shell", start.name)
+        val opened = start.single() as AnthropicAdapter.Frame.ToolStart
+        assertEquals(0, opened.blockIndex)
+        assertEquals("toolu_1", opened.id)
+        assertEquals("shell", opened.name)
         assertEquals("""{"a":""", (args.single() as AnthropicAdapter.Frame.ToolArgs).delta)
         assertEquals(0, (done.single() as AnthropicAdapter.Frame.ToolDone).blockIndex)
     }
@@ -580,14 +581,13 @@ class NewAdapterWireFormatTest {
         val frame = responses.parseFrame(
             """{"type":"response.output_item.added","item":{"type":"function_call",""" +
                 """"id":"fc_1","call_id":"call_a","name":"shell"}}""",
-        )
+        ).single() as OpenAiResponsesAdapter.Frame.ToolStart
 
-        val start = frame.single() as OpenAiResponsesAdapter.Frame.ToolStart
         // `item_id` is the stream key, `call_id` is the model-visible id, and
         // they are different values.
-        assertEquals("fc_1", start.itemId)
-        assertEquals("call_a", start.callId)
-        assertEquals("shell", start.name)
+        assertEquals("fc_1", frame.itemId)
+        assertEquals("call_a", frame.callId)
+        assertEquals("shell", frame.name)
     }
 
     @Test
