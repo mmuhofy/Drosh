@@ -85,6 +85,14 @@ class AgentChatViewModel @Inject constructor(
         val models: List<LlmModel> = emptyList(),
         val hasKey: Boolean = false,
         val loadingModels: Boolean = false,
+        /**
+         * Effort stored for this model, or null for the model's own default.
+         *
+         * Carried here so the composer's effort pill can show what is in effect
+         * without the chat screen reading preferences, and so [send] can put it
+         * on the request.
+         */
+        val selectedEffort: String? = null,
         /** Non-null while the key is being written or the models fetched. */
         val error: String? = null,
     )
@@ -207,7 +215,7 @@ class AgentChatViewModel @Inject constructor(
         }
         if (!providerState.hasKey) {
             _providerState.value = providerState.copy(
-                error = "Add your OpenRouter API key before running the agent",
+                error = "Add your ${provider.label} API key before running the agent",
             )
             return
         }
@@ -217,6 +225,9 @@ class AgentChatViewModel @Inject constructor(
             _providerState.value = providerState.copy(error = "Pick a model first")
             return
         }
+        // Read here rather than inside the loop so a change made in Settings
+        // mid-run applies to the next prompt instead of the one in flight.
+        val effort = providerState.selectedEffort
 
         lastPrompt = text
         builder.startRun()
@@ -236,6 +247,7 @@ class AgentChatViewModel @Inject constructor(
                     modelId = model,
                     prompt = text,
                     workingDirectory = _chat.value?.workingDirectory ?: DEFAULT_DIRECTORY,
+                    reasoningEffort = effort,
                 ),
             ).collect { event ->
                 builder.accept(event)
@@ -299,8 +311,15 @@ class AgentChatViewModel @Inject constructor(
 
     fun loadProvider() {
         viewModelScope.launch {
-            val provider = providers.provider(DEFAULT_PROVIDER_ID) ?: run {
-                _providerState.value = _providerState.value.copy(error = "OpenRouter is not configured")
+            // The provider the user chose last, not a hardcoded one. With 225 to
+            // choose from there is no default that is right, and asking on every
+            // chat would make the first prompt of every session a detour through
+            // settings.
+            val providerId = providers.selectedProvider() ?: DEFAULT_PROVIDER_ID
+            val provider = providers.provider(providerId) ?: run {
+                _providerState.value = _providerState.value.copy(
+                    error = "${providerId} could not be loaded — pick a provider in Settings",
+                )
                 return@launch
             }
             val hasKey = providers.credential(provider.id) != null
@@ -357,8 +376,27 @@ class AgentChatViewModel @Inject constructor(
 
     fun selectModel(modelId: String) {
         val provider = _providerState.value.provider ?: return
-        _providerState.value = _providerState.value.copy(selectedModelId = modelId)
-        viewModelScope.launch { providers.setSelectedModel(provider.id, modelId) }
+        _providerState.value = _providerState.value.copy(
+            selectedModelId = modelId,
+            // A different model may offer different effort values, and carrying
+            // the old one forward would show a level the new model rejects.
+            selectedEffort = null,
+        )
+        viewModelScope.launch {
+            providers.setSelectedModel(provider.id, modelId)
+            _providerState.value = _providerState.value.copy(
+                selectedEffort = providers.reasoningEffort(provider.id, modelId),
+            )
+        }
+    }
+
+    /** Choose a reasoning-effort level for the model in use. */
+    fun selectEffort(effort: String?) {
+        val provider = _providerState.value.provider ?: return
+        val model = _providerState.value.selectedModelId
+        if (model.isEmpty()) return
+        _providerState.value = _providerState.value.copy(selectedEffort = effort)
+        viewModelScope.launch { providers.setReasoningEffort(provider.id, model, effort) }
     }
 
     fun dismissError() {

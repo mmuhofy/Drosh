@@ -126,6 +126,10 @@ internal class FakeProviderRepository(
 
     override suspend fun selectedModel(providerId: String): String? = null
 
+    override suspend fun setSelectedProvider(providerId: String) = Unit
+
+    override suspend fun selectedProvider(): String? = null
+
     /** Empty by default: no model declares effort, so the loop asks for none. */
     var effortsByModel: Map<String, List<String>> = emptyMap()
 

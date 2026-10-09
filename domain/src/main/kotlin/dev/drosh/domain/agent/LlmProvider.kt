@@ -2,7 +2,6 @@ package dev.drosh.domain.agent
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.JsonObject
-
 /**
  * A configured LLM endpoint.
  *
@@ -199,12 +198,35 @@ interface LlmProviderRepository {
     suspend fun selectedModel(providerId: String): String?
 
     /**
+     * The provider the user last chose, or null before they choose one.
+     *
+     * Needed now that there are 225: "the provider with a key stored" is no
+     * longer a usable answer, and the chat screen has to know which one to run
+     * without asking every time.
+     */
+    suspend fun setSelectedProvider(providerId: String)
+
+    suspend fun selectedProvider(): String?
+
+    /**
+     * What the catalog fetch is doing.
+     *
+     * Emitted rather than held so the settings screen can render its own empty
+     * state: a first launch has nothing to show until the fetch completes, and a
+     * failed one needs a retry affordance rather than an empty list.
+     */
+    fun observeCatalogState(): Flow<CatalogState>
+
+    /** Re-fetch the catalog, which the settings screen calls on a retry. */
+    suspend fun refreshCatalog()
+
+    /**
      * Reasoning-effort values the selected model actually declares, in catalog
      * order.
      *
      * Empty when the model does no reasoning or the catalog says nothing. The
-     * list is the raw catalog data; [dev.drosh.agent.provider.EffortMapper]
-     * narrows it per protocol, and the settings sheet shows what survives that.
+     * list is the raw catalog data; `ReasoningEffort` narrows it per protocol,
+     * and the settings sheet shows what survives that.
      */
     fun reasoningEfforts(providerId: String, modelId: String): List<String>
 

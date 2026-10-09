@@ -62,7 +62,11 @@ class AgentHomeViewModel @Inject constructor(
     init {
         reconcileStaleStatuses()
         viewModelScope.launch {
-            _hasKey.value = providers.credential(DEFAULT_PROVIDER_ID) != null
+            // Whichever provider was chosen last, not a fixed one. With 225 to
+            // pick from there is no default that is right for everyone, and this
+            // drives whether the "start a chat" affordance is offered at all.
+            val providerId = providers.selectedProvider() ?: DEFAULT_PROVIDER_ID
+            _hasKey.value = providers.credential(providerId) != null
         }
     }
 

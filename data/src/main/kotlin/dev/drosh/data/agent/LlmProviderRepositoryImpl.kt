@@ -202,6 +202,14 @@ class LlmProviderRepositoryImpl @Inject constructor(
         prefs.getString(keyFor(SELECTED_MODEL_SUFFIX + providerId), null)
     }
 
+    override suspend fun setSelectedProvider(providerId: String) = withContext(Dispatchers.IO) {
+        prefs.edit().putString(keyFor(SELECTED_PROVIDER_KEY), providerId).apply()
+    }
+
+    override suspend fun selectedProvider(): String? = withContext(Dispatchers.IO) {
+        prefs.getString(keyFor(SELECTED_PROVIDER_KEY), null)
+    }
+
     /**
      * The effort values this model may be run at.
      *
@@ -214,6 +222,10 @@ class LlmProviderRepositoryImpl @Inject constructor(
         val model = catalog.model(providerId, modelId) ?: return emptyList()
         return ReasoningEffort.allowed(provider, modelId, model.reasoningEfforts)
     }
+
+    override fun observeCatalogState(): Flow<CatalogState> = catalog.state
+
+    override suspend fun refreshCatalog() = catalog.refresh()
 
     override suspend fun setReasoningEffort(providerId: String, modelId: String, effort: String?) {
         withContext(Dispatchers.IO) {
@@ -415,6 +427,9 @@ class LlmProviderRepositoryImpl @Inject constructor(
 
     private companion object {
         const val SELECTED_MODEL_SUFFIX = "model_"
+
+        /** Single key: which of the 225 the user picked last. */
+        const val SELECTED_PROVIDER_KEY = "selected_provider"
 
         /** Every catalog provider lists its models at this path. */
         const val MODELS_PATH = "models"

@@ -141,6 +141,16 @@ sealed interface CatalogState {
 }
 
 /**
+ * Ids that are not rows in the catalog.
+ *
+ * The custom endpoint is stored rather than derived, so the UI needs a stable
+ * name for it that no catalog provider can collide with.
+ */
+object ProviderCatalogIds {
+    const val CUSTOM = "custom"
+}
+
+/**
  * The wire protocol a catalog entry speaks.
  *
  * Derived from the models.dev package name, which is the only field that
