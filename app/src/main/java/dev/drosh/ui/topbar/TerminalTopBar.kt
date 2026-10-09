@@ -108,7 +108,6 @@ private const val COLLAPSED_ROW_OFFSET_DP = 6
  */
 private const val COLLAPSED_GRID_GAP_DP = 2
 
-
 /**
  * How long the row and the terminal's padding take to travel.
  *

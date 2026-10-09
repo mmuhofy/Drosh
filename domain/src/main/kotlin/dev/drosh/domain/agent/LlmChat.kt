@@ -73,6 +73,16 @@ data class LlmRequest(
     val maxOutputTokens: Int? = null,
     /** Sent as a system/developer instruction where the protocol supports it. */
     val systemPrompt: String? = null,
+    /**
+     * Reasoning effort, as the model names it — `low`, `medium`, `high`, …
+     *
+     * Opaque here on purpose. The catalog is the source of truth for which
+     * values a model declares, and each protocol spells them differently on the
+     * wire (`reasoning_effort`, `reasoning.effort`, `output_config.effort`,
+     * `thinkingConfig.thinkingLevel`), so domain stays a plain string and
+     * `EffortMapper` does the translating.
+     */
+    val reasoningEffort: String? = null,
 )
 
 /** Model-facing conversation history. Distinct from [ChatMessage]. */
@@ -102,6 +112,15 @@ data class LlmToolCall(
     val id: String,
     val name: String,
     val arguments: JsonObject,
+    /**
+     * Gemini 3's signature for this call, echoed back on the next request.
+     *
+     * Only Gemini produces one, and only Gemini needs it: the `generateContent`
+     * API has no dedicated thought blocks, so the signature is metadata attached
+     * to a part — commonly the `functionCall` part — and a follow-up request that
+     * omits it is rejected. Everything else leaves this null.
+     */
+    val thoughtSignature: String? = null,
 )
 
 /** A tool declaration as sent to the model. */

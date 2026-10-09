@@ -295,6 +295,15 @@ class AgentLoop @Inject constructor(
                 messages = runtime.snapshot(),
                 tools = tools,
                 systemPrompt = SYSTEM_PROMPT,
+                // Both resolved once per turn rather than inside the adapter:
+                // the catalog is configuration, so neither may block on IO, and
+                // reading them here keeps the adapters free of the repository.
+                //
+                // maxOutputTokens matters beyond politeness — Anthropic's
+                // Messages API rejects a request without max_tokens with a 400
+                // that reads like a malformed body rather than a missing field.
+                maxOutputTokens = providers.outputTokenLimit(provider.id, request.modelId),
+                reasoningEffort = request.reasoningEffort,
             )
 
             adapter.stream(provider, llmRequest, credential).collect { event ->

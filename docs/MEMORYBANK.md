@@ -1421,8 +1421,12 @@ an answer to question 1.
 ## 10. Agent Core
 
 ### Architecture (Phase 6 — implemented)
-Single-provider model (per Muhofy instruction: "endpoint girme, isim girme").
+Multi-provider model over the models.dev catalog (225 providers, 8453 models).
 Port of Iris Code's `OpenAiChatClient` + `OpenAiProviderAdapter`.
+
+The single-provider decision ("endpoint girme, isim girme") is superseded:
+the provider is now chosen from a catalog rather than fixed, but the user is
+never asked for an endpoint — every one of the 225 arrives with its own.
 
 ```
 AgentSession (domain interface)
@@ -1433,32 +1437,89 @@ AgentSession (domain interface)
 ```
 
 ### Provider Configuration
-- `ProviderConfig.baseUrl` (base URL, e.g. `https://openrouter.ai/api/v1`)
-- Chat URL: `"${baseUrl.trimEnd('/')}/chat/completions"`
-- Models URL: `"${baseUrl.trimEnd('/')}/models"` (no auth required on OpenRouter)
-- `isOpenRouter` detected via `baseUrl.contains("openrouter")`
+- Source: models.dev, via `https://models.opencode.ai/api.json` — the same
+  source OpenCode reads. Fetched once, trimmed to the fields Drosh reads,
+  cached in `cacheDir`, re-fetched only on an explicit refresh.
+- Four wire protocols, chosen per provider from its `npm` package:
 
-### OpenRouter Headers
-- `Authorization: Bearer <API_KEY>` (required)
-- `HTTP-Referer: https://github.com/mmuhofy/IrisCode` (recommended for attribution)
-- `X-OpenRouter-Title: Drosh` (app name for rankings)
-- `Content-Type: application/json`
+  | Protocol | Adapter | Providers |
+  |---|---|---|
+  | OpenAI Chat Completions | `OpenAiCompatAdapter` | 207 |
+  | Anthropic Messages | `AnthropicAdapter` | 8 |
+  | Gemini generateContent | `GeminiAdapter` | 1 |
+  | OpenAI Responses | `OpenAiResponsesAdapter` | 6 |
+  | — needs SigV4 or a service-account key | none, shown as unsupported | 3 |
+
+- `api` fields in the catalog are either a plain URL, a `${VAR}` template, or
+  absent. Templates resolve from stored non-secret values; an absent endpoint
+  asks the user for one the way the custom row does. Only the placeholders the
+  catalog names are asked for — nothing is guessed.
+- A custom OpenAI-compatible row covers Ollama, vLLM and anything else.
+
+### Per-provider headers
+- `Authorization: Bearer <API_KEY>` for OpenAI-compatible and Responses
+- `x-api-key` + `anthropic-version: 2023-06-01` for Anthropic — a bearer token
+  there returns a 401 that reads exactly like a wrong key
+- `x-goog-api-key` for Gemini
+- `HTTP-Referer` / `X-Title` for OpenRouter, from provider config
+
+### Model limits
+- The catalog declares `limit.output` per model. `AgentLoop` now fills
+  `LlmRequest.maxOutputTokens` from it, which nothing previously read — and
+  Anthropic's Messages API *requires* `max_tokens`, returning a 400 that reads
+  like a malformed body when it is missing.
 
 ### Request Format
 - System prompt as `role: "system"` message in messages array (NOT `system` field)
-- Body: `{ model, messages, stream: true, tools: [...] }`
+  — for OpenAI-compatible only. Anthropic takes a top-level block array, Gemini
+  a `systemInstruction`, Responses a top-level `instructions` string.
+- Body: `{ model, messages, stream: true, tools: [...] }` plus
+  `stream_options: { include_usage: true }`, without which streaming responses
+  carry no token counts at all.
 - SSE: `[DONE]` → `finish_reason:"stop"` → `StreamEnd`; `:ping` comments ignored
 - `finish_reason:"error"` → `StreamEvent.Error` (not StreamEnd)
+
+### Reasoning Effort
+- The catalog declares `reasoning_options: [{type:"effort", values:[...]}]` per
+  model; that list is the source of truth for what the user may pick.
+- `ReasoningEffort` (`:domain`) narrows it to what the protocol can send, so the
+  selector and the request body cannot disagree.
+- `EffortMapper` (`:agent`) turns the surviving value into wire fields:
+
+  | Protocol | Wire |
+  |---|---|
+  | OpenAI-compatible | `reasoning_effort` |
+  | OpenRouter | `reasoning: {effort}` — rejects the flat spelling |
+  | OpenAI Responses | `reasoning:{effort,summary:"auto"}` + `include` |
+  | Anthropic | `thinking:{type:"adaptive"}` + `output_config:{effort}` |
+  | Gemini | `generationConfig.thinkingConfig.thinkingLevel` |
+
+- Anthropic's `output_config.effort` placement is verified against
+  platform.claude.com; so is Gemini's per-model `minimal` support. OpenAI's
+  acceptance of `"max"` on Responses is marked UNTESTED.
+- Stored per `(providerId, modelId)`, not globally — `high` on a reasoning model
+  and on a small one are not the same choice.
+
+### One payload, several frames
+- Gemini's last chunk holds content, `finishReason` and `usageMetadata` at once;
+  Anthropic's `message_delta` holds `stop_reason` and the final usage together.
+- `parseFrame` returns a list for that reason. Returning one frame per payload
+  dropped the token counts, which is how reasoning counts went missing.
 
 ### Error Handling (per OpenRouter docs)
 - Pre-stream: HTTP 4xx/5xx, body `{"error":{"code":401,"message":"User not found."}}`
 - Mid-stream: 200 OK, SSE `{"error":{...},"choices":[{"finish_reason":"error"}]}`
 - `onFailure`: raw response body passed through; JSON `error` extracted by `parseSseLine`
 
-### Default Provider
-- OpenRouter only: `https://openrouter.ai/api/v1`, model `meta-llama/llama-3-8b-instruct`
-- Plus "Custom" for arbitrary OpenAI-compatible endpoints
-- User enters base URL + API key + fetches models from `/models`
+### Provider Selection
+- No fixed default. The user chooses one of 225 and the choice is remembered.
+- OpenRouter is the starting point only because one key reaches hundreds of
+  models; it is replaced by whatever was chosen last on the first load.
+- Model lists come from the catalog, so they are instant and work offline. The
+  previous `GET /models` per provider is gone from the common path; endpoints
+  that serve their own `/models` can still be asked explicitly.
+- Deprecated and alpha models are filtered out of the picker (282 + 1 of 8453).
+- Reasoned models offer an effort selector; 3949 of 8453 declare one.
 
 ### Tool Set
 | Tool | Description | Mode |

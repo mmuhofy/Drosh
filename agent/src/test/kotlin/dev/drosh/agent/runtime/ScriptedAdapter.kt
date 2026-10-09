@@ -1,5 +1,6 @@
 package dev.drosh.agent.runtime
 
+import dev.drosh.domain.agent.CatalogState
 import dev.drosh.domain.agent.ChatAdapter
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.TranscriptStore
@@ -15,6 +16,7 @@ import dev.drosh.domain.agent.LlmStreamEvent
 import dev.drosh.domain.agent.ProviderKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -115,12 +117,37 @@ internal class FakeProviderRepository(
         key = null
     }
 
+    override suspend fun setConfigValue(providerId: String, key: String, value: String) = Unit
+
+    override suspend fun setCustomBaseUrl(baseUrl: String) = Unit
+
+    /** Loading by default, which is what the repository starts as. */
+    override fun observeCatalogState(): Flow<CatalogState> = flowOf(CatalogState.Loading)
+
+    override suspend fun refreshCatalog() = Unit
+
     override suspend fun fetchModels(providerId: String, forceRefresh: Boolean): List<LlmModel> =
         emptyList()
 
     override suspend fun setSelectedModel(providerId: String, modelId: String) = Unit
 
     override suspend fun selectedModel(providerId: String): String? = null
+
+    override suspend fun setSelectedProvider(providerId: String) = Unit
+
+    override suspend fun selectedProvider(): String? = null
+
+    /** Empty by default: no model declares effort, so the loop asks for none. */
+    var effortsByModel: Map<String, List<String>> = emptyMap()
+
+    override fun reasoningEfforts(providerId: String, modelId: String): List<String> =
+        effortsByModel[modelId].orEmpty()
+
+    override suspend fun setReasoningEffort(providerId: String, modelId: String, effort: String?) = Unit
+
+    override suspend fun reasoningEffort(providerId: String, modelId: String): String? = null
+
+    override fun outputTokenLimit(providerId: String, modelId: String): Int? = 4096
 }
 
 /** Convenience for building tool arguments in tests. */
