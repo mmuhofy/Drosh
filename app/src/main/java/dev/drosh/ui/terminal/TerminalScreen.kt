@@ -104,6 +104,7 @@ import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.terminal.chromeCollapsed
 import dev.drosh.ui.topbar.rememberTerminalTopPadding
 import dev.drosh.ui.topbar.TerminalTopBar
+import dev.drosh.ui.topbar.TOP_BAR_BACKDROP_STRIP
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -152,15 +153,6 @@ private val MENU_MIN_WIDTH = 210.dp
 private val MENU_BLUR = 10.dp
 
 private val MENU_HEIGHT_PX = 64.dp
-
-/**
- * How much of the terminal's top edge the top bar backdrop samples.
- *
- * A pill is as tall as the top bar's row and shows only its own slice of this
- * strip, so anything taller than the row is terminal rendered for nothing — and
- * the capture draws the whole view to make it. It was 72dp against a 44dp row.
- */
-private val BACKDROP_STRIP = 48.dp
 
 @Composable
 fun TerminalScreen(
@@ -511,7 +503,7 @@ private fun ReadyScreen(
     // LazyColumn and the alt buffer is a TUI, neither of which needs this.
     val backdrop by rememberTerminalBackdrop(
         terminalView = terminalViewRef.value,
-        stripHeight = BACKDROP_STRIP,
+        stripHeight = TOP_BAR_BACKDROP_STRIP,
         // Only while the pills float over output. Collapsed they sit in the band
         // the status bar vacated, above the grid, so there is nothing behind them
         // to take — and the capture draws the whole terminal to produce a slice
@@ -1292,14 +1284,13 @@ private fun TerminalPaneBody(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                // The grid's top padding, and it moves with the chrome.
+                // The grid's top padding, and it moves with the chrome — but the two
+                // states are not symmetric. Collapsed, the status bar is gone and
+                // the grid picks up right where the pills end. Expanded, only the
+                // status bar is cleared and the pills float over the output, the
+                // way the prototype does.
                 //
-                // A constant here would be wrong in both directions at once: it
-                // wastes a status bar's height at the prompt, where nothing is
-                // showing, and it lets the first line of output go under the pill
-                // row in the scrollback, where it is.
-                //
-                // It does mean the grid loses a few rows as it grows, and
+                // Collapsed does mean the grid gains a few rows over expanded, and
                 // TerminalView holds the viewport across that resize rather than
                 // dropping it back to the live edge — see `updateSize`.
                 .padding(top = topPadding),

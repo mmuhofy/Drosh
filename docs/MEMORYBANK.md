@@ -325,7 +325,7 @@ platform gotcha that made one direction look impossible.*
 
 **Up in the scrollback** — the viewport has been scrolled back into history, or a
 TUI owns the terminal. The app goes fullscreen (`hide(systemBars())`), the pill
-row's offset is **4dp** — a few dp from the top of the screen, in the space the
+row's offset is **6dp** — a few dp from the top of the screen, in the space the
 status bar vacated — and the grid's top padding shrinks to that band. **At the live
 edge** — the prompt, a session nobody has scrolled, or one that has come back
 after a scroll. Status bar back, pills at `statusBarH + 10dp`, band gone.
@@ -351,19 +351,26 @@ transition per direction. It is hysteresis, not a threshold: a value between the
 two holds whatever the chrome was already doing, and that is what stops a slow
 drag from moving the bar several times.
 
-**The terminal's top padding follows the chrome.** A constant clearance gets both
-states wrong: it wastes the status bar's height where there is no status bar, and
-lets the first line of output go under the row where there is.
-`collapsed = COLLAPSED_ROW_OFFSET + CHROME_CLEARANCE`;
-`expanded = statusBarH + BAR_TOP_OFFSET + CHROME_CLEARANCE`. Same tween as the row,
-so the two cannot drift apart.
+**The terminal's top padding follows the chrome, and the two states are not
+symmetric.** Collapsed, the status bar is gone so its height is free and the grid
+picks up right where the pills end: `CHROME_CLEARANCE` is the row's 44dp plus its
+6dp offset plus a 2dp gap, so the scrollback gets back every line the
+status-bar clearance was taking. Expanded, only the status bar is cleared and the
+pills **float over the output** — they are translucent and blurred, the terminal
+runs on behind them, and the first line is not pushed out of the way. That is what
+the prototype does, and a clearance behind a floating control defeats the point of
+it floating.
 
-**`CHROME_CLEARANCE` is the total, not the gap.** It is 52dp: the row's own 44dp
-plus 8dp. The padding formula must not add `BAR_ROW_HEIGHT` to it, and must not
-`maxOf(statusBarH, ...)` in the collapsed state -- both were done, and both leave
-a clearance-sized hole under the pills while reserving the height of a status bar
-that is not showing. Correctly applied it gives an 8dp gap below the row in *both*
-states, which is the number to check against if this ever moves again.
+`CHROME_CLEARANCE` is a **total**, not a gap, and already contains the row's own
+height. Nothing may add `BAR_ROW_HEIGHT` to it, and the collapsed arm must not
+`maxOf(statusBarH, ...)` — both were done once, and between them they left a
+clearance-sized hole under the pills while reserving the height of a status bar
+that was not showing.
+
+`TOP_BAR_BACKDROP_STRIP` is the row's offset plus its height, because that is
+where the pills sit once they are floating. A pill samples only its own slice, so
+a taller strip is terminal rendered for nothing and the capture draws the whole
+view to make it.
 
 **A fixed grid is not a scrolling document, so the padding change costs a resize.**
 There is only so much room above and below. Every crossing of the live edge
