@@ -323,16 +323,22 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 that it was contradictory; it is not — the mistake was the direction, and the
 platform gotcha that made one direction look impossible.*
 
-**Up in the scrollback** — the viewport has been scrolled back into history, or a
-TUI owns the terminal. The app goes fullscreen (`hide(systemBars())`), the pill
-row's offset is **6dp** — a few dp from the top of the screen, in the space the
-status bar vacated — and the grid's top padding shrinks to that band. **At the live
-edge** — the prompt, a session nobody has scrolled, or one that has come back
-after a scroll. Status bar back, pills at `statusBarH + 10dp`, band gone.
+**Up in the scrollback, or a session nobody has scrolled** — the app goes fullscreen
+(`hide(systemBars())`), the pill row sits **6dp** from the top of the screen inside
+the band the status bar vacated, and the grid's top padding shrinks to that band.
+**At the live edge** — the prompt, once the user has actually scrolled and come
+back. Status bar back, pills at `statusBarH + 10dp`, band gone.
 
 ```
-chromeCollapsed = tuiActive || !chromeIsAtLiveEdge(topRow, was)
+chromeCollapsed = tuiActive || !hasScrolled || !chromeIsAtLiveEdge(topRow, was)
 ```
+
+**A session opens up.** There is nothing to have come back from yet, so
+`hasScrolled` is what tells "just opened" from "sitting at the prompt" — position
+alone cannot, because both sit at row 0. Without it the app opened with the status
+bar showing over a terminal nobody had looked at. A consequence worth naming:
+going up into history and coming back is then **one** change, not two, because the
+trip already starts collapsed.
 
 **Why the cutout is not an obstacle after all.** An earlier removal argued the
 opposite, and the argument was wrong about one thing: `layoutInDisplayCutoutMode`
@@ -343,8 +349,7 @@ hiding the status bar withdraws the permission and letterboxes the window — wh
 is why `offset = 0.dp` appeared not to put anything at the top of the screen. That
 reinterpretation only applies at `targetSdk` 35+, and this project is on 28, so the
 default could not be relied on. `always` is also Google's own guidance for
-anything that transitions in and out of immersive mode, because the default makes
-content jump between the two states.
+anything that transitions in and out of immersive mode.
 
 **The dead zone stays.** `-5` collapses, `-1` expands. One flick up and back is one
 transition per direction. It is hysteresis, not a threshold: a value between the
@@ -354,12 +359,10 @@ drag from moving the bar several times.
 **The terminal's top padding follows the chrome, and the two states are not
 symmetric.** Collapsed, the status bar is gone so its height is free and the grid
 picks up right where the pills end: `CHROME_CLEARANCE` is the row's 44dp plus its
-6dp offset plus a 2dp gap, so the scrollback gets back every line the
-status-bar clearance was taking. Expanded, only the status bar is cleared and the
-pills **float over the output** — they are translucent and blurred, the terminal
-runs on behind them, and the first line is not pushed out of the way. That is what
-the prototype does, and a clearance behind a floating control defeats the point of
-it floating.
+6dp offset plus a 2dp gap. Expanded, only the status bar is cleared and the pills
+**float over the output** — the terminal runs on behind them and the first line is
+not pushed out of the way. A clearance behind a floating control defeats the point
+of it floating.
 
 `CHROME_CLEARANCE` is a **total**, not a gap, and already contains the row's own
 height. Nothing may add `BAR_ROW_HEIGHT` to it, and the collapsed arm must not
@@ -369,8 +372,52 @@ that was not showing.
 
 `TOP_BAR_BACKDROP_STRIP` is the row's offset plus its height, because that is
 where the pills sit once they are floating. A pill samples only its own slice, so
-a taller strip is terminal rendered for nothing and the capture draws the whole
-view to make it.
+a taller strip is terminal rendered for nothing.
+
+**No band, and the pills are glass.** Nothing is painted behind the row. Up, the
+pills have no backdrop at all — `active = !immersive` leaves it null and the slice
+draws nothing — so a pill is only its own tinted surface. Down, the row floats
+over output and the pills are glass: a 34dp blur of the terminal behind them, a
+28% tint over that, and a hairline on two arcs.
+
+Two numbers carry the glass and both were wrong before they were right:
+
+- **The blur is 34dp, not 22dp or 14dp.** At 22 the glyphs behind a button were
+  still legible as shapes, which is the opposite of frosted glass. Past 34dp no
+  text resolves and what shows through is colour and brightness.
+- **The tint is 28%, not 72%.** At 72% three quarters of the pill was a solid
+  surface and only a quarter glass — it read as a grey box. The prototype's own
+  pill is `rgba(255,255,255,.08)`; a pill cannot be both frosted and opaque.
+
+**The capture was sampling the wrong end of the terminal.** `capture()`
+translated the canvas by `-(view.height - h)`, which lands the view's rows
+`[view.height - h, view.height)` in the bitmap — the **bottom** strip, while the
+comment claimed top. Nothing depended on it while the pills sat entirely above the
+grid; the moment they floated over output, the first button was showing the last
+line of the terminal behind it. No translation is what captures the top.
+
+**A stroke on two arcs, not a fourth edge.** `Modifier.liquidGlassEdge` strokes
+180..270 and 0..90 in Compose's angle space — the top-left and bottom-right arcs.
+That is the shape light makes on a curved surface: it catches the crest on one
+side and grazes the trough on the other, and a stroke all the way round is what
+makes a drawn box look drawn. It belongs on the surface that owns the pill, never
+on the pill inside a group, or the pair's seam doubles to 2dp.
+
+**Press is Compose's own ripple**, bounded and clipped to the pill's shape. It
+used to be a 0.88 scale on the icon, which read as the glyph being squashed
+rather than as the control being touched — and it told the thumb where the icon
+was rather than where the button was.
+
+**The pill row is circles, and the pair is one surface.** `PILL_WIDTH` equals
+`BAR_ROW_HEIGHT` at 44dp; a wider pill leaves the icon floating in an oval with
+dead space at both ends. Agent and more are one surface with a hairline between
+them rather than two pills with a gap — two controls a hand's width apart on the
+same side read as unrelated actions, and touching circles read as one group.
+
+**Both clusters are pinned to the row's height.** Two groups in one Row share a
+centre only for as long as they are the same height, so each declares
+`.height(rowHeight)`; that makes it true by construction instead of by whatever
+happened to be inside them.
 
 **A fixed grid is not a scrolling document, so the padding change costs a resize.**
 There is only so much room above and below. Every crossing of the live edge

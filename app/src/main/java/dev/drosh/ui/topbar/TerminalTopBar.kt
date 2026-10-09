@@ -1,13 +1,10 @@
 package dev.drosh.ui.topbar
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -35,16 +32,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.painterResource
 import dev.drosh.R
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.material3.ripple
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -129,9 +129,15 @@ private const val CHROME_COLLAPSE_DELAY_MILLIS = 70
 
 /**
  * Over the blurred slice, so the terminal shows through as a smudge rather
- * than as glyphs. This is the prototype's 0.72.
+ * than as glyphs.
+ *
+ * Deliberately light. At 0.72 this read as a grey box with a hint of terminal in
+ * it, because 72% of the pill's area was a solid surface and only 28% was the
+ * glass the user is supposed to be looking through. The prototype's own pill is
+ * `rgba(255,255,255,0.08)` -- nearly nothing -- because its blur is doing the
+ * work. Here the fill only has to lift the pill off the terminal a little.
  */
-private const val PILL_SURFACE_ALPHA = 0.72f
+private const val PILL_SURFACE_ALPHA = 0.28f
 
 /**
  * The hairline around and between pills. The prototype's `rgba(255,255,255,.14)`.
@@ -145,6 +151,48 @@ private const val PILL_SURFACE_ALPHA = 0.72f
  * than as an edge.
  */
 private val PILL_BORDER = Color.White.copy(alpha = 0.14f)
+
+/**
+ * How thick the glass edge's stroke is.
+ *
+ * A hairline. A full 1dp all the way round is what reads as a drawn box; on the
+ * two arcs that remain, half again is enough to catch the light and no more.
+ */
+private val PILL_EDGE_WIDTH = 0.75.dp
+
+/**
+ * A stroke along two arcs only: the top-left and the bottom-right.
+ *
+ * This is the shape light makes on a curved surface -- it catches the crest on one
+ * side and grazes the trough on the other, and a stroke all the way round is what
+ * makes a drawn box look drawn. Compose's angles start at 3 o'clock and run
+ * clockwise, so those two arcs are 180..270 and 0..90.
+ *
+ * [shape] is not read. The arcs are the ellipse inscribed in the node's bounds,
+ * which is what a circle- or capsule-clipped child wants, and every pill already
+ * clips itself to that same ellipse.
+ */
+private fun Modifier.liquidGlassEdge(strokeWidth: Dp, color: Color = PILL_BORDER): Modifier =
+    this.drawBehind {
+        val stroke = strokeWidth.toPx()
+        if (stroke <= 0f || size.minDimension <= stroke) return@drawBehind
+        // Inset by half the stroke, or the outer half of it falls outside the
+        // bounds and the edge reads as thinner than asked for.
+        val inset = stroke / 2f
+        val arc = Size(size.width - stroke, size.height - stroke)
+        val topLeft = Offset(inset, inset)
+        listOf(180f, 0f).forEach { startAngle ->
+            drawArc(
+                color = color,
+                startAngle = startAngle,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arc,
+                style = Stroke(width = stroke),
+            )
+        }
+    }
 
 /**
  * Where a pill sits inside the sampled terminal strip.
@@ -180,13 +228,15 @@ private const val PILL_WIDTH_DP = 44
 /**
  * How hard the pill's backdrop is blurred.
  *
- * 14dp at 12sp monospace left the output behind a button readable as a light and
- * dark smudge, which is not frosted glass. 22dp takes it past the point where
- * glyphs resolve, so the terminal behind reads as colour and not as text. Applied
- * through Modifier.blur, so this is a real RenderEffect on a real layer, and below
- * API 31 the caller falls back to a plain surface.
+ * 22dp was not enough: the glyphs behind a button were still legible as shapes,
+ * which is the opposite of frosted glass. 34dp takes it past the point where any
+ * text resolves at all, so what shows through is the terminal's colour and
+ * brightness and not its contents.
+ *
+ * Applied through Modifier.blur, so this is a real RenderEffect on a real layer,
+ * and below API 31 the caller falls back to a plain surface.
  */
-private val PILL_BLUR_RADIUS = 22.dp
+private val PILL_BLUR_RADIUS = 34.dp
 
 /**
  * The system status bar's height, whether or not it is currently showing.
@@ -354,7 +404,12 @@ fun TerminalTopBar(
             horizontalArrangement = Arrangement.Start,
         ) {
             // ── Left: sessions button + session name pill ───────────────────
+            // Pinned to [rowHeight] so it cannot settle a different height from
+            // the pair on the other side. Two clusters in one Row share a centre
+            // only for as long as they are the same height; this makes it true by
+            // construction rather than by what happens to be inside them.
             Row(
+                modifier = Modifier.height(rowHeight),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -408,7 +463,7 @@ fun TerminalTopBar(
                     .height(rowHeight)
                     .clip(CircleShape)
                     .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
-                    .border(1.dp, PILL_BORDER, CircleShape),
+                    .liquidGlassEdge(PILL_EDGE_WIDTH),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
             ) {
@@ -646,15 +701,7 @@ private fun GlassPillBody(
     // screen during a scroll. The offset is only needed at draw time, so it is
     // read there instead.
     val slice = remember { PillSlice() }
-    var pressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.88f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
-        label = "pillButtonScale",
-    )
+    val interactionSource = remember { MutableInteractionSource() }
 
     Box(
         modifier = Modifier
@@ -662,16 +709,18 @@ private fun GlassPillBody(
             .height(height)
             .clip(shape)
             .onGloballyPositioned { slice.pillBounds = it.boundsInRoot() }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        tryAwaitRelease()
-                        pressed = false
-                        onClick()
-                    },
-                )
-            },
+            // Compose's own press indication, not a scale on the icon.
+            //
+            // The icon used to shrink to 0.88 on press, which read as the glyph
+            // being squashed rather than as the control being touched -- and it
+            // told the thumb where the icon was but not where the button was.
+            // A bounded ripple growing from the touch point answers for the whole
+            // control, and clipping it to the shape keeps it inside the pill.
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(bounded = true),
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         // Blurred terminal first, then the tint over it, then the icon. The
@@ -693,16 +742,12 @@ private fun GlassPillBody(
                 modifier = Modifier
                     .matchParentSize()
                     .background(DroshSurfaceHigh.copy(alpha = PILL_SURFACE_ALPHA))
-                    .border(1.dp, PILL_BORDER, shape),
+                    // Half a stroke, on the two arcs light would catch.
+                    .liquidGlassEdge(PILL_EDGE_WIDTH),
             )
         }
         Box(
-            modifier = Modifier
-                .size(iconSize)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                },
+            modifier = Modifier.size(iconSize),
             contentAlignment = Alignment.Center,
         ) { content(DroshText) }
     }
