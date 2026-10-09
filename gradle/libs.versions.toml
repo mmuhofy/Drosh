@@ -129,6 +129,7 @@ detekt = "1.23.7"
 [libraries]
 flexmark = { group = "com.vladsch.flexmark", name = "flexmark", version.ref = "flexmark" }
 flexmark-util-ast = { group = "com.vladsch.flexmark", name = "flexmark-util-ast", version.ref = "flexmark" }
+flexmark-ext-tables = { group = "com.vladsch.flexmark", name = "flexmark-ext-tables", version.ref = "flexmark" }
 haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 # AndroidX core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }

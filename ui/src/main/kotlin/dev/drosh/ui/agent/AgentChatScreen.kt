@@ -2065,6 +2065,7 @@ private fun groupTranscript(messages: List<ChatMessage>): List<TranscriptRow> {
  * part of the selected text — a selection that ended at the verb would exclude the
  * space and paste "Ran" where "Ran npm test" was meant.
  */
+@Composable
 private fun toolRowText(
     verb: String,
     summary: String,
@@ -2108,6 +2109,7 @@ private fun toolRowText(
  * against the annotated string's text — which is why the summary is not swept: it
  * would have to share the same coordinate space, and the band is sized to the verb.
  */
+@Composable
 private fun sweepingBrush(progress: Float, length: Int): Brush {
     val band = (length * 0.4f).coerceAtLeast(1f)
     val x = (length + band) * progress - band

@@ -583,37 +583,15 @@ private val _isAtLiveEdge = MutableStateFlow(true)
      */
     val isAtLiveEdge: StateFlow<Boolean> = _isAtLiveEdge.asStateFlow()
 
-private val _hasScrolled = MutableStateFlow(false)
-
-    /**
-     * Whether the user has moved this terminal's viewport at all since the
-     * session it is showing was attached.
-     *
-     * The top chrome's first state is **a terminal nobody has touched**: status
-     * bar hidden, pills in the space it left, terminal full. That is not a
-     * scroll position and cannot be expressed as one, because a freshly opened
-     * terminal sits at the live edge exactly like a busy one does. Position
-     * alone cannot tell "just opened, first screen" from "sitting at the
-     * prompt", so the distinction has to be its own piece of state.
-     *
-     * Cleared by [resetViewportState] wherever the session on screen is
-     * replaced — a switch, a new session, a restart, another pane taking focus.
-     * One-way: the first scroll of a session is the moment it stops being "new",
-     * and nothing in the app should make that untrue.
-     */
-    val hasScrolled: StateFlow<Boolean> = _hasScrolled.asStateFlow()
-
     /**
      * Back to "a terminal nobody has touched".
      *
      * Called wherever the focused pane's contents are replaced rather than
-     * scrolled. Also puts the live edge back to true so the two flags cannot
-     * disagree: a new session is at its live edge by definition, and leaving the
-     * old answer in place would let a stale `isAtLiveEdge = false` reach the
-     * chrome before the next scroll event corrects it.
+     * scrolled. A new session is at its live edge by definition, and leaving a
+     * stale `isAtLiveEdge = false` in place would let the wrong chrome reach the
+     * screen before the next scroll event corrects it.
      */
     private fun resetViewportState() {
-        _hasScrolled.value = false
         _scrollTopRow.value = 0
         _isAtLiveEdge.value = true
     }
@@ -865,21 +843,6 @@ private val _hasScrolled = MutableStateFlow(false)
                 _scrollTopRow.value = topRow
                 val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
                 if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
-                // "Has been touched" means **has left the first screen**, not
-                // "moved at all".
-                //
-                // Setting it on the first row put the two thresholds a row apart:
-                // one flick up turned the status bar on, and the fifth row turned
-                // it off again — both inside a single gesture, which is the
-                // flapping. Gating it on the same threshold the live-edge flag
-                // uses means one direction change is one transition.
-                //
-                // Safe to read off this callback even though it also runs on
-                // every chunk of PTY output: `onScreenUpdated` snaps `mTopRow`
-                // back to the live edge before reporting, so `atEdge` is true for
-                // anything it fires and the shell's own output can never answer
-                // this with yes.
-                if (!atEdge) _hasScrolled.value = true
             }
         }
         bindSelectionMenu(view, slot)
@@ -1499,15 +1462,15 @@ private val _hasScrolled = MutableStateFlow(false)
 }
 
 /**
- * How far the viewport must move past the live edge before the chrome gives way.
+ * How far the viewport must move past the live edge before the chrome expands.
  *
  * In rows, not pixels: the emulator scrolls a row at a time, and a row is the
  * smallest thing the user can actually look at.
  */
-private const val CHROME_COLLAPSE_ROWS = -5
+private const val CHROME_EXPAND_ROWS = -5
 
-/** How close to the live edge the viewport has to come for the chrome to return. */
-private const val CHROME_EXPAND_ROWS = -1
+/** How close to the live edge the viewport has to come for the chrome to collapse. */
+private const val CHROME_COLLAPSE_ROWS = -1
 
 /**
  * Whether the viewport counts as "at the live edge" for the top chrome.
@@ -1535,9 +1498,40 @@ private const val CHROME_EXPAND_ROWS = -1
 internal fun chromeIsAtLiveEdge(topRow: Int, wasAtLiveEdge: Boolean): Boolean = when {
     // Deep enough into the scrollback to be reading history rather than nudging
     // the viewport by a line.
-    topRow <= CHROME_COLLAPSE_ROWS -> false
+    topRow <= CHROME_EXPAND_ROWS -> false
     // Back at the live edge, or the row above it.
-    topRow >= CHROME_EXPAND_ROWS -> true
+    topRow >= CHROME_COLLAPSE_ROWS -> true
     // Between the two: hold still.
     else -> wasAtLiveEdge
 }
+
+/**
+ * Whether the top chrome is collapsed: the system status bar hidden and the pill
+ * row flush with the top of the screen, in the space it vacated.
+ *
+ * The whole rule. The top chrome has exactly two positions:
+ *
+ *  - **Top state** — the live edge. That covers the prompt, a session that has
+ *    only just opened, and a session nobody has scrolled: all three sit at
+ *    `topRow == 0`. Here the user is typing or about to, not reading, the system
+ *    bars are hidden, and the pill row's offset is **0**.
+ *  - **Scrolled state** — anywhere in the scrollback. Here they are reading older
+ *    output, which is the one moment they reach for the top of the screen, so the
+ *    status bar comes back and the row drops to `statusBarH + 10dp`.
+ *
+ * A TUI (nano, vim, htop) draws fullscreen and has no scrollback to read, so it
+ * is always the top state. Stated rather than left to fall out of the arm it
+ * happens in, because it is also the case where a clock over somebody else's
+ * fullscreen interface is most in the way.
+ *
+ * @param topRow the focused terminal's first visible row.
+ * @param wasAtLiveEdge the hysteresis input [chromeIsAtLiveEdge] resolves from.
+ * @param tuiActive the focused pane is showing the alternate screen buffer.
+ * @param autoHideStatusBar the user's setting. Off pins the whole arrangement.
+ */
+fun chromeCollapsed(
+    topRow: Int,
+    wasAtLiveEdge: Boolean,
+    tuiActive: Boolean,
+    autoHideStatusBar: Boolean,
+): Boolean = autoHideStatusBar && (tuiActive || chromeIsAtLiveEdge(topRow, wasAtLiveEdge))

@@ -67,6 +67,8 @@ dependencies {
     // Kotlin toolchain; the AST is rendered by MarkdownText in this module.
     implementation(libs.flexmark)
     implementation(libs.flexmark.util.ast)
+    // Tables are a separate extension in flexmark, not part of the core parser.
+    implementation(libs.flexmark.ext.tables)
 
     // coroutines
     implementation(libs.kotlinx.coroutines.android)

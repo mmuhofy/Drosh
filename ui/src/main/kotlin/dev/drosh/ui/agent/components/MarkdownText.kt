@@ -37,8 +37,12 @@ import com.vladsch.flexmark.ext.tables.TableBlock
 import com.vladsch.flexmark.ext.tables.TableCell
 import com.vladsch.flexmark.ext.tables.TableHead
 import com.vladsch.flexmark.ext.tables.TableRow
+import com.vladsch.flexmark.ext.tables.Extensions
 import com.vladsch.flexmark.parser.Parser
 import com.vladsch.flexmark.util.ast.Node as FlexNode
+import dev.drosh.design.system.DroshOutline
+import dev.drosh.design.system.DroshPrimary
+import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
@@ -94,28 +98,23 @@ fun MarkdownText(
     }
 }
 
-/** Parsed once, outside composition. flexmark is not cheap enough to run per frame. */
-private fun parse(markdown: String): List<FlexNode> = runCatching {
-    Parser.builder(
-        com.vladsch.flexmark.parser.Parser.ParserConfiguration.builder()
-            .build(),
-    ).build()
-        .parse(markdown)
-        .children()
-        .toList()
-}.getOrElse { emptyList() }
-
 /**
- * Parse, or hand back the raw text when the document does not parse.
+ * The parser, built once.
  *
- * The distinction matters to the caller only in that a fallback is rendered as a
- * single plain paragraph, so it reads as text rather than as an empty reply.
+ * flexmark's parser holds the extension registry and the parse state, and building
+ * one per composition would re-register the table extension on every frame of a
+ * streaming answer. `Parser` is documented as thread-safe for parsing once built, so
+ * a single shared instance is correct here.
+ *
+ * `Extensions.TABLES` is what makes a pipe table a table. Without it a table parses
+ * as a paragraph of literal `|` characters, which is worse than not supporting them:
+ * it looks like the renderer failed rather than like the syntax being off.
  */
-internal fun parseOrNull(markdown: String): List<FlexNode>? = runCatching {
-    Parser.builder(
-        com.vladsch.flexmark.parser.Parser.ParserConfiguration.builder().build(),
-    ).build().parse(markdown).children().toList()
-}.getOrNull()
+private val parser: Parser = Parser.builder(Extensions.TABLES).build()
+
+/** Parsed outside composition — flexmark is not cheap enough to run per frame. */
+private fun parse(markdown: String): List<FlexNode> =
+    runCatching { parser.parse(markdown).children.toList() }.getOrElse { emptyList() }
 
 @Composable
 private fun MarkdownBlocks(
@@ -163,7 +162,7 @@ private fun MarkdownBlock(
         is com.vladsch.flexmark.ast.Text -> {
             // Bare text under a heading or a list item: render it rather than drop it.
             InlineText(
-                annotated = AnnotatedString(node.literal.orEmpty()),
+                annotated = AnnotatedString(node.literal?.toString().orEmpty()),
                 modifier = Modifier.padding(start = (indent * 12).dp),
             )
         }
@@ -196,7 +195,7 @@ private fun MarkdownBlock(
                         .size(width = 2.dp, height = 1.dp),
                 )
                 MarkdownBlocks(
-                    nodes = node.children().toList(),
+                    nodes = node.children.toList(),
                     indent = 0,
                     onCopy = onCopy,
                     onShare = onShare,
@@ -216,10 +215,10 @@ private fun MarkdownBlock(
 
         // Anything the AST has that this does not handle renders its text, so an
         // unsupported element shows its content rather than vanishing.
-        else -> node.children().toList().takeIf { it.isNotEmpty() }?.let { children ->
+        else -> node.children.toList().takeIf { it.isNotEmpty() }?.let { children ->
             MarkdownBlocks(children, indent, onCopy, onShare)
         } ?: InlineText(
-            annotated = AnnotatedString(node.literal.orEmpty()),
+            annotated = AnnotatedString(node.literal?.toString().orEmpty()),
             modifier = Modifier.padding(start = (indent * 12).dp),
         )
     }
@@ -237,7 +236,7 @@ private fun MarkdownList(
         modifier = Modifier.padding(start = (indent * 12).dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        node.children().toList().forEachIndexed { index, item ->
+        node.children.toList().forEachIndexed { index, item ->
             Row {
                 Text(
                     text = if (ordered) "${index + 1}." else "•",
@@ -269,11 +268,11 @@ private fun MarkdownTable(node: TableBlock, onCopy: (String) -> Unit) {
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
-        node.children().toList().filterIsInstance<TableRow>().forEach { row ->
+        node.children.toList().filterIsInstance<TableRow>().forEach { row ->
             val header = row.parent is TableHead
             Row {
                 row.children().toList().filterIsInstance<TableCell>().forEach { cell ->
-                    val text = cell.children().joinToString("") { it.literal.orEmpty() }
+                    val text = cell.children().joinToString("") { it.literal?.toString().orEmpty() }
                     Text(
                         text = text,
                         fontSize = 12.sp,
@@ -297,7 +296,7 @@ private fun CodeBlockView(
     val language = SyntaxLanguages.resolve(
         (node as? com.vladsch.flexmark.ast.FencedCodeBlock)?.info?.toString(),
     )
-    val raw = node.children().joinToString("\n") { it.literal.orEmpty() }
+    val raw = node.children().joinToString("\n") { it.literal?.toString().orEmpty() }
     val highlighted = remember(raw, language) {
         SyntaxHighlighter(language, palette).highlight(raw)
     }
@@ -404,12 +403,12 @@ private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
                             ),
                         ),
                     )
-                    append(child.literal.orEmpty())
+                    append(child.literal?.toString().orEmpty())
                     pop()
 
                 is com.vladsch.flexmark.ast.AutoLink ->
                     pushStyle(emphasis.merge(SpanStyle(color = DroshPrimary)))
-                    append(child.children().joinToString("") { it.literal.orEmpty() })
+                    append(child.children().joinToString("") { it.literal?.toString().orEmpty() })
                     pop()
 
                 is com.vladsch.flexmark.ast.Link ->
@@ -421,12 +420,12 @@ private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
                             ),
                         ),
                     )
-                    child.children().toList().forEach { append(it.literal.orEmpty()) }
+                    child.children.toList().forEach { append(it.literal?.toString().orEmpty()) }
                     pop()
 
                 is com.vladsch.flexmark.ast.Text -> {
                     pushStyle(emphasis)
-                    append(child.literal.orEmpty())
+                    append(child.literal?.toString().orEmpty())
                     pop()
                 }
 
