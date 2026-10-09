@@ -37,7 +37,7 @@ import com.vladsch.flexmark.ext.tables.TableBlock
 import com.vladsch.flexmark.ext.tables.TableCell
 import com.vladsch.flexmark.ext.tables.TableHead
 import com.vladsch.flexmark.ext.tables.TableRow
-import com.vladsch.flexmark.ext.tables.Extensions
+import com.vladsch.flexmark.ext.tables.TablesExtension
 import com.vladsch.flexmark.parser.Parser
 import com.vladsch.flexmark.util.ast.Node as FlexNode
 import dev.drosh.design.system.DroshOutline
@@ -110,7 +110,7 @@ fun MarkdownText(
  * as a paragraph of literal `|` characters, which is worse than not supporting them:
  * it looks like the renderer failed rather than like the syntax being off.
  */
-private val parser: Parser = Parser.builder(Extensions.TABLES).build()
+private val parser: Parser = Parser.builder(TablesExtension()).build()
 
 /** Parsed outside composition — flexmark is not cheap enough to run per frame. */
 private fun parse(markdown: String): List<FlexNode> =
@@ -159,10 +159,12 @@ private fun MarkdownBlock(
             Spacer(Modifier.size(2.dp))
         }
 
+        // Bare text under a heading or a list item. `ast.Text` is not a Node — it
+        // implements TextContainer and carries no literal of its own — so its text is
+        // reached through its children, which is where flexmark puts the segments.
         is com.vladsch.flexmark.ast.Text -> {
-            // Bare text under a heading or a list item: render it rather than drop it.
             InlineText(
-                annotated = AnnotatedString(node.literal?.toString().orEmpty()),
+                annotated = inlineText(node),
                 modifier = Modifier.padding(start = (indent * 12).dp),
             )
         }
@@ -218,7 +220,7 @@ private fun MarkdownBlock(
         else -> node.children.toList().takeIf { it.isNotEmpty() }?.let { children ->
             MarkdownBlocks(children, indent, onCopy, onShare)
         } ?: InlineText(
-            annotated = AnnotatedString(node.literal?.toString().orEmpty()),
+            annotated = inlineText(node),
             modifier = Modifier.padding(start = (indent * 12).dp),
         )
     }
@@ -271,8 +273,8 @@ private fun MarkdownTable(node: TableBlock, onCopy: (String) -> Unit) {
         node.children.toList().filterIsInstance<TableRow>().forEach { row ->
             val header = row.parent is TableHead
             Row {
-                row.children().toList().filterIsInstance<TableCell>().forEach { cell ->
-                    val text = cell.children().joinToString("") { it.literal?.toString().orEmpty() }
+                row.children.toList().filterIsInstance<TableCell>().forEach { cell ->
+                    val text = cell.children.joinToString("") { it.literal?.toString().orEmpty() }
                     Text(
                         text = text,
                         fontSize = 12.sp,
@@ -296,7 +298,7 @@ private fun CodeBlockView(
     val language = SyntaxLanguages.resolve(
         (node as? com.vladsch.flexmark.ast.FencedCodeBlock)?.info?.toString(),
     )
-    val raw = node.children().joinToString("\n") { it.literal?.toString().orEmpty() }
+    val raw = node.children.joinToString("\n") { it.literal?.toString().orEmpty() }
     val highlighted = remember(raw, language) {
         SyntaxHighlighter(language, palette).highlight(raw)
     }
@@ -375,7 +377,7 @@ private fun InlineText(
  */
 private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
     fun walk(current: FlexNode, emphasis: SpanStyle) {
-        current.children().toList().forEach { child ->
+        current.children.toList().forEach { child ->
             when (child) {
                 is com.vladsch.flexmark.ast.Emphasis ->
                     walk(
@@ -408,7 +410,7 @@ private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
 
                 is com.vladsch.flexmark.ast.AutoLink ->
                     pushStyle(emphasis.merge(SpanStyle(color = DroshPrimary)))
-                    append(child.children().joinToString("") { it.literal?.toString().orEmpty() })
+                    append(child.children.joinToString("") { it.literal?.toString().orEmpty() })
                     pop()
 
                 is com.vladsch.flexmark.ast.Link ->
@@ -437,7 +439,7 @@ private fun inlineText(node: FlexNode): AnnotatedString = buildAnnotatedString {
                     // paragraph look like a line break.
                     if (child.literal != null) {
                         pushStyle(emphasis)
-                        append(child.literal)
+                        append(child.literal.toString())
                         pop()
                     } else {
                         walk(child, emphasis)
