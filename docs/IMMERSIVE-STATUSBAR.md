@@ -24,11 +24,27 @@ Terminoloji — bu ikisi karıştırılırsa konuşma bozuluyor:
 
 ## 2. Davranış
 
-| Durum | `mTopRow` | Sistem status bar | Drosh düğmeleri |
-|---|---|---|---|
-| Canlı kenar — prompt'tayız | `== 0` | **gizli** | yukarıda, status bar bandında |
-| Geçmişte — scrollback'teyiz | `< 0` | **görünür** | normal yerinde |
-| TUI app açık | — | **gizli** (daima) | yukarıda |
+| Durum | `mTopRow` | Sistem status bar | Drosh düğmeleri | Izgara boşluğu |
+|---|---|---|---|---|
+| **Canlı kenar** — prompt'tayız, yeni oturum, hiç kaydırılmamış | `== 0` | **gizli** | **y=0**, status bar bandında | `statusBarH` |
+| **Geçmişte** — scrollback'teyiz | `< 0` | **görünür** | `statusBarH + 10dp` | `statusBarH + 10 + 44 + 4` |
+| TUI app açık | — | **gizli** (daima) | y=0 | `statusBarH` |
+
+Kural:
+
+```
+chromeCollapsed = autoHideStatusBar && (tuiActive || chromeIsAtLiveEdge(topRow, was))
+```
+
+Yön önemli: **yazarken** saat aramazsın, **geçmişten okurken** ararsın. Bar tam da
+gereksiz olduğu anda kaybolur. Önceki sürümde yön tersiydi ve belirtisi, prompt'un
+üstünde sürekli duran bir saat oldu.
+
+Yeni oturumun kendi bayrağı yok: `mTopRow == 0`'da zaten duruyor, pozisyon tek
+başına doğru cevabı veriyor. `hasScrolled` bu yüzden silindi.
+
+**Ölü bölge kaldı**: `-5`'te açılır, `-1`'de kapanır. Tek seferde bir yukarı bir
+aşağı hareket, satır başına değil yön başına bir değişim demek.
 
 ### Karartı yok
 
@@ -84,13 +100,38 @@ Bugün **hiçbir şey** scroll pozisyonunu Compose'a taşımıyor. Gerekli olan:
 
 ### Kaydırma
 
-`TerminalScreen.kt:588` zaten bir `Box` overlay'i. `graphicsLayer { translationY }`
-ile `-statusBarH` kadar kaydırılır, ~280ms. Repo'daki `sidebarPush` deseni.
+Satırın `offset`'i collapsed'da **0**, expanded'da `statusBarH + 10dp`; ikisi de
+220ms, yukarı giderken 70ms gecikmeli. Izgaranın üst boşluğu da **aynı tween**
+üzerinde (`rememberTerminalTopPadding`), yoksa hareketin iki yarısı ayrışır.
+
+### Izgara boşluğu neden sabit değil
+
+Sabit bir açıklık her iki durumda da yanlış: prompt'tayken bir status bar
+yüksekliği boşa gider, scrollback'teyken ilk satır düğmelerin altında kalır.
+
+Sabit ızgara bir web sayfası değildir: yukarısı ve aşağısı arasında sınırlı yer
+vardır. Yani canlı kenardan her geçişte satır sayısı değişir, PTY'ye SIGWINCH
+gider, shell prompt'unu yeniden çizer. Ayakta tutan iki şey var:
+
+- `updateSize` `mTopRow`'u sıfırlamak yerine **clamp** eder.
+- `onScreenUpdated`, bir resize'dan sonra `RESIZE_GRACE_MILLIS` (400ms) içinde
+  gelen çıktıyı shell'in cevabı sayar, viewport'u canlı kenara çekmez.
+
+### Bant rengi
+
+`DroshPalette.BACKGROUND_HEX` (`:core`) — tek kaynak. Ayarların varsayılanı ve
+ekranın ilk kare tohumu da onu okur. Depoda `#000000`, ekranda `#0B0B0F` yazıyordu;
+ikisi de ne uygulamanın arka planı ne de terminalin kendi varsayılanı. Hex
+literal burada, palet ya da terminalin varsayılanı bir gün değiştiğinde bandın
+geride kalacağı anlamına gelir.
 
 ### Dokunulmayacaklar
 
-Terminalin ölçüsü değişmez. `imePadding`, `FlatKeyBar`, TUI yolundaki
-`padding(top = 0)` farkı — hiçbiri bu özellikle ilgili değil, **ayrı bir iş**.
+Terminalin ölçüsü, `imePadding`, `FlatKeyBar`, TUI yolundaki `padding(top = 0)`
+farkı — hiçbiri bu özellikle ilgili değil, **ayrı bir iş**.
+
+`BEHAVIOR_DEFAULT` korunuyor. Düğmeler ekranın en üstünde, tam da Android'in kenar
+hareketinin olduğu yerde.
 
 ---
 

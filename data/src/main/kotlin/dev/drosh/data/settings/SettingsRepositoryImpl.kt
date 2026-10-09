@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import dev.drosh.core.DroshPalette
 import dev.drosh.core.TerminalConstants
 import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.settings.AboutInfo
@@ -194,7 +195,15 @@ class SettingsRepositoryImpl @Inject constructor(
         const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = true
         const val DEFAULT_AUTO_HIDE_STATUS_BAR   = true
         const val DEFAULT_FONT_SIZE_SP           = 14
-        const val DEFAULT_TERMINAL_BG_COLOR      = "#000000"
+        /**
+         * The palette's own background, not a literal.
+         *
+         * It was `#000000`, which is neither the app's background nor the
+         * terminal's fallback palette entry — so on a fresh install the strip
+         * above the grid was painted one colour and the grid another, and the
+         * join between them read as a band.
+         */
+        val DEFAULT_TERMINAL_BG_COLOR           = DroshPalette.BACKGROUND_HEX
         const val DEFAULT_ACCENT_COLOR           = "#3B82F6"
         const val DEFAULT_TERMINAL_TEXT_COLOR    = "#E8E8E8"
         const val DEFAULT_PROOT_START_COMMAND    = ""

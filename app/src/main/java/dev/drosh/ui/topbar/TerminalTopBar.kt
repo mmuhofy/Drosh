@@ -125,6 +125,58 @@ private const val CHROME_COLLAPSE_DELAY_MILLIS = 70
 private const val PILL_SURFACE_ALPHA = 0.72f
 
 /**
+ * The system status bar's height, whether or not it is currently showing.
+ *
+ * Deliberately the visibility-agnostic inset. `statusBars` is zero the moment
+ * the bar hides, and this row's state changes on scroll, so reading that one here
+ * would fling the row downward exactly as it is meant to be moving up.
+ *
+ * One function for both the row and the terminal's padding: they are two halves
+ * of the same movement and must agree about where the status bar ends.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun statusBarHeight(): Dp =
+    WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
+
+/**
+ * The terminal's top padding, in step with the row.
+ *
+ * It moves with the chrome because it has to. The row's offset is not a
+ * decoration over the output — in the scrolled state it drops below the status
+ * bar and would otherwise sit on the first line of output, which is the exact
+ * bug a constant clearance hides:
+ *
+ *  - **Top state** — the pills are at offset 0 and the status bar is gone, so the
+ *    grid starts where the status bar used to end and the row sits above it in
+ *    the vacated band. Never less than the row's own height, on a device whose
+ *    status bar is shorter than the buttons replacing it.
+ *  - **Scrolled state** — the pills are at `statusBarH + 10dp`, so the grid has
+ *    to clear that offset and the row itself, or the first line goes under them.
+ *
+ * Derived from the same constants the row uses rather than a second set, and on
+ * the same tween, so the grid cannot end up out of step with the control it is
+ * making room for.
+ */
+@Composable
+fun rememberTerminalTopPadding(collapsed: Boolean): Dp {
+    val statusBarH = statusBarHeight()
+    val target = if (collapsed) {
+        maxOf(statusBarH, BAR_ROW_HEIGHT + CHROME_CLEARANCE)
+    } else {
+        statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + CHROME_CLEARANCE
+    }
+    return animateDpAsState(
+        targetValue = target,
+        animationSpec = tween<Dp>(
+            durationMillis = CHROME_ANIMATION_MILLIS,
+            delayMillis = if (collapsed) CHROME_COLLAPSE_DELAY_MILLIS else 0,
+        ),
+        label = "terminalTopPadding",
+    ).value
+}
+
+/**
  * Where a pill sits inside the sampled terminal strip.
  *
  * A plain mutable holder on purpose. This is written during layout and read
@@ -206,12 +258,7 @@ fun TerminalTopBar(
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
 
-// Deliberately the visibility-agnostic inset. `statusBars` is zero while the
-    // bar is hidden, and this bar's state changes on scroll, so reading it here
-    // would fling the row downward the moment the row is meant to be moving up.
-    val statusBarH = WindowInsets.statusBarsIgnoringVisibility
-        .asPaddingValues()
-        .calculateTopPadding()
+    val statusBarH = statusBarHeight()
 
     // One spec for the row and the band, so they cannot be caught disagreeing.
     val chromeTween = tween<Dp>(

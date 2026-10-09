@@ -46,4 +46,16 @@ object DroshPalette {
 
     /** [value] narrowed to the Int that `Paint.color` and friends want. */
     fun argb(value: Long): Int = value.toInt()
+
+    /**
+     * [BACKGROUND] as the `#RRGGBB` string the terminal's colour properties read.
+     *
+     * The terminal takes its background as a hex string — `TerminalColors.parse`
+     * will not take an Int, and a translucent value would throw rather than
+     * parse — so the number has to be spelled for it. Spelling it here means the
+     * surfaces that paint *behind* the terminal and the terminal's own grid are
+     * reading the same value rather than two literals that happen to agree
+     * today.
+     */
+    val BACKGROUND_HEX: String = "#%06X".format(BACKGROUND and 0xFFFFFF)
 }
