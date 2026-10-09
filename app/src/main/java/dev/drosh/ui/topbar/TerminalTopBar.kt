@@ -82,6 +82,12 @@ private const val BAR_BOTTOM_OFFSET_DP = 6
 val CHROME_CLEARANCE = 52.dp
 
 /**
+ * Over the blurred slice, so the terminal shows through as a smudge rather
+ * than as glyphs. This is the prototype's 0.72.
+ */
+private const val PILL_SURFACE_ALPHA = 0.72f
+
+/**
  * Where a pill sits inside the sampled terminal strip.
  *
  * A plain mutable holder on purpose. This is written during layout and read

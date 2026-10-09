@@ -101,6 +101,7 @@ import dev.drosh.ui.topbar.SelectionMenuSurface
 import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
 import dev.drosh.ui.topbar.SelectionMenuRow
+import dev.drosh.ui.topbar.CHROME_CLEARANCE
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
 import androidx.core.view.WindowCompat
