@@ -325,8 +325,8 @@ platform gotcha that made one direction look impossible.*
 
 **Up in the scrollback** — the viewport has been scrolled back into history, or a
 TUI owns the terminal. The app goes fullscreen (`hide(systemBars())`), the pill
-row's offset is **0** — flush with the top of the screen, in the space the status
-bar vacated — and the grid's top padding shrinks to that band. **At the live
+row's offset is **4dp** — a few dp from the top of the screen, in the space the
+status bar vacated — and the grid's top padding shrinks to that band. **At the live
 edge** — the prompt, a session nobody has scrolled, or one that has come back
 after a scroll. Status bar back, pills at `statusBarH + 10dp`, band gone.
 
@@ -352,11 +352,18 @@ two holds whatever the chrome was already doing, and that is what stops a slow
 drag from moving the bar several times.
 
 **The terminal's top padding follows the chrome.** A constant clearance gets both
-states wrong at once — it wastes the status bar's height where nothing is showing,
-and lets the first line of output go under the row where it is. `chromeCollapsed`
-= `max(statusBarH, BAR_ROW_HEIGHT + CHROME_CLEARANCE)`; expanded = the row's own
-offset plus its height plus the clearance. Same tween as the row, so the two
-cannot drift apart.
+states wrong: it wastes the status bar's height where there is no status bar, and
+lets the first line of output go under the row where there is.
+`collapsed = COLLAPSED_ROW_OFFSET + CHROME_CLEARANCE`;
+`expanded = statusBarH + BAR_TOP_OFFSET + CHROME_CLEARANCE`. Same tween as the row,
+so the two cannot drift apart.
+
+**`CHROME_CLEARANCE` is the total, not the gap.** It is 52dp: the row's own 44dp
+plus 8dp. The padding formula must not add `BAR_ROW_HEIGHT` to it, and must not
+`maxOf(statusBarH, ...)` in the collapsed state -- both were done, and both leave
+a clearance-sized hole under the pills while reserving the height of a status bar
+that is not showing. Correctly applied it gives an 8dp gap below the row in *both*
+states, which is the number to check against if this ever moves again.
 
 **A fixed grid is not a scrolling document, so the padding change costs a resize.**
 There is only so much room above and below. Every crossing of the live edge

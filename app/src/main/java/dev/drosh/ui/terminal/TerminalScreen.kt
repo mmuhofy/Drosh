@@ -102,7 +102,6 @@ import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
 import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.terminal.chromeCollapsed
-import dev.drosh.ui.topbar.CHROME_CLEARANCE
 import dev.drosh.ui.topbar.rememberTerminalTopPadding
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
@@ -154,8 +153,14 @@ private val MENU_BLUR = 10.dp
 
 private val MENU_HEIGHT_PX = 64.dp
 
-/** How much of the terminal's top edge the top bar backdrop samples. */
-private val BACKDROP_STRIP = 72.dp
+/**
+ * How much of the terminal's top edge the top bar backdrop samples.
+ *
+ * A pill is as tall as the top bar's row and shows only its own slice of this
+ * strip, so anything taller than the row is terminal rendered for nothing — and
+ * the capture draws the whole view to make it. It was 72dp against a 44dp row.
+ */
+private val BACKDROP_STRIP = 48.dp
 
 @Composable
 fun TerminalScreen(
