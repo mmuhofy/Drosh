@@ -1,5 +1,6 @@
 package dev.drosh.data.agent
 
+import dev.drosh.domain.agent.CatalogModel
 import dev.drosh.domain.agent.CatalogProvider
 import dev.drosh.domain.agent.ModelStatus
 import kotlinx.serialization.builtins.ListSerializer
@@ -158,6 +159,52 @@ class ProviderCatalogSourceTest {
         val provider = source.fold(document).single()
 
         assertEquals(listOf("CLOUDFLARE_ACCOUNT_ID"), provider.configKeys)
+    }
+
+    @Test
+    fun `an endpoint resolves from the values it names and nothing else`() {
+        val provider = CatalogProvider(
+            id = "cf",
+            label = "Cloudflare",
+            apiTemplate = "https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID_PLACEHOLDER/ai/v1"
+                .replace("ACCOUNT_ID_PLACEHOLDER", "\${CLOUDFLARE_ACCOUNT_ID}"),
+            models = mapOf("m" to CatalogModel(id = "m", label = "M")),
+        )
+
+        assertEquals(
+            "https://api.cloudflare.com/client/v4/accounts/abc123/ai/v1",
+            provider.resolveEndpoint(mapOf("CLOUDFLARE_ACCOUNT_ID" to "abc123")),
+        )
+    }
+
+    @Test
+    fun `a missing value leaves the placeholder rather than a broken url`() {
+        // The caller treats a surviving `${...}` as "not configured", which is
+        // the difference between asking for a value and sending a URL with a
+        // variable name inside it.
+        val provider = CatalogProvider(
+            id = "cf",
+            label = "Cloudflare",
+            apiTemplate = "https://x.test/accounts/\${MISSING}/v1",
+            models = mapOf("m" to CatalogModel(id = "m", label = "M")),
+        )
+
+        val resolved = provider.resolveEndpoint(emptyMap())
+
+        assertEquals("https://x.test/accounts/\${MISSING}/v1", resolved)
+        assertTrue(resolved!!.contains("\${"))
+    }
+
+    @Test
+    fun `an endpoint with no placeholders is returned unchanged`() {
+        val provider = CatalogProvider(
+            id = "x",
+            label = "X",
+            apiTemplate = "https://x.test/v1",
+            models = mapOf("m" to CatalogModel(id = "m", label = "M")),
+        )
+
+        assertEquals("https://x.test/v1", provider.resolveEndpoint(emptyMap()))
     }
 
     @Test

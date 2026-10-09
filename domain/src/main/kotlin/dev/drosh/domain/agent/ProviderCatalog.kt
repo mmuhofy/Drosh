@@ -34,7 +34,7 @@ import kotlinx.serialization.Serializable
  * generated `serializer()` reach for a class's companion object, and anything
  * narrower than public on it breaks a caller in another module.
  */
-private val ENDPOINT_PLACEHOLDER = Regex("""\$\{([A-Z0-9_]+)}""")
+val ENDPOINT_PLACEHOLDER = Regex("""[$][{]([A-Z0-9_]+)[}]""")
 
 @Serializable
 data class CatalogProvider(
@@ -85,6 +85,22 @@ data class CatalogProvider(
             .map { it.groupValues[1] }
             .distinct()
             .toList()
+
+    /**
+     * The template with [values] substituted, still containing `${...}` for any
+     * key that is missing.
+     *
+     * Shared with the data layer, which resolves an endpoint from stored
+     * config values. Written as one function because two regexes that must
+     * agree is exactly the kind of duplication that let a crash reach a device
+     * while the tests stayed green.
+     */
+    fun resolveEndpoint(values: Map<String, String>): String? {
+        val template = apiTemplate ?: return null
+        return ENDPOINT_PLACEHOLDER.replace(template) { match ->
+            values[match.groupValues[1]].orEmpty()
+        }
+    }
 
     /** True when this provider cannot be used at all. */
     val isUnsupported: Boolean get() = unsupportedReason != null

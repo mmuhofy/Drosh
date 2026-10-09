@@ -327,12 +327,15 @@ class LlmProviderRepositoryImpl @Inject constructor(
         fields: List<ConfigField>,
     ): String? {
         val values = fields.associate { it.key to it.value }
+
+        // A provider with no catalog endpoint asks for one rather than having a
+        // template resolved.
         val template = catalogProvider.apiTemplate?.takeIf { it.isNotBlank() }
             ?: return values[BASE_URL_KEY]?.takeIf { it.isNotBlank() }
 
-        return PLACEHOLDER.replace(template) { match ->
-            values[match.groupValues[1]].orEmpty()
-        }.takeIf { it.isNotBlank() && !it.contains(UNRESOLVED_MARKER) }
+        return catalogProvider.copy(apiTemplate = template)
+            .resolveEndpoint(values)
+            ?.takeIf { it.isNotBlank() && !it.contains(UNRESOLVED_MARKER) }
     }
 
     /** Why the endpoint is unusable, or null when it is fine. */
@@ -444,8 +447,6 @@ class LlmProviderRepositoryImpl @Inject constructor(
 
         /** What an unresolved `${VAR}` leaves behind. */
         const val UNRESOLVED_MARKER = "\${"
-
-        val PLACEHOLDER = Regex("""\$\{([A-Z0-9_]+)}""")
 
         /** `CLOUDFLARE_ACCOUNT_ID` → "Cloudflare Account Id". */
         fun labelForKey(key: String): String = key.split('_')
