@@ -1,153 +1,74 @@
-# Immersive Status Bar Sistemi
+# Immersive Status Bar — kaldırıldı
 
-> Durum: **onaylandı, uygulanacak.** Muhofy ile netleştirildi.
-> Prototip: `docs/statusbar-immersive-prototype.html` (tarayıcıda açılıp denenebilir)
-> Karar tarihi: 2026-09-30
-
----
-
-## 1. Ne yapıyor
-
-Terminal canlı kenardayken (prompt görünürken) Android'in **sistem status bar'ı**
-gizleniyor. Boşalan banda Drosh'un kendi üst bar düğmeleri geçiyor. Scrollback'e
-girilince (geçmiş çıktı okunurken) sistem status bar'ı geri geliyor, düğmeler
-normal yerine iniyor.
-
-Terminoloji — bu ikisi karıştırılırsa konuşma bozuluyor:
-
-| Terim | Ne |
-|---|---|
-| **Sistem status bar** | Android'e ait üst bant: saat, pil, bildirim ikonları |
-| **Drosh üst bar** | `TerminalTopBar.kt`: `☰ [oturum adı] [agent] [klavye] ⋮` |
+> Durum: **kapsandı, tamamen kaldırıldı.** Muhofy ile netleştirildi (2026-10-09).
+> Prototip: `docs/statusbar-immersive-prototype.html` — artık geçerli değil.
+> Üç ayrı deneme, üçü de cihazda yanlış bulundu; sonunda özellik tamamen çıkarıldı.
 
 ---
 
-## 2. Davranış
+## 1. Sonuç
 
-| Durum | `mTopRow` | Sistem status bar | Drosh düğmeleri | Izgara boşluğu |
-|---|---|---|---|---|
-| **Canlı kenar** — prompt'tayız, yeni oturum, hiç kaydırılmamış | `== 0` | **gizli** | **y=0**, status bar bandında | `statusBarH` |
-| **Geçmişte** — scrollback'teyiz | `< 0` | **görünür** | `statusBarH + 10dp` | `statusBarH + 10 + 44 + 4` |
-| TUI app açık | — | **gizli** (daima) | y=0 | `statusBarH` |
+**Özellik yok.** Sistem status bar'ı her zaman görünür. Üst bar sabit bir konumda,
+`CHROME_CLEARANCE` (52dp) boşluğunun altında. Scroll sinyali, durum, ayar, tümü
+kaldırıldı. Prototipin canlı kenar/scrollback ayrımı ve `translationY` geçişleri
+uygulanmadı.
 
-Kural:
+Neden: aşağıda.
 
-```
-chromeCollapsed = autoHideStatusBar && (tuiActive || chromeIsAtLiveEdge(topRow, was))
+## 2. Neden bırakıldı
+
+İstenen "pills, status bar'ın boşalttığı bandın içinde, ekranın en üstünde" ile
+gerçekte ulaşılabilen olan çelişiyordu.
+
+**Cutout.** Telefonda çentik varken, `status bar` gizlenince Android pencereyi
+`layoutInDisplayCutoutMode = DEFAULT` ile letterbox'luyor. AOSP kaynağı
+(`frameworks/base/core/java/android/view/WindowLayout.java`) yalnızca status bar
+*görünür isteniyorsa* cutout'a uzanmaya izin veriyor:
+
+```java
+final Insets systemBarsInsets =
+    state.calculateInsets(displayFrame, systemBars(), requestedVisibleTypes);
+if (systemBarsInsets.top >= cutout.getSafeInsetTop()) {
+    displayCutoutSafeExceptMaybeBars.top = MIN_Y;
+}
 ```
 
-Yön önemli: **yazarken** saat aramazsın, **geçmişten okurken** ararsın. Bar tam da
-gereksiz olduğu anda kaybolur. Önceki sürümde yön tersiydi ve belirtisi, prompt'un
-üstünde sürekli duran bir saat oldu.
+Yani `offset = 0.dp` yazmak yeterli değildi — pencere zaten cutout'un altından
+başlıyordu. Android SDK-35'te `DEFAULT` → `ALWAYS` olarak yorumlandığı için
+modern cihazlarda bu çalışır, ama bu proje **`targetSdk = 28`**
+(`DroshBuildConfig.kt:16`), o yorumdan yararlanmıyor.
 
-Yeni oturumun kendi bayrağı yok: `mTopRow == 0`'da zaten duruyor, pozisyon tek
-başına doğru cevabı veriyor. `hasScrolled` bu yüzden silindi.
+Google'ın kendi uyarısı:
 
-**Ölü bölge kaldı**: `-5`'te açılır, `-1`'de kapanır. Tek seferde bir yukarı bir
-aşağı hareket, satır başına değil yön başına bir değişim demek.
+> *"Use `always`, `shortEdges` or `never` cutout modes if your app needs to
+> transition into and out of immersive mode. Default cutout behavior can cause
+> content in your app to render in the cutout area while the system bars are
+> present, but not while in immersive mode. This results in the content moving up
+> and down during transitions."*
 
-### Karartı yok
+**Yön.** Dokümanlar da prototipin biri de "canlı kenar = fullscreen" derken
+diğeri "scrollback = fullscreen" diyordu (`docs/statusbar-immersive-prototype.html`
+`.dbar` dönüşü, `html/topbar_scroll_prototype.html` `scrollTop < 8` dönüşü). Kod da
+sırayla iki yönü de denedi. Sunulan davranışın hangisi doğruydu cihazda belli oluyor
+du, ve üçü de reddedildi.
 
-Üzerine **hiçbir şey çizilmiyor**. Scrim, gradyan, karartı — hiçbiri yok. Sistem
-barı gerçekten gizleniyor, düğmeler boşalan banda `translateY` ile gidiyor. Bu
-bir katmanlama değil, sadece yer değiştirme.
+**Maliyet.** Bir sabit ızgara bir web sayfası değildir: üst boşluk değişince satır
+sayısı değişir, PTY'ye SIGWINCH gider, shell prompt'unu yeniden çizer. Padding'in
+animasyonu bu durumu üç katına çıkarıyordu.
 
----
+## 3. Şimdi ne var
 
-## 3. Neden bu yön
+- Sistem status bar'ı her zaman görünür.
+- `TerminalTopBar` sabit konumda; `CHROME_CLEARANCE` (52dp) hem bar hem ızgara
+  için tek sayı. (`TerminalTopBar.kt`, `TerminalScreen.kt`)
+- `TerminalTopBar`'ın `chromeCollapsed` / `collapsedBandColor` parametreleri,
+  `collapse` animasyonları, bant kutusu — yok.
+- `TerminalManager`'daki `scrollTopRow`, `isAtLiveEdge`, `hasScrolled`,
+  `chromeIsAtLiveEdge` — yok. `TerminalView.onScrollPositionChanged` — yok.
+- Ayarlardaki `autoHideStatusBar` anahtarı — yok.
+- `ChromeScrollTest.kt` — silindi.
+- Bant yok. Pill'ler terminalin kendi arka planı üzerinde şeffaf; backdrop
+  `TerminalBackdropSlice` ile terminalden örneklenip bulanıklaşıyor.
 
-İlk tasarımda çubuk **geçmişe girerken** gizleniyordu. Bu yön ters çevrildi ve
-tersi daha iyi:
-
-Sen **yazarken** kontrol aramıyorsun — ama geçmişe kaydığında elinden çıkıyor.
-Yeni yönde çubuk tam da ihtiyaç duyulmadığı anda kayboluyor. Kontrol asla tam da
-gerektiği anda erişilemez olmuyor.
-
----
-
-## 4. Ölü bölge
-
-`mTopRow` tam sayı ve `0`'ın altında her negatif değer "geçmişteyiz" demek. Yani
-sınır zaten keskin; ayrıca eşik gerekmiyor.
-
-Ama son satırları okurken bir piksel oynanmasın diye ölü bölge opsiyonel:
-prototipte 0 / 24 / 80 px seçeneği var. Karar cihazda verilecek.
-
----
-
-## 5. TUI
-
-TUI tam ekran çizer, kaydırılacak geçmiş yoktur. Bu yüzden her zaman canlı kenar
-sayılır → status bar gizli kalır. Ekstra kod gerekmiyor, davranış kendiliğinden
-doğru çıkıyor. Prototipte "TUI app açık" senaryosu bunu gösteriyor.
-
----
-
-## 6. Teknik
-
-### Scroll sinyali
-
-Bugün **hiçbir şey** scroll pozisyonunu Compose'a taşımıyor. Gerekli olan:
-
-- `TerminalView.kt` → `var onScrollPositionChanged: ((Int) -> Unit)?`
-  `doScroll` (L568) ve `onScreenUpdated` (L466) içinden çağrılır.
-  `searchHighlightOverlay` (L135) için konmuş callback ile **birebir aynı desen** —
-  o dosya zaten yerel değişiklik taşıyor, fork riski düşük.
-- `TerminalManager` → `MutableStateFlow<Int>`, `mTopRow`'u yayınlar.
-  `onTextChanged` (L169-175) **tetikleyici olarak kullanılmaz**: o yalnızca PTY'den
-  yeni çıktı geldiğinde çalışır, kullanıcı boş shell'de scroll ederken hiç
-  tetiklenmez — yani tam da gereken anda çalışmazdı.
-
-### Kaydırma
-
-Satırın `offset`'i collapsed'da **0**, expanded'da `statusBarH + 10dp`; ikisi de
-220ms, yukarı giderken 70ms gecikmeli. Izgaranın üst boşluğu da **aynı tween**
-üzerinde (`rememberTerminalTopPadding`), yoksa hareketin iki yarısı ayrışır.
-
-### Izgara boşluğu neden sabit değil
-
-Sabit bir açıklık her iki durumda da yanlış: prompt'tayken bir status bar
-yüksekliği boşa gider, scrollback'teyken ilk satır düğmelerin altında kalır.
-
-Sabit ızgara bir web sayfası değildir: yukarısı ve aşağısı arasında sınırlı yer
-vardır. Yani canlı kenardan her geçişte satır sayısı değişir, PTY'ye SIGWINCH
-gider, shell prompt'unu yeniden çizer. Ayakta tutan iki şey var:
-
-- `updateSize` `mTopRow`'u sıfırlamak yerine **clamp** eder.
-- `onScreenUpdated`, bir resize'dan sonra `RESIZE_GRACE_MILLIS` (400ms) içinde
-  gelen çıktıyı shell'in cevabı sayar, viewport'u canlı kenara çekmez.
-
-### Bant rengi
-
-`DroshPalette.BACKGROUND_HEX` (`:core`) — tek kaynak. Ayarların varsayılanı ve
-ekranın ilk kare tohumu da onu okur. Depoda `#000000`, ekranda `#0B0B0F` yazıyordu;
-ikisi de ne uygulamanın arka planı ne de terminalin kendi varsayılanı. Hex
-literal burada, palet ya da terminalin varsayılanı bir gün değiştiğinde bandın
-geride kalacağı anlamına gelir.
-
-### Dokunulmayacaklar
-
-Terminalin ölçüsü, `imePadding`, `FlatKeyBar`, TUI yolundaki `padding(top = 0)`
-farkı — hiçbiri bu özellikle ilgili değil, **ayrı bir iş**.
-
-`BEHAVIOR_DEFAULT` korunuyor. Düğmeler ekranın en üstünde, tam da Android'in kenar
-hareketinin olduğu yerde.
-
----
-
-## 7. Ayarlar
-
-`autoHideStatusBar: Boolean` → ayarların **Terminal** bölümüne bir anahtar.
-Kapalıyken hiçbir şey değişmez, bar sabit kalır.
-
----
-
-## 8. Üst bar görsel dili (ayrı karar)
-
-Prototipteki tasarım beğenildi, uygulamaya aynen uygulanacak:
-
-- **Bar zemin yok** — şeffaf, sadece düğmeler
-- **Düğmeler en üstte değil, biraz aşağıda** — böylece terminalin ilk satırı
-  okunaklı kalıyor, düğmeler ilk satırın üstüne binmiyor
-- **Düğmeler daha oval** — pill biçimi belirgin
-- **Düğmeler arkadaki içeriğe göre blur** — aşağıdaki engele bak
+Tekrar açılması gerekirse: `layoutInDisplayCutoutMode=always` zorunlu, `targetSdk`
+sorusu netleşmeli, ve cutout inset'iyle birlikte tek bir yönde karar verilmeli.

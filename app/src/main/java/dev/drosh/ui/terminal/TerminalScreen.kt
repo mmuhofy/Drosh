@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxWidth
 import dev.drosh.ui.keyboard.droshImePadding
 import androidx.compose.foundation.layout.offset
@@ -53,7 +52,6 @@ import dev.drosh.ui.LocalDroshActivity
 import dev.drosh.domain.UrlDetector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
-import dev.drosh.core.DroshPalette
 import dev.drosh.core.copyToClipboard
 import dev.drosh.core.shareText
 import androidx.compose.ui.unit.IntSize
@@ -104,8 +102,6 @@ import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
 import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.ui.topbar.TerminalTopBar
-import dev.drosh.ui.topbar.rememberTerminalTopPadding
-import dev.drosh.terminal.chromeCollapsed
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -287,81 +283,27 @@ private fun ReadyScreen(
         if (secondary !in liveSessionIds) paneLayoutViewModel.closeSplit()
     }
 
-    // Haze is gone. It records Compose's own draw commands, and the terminal is
-    // a View inside an AndroidView, so it is not in the display list Haze sees
-    // and the blur over the top bar had nothing to sample. The backdrop is
-    // taken from the view directly now — see TerminalBackdrop.kt.
-    //
+    // Root-space bounds of the focused pane's terminal view, so the top bar can
+    // find the slice of it that sits behind a pill. Only the focused pane reports:
+    // the bar samples one terminal to blur behind itself, and there is no
+    // sensible answer while two are on screen.
     var terminalBounds by remember { mutableStateOf<Rect?>(null) }
 
-    // The band above the grid, in the terminal's own background. Without it the
-    // gap showed the app background and read as a black bar sitting on top of
-    // the output; with it there is no seam at all.
+    // ── The top bar: one constant inset, for both chrome states ───────────────
     //
-    // Both the seed and the fallback come from `DroshPalette`, not from a hex
-    // literal. The seed matters as much as the fallback: a band painted from a
-    // first-frame placeholder and a grid painted from the real setting disagree
-    // for exactly as long as the setting takes to arrive, which is the seam.
-    val terminalBg by settingsRepository.terminalBgColor
-        .collectAsStateWithLifecycle(initialValue = DroshPalette.BACKGROUND_HEX)
-    val terminalBgColor = remember(terminalBg) {
-        runCatching { Color(android.graphics.Color.parseColor(terminalBg)) }
-            .getOrDefault(Color(DroshPalette.argb(DroshPalette.BACKGROUND)))
-    }
-    // ── Chrome: fullscreen at the live edge, normal in the scrollback ─────────
+    // A constant clearance, shared by the bar and the grid. Deliberately NOT a
+    // function of what is showing at the top of the screen: an inset that tracked
+    // the status bar resized the grid on every change, and resizing re-wraps every
+    // line of output. A number that never moves also means nothing is ever hidden
+    // behind a control.
     //
-    // Two positions, and nothing else moves between them:
-    //
-    //  - **Collapsed / top state** — at the live edge. That covers the prompt, a
-    //    session that has just opened, and one nobody has scrolled: all three sit
-    //    at the same row. The app goes fullscreen, the pill row's offset is **0**
-    //    — flush with the top of the screen, in the space the status bar vacated
-    //    — and the area behind it takes the terminal's own background.
-    //  - **Expanded / scrolled state** — anywhere in the scrollback. The status
-    //    bar is back, the pills drop below it to `statusBarH + 10dp`, and the
-    //    grid pads itself clear so the first line is not under them.
-    //
-    // A TUI takes the collapsed state unconditionally: nano, vim and htop own the
-    // whole screen and have no scrollback to read.
-    val topRow by terminalManager.scrollTopRow.collectAsStateWithLifecycle()
-    val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
-    val tuiActive by terminalManager.focusedPaneAltBuffer
-        .collectAsStateWithLifecycle()
+    // The system status bar is always showing, and the pills sit just below it,
+    // floating over this inset — which is the point of them floating. There is no
+    // band: the terminal's own colour comes from the terminal itself, painted
+    // behind the grid, so the top of the screen continues into the terminal
+    // rather than being banded off from it.
+    val terminalTopPadding = CHROME_CLEARANCE
 
-    // Off pins the whole arrangement: the bar stays where it is and the pills
-    // never travel. Nothing else about the rule changes with it.
-    val autoHideStatusBar by settingsRepository.autoHideStatusBar
-        .collectAsStateWithLifecycle(initialValue = true)
-
-    // Named `immersive` rather than `chromeCollapsed` so the call reads as a
-    // call: a local of the same name would shadow the function it is calling.
-    //
-    // `atLiveEdge` is passed back in as the hysteresis input, which is
-    // idempotent: resolving a value that `chromeIsAtLiveEdge` already resolved
-    // gives the same answer.
-    val immersive = chromeCollapsed(topRow, atLiveEdge, tuiActive, autoHideStatusBar)
-
-    // The grid's own top padding follows the row, on the same tween. See
-    // `rememberTerminalTopPadding` for why it cannot be a constant.
-    val terminalTopPadding = rememberTerminalTopPadding(immersive)
-
-    val activity = LocalDroshActivity.current
-    LaunchedEffect(immersive) {
-        val window = (activity as? android.app.Activity)?.window ?: return@LaunchedEffect
-        val controller = WindowInsetsControllerCompat(window, window.decorView)
-        // BEHAVIOR_DEFAULT, not BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE. The pills
-        // live at the very top of the screen — which is where Android's edge
-        // gesture lives — and the transient behaviour reveals the bars *over the
-        // app* and then times itself out, which on a slow upward scroll meant the
-        // system drawing a status bar across the row over and over. With this one,
-        // a deliberate top-edge swipe brings the bars back for good.
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-        if (immersive) {
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-        } else {
-            controller.show(WindowInsetsCompat.Type.systemBars())
-        }
-    }
     var sidebarOpen by remember { mutableStateOf(false) }
     val sidebarPush = rememberSidebarPushState(sidebarOpen)
     var browserUrl by remember { mutableStateOf<String?>(null) }
@@ -528,22 +470,12 @@ private fun ReadyScreen(
             ?.hasPrimaryClip() == true
     }
 
-
     // Only the classic path has a View to sample; the block engine is a
     // LazyColumn and the alt buffer is a TUI, neither of which needs this.
-    //
-    // Sampling is for when the pills float over output, which is the expanded
-    // state only. Collapsed they sit on the opaque band instead, so there is
-    // nothing behind them to take — and the capture draws the whole terminal, so
-    // asking for it anyway is a full extra render per interval for a slice that
-    // is never drawn.
     val backdrop by rememberTerminalBackdrop(
         terminalView = terminalViewRef.value,
         stripHeight = BACKDROP_STRIP,
-        // Only while the pills float over output. Collapsed they sit on the
-        // terminal's own background, and the capture draws the whole terminal to
-        // produce a slice nothing shows.
-        active = !immersive,
+        active = true,
     )
 
     val searchOverlayRef = remember {
@@ -763,7 +695,6 @@ private fun ReadyScreen(
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
                     useBlockEngine = useBlockEngine,
-                    terminalBgColor = terminalBgColor,
                     topPadding = terminalTopPadding,
                     inputBarState = inputBarState,
                     motdMode = motdMode,
@@ -791,7 +722,6 @@ private fun ReadyScreen(
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
                     useBlockEngine = useBlockEngine,
-                    terminalBgColor = terminalBgColor,
                     topPadding = terminalTopPadding,
                     inputBarState = inputBarState,
                     motdMode = motdMode,
@@ -894,10 +824,6 @@ private fun ReadyScreen(
 
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(
-                chromeCollapsed = immersive,
-                // The terminal's background, so the band above the grid is the
-                // same colour as the grid and there is no edge between them.
-                collapsedBandColor = terminalBgColor,
                 backdrop = backdrop,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
@@ -1291,14 +1217,7 @@ private fun TerminalPaneBody(
     inputBarViewModel: InputBarViewModel,
     extraKeyState: dev.drosh.terminal.ExtraKeyState?,
     useBlockEngine: Boolean,
-    terminalBgColor: Color,
-    /**
-     * The grid's top padding, already animated in step with the pill row.
-     *
-     * Passed in rather than derived here because it is a property of the screen,
-     * not of a pane: both panes share one status bar and one row, and a pane that
-     * computed its own would answer a moment later than the row it is clearing.
-     */
+    /** The top bar's height plus a gap: the terminal's constant top inset. */
     topPadding: Dp,
     inputBarState: dev.drosh.ui.input.InputBarUiState,
     motdMode: MotdMode,
@@ -1325,17 +1244,20 @@ private fun TerminalPaneBody(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                // The grid's top padding, and it moves with the chrome.
+                // One inset, constant, for both chrome states.
                 //
-                // Constant on purpose in the top state, where the pills are at
-                // offset 0 and clearing the status bar's height clears them too.
-                // Not constant in the scrolled state: the pills drop below the
-                // status bar there, and a clearance that does not move with them
-                // puts the first line of output underneath.
+                // Collapsed, the app goes fullscreen and the pills sit at the
+                // very top of the screen, so the terminal starts just below
+                // them and no output is ever hidden behind them. Expanded, the
+                // pills drop below the status bar and float over this grid —
+                // which is the point of them floating.
                 //
-                // It does mean the grid loses a few rows as it grows, and
-                // TerminalView holds the viewport across that resize rather than
-                // dropping it back to the live edge — see `updateSize`.
+                // Constant on purpose. The inset is the collapsed chrome's
+                // height and nothing else, so it is not a function of whether
+                // the status bar is showing. Making it track that resized the
+                // grid on every crossing of the boundary and re-wrapped every
+                // line of output with it, which is a far worse trade than the
+                // top row sitting under a control in one state.
                 .padding(top = topPadding),
         ) {
 

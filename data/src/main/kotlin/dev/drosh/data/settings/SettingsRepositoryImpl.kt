@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import dev.drosh.core.DroshPalette
 import dev.drosh.core.TerminalConstants
 import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.settings.AboutInfo
@@ -65,15 +64,6 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setExtraKeysBarVisible(visible: Boolean) {
         dataStore.edit { prefs -> prefs[KEY_EXTRA_KEYS_BAR_VISIBLE] = visible }
-    }
-
-    // ── Immersive status bar ───────────────────────────────────────────────────
-
-    override val autoHideStatusBar: Flow<Boolean> =
-        dataStore.data.map { prefs -> prefs[KEY_AUTO_HIDE_STATUS_BAR] ?: DEFAULT_AUTO_HIDE_STATUS_BAR }
-
-    override suspend fun setAutoHideStatusBar(enabled: Boolean) {
-        dataStore.edit { prefs -> prefs[KEY_AUTO_HIDE_STATUS_BAR] = enabled }
     }
 
     // ── Font Size ─────────────────────────────────────────────────────────────
@@ -187,7 +177,6 @@ class SettingsRepositoryImpl @Inject constructor(
         val KEY_FONT_PACK              = stringPreferencesKey("font_pack")
         val KEY_USE_BLOCK_ENGINE        = booleanPreferencesKey("use_block_engine")
         val KEY_EXTRA_KEYS_BAR_VISIBLE  = booleanPreferencesKey("extra_keys_bar_visible")
-        val KEY_AUTO_HIDE_STATUS_BAR    = booleanPreferencesKey("auto_hide_status_bar")
         val KEY_FONT_SIZE_SP            = intPreferencesKey("font_size_sp")
         val KEY_TERMINAL_BG_COLOR       = stringPreferencesKey("terminal_bg_color")
         val KEY_ACCENT_COLOR            = stringPreferencesKey("accent_color")
@@ -202,17 +191,8 @@ class SettingsRepositoryImpl @Inject constructor(
 
         const val DEFAULT_USE_BLOCK_ENGINE       = false
         const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = true
-        const val DEFAULT_AUTO_HIDE_STATUS_BAR   = true
         const val DEFAULT_FONT_SIZE_SP           = 14
-        /**
-         * The palette's own background, not a literal.
-         *
-         * It was `#000000`, which is neither the app's background nor the
-         * terminal's fallback palette entry — so on a fresh install the strip
-         * above the grid was painted one colour and the grid another, and the
-         * join between them read as a band.
-         */
-        val DEFAULT_TERMINAL_BG_COLOR           = DroshPalette.BACKGROUND_HEX
+        const val DEFAULT_TERMINAL_BG_COLOR      = "#000000"
         const val DEFAULT_ACCENT_COLOR           = "#3B82F6"
         const val DEFAULT_TERMINAL_TEXT_COLOR    = "#E8E8E8"
         const val DEFAULT_PROOT_START_COMMAND    = ""

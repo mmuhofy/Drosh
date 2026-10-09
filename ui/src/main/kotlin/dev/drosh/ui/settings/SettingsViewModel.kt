@@ -65,9 +65,6 @@ class SettingsViewModel @Inject constructor(
     val extraKeysBarVisible: StateFlow<Boolean> = settings.extraKeysBarVisible
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    val autoHideStatusBar: StateFlow<Boolean> = settings.autoHideStatusBar
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
-
     // ── Font size ─────────────────────────────────────────────────────────────
 
     val fontSizeSp: StateFlow<Int> = settings.fontSizeSp
@@ -112,10 +109,6 @@ class SettingsViewModel @Inject constructor(
 
     fun setExtraKeysBarVisible(visible: Boolean) {
         viewModelScope.launch { settings.setExtraKeysBarVisible(visible) }
-    }
-
-    fun setAutoHideStatusBar(enabled: Boolean) {
-        viewModelScope.launch { settings.setAutoHideStatusBar(enabled) }
     }
 
     fun setFontSize(size: Int) {

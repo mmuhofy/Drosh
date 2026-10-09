@@ -42,18 +42,6 @@ interface SettingsRepository {
     /** Persists the extra-keys bar visibility flag. */
     suspend fun setExtraKeysBarVisible(visible: Boolean)
 
-    /**
-     * Hot stream of the immersive status bar flag. Emits true on first launch.
-     *
-     * On: the system status bar is hidden while the terminal sits at its live
-     * edge, and the pill row moves up into the space it left. Off: the bar is
-     * always shown and the row never moves.
-     */
-    val autoHideStatusBar: Flow<Boolean>
-
-    /** Persists the immersive status bar flag. */
-    suspend fun setAutoHideStatusBar(enabled: Boolean)
-
     /** Hot stream of the font size in sp. Emits 14 on first launch. */
     val fontSizeSp: Flow<Int>
 

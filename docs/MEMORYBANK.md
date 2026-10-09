@@ -317,106 +317,34 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 
 ## 7. Terminal Core
 
-### Two chrome states, and the band is the terminal's own colour
+### One top bar position, and no band
 
-*Decided 2026-10-09. Replaces the always-fullscreen attempt of 2026-10-08, and
-the three band/colours that preceded both.*
+*Settled 2026-10-09, reversing three attempts at an immersive status bar.*
 
-**Collapsed — the top state.** The live edge: the prompt, a session that has just
-opened, a session nobody has scrolled, or a TUI. The app goes fullscreen
-(`hide(systemBars())`), the pill row's offset is **0** — flush with the top of the
-screen, in the space the status bar vacated — and the area behind it is painted
-in the terminal's own background. **Expanded — the scrolled state.** Anywhere in
-the scrollback: status bar back, pills at `statusBarH + 10dp`, band gone.
+The top chrome has **one position**. The system status bar is always showing, and
+the pill row sits below it with a constant clearance above it. There is no
+immersive state, no scroll signal, and nothing to configure.
 
-```
-chromeCollapsed = autoHideStatusBar && (tuiActive || chromeIsAtLiveEdge(topRow, was))
-```
+**Why it was abandoned.** The feature was asked for three separate times and each
+implementation was reported wrong. What was being asked for was a contradiction:
+the pills were to sit *in the status bar's band*, flush with the very top of the
+screen, while the status bar was hidden — and on a phone with a display cutout
+that is not reachable at all. Android letterboxes a window with
+`layoutInDisplayCutoutMode = DEFAULT` as soon as the system bars are hidden, which
+pushes the whole top of the app down; the SDK-35 reinterpretation of `DEFAULT` as
+`ALWAYS` does not apply at this project's `targetSdk = 28`. So `offset = 0.dp`
+would still not have put anything at the top of the screen, and the cutout area
+itself would sit under a button.
 
-**Why the polarity is this way round.** You are not looking for the clock while
-you are typing; you are definitely looking for it while reading something that
-scrolled off. The bar therefore disappears exactly when it is not needed. An
-earlier revision had it the other way, and the symptom was a clock sitting
-permanently over the prompt — the one place it is never wanted.
+**What shipped instead.** One constant clearance — `CHROME_CLEARANCE`, 52dp, read
+by the bar and the terminal's grid alike — and the row never moves. The status bar
+stays. That was the state the app was in before any of this started, which is the
+point of reverting to it: three attempts had been spent trying to make an idea
+work that had already been shown, on device, not to.
 
-**A new session needs no flag of its own.** It sits at `topRow == 0`, exactly like
-a busy terminal at its prompt, so position alone already answers correctly. The
-`hasScrolled` StateFlow that used to exist existed only to express the old
-polarity's one extra case, and was removed with it.
-
-**The dead zone stays.** `-5` to expand, `-1` to collapse: one flick up and back
-changes the chrome once per direction, not once per row.
-
-**The band is not a band.** It is the terminal's background colour, exactly as
-tall as the terminal's clearance. Same colour on both sides of the join, so there
-is no join: the top of the screen continues into the terminal. Three earlier
-attempts got this wrong and each was a different way of making the same mistake —
-treating the top of the terminal as something that needed painting:
-
-| Attempt | What it looked like |
-|---|---|
-| `DroshBackground` fill | A separate surface with an edge |
-| A near-black scrim | A black bar |
-| Row shrunk to the bar's height | A 30dp squashed control caught mid-transition |
-
-The first is the app's colour where the terminal's should be. The second is the
-app's colour in dark mode. The third was an attempt to make the pills *fit* a
-band, which is not what putting a control at the top of the screen requires —
-and it was the thing being complained about. **The row is 44dp in both states.**
-Only its offset moves.
-
-**`BEHAVIOR_DEFAULT`, kept.** The pills live at the very top of the screen, which
-is exactly where Android's edge gesture lives.
-`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` reveals the bars **transiently** on such a
-gesture — *"overlay your app's content … and are automatically hidden after a
-short timeout."* A slow upward drag therefore had the system drawing a status bar
-across the row the user was reaching for, repeatedly. That was the flapping. A
-deliberate top-edge swipe still brings the bars back for good.
-
-**The terminal is padded, and the padding follows the chrome.** It used to be a
-constant `CHROME_CLEARANCE` for both states, which is wrong in both directions at
-once: it wastes a status bar's height at the prompt where nothing is showing, and
-in the scrollback it lets the first line of output go under the pill row. So:
-
-```
-collapsed → max(statusBarH, BAR_ROW_HEIGHT + CHROME_CLEARANCE)
-expanded  → statusBarH + BAR_TOP_OFFSET + BAR_ROW_HEIGHT + CHROME_CLEARANCE
-```
-
-Derived from the same constants the row uses, on the same tween, so the grid
-cannot end up out of step with the control it is making room for.
-
-**A terminal grid is not a scrolling document, so this costs a resize.** A
-scrolling document can be padded for free; a fixed grid cannot — there is only
-so much room above and below. Every crossing of the live edge therefore changes
-the number of rows, sends a SIGWINCH, and the shell answers by redrawing its
-prompt. Two things make that survivable, both in `TerminalView`:
-
-- `updateSize` **clamps** `mTopRow` instead of zeroing it. Zeroing meant the
-  chrome's own transition threw the user back to the newest output, which is the
-  one thing a scrollback is not for.
-- `onScreenUpdated` treats output arriving within `RESIZE_GRACE_MILLIS` (400ms)
-  of a resize as the shell answering us rather than as new output, and does not
-  pull the viewport to the live edge for it. Without this the repaint that closes
-  the transition is mistaken for new output and the transition undoes itself.
-
-**The band is the terminal's background, read from the palette.**
-`DroshPalette.BACKGROUND_HEX` in `:core` is the one spelling of it; the settings
-default and the screen's first-frame seed both read it. It had been `#000000` in
-the repository and `#0B0B0F` in the screen, which are neither the app's
-background nor the terminal's fallback entry — so a fresh install painted the
-strip above the grid one colour and the grid another, and the join between them
-read as a band. A literal here is a bug waiting to happen the moment the palette
-or the terminal's own default moves.
-
-The transition runs 220ms, delayed 70ms on the way in: the clock has to leave
-before the pills move, because the status bar is drawn above the app by the
-system window and needs its own time. Two motions in the same 40dp read as the
-row going back and forth. The grid's padding runs on the same tween, so the two
-halves of the movement cannot drift apart.
-
-`autoHideStatusBar` — off pins the whole arrangement: the bar stays where it is
-and the pills never travel. Default on.
+**No band.** Nothing is painted behind the row. The pills are translucent over
+the terminal's own backdrop — sampled from the terminal view and blurred —
+because Compose has no native backdrop blur and anything else shows a rectangle.
 
 ### Block-Based Output
 Every command execution produces a Block:

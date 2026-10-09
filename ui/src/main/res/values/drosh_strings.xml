@@ -90,8 +90,6 @@
     <string name="settings_terminal_mode_desc">How a command and its output are laid out</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Block</string>
-    <string name="settings_auto_hide_status_bar">Immersive status bar</string>
-    <string name="settings_auto_hide_status_bar_desc">Hide the system bar at the prompt; it returns in the scrollback</string>
     <string name="settings_section_ai">AI</string>
     <string name="settings_agent">Agent</string>
     <string name="settings_agent_desc">OpenRouter key, Exa search key and model</string>

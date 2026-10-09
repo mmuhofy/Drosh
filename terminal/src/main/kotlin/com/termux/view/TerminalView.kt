@@ -49,19 +49,6 @@ import dev.drosh.terminal.SearchHighlightOverlay
 import java.util.Properties
 import kotlin.math.abs
 
-/**
- * How long after a resize new output is taken to be the shell's reaction to that
- * resize rather than something the user did.
- *
- * Comfortably longer than the chrome transition that causes the resize. The
- * shell's repaint is scheduled by its own SIGWINCH handler and arrives a frame
- * or two later, so a window shorter than the transition would let the repaint
- * that closes it be mistaken for new output.
- *
- * Drosh-added.
- */
-private const val RESIZE_GRACE_MILLIS = 400L
-
 /** View displaying and interacting with a [TerminalSession]. */
 class TerminalView(context: Context, attributes: AttributeSet?) : View(context, attributes) {
 
@@ -198,25 +185,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     /** What was left in from scrolling movement. */
     @JvmField var mScrollRemainder: Float = 0f
 
-    /**
-     * When the emulator was last resized by [updateSize], in uptime millis.
-     *
-     * A resize is not free: the PTY is sent a SIGWINCH and an interactive shell
-     * answers by redrawing its prompt, and that redraw is indistinguishable from
-     * new output by the time it arrives. Left alone, [onScreenUpdated] treats it
-     * as output and throws the viewport to the live edge — so the change the app
-     * made to its own top chrome came back as a scroll to the bottom, and undid
-     * itself.
-     *
-     * Recording the time is how the two are told apart: output arriving inside
-     * [RESIZE_GRACE_MILLIS] of a resize is the shell answering us.
-     */
-    private var mResizedAtUptime: Long = 0L
-
-    /** Whether output arriving now is a reaction to a resize this app caused. */
-    private fun justResized(): Boolean =
-        SystemClock.uptimeMillis() - mResizedAtUptime < RESIZE_GRACE_MILLIS
-
     @JvmField
     var spaceKeyDown: Boolean = false
 
@@ -255,19 +223,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     private val mAccessibilityEnabled: Boolean
 
     var searchHighlightOverlay: SearchHighlightOverlay? = null
-
-    /**
-     * Notified whenever [mTopRow] changes, with the new value. 0 means the live
-     * edge — the prompt. Negative means the viewport has been scrolled back
-     * into the transcript.
-     *
-     * Drosh-added, following the same shape as [searchHighlightOverlay] above:
-     * a field the app sets and the view calls into. Do not read the value on a
-     * timer instead — onTextChanged only fires when the PTY produces output, so
-     * a user scrolling an idle shell would never be observed.
-     */
-    var onScrollPositionChanged: ((Int) -> Unit)? = null
-
 
     /**
      * Bumped every time the screen content changes. Used by the top bar to
@@ -749,10 +704,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             }
         }
 
-        // New output pulls the viewport back to the live edge. That is right for
-        // output the shell produced on its own, and wrong for the repaint a shell
-        // produces because *we* resized it — see [justResized].
-        if (!skipScroll && mTopRow != 0 && !justResized()) {
+        if (!skipScroll && mTopRow != 0) {
             // Scroll down if not already there.
             if (mTopRow < -3) {
                 // Awaken scroll bars only if scrolling a noticeable amount
@@ -766,7 +718,6 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         contentGeneration++
         invalidate()
         searchHighlightOverlay?.invalidate()
-        onScrollPositionChanged?.invoke(mTopRow)
         if (mAccessibilityEnabled) contentDescription = text
     }
 
@@ -977,8 +928,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             mTopRow = topRow
             mScrollOffsetPx = offset
             if (!awakenScrollBars()) invalidate()
-            onScrollPositionChanged?.invoke(mTopRow)
-        }
+            }
     }
 
     /**
@@ -1007,8 +957,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                     mScrollSettle = null
                     mScrollOffsetPx = to
                     if (!awakenScrollBars()) invalidate()
-                    onScrollPositionChanged?.invoke(mTopRow)
-                }
+                            }
             }
         }
         mScrollSettle = runnable
@@ -1034,8 +983,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 // while the viewport is still mid-line is a visible jump.
                 if (mScrollOffsetPx != 0f) snapToWholeRow()
                 if (!awakenScrollBars()) invalidate()
-                onScrollPositionChanged?.invoke(mTopRow)
-            }
+                    }
         }
     }
 
@@ -1421,17 +1369,10 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             // Update mTerminalCursorBlinkerRunnable inner class mEmulator on session change
             mTerminalCursorBlinkerRunnable?.setEmulator(mEmulator!!)
 
-            // Clamped rather than zeroed. Drosh changes the grid's height on
-            // purpose — the terminal's top padding follows the status bar — and
-            // zeroing here meant that every crossing of the live edge snapped the
-            // user back to the newest output, which is the one thing a scrollback
-            // is not for. The clamp is still needed: a shorter grid can leave the
-            // old top row past the end of what the transcript still holds.
-            mTopRow = mTopRow.coerceIn(-mEmulator!!.getScreen().activeTranscriptRows, 0)
+            mTopRow = 0
             // The grid is about to be rebuilt at a new size; a sub-line offset
             // measured against the old metrics means nothing against the new.
             mScrollOffsetPx = 0f
-            mResizedAtUptime = SystemClock.uptimeMillis()
             scrollTo(0, 0)
             invalidate()
         }
