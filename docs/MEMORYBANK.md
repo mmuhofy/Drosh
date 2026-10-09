@@ -290,50 +290,61 @@ Shared Element Transition: session card thumbnail → full terminal screen.
 
 ## 7. Terminal Core
 
-### The terminal is fullscreen; the pill row never moves
+### Two chrome states, and the band is the terminal's own colour
 
-*Decided 2026-10-08. Replaces two earlier attempts at a scroll-linked chrome.*
+*Decided 2026-10-09. Replaces the always-fullscreen attempt of 2026-10-08, and
+the three band/colours that preceded both.*
 
-The system bars are hidden outright while `TerminalScreen` is composed
-(`hide(systemBars())`) and restored on the way out. The pill row is a fixed
-44dp at the very top of the screen, and the terminal's top clearance is a
-constant 52dp — the row plus a gap. Nothing about any of it changes with the
-scroll.
+**Collapsed** — the viewport is up in the scrollback, or a session nobody has
+scrolled, or a TUI owns the terminal. The app goes fullscreen
+(`hide(systemBars())`), the pill row's offset is **0** (flush with the top of the
+screen, in the space the status bar vacated), and the area behind it is painted
+in **`terminalBgColor`**. **Expanded** — at the live edge, past the first screen:
+status bar back, pills at `statusBarH + 10dp`, band gone.
 
-**Why there is no scroll-linked chrome.** There were two states: up in the
-scrollback the status bar hid and the pills rode into the space it left, at the
-live edge the bar came back and they dropped below it. That could not work, and
-the reason is geometric rather than a mistake in the logic.
+`chromeCollapsed = tuiActive || !hasScrolled || !atLiveEdge`.
 
-The pills live at the very top of the screen, which is exactly where Android's
-edge gesture lives. `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` is documented as
-revealing the bars **transiently** on such a gesture: *"these transient system
-bars overlay your app's content … and are automatically hidden after a short
-timeout."* A drag starting there made the system draw a status bar over the row
-the user was reaching for, then take it away again. Linger on that gesture — a
-slow upward scroll — and it happened continuously; a fast decisive one got
-through before it started. That was the flapping.
+**Why "not the live edge" is two situations.** A scroll back into history, and a
+terminal nobody has touched yet — which is where a session starts and where it
+returns to after a switch. The second *is* at the live edge, so position alone
+cannot express it; `hasScrolled` is what tells them apart.
 
-It also explains a symptom that looked like a layout bug: the row kept reading
-as a 30dp half-height control sitting below the bar. It was at the top and 44dp
-tall, **covered** by a bar that was not there a moment later.
+**The band is not a band.** It is the terminal's background colour, exactly as
+tall as the terminal's clearance. Same colour on both sides of the join, so there
+is no join: the top of the screen continues into the terminal. Three earlier
+attempts got this wrong and each was a different way of making the same mistake —
+treating the top of the terminal as something that needed painting:
 
-A control in the system's gesture zone cannot also be something the system keeps
-covering. `BEHAVIOR_DEFAULT` rather than the transient one, so a deliberate
-top-edge swipe still brings the bars back for good instead of overlaying the app
-and timing itself out.
+| Attempt | What it looked like |
+|---|---|
+| `DroshBackground` fill | A separate surface with an edge |
+| A near-black scrim | A black bar |
+| Row shrunk to the bar's height | A 30dp squashed control caught mid-transition |
 
-**The terminal is padded, not full-bleed.** A constant clearance, and never a
-function of what is showing at the top of the screen: an inset that tracked the
-status bar resized the grid on every change, and resizing re-wraps every line of
-output. One number that never moves also means nothing is ever hidden behind a
-control.
+The first is the app's colour where the terminal's should be. The second is the
+app's colour in dark mode. The third was an attempt to make the pills *fit* a
+band, which is not what putting a control at the top of the screen requires —
+and it was the thing being complained about. **The row is 44dp in both states.**
+Only its offset moves.
 
-Deleted with the mechanic, since only it used them: `chromeCollapsed`,
-`hasScrolled`, `focusedPaneAltBuffer`, `isAtLiveEdge`, `scrollTopRow`,
-`chromeIsAtLiveEdge`, `resetViewportState`, and `ChromeScrollTest`. The terminal
-view's scroll callbacks remain — they are the vendored view's API — but nothing
-assigns them.
+**`BEHAVIOR_DEFAULT`, kept.** The pills live at the very top of the screen, which
+is exactly where Android's edge gesture lives.
+`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` reveals the bars **transiently** on such a
+gesture — *"overlay your app's content … and are automatically hidden after a
+short timeout."* A slow upward drag therefore had the system drawing a status bar
+across the row the user was reaching for, repeatedly. That was the flapping. A
+deliberate top-edge swipe still brings the bars back for good.
+
+**The terminal is padded, not full-bleed.** A constant clearance — one number,
+`CHROME_CLEARANCE`, shared by the bar and the grid — and never a function of what
+is showing at the top of the screen: an inset that tracked the status bar resized
+the grid on every change, and resizing re-wraps every line of output. A number
+that never moves also means nothing is ever hidden behind a control.
+
+The transition runs 220ms, delayed 70ms on the way in: the clock has to leave
+before the pills move, because the status bar is drawn above the app by the
+system window and needs its own time. Two motions in the same 40dp read as the
+row going back and forth.
 
 ### Block-Based Output
 Every command execution produces a Block:
