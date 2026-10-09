@@ -754,7 +754,7 @@ private fun MessageRow(
     when (message) {
         is ChatMessage.User -> UserBubble(message, onCopy = onCopy, onShare = onShare)
 
-        is ChatMessage.Assistant -> AssistantText(message, onCopy = onCopy, onShare = onShare)
+        is ChatMessage.Assistant -> AssistantText(message, onCopy = onCopy)
 
         is ChatMessage.Reasoning -> ReasoningBlock(message)
 
@@ -813,13 +813,11 @@ private fun UserBubble(
 private fun AssistantText(
     message: ChatMessage.Assistant,
     onCopy: (String) -> Unit,
-    onShare: (String) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         MarkdownText(
             markdown = message.text,
             onCopy = onCopy,
-            onShare = onShare,
             // Announced as it grows, so a screen-reader user hears the answer arrive
             // rather than having to poll.
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },

@@ -19,6 +19,7 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.ui.agent.components.provideCodePalette
+import dev.drosh.ui.agent.components.provideMarkdownTheme
 import dev.drosh.design.system.OutfitFontFamily
 import dev.drosh.design.system.provideDroshColors
 
@@ -105,7 +106,13 @@ fun DroshTheme(
                 // than read from the app palette at each use site: it is a separate
                 // set of colours entirely, so it needs its own scope to follow the
                 // theme rather than a second theme lookup per token.
-                provideCodePalette(dark = useDark) { content() }
+                provideCodePalette(dark = useDark) {
+                    // Markdown text, headings and spacing, expressed in the app's own
+                    // tokens. Without this the renderer falls back to its defaults,
+                    // which are Material's, and an assistant answer stops matching
+                    // the message it sits under.
+                    provideMarkdownTheme(dark = useDark) { content() }
+                }
             },
         )
     }
