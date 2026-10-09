@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
@@ -29,6 +28,7 @@ import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshSuccess
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.TerminalLine
 
 /**
@@ -85,7 +85,7 @@ private fun TerminalRow(line: TerminalLine) {
                     text = line.text,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalFontSet.current.mono,
                     color = DroshSuccess,
                 )
             }
@@ -97,7 +97,7 @@ private fun TerminalRow(line: TerminalLine) {
                 text = line.text,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = DroshTextSecondary,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -110,7 +110,7 @@ private fun TerminalRow(line: TerminalLine) {
             Text(
                 text = line.statusLabel(),
                 fontSize = 10.5.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = if (line.failed) DroshError else DroshTextMuted,
                 modifier = Modifier.padding(start = 15.dp),
             )
@@ -159,7 +159,7 @@ fun AgentTerminalEmpty(
         Text(
             text = if (running) "çalışıyor…" else "henüz komut çalıştırılmadı",
             fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = LocalFontSet.current.mono,
             color = DroshTextMuted,
         )
         Spacer(Modifier.height(8.dp))

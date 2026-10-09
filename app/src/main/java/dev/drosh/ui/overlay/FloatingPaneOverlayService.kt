@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
@@ -18,9 +19,13 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.drosh.MainActivity
 import dev.drosh.R
 import dev.drosh.core.TerminalConstants
+import dev.drosh.design.system.DroshFonts
+import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.terminal.TerminalManager
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /**
  * Shows one terminal pane in a window above every other app.
@@ -64,6 +69,17 @@ class FloatingPaneOverlayService : LifecycleService() {
 
     @Inject
     lateinit var terminalManager: TerminalManager
+
+    /**
+     * Read once, for the typeface the overlay's terminal draws with.
+     *
+     * The service has no composition to read `LocalFontSet` from, and the pane
+     * it floats is the same pane the main terminal shows — a user who picked
+     * Geist and then floats the pane should not get the platform monospace in
+     * the window they just pulled out of the app.
+     */
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
 
     private var overlayView: FloatingPaneOverlayView? = null
     private var slot: PaneSlot? = null
@@ -118,10 +134,27 @@ class FloatingPaneOverlayService : LifecycleService() {
      * already up, and being asked twice is not a reason to stack a second window
      * over the first.
      */
+    /**
+     * The terminal typeface for the overlay window, resolved from the stored
+     * font pack.
+     *
+     * Blocking read is acceptable and correct here: [show] runs on the main
+     * thread during a window add, and DataStore keeps its last value in memory,
+     * so this is a memory read rather than disk. Null on any failure, and the
+     * view falls back to the platform monospace.
+     */
+    private fun terminalTypeface(): Typeface? {
+        val resId = runCatching {
+            runBlocking { settingsRepository.fontPack.first() }
+                .let { DroshFonts.byName(it.name).monoResId }
+        }.getOrNull() ?: return null
+        return runCatching { resources.getFont(resId) }.getOrNull()
+    }
+
     private fun show(target: PaneSlot) {
         if (overlayView != null) return
 
-        val host = FloatingPaneOverlayView(this, terminalManager, target)
+        val host = FloatingPaneOverlayView(this, terminalManager, target, terminalTypeface())
         host.onClose = { dismiss() }
         host.setTitle(getString(R.string.overlay_pane_title))
 

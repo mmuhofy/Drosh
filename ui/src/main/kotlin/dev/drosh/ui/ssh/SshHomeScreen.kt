@@ -30,11 +30,11 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.ssh.AuthMethod
 import dev.drosh.domain.ssh.SshHost
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.ui.text.font.FontFamily
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,7 +110,7 @@ private fun HostRow(
                 text = "${host.username}@${host.hostname}:${host.port}",
                 color = DroshTextMuted,
                 fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
             )
         }
         if (connecting) {

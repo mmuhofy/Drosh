@@ -37,11 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.setup.theme.SetupPalette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -83,7 +82,7 @@ fun LiveLogCard(
                 text = "Live Log",
                 color = SetupPalette.TextSecondary,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
@@ -93,7 +92,7 @@ fun LiveLogCard(
                 text = "${lines.size} ${if (lines.size == 1) "line" else "lines"}",
                 color = SetupPalette.TextMuted,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 12.sp,
                 ),
             )
@@ -158,7 +157,7 @@ private fun EmptyLogHint() {
             text = "Waiting for logs…",
             color = SetupPalette.TextMuted,
             style = TextStyle(
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 fontSize = 12.sp,
             ),
         )
@@ -213,7 +212,7 @@ private fun LogScrollable(
                     else -> SetupPalette.TextSecondary
                 },
                 style = TextStyle(
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalFontSet.current.mono,
                     fontSize = 11.sp,
                 ),
             )

@@ -3,6 +3,7 @@ package dev.drosh.ui.overlay
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
@@ -36,9 +37,17 @@ class FloatingPaneOverlayView(
     context: Context,
     private val terminalManager: TerminalManager,
     private val slot: PaneSlot,
+    /**
+     * The monospace face for the terminal, resolved from the stored font pack
+     * by the service — a plain View tree has no composition to read the theme
+     * from. Null falls back to the platform monospace.
+     */
+    private val terminalTypeface: Typeface? = null,
 ) : LinearLayout(context) {
 
-    val terminalView: TerminalView = TerminalView(context, null)
+    val terminalView: TerminalView = TerminalView(context, null).apply {
+        setTypeface(terminalTypeface ?: Typeface.MONOSPACE)
+    }
 
     /**
      * True while this pane holds the keyboard.

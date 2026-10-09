@@ -60,7 +60,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,6 +102,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.drosh.design.system.DroshTileSelected
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.LlmModel
 import dev.drosh.ui.agent.components.AgentIconPill
 import dev.drosh.ui.agent.components.AgentPill
@@ -575,7 +575,7 @@ private fun ModelPickerSheet(
                             Text(
                                 text = model.id,
                                 fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = LocalFontSet.current.mono,
                                 color = DroshTextMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -878,7 +878,7 @@ private fun ThinkingDots(modifier: Modifier = Modifier) {
     Text(
         text = "Thinking ${elapsed}s",
         fontSize = 11.5.sp,
-        fontFamily = FontFamily.Monospace,
+        fontFamily = LocalFontSet.current.mono,
         color = DroshPrimary,
         modifier = modifier
             .semantics { contentDescription = "düşünüyor" }
@@ -957,7 +957,7 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
             Text(
                 text = if (running) "Reasoning ${elapsed}s" else "Reasoned",
                 fontSize = 11.5.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = if (running) DroshPrimary else DroshTextMuted,
                 modifier = if (running) Modifier.sweepHighlight(progress) else Modifier,
             )
@@ -994,7 +994,7 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
                     text = message.text,
                     fontSize = 11.5.sp,
                     lineHeight = 16.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalFontSet.current.mono,
                     color = DroshTextMuted,
                     modifier = Modifier
                         .weight(1f)
@@ -1140,7 +1140,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                         progress = progress,
                     ),
                     fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalFontSet.current.mono,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
@@ -1155,7 +1155,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                 Text(
                     text = "${elapsed}s",
                     fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalFontSet.current.mono,
                     color = DroshPrimary,
                 )
             }
@@ -1214,7 +1214,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                             text = body,
                             fontSize = 11.5.sp,
                             lineHeight = 16.sp,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = LocalFontSet.current.mono,
                             color = DroshTextSecondary,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -1237,7 +1237,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                             Text(
                                 text = formatToolDuration(duration),
                                 fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = LocalFontSet.current.mono,
                                 color = DroshTextMuted,
                             )
                             if (body != null) {
@@ -1466,7 +1466,7 @@ private fun TodoCard(
             Text(
                 text = "$done/${todos.size}",
                 fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 fontWeight = FontWeight.Medium,
                 color = if (done == todos.size) DroshSuccess else DroshTextSecondary,
             )
@@ -1928,7 +1928,7 @@ private fun UsageStrip(usage: TokenUsage) {
         Text(
             text = "${usage.output ?: 0} çıktı · ${usage.input ?: 0} girdi token",
             fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = LocalFontSet.current.mono,
             color = DroshTextMuted,
         )
     }

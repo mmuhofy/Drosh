@@ -48,6 +48,7 @@ import dev.drosh.terminal.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.design.system.DroshFonts
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.ui.settings.SettingsViewModel
 import android.content.res.Configuration
@@ -136,6 +137,7 @@ class MainActivity : ComponentActivity() {
             val activity = LocalContext.current as ComponentActivity
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val themeMode by settingsViewModel.themeMode.collectAsStateWithLifecycle()
+            val fontPack by settingsViewModel.fontPack.collectAsStateWithLifecycle()
             val language by settingsViewModel.locale.collectAsStateWithLifecycle()
 
             // A language change is applied to the activity's own resources too,
@@ -160,6 +162,7 @@ class MainActivity : ComponentActivity() {
                             ThemeMode.Light -> false
                             ThemeMode.Dark -> true
                         },
+                        fontSet = DroshFonts.byName(fontPack.name),
                     ) {
                         // DroshBackground, not the Material default.
                         //

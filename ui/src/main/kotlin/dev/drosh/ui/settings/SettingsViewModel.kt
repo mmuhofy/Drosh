@@ -6,6 +6,7 @@ import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.CursorStyle
+import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
@@ -49,6 +50,13 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settings.setThemeMode(mode) }
+    }
+
+    val fontPack: StateFlow<FontPack> = settings.fontPack
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FontPack.Geist)
+
+    fun setFontPack(pack: FontPack) {
+        viewModelScope.launch { settings.setFontPack(pack) }
     }
 
     val useBlockEngine: StateFlow<Boolean> = settings.useBlockEngine

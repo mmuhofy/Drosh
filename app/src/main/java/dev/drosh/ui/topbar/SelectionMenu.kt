@@ -41,7 +41,7 @@ import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -290,7 +290,7 @@ private fun MenuLabel(
         Text(
             text = label,
             color = DroshTextSecondary,
-            fontFamily = OutfitFontFamily,
+            fontFamily = LocalFontSet.current.sans,
             fontSize = 8.5.sp,
             maxLines = 1,
         )

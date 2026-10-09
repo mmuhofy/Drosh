@@ -11,6 +11,7 @@ import dev.drosh.core.DroshPalette
 import dev.drosh.core.TerminalConstants
 import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.ThemeMode
@@ -41,6 +42,13 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { prefs -> prefs[KEY_THEME_MODE] = mode.name }
+    }
+
+    override val fontPack: Flow<FontPack> =
+        dataStore.data.map { prefs -> FontPack.fromName(prefs[KEY_FONT_PACK]) }
+
+    override suspend fun setFontPack(pack: FontPack) {
+        dataStore.edit { prefs -> prefs[KEY_FONT_PACK] = pack.name }
     }
 
     override val useBlockEngine: Flow<Boolean> =
@@ -176,6 +184,7 @@ class SettingsRepositoryImpl @Inject constructor(
 
     private companion object {
         val KEY_THEME_MODE             = stringPreferencesKey("theme_mode")
+        val KEY_FONT_PACK              = stringPreferencesKey("font_pack")
         val KEY_USE_BLOCK_ENGINE        = booleanPreferencesKey("use_block_engine")
         val KEY_EXTRA_KEYS_BAR_VISIBLE  = booleanPreferencesKey("extra_keys_bar_visible")
         val KEY_AUTO_HIDE_STATUS_BAR    = booleanPreferencesKey("auto_hide_status_bar")

@@ -50,7 +50,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -72,7 +71,7 @@ import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextDisabled
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshWarning
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import androidx.compose.ui.graphics.Color
 import coil3.compose.AsyncImage
 import dev.drosh.domain.session.DeviceIdentity
@@ -92,7 +91,7 @@ fun SettingsSection(
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.2.sp,
-            fontFamily = OutfitFontFamily,
+            fontFamily = LocalFontSet.current.sans,
             modifier = Modifier
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
@@ -151,7 +150,7 @@ fun SettingsSubRow(
                 color = DroshText,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
             )
             if (description != null) {
                 Text(
@@ -159,7 +158,7 @@ fun SettingsSubRow(
                     color = DroshTextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 1.dp),
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                 )
             }
         }
@@ -206,7 +205,7 @@ fun SettingsSliderRow(
                     color = DroshText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                 )
                 if (description != null) {
                     Text(
@@ -214,7 +213,7 @@ fun SettingsSliderRow(
                         color = DroshTextSecondary,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 1.dp),
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                     )
                 }
             }
@@ -264,7 +263,7 @@ fun SettingsCommandFieldRow(
                     color = DroshText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                 )
                 if (description != null) {
                     Text(
@@ -272,7 +271,7 @@ fun SettingsCommandFieldRow(
                         color = DroshTextSecondary,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 1.dp),
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                     )
                 }
             }
@@ -288,7 +287,7 @@ fun SettingsCommandFieldRow(
             textStyle = TextStyle(
                 color = DroshPrimary,
                 fontSize = 12.sp,
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
             ),
             singleLine = true,
             shape = RoundedCornerShape(6.dp),
@@ -363,7 +362,7 @@ fun SegmentControl(
                     color = animTextColor,
                     fontSize = 12.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                 )
             }
         }
@@ -443,7 +442,7 @@ fun TerminalPreviewCard(
             Text(
                 text = text,
                 fontSize = fontSizeSp.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = Color.Unspecified,
                 lineHeight = (fontSizeSp * 1.42).sp,
                 modifier = Modifier.padding(vertical = 2.dp),
@@ -460,14 +459,14 @@ fun TerminalPreviewCard(
                 text = "user@irisshell ~ %",
                 color = DroshPrimary,
                 fontSize = fontSizeSp.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
             )
             var cmdText by rememberSaveable { mutableStateOf("") }
             Text(
                 text = cmdText,
                 color = DroshText,
                 fontSize = fontSizeSp.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 4.dp),
@@ -535,7 +534,7 @@ fun BlinkRateSlider(
             text = "Slow",
             color = DroshTextSecondary,
             fontSize = 12.sp,
-            fontFamily = OutfitFontFamily,
+            fontFamily = LocalFontSet.current.sans,
         )
         ThinSlider(
             value = value.toFloat(),
@@ -548,7 +547,7 @@ fun BlinkRateSlider(
             text = "Fast",
             color = DroshTextSecondary,
             fontSize = 12.sp,
-            fontFamily = OutfitFontFamily,
+            fontFamily = LocalFontSet.current.sans,
         )
     }
 }
@@ -698,7 +697,7 @@ fun SettingsNavigationRow(
                 color = DroshText,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -708,7 +707,7 @@ fun SettingsNavigationRow(
                 color = DroshPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 modifier = Modifier
                     .background(DroshPrimary.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -725,7 +724,7 @@ fun SettingsNavigationRow(
                 text = trailingText,
                 color = DroshTextSecondary,
                 fontSize = 15.sp,
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
             )
             if (showTrailingIcon) {
                 Spacer(Modifier.width(8.dp))
@@ -762,7 +761,7 @@ fun MotdTextDialog(
             Text(
                 text = "Edit Greeting Text",
                 color = DroshText,
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
             )
@@ -773,7 +772,7 @@ fun MotdTextDialog(
                     text = "Use \\n for new lines. This text is shown on shell connect.",
                     color = DroshTextSecondary,
                     fontSize = 12.sp,
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
                 OutlinedTextField(
@@ -781,7 +780,7 @@ fun MotdTextDialog(
                     onValueChange = { text = it },
                     textStyle = TextStyle(
                         color = DroshText,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
                     ),
@@ -805,16 +804,16 @@ fun MotdTextDialog(
                 onConfirm(text)
                 onDismiss()
             }) {
-                Text("Done", color = DroshPrimary, fontFamily = OutfitFontFamily)
+                Text("Done", color = DroshPrimary, fontFamily = LocalFontSet.current.sans)
             }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onRestoreDefault) {
-                    Text("Restore Default", color = DroshTextSecondary, fontSize = 12.sp, fontFamily = OutfitFontFamily)
+                    Text("Restore Default", color = DroshTextSecondary, fontSize = 12.sp, fontFamily = LocalFontSet.current.sans)
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("Cancel", color = DroshTextSecondary, fontSize = 12.sp, fontFamily = OutfitFontFamily)
+                    Text("Cancel", color = DroshTextSecondary, fontSize = 12.sp, fontFamily = LocalFontSet.current.sans)
                 }
             }
         },

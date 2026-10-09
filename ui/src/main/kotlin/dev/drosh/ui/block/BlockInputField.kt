@@ -22,13 +22,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.DroshIcons
 
 /**
@@ -70,7 +70,7 @@ fun BlockInputField(
                     else -> "$promptLabel$promptSuffix"
                 },
                 color = DroshPrimary,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(end = 8.dp),
             )
@@ -83,7 +83,7 @@ fun BlockInputField(
                             else -> "type a command…"
                         },
                         color = DroshTextMuted,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         fontSize = 13.sp,
                     )
                 }
@@ -93,7 +93,7 @@ fun BlockInputField(
                     enabled = enabled,
                     textStyle = TextStyle(
                         color = DroshText,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                     ),

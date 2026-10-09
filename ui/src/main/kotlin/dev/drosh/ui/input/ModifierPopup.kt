@@ -14,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
@@ -22,6 +21,7 @@ import androidx.compose.ui.window.PopupProperties
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.input.ExtraKey
 import dev.drosh.domain.input.ExtraKeyBarLayout
 import dev.drosh.domain.input.InputIntent
@@ -71,7 +71,7 @@ fun ModifierPopup(
             Text(
                 text = "${modifier.name} combos",
                 color = DroshTextMuted,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 fontSize = 11.sp,
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(bottom = 6.dp),
@@ -101,7 +101,7 @@ fun ModifierPopup(
                         Text(
                             text = label,
                             color = DroshPrimary,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = LocalFontSet.current.mono,
                             fontSize = 13.sp,
                             style = MaterialTheme.typography.labelMedium,
                         )

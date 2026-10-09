@@ -29,7 +29,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +41,7 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.AgentChat
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.TOUCH_TARGET
@@ -199,7 +199,7 @@ fun RowContextMenu(
             Text(
                 text = chat.name,
                 fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = DroshTextMuted,
                 maxLines = 1,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -265,7 +265,7 @@ fun DirectoryChip(
                     singleLine = true,
                     textStyle = TextStyle(
                         fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         color = DroshText,
                     ),
                     cursorBrush = SolidColor(DroshPrimary),
@@ -298,7 +298,7 @@ fun DirectoryChip(
         Text(
             text = directory,
             fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = LocalFontSet.current.mono,
             color = DroshTextMuted,
             maxLines = 1,
         )

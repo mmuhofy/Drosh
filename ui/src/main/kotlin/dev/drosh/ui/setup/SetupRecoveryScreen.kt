@@ -38,13 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import dev.drosh.design.system.OutfitFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.terminal.BootstrapError
 import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.domain.terminal.RecoveryAction
@@ -100,7 +99,7 @@ fun SetupRecoveryScreen(
                 text = "Last 50 log lines",
                 color = SetupPalette.TextMuted,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                 ),
@@ -135,7 +134,7 @@ private fun FailureBadge(message: String, detail: String) {
                 text = "!",
                 color = SetupPalette.Error,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                 ),
@@ -147,7 +146,7 @@ private fun FailureBadge(message: String, detail: String) {
                 text = message,
                 color = SetupPalette.Text,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
@@ -157,7 +156,7 @@ private fun FailureBadge(message: String, detail: String) {
                 text = detail,
                 color = SetupPalette.TextSecondary,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
                 ),
@@ -202,7 +201,7 @@ private fun LogPeek(lines: List<String>) {
                         text = line,
                         color = SetupPalette.MonoLog,
                         style = TextStyle(
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = LocalFontSet.current.mono,
                             fontSize = 11.sp,
                         ),
                     )
@@ -279,7 +278,7 @@ private fun PrimaryRecoveryButton(
                 text = label,
                 color = accent,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
@@ -289,7 +288,7 @@ private fun PrimaryRecoveryButton(
                 text = sublabel,
                 color = SetupPalette.TextMuted,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 11.sp,
                 ),
             )

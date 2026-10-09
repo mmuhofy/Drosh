@@ -18,10 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
+import dev.drosh.design.system.LocalFontSet
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
@@ -112,7 +112,7 @@ internal fun CodeBlockView(
             Text(
                 text = SyntaxLanguages.label(language),
                 fontSize = 10.5.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = palette.gutter,
                 modifier = Modifier.weight(1f),
             )
@@ -133,7 +133,7 @@ internal fun CodeBlockView(
                 text = highlighted,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = palette.plain,
                 softWrap = false,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),

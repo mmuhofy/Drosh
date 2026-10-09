@@ -7,7 +7,9 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshBackground
@@ -20,7 +22,9 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.ui.agent.components.provideCodePalette
 import dev.drosh.ui.agent.components.provideMarkdownTheme
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.DroshFontSet
+import dev.drosh.design.system.DroshFonts
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.design.system.provideDroshColors
 
 @Composable
@@ -51,27 +55,33 @@ private fun schemeFor(dark: Boolean): ColorScheme = if (dark) {
 }
 
 /**
- * Full Material 3 typography table bound to Outfit. The shape mirrors the
- * reference ReTerminal `Typography { ... }` block — same scale, weight
- * assignments, and sizes — so any title/body/label token feels at home in
- * a ReTerminal-style shell.
+ * Full Material 3 typography table bound to the active font pack.
+ *
+ * The shape mirrors the reference ReTerminal `Typography { ... }` block — same
+ * scale, weight assignments, and sizes — so any title/body/label token feels
+ * at home in a ReTerminal-style shell.
+ *
+ * Built per composition rather than held in a `val` because the font is a user
+ * preference: a top-level table would freeze whichever pack happened to be
+ * active when the class was first loaded, and changing it in Settings would
+ * then do nothing until the process died.
  */
-private val DroshTypography = Typography(
-    displayLarge = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 57.sp),
-    displayMedium = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 45.sp),
-    displaySmall = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 36.sp),
-    headlineLarge = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 32.sp),
-    headlineMedium = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 28.sp),
-    headlineSmall = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 24.sp),
-    titleLarge = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 22.sp),
-    titleMedium = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Medium, fontSize = 16.sp),
-    titleSmall = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp),
-    bodyLarge = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 16.sp),
-    bodyMedium = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 14.sp),
-    bodySmall = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp),
-    labelLarge = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp),
-    labelMedium = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp),
-    labelSmall = TextStyle(fontFamily = OutfitFontFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp),
+private fun droshTypography(sans: FontFamily): Typography = Typography(
+    displayLarge = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 57.sp),
+    displayMedium = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 45.sp),
+    displaySmall = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 36.sp),
+    headlineLarge = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 32.sp),
+    headlineMedium = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 28.sp),
+    headlineSmall = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 24.sp),
+    titleLarge = TextStyle(fontFamily = sans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp),
+    titleMedium = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 16.sp),
+    titleSmall = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 14.sp),
+    bodyLarge = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 16.sp),
+    bodyMedium = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 14.sp),
+    bodySmall = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 12.sp),
+    labelLarge = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 14.sp),
+    labelMedium = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 12.sp),
+    labelSmall = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 11.sp),
 )
 
 /**
@@ -90,28 +100,37 @@ private val DroshTypography = Typography(
  * The system setting used to be ignored outright. That made the app
  * unusable in daylight, and it is not something a caller should have to
  * argue for: the theme is a preference, so it gets a preference.
+ *
+ * @param fontSet the font pack to draw with. Provided down the composition
+ * via [LocalFontSet] so a screen reads `LocalFontSet.current.sans` rather
+ * than carrying its own reference — there are well over a hundred such read
+ * sites, and threading a parameter to each would be a parameter to every
+ * screen that renders one.
  */
 @Composable
 fun DroshTheme(
     dark: Boolean? = null,
+    fontSet: DroshFontSet = DroshFonts.Geist,
     content: @Composable () -> Unit,
 ) {
     val useDark = dark ?: isSystemInDarkTheme()
     provideDroshColors(dark = useDark) {
         MaterialTheme(
             colorScheme = schemeFor(useDark),
-            typography = DroshTypography,
+            typography = droshTypography(fontSet.sans),
             content = {
-                // The syntax palette follows the theme, and is provided here rather
-                // than read from the app palette at each use site: it is a separate
-                // set of colours entirely, so it needs its own scope to follow the
-                // theme rather than a second theme lookup per token.
-                provideCodePalette(dark = useDark) {
-                    // Markdown text, headings and spacing, expressed in the app's own
-                    // tokens. Without this the renderer falls back to its defaults,
-                    // which are Material's, and an assistant answer stops matching
-                    // the message it sits under.
-                    provideMarkdownTheme { content() }
+                CompositionLocalProvider(LocalFontSet provides fontSet) {
+                    // The syntax palette follows the theme, and is provided here rather
+                    // than read from the app palette at each use site: it is a separate
+                    // set of colours entirely, so it needs its own scope to follow the
+                    // theme rather than a second theme lookup per token.
+                    provideCodePalette(dark = useDark) {
+                        // Markdown text, headings and spacing, expressed in the app's own
+                        // tokens. Without this the renderer falls back to its defaults,
+                        // which are Material's, and an assistant answer stops matching
+                        // the message it sits under.
+                        provideMarkdownTheme { content() }
+                    }
                 }
             },
         )

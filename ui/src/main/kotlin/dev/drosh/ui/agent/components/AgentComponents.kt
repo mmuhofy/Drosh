@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -45,6 +44,7 @@ import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.components.GlassIconButton
 
@@ -301,7 +301,7 @@ fun MonoBlock(
             text = text,
             fontSize = 11.5.sp,
             lineHeight = 17.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = LocalFontSet.current.mono,
             color = DroshTextSecondary,
             modifier = Modifier.verticalScroll(rememberScrollState()),
         )

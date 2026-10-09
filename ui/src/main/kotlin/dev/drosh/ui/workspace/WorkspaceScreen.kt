@@ -37,7 +37,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,6 +52,7 @@ import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.domain.workspace.WorkspaceBoard
@@ -335,7 +335,7 @@ private fun WorkspaceCard(
                     Text(
                         text = workspace.rootPath,
                         fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         color = DroshTextMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -492,7 +492,7 @@ private fun ArchivedRow(
                 text = if (looseSessionCount == 0) workspace.rootPath
                 else "${sessionCountLabel(looseSessionCount)} projeler arasında",
                 fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = DroshTextMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

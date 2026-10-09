@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -49,6 +48,7 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshWarning
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.workspace.WORKSPACE_COLOR_SEED_COUNT
 import dev.drosh.domain.workspace.WorkspaceEdit
 import dev.drosh.domain.workspace.WorkspacePath
@@ -299,14 +299,14 @@ private fun SheetField(
                     placeholder,
                     fontSize = 13.sp,
                     color = DroshTextMuted,
-                    fontFamily = if (isMonospace) FontFamily.Monospace else FontFamily.Default,
+                    fontFamily = if (isMonospace) LocalFontSet.current.mono else LocalFontSet.current.sans,
                 )
             },
             singleLine = singleLine,
             textStyle = TextStyle(
                 fontSize = 13.sp,
                 color = DroshText,
-                fontFamily = if (isMonospace) FontFamily.Monospace else FontFamily.Default,
+                fontFamily = if (isMonospace) LocalFontSet.current.mono else LocalFontSet.current.sans,
             ),
             keyboardOptions = KeyboardOptions(imeAction = imeAction),
             isError = isError,
@@ -329,7 +329,7 @@ private fun SheetField(
             Text(
                 text = supporting,
                 fontSize = 10.sp,
-                fontFamily = if (isMonospace) FontFamily.Monospace else FontFamily.Default,
+                fontFamily = if (isMonospace) LocalFontSet.current.mono else LocalFontSet.current.sans,
                 color = if (isError) DroshError else DroshTextMuted,
                 modifier = Modifier.padding(start = 4.dp),
             )

@@ -29,7 +29,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
@@ -43,6 +42,7 @@ import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.UrlDetector
 import dev.drosh.domain.UrlDetector.UrlMatch
 import dev.drosh.domain.block.Block
@@ -78,7 +78,7 @@ fun PromptBlock(
                 Text(
                     text = promptDir,
                     color = DroshTextSecondary,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalFontSet.current.mono,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 0.dp),
                 )
@@ -100,16 +100,16 @@ fun PromptBlock(
                 SelectionContainer {
                     Text(
                         text = buildAnnotatedString {
-                            withStyle(SpanStyle(color = DroshPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
+                            withStyle(SpanStyle(color = DroshPrimary, fontFamily = LocalFontSet.current.mono, fontSize = 13.sp)) {
                                 append(promptText)
                                 append(" ")
                             }
-                            withStyle(SpanStyle(color = DroshPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)) {
+                            withStyle(SpanStyle(color = DroshPrimary, fontFamily = LocalFontSet.current.mono, fontSize = 13.sp)) {
                                 append(block.command)
                             }
                         },
                         color = DroshText,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         fontSize = 13.sp,
                     )
                 }
@@ -227,7 +227,7 @@ private fun LinkifiedOutput(
     Text(
         text = annotated,
         color = color,
-        fontFamily = FontFamily.Monospace,
+        fontFamily = LocalFontSet.current.mono,
         fontSize = fontSize,
         lineHeight = lineHeight,
         onTextLayout = { layout = it },

@@ -34,7 +34,7 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.setup.components.PillButton
 
@@ -58,7 +58,7 @@ fun AboutScene(
         Text(
             text = "Drosh gives you a real Ubuntu environment on your Android phone — not a simulation, the real thing. Install packages, run scripts, and work the way you already know.",
             style = TextStyle(
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontWeight = FontWeight.Normal,
                 fontSize = 15.sp,
                 lineHeight = 22.sp,
@@ -139,7 +139,7 @@ private fun FeatureItem(
                 Text(
                     text = title,
                     style = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp,
                     ),
@@ -159,7 +159,7 @@ private fun FeatureItem(
                             Text(
                                 text = "Coming soon",
                                 style = TextStyle(
-                                    fontFamily = OutfitFontFamily,
+                                    fontFamily = LocalFontSet.current.sans,
                                     fontWeight = FontWeight.Normal,
                                     fontSize = 10.sp,
                                 ),
@@ -175,7 +175,7 @@ private fun FeatureItem(
                 Text(
                     text = desc,
                     style = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.Normal,
                         fontSize = 13.sp,
                         lineHeight = 18.sp,

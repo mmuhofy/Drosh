@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,6 +38,7 @@ import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.workspace.Workspace
 import dev.drosh.ui.DroshIcons
 
@@ -81,7 +81,7 @@ fun WorkspaceAssignSheet(
             Text(
                 text = sessionName,
                 fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = DroshTextMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -184,7 +184,7 @@ private fun AssignRow(
                 Text(
                     text = sublabel,
                     fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalFontSet.current.mono,
                     color = DroshTextMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

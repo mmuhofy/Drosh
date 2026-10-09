@@ -44,7 +44,7 @@ import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.setup.onboarding.components.TypewriterText
 import dev.drosh.ui.setup.components.PillButton
@@ -91,7 +91,7 @@ fun WelcomeScene(
                         }
                     },
                     style = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 28.sp,
                         letterSpacing = 0.5.sp,
@@ -106,7 +106,7 @@ fun WelcomeScene(
                     charDelayMs = 28L,
                     onComplete = { },
                     textStyle = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontStyle = FontStyle.Italic,
                         fontWeight = FontWeight.Normal,
                         fontSize = 15.sp,

@@ -73,7 +73,7 @@ import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.terminal.SearchHighlightOverlay
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
@@ -1043,7 +1043,7 @@ private fun ReadyScreen(
                         Text(
                             text = "Delete",
                             color = DroshError,
-                            fontFamily = OutfitFontFamily,
+                            fontFamily = LocalFontSet.current.sans,
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp,
                         )
@@ -1054,7 +1054,7 @@ private fun ReadyScreen(
                         Text(
                             text = "New session",
                             color = DroshPrimary,
-                            fontFamily = OutfitFontFamily,
+                            fontFamily = LocalFontSet.current.sans,
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp,
                         )
@@ -1064,7 +1064,7 @@ private fun ReadyScreen(
                     Text(
                         text = "Delete the last session?",
                         color = DroshText,
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp,
                     )
@@ -1078,7 +1078,7 @@ private fun ReadyScreen(
                             "Deleting it closes the app; a new session starts from scratch."
                         },
                         color = DroshTextSecondary,
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp,
                     )
@@ -1459,6 +1459,7 @@ private fun TerminalViewHost(
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     val focusedPane by terminalManager.focusedPane.collectAsStateWithLifecycle()
+    val monoResId = LocalFontSet.current.monoResId
 
     /**
      * This pane's own view.
@@ -1487,6 +1488,20 @@ private fun TerminalViewHost(
 
     LaunchedEffect(fontSizeSp) {
         ownView.value?.setTextSize(fontSizeSp)
+    }
+
+    // The terminal does not draw through Compose — the vendored Termux renderer
+    // takes an android.graphics.Typeface — so the font preference has to be
+    // resolved to a real typeface here rather than read off LocalFontSet.
+    //
+    // setTypeface re-measures the grid, which is why this is separate from the
+    // size effect above: the two can arrive in either order on first
+    // composition, and each one rebuilds the renderer from the other's value.
+    val terminalTypeface = remember(monoResId) {
+        runCatching { context.resources.getFont(monoResId) }.getOrNull()
+    }
+    LaunchedEffect(terminalTypeface) {
+        terminalTypeface?.let { ownView.value?.setTypeface(it) }
     }
 
     LaunchedEffect(colorProps) {

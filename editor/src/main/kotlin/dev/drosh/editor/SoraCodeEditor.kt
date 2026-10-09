@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import dev.drosh.design.system.LocalFontSet
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.EventReceiver
 import io.github.rosemoe.sora.lang.EmptyLanguage
@@ -115,13 +116,28 @@ fun SoraCodeEditor(
     handle: SoraEditorHandle = rememberSoraEditorHandle(),
 ) {
     val context = LocalContext.current
+
+    // sora takes a plain android.graphics.Typeface, so the font preference has
+    // to become one here — the same resolution the terminal view does. Read from
+    // the theme's own local so the editor follows the pack the user picked
+    // without every caller threading it through.
+    val monoResId = LocalFontSet.current.monoResId
+    val monoTypeface = remember(monoResId) {
+        runCatching { context.resources.getFont(monoResId) }.getOrNull()
+    }
     val editor = remember {
         CodeEditor(context).apply {
             setText(initialText)
-            setTypefaceText(Typeface.MONOSPACE)
+            setTypefaceText(monoTypeface ?: Typeface.MONOSPACE)
             setTextSize(EDITOR_TEXT_SIZE_SP)
             setColorScheme(droshEditorColorScheme())
         }
+    }
+
+    // A pack change after the editor exists. `remember` above would otherwise
+    // pin the first font for the life of the widget.
+    LaunchedEffect(editor, monoTypeface) {
+        monoTypeface?.let { editor.setTypefaceText(it) }
     }
 
     SideEffect { handle.editor = editor }

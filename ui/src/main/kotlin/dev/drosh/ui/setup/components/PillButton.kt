@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 
 @Composable
 fun PillButton(
@@ -47,7 +47,7 @@ fun PillButton(
         Text(
             text = text,
             style = TextStyle(
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
             ),
@@ -79,7 +79,7 @@ fun PillButtonWithIcon(
         Text(
             text = text,
             style = TextStyle(
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
             ),
@@ -123,7 +123,7 @@ fun PillButtonFull(
         Text(
             text = text,
             style = TextStyle(
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
             ),

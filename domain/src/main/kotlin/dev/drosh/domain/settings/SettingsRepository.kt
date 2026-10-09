@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
  * Surfaces:
  *  - Block Mode toggle
  *  - Extra-keys bar visibility toggle
+ *  - Font pack (Geist / Inter)
  *  - Terminal font size (sp)
  *  - Terminal background color (hex string)
  *  - Accent color (hex string)
@@ -22,6 +23,12 @@ interface SettingsRepository {
     val themeMode: Flow<ThemeMode>
 
     suspend fun setThemeMode(mode: ThemeMode)
+
+    /** Hot stream of the font pack. Emits [FontPack.Geist] on first launch. */
+    val fontPack: Flow<FontPack>
+
+    /** Persists the font pack. Applies across the app without a restart. */
+    suspend fun setFontPack(pack: FontPack)
 
     /** Hot stream of the Block Mode flag. Emits false on first launch. */
     val useBlockEngine: Flow<Boolean>
@@ -146,5 +153,28 @@ enum class ThemeMode {
     companion object {
         fun fromName(value: String?): ThemeMode =
             entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: System
+    }
+}
+
+/**
+ * Which bundled font pair the app draws with.
+ *
+ * A pack is one choice rather than two because the halves are not
+ * independently useful: Geist goes with Geist Mono, Inter with JetBrains Mono.
+ * Offering them separately would let someone put a terminal and a UI in two
+ * unrelated typefaces, which is a worse outcome than either pairing.
+ *
+ * [Geist] is the default. The families themselves live in `:design-system`,
+ * which cannot depend on this module, so consumers resolve them by name
+ * through `dev.drosh.design.system.DroshFonts.byName`.
+ */
+enum class FontPack {
+    Geist,
+    Inter,
+    ;
+
+    companion object {
+        fun fromName(value: String?): FontPack =
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: Geist
     }
 }

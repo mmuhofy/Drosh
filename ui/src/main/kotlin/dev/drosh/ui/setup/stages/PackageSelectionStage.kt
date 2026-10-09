@@ -57,7 +57,7 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.terminal.PackageProfile
 import dev.drosh.domain.terminal.ShellChoice
 import dev.drosh.ui.DroshIcons
@@ -90,7 +90,7 @@ fun PackageSelectionStage(
         Text(
             text = "Packages",
             style = TextStyle(
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 22.sp,
                 letterSpacing = 0.5.sp,
@@ -101,7 +101,7 @@ fun PackageSelectionStage(
         Text(
             text = "Choose what to install during setup",
             style = TextStyle(
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 textAlign = TextAlign.Center,
@@ -152,7 +152,7 @@ fun PackageSelectionStage(
             Text(
                 text = "Additional packages",
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
@@ -171,7 +171,7 @@ fun PackageSelectionStage(
                     Text(
                         text = "e.g. curl, jq, tmux",
                         style = TextStyle(
-                            fontFamily = OutfitFontFamily,
+                            fontFamily = LocalFontSet.current.sans,
                             fontSize = 13.sp,
                         ),
                         color = DroshTextMuted,
@@ -192,14 +192,14 @@ fun PackageSelectionStage(
                     cursorColor = DroshPrimary,
                 ),
                 textStyle = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 14.sp,
                 ),
                 supportingText = {
                     Text(
                         text = "Comma-separated apt package names",
                         style = TextStyle(
-                            fontFamily = OutfitFontFamily,
+                            fontFamily = LocalFontSet.current.sans,
                             fontSize = 11.sp,
                         ),
                         color = DroshTextMuted,
@@ -214,7 +214,7 @@ fun PackageSelectionStage(
         Text(
             text = "Shell",
             style = TextStyle(
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 lineHeight = 18.sp,
@@ -314,7 +314,7 @@ private fun ShellOptionCard(
                     Text(
                         text = title,
                         style = TextStyle(
-                            fontFamily = OutfitFontFamily,
+                            fontFamily = LocalFontSet.current.sans,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 15.sp,
                         ),
@@ -333,7 +333,7 @@ private fun ShellOptionCard(
                             Text(
                                 text = badge,
                                 style = TextStyle(
-                                    fontFamily = OutfitFontFamily,
+                                    fontFamily = LocalFontSet.current.sans,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 10.sp,
                                 ),
@@ -346,7 +346,7 @@ private fun ShellOptionCard(
                 Text(
                     text = description,
                     style = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.Normal,
                         fontSize = 12.sp,
                         lineHeight = 16.sp,

@@ -22,7 +22,7 @@ import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
 import dev.drosh.design.system.DroshThemeColors
 import dev.drosh.design.system.LocalDroshColors
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 
 /**
  * Installs our tokens where the renderer will read them.
@@ -38,9 +38,12 @@ import dev.drosh.design.system.OutfitFontFamily
 fun provideMarkdownTheme(content: @Composable () -> Unit) {
     val app = LocalDroshColors.current
     val code = CodeColors
+    val fonts = LocalFontSet.current
     androidx.compose.runtime.CompositionLocalProvider(
         LocalMarkdownColors provides remember(app, code) { DroshMarkdownColors(app, code) },
-        LocalMarkdownTypography provides remember(app) { DroshMarkdownTypography(app.textSecondary) },
+        LocalMarkdownTypography provides remember(app, fonts) {
+            DroshMarkdownTypography(app.textSecondary, fonts.sans, fonts.mono)
+        },
         LocalMarkdownDimens provides remember { DroshMarkdownDimens() },
         LocalMarkdownPadding provides remember { DroshMarkdownPadding() },
         content = content,
@@ -69,19 +72,26 @@ private class DroshMarkdownColors(
     override val dividerColor: Color get() = app.outline
 }
 
-private class DroshMarkdownTypography(private val secondary: Color) : MarkdownTypography {
+// The font families are constructor arguments rather than CompositionLocal
+// reads: the getters below are plain property getters, and a class cannot
+    // make one. `provideMarkdownTheme` reads them once and passes them in.
+private class DroshMarkdownTypography(
+    private val secondary: Color,
+    private val sans: FontFamily,
+    private val mono: FontFamily,
+) : MarkdownTypography {
     // Headings step down from h1 in a ratio that stays legible at reading size on a
     // phone. A library default of 2x for h1 would be a headline in the transcript.
-    override val text: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 21.sp)
+    override val text: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 21.sp)
     override val paragraph: TextStyle get() = text
-    override val h1: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
-    override val h2: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 17.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold)
-    override val h3: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
-    override val h4: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
-    override val h5: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
-    override val h6: TextStyle get() = TextStyle(fontFamily = OutfitFontFamily, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, color = secondary)
+    override val h1: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
+    override val h2: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 17.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold)
+    override val h3: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
+    override val h4: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+    override val h5: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
+    override val h6: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, color = secondary)
     override val quote: TextStyle get() = text.copy(color = secondary)
-    override val code: TextStyle get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp)
+    override val code: TextStyle get() = TextStyle(fontFamily = mono, fontSize = 12.sp, lineHeight = 17.sp)
     override val inlineCode: TextStyle get() = code.copy(fontSize = 13.sp)
     override val ordered: TextStyle get() = text
     override val bullet: TextStyle get() = text

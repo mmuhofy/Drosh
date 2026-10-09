@@ -26,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,7 +36,7 @@ import dev.drosh.design.system.DroshSurfaceContainerLowest
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.DroshIcons
 
 /**
@@ -86,7 +85,7 @@ fun MotdWidget(
             Text(
                 text = motdText,
                 color = DroshText,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 textAlign = TextAlign.Start,
@@ -153,7 +152,7 @@ private fun SystemInfoRow(info: SystemInfo) {
                 Text(
                     text = label,
                     color = DroshTextSecondary,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalFontSet.current.mono,
                     fontSize = 11.sp,
                 )
             }
@@ -220,7 +219,7 @@ private fun ActionButton(
             color = DroshPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            fontFamily = OutfitFontFamily,
+            fontFamily = LocalFontSet.current.sans,
         )
     }
 }

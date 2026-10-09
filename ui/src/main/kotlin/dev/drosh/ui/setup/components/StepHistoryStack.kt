@@ -33,7 +33,7 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.domain.terminal.BootstrapStep
 import dev.drosh.domain.terminal.StepState
@@ -64,7 +64,7 @@ fun StepHistoryStack(
                 text = "Completed",
                 color = DroshTextMuted,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
@@ -124,7 +124,7 @@ private fun HistoryStepRow(
             text = label,
             color = DroshText,
             style = TextStyle(
-                fontFamily = OutfitFontFamily,
+                fontFamily = LocalFontSet.current.sans,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
             ),
@@ -165,7 +165,7 @@ private fun ActiveStepCard(
                     text = step.label(),
                     color = DroshPrimary,
                     style = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                     ),
@@ -176,7 +176,7 @@ private fun ActiveStepCard(
                     text = "$percent%",
                     color = DroshTextMuted,
                     style = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                     ),
@@ -189,7 +189,7 @@ private fun ActiveStepCard(
                 text = message,
                 color = DroshTextMuted,
                 style = TextStyle(
-                    fontFamily = OutfitFontFamily,
+                    fontFamily = LocalFontSet.current.sans,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Normal,
                 ),

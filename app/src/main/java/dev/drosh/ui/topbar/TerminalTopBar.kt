@@ -62,7 +62,7 @@ import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
 import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.session.SessionSwitcherViewModel
 
 /**
@@ -358,7 +358,7 @@ fun TerminalTopBar(
                     Text(
                         text = activeName ?: "Drosh",
                         color = DroshText,
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.Medium,
                         fontSize = 15.sp,
                         maxLines = 1,

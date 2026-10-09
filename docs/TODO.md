@@ -331,3 +331,30 @@ into `feature-ssh` as `feat(terminal): smooth pinch-to-zoom`.*
 - [ ] No "reset layout" for a floating pane dragged into a corner it cannot be dragged out of.
 - [ ] The floating window's expand button has no collapse affordance in the title bar while
       maximized — you restore from the same button, which is correct but undiscoverable.
+
+### Fonts (2026-10-09)
+- [x] **Outfit kaldırıldı → Geist + Inter paketleri.** Varsayılan Geist Sans +
+      Geist Mono, ayarlardan seçilebilen Inter + JetBrains Mono. Monospace
+      pakete bağlı, ayrı ayar yok: tek başına sans seçmek terminali ve kod
+      bloklarını alakasız bir fontta bırakırdı.
+- [x] **Gerçek Medium/SemiBold ağırlıkları.** Önce tek `outfit_regular.ttf`
+      vardı, Material ölçeğinin on ayrı token'ı Medium ve SemiBold istediği
+      için bunlar sentetikti — başlıklar yumuşak görünüyordu. Artık iki
+      pakette de Regular + Medium + SemiBold var (~2.8 MB).
+- [x] **Değişim anında tüm app'e yayılıyor.** DataStore akışı →
+      `SettingsViewModel` → `MainActivity` → `DroshTheme(fontSet =)` →
+      `LocalFontSet`. Restart gerekmiyor.
+- [x] **Terminal, editör ve floating overlay de pack'i kullanıyor.** Üçü de
+      Compose değil `android.graphics.Typeface` alıyor, dolayısıyla
+      `monoResId`'yi `resources.getFont()` ile çözüyorlar; overlay servis
+      composition dışı olduğu için değeri DataStore'dan okuyor.
+- [x] **`TerminalView.setTypeface` null-safe.** `mRenderer!!` yüzünden font
+      boyuttan önce gelirse NPE veriyordu.
+- [ ] **Çeviriler eksik.** Yeni font string'leri sadece `values/` ve
+      `values-tr/` altında. `values-ar`, `-de`, `-es`, `-fil`, `-ja`, `-pt`,
+      `-ru`, `-zh` İngilizceye düşüyor.
+- [ ] **`fontSizeSp` doküman-kod uyuşmazlığı.** MEMORYBANK.md:915-937 ve
+      TODO.md bu değişikliği `Flow<Int>` → `Flow<Float>` ile yapılmış
+      anlatıyor, ama kodda hâlâ `Flow<Int>` + `intPreferencesKey` var ve
+      `TerminalFontSizeRepositoryImpl` diye ikinci bir stored terminal font
+      boyutu duruyor. Font paketi işinden ayrı, kendi konusu.

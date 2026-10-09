@@ -804,8 +804,16 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
          invalidate()
      }
 
+    /**
+     * Sets the typeface, which in turn re-measures the grid and so changes the
+     * row and column counts.
+     *
+     * Null-safe on the renderer: this can be called before any [setTextSize],
+     * and the previous `mRenderer!!` threw in that case. The size falls back to
+     * the Termux default so a font arriving first still draws.
+     */
     fun setTypeface(newTypeface: Typeface) {
-        mRenderer = TerminalRenderer(mRenderer!!.mTextSize, newTypeface)
+        mRenderer = TerminalRenderer(mRenderer?.mTextSize ?: DEFAULT_TEXT_SIZE, newTypeface)
         updateSize()
         invalidate()
     }
@@ -1926,5 +1934,14 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
          * jump does not turn into hundreds of separate PTY writes.
          */
         private const val CURSOR_MOVE_BATCH = 16
+
+        /**
+         * Font size in px used when a typeface arrives before any size.
+         *
+         * Roughly 9sp at the default density — small enough to be replaced
+         * immediately by the caller's own [setTextSize], and a real value
+         * rather than zero, which would collapse the grid to no rows.
+         */
+        private const val DEFAULT_TEXT_SIZE = 24
      }
 }

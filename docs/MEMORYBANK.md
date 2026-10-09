@@ -19,7 +19,7 @@ _Last updated: 2026-10-08_
 
 ## 2. Vision
 
-Termux brought the terminal to Android in 2012. Drosh reinvents it for 2026. Not a Termux fork — a ground-up reimagination of what a mobile terminal should be: agent-native, semantically aware, and built for the way people actually use their phones. The goal is a single application that combines desktop terminal power, mobile-first UX, semantic UI, and AI workflow — making it the first terminal environment where the agent and the shell are the same thing.
+```Termux brought the terminal to Android in 2012. Drosh reinvents it for 2026. Not a Termux fork — a ground-up reimagination of what a mobile terminal should be: agent-native, semantically aware, and built for the way people actually use their phones. The goal is a single application that combines desktop terminal power, mobile-first UX, semantic UI, and AI workflow — making it the first terminal environment where the agent and the shell are the same thing.```
 
 **Target users:** Termux power users, mobile developers, DevOps engineers, CTF players, students learning Linux.
 
@@ -150,10 +150,37 @@ Compose UI         → renders BlockList with animations
 | Error | `#F2555A` |
 | Warning | `#F0B429` |
 | Build | `#4C9EFF` |
-| Terminal font | JetBrains Mono |
-| UI font | Outfit (bundled) |
+| Terminal font | Geist Mono (Geist pack) / JetBrains Mono (Inter pack) |
+| UI font | Geist Sans (Geist pack) / Inter (Inter pack) |
 | Corner radius | 14dp cards, 12dp buttons, 8dp chips |
 | Theme | Dark only (v1.0) |
+
+**Fonts.** Two packs, chosen as one pair in Settings → Appearance → Font,
+because the monospace half is not independently useful — a sans picked on its
+own would leave the terminal and the code blocks in a font unrelated to it.
+**Geist** (Geist Sans + Geist Mono) is the default; **Inter** (Inter +
+JetBrains Mono) is the wider alternative. Both are SIL OFL 1.1 and bundle
+Regular, Medium and SemiBold — the Material type scale asks for Medium and
+SemiBold at ten separate tokens, and synthesizing them from a single Regular
+is what made titles look soft before.
+
+Sources: `design-system/src/main/res/font/*.ttf`, from
+github.com/vercel/geist-font v1.7.2, github.com/rsms/inter v4.1 and
+github.com/JetBrains/JetBrainsMono v2.304. The families and the
+`LocalFontSet` CompositionLocal are in
+`design-system/.../DroshFontFamily.kt`; the persisted choice is
+`dev.drosh.domain.settings.FontPack`, resolved through `DroshFonts.byName`
+because `:design-system` must not depend on `:domain`.
+
+`:design-system` resolves the packs by *name* rather than by the enum, so the
+two lists have to stay in step — rename one without the other and `byName`
+falls back to Geist.
+
+This replaces Outfit, which shipped with a single weight. The terminal,
+the editor and the floating overlay window take an
+`android.graphics.Typeface` rather than a Compose `FontFamily`, so each
+resolves the pack's `monoResId` through `resources.getFont()`; the
+platform monospace is the fallback if that fails.
 
 **Source of truth:** the values live in `core/.../DroshPalette.kt` as plain
 ARGB ints; `design-system/.../DroshColors.kt` wraps them as Compose

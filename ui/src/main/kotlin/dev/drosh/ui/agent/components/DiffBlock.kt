@@ -18,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshError
@@ -26,6 +25,7 @@ import dev.drosh.design.system.DroshSuccess
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 
 /**
  * Renders unified diff text.
@@ -80,7 +80,7 @@ private fun DiffLine(line: String, index: Int) {
             text = line.ifEmpty { " " },
             fontSize = 11.sp,
             lineHeight = 16.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = LocalFontSet.current.mono,
             color = tint,
         )
         // Keeps the block from collapsing when every line is short.

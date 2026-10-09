@@ -36,7 +36,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -54,6 +53,7 @@ import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.components.GlassPill
 import dev.drosh.ui.agent.components.ActionButton
@@ -266,7 +266,7 @@ private fun ApiKeyField(
                     Text(
                         text = if (hasKey) "sk-or-v1-… (kayıtlı)" else "sk-or-v1-…",
                         fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         color = DroshTextMuted,
                     )
                 }
@@ -274,7 +274,7 @@ private fun ApiKeyField(
                     value = key,
                     onValueChange = { key = it },
                     singleLine = true,
-                    textStyle = TextStyle(fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = DroshText),
+                    textStyle = TextStyle(fontSize = 13.sp, fontFamily = LocalFontSet.current.mono, color = DroshText),
                     cursorBrush = SolidColor(DroshPrimary),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     // Masked by default: a key is visible on someone's shoulder.
@@ -378,7 +378,7 @@ private fun SearchKeyField(
                     Text(
                         text = if (hasKey) "exa-… (kayıtlı)" else "exa-…",
                         fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         color = DroshTextMuted,
                     )
                 }
@@ -388,7 +388,7 @@ private fun SearchKeyField(
                     singleLine = true,
                     textStyle = TextStyle(
                         fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalFontSet.current.mono,
                         color = DroshText,
                     ),
                     cursorBrush = SolidColor(DroshPrimary),
@@ -461,7 +461,7 @@ private fun ModelRow(
             Text(
                 text = modelId,
                 fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalFontSet.current.mono,
                 color = DroshText,
             )
             if (label != null && label != modelId) {

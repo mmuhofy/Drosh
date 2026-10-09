@@ -34,7 +34,7 @@ import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.OutfitFontFamily
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.terminal.PackageProfile
 import dev.drosh.ui.DroshIcons
 
@@ -89,7 +89,7 @@ fun PackageProfilePresetCard(
                 Text(
                     text = profile.displayName,
                     style = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp,
                     ),
@@ -98,7 +98,7 @@ fun PackageProfilePresetCard(
                 Text(
                     text = profile.description,
                     style = TextStyle(
-                        fontFamily = OutfitFontFamily,
+                        fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.Normal,
                         fontSize = 12.sp,
                     ),

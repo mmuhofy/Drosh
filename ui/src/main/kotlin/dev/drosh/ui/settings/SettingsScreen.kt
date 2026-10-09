@@ -34,6 +34,7 @@ import dev.drosh.core.copyToClipboard
 import dev.drosh.core.toast
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.domain.settings.CursorStyle
+import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.ui.DroshIcons
@@ -70,6 +71,7 @@ fun SettingsScreen(
     deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel(),
 ) {
     val themeMode         by viewModel.themeMode.collectAsStateWithLifecycle()
+    val fontPack          by viewModel.fontPack.collectAsStateWithLifecycle(FontPack.Geist)
     val locale            by viewModel.locale.collectAsStateWithLifecycle("")
     val useBlockEngine    by viewModel.useBlockEngine.collectAsStateWithLifecycle(false)
     val autoHideStatusBar by viewModel.autoHideStatusBar.collectAsStateWithLifecycle(true)
@@ -130,27 +132,55 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = stringResource(R.string.settings_section_appearance), items = 1) { _, cap ->
-                SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_theme),
-                    icon = DroshIcons.Palette,
-                    supporting = when (themeMode) {
-                        ThemeMode.System -> stringResource(R.string.settings_theme_system_desc)
-                        ThemeMode.Light -> stringResource(R.string.settings_theme_light_desc)
-                        ThemeMode.Dark -> stringResource(R.string.settings_theme_dark_desc)
-                    },
-                ) {
-                    SettingsSegmented(
-                        options = listOf(
-                            ThemeMode.System to stringResource(R.string.settings_theme_auto),
-                            ThemeMode.Light to stringResource(R.string.settings_theme_light),
-                            ThemeMode.Dark to stringResource(R.string.settings_theme_dark),
-                        ),
-                        selected = themeMode,
-                        onSelect = viewModel::setThemeMode,
-                    )
+            SettingsGroupColumn(label = stringResource(R.string.settings_section_appearance), items = 2) { index, cap ->
+                when (index) {
+                    0 -> SettingsTile(
+                        cap = cap,
+                        stacked = true,
+                        title = stringResource(R.string.settings_theme),
+                        icon = DroshIcons.Palette,
+                        supporting = when (themeMode) {
+                            ThemeMode.System -> stringResource(R.string.settings_theme_system_desc)
+                            ThemeMode.Light -> stringResource(R.string.settings_theme_light_desc)
+                            ThemeMode.Dark -> stringResource(R.string.settings_theme_dark_desc)
+                        },
+                    ) {
+                        SettingsSegmented(
+                            options = listOf(
+                                ThemeMode.System to stringResource(R.string.settings_theme_auto),
+                                ThemeMode.Light to stringResource(R.string.settings_theme_light),
+                                ThemeMode.Dark to stringResource(R.string.settings_theme_dark),
+                            ),
+                            selected = themeMode,
+                            onSelect = viewModel::setThemeMode,
+                        )
+                    }
+
+                    // The two packs are chosen as one, because each carries its
+                    // own monospace half — picking a sans on its own would leave
+                    // the terminal and the code blocks in a font that has nothing
+                    // to do with it. The description spells the pairing out rather
+                    // than naming a single typeface, so the trade is visible here
+                    // instead of discovered later in the terminal.
+                    1 -> SettingsTile(
+                        cap = cap,
+                        stacked = true,
+                        title = stringResource(R.string.settings_font),
+                        icon = DroshIcons.Type,
+                        supporting = when (fontPack) {
+                            FontPack.Geist -> stringResource(R.string.settings_font_geist_desc)
+                            FontPack.Inter -> stringResource(R.string.settings_font_inter_desc)
+                        },
+                    ) {
+                        SettingsSegmented(
+                            options = listOf(
+                                FontPack.Geist to stringResource(R.string.settings_font_geist),
+                                FontPack.Inter to stringResource(R.string.settings_font_inter),
+                            ),
+                            selected = fontPack,
+                            onSelect = viewModel::setFontPack,
+                        )
+                    }
                 }
             }
 

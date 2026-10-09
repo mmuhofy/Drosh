@@ -23,6 +23,14 @@
     <string name="settings_theme_light_desc">Always light</string>
     <string name="settings_theme_dark_desc">Always dark</string>
 
+    <!-- Font packs. Each label names the sans; the _desc names the pairing,
+         because the monospace half comes with it and is not chosen separately. -->
+    <string name="settings_font">Font</string>
+    <string name="settings_font_geist">Geist</string>
+    <string name="settings_font_inter">Inter</string>
+    <string name="settings_font_geist_desc">Geist Sans with Geist Mono</string>
+    <string name="settings_font_inter_desc">Inter with JetBrains Mono</string>
+
     <!-- ── Settings: terminal ──────────────────────────────────────────── -->
     <string name="settings_font_size_value">%1$dsp</string>
     <string name="settings_cursor_blink">Cursor blink</string>

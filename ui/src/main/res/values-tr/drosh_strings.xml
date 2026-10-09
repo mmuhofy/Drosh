@@ -21,6 +21,12 @@
     <string name="settings_theme_light_desc">Her zaman açık</string>
     <string name="settings_theme_dark_desc">Her zaman koyu</string>
 
+    <string name="settings_font">Yazı tipi</string>
+    <string name="settings_font_geist">Geist</string>
+    <string name="settings_font_inter">Inter</string>
+    <string name="settings_font_geist_desc">Geist Mono ile Geist Sans</string>
+    <string name="settings_font_inter_desc">JetBrains Mono ile Inter</string>
+
     <string name="settings_font_size_value">%1$ds</string>
     <string name="settings_cursor_blink">İmleç yanıp sönmesi</string>
     <string name="settings_cursor_blink_off">Kapalı</string>
