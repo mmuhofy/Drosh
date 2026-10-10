@@ -363,6 +363,9 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     /** Renderer metrics (cell size) for the same reason as [emulatorForMouse]. */
     internal val rendererForMouse: TerminalRenderer? get() = mRenderer
 
+    /** The session this view shows, for mouse-pad cursor placement. */
+    internal val mouseSession: TerminalSession? get() = mTermSession
+
     init {
         mGestureRecognizer = GestureAndScaleRecognizer(context, object : GestureAndScaleRecognizer.Listener {
             var scrolledWithFinger = false

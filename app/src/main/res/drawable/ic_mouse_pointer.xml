@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    On-screen mouse pointer for the Drosh Keyboard mouse pad.
+    On-screen mouse pointer for the Drosh Keyboard mouse pad: a hollow box,
+    sized at runtime from the terminal font metrics (see MouseInputHandler).
     SPDX-License-Identifier: GPL-3.0-only
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -9,8 +10,13 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
     <path
-        android:fillColor="#F2F6FF"
-        android:strokeColor="#0B0C0E"
-        android:strokeWidth="1.2"
-        android:pathData="M5,3 L19,11 L12.4,12.4 L11,19 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#F2F6FF"
+        android:strokeWidth="2.2"
+        android:pathData="M3,3 L21,3 L21,21 L3,21 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#400B0C0E"
+        android:strokeWidth="3.6"
+        android:pathData="M3,3 L21,3 L21,21 L3,21 Z" />
 </vector>
