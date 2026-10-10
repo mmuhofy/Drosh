@@ -361,10 +361,9 @@ class TerminalEmulator(
      * position and repaints on the next keystroke, so this is a visual
      * placement that the next output re-syncs.
      */
-    fun setCursorPosition(col: Int, row: Int) {
+    fun moveCursorToScreenCell(col: Int, row: Int) {
         if (mTermSession == null) return
-        mCursorCol = col.coerceIn(0, mColumns - 1)
-        mCursorRow = row.coerceIn(0, mRows - 1)
+        setCursorRowCol(row.coerceIn(0, mRows - 1), col.coerceIn(0, mColumns - 1))
     }
 
     fun getCursorStyle(): Int = mCursorStyle

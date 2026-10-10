@@ -170,7 +170,7 @@ object MouseInputHandler {
             emulator.sendMouseEvent(button, col + 1, row + 1, false)
         } else {
             // plain shell: put the cursor where the user clicked
-            emulator.setCursorPosition(col, row)
+            emulator.moveCursorToScreenCell(col, row)
             terminalView?.onScreenUpdated(true)
         }
     }
@@ -190,7 +190,7 @@ object MouseInputHandler {
         } else if (heldButton >= 0) {
             // plain shell: a drag has no selection to leave behind, so the
             // gesture ends by placing the cursor at the release cell
-            emulator.setCursorPosition(col, row)
+            emulator.moveCursorToScreenCell(col, row)
             terminalView?.onScreenUpdated(true)
         }
         heldButton = -1
