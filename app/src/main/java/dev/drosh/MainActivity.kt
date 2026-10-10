@@ -215,8 +215,10 @@ class MainActivity : ComponentActivity() {
     /**
      * Listens for Drosh Keyboard telling us where it is docked.
      *
-     * Only that app can send this, and only while Drosh is in the foreground:
-     * a floating keyboard must not push the layout around, a docked one must.
+     * Only that app can send this — the receiver demands the signature-level
+     * [KeyboardWindowModeState.PERMISSION_SEND_KEYBOARD_MODE] — and only while
+     * Drosh is in the foreground: a floating keyboard must not push the layout
+     * around, a docked one must.
      */
     private fun registerKeyboardModeReceiver() {
         if (keyboardModeReceiver != null) return
@@ -230,15 +232,16 @@ class MainActivity : ComponentActivity() {
         }
         keyboardModeReceiver = receiver
         val filter = IntentFilter(KeyboardWindowModeState.ACTION_WINDOW_MODE)
+        val permission = KeyboardWindowModeState.PERMISSION_SEND_KEYBOARD_MODE
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // NOT_EXPORTED would reject Drosh Keyboard, which is a separate app
-            // and therefore a different uid. The action is only protected
-            // because nothing in this app acts on it blindly — it just records
-            // a placement mode — so a foreign sender can do no harm.
-            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+            // The permission is what gates the sender; RECEIVER_EXPORTED only
+            // says "another app may reach me", and without a holder of the
+            // permission that reach is dead. Without it, a third-party app
+            // could flip the keyboard padding while Drosh is in front.
+            registerReceiver(receiver, filter, permission, null, Context.RECEIVER_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(receiver, filter)
+            registerReceiver(receiver, filter, permission, null)
         }
     }
 

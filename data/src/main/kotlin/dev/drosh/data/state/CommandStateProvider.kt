@@ -43,7 +43,11 @@ import dev.drosh.terminal.SnippetsStore
  * foreground app, the query returns an empty cursor and the keyboard stays
  * neutral — an IME must never depend on another app being alive.
  *
- * State comes from [CommandStateBus], written by the foreground service.
+ * Command state comes from [CommandStateBus] (written by the foreground
+ * service); snippets are read straight from `~/.drosh/snippets.json` on
+ * every query, so a keyboard that starts a cold Drosh process — or writes
+ * a snippet itself — always sees the current file rather than a stale
+ * in-memory mirror.
  */
 class CommandStateProvider : ContentProvider() {
 
@@ -133,12 +137,20 @@ class CommandStateProvider : ContentProvider() {
     }
 
     /**
-     * One row per snippet. Empty cursor when Drosh has none — which also
-     * covers "file missing" and "file malformed", since both read as empty.
+     * One row per snippet, read straight from disk.
+     *
+     * Disk rather than [CommandStateBus]: the bus is a live mirror that the
+     * foreground service publishes on command transitions, and it is empty in
+     * any process where the service never ran. A query that starts a cold
+     * Drosh process would then return an empty list even though
+     * `snippets.json` has entries, and the keyboard's own writes would not
+     * show up until the next command boundary. The file is small and the
+     * writers are atomic, so it is cheap enough to be the source of truth.
      */
     private fun querySnippets(): Cursor {
         val cursor = MatrixCursor(SNIPPET_COLUMNS)
-        for (snippet in CommandStateBus.readSnippets()) {
+        val snippets = homeDir()?.let(SnippetsStore::load).orEmpty()
+        for (snippet in snippets) {
             cursor.addRow(arrayOf(snippet.alias, snippet.command))
         }
         return cursor

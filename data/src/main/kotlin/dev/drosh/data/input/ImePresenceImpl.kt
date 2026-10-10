@@ -39,7 +39,11 @@ class ImePresenceImpl @Inject constructor(
         } catch (_: Exception) {
             null
         } ?: return false
-        return current.startsWith("$DROSH_KEYBOARD_PACKAGE/")
+        // The id is "package/service". Accept the release package and the
+        // debug variant (applicationIdSuffix ".debug") plus any future
+        // suffix build — never a different top-level package.
+        val pkg = current.substringBefore('/')
+        return pkg == DROSH_KEYBOARD_PACKAGE || pkg.startsWith("$DROSH_KEYBOARD_PACKAGE.")
     }
 
     private companion object {

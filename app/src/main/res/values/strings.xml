@@ -41,6 +41,8 @@
     <string name="pin_entry_subtitle">Enter a new 4-digit PIN</string>
     <string name="permission_read_command_state_label">Read terminal command state</string>
     <string name="permission_read_command_state_description">Allows Drosh Keyboard to see whether a terminal command is running and how it ended.</string>
+    <string name="permission_send_keyboard_mode_label">Report keyboard placement</string>
+    <string name="permission_send_keyboard_mode_description">Allows Drosh Keyboard to tell Drosh whether it is docked or floating, so the layout reserves space only while the keyboard is docked.</string>
     <!-- System overlay pane -->
     <string name="overlay_channel_name">Floating pane</string>
     <string name="overlay_notification_title">Pane floating over other apps</string>

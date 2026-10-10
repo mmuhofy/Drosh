@@ -29,6 +29,15 @@
         android:protectionLevel="signature"
         android:label="@string/permission_read_command_state_label"
         android:description="@string/permission_read_command_state_description" />
+
+    <!-- Senders of the keyboard window-mode broadcast. Signature-level for the
+         same reason as above: only the Drosh Keyboard build may tell Drosh
+         where it is docked. -->
+    <permission
+        android:name="dev.drosh.permission.SEND_KEYBOARD_MODE"
+        android:protectionLevel="signature"
+        android:label="@string/permission_send_keyboard_mode_label"
+        android:description="@string/permission_send_keyboard_mode_description" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- The floating pane is a window above other apps, which needs the user's

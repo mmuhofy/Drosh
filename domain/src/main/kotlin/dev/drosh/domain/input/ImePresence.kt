@@ -4,7 +4,8 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Detects whether the companion **Drosh Keyboard** IME (package
- * `dev.drosh.ime`) is the currently selected input method.
+ * `dev.drosh.ime`, including build variants such as `dev.drosh.ime.debug`)
+ * is the currently selected input method.
  *
  * While it is active, the keyboard owns the special keys (Ctrl, Alt, Esc,
  * Tab) and the cursor movement, so Drosh's own on-screen extra-keys bar is

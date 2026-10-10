@@ -45,6 +45,13 @@ object KeyboardWindowModeState {
     const val ACTION_WINDOW_MODE = "dev.drosh.action.KEYBOARD_WINDOW_MODE"
     const val EXTRA_MODE = "mode"
 
+    /**
+     * Broadcasters must hold this. Declared at signature level in both apps,
+     * so only builds signed with the shared Drosh key can tell Drosh where
+     * the keyboard sits.
+     */
+    const val PERMISSION_SEND_KEYBOARD_MODE = "dev.drosh.permission.SEND_KEYBOARD_MODE"
+
     private val _mode = MutableStateFlow(KeyboardWindowMode.UNKNOWN)
     val mode: StateFlow<KeyboardWindowMode> = _mode.asStateFlow()
 
