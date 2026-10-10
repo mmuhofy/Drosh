@@ -14,6 +14,7 @@ import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.agent.LlmRequest
 import dev.drosh.domain.agent.LlmStreamEvent
 import dev.drosh.domain.agent.ProviderKind
+import dev.drosh.domain.agent.ToolCallState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -193,7 +194,7 @@ internal class FakeTranscriptStore : TranscriptStore {
     override suspend fun load(chatId: String): List<ChatMessage> {
         val stored = messages[chatId]
         if (!stored.isNullOrEmpty()) return stored
-        return assembleModelHistory(modelViewAsRows(chatId))
+        return modelViewAsRows(chatId)
     }
 
     /** The model view as the transcript rows a restore would read. */
