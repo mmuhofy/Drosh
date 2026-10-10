@@ -7,7 +7,13 @@ import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.terminal.UbuntuBootstrap
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
@@ -28,6 +34,20 @@ class BackgroundImageStoreImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val bootstrap: UbuntuBootstrap,
 ) : BackgroundImageStore {
+
+    private val _imageFile = MutableStateFlow<File?>(null)
+    override val imageFile: StateFlow<File?> = _imageFile.asStateFlow()
+
+    /** Radius the current [imageFile] was resolved for; 0 means none. */
+    private var resolvedBlur = -1
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        // Resolved once at startup: the terminal may be the first thing on
+        // screen, and a background left by a previous run should be there.
+        scope.launch { resolve(0) }
+    }
 
     private fun primaryDir(): File = File(bootstrap.rootfsDir, "home/.drosh")
 
@@ -56,6 +76,7 @@ class BackgroundImageStoreImpl @Inject constructor(
             // A previous image's blurred cache is now wrong; drop every one of
             // them, whatever radius produced it.
             EXTENSIONS.forEach { ext -> File(primaryDir(), "background.$ext.blurred.v1.png").delete() }
+            resolve(resolvedBlur.coerceAtLeast(0))
             Result.success(name)
         } catch (e: Exception) {
             Timber.w(e, "background: import failed")
@@ -74,22 +95,45 @@ class BackgroundImageStoreImpl @Inject constructor(
                 ?.forEach { it.delete() }
             File(backupDir(), ".").listFiles { f -> f.name.contains(".blurred.") }
                 ?.forEach { it.delete() }
+            resolve(0)
             // The block's last expression decides the Result's type: without
             // this it is Unit?, and the interface promises Unit.
             Unit
         }
     }
 
-    override suspend fun displayFile(blurRadius: Int): File? = withContext(Dispatchers.IO) {
-        val source = sourceFile() ?: return@withContext null
-        if (blurRadius <= 0) return@withContext source
-        val cache = File(source.parentFile, blurredName(extensionOf(source.name), blurRadius))
-        if (cache.exists() && cache.lastModified() >= source.lastModified()) return@withContext cache
-        // A generation that fails leaves the source in place: a sharp
-        // background is a better outcome than none.
-        runCatching { blurToFile(source, cache, blurRadius) }
-            .onFailure { Timber.w(it, "background: blur failed") }
-        cache.takeIf { it.exists() } ?: source
+    override suspend fun applyBlur(radius: Int) {
+        withContext(Dispatchers.IO) { resolve(radius) }
+    }
+
+    /**
+     * The file the terminal should draw, or null.
+     *
+     * A failed blur leaves the source in place: a sharp background is a
+     * better outcome than none. A radius that has not changed resolves to
+     * what is already there, so the settings flow can call this on every
+     * emission without redoing work.
+     */
+    private fun resolve(radius: Int): File? {
+        val source = sourceFile()
+        if (source == null || radius == resolvedBlur) {
+            if (source == null) resolvedBlur = -1
+            _imageFile.value = source
+            return source
+        }
+        if (radius <= 0) {
+            resolvedBlur = 0
+            _imageFile.value = source
+            return source
+        }
+        val cache = File(source.parentFile, blurredName(extensionOf(source.name), radius))
+        if (!cache.exists() || cache.lastModified() < source.lastModified()) {
+            runCatching { blurToFile(source, cache, radius) }
+                .onFailure { Timber.w(it, "background: blur failed") }
+        }
+        resolvedBlur = radius
+        _imageFile.value = cache.takeIf { it.exists() } ?: source
+        return _imageFile.value
     }
 
     private fun sourceFile(): File? {

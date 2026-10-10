@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -63,8 +64,11 @@ class TerminalViewModel @Inject constructor(
      * changing regenerates what the terminal shows, and neither of them is a
      * path the screen has to know about.
      */
-    private val _backgroundFile = MutableStateFlow<File?>(null)
-    val backgroundFile: StateFlow<File?> = _backgroundFile.asFileStateFlow()
+    val backgroundFile: StateFlow<File?> = combine(
+        backgroundImages.imageFile,
+        store.settings.map { it.background.imageEnabled },
+    ) { file, enabled -> file.takeIf { enabled } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val useBlockEngine: StateFlow<Boolean> = settingsRepository.useBlockEngine
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -135,13 +139,14 @@ class TerminalViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            // The radius is a settings value and the file is the store's, so
+            // the two meet here: each new radius re-resolves, and an import —
+            // which is not a settings change at all — arrives through the
+            // store's own flow.
             store.settings
-                .map { background -> background.background.imageEnabled to background.background.blurRadius }
+                .map { it.background.blurRadius }
                 .distinctUntilChanged()
-                .collect { (enabled, blur) ->
-                    _backgroundFile.value =
-                        if (enabled) backgroundImages.displayFile(blur) else null
-                }
+                .collect { radius -> backgroundImages.applyBlur(radius) }
         }
     }
 
@@ -248,6 +253,3 @@ data class TerminalAppearance(
     }
 }
 
-
-/** Keeps the field's type private to this file. */
-private fun MutableStateFlow<File?>.asFileStateFlow(): StateFlow<File?> = this

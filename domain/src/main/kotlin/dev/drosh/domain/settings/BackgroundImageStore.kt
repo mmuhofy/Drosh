@@ -1,5 +1,7 @@
 package dev.drosh.domain.settings
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 
 /**
@@ -19,6 +21,16 @@ import java.io.File
  */
 interface BackgroundImageStore {
 
+    /**
+     * The file the terminal should draw right now, or null for none.
+     *
+     * A flow rather than a function because an import happens somewhere else
+     * entirely — the settings screen's picker — and the terminal has to hear
+     * about it. Blur changes arrive through [applyBlur]; imports and removals
+     * update it themselves.
+     */
+    val imageFile: StateFlow<File?>
+
     /** The convention file's name, or null when there is none. */
     fun currentFileName(): String?
 
@@ -34,9 +46,8 @@ interface BackgroundImageStore {
     suspend fun remove(): Result<Unit>
 
     /**
-     * The file the terminal should draw — the blurred cache when
-     * [blurRadius] asks for one, the source otherwise. Generates the cache
-     * when it is missing or stale.
+     * Re-resolves the file for a new blur radius, generating the cache when
+     * the radius asks for one and there is an image to blur.
      */
-    suspend fun displayFile(blurRadius: Int): File?
+    suspend fun applyBlur(radius: Int)
 }

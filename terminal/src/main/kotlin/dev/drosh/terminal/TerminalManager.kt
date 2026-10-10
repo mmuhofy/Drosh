@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.settings.MotdDefaults
+import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.SettingsRepository
@@ -55,6 +56,7 @@ class TerminalManager(
     private val blockEngineWire: BlockEngineWire? = null,
     private val settingsRepository: SettingsRepository,
     private val settingsStore: SettingsStore? = null,
+    private val backgroundImages: BackgroundImageStore? = null,
 ) : PaneSessionBinder {
 
     // PaneSessionBinder: the split screen lives in :ui and cannot import this
@@ -309,6 +311,29 @@ class TerminalManager(
     /** Applies [color] to [view] as the terminal's own background. */
     private fun applyTerminalBackground(view: TerminalView, color: Int) {
         view.setBackgroundColor(color)
+    }
+
+    /**
+     * True while a background image is behind the terminal.
+     *
+     * The view's own background has to be transparent for the image to show:
+     * the renderer paints no background for default cells, so the view's is
+     * what shows — and an opaque one hides the image behind it completely.
+     * The theme's colour returns the moment the image is gone.
+     */
+    private fun backgroundImageActive(): Boolean =
+        backgroundImages?.imageFile?.value != null
+
+    /** Re-applies every pane's background: the image, or the theme colour. */
+    private fun applyTerminalBackgrounds() {
+        val transparent = backgroundImageActive()
+        paneViews.values.forEach { view ->
+            if (transparent) {
+                view.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            } else {
+                applyTerminalBackground(view, terminalBgColor)
+            }
+        }
     }
 
     /**
@@ -810,12 +835,18 @@ class TerminalManager(
                 val bg = parseHexColor(settings.terminal.palette.background)
                 if (bg != null && bg != terminalBgColor) {
                     terminalBgColor = bg
-                    paneViews.values.forEach { view -> applyTerminalBackground(view, bg) }
+                    applyTerminalBackgrounds()
                 }
                 paneViews.values.forEach { view ->
                     view.setTerminalTypeBehaviour(boldBrightens, ligatures)
                 }
             }
+            ?.launchIn(managerScope)
+
+        // An import is not a settings change, so the image's own flow is what
+        // tells the panes a background arrived or left.
+        backgroundImages?.imageFile
+            ?.onEach { applyTerminalBackgrounds() }
             ?.launchIn(managerScope)
 
         settingsRepository.cursorBlinkRateMs
@@ -923,8 +954,9 @@ class TerminalManager(
         // type behaviour is held and replayed rather than applied once.
         view.setTerminalTypeBehaviour(boldBrightens, ligatures)
         // The terminal paints no background of its own for default cells -
-        // the view's is what shows, and it is what a theme changes.
-        applyTerminalBackground(view, terminalBgColor)
+        // the view's is what shows, and it is what a theme changes. With an
+        // image behind it, the view's is transparent so the image shows.
+        applyTerminalBackgrounds()
 
         if (slot == focusedPane.value) activatePaneView(slot, view)
     }
