@@ -55,18 +55,46 @@ class TranscriptBuilderRestoreTest {
     }
 
     @Test
-    fun `restoring over a live transcript is refused`() {
+    fun `ids minted after a restore do not collide with the restored ones`() {
+        // The crash this guards against: a restored transcript holding m0 was
+        // followed by nextId() returning m0 again, and a LazyColumn keyed on the
+        // message id threw on the duplicate. The builder has to mint past
+        // everything it was handed.
+        val builder = TranscriptBuilder().apply {
+            restore(
+                listOf(
+                    ChatMessage.User("m0", "first"),
+                    ChatMessage.Assistant("m1", "answer"),
+                ),
+            )
+        }
+
+        builder.accept(AgentEvent.TextDelta("more"))
+
+        val ids = builder.snapshot().map { it.id }
+        assertEquals("restored ids kept", listOf("m0", "m1") + ids.drop(2), ids)
+        assertEquals(3, ids.distinct().size)
+    }
+
+    @Test
+    fun `restore replaces what is there, because switching chats reuses the builder`() {
+        // The same ViewModel serves two chats, so the second restore is over a
+        // live transcript. Refusing meant a crash on the second chat; replacing
+        // means nothing of the first chat survives, which is the point.
         val builder = TranscriptBuilder()
         builder.accept(AgentEvent.TextDelta("live"))
 
-        val error = runCatching { builder.restore(listOf(ChatMessage.User("u1", "x"))) }
-            .exceptionOrNull()
+        builder.restore(listOf(ChatMessage.User("m0", "other chat")))
 
-        assertTrue(error is IllegalStateException)
-        // The live conversation is untouched: this is a programming error, not a
-        // state to recover from.
-        val live = builder.snapshot().single() as ChatMessage.Assistant
-        assertEquals("live", live.text)
+        val snapshot = builder.snapshot()
+        assertEquals(1, snapshot.size)
+        assertEquals("other chat", (snapshot.single() as ChatMessage.User).text)
+
+        // And the seq counter starts past the new store's ids, so the next
+        // message cannot collide with the one just loaded.
+        builder.accept(AgentEvent.TextDelta("reply"))
+        val ids = builder.snapshot().map { it.id }
+        assertEquals(2, ids.distinct().size)
     }
 
     @Test

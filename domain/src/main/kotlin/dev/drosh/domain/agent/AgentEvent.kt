@@ -1,5 +1,7 @@
 package dev.drosh.domain.agent
 
+import kotlinx.serialization.json.JsonObject
+
 /**
  * Events the agent loop emits while a run is in progress.
  *

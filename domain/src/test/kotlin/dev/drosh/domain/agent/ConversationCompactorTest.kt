@@ -1,5 +1,9 @@
 package dev.drosh.domain.agent
 
+import dev.drosh.domain.agent.AgentApproval
+import dev.drosh.domain.agent.ApprovalDecision
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -28,11 +32,13 @@ class AssembleModelHistoryTest {
     }
 
     @Test
-    fun `a succeeded tool call becomes the model's tool result`() {
+    fun `a succeeded tool call is replayed as an assistant turn with its result`() {
+        // The assistant message carries the calls and the results follow it: a
+        // lone tool_result with nothing before it is rejected by every protocol.
         val history = assembleModelHistory(
             listOf(
                 ChatMessage.User("u1", "run it"),
-                ChatMessage.Assistant("a1", ""),
+                ChatMessage.Assistant("a1", "looking now"),
                 ChatMessage.ToolCall(
                     id = "m3",
                     callId = "call_1",
@@ -40,11 +46,129 @@ class AssembleModelHistoryTest {
                     summary = "npm test",
                     state = ToolCallState.Succeeded,
                     finalOutput = "exit 0",
+                    arguments = buildJsonObject { put("command", "npm test") },
                 ),
             ),
         )
 
-        assertEquals(LlmMessage.ToolResultMessage("call_1", "shell", "exit 0"), history.last())
+        assertEquals(
+            listOf(
+                LlmMessage.User("run it"),
+                LlmMessage.Assistant(
+                    text = "looking now",
+                    toolCalls = listOf(LlmToolCall("call_1", "shell", buildJsonObject { put("command", "npm test") })),
+                ),
+                LlmMessage.ToolResultMessage("call_1", "shell", "exit 0"),
+            ),
+            history,
+        )
+    }
+
+    @Test
+    fun `a call whose arguments were never stored is dropped with its result`() {
+        // A tool_use with invented arguments asks the model to run something it
+        // never asked for. Dropping both halves leaves a conversation it can
+        // still follow; sending either half alone is a protocol error.
+        val history = assembleModelHistory(
+            listOf(
+                ChatMessage.User("u1", "run it"),
+                ChatMessage.Assistant("a1", "looking now"),
+                ChatMessage.ToolCall(
+                    id = "m3",
+                    callId = "call_1",
+                    name = "shell",
+                    summary = "npm test",
+                    state = ToolCallState.Succeeded,
+                    finalOutput = "exit 0",
+                    // No arguments: the row predates the column.
+                ),
+            ),
+        )
+
+        assertEquals(listOf(LlmMessage.User("run it"), LlmMessage.Assistant("looking now")), history)
+    }
+
+    @Test
+    fun `a tool-only turn gets a synthesized assistant message`() {
+        // The provider went straight to a tool call, so there is no assistant row
+        // — but the wire still expects one carrying the call.
+        val history = assembleModelHistory(
+            listOf(
+                ChatMessage.User("u1", "run it"),
+                ChatMessage.ToolCall(
+                    id = "m2",
+                    callId = "call_1",
+                    name = "shell",
+                    summary = "npm test",
+                    state = ToolCallState.Succeeded,
+                    finalOutput = "exit 0",
+                    arguments = buildJsonObject { put("command", "npm test") },
+                ),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LlmMessage.User("run it"),
+                LlmMessage.Assistant(
+                    text = "",
+                    toolCalls = listOf(LlmToolCall("call_1", "shell", buildJsonObject { put("command", "npm test") })),
+                ),
+                LlmMessage.ToolResultMessage("call_1", "shell", "exit 0"),
+            ),
+            history,
+        )
+    }
+
+    @Test
+    fun `two calls in one turn share one assistant message, approval or not`() {
+        // An approval row lands between the calls, so grouping must not break on
+        // it — the calls still belong to the turn that made them.
+        val history = assembleModelHistory(
+            listOf(
+                ChatMessage.User("u1", "run it"),
+                ChatMessage.Assistant("a1", "two things"),
+                ChatMessage.ToolCall(
+                    id = "m3",
+                    callId = "call_1",
+                    name = "read_file",
+                    summary = "a",
+                    state = ToolCallState.Succeeded,
+                    finalOutput = "contents",
+                    arguments = buildJsonObject { put("path", "a") },
+                ),
+                ChatMessage.Approval(
+                    id = "m4",
+                    approval = AgentApproval("ap1", "u1", "call_2", "write_file", "ok?"),
+                    decision = ApprovalDecision.Approve,
+                ),
+                ChatMessage.ToolCall(
+                    id = "m5",
+                    callId = "call_2",
+                    name = "write_file",
+                    summary = "b",
+                    state = ToolCallState.Succeeded,
+                    finalOutput = "written",
+                    arguments = buildJsonObject { put("path", "b") },
+                ),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LlmMessage.User("run it"),
+                LlmMessage.Assistant(
+                    text = "two things",
+                    toolCalls = listOf(
+                        LlmToolCall("call_1", "read_file", buildJsonObject { put("path", "a") }),
+                        LlmToolCall("call_2", "write_file", buildJsonObject { put("path", "b") }),
+                    ),
+                ),
+                LlmMessage.ToolResultMessage("call_1", "read_file", "contents"),
+                LlmMessage.ToolResultMessage("call_2", "write_file", "written"),
+            ),
+            history,
+        )
     }
 
     @Test
