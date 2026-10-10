@@ -1,10 +1,16 @@
 package dev.drosh.ui.pin
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,13 +21,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,14 +37,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,17 +49,19 @@ import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
+import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 
 /**
- * Modern minimalist 4-digit PIN UI.
+ * PIN entry, on the screen's own keypad.
  *
- * - Dot-style filled boxes with outline
- * - Hidden numeric input field (transparent text + password transform)
- * - Focus auto-requested
- * - onPinReady fires once when 4 digits entered
+ * No text field and no software keyboard: a keypad is what a phone user
+ * expects for a number, it works with the keyboard dismissed, and the
+ * hidden field that used to fight the IME for focus was the old screen's
+ * whole approach. The dots show [pinLength] of them, so a six-digit PIN is
+ * entered and read as one.
  */
 @Composable
 fun PinEntryScreen(
@@ -66,26 +69,23 @@ fun PinEntryScreen(
     subtitle: String? = null,
     errorMessage: String? = null,
     modifier: Modifier = Modifier,
-    /**
-     * How many digits this screen waits for. The settings file carries the
-     * length, and the entry that enrols it is the one that has to agree.
-     */
+    /** How many digits this screen waits for; the settings file carries it. */
     pinLength: Int = 4,
     onPinReady: (pin: String) -> Unit,
     onCancel: (() -> Unit)? = null,
 ) {
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val focusRequester = remember { FocusRequester() }
     var pin by rememberSaveable { mutableStateOf("") }
-
     val onPinReadyState = rememberUpdatedState(onPinReady)
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     LaunchedEffect(pin) {
-        if (pin.length == pinLength) {
-            keyboardController?.hide()
-            onPinReadyState.value(pin)
-        }
+        if (pin.length == pinLength) onPinReadyState.value(pin)
+    }
+    // A rejected PIN clears itself: the caller raises the error, the digits
+    // leave, and the next attempt starts from an empty row. Without this the
+    // full row sat there refusing input, because nothing could grow past
+    // pinLength to fire the submit again.
+    LaunchedEffect(errorMessage) {
+        if (errorMessage != null) pin = ""
     }
 
     Box(
@@ -123,81 +123,97 @@ fun PinEntryScreen(
 
             PinDotBoxes(
                 pin = pin,
-                length = 4,
+                length = pinLength,
+                error = errorMessage != null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
             )
 
-            HiddenPinField(
-                pin = pin,
-                onPinChange = { newPin ->
-                    if (newPin.length <= 4 && newPin.all { it.isDigit() }) {
-                        pin = newPin
-                    } else if (newPin.isEmpty()) {
-                        pin = ""
-                    }
-                },
-                focusRequester = focusRequester,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(0f),
-            )
-
-            if (errorMessage != null) {
+            AnimatedVisibility(visible = errorMessage != null) {
                 Text(
-                    text = errorMessage,
+                    text = errorMessage.orEmpty(),
                     color = DroshError,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = 10.dp),
                 )
             }
 
+            Spacer(Modifier.height(24.dp))
+
+            PinKeypad(
+                onDigit = { digit ->
+                    if (pin.length < pinLength) pin += digit
+                },
+                onDelete = {
+                    if (pin.isNotEmpty()) pin = pin.dropLast(1)
+                },
+            )
+
             onCancel?.let { cancel ->
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
                 Text(
                     text = "Cancel",
                     color = DroshTextMuted,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .clickable(onClick = cancel),
+                    modifier = Modifier.clickable(onClick = cancel),
                 )
             }
         }
     }
 }
 
+/**
+ * The dots, one per digit.
+ *
+ * They shake when [error] is up — a wrong PIN is a thing the hand feels as
+ * much as it reads, and a silent redraw of the same dots was
+ * indistinguishable from nothing happening at all.
+ */
 @Composable
 private fun PinDotBoxes(
     pin: String,
     length: Int,
     modifier: Modifier = Modifier,
+    error: Boolean = false,
 ) {
+    val shake by animateFloatAsState(
+        targetValue = if (error) 12f else 0f,
+        animationSpec = keyframes {
+            durationMillis = 400
+            0f at 0 using LinearEasing
+            -14f at 60
+            14f at 130
+            -8f at 220
+            8f at 300
+            0f at 400
+        },
+        label = "pinShake",
+    )
     Row(
-        modifier = modifier,
+        modifier = modifier.offset(x = shake.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         repeat(length) { index ->
             val filled = index < pin.length
-            val dotColor by animateColorAsState(
-                targetValue = if (filled) DroshPrimary else Color.Transparent,
-                animationSpec = tween(200),
-                label = "dotColor",
+            val dotColor by animateFloatAsState(
+                targetValue = if (filled) 1f else 0f,
+                animationSpec = tween(160),
+                label = "dotFill$index",
             )
-
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxSize()
+                    .alpha(dotColor.coerceIn(0f, 1f))
                     .background(
-                        color = dotColor,
+                        color = if (error) DroshError.copy(alpha = 0.85f) else DroshPrimary,
                         shape = RoundedCornerShape(8.dp),
                     )
                     .border(
-                        border = BorderStroke(1.5.dp, if (filled) DroshPrimary else DroshOutline),
+                        border = BorderStroke(1.5.dp, if (error) DroshError else DroshOutline),
                         shape = RoundedCornerShape(8.dp),
                     ),
             )
@@ -205,42 +221,104 @@ private fun PinDotBoxes(
     }
 }
 
+/** A 3x4 pad: 1-9, an empty corner, 0, delete. */
 @Composable
-private fun HiddenPinField(
-    pin: String,
-    onPinChange: (String) -> Unit,
-    focusRequester: FocusRequester,
+private fun PinKeypad(
+    onDigit: (String) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        listOf(
+            listOf("1", "2", "3"),
+            listOf("4", "5", "6"),
+            listOf("7", "8", "9"),
+        ).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                row.forEach { digit ->
+                    PinKey(
+                        label = digit,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onDigit(digit)
+                        },
+                    )
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // The corner stays empty rather than growing a fourth action: a
+            // bottom row wider than the three above it reads as a mistake.
+            Spacer(Modifier.weight(1f))
+            PinKey(
+                label = "0",
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onDigit("0")
+                },
+            )
+            PinKey(
+                label = "⌫",
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onDelete()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PinKey(
+    label: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
-
-    TextField(
-        value = pin,
-        onValueChange = onPinChange,
-        modifier = modifier
-            .fillMaxWidth()
-            .focusRequester(focusRequester),
-        textStyle = TextStyle(
-            color = Color.Transparent,
-            fontSize = 24.sp,
-        ),
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Number,
-            autoCorrect = false,
-        ),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color.Transparent,
-            unfocusedContainerColor = Color.Transparent,
-        ),
-        singleLine = true,
-        maxLines = 1,
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val keyScale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else 1f,
+        animationSpec = tween(90),
+        label = "keyScale",
     )
+    Box(
+        modifier = modifier
+            .aspectRatio(1.25f)
+            .scale(keyScale)
+            .background(DroshSurfaceVariant, CircleShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = DroshText,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
 }
 
 /**
  * Two-step PIN setup flow (enter + confirm).
- * Uses [PinEntryScreen] twice; shows error inline if PINs differ.
+ *
+ * The confirm step keeps its own error line: a mistyped PIN caught at the
+ * second step is recoverable, and one caught at the lock screen is not.
  */
 @Composable
 fun PinSetupScreen(
@@ -248,10 +326,8 @@ fun PinSetupScreen(
     onPinSet: (pin: String) -> Unit,
     onSkip: (() -> Unit)? = null,
 ) {
-    val keyboardController = LocalSoftwareKeyboardController.current
     var step by remember { mutableStateOf(SetupStep.Enter) }
     var pin1 by rememberSaveable { mutableStateOf("") }
-    var pin2 by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
     val onPinSetState = rememberUpdatedState(onPinSet)
@@ -266,7 +342,7 @@ fun PinSetupScreen(
             SetupStep.Enter -> {
                 PinEntryScreen(
                     title = "Set a PIN",
-                    subtitle = "4-digit PIN to lock the app",
+                    subtitle = "Type the digits you want to lock the app with",
                     modifier = Modifier.weight(1f),
                     onPinReady = { entered ->
                         pin1 = entered
@@ -284,11 +360,9 @@ fun PinSetupScreen(
                     modifier = Modifier.weight(1f),
                     onPinReady = { entered ->
                         if (entered == pin1) {
-                            keyboardController?.hide()
                             onPinSetState.value(entered)
                         } else {
                             error = "PINs do not match"
-                            pin2 = ""
                         }
                     },
                     onCancel = onSkip,
@@ -298,7 +372,4 @@ fun PinSetupScreen(
     }
 }
 
-private enum class SetupStep {
-    Enter,
-    Confirm,
-}
+private enum class SetupStep { Enter, Confirm }

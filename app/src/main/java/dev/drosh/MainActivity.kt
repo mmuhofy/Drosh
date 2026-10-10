@@ -113,7 +113,7 @@ class MainActivity : ComponentActivity() {
      * True while the app lock is standing. The gate over the whole nav host,
      * so leaving and coming back re-asks instead of showing the last screen.
      */
-    private val locked = MutableStateFlow(false)
+    private val locked = MutableStateFlow(true)
 
     /** Elapsed realtime when the window went away, 0 while it is up. */
     private var backgroundedAt = 0L
@@ -235,7 +235,11 @@ class MainActivity : ComponentActivity() {
         sessionManagerAdapter.onUiForegrounded()
         registerKeyboardModeReceiver()
         collectAutoLockPreferences()
-        lifecycleScope.launch { maybeRelock() }
+        lifecycleScope.launch {
+            // With the lock off there is nothing to ask, and a stale locked
+            // value from an earlier enable must not outlive the disabling.
+            if (pinLock.isEnabled.first()) maybeRelock() else locked.value = false
+        }
     }
 
     override fun onStop() {
@@ -258,11 +262,14 @@ class MainActivity : ComponentActivity() {
      * window open for as long as it likes.
      */
     private suspend fun maybeRelock() {
-        if (backgroundedAt == 0L) return
+        val wasAway = backgroundedAt != 0L
         val away = SystemClock.elapsedRealtime() - backgroundedAt
         backgroundedAt = 0L
-        if (!pinLock.isEnabled.first()) return
-        if (away >= autoLockTimeoutMs) locked.value = true
+        // A fresh process is already locked — the field starts true — so
+        // there is nothing to decide: the gate asks once, on whichever route
+        // the user lands. Only a return from the background is a question.
+        if (!wasAway) return
+        locked.value = away >= autoLockTimeoutMs
     }
 
     /**
@@ -370,15 +377,31 @@ class MainActivity : ComponentActivity() {
         // The lock stands in front of the whole host, not in front of one
         // route: the setting is about the app, so wherever the user left off
         // is what they come back to find it behind.
+        //
+        // One gate, not two. The terminal route used to ask on its own as
+        // well, and passing one only ever queued the other: unlocking here
+        // revealed the terminal route, which asked again because it had been
+        // reading the same enabled flag all along.
+        val pinEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
         val isLocked by locked.collectAsStateWithLifecycle()
-        if (isLocked) {
+        var pinError by rememberSaveable { mutableStateOf<String?>(null) }
+        if (pinEnabled && isLocked) {
             PinEntryScreen(
                 title = "Enter PIN",
                 subtitle = "App lock enabled",
+                errorMessage = pinError,
                 pinLength = pinLength,
                 onPinReady = { pin ->
                     lifecycleScope.launch {
-                        if (pinLock.verify(pin)) locked.value = false
+                        // A wrong PIN leaves the digits on screen long enough
+                        // to see them and clears for the next try; the entry
+                        // screen wipes itself when the error appears.
+                        if (pinLock.verify(pin)) {
+                            pinError = null
+                            locked.value = false
+                        } else {
+                            pinError = "Wrong PIN"
+                        }
                     }
                 },
                 onCancel = { finish() },
@@ -458,42 +481,6 @@ class MainActivity : ComponentActivity() {
 
             composable("terminal") {
                 val context = LocalDroshActivity.current
-                val isPinLockEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
-
-                if (isPinLockEnabled) {
-                    PinEntryScreen(
-                        title = "Enter PIN",
-                        subtitle = "App lock enabled",
-                        pinLength = pinLength,
-                        onPinReady = { pin ->
-                            coroutineScope.launch {
-                                if (pinLock.verify(pin)) {
-                                    navController.navigate("terminal_home") {
-                                        popUpTo("terminal") { inclusive = true }
-                                    }
-                                }
-                            }
-                        },
-                    )
-                } else {
-                    TerminalScreen(
-                        terminalManager = terminalManager,
-                        settingsRepository = settingsRepository,
-                        ubuntuSetupState = UbuntuSetupState.Ready,
-                        onRetry = { triggerBootstrap.retry() },
-                        onOpenSettings = { navController.navigate("settings") },
-                        extraKeyState = extraKeyState,
-                        onExit = { context.finish() },
-                        onOpenEditor = { path -> navController.openEditor(path) },
-                        onOpenAgent = { navController.navigate("agent_home") },
-                        onOpenSsh = { navController.navigate("ssh") },
-                        onOpenProjects = { navController.navigate("workspace") },
-                    )
-                }
-            }
-
-            composable("terminal_home") {
-                val context = LocalDroshActivity.current
                 TerminalScreen(
                     terminalManager = terminalManager,
                     settingsRepository = settingsRepository,
@@ -504,10 +491,11 @@ class MainActivity : ComponentActivity() {
                     onExit = { context.finish() },
                     onOpenEditor = { path -> navController.openEditor(path) },
                     onOpenAgent = { navController.navigate("agent_home") },
-                    onOpenProjects = { navController.navigate("workspace") },
                     onOpenSsh = { navController.navigate("ssh") },
+                    onOpenProjects = { navController.navigate("workspace") },
                 )
             }
+
 
             composable("agent_home") {
                 AgentHomeScreen(
@@ -616,23 +604,16 @@ private fun String.toLocaleOrNull() =
  * The stack when this is called is terminal → settings → workspace, so a single
  * `popBackStack()` would land on Settings — the screen they left to do
  * something else, and the one thing they are not waiting for. Popping to the
- * named destination clears everything in between.
- *
- * Both terminal routes are tried because which one is on the stack depends on
- * whether app lock is on: without it the start destination stays `terminal`,
- * with it `terminal` is replaced by `terminal_home` after the PIN is accepted.
- * `popBackStack` reports whether it found the destination, so the fallback is a
- * real check rather than a guess — and reaching for the terminal still has to
- * leave something on the stack for Back to work.
+ * named destination clears everything in between. `popBackStack` reports
+ * whether it found the destination, so the fallback is a real check rather
+ * than a guess — and reaching for the terminal still has to leave something on
+ * the stack for Back to work.
  */
 private fun NavHostController.returnToTerminal() {
-    val landed = popBackStack(TERMINAL_HOME_ROUTE, inclusive = false) ||
-        popBackStack(TERMINAL_ROUTE, inclusive = false)
-    if (!landed) navigate(TERMINAL_ROUTE)
+    if (!popBackStack(TERMINAL_ROUTE, inclusive = false)) navigate(TERMINAL_ROUTE)
 }
 
 private const val TERMINAL_ROUTE = "terminal"
-private const val TERMINAL_HOME_ROUTE = "terminal_home"
 
 /**
  * Opens the editor for a guest path.
