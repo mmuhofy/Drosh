@@ -1,6 +1,5 @@
 package dev.drosh.data.theme
 
-import dev.drosh.core.toml.TomlParseException
 import dev.drosh.data.settings.toml.SettingsPaths
 import dev.drosh.domain.settings.DroshTheme
 import dev.drosh.domain.settings.ThemeIndex
@@ -89,7 +88,7 @@ class ThemeRepositoryImpl @Inject constructor(
             return@withContext Result.success(cached)
         }
 
-        val fetched = runCatching { fetchText(THEME_INDEX_URL) }
+        val fetched = fetchText(THEME_INDEX_URL)
         if (fetched.isFailure) {
             // A failed fetch answers the cache when there is one: a theme
             // store that cannot be reached should not be a dark room.
@@ -222,6 +221,3 @@ class ThemeRepositoryImpl @Inject constructor(
         val INDEX_TTL_MS = TimeUnit.DAYS.toMillis(1)
     }
 }
-
-/** A theme file that parses but is not one — reported, not swallowed. */
-class ThemeParseException(message: String) : TomlParseException(message)
