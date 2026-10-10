@@ -45,6 +45,7 @@ import com.termux.terminal.TerminalSession
 import com.termux.view.textselection.TextSelectionCursorController
 
 import dev.drosh.terminal.SearchHighlightOverlay
+import dev.drosh.terminal.TerminalUrlOverlay
 import dev.drosh.domain.terminal.TerminalZoom
 
 import java.util.Properties
