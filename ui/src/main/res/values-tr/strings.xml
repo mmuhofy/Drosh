@@ -11,7 +11,7 @@
     <string name="settings_cursor_style_underline">Alt Çizgi</string>
     <string name="settings_cursor_blink_rate">İmleç Yanıp Sönme Hızı</string>
     <string name="settings_cursor_blink_description">Nabız aralığı</string>
-    <string name="settings_font_size">Yazı Tipi Boyutu</string>
+    <string name="settings_font_size">Varsayılan Yazı Boyutu</string>
     <string name="settings_proot_start_command">PRoot Başlangıç Komutu</string>
     <string name="settings_proot_start_description">Deneysel — bunu değiştirmek oturumları bozabilir</string>
     <string name="settings_motd_section">Karşılama Mesajı (MOTD)</string>

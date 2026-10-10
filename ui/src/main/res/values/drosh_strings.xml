@@ -95,4 +95,107 @@
     <string name="settings_section_ai">AI</string>
     <string name="settings_agent">Agent</string>
     <string name="settings_agent_desc">OpenRouter key, Exa search key and model</string>
+
+    <!-- ── Settings: categories ───────────────────────────────────────── -->
+    <string name="settings_category_appearance">Appearance</string>
+    <string name="settings_category_terminal">Terminal</string>
+    <string name="settings_category_keyboard">Keyboard &amp; Input</string>
+    <string name="settings_category_shell">Shell &amp; Rootfs</string>
+    <string name="settings_category_editor">Editor</string>
+    <string name="settings_category_security">Security</string>
+    <string name="settings_category_language">Language</string>
+    <string name="settings_category_about">About</string>
+
+    <!-- ── Settings: sections for the new categories ──────────────────── -->
+    <string name="settings_section_keyboard">Input</string>
+    <string name="settings_section_shell">Shell</string>
+    <string name="settings_section_rootfs">Rootfs</string>
+    <string name="settings_section_editor">Editor</string>
+
+    <!-- ── Settings: terminal behaviour ───────────────────────────────── -->
+    <string name="settings_terminal_scrollback">Scrollback</string>
+    <string name="settings_terminal_scrollback_value">%1$d rows</string>
+    <string name="settings_terminal_bell">Bell</string>
+    <string name="settings_terminal_bell_none">Off</string>
+    <string name="settings_terminal_bell_vibrate">Vibrate</string>
+    <string name="settings_terminal_bell_sound">Sound</string>
+    <string name="settings_terminal_keep_awake">Keep screen on</string>
+    <string name="settings_terminal_keep_awake_desc">While a terminal is on screen</string>
+    <string name="settings_terminal_immersive">Auto-hide chrome</string>
+    <string name="settings_terminal_immersive_desc">Go fullscreen in the scrollback</string>
+    <string name="settings_terminal_link_detection">Link detection</string>
+    <string name="settings_terminal_link_detection_desc">Underline URLs as they scroll past</string>
+    <string name="settings_terminal_glass_effects">Glass effects</string>
+    <string name="settings_terminal_glass_effects_desc">Blur and translucency in the top bar</string>
+
+    <!-- ── Settings: input ────────────────────────────────────────────── -->
+    <string name="settings_input_extra_keys">Extra-keys bar</string>
+    <string name="settings_input_extra_keys_desc">Show the key row above the keyboard</string>
+    <string name="settings_input_hardware_keyboard">Hide bar on hardware keyboard</string>
+    <string name="settings_input_hardware_keyboard_desc">A physical keyboard brings its own keys</string>
+    <string name="settings_input_drosh_ime">Hide bar on Drosh Keyboard</string>
+    <string name="settings_input_drosh_ime_desc">Drosh Keyboard has its own key row</string>
+
+    <!-- ── Settings: shell ────────────────────────────────────────────── -->
+    <string name="settings_shell_choice">Shell</string>
+    <string name="settings_shell_zsh">zsh</string>
+    <string name="settings_shell_bash">bash</string>
+    <string name="settings_shell_choice_desc">The shell new sessions open in</string>
+    <string name="settings_shell_omz_theme">Oh My Zsh theme</string>
+    <string name="settings_shell_omz_plugins">Oh My Zsh plugins</string>
+    <string name="settings_shell_omz_plugins_hint">One plugin per line</string>
+    <string name="settings_shell_history">History size</string>
+    <string name="settings_shell_history_value">%1$d lines</string>
+    <string name="settings_shell_integration">Shell integration</string>
+    <string name="settings_shell_integration_desc">OSC 133/1337 marks and the editor command</string>
+
+    <!-- ── Settings: rootfs ───────────────────────────────────────────── -->
+    <string name="settings_rootfs_profile">Package profile</string>
+    <string name="settings_rootfs_profile_minimal">Minimal</string>
+    <string name="settings_rootfs_profile_standard">Standard</string>
+    <string name="settings_rootfs_profile_full">Full</string>
+    <string name="settings_rootfs_profile_custom">Custom</string>
+    <string name="settings_rootfs_extra_packages">Extra packages</string>
+    <string name="settings_rootfs_extra_packages_hint">One package per line</string>
+    <string name="settings_rootfs_dedit">Install dedit</string>
+    <string name="settings_rootfs_dedit_desc">The in-terminal editor package</string>
+    <string name="settings_rootfs_optimize">Optimize on setup</string>
+    <string name="settings_rootfs_optimize_desc">Clean apt caches after install</string>
+    <string name="settings_rootfs_max_edit">Max edit size</string>
+    <string name="settings_rootfs_max_edit_value">%1$d KB</string>
+
+    <!-- ── Settings: editor ───────────────────────────────────────────── -->
+    <string name="settings_editor_font">Font size</string>
+    <string name="settings_editor_word_wrap">Word wrap</string>
+    <string name="settings_editor_word_wrap_desc">Wrap long lines instead of scrolling</string>
+    <string name="settings_editor_tab_width">Tab width</string>
+    <string name="settings_editor_line_numbers">Line numbers</string>
+    <string name="settings_editor_line_numbers_desc">Show them down the left edge</string>
+
+    <!-- ── Settings: security ─────────────────────────────────────────── -->
+    <string name="settings_security_auto_lock">Auto-lock</string>
+    <string name="settings_security_auto_lock_immediately">Immediately</string>
+    <string name="settings_security_auto_lock_one_minute">After 1 minute</string>
+    <string name="settings_security_auto_lock_five_minutes">After 5 minutes</string>
+    <string name="settings_security_auto_lock_fifteen_minutes">After 15 minutes</string>
+    <string name="settings_security_auto_lock_thirty_minutes">After 30 minutes</string>
+    <string name="settings_security_auto_lock_never">Never</string>
+    <string name="settings_security_pin_length">PIN length</string>
+    <string name="settings_security_biometric">Biometric unlock</string>
+    <string name="settings_security_biometric_desc">Unlock with a fingerprint when one is enrolled</string>
+    <string name="settings_security_screenshots">Block screenshots</string>
+    <string name="settings_security_screenshots_desc">Hide the app from the recents switcher too</string>
+    <string name="settings_security_clipboard">Mark clipboard sensitive</string>
+    <string name="settings_security_clipboard_desc">Hide copied text from the clipboard preview</string>
+
+    <!-- ── Settings: dialogs and lists ────────────────────────────────── -->
+    <string name="settings_dialog_save">Save</string>
+    <string name="settings_dialog_cancel">Cancel</string>
+    <string name="settings_list_empty">None</string>
+    <string name="settings_list_count">%1$d items</string>
+
+    <!-- ── Settings: home summaries ───────────────────────────────────── -->
+    <string name="settings_summary_terminal">%1$s · %2$ssp</string>
+    <string name="settings_summary_on">On</string>
+    <string name="settings_summary_off">Off</string>
 </resources>

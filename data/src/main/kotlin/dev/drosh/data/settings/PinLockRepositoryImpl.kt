@@ -32,9 +32,9 @@ class PinLockRepositoryImpl @Inject constructor(
 
     override val isEnabled: Flow<Boolean> = _enabled.asStateFlow()
 
-    override suspend fun setPin(pin: String) {
-        require(pin.length == PinLockRepository.PIN_LENGTH) {
-            "PIN must be ${PinLockRepository.PIN_LENGTH} digits"
+    override suspend fun setPin(pin: String, length: Int) {
+        require(pin.length == length && length in PinLockRepository.PIN_LENGTH_RANGE) {
+            "PIN must be $length digits"
         }
         require(pin.all { it.isDigit() }) {
             "PIN must be all digits"

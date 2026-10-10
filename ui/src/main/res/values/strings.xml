@@ -11,7 +11,7 @@
     <string name="settings_cursor_style_underline">Underline</string>
     <string name="settings_cursor_blink_rate">Cursor Blink Rate</string>
     <string name="settings_cursor_blink_description">Pulse interval</string>
-    <string name="settings_font_size">Font Size</string>
+    <string name="settings_font_size">Default Font Size</string>
     <string name="settings_proot_start_command">PRoot Start Command</string>
     <string name="settings_proot_start_description">Experimental — changing this can break sessions</string>
     <string name="settings_motd_section">MOTD (Greeting)</string>

@@ -3,6 +3,8 @@ package dev.drosh.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.DroshSettings
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.CursorStyle
@@ -22,7 +24,28 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val settings: SettingsRepository,
     private val pinLock: PinLockRepository,
+    private val store: SettingsStore,
 ) : ViewModel() {
+
+    /**
+     * The whole settings file as one value.
+     *
+     * The category screens read this and write through [update]; the per-key
+     * flows below stay for their existing consumers, which are being moved
+     * across one at a time.
+     */
+    val snapshot: StateFlow<DroshSettings> = store.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, DroshSettings.DEFAULT)
+
+    /** Applies a transform to the file. The flow emits even if the write fails. */
+    fun update(transform: (DroshSettings) -> DroshSettings) {
+        viewModelScope.launch { store.update(transform) }
+    }
+
+    /** Re-reads the file, for a "the file changed under us" refresh. */
+    fun reload() {
+        viewModelScope.launch { store.reload() }
+    }
 
     // ── PIN Lock ────────────────────────────────────────────────────────────────
 
@@ -33,8 +56,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { pinLock.setEnabled(enabled) }
     }
 
-    suspend fun setPin(pin: String) {
-        pinLock.setPin(pin)
+    suspend fun setPin(pin: String, length: Int = PinLockRepository.PIN_LENGTH) {
+        pinLock.setPin(pin, length)
     }
 
     suspend fun verifyPin(pin: String): Boolean = pinLock.verify(pin)
