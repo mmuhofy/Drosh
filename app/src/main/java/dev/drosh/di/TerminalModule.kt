@@ -5,6 +5,7 @@ import android.content.Context
 import dev.drosh.domain.block.BlockEngineState
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.terminal.BlockEngineWire
 import dev.drosh.terminal.BootstrapStatePort
@@ -55,6 +56,7 @@ object TerminalModule {
         blockEngineWire: BlockEngineWire,
         settingsRepository: SettingsRepository,
         settingsStore: SettingsStore,
+        backgroundImages: BackgroundImageStore,
     ): TerminalManager = TerminalManager(
         ubuntuBootstrap = ubuntuBootstrap,
         bootstrapStatePort = bootstrapStatePort,
@@ -62,6 +64,7 @@ object TerminalModule {
         blockEngineWire = blockEngineWire,
         settingsRepository = settingsRepository,
         settingsStore = settingsStore,
+        backgroundImages = backgroundImages,
     )
 
     /**

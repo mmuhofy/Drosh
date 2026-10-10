@@ -758,6 +758,7 @@ private fun ReadyScreen(
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
+                    terminalBackgroundColor = hexToColorInt(appearance.terminal.palette.background),
                     backgroundOpacity = appearance.background.imageOpacity,
                     contentPaddingDp = appearance.background.contentPaddingDp,
                     cornerRadiusDp = appearance.background.cornerRadiusDp,
@@ -792,6 +793,7 @@ private fun ReadyScreen(
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
+                    terminalBackgroundColor = hexToColorInt(appearance.terminal.palette.background),
                     backgroundOpacity = appearance.background.imageOpacity,
                     contentPaddingDp = appearance.background.contentPaddingDp,
                     cornerRadiusDp = appearance.background.cornerRadiusDp,
@@ -1295,6 +1297,7 @@ private fun TerminalPaneBody(
     defaultFontSizeSp: Float,
     colorProps: Properties,
     backgroundFile: File?,
+    terminalBackgroundColor: Int,
     backgroundOpacity: Int,
     contentPaddingDp: Int,
     cornerRadiusDp: Int,
@@ -1428,6 +1431,7 @@ private fun TerminalPaneBody(
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
+                    terminalBackgroundColor = terminalBackgroundColor,
                     backgroundOpacity = backgroundOpacity,
                     contentPaddingDp = contentPaddingDp,
                     cornerRadiusDp = cornerRadiusDp,
@@ -1464,6 +1468,7 @@ private fun TerminalViewHost(
     defaultFontSizeSp: Float,
     colorProps: Properties,
     backgroundFile: File?,
+    terminalBackgroundColor: Int,
     backgroundOpacity: Int,
     contentPaddingDp: Int,
     cornerRadiusDp: Int,
@@ -1626,6 +1631,10 @@ private fun TerminalViewHost(
                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                 )
+                // A translucent background image blends against the theme's
+                // colour rather than the window's: at half opacity the
+                // terminal should still read as its own background.
+                setBackgroundColor(terminalBackgroundColor)
             }
 
             // Behind everything, because the terminal paints no background of
@@ -1808,6 +1817,10 @@ private fun TerminalViewHost(
  * below that a plain bitmap decode is what there is. A file that will not
  * decode answers null rather than throwing into a factory.
  */
+/** "#RRGGBB" as a colour int; black when it is not one. */
+private fun hexToColorInt(hex: String): Int =
+    runCatching { android.graphics.Color.parseColor(hex) }.getOrDefault(android.graphics.Color.BLACK)
+
 private fun loadBackgroundDrawable(context: Context, file: File): android.graphics.drawable.Drawable? =
     runCatching {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
