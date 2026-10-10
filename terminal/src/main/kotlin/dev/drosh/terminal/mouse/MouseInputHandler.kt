@@ -65,7 +65,10 @@ object MouseInputHandler {
     private const val BUTTON_RIGHT = 2
 
     /** Pixels of pad travel per terminal cell. App-side sensitivity. */
-    private const val CELL_PX_PER_DP = 4.5f
+    private const val CELL_PX_PER_DP = 13f
+
+    /** Mild acceleration, matching the prototype: fast drags cover more. */
+    private const val ACCEL_DIVISOR = 70f
 
     private const val EDGE_DWELL_MS = 250L
     private const val EDGE_SCROLL_FIRST_MS = 110L
@@ -171,8 +174,14 @@ object MouseInputHandler {
         if (!visible) return
         val emulator = emulator() ?: return
         lastMoveAt = System.currentTimeMillis()
-        accX += dxPx
-        accY += dyPx
+        if (dxPx == 0 && dyPx == 0) {
+            // keep-alive: the finger is still down but not moving. Keep the
+            // edge state exactly as it is so a hold against the edge keeps
+            // auto-scrolling instead of resetting.
+            return
+        }
+        accX += dxPx * (1f + kotlin.math.abs(dxPx) / ACCEL_DIVISOR)
+        accY += dyPx * (1f + kotlin.math.abs(dyPx) / ACCEL_DIVISOR)
         var stepX = 0
         var stepY = 0
         while (accX >= cellPx) { stepX++; accX -= cellPx }
@@ -271,15 +280,17 @@ object MouseInputHandler {
         if (fontWidth <= 0f || lineSpacing <= 0) return
 
         val density = view.resources.displayMetrics.density
-        val boxWidth = (fontWidth * 1.35f).toInt().coerceAtLeast((10f * density).toInt())
-        val boxHeight = (lineSpacing * 1.15f).toInt().coerceAtLeast((10f * density).toInt())
+        // one cell wide like the shell's block cursor, but taller: the mouse
+        // pointer reads as a cursor, not as a character cell
+        val boxWidth = (fontWidth + 1.5f * density).toInt()
+        val boxHeight = (lineSpacing * 1.3f).toInt()
         if (pointer.layoutParams == null ||
             pointer.layoutParams.width != boxWidth ||
             pointer.layoutParams.height != boxHeight
         ) {
             pointer.layoutParams = android.widget.FrameLayout.LayoutParams(boxWidth, boxHeight)
         }
-        pointer.x = col * fontWidth + (fontWidth - boxWidth) / 2f
-        pointer.y = row * lineSpacing + (lineSpacing - boxHeight) / 2f
+        pointer.x = col * fontWidth - (boxWidth - fontWidth) / 2f
+        pointer.y = row * lineSpacing - (boxHeight - lineSpacing) / 2f
     }
 }

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    On-screen mouse pointer for the Drosh Keyboard mouse pad: a hollow box,
-    sized at runtime from the terminal font metrics (see MouseInputHandler).
+    On-screen mouse pointer for the Drosh Keyboard mouse pad: a hollow block
+    that matches the terminal's own block cursor (one cell wide, taller than
+    the line), so the mouse and the shell cursor read as the same thing.
+    Sized at runtime from the terminal font metrics (see MouseInputHandler).
     SPDX-License-Identifier: GPL-3.0-only
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -9,14 +11,16 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#F2F6FF"
-        android:strokeWidth="2.2"
-        android:pathData="M3,3 L21,3 L21,21 L3,21 Z" />
+    <!-- dark outline for contrast on light backgrounds -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#400B0C0E"
-        android:strokeWidth="3.6"
-        android:pathData="M3,3 L21,3 L21,21 L3,21 Z" />
+        android:strokeWidth="4.5"
+        android:pathData="M2.5,1 L21.5,1 L21.5,23 L2.5,23 Z" />
+    <!-- the block itself: hollow, sharp corners like the terminal cursor -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#F2F6FF"
+        android:strokeWidth="2.4"
+        android:pathData="M2.5,1 L21.5,1 L21.5,23 L2.5,23 Z" />
 </vector>
