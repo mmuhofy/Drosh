@@ -44,7 +44,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawOutline
+import androidx.compose.ui.graphics.drawOutline
 import dev.drosh.ui.topbar.BLUR_SUPPORTED
 import androidx.compose.material3.ripple
 import androidx.compose.ui.graphics.vector.ImageVector
