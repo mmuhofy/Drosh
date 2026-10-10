@@ -1006,7 +1006,7 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
      * the Termux default so a font arriving first still draws.
      */
     fun setTypeface(newTypeface: Typeface) {
-        mRenderer = TerminalRenderer(mRenderer?.mTextSize ?: DEFAULT_TEXT_SIZE, newTypeface)
+        mRenderer = TerminalRenderer(mRenderer?.mTextSize ?: DEFAULT_TEXT_SIZE.toFloat(), newTypeface)
         updateSize()
         invalidate()
     }
