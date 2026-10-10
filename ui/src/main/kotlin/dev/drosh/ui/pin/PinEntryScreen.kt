@@ -66,6 +66,11 @@ fun PinEntryScreen(
     subtitle: String? = null,
     errorMessage: String? = null,
     modifier: Modifier = Modifier,
+    /**
+     * How many digits this screen waits for. The settings file carries the
+     * length, and the entry that enrols it is the one that has to agree.
+     */
+    pinLength: Int = 4,
     onPinReady: (pin: String) -> Unit,
     onCancel: (() -> Unit)? = null,
 ) {
@@ -77,7 +82,7 @@ fun PinEntryScreen(
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     LaunchedEffect(pin) {
-        if (pin.length == 4) {
+        if (pin.length == pinLength) {
             keyboardController?.hide()
             onPinReadyState.value(pin)
         }

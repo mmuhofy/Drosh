@@ -3,14 +3,10 @@ package dev.drosh
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.drosh.core.LocaleHelper
-import dev.drosh.data.local.irisShellDataStore
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 import androidx.core.view.WindowCompat
+import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -29,6 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -37,7 +36,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import dev.drosh.data.session.SessionManagerAdapter
+import dev.drosh.data.settings.toml.readStoredLocaleTag
+import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.PinLockRepository
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
@@ -50,7 +52,6 @@ import dev.drosh.ui.setup.SetupRecoveryScreen
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshFonts
 import dev.drosh.domain.settings.ThemeMode
-import dev.drosh.ui.settings.SettingsViewModel
 import android.content.res.Configuration
 import androidx.compose.runtime.CompositionLocalProvider
 import dev.drosh.ui.LocalDroshActivity
@@ -63,7 +64,19 @@ import dev.drosh.ui.theme.DroshTheme
 import dev.drosh.ui.agent.AgentChatScreen
 import dev.drosh.ui.agent.AgentHomeScreen
 import dev.drosh.ui.agent.AgentSettingsScreen
-import dev.drosh.ui.settings.SettingsScreen
+import dev.drosh.ui.settings.AboutCategory
+import dev.drosh.ui.settings.AppearanceCategory
+import dev.drosh.domain.settings.DroshSettings
+import dev.drosh.ui.settings.EditorCategory
+import dev.drosh.ui.settings.KeyboardCategory
+import dev.drosh.ui.settings.LanguageCategory
+import dev.drosh.ui.settings.SecurityCategory
+import dev.drosh.ui.settings.SettingsCategoryRoute
+import dev.drosh.ui.settings.OnSettingsUpdate
+import dev.drosh.ui.settings.SettingsHomeScreen
+import dev.drosh.ui.settings.SettingsViewModel
+import dev.drosh.ui.settings.ShellCategory
+import dev.drosh.ui.settings.TerminalCategory
 import dev.drosh.ui.workspace.WorkspaceScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -79,12 +92,10 @@ import android.os.Build
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val localeKey = stringPreferencesKey("locale")
-
     override fun attachBaseContext(base: Context) {
-        val language = runBlocking(Dispatchers.IO) {
-            base.irisShellDataStore.data.map { prefs -> prefs[localeKey] ?: "" }.first()
-        }
+        // The settings file, not DataStore: the language lives in the TOML now
+        // and this runs before injection, so it is read straight off disk.
+        val language = readStoredLocaleTag(base)
         super.attachBaseContext(LocaleHelper.applyLocale(base, language))
     }
 
@@ -93,6 +104,26 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var triggerBootstrap: TriggerBootstrapUseCase
     @Inject lateinit var extraKeyState: ExtraKeyState
     @Inject lateinit var pinLock: PinLockRepository
+    @Inject lateinit var settingsStore: SettingsStore
+
+    /**
+     * True while the app lock is standing. The gate over the whole nav host,
+     * so leaving and coming back re-asks instead of showing the last screen.
+     */
+    private val locked = MutableStateFlow(false)
+
+    /** Elapsed realtime when the window went away, 0 while it is up. */
+    private var backgroundedAt = 0L
+
+    /**
+     * The auto-lock timeout as a duration. Collected once per start rather
+     * than read per tick — the setting changes from the settings screen, and
+     * the next backgrounding is soon enough.
+     */
+    private var autoLockTimeoutMs = 0L
+
+    /** Digits the entry screens wait for, from the settings file. */
+    private var pinLength = PinLockRepository.PIN_LENGTH
     @Inject lateinit var sessionManagerAdapter: SessionManagerAdapter
     @Inject lateinit var settingsRepository: SettingsRepository
 
@@ -200,6 +231,8 @@ class MainActivity : ComponentActivity() {
         // create a default session if the last one was closed.
         sessionManagerAdapter.onUiForegrounded()
         registerKeyboardModeReceiver()
+        collectAutoLockPreferences()
+        maybeRelock()
     }
 
     override fun onStop() {
@@ -209,7 +242,48 @@ class MainActivity : ComponentActivity() {
         }
         // A keyboard we cannot see may have gone away with another app.
         KeyboardWindowModeState.reset()
+        backgroundedAt = SystemClock.elapsedRealtime()
         super.onStop()
+    }
+
+    /**
+     * Locks again if the user asked to be locked out.
+     *
+     * The elapsed-time check is what makes the timeout mean a timeout: an
+     * app that was away for a second stays unlocked under [AutoLockTimeout.OneMinute],
+     * and "Immediately" locks on the way out every time. "Never" holds the
+     * window open for as long as it likes.
+     */
+    private fun maybeRelock() {
+        if (backgroundedAt == 0L) return
+        val away = SystemClock.elapsedRealtime() - backgroundedAt
+        backgroundedAt = 0L
+        if (pinLock.isEnabled.value != true) return
+        if (away >= autoLockTimeoutMs) locked.value = true
+    }
+
+    /**
+     * Reads the two security preferences that act on the window itself.
+     *
+     * Collected here rather than pushed from the settings screen: the screen
+     * writes the file, the window reads the file, and nothing has to
+     * remember to tell the other.
+     */
+    private fun collectAutoLockPreferences() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                settingsStore.settings.collect { snapshot ->
+                    autoLockTimeoutMs = snapshot.security.autoLock.toMillis()
+                    pinLength = snapshot.security.pinLength
+                    val secure = snapshot.security.blockScreenshots
+                    if (secure) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -245,8 +319,70 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Renders one settings category, editing the file directly.
+     *
+     * The snapshot is read once here and handed down: every row writes through
+     * the store, and the flow re-emits, so a row never holds the value it just
+     * wrote — it holds the file's answer, which is the same thing said by one
+     * source instead of two.
+     */
+    @Composable
+    private fun SettingsCategoryHost(
+        category: SettingsCategoryRoute?,
+        onBack: () -> Unit,
+    ) {
+        val viewModel: SettingsViewModel = hiltViewModel()
+        val settings by viewModel.snapshot.collectAsStateWithLifecycle()
+        val onUpdate: OnSettingsUpdate = { transform -> viewModel.update(transform) }
+
+        if (category == null) {
+            // An unknown id is a bad link, not a crash: drop back to the list.
+            LaunchedEffect(Unit) { onBack() }
+            return
+        }
+
+        when (category) {
+            SettingsCategoryRoute.Appearance ->
+                AppearanceCategory(settings, onBack, onUpdate)
+            SettingsCategoryRoute.Terminal ->
+                TerminalCategory(settings, onBack, onUpdate)
+            SettingsCategoryRoute.Keyboard ->
+                KeyboardCategory(settings, onBack, onUpdate)
+            SettingsCategoryRoute.Shell ->
+                ShellCategory(settings, onBack, onUpdate)
+            SettingsCategoryRoute.Editor ->
+                EditorCategory(settings, onBack, onUpdate)
+            SettingsCategoryRoute.Security ->
+                SecurityCategory(settings, onBack, onUpdate, viewModel)
+            SettingsCategoryRoute.Language ->
+                LanguageCategory(settings, onBack, onUpdate)
+            SettingsCategoryRoute.About ->
+                AboutCategory(onBack, viewModel)
+        }
+    }
+
     @Composable
     private fun DroshNavHost() {
+        // The lock stands in front of the whole host, not in front of one
+        // route: the setting is about the app, so wherever the user left off
+        // is what they come back to find it behind.
+        val isLocked by locked.collectAsStateWithLifecycle()
+        if (isLocked) {
+            PinEntryScreen(
+                title = "Enter PIN",
+                subtitle = "App lock enabled",
+                pinLength = pinLength,
+                onPinReady = { pin ->
+                    lifecycleScope.launch {
+                        if (pinLock.verify(pin)) locked.value = false
+                    }
+                },
+                onCancel = { finish() },
+            )
+            return
+        }
+
         val navController = rememberNavController()
         val coroutineScope = rememberCoroutineScope()
 
@@ -325,6 +461,7 @@ class MainActivity : ComponentActivity() {
                     PinEntryScreen(
                         title = "Enter PIN",
                         subtitle = "App lock enabled",
+                        pinLength = pinLength,
                         onPinReady = { pin ->
                             coroutineScope.launch {
                                 if (pinLock.verify(pin)) {
@@ -400,12 +537,26 @@ class MainActivity : ComponentActivity() {
             }
 
             composable("settings") {
-                SettingsScreen(
+                SettingsHomeScreen(
                     onBack = { navController.popBackStack() },
+                    // The categories are routes of their own: the screen has
+                    // to survive a configuration change and a deep link, and
+                    // eight hidden composables behind one destination would
+                    // have made both ambiguous.
+                    onOpenCategory = { category ->
+                        navController.navigate("settings/${category.id}")
+                    },
                     onOpenProjects = { navController.navigate("workspace") },
                     // Reached from Settings rather than from a gear on the agent
                     // screens: an OpenRouter key is the user's, not a chat's.
                     onOpenAgentSettings = { navController.navigate("agent_settings") },
+                )
+            }
+
+            composable("settings/{category}") { entry ->
+                SettingsCategoryHost(
+                    category = SettingsCategoryRoute.fromId(entry.arguments?.getString("category")),
+                    onBack = { navController.popBackStack() },
                 )
             }
 
