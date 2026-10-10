@@ -84,10 +84,10 @@ class TomlSettingsStore @Inject constructor(
      * that deserves a sentence rather than a silent swap.
      */
     private val _changedExternally = MutableStateFlow(false)
-    val changedExternally: StateFlow<Boolean> = _changedExternally.asStateFlow()
+    override val changedExternally: StateFlow<Boolean> = _changedExternally.asStateFlow()
 
     /** Acknowledges an external edit; the dialog calls it when dismissed. */
-    fun acknowledgeExternalChange() {
+    override fun acknowledgeExternalChange() {
         _changedExternally.value = false
     }
 
