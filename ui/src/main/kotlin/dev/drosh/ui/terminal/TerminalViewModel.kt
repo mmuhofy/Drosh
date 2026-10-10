@@ -5,17 +5,14 @@ import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
-import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
 import dev.drosh.domain.terminal.TerminalZoom
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Properties
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,26 +20,30 @@ import javax.inject.Inject
 /**
  * Holds the terminal font size for [TerminalScreen].
  *
+ * Two values, deliberately: the **default** is what a session opens at and is
+ * what the Settings slider writes; the **live** size is what the session on
+ * screen is drawing right now. A pinch moves the live value only — it is the
+ * session's, not the app's, and rewriting the default underneath it would
+ * mean the next session opens at a size the user chose by accident while
+ * reading.
+ *
  * The value is fractional because a pinch follows the fingers: the terminal
  * itself owns the live size while the gesture runs (see
- * [TerminalView.zoomTo]), and this ViewModel is told the result twice — once
- * per frame for display ([onZoomFrame]), once when the fingers lift
- * ([onZoomCommitted]) to publish and persist.
+ * [TerminalView.zoomTo]), and this ViewModel is told the result once, when the
+ * fingers lift ([onZoomCommitted]).
  *
  * Publishing on every frame is what this deliberately does **not** do. The
  * screen reads [fontSizeSp] at its root and hands it to both panes, so an emit
  * per frame would recompose the whole terminal screen at 60Hz to change one
  * number that only a chip is showing. The live value reaches the chip through
- * the client's zoom callback instead, and only the committed value travels
+ * the client's zoom callback instead, and only the settled value travels
  * through the flow.
  */
 @HiltViewModel
 class TerminalViewModel @Inject constructor(
-    setTerminalFontSize: SetTerminalFontSizeUseCase,
     settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
-    private val persist = setTerminalFontSize
     private val settingsRepository = settingsRepository
 
     val useBlockEngine: StateFlow<Boolean> = settingsRepository.useBlockEngine
@@ -91,18 +92,25 @@ class TerminalViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, Properties())
 
+    /**
+     * The size a session opens at, as stored. The Settings slider writes this.
+     */
+    val defaultFontSizeSp: StateFlow<Float> = settingsRepository.fontSizeSp
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalZoom.DEFAULT_SP)
+
     private val _fontSizeSp = MutableStateFlow(TerminalZoom.DEFAULT_SP)
     val fontSizeSp: StateFlow<Float> = _fontSizeSp.asStateFlow()
 
     init {
         viewModelScope.launch {
-            persist.observe().collect { stored ->
+            // Follows the stored default, so a change made in Settings reaches
+            // the session already on screen rather than waiting for the next
+            // one. A pinch never emits here: it moves the live value alone.
+            settingsRepository.fontSizeSp.collect { stored ->
                 _fontSizeSp.value = stored.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
             }
         }
     }
-
-    private var pendingPersistJob: Job? = null
 
     fun setFontBgColor(hex: String) {
         viewModelScope.launch { settingsRepository.setTerminalBgColor(hex) }
@@ -116,35 +124,45 @@ class TerminalViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setAccentColor(hex) }
     }
 
-    /** From Settings. Publishes immediately — there is no gesture to wait for. */
+    /**
+     * From Settings: writes the default. Published immediately — there is no
+     * gesture to wait for — and the collector above re-affirms it once the
+     * write lands.
+     */
     fun setFontSize(value: Float) {
         val clamped = value.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
         _fontSizeSp.value = clamped
-        pendingPersistJob?.cancel()
-        pendingPersistJob = viewModelScope.launch { persist.set(clamped) }
+        viewModelScope.launch { settingsRepository.setFontSize(clamped) }
     }
 
     /**
-     * A pinch (or a double-tap) finished: publish and persist, once.
+     * A pinch (or a double-tap) finished: the live size moved, the default
+     * did not.
      *
      * [TerminalView.zoomTo] has already drawn at this size, so nothing here is
-     * needed for the terminal to look right — this is what makes the size
-     * outlive the process, and what a settings change elsewhere in the app
-     * reads.
+     * needed for the terminal to look right. What used to happen — persisting
+     * it — is what made the stored default quietly become a record of the last
+     * pinch, so the next session opened at a size nobody had chosen twice.
      */
     fun onZoomCommitted(textSizeSp: Float) {
-        setFontSize(textSizeSp)
+        _fontSizeSp.value = textSizeSp.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
+    }
+
+    /**
+     * A session opened in a pane, so its size goes back to the default.
+     *
+     * Called where a view reports that it took a *new* session — a pinch is
+     * per session, and the next one has to start from the default rather than
+     * from whatever the last one was left at.
+     */
+    fun onSessionOpened() {
+        _fontSizeSp.value = defaultFontSizeSp.value
     }
 
     fun setProotStartCommand(command: String) {
         viewModelScope.launch {
             settingsRepository.setProotStartCommand(command)
         }
-    }
-
-    override fun onCleared() {
-        pendingPersistJob?.cancel()
-        super.onCleared()
     }
 }
 

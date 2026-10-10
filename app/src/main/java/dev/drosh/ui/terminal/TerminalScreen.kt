@@ -81,7 +81,6 @@ import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
-import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.terminal.UbuntuSetupState
 import dev.drosh.ui.block.BlockEngineViewModel
 import dev.drosh.ui.block.BlockInputField
@@ -374,6 +373,7 @@ private fun ReadyScreen(
         }
     }
     val fontSizeSp by terminalViewModel.fontSizeSp.collectAsState()
+    val defaultFontSizeSp by terminalViewModel.defaultFontSizeSp.collectAsState()
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
@@ -748,6 +748,7 @@ private fun ReadyScreen(
                     paneSlot = PaneSlot.PRIMARY,
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
+                    defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
                     terminalViewModel = terminalViewModel,
                     blockEngineViewModel = blockEngineViewModel,
@@ -775,6 +776,7 @@ private fun ReadyScreen(
                     paneSlot = PaneSlot.SECONDARY,
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
+                    defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
                     terminalViewModel = terminalViewModel,
                     blockEngineViewModel = blockEngineViewModel,
@@ -1271,6 +1273,7 @@ private fun TerminalPaneBody(
     paneSlot: PaneSlot,
     terminalManager: TerminalManager,
     fontSizeSp: Float,
+    defaultFontSizeSp: Float,
     colorProps: Properties,
     terminalViewModel: TerminalViewModel,
     blockEngineViewModel: BlockEngineViewModel,
@@ -1397,6 +1400,7 @@ private fun TerminalPaneBody(
                     paneSlot = paneSlot,
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
+                    defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
                     terminalViewModel = terminalViewModel,
                     terminalViewRef = terminalViewRef,
@@ -1426,6 +1430,7 @@ private fun TerminalViewHost(
     paneSlot: PaneSlot,
     terminalManager: TerminalManager,
     fontSizeSp: Float,
+    defaultFontSizeSp: Float,
     colorProps: Properties,
     terminalViewModel: TerminalViewModel,
     terminalViewRef: MutableState<TerminalView?>,
@@ -1497,12 +1502,12 @@ private fun TerminalViewHost(
                 zoomChip = ZoomChipState(sizeSp, focus.focusX, focus.focusY, visible = false)
                 terminalViewModel.onZoomCommitted(sizeSp)
             },
-            // A double-tap resets to the app's default, not to the current
-            // size: after a pinch the current size is what the pinch
-            // produced, so resetting to it would do nothing. The client is
-            // asked for it once, here, rather than read from the ViewModel —
-            // the ViewModel's value *is* the pinched size by then.
-            defaultFontSizeSp = TerminalZoom.DEFAULT_SP,
+            // A double-tap resets to the *stored default*, not to the current
+            // size: after a pinch the current size is what the pinch produced,
+            // so resetting to it would do nothing. The default is asked for
+            // once, here, because the live value the client could otherwise
+            // read is the pinched one by the time the double-tap lands.
+            defaultFontSizeSp = defaultFontSizeSp,
             extraKeyState = extraKeyState,
             context = context,
             onUrlClick = onUrlClick,
@@ -1573,7 +1578,10 @@ private fun TerminalViewHost(
             }
 
             val tv = TerminalView(ctx, null).apply {
-                setTextSize(fontSizeSp)
+                // The default, not the live size: this pane is opening a
+                // session, and a pinch from the session that came before it
+                // belongs to that session alone.
+                setTextSize(defaultFontSizeSp)
                 isFocusable = true
                 isFocusableInTouchMode = true
                 setTerminalViewClient(viewClient)
@@ -1582,7 +1590,7 @@ private fun TerminalViewHost(
                 // session, so the unfocused pane has to be attached to its own
                 // or the split would render the same terminal twice.
                 terminalManager.sessionForSlot(paneSlot)?.let { session ->
-                    attachSession(session)
+                    if (attachSession(session)) terminalViewModel.onSessionOpened()
                 }
                 terminalManager.registerPaneView(paneSlot, this, ctx)
 
@@ -1642,7 +1650,14 @@ private fun TerminalViewHost(
             tv?.setTextSize(fontSizeSp)
             tv?.updateColors(colorProps)
             terminalManager.sessionForSlot(paneSlot)?.let { session ->
-                tv?.attachSession(session)
+                // A *new* session, not the same one re-attached: the view
+                // reports that, and it is the moment the pane's size goes back
+                // to the default. Without this, a pinch in one session would
+                // meet the user again in the next one, which is the behaviour
+                // the default was introduced to end.
+                if (tv?.attachSession(session) == true) {
+                    terminalViewModel.onSessionOpened()
+                }
             }
 
             overlay?.updateQuery(searchQuery)
