@@ -64,7 +64,9 @@ class SettingsViewModel @Inject constructor(
      */
     fun importBackgroundImage(uri: android.net.Uri) {
         viewModelScope.launch {
-            backgroundImages.import(uri)
+            // The string form crosses into the domain layer, which has no
+            // Android types of its own.
+            backgroundImages.import(uri.toString())
                 .onFailure { Timber.w(it, "settings: background import failed") }
         }
     }

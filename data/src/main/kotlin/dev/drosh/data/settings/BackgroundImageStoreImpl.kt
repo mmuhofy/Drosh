@@ -43,10 +43,11 @@ class BackgroundImageStoreImpl @Inject constructor(
 
     private fun extensionOf(name: String): String = name.substringAfterLast('.', "")
 
-    override suspend fun import(uri: Uri): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun import(uri: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val name = "background.${extensionFor(uri) ?: "png"}"
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            val parsed = Uri.parse(uri)
+            val name = "background.${extensionFor(parsed) ?: "png"}"
+            val bytes = context.contentResolver.openInputStream(parsed)?.use { it.readBytes() }
                 ?: return@withContext Result.failure(IllegalStateException("the picked file could not be read"))
             // The rootfs copy first, the app-private one after: the same order
             // the settings file is written in, and for the same reason.

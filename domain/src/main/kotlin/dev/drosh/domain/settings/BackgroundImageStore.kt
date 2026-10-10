@@ -1,6 +1,5 @@
 package dev.drosh.domain.settings
 
-import android.net.Uri
 import java.io.File
 
 /**
@@ -25,9 +24,11 @@ interface BackgroundImageStore {
 
     /**
      * Copies a picked document into the convention, keeping its extension.
+     * [uri] is the document's string form — the domain layer is pure Kotlin,
+     * and a string is all the implementation needs to parse it back.
      * Returns the stored file name.
      */
-    suspend fun import(uri: Uri): Result<String>
+    suspend fun import(uri: String): Result<String>
 
     /** Removes the convention file, if there is one. */
     suspend fun remove(): Result<Unit>
