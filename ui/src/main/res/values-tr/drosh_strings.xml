@@ -5,7 +5,7 @@
     <string name="settings_section_terminal">Terminal</string>
     <string name="settings_section_projects">Projeler</string>
     <string name="settings_projects">Projeler</string>
-    <string name="settings_projects_desc">Session\\'ları projeye göre grupla</string>
+    <string name="settings_projects_desc">Session\'ları projeye göre grupla</string>
 
     <string name="settings_section_startup">Başlangıç</string>
     <string name="settings_section_motd">Karşılama mesajı</string>
@@ -45,7 +45,7 @@
     <string name="settings_motd_compose_desc">Etkileşimli kart olarak çizilir</string>
     <string name="settings_motd_message">Mesaj</string>
     <string name="settings_motd_empty">Düzenlemek için dokun</string>
-    <string name="settings_motd_default">Drosh\\'a hoş geldin</string>
+    <string name="settings_motd_default">Drosh\'a hoş geldin</string>
 
     <string name="settings_language">Dil</string>
     <string name="settings_language_search">Dillerde ara</string>
