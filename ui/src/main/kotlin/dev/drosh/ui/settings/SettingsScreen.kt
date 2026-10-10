@@ -253,8 +253,13 @@ fun SettingsScreen(
                         SettingsSlider(
                             value = cursorBlinkRateMs.toFloat(),
                             onValueChange = { viewModel.setCursorBlinkRateMs(it.toInt()) },
-                            valueRange = 0f..1200f,
-                            steps = 5,
+                            // The vendored view's own window - 100..2000ms -
+                            // with 0 as the off position below it. The slider
+                            // used to stop at 1200, so the top fifth of what
+                            // the blinker accepts could not be reached from
+                            // here.
+                            valueRange = 0f..2000f,
+                            steps = 19,
                         )
                     }
 

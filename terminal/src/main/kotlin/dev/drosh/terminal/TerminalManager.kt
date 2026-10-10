@@ -289,6 +289,20 @@ class TerminalManager(
      */
     private var cursorBlinkRateMs: Int = DEFAULT_CURSOR_BLINK_MS
 
+    /**
+     * Applies [rate] to [view], starting or stopping the blinker with it.
+     *
+     * Starting it is what was missing: the rate alone configures the blinker,
+     * but nothing ever told the view to run it, so the setting was stored,
+     * replayed onto late panes, and changed nothing on screen. A rate outside
+     * the valid range — 0 included — stops it, which is what makes the "off"
+     * end of the slider work rather than merely log an error.
+     */
+    private fun applyCursorBlinkRate(view: TerminalView, rate: Int) {
+        view.setTerminalCursorBlinkerRate(rate)
+        view.setTerminalCursorBlinkerState(rate in VALID_BLINK_RANGE, true)
+    }
+
     /** The pane's view, or null when the pane is not on screen. */
     fun viewForPane(slot: PaneSlot): TerminalView? = paneViews[slot]
 
@@ -735,7 +749,7 @@ class TerminalManager(
                 // current rate too, and the settings flow does not re-emit for
                 // a pane that appears after the user last changed it.
                 cursorBlinkRateMs = rate
-                paneViews.values.forEach { view -> view.setTerminalCursorBlinkerRate(rate) }
+                paneViews.values.forEach { view -> applyCursorBlinkRate(view, rate) }
             }
             .launchIn(managerScope)
 
@@ -824,7 +838,10 @@ class TerminalManager(
         paneViews[slot] = view
         sessionClient.clipboard =
             context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        view.setTerminalCursorBlinkerRate(cursorBlinkRateMs)
+        // Rate and state together, and in that order: the view is fresh, so it
+        // has neither, and a blinker started without a rate is stopped again by
+        // the range check inside it.
+        applyCursorBlinkRate(view, cursorBlinkRateMs)
 
         // The pane may have been given its session before its view existed —
         // the layout is restored from storage before the first composition
@@ -1486,9 +1503,19 @@ class TerminalManager(
          *
          * A view registered in that window would otherwise keep the emulator's
          * own default for the rest of its life, because the settings flow has
-         * already emitted and will not emit again.
+         * already emitted and will not emit again. The same value the
+         * repository defaults to, so a pane opened before the first settings
+         * emission blinks at the rate the user would have chosen anyway.
          */
-        const val DEFAULT_CURSOR_BLINK_MS = 600
+        const val DEFAULT_CURSOR_BLINK_MS = 500
+
+        /**
+         * The rates the vendored view accepts, mirroring its own
+         * [TerminalView.TERMINAL_CURSOR_BLINK_RATE_MIN] /
+         * [TerminalView.TERMINAL_CURSOR_BLINK_RATE_MAX]. Everything outside
+         * this — 0 included — reads as "blinker off".
+         */
+        val VALID_BLINK_RANGE = 100..2000
     }
 }
 
