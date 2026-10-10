@@ -48,7 +48,7 @@ import dev.drosh.ui.R
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-private val GROUP_GAP = 22.dp
+internal val GROUP_GAP = 22.dp
 
 /** Content clearance for the system bar, without insetting the background. */
 @Composable
@@ -98,21 +98,49 @@ typealias OnSettingsUpdate = ((DroshSettings) -> DroshSettings) -> Unit
 // ── Appearance ───────────────────────────────────────────────────────────────
 
 @Composable
-fun AppearanceCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
+fun AppearanceCategory(
+    settings: DroshSettings,
+    onBack: () -> Unit,
+    onUpdate: OnSettingsUpdate,
+    onOpenThemeStore: () -> Unit,
+    viewModel: SettingsViewModel,
+) {
+    // The system picker. It writes into the convention rather than into a
+    // setting, so what it leaves behind is the same thing a shell's
+    // `cp ~/.drosh/background.png` would.
+    val pickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let { viewModel.importBackgroundImage(it) } }
+
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_category_appearance),
         onBack = onBack,
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_appearance),
-            items = 2,
+            items = 3,
         ) { index, cap ->
+            // The theme row leads: it is the one appearance setting that
+            // rewrites the other twenty-two, and burying it below the theme
+            // and font rows is why nobody found it.
+            if (index == 0) {
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_theme_store),
+                    icon = DroshIcons.Palette,
+                    supporting = settings.terminal.themeId.ifBlank {
+                        stringResource(R.string.settings_theme_active_none)
+                    },
+                    onClick = onOpenThemeStore,
+                ) { SettingsChevron() }
+                return@SettingsGroupColumn
+            }
             when (index) {
-                0 -> SettingsTile(
+                1 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_theme),
-                    icon = DroshIcons.Palette,
+                    icon = DroshIcons.Sun,
                     supporting = when (settings.appearance.themeMode) {
                         ThemeMode.System -> stringResource(R.string.settings_theme_system_desc)
                         ThemeMode.Light -> stringResource(R.string.settings_theme_light_desc)
@@ -155,8 +183,178 @@ fun AppearanceCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: On
                 }
             }
         }
+
+        Spacer(Modifier.height(GROUP_GAP))
+
+        SettingsGroupColumn(
+            label = stringResource(R.string.settings_section_terminal),
+            items = 3,
+        ) { index, cap ->
+            when (index) {
+                0 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_bold_brightens),
+                    icon = DroshIcons.Type,
+                    supporting = stringResource(R.string.settings_bold_brightens_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.boldBrightens,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(terminal = it.terminal.copy(boldBrightens = on)) }
+                        },
+                    )
+                }
+
+                1 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_ligatures),
+                    icon = DroshIcons.Type,
+                    supporting = stringResource(R.string.settings_ligatures_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.ligatures,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(terminal = it.terminal.copy(ligatures = on)) }
+                        },
+                    )
+                }
+
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_dim_inactive_panes),
+                    icon = DroshIcons.Monitor,
+                    supporting = stringResource(R.string.settings_dim_inactive_panes_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.dimInactivePanes,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(terminal = it.terminal.copy(dimInactivePanes = on)) }
+                        },
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(GROUP_GAP))
+
+        SettingsGroupColumn(
+            label = stringResource(R.string.settings_section_background),
+            items = 6,
+        ) { index, cap ->
+            when (index) {
+                0 -> {
+                    // The convention, not a path: a file called
+                    // background.* in .drosh IS the background, and the
+                    // picker's job is to put one there rather than to
+                    // configure one.
+                    val backgroundName = remember { viewModel.backgroundFileName() }
+                    SettingsTile(
+                        cap = cap,
+                        title = stringResource(R.string.settings_background_image),
+                        icon = DroshIcons.Monitor,
+                        supporting = backgroundName
+                            ?: stringResource(R.string.settings_background_none),
+                        onClick = { pickerLauncher.launch(arrayOf("image/*")) },
+                    ) { SettingsChevron() }
+                }
+
+                1 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_background_remove),
+                    icon = DroshIcons.Trash2,
+                    supporting = stringResource(R.string.settings_background_remove_desc),
+                    onClick = { viewModel.removeBackgroundImage() },
+                )
+
+                2 -> SettingsTile(
+                    cap = cap,
+                    stacked = true,
+                    title = stringResource(R.string.settings_background_opacity),
+                    icon = DroshIcons.Eye,
+                    supporting = stringResource(
+                        R.string.settings_background_opacity_value,
+                        settings.background.imageOpacity,
+                    ),
+                ) {
+                    SettingsSlider(
+                        value = settings.background.imageOpacity.toFloat(),
+                        onValueChange = { value ->
+                            onUpdate { it.copy(background = it.background.copy(imageOpacity = value.toInt())) }
+                        },
+                        valueRange = 0f..100f,
+                        steps = 19,
+                    )
+                }
+
+                3 -> SettingsTile(
+                    cap = cap,
+                    stacked = true,
+                    title = stringResource(R.string.settings_background_blur),
+                    icon = DroshIcons.Eye,
+                    supporting = if (settings.background.blurRadius == 0) {
+                        stringResource(R.string.settings_background_blur_off)
+                    } else {
+                        stringResource(
+                            R.string.settings_background_blur_value,
+                            settings.background.blurRadius,
+                        )
+                    },
+                ) {
+                    SettingsSlider(
+                        value = settings.background.blurRadius.toFloat(),
+                        onValueChange = { value ->
+                            onUpdate { it.copy(background = it.background.copy(blurRadius = value.toInt())) }
+                        },
+                        valueRange = 0f..100f,
+                        steps = 19,
+                    )
+                }
+
+                4 -> SettingsTile(
+                    cap = cap,
+                    stacked = true,
+                    title = stringResource(R.string.settings_content_padding),
+                    icon = DroshIcons.Maximize,
+                    supporting = stringResource(
+                        R.string.settings_content_padding_value,
+                        settings.background.contentPaddingDp,
+                    ),
+                ) {
+                    SettingsSlider(
+                        value = settings.background.contentPaddingDp.toFloat(),
+                        onValueChange = { value ->
+                            onUpdate { it.copy(background = it.background.copy(contentPaddingDp = value.toInt())) }
+                        },
+                        valueRange = 0f..48f,
+                        steps = 15,
+                    )
+                }
+
+                else -> SettingsTile(
+                    cap = cap,
+                    stacked = true,
+                    title = stringResource(R.string.settings_content_corners),
+                    icon = DroshIcons.Square,
+                    supporting = stringResource(
+                        R.string.settings_content_corners_value,
+                        settings.background.cornerRadiusDp,
+                    ),
+                ) {
+                    SettingsSlider(
+                        value = settings.background.cornerRadiusDp.toFloat(),
+                        onValueChange = { value ->
+                            onUpdate { it.copy(background = it.background.copy(cornerRadiusDp = value.toInt())) }
+                        },
+                        valueRange = 0f..32f,
+                        steps = 15,
+                    )
+                }
+            }
+        }
     }
 }
+
+
 
 // ── Terminal ─────────────────────────────────────────────────────────────────
 

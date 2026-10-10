@@ -75,22 +75,22 @@ class SettingsRepositoryImpl @Inject constructor(
         store.update { it.copy(terminal = it.terminal.copy(defaultFontSizeSp = size)) }
     }
 
-    override val terminalBgColor: Flow<String> = settings.map { it.terminal.background }
+    override val terminalBgColor: Flow<String> = settings.map { it.terminal.palette.background }
 
     override suspend fun setTerminalBgColor(hex: String) {
-        store.update { it.copy(terminal = it.terminal.copy(background = hex)) }
+        store.update { it.copy(terminal = it.terminal.copy(palette = it.terminal.palette.copy(background = hex))) }
     }
 
-    override val accentColor: Flow<String> = settings.map { it.terminal.accent }
+    override val accentColor: Flow<String> = settings.map { it.terminal.palette.accent }
 
     override suspend fun setAccentColor(hex: String) {
-        store.update { it.copy(terminal = it.terminal.copy(accent = hex)) }
+        store.update { it.copy(terminal = it.terminal.copy(palette = it.terminal.palette.copy(accent = hex))) }
     }
 
-    override val terminalTextColor: Flow<String> = settings.map { it.terminal.foreground }
+    override val terminalTextColor: Flow<String> = settings.map { it.terminal.palette.foreground }
 
     override suspend fun setTerminalTextColor(hex: String) {
-        store.update { it.copy(terminal = it.terminal.copy(foreground = hex)) }
+        store.update { it.copy(terminal = it.terminal.copy(palette = it.terminal.palette.copy(foreground = hex))) }
     }
 
     override val prootStartCommand: Flow<String> = settings.map { it.shell.startupCommand }

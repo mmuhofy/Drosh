@@ -53,4 +53,10 @@
     <string name="overlay_permission_title">Let Drosh draw over other apps</string>
     <string name="overlay_permission_rationale">A pane can only float over other apps if Drosh is allowed to draw over them. Nothing leaves your device.</string>
     <string name="overlay_permission_grant">Open settings</string>
+
+    <!-- External settings-file edit -->
+    <string name="settings_external_title">Settings changed</string>
+    <string name="settings_external_body">settings.toml was edited outside the app. The new values are live; some of them take full effect after a restart.</string>
+    <string name="settings_external_restart">Restart</string>
+    <string name="settings_external_ok">OK</string>
 </resources>

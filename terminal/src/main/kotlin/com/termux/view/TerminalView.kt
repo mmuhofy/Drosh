@@ -895,12 +895,35 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         } else {
             mRenderer!!.updateTextSize(textSize)
         }
+        applyTypeBehaviour()
         updateSize()
     }
 
     /** The font size the terminal is drawing at, in sp. */
     val textSizeSp: Float
         get() = mRenderer?.mTextSize ?: 0f
+
+    /** Last type behaviour asked for, replayed whenever the renderer is rebuilt. */
+    private var boldBrightens: Boolean = true
+    private var ligatures: Boolean = true
+
+    /**
+     * Bold-brightening and ligatures.
+     *
+     * Held rather than forwarded alone: [setTypeface] and [setTextSize] both
+     * rebuild the renderer, and a behaviour applied only to the renderer of
+     * the moment would be lost the next time the font or size changed.
+     */
+    fun setTerminalTypeBehaviour(boldBrightens: Boolean, ligatures: Boolean) {
+        this.boldBrightens = boldBrightens
+        this.ligatures = ligatures
+        mRenderer?.setTypeBehaviour(boldBrightens, ligatures)
+        invalidate()
+    }
+
+    private fun applyTypeBehaviour() {
+        mRenderer?.setTypeBehaviour(boldBrightens, ligatures)
+    }
 
     /**
      * Set the font size outright, keeping the cell under ([focusX], [focusY])
@@ -1020,6 +1043,7 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
      */
     fun setTypeface(newTypeface: Typeface) {
         mRenderer = TerminalRenderer(mRenderer?.mTextSize ?: DEFAULT_TEXT_SIZE.toFloat(), newTypeface)
+        applyTypeBehaviour()
         updateSize()
         invalidate()
     }
@@ -1882,6 +1906,9 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         // Stop any existing cursor blinker callbacks
         stopTerminalCursorBlinker()
 
+        // Held false until the start below succeeds, so a declined start
+        // (no emulator yet, a rate outside the window) is not remembered as
+        // "blink wanted" and re-armed by the next emulator.
         if (mEmulator == null) return
 
         mEmulator!!.setCursorBlinkingEnabled(false)

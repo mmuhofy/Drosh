@@ -175,4 +175,47 @@
     <string name="settings_summary_terminal">%1$s · %2$ssp</string>
     <string name="settings_summary_on">Açık</string>
     <string name="settings_summary_off">Kapalı</string>
+
+    <string name="settings_theme_store">Tema Mağazası</string>
+    <string name="settings_theme_active">Etkin tema</string>
+    <string name="settings_theme_active_none">Drosh varsayılanı</string>
+    <string name="settings_theme_installed">Kurulu</string>
+    <string name="settings_theme_store_section">Mağaza</string>
+    <string name="settings_theme_store_desc">drosh-themes\'tan 120 tema, ya da URL\'den kur</string>
+    <string name="settings_theme_available">Mağazada</string>
+    <string name="settings_theme_refresh">Listeyi yenile</string>
+    <string name="settings_theme_loading">Yükleniyor…</string>
+    <string name="settings_theme_in_use">Kullanımda</string>
+    <string name="settings_theme_no_description">Açıklama yok</string>
+    <string name="settings_theme_from_url">URL\'den kur</string>
+    <string name="settings_theme_from_url_desc">Tema .toml dosyası nerede sunuluyorsa</string>
+    <string name="settings_theme_create">Kendi temanı yap</string>
+    <string name="settings_theme_create_desc">Kurulu bir temadan başla, sonra dosyayı düzenle</string>
+    <string name="settings_theme_name">Ad</string>
+    <string name="settings_theme_author">Yazar</string>
+    <string name="settings_theme_description">Açıklama</string>
+    <string name="settings_theme_base">Şundan başla</string>
+
+    <string name="settings_bold_brightens">Kalın renklendirir</string>
+    <string name="settings_bold_brightens_desc">Kalın metin ilk sekiz renkte parlak yarıyı kullanır</string>
+    <string name="settings_ligatures">Ligatürler</string>
+    <string name="settings_ligatures_desc">Yazı tipi taşıyorsa programlama ligatürleri</string>
+    <string name="settings_dim_inactive_panes">Etkin olmayan pane\'i karart</string>
+    <string name="settings_dim_inactive_panes_desc">Bölünmüş ekranda odakta olmayan pane koyu çizilir</string>
+
+    <string name="settings_section_background">Arka plan</string>
+    <string name="settings_background_image">Arka plan resmi</string>
+    <string name="settings_background_none">Yok — tema rengi görünür</string>
+    <string name="settings_background_opacity">Görünürlük</string>
+    <string name="settings_background_opacity_value">%1$d%%</string>
+    <string name="settings_content_padding">İçerik boşluğu</string>
+    <string name="settings_content_padding_value">%1$ddp</string>
+    <string name="settings_section_custom">Özel</string>
+    <string name="settings_background_remove">Arka plan resmini kaldır</string>
+    <string name="settings_background_remove_desc">.drosh içindeki dosyayı sil</string>
+    <string name="settings_background_blur">Bulanıklık</string>
+    <string name="settings_background_blur_off">Kapalı</string>
+    <string name="settings_background_blur_value">Yarıçap %1$d</string>
+    <string name="settings_content_corners">Köşe yarıçapı</string>
+    <string name="settings_content_corners_value">%1$ddp</string>
 </resources>

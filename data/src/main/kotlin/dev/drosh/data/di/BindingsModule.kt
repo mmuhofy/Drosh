@@ -15,8 +15,10 @@ import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
 import dev.drosh.data.settings.FirstLaunchRepositoryImpl
+import dev.drosh.data.settings.BackgroundImageStoreImpl
 import dev.drosh.data.settings.SettingsRepositoryImpl
 import dev.drosh.data.settings.toml.TomlSettingsStore
+import dev.drosh.data.theme.ThemeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
@@ -40,9 +42,11 @@ import dev.drosh.domain.input.SubmitRawByteUseCase
 import dev.drosh.domain.session.ObserveActiveSessionUseCase
 import dev.drosh.domain.session.DeviceIdentityRepository
 import dev.drosh.domain.session.SessionRepository
+import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.SettingsStore
+import dev.drosh.domain.settings.ThemeRepository
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.PaneLayoutRepository
@@ -148,6 +152,18 @@ abstract class BindingsModule {
     abstract fun bindSettingsStore(
         impl: TomlSettingsStore,
     ): SettingsStore
+
+    @Binds
+    @Singleton
+    abstract fun bindThemeRepository(
+        impl: ThemeRepositoryImpl,
+    ): ThemeRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindBackgroundImageStore(
+        impl: BackgroundImageStoreImpl,
+    ): BackgroundImageStore
 
     @Binds
     @Singleton

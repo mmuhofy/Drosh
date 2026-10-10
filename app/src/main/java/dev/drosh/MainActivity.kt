@@ -1,20 +1,35 @@
 package dev.drosh
 
+import android.app.Activity
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.drosh.core.LocaleHelper
+import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.DroshText
+import dev.drosh.design.system.DroshSurfaceVariant
+import dev.drosh.design.system.DroshPrimary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import androidx.core.view.WindowCompat
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,6 +95,7 @@ import dev.drosh.ui.settings.SettingsHomeScreen
 import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
+import dev.drosh.ui.settings.ThemeStoreScreen
 import dev.drosh.ui.workspace.WorkspaceScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -113,7 +129,7 @@ class MainActivity : ComponentActivity() {
      * True while the app lock is standing. The gate over the whole nav host,
      * so leaving and coming back re-asks instead of showing the last screen.
      */
-    private val locked = MutableStateFlow(false)
+    private val locked = MutableStateFlow(true)
 
     /** Elapsed realtime when the window went away, 0 while it is up. */
     private var backgroundedAt = 0L
@@ -235,7 +251,17 @@ class MainActivity : ComponentActivity() {
         sessionManagerAdapter.onUiForegrounded()
         registerKeyboardModeReceiver()
         collectAutoLockPreferences()
-        lifecycleScope.launch { maybeRelock() }
+        lifecycleScope.launch {
+            // Re-read the settings file on every resume. The file lives where
+            // a shell can edit it, and a FileObserver is not something to
+            // trust alone: an edit made while the app was away, or in a
+            // directory that only appeared later, would otherwise sit
+            // unnoticed until the next write from here.
+            settingsStore.reload()
+            // With the lock off there is nothing to ask, and a stale locked
+            // value from an earlier enable must not outlive the disabling.
+            if (pinLock.isEnabled.first()) maybeRelock() else locked.value = false
+        }
     }
 
     override fun onStop() {
@@ -258,11 +284,14 @@ class MainActivity : ComponentActivity() {
      * window open for as long as it likes.
      */
     private suspend fun maybeRelock() {
-        if (backgroundedAt == 0L) return
+        val wasAway = backgroundedAt != 0L
         val away = SystemClock.elapsedRealtime() - backgroundedAt
         backgroundedAt = 0L
-        if (!pinLock.isEnabled.first()) return
-        if (away >= autoLockTimeoutMs) locked.value = true
+        // A fresh process is already locked — the field starts true — so
+        // there is nothing to decide: the gate asks once, on whichever route
+        // the user lands. Only a return from the background is a question.
+        if (!wasAway) return
+        locked.value = away >= autoLockTimeoutMs
     }
 
     /**
@@ -334,6 +363,7 @@ class MainActivity : ComponentActivity() {
     private fun SettingsCategoryHost(
         category: SettingsCategoryRoute?,
         onBack: () -> Unit,
+        onOpenThemeStore: () -> Unit,
     ) {
         val viewModel: SettingsViewModel = hiltViewModel()
         val settings by viewModel.snapshot.collectAsStateWithLifecycle()
@@ -347,7 +377,9 @@ class MainActivity : ComponentActivity() {
 
         when (category) {
             SettingsCategoryRoute.Appearance ->
-                AppearanceCategory(settings, onBack, onUpdate)
+                AppearanceCategory(settings, onBack, onUpdate, onOpenThemeStore, viewModel)
+            SettingsCategoryRoute.ThemeStore ->
+                ThemeStoreScreen(onBack = onBack)
             SettingsCategoryRoute.Terminal ->
                 TerminalCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.Keyboard ->
@@ -370,24 +402,81 @@ class MainActivity : ComponentActivity() {
         // The lock stands in front of the whole host, not in front of one
         // route: the setting is about the app, so wherever the user left off
         // is what they come back to find it behind.
+        //
+        // One gate, not two. The terminal route used to ask on its own as
+        // well, and passing one only ever queued the other: unlocking here
+        // revealed the terminal route, which asked again because it had been
+        // reading the same enabled flag all along.
+        val pinEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
         val isLocked by locked.collectAsStateWithLifecycle()
-        if (isLocked) {
-            PinEntryScreen(
-                title = "Enter PIN",
-                subtitle = "App lock enabled",
-                pinLength = pinLength,
-                onPinReady = { pin ->
-                    lifecycleScope.launch {
-                        if (pinLock.verify(pin)) locked.value = false
+        var pinError by rememberSaveable { mutableStateOf<String?>(null) }
+
+        // The settings file was edited while the app was running — by a shell,
+        // a script or the agent. The new values are already live, but some of
+        // them (shell, rootfs, the editor) are only read at the moment they
+        // are used, and a restart is the honest thing to offer.
+        val externalEdit by settingsStore.changedExternally.collectAsStateWithLifecycle()
+        if (externalEdit) {
+            AlertDialog(
+                onDismissRequest = { settingsStore.acknowledgeExternalChange() },
+                containerColor = DroshSurfaceVariant,
+                title = { Text(stringResource(R.string.settings_external_title), color = DroshText) },
+                text = { Text(stringResource(R.string.settings_external_body), color = DroshTextSecondary) },
+                confirmButton = {
+                    TextButton(onClick = { restartApp() }) {
+                        Text(stringResource(R.string.settings_external_restart), color = DroshPrimary)
                     }
                 },
-                onCancel = { finish() },
+                dismissButton = {
+                    TextButton(onClick = { settingsStore.acknowledgeExternalChange() }) {
+                        Text(stringResource(R.string.settings_external_ok), color = DroshTextSecondary)
+                    }
+                },
             )
-            return
         }
 
         val navController = rememberNavController()
         val coroutineScope = rememberCoroutineScope()
+
+        // The nav host stays alive behind the lock. It used to be replaced by
+        // the PIN screen, which meant the loading route — the rootfs check,
+        // the splash, the setup resume — did not start until the PIN was
+        // already in, and the first thing after unlocking was a blank screen
+        // while it caught up. Now it runs, and the lock is a curtain over it.
+        Box(modifier = Modifier.fillMaxSize()) {
+            DroshNavGraph(navController, coroutineScope)
+
+            AnimatedVisibility(
+                visible = pinEnabled && isLocked,
+                // Entering, the lock drops onto a live terminal; leaving, it
+                // lifts off one. A fade alone read as a screen swap; the scale
+                // makes it read as the same screen being uncovered.
+                enter = fadeIn(tween(220)) + scaleIn(initialScale = 1.05f, animationSpec = tween(280)),
+                exit = fadeOut(tween(240)) + scaleOut(targetScale = 1.05f, animationSpec = tween(280)),
+            ) {
+                PinEntryScreen(
+                    title = "Enter PIN",
+                    subtitle = "App lock enabled",
+                    errorMessage = pinError,
+                    pinLength = pinLength,
+                    onPinReady = { pin ->
+                        lifecycleScope.launch {
+                            if (pinLock.verify(pin)) {
+                                pinError = null
+                                locked.value = false
+                            } else {
+                                pinError = "Wrong PIN"
+                            }
+                        }
+                    },
+                    onCancel = { finish() },
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun DroshNavGraph(navController: NavHostController, coroutineScope: CoroutineScope) {
 
         var firstCompleted by rememberSaveable { mutableStateOf<Boolean?>(null) }
 
@@ -458,42 +547,6 @@ class MainActivity : ComponentActivity() {
 
             composable("terminal") {
                 val context = LocalDroshActivity.current
-                val isPinLockEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
-
-                if (isPinLockEnabled) {
-                    PinEntryScreen(
-                        title = "Enter PIN",
-                        subtitle = "App lock enabled",
-                        pinLength = pinLength,
-                        onPinReady = { pin ->
-                            coroutineScope.launch {
-                                if (pinLock.verify(pin)) {
-                                    navController.navigate("terminal_home") {
-                                        popUpTo("terminal") { inclusive = true }
-                                    }
-                                }
-                            }
-                        },
-                    )
-                } else {
-                    TerminalScreen(
-                        terminalManager = terminalManager,
-                        settingsRepository = settingsRepository,
-                        ubuntuSetupState = UbuntuSetupState.Ready,
-                        onRetry = { triggerBootstrap.retry() },
-                        onOpenSettings = { navController.navigate("settings") },
-                        extraKeyState = extraKeyState,
-                        onExit = { context.finish() },
-                        onOpenEditor = { path -> navController.openEditor(path) },
-                        onOpenAgent = { navController.navigate("agent_home") },
-                        onOpenSsh = { navController.navigate("ssh") },
-                        onOpenProjects = { navController.navigate("workspace") },
-                    )
-                }
-            }
-
-            composable("terminal_home") {
-                val context = LocalDroshActivity.current
                 TerminalScreen(
                     terminalManager = terminalManager,
                     settingsRepository = settingsRepository,
@@ -504,10 +557,11 @@ class MainActivity : ComponentActivity() {
                     onExit = { context.finish() },
                     onOpenEditor = { path -> navController.openEditor(path) },
                     onOpenAgent = { navController.navigate("agent_home") },
-                    onOpenProjects = { navController.navigate("workspace") },
                     onOpenSsh = { navController.navigate("ssh") },
+                    onOpenProjects = { navController.navigate("workspace") },
                 )
             }
+
 
             composable("agent_home") {
                 AgentHomeScreen(
@@ -560,6 +614,7 @@ class MainActivity : ComponentActivity() {
                 SettingsCategoryHost(
                     category = SettingsCategoryRoute.fromId(entry.arguments?.getString("category")),
                     onBack = { navController.popBackStack() },
+                    onOpenThemeStore = { navController.navigate("settings/theme_store") },
                 )
             }
 
@@ -616,23 +671,31 @@ private fun String.toLocaleOrNull() =
  * The stack when this is called is terminal → settings → workspace, so a single
  * `popBackStack()` would land on Settings — the screen they left to do
  * something else, and the one thing they are not waiting for. Popping to the
- * named destination clears everything in between.
- *
- * Both terminal routes are tried because which one is on the stack depends on
- * whether app lock is on: without it the start destination stays `terminal`,
- * with it `terminal` is replaced by `terminal_home` after the PIN is accepted.
- * `popBackStack` reports whether it found the destination, so the fallback is a
- * real check rather than a guess — and reaching for the terminal still has to
- * leave something on the stack for Back to work.
+ * named destination clears everything in between. `popBackStack` reports
+ * whether it found the destination, so the fallback is a real check rather
+ * than a guess — and reaching for the terminal still has to leave something on
+ * the stack for Back to work.
  */
 private fun NavHostController.returnToTerminal() {
-    val landed = popBackStack(TERMINAL_HOME_ROUTE, inclusive = false) ||
-        popBackStack(TERMINAL_ROUTE, inclusive = false)
-    if (!landed) navigate(TERMINAL_ROUTE)
+    if (!popBackStack(TERMINAL_ROUTE, inclusive = false)) navigate(TERMINAL_ROUTE)
 }
 
 private const val TERMINAL_ROUTE = "terminal"
-private const val TERMINAL_HOME_ROUTE = "terminal_home"
+
+/**
+ * Starts the app again from its launcher intent.
+ *
+ * A fresh task rather than `recreate()`: the point of the restart is that
+ * everything reads its settings from the beginning, and a recreated activity
+ * shares its singletons with the run that is being left behind.
+ */
+private fun Activity.restartApp() {
+    val intent = packageManager.getLaunchIntentForPackage(packageName)
+        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ?: return
+    finishAffinity()
+    startActivity(intent)
+}
 
 /**
  * Opens the editor for a guest path.

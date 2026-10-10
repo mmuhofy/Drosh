@@ -71,7 +71,29 @@ class TomlSettingsStore @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private var observer: FileObserver? = null
+    /** When this process last wrote the file - see [reload]. */
+    private var lastWriteElapsed = 0L
+    private var lastWriteAtWallClock = 0L
+
+    /** Every watcher, so none of them is collectable while still running. */
+    private val observers = mutableListOf<FileObserver>()
+
+    /** Which directories already have a watcher, so none is registered twice. */
+    private val watchedDirs = mutableSetOf<String>()
+
+    /**
+     * Set when a reload found values that did not come from this process's
+     * own write — a shell, a script or the agent edited the file. Sticky
+     * until the UI acknowledges it, because the edit is the kind of thing
+     * that deserves a sentence rather than a silent swap.
+     */
+    private val _changedExternally = MutableStateFlow(false)
+    override val changedExternally: StateFlow<Boolean> = _changedExternally.asStateFlow()
+
+    /** Acknowledges an external edit; the dialog calls it when dismissed. */
+    override fun acknowledgeExternalChange() {
+        _changedExternally.value = false
+    }
 
     init {
         // Synchronous on purpose: MainActivity's attachBaseContext, the
@@ -101,12 +123,32 @@ class TomlSettingsStore @Inject constructor(
     }
 
     override suspend fun reload() {
+        // A reload is also the cheapest place to notice a directory that has
+        // appeared since startup - the resume path runs this on every
+        // onStart.
+        watch()
+        // Two guards against reading our own write as an external edit. The
+        // observer watches the directory this class writes into, so a write
+        // from the app arrives here too, and a reload that races it reads the
+        // previous contents and calls the difference somebody else's:
+        //
+        //  - a quiet window after each write, which covers the rename's
+        //    two-step (write the sibling, rename over the target);
+        //  - the file's own modification time against the moment of our last
+        //    write, which covers everything the window does not — an edit
+        //    made a minute later still compares the way it should.
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastWriteElapsed != 0L && now - lastWriteElapsed < WRITE_QUIET_WINDOW_MS) return
+        val mtime = withContext(Dispatchers.IO) { readFileModified() }
+        if (mtime in 1 until lastWriteAtWallClock) return
+
         val read = withContext(Dispatchers.IO) { readFile() }
         val parsed = read?.let { runCatching { TomlDocument.parse(it) }.getOrNull() }
             ?: return
         val next = DroshSettingsToml.fromDocument(parsed)
         if (next != _settings.value) {
             _settings.value = next
+            _changedExternally.value = true
             Timber.i("settings: file changed outside the app, reloaded")
         }
     }
@@ -183,9 +225,11 @@ class TomlSettingsStore @Inject constructor(
                     ?: base.terminal.defaultFontSizeSp,
                 cursorStyle = CursorStyle.fromString(prefs[KEY_CURSOR_STYLE] ?: ""),
                 cursorBlinkMs = prefs[KEY_CURSOR_BLINK_RATE_MS] ?: base.terminal.cursorBlinkMs,
-                background = prefs[KEY_TERMINAL_BG_COLOR] ?: base.terminal.background,
-                foreground = prefs[KEY_TERMINAL_TEXT_COLOR] ?: base.terminal.foreground,
-                accent = prefs[KEY_ACCENT_COLOR] ?: base.terminal.accent,
+                palette = base.terminal.palette.copy(
+                    background = prefs[KEY_TERMINAL_BG_COLOR] ?: base.terminal.palette.background,
+                    foreground = prefs[KEY_TERMINAL_TEXT_COLOR] ?: base.terminal.palette.foreground,
+                    accent = prefs[KEY_ACCENT_COLOR] ?: base.terminal.palette.accent,
+                ),
             ),
             input = base.input.copy(
                 extraKeysBar = prefs[KEY_EXTRA_KEYS_BAR_VISIBLE] ?: base.input.extraKeysBar,
@@ -224,8 +268,22 @@ class TomlSettingsStore @Inject constructor(
         val text = SETTINGS_FILE_HEADER + "\n\n" + DroshSettingsToml.toDocument(settings).render()
         val primaryOk = writeAtomically(paths.primaryFile, text)
         val backupOk = writeAtomically(paths.backupFile, text)
+        // The write may have just created the directory it wrote into.
+        watch()
+        if (primaryOk || backupOk) {
+            // Stamped after the write, so the file's modification time is
+            // always at or before this moment - which is the comparison the
+            // reload makes.
+            lastWriteAtWallClock = System.currentTimeMillis()
+            lastWriteElapsed = android.os.SystemClock.elapsedRealtime()
+        }
         return primaryOk && backupOk
     }
+
+    /** The primary file's modification time, or 0 when there is none. */
+    private fun readFileModified(): Long =
+        paths.primaryFile.lastModified().takeIf { it > 0 }
+            ?: paths.backupFile.lastModified()
 
     private fun writeAtomically(target: File, text: String): Boolean = try {
         target.parentFile?.mkdirs()
@@ -258,16 +316,19 @@ class TomlSettingsStore @Inject constructor(
     }
 
     /**
-     * Watches [dir] for writes to `settings.toml`.
+     * Watches [dir] for writes to `settings.toml`, once.
      *
-     * Two observers rather than one on a common ancestor: the rootfs copy and
-     * the backup can live far enough apart that a single watch on a shared
-     * parent would miss both, and the file name is the only event worth
-     * waking for — the directory holds nothing else.
+     * Every watcher is kept in [observers]: a FileObserver nobody holds a
+     * reference to can be finalised while its native watch is still armed,
+     * and the one watcher this used to keep was the second one registered —
+     * the rootfs copy, the one a shell actually edits, was the one left
+     * unheld. Called again after every write and reload so a directory that
+     * did not exist yet (a rootfs that finished installing, a backup
+     * directory created by the first write) gets one when it appears.
      */
     private fun watchDirectory(dir: File?) {
         val path = dir?.path ?: return
-        if (!dir.exists()) return
+        if (!dir.exists() || path in watchedDirs) return
         // The String overload, not the File one: the File constructor is
         // API 29 and minSdk is 26, and the path is all either one is given.
         val watcher = object : FileObserver(path, CLOSE_WRITE or MOVED_TO or CREATE) {
@@ -277,11 +338,15 @@ class TomlSettingsStore @Inject constructor(
             }
         }
         watcher.startWatching()
-        observer = watcher
+        observers += watcher
+        watchedDirs += path
     }
 
     /** Legacy DataStore keys — read once, by [migrateFromLegacyDataStore]. */
     private companion object {
+        /** How long after our own write a reload stays quiet. */
+        const val WRITE_QUIET_WINDOW_MS = 2_000L
+
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_FONT_PACK = stringPreferencesKey("font_pack")
         val KEY_USE_BLOCK_ENGINE = booleanPreferencesKey("use_block_engine")
