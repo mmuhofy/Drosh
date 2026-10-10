@@ -21,7 +21,7 @@ import javax.inject.Singleton
  * counter rollover.
  *
  * Sample interval: 500ms (caller's responsibility — see
- * `docs/block-engine/PLAN.md` §3.2).
+ * `docs/MEMORYBANK.md` §7 "Block-Based Output").
  *
  * UNTESTED — verify before use.
  */

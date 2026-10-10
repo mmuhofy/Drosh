@@ -5,7 +5,7 @@ package dev.drosh.domain.block
  *
  * `atLine` is the buffer row index (0-based) where the boundary was
  * found. `exitCode` is reserved for future use (a v2 feature — see
- * `docs/block-engine/PLAN.md` §7).
+ * `docs/MEMORYBANK.md` §7 "Block-Based Output").
  */
 sealed class CommandBoundary {
     /** New prompt is visible at row `atLine` — previous block closed. */

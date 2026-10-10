@@ -23,7 +23,7 @@ import javax.inject.Singleton
  * per-session state is swapped in by [setActiveSession].
  *
  * Scrollback cap: [MAX_BLOCKS] per session (oldest blocks dropped on overflow
- * — whole blocks, not partial lines, per `docs/block-engine/PLAN.md` §8).
+ * — whole blocks, not partial lines, per `docs/MEMORYBANK.md` §7 "Block-Based Output").
  *
  * Output buffering: incoming chunks are split on `\n`. The last partial line
  * is held back until the next chunk arrives or the command completes, so a
