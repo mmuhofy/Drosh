@@ -362,7 +362,6 @@ class TerminalEmulator(
      * placement that the next output re-syncs.
      */
     fun moveCursorToScreenCell(col: Int, row: Int) {
-        if (mTermSession == null) return
         setCursorRowCol(row.coerceIn(0, mRows - 1), col.coerceIn(0, mColumns - 1))
     }
 
