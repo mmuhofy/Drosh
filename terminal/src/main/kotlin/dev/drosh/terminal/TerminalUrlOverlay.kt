@@ -34,7 +34,7 @@ class TerminalUrlOverlay(
     context: android.content.Context,
 ) : View(context, null) {
 
-    private companion object {
+    internal companion object {
         const val URL_SURFACE_ALPHA = 0x33
         const val URL_UNDERLINE_ALPHA = 0x99
 
@@ -90,17 +90,12 @@ class TerminalUrlOverlay(
     var terminalView: TerminalView? = null
 
     /**
-     * When false the overlay draws nothing and resolves no taps. The View
-     * stays in the tree: detaching it would also drop the touch wiring, and a
-     * disabled link layer costs one early return per draw.
+     * Whether this layer does its job. The platform's own enabled flag —
+     * drop this to false and the overlay draws nothing and resolves no taps.
+     * The View stays in the tree: detaching it would also drop the touch
+     * wiring, and a disabled link layer costs one early return per draw.
      */
-    var enabled: Boolean = true
-        set(value) {
-            if (field != value) {
-                field = value
-                invalidate()
-            }
-        }
+    // (uses android.view.View.isEnabled)
 
     /**
      * Called when a tap resolves to a URL. Opening it — in-app browser or
@@ -213,7 +208,7 @@ class TerminalUrlOverlay(
         val view = terminalView ?: return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                if (!enabled) {
+                if (!isEnabled) {
                     pressedUrl = null
                     return false
                 }
@@ -233,7 +228,7 @@ class TerminalUrlOverlay(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        if (!enabled) return
+        if (!isEnabled) return
 
         val view = terminalView ?: return
         val emulator = view.mEmulator ?: return
