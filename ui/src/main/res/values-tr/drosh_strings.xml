@@ -181,13 +181,13 @@
     <string name="settings_theme_active_none">Drosh varsayılanı</string>
     <string name="settings_theme_installed">Kurulu</string>
     <string name="settings_theme_store_section">Mağaza</string>
-    <string name="settings_theme_store_desc">drosh-themes'tan 120 tema, ya da URL'den kur</string>
+    <string name="settings_theme_store_desc">drosh-themes\'tan 120 tema, ya da URL\'den kur</string>
     <string name="settings_theme_available">Mağazada</string>
     <string name="settings_theme_refresh">Listeyi yenile</string>
     <string name="settings_theme_loading">Yükleniyor…</string>
     <string name="settings_theme_in_use">Kullanımda</string>
     <string name="settings_theme_no_description">Açıklama yok</string>
-    <string name="settings_theme_from_url">URL'den kur</string>
+    <string name="settings_theme_from_url">URL\'den kur</string>
     <string name="settings_theme_from_url_desc">Tema .toml dosyası nerede sunuluyorsa</string>
     <string name="settings_theme_create">Kendi temanı yap</string>
     <string name="settings_theme_create_desc">Kurulu bir temadan başla, sonra dosyayı düzenle</string>
@@ -200,7 +200,7 @@
     <string name="settings_bold_brightens_desc">Kalın metin ilk sekiz renkte parlak yarıyı kullanır</string>
     <string name="settings_ligatures">Ligatürler</string>
     <string name="settings_ligatures_desc">Yazı tipi taşıyorsa programlama ligatürleri</string>
-    <string name="settings_dim_inactive_panes">Etkin olmayan pane'i karart</string>
+    <string name="settings_dim_inactive_panes">Etkin olmayan pane\'i karart</string>
     <string name="settings_dim_inactive_panes_desc">Bölünmüş ekranda odakta olmayan pane koyu çizilir</string>
 
     <string name="settings_section_background">Arka plan</string>
