@@ -34,6 +34,7 @@ import dev.drosh.domain.agent.TranscriptStore
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.NetworkMetricsCollector
 import dev.drosh.domain.input.HardwareKeyboardPresence
+import dev.drosh.domain.input.ImePresence
 import dev.drosh.domain.input.InputPreferencesRepository
 import dev.drosh.domain.input.SubmitRawByteUseCase
 import dev.drosh.domain.session.ObserveActiveSessionUseCase
