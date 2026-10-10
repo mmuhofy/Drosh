@@ -63,13 +63,13 @@ abstract class DroshDatabase : RoomDatabase() {
          * **Update this whenever the schema changes — not when the version does.**
          * Verified by exporting two snapshots over identical entities: the hash was
          * the same, so Room derives it from the schema alone. Only a schema change
-         * invalidates it. The value here is the one in 4.json, and 3.json holds the
-         * previous one for the schema without workspaces.
+         * invalidates it. The value here is the one in 6.json, and 5.json holds the
+         * previous one for the schema without tool-call arguments.
          *
          * CI diffs the exported `data/schemas/` snapshot against the committed one,
          * so a missed update is a red build rather than a crash on every install.
          */
-        const val IDENTITY_HASH = "8acb1bfac77b8e61f1e101c7cf9b3679"
+        const val IDENTITY_HASH = "04bf39ab05c9c4024cb891892ac54a62"
 
         /**
          * The identity hash for the version-3 schema — everything except agent
@@ -79,6 +79,16 @@ abstract class DroshDatabase : RoomDatabase() {
          * is overwritten again by [MIGRATION_3_4] for any device that continues.
          */
         const val IDENTITY_HASH_V3: String = "2c34080b274172ef8334419145cb02ea"
+
+        /**
+         * The identity hash for the version-5 schema — everything except
+         * tool-call arguments.
+         *
+         * Only [MIGRATION_4_5] needs it: that migration lands on v5, so it has
+         * to leave the v5 hash behind rather than the current one. Overwritten
+         * again by [MIGRATION_5_6] for any device that continues.
+         */
+        const val IDENTITY_HASH_V5: String = "8acb1bfac77b8e61f1e101c7cf9b3679"
 
         /**
          * The SQL that brings a database to the current schema.
@@ -116,6 +126,7 @@ abstract class DroshDatabase : RoomDatabase() {
                     `message_id` TEXT NOT NULL,
                     `text` TEXT NOT NULL,
                     `tool_call_id` TEXT,
+                    `tool_arguments` TEXT,
                     `tool_name` TEXT,
                     `tool_summary` TEXT,
                     `tool_state` TEXT,
@@ -144,6 +155,11 @@ abstract class DroshDatabase : RoomDatabase() {
 
         private fun writeIdentityHash(db: SupportSQLiteDatabase) {
             db.execSQL("UPDATE room_master_table SET identity_hash = '$IDENTITY_HASH'")
+        }
+
+        /** The v5 hash, for the migration that lands on v5. */
+        private fun writeIdentityHashV5(db: SupportSQLiteDatabase) {
+            db.execSQL("UPDATE room_master_table SET identity_hash = '$IDENTITY_HASH_V5'")
         }
 
         /**
@@ -285,7 +301,7 @@ abstract class DroshDatabase : RoomDatabase() {
                     )
                     """.trimIndent(),
                 )
-                writeIdentityHash(db)
+                writeIdentityHashV5(db)
             }
         }
 
@@ -303,6 +319,7 @@ abstract class DroshDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `agent_messages` ADD COLUMN `tool_arguments` TEXT DEFAULT NULL",
                 )
+                writeIdentityHash(db)
             }
         }
 
