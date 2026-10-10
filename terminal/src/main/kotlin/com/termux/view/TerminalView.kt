@@ -277,6 +277,17 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     var searchHighlightOverlay: SearchHighlightOverlay? = null
 
     /**
+     * The link layer, a different View for a different job. Search
+     * highlighting is [searchHighlightOverlay]; URLs are
+     * [TerminalUrlOverlay], which groups soft-wrapped rows into logical lines
+     * and owns the press feedback. Keeping them apart is what stopped the
+     * search overlay's URL branch from crashing the draw pass — the grouping
+     * rules now live in TerminalUrlOverlay.logicalLineGroups, one function
+     * for both the draw path and the tap path.
+     */
+    var urlOverlay: TerminalUrlOverlay? = null
+
+    /**
      * Notified whenever [mTopRow] changes, with the new value. 0 means the live
      * edge — the prompt. Negative means the viewport has been scrolled back into
      * the transcript, which is what takes the app fullscreen.
@@ -849,6 +860,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         contentGeneration++
         invalidate()
         searchHighlightOverlay?.invalidate()
+        urlOverlay?.invalidate()
         onScrollPositionChanged?.invoke(mTopRow)
         if (mAccessibilityEnabled) contentDescription = text
     }

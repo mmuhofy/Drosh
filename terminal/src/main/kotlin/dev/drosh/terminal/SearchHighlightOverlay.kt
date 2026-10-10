@@ -1,26 +1,26 @@
 // Inspired by: termux/termux-app — TerminalView rendering coordinate system
 // Adapted for Drosh — dev.drosh
 //
-// Overlay View that draws search-highlight rectangles and URL link surfaces
-// on top of a classic TerminalView. Uses the TerminalRenderer's font metrics
-// (mFontWidth, mFontLineSpacing, mFontLineSpacingAndAscent) and TerminalView's
-// mTopRow to align highlights with terminal cells.
+// Overlay View that draws search-highlight rectangles on top of a classic
+// TerminalView. Uses the TerminalRenderer's font metrics (mFontWidth,
+// mFontLineSpacing, mFontLineSpacingAndAscent) and TerminalView's mTopRow to
+// align highlights with terminal cells.
 //
-// URLs are detected across *logical* lines, not screen rows. A terminal hard
-// wraps long output, so a single URL routinely spans two rows. Scanning each
-// row independently matched only the truncated first half and left the
-// continuation row unmarked; grouping rows via TerminalBuffer.getLineWrap()
-// detects the whole URL and paints every row it covers.
+// This is the search layer and nothing else. URL links used to be painted
+// here too, until the two jobs proved to be different things: search is a
+// row-local text scan, links need logical-line grouping across soft-wrapped
+// rows plus a press state, and their combination in one onDraw produced an
+// out-of-bounds read that crashed the app. Links now live in
+// [TerminalUrlOverlay], which owns the grouping, the press feedback and the
+// tap resolution. What remains here is only what search needs: one query, one
+// pass, one rectangle per match per row.
 package dev.drosh.terminal
 
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
-import android.view.MotionEvent
 import android.view.View
 import com.termux.view.TerminalView
-import dev.drosh.core.DroshPalette
-import dev.drosh.domain.UrlDetector
 
 class SearchHighlightOverlay(
     context: android.content.Context,
@@ -29,75 +29,21 @@ class SearchHighlightOverlay(
     private companion object {
         /** Search matches keep their own blue; it is not the accent. */
         const val SEARCH_HIGHLIGHT_COLOR = 0x803B82F6.toInt()
-        const val URL_SURFACE_ALPHA = 0x33
-        const val URL_UNDERLINE_ALPHA = 0x99
     }
-
-    /** An accent tint at [alpha] out of 255, for `Paint.color`. */
-    private fun accentAt(alpha: Int): Int =
-        (alpha shl 24) or (DroshPalette.PRIMARY.toInt() and 0x00FFFFFF)
-
-    /** Physical pixels of bleed added above and below a URL highlight. */
-    private val urlHighlightPadding =
-        android.util.TypedValue.applyDimension(
-            android.util.TypedValue.COMPLEX_UNIT_PX,
-            1f,
-            context.resources.displayMetrics,
-        )
 
     var terminalView: TerminalView? = null
     var searchQuery: String? = null
-    var showUrlHighlights: Boolean = true
-
-    /**
-     * The link currently held down, and the only one that gets a filled surface.
-     *
-     * The terminal has already painted each cell in whatever colour the running
-     * program chose, and a canvas overlay cannot recolour it, so an underline is
-     * what marks a link at rest. The surface is held back for the press, which
-     * matches how the block engine renders links: accent text with an
-     * underline, plus a surface while pressed.
-     */
-    var pressedUrl: String? = null
-        set(value) {
-            if (field != value) {
-                field = value
-                invalidate()
-            }
-        }
 
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         color = SEARCH_HIGHLIGHT_COLOR
     }
 
-    private val urlBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-        color = accentAt(URL_SURFACE_ALPHA)
-    }
-
-    /**
-     * The resting-state link marker. The terminal has already painted each cell
-     * in the running program's own colour and an overlay cannot recolour it, so
-     * an underline is the only way to say "this run of text is a link" without
-     * hiding the output. The surface is reserved for a held link.
-     */
-    private val urlUnderlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        color = accentAt(URL_UNDERLINE_ALPHA)
-        strokeWidth = 2f
-    }
-
     private val rect = Rect()
 
-    /**
-     * The visible rows, plus whether each one soft-wraps into the next. Grouping
-     * on this is what lets a URL that the terminal split across rows be detected
-     * and hit-tested as one link.
-     */
+    /** The visible rows as text. Rows the emulator could not resolve stay null. */
     private class RowSnapshot(
         val texts: Array<String?>,
-        val continues: BooleanArray,
     )
 
     private fun readRows(): RowSnapshot? {
@@ -108,7 +54,6 @@ class SearchHighlightOverlay(
         val topRow = view.mTopRow
 
         val texts = arrayOfNulls<String>(rows)
-        val continues = BooleanArray(rows)
         for (visRow in 0 until rows) {
             val externalRow = topRow + visRow
             val lineObject = try {
@@ -117,84 +62,13 @@ class SearchHighlightOverlay(
                 continue
             }
             texts[visRow] = String(lineObject.mText, 0, lineObject.spaceUsed)
-            // Shares externalToInternalRow's bound check, so it throws in step.
-            continues[visRow] = try {
-                screen.getLineWrap(externalRow)
-            } catch (_: IllegalArgumentException) {
-                false
-            }
         }
-        return RowSnapshot(texts, continues)
-    }
-
-    /**
-     * The full URL covering the cell at [externalRow], [col], or null.
-     *
-     * Resolves against the same logical lines the highlight is painted from, so
-     * tapping the continuation row of a wrapped URL opens the whole link
-     * instead of the fragment the terminal happened to break it at.
-     */
-    fun urlAtCell(externalRow: Int, col: Int): String? {
-        val snapshot = readRows() ?: return null
-        val topRow = terminalView?.mTopRow ?: return null
-        val texts = snapshot.texts
-        val continues = snapshot.continues
-
-        var groupStart = 0
-        while (groupStart < texts.size) {
-            var groupEnd = groupStart
-            while (groupEnd < texts.size && continues[groupEnd] && texts[groupEnd] != null) groupEnd++
-            // The loop above stops *at* texts.size when a wrapped run reaches the
-            // bottom row, so groupEnd can be one past the last valid index. Using
-            // it directly in an inclusive range reads texts[texts.size] and
-            // throws ArrayIndexOutOfBoundsException — which is what happened
-            // whenever a soft-wrapped line ran to the last visible row and the
-            // screen was touched, i.e. constantly during a download.
-            val lastVis = minOf(groupEnd, texts.size - 1)
-            if (lastVis > groupStart) {
-                val joined = StringBuilder()
-                for (visRow in groupStart..lastVis) joined.append(texts[visRow] ?: "")
-                val logicalText = joined.toString()
-                val targetRow = externalRow - topRow
-                if (targetRow in groupStart..lastVis) {
-                    var rowOffset = 0
-                    for (visRow in groupStart until targetRow) rowOffset += texts[visRow]?.length ?: 0
-                    val offset = rowOffset + col
-                    UrlDetector.findUrls(logicalText)
-                        .firstOrNull { offset >= it.start && offset < it.end }
-                        ?.let { return it.url }
-                }
-            }
-            groupStart = lastVis + 1
-        }
-        return null
+        return RowSnapshot(texts)
     }
 
     fun updateQuery(query: String?) {
         searchQuery = query
         invalidate()
-    }
-
-    /**
-     * Tracks which link a finger is holding. Returns false so the terminal
-     * still receives the event and keeps its own touch handling.
-     */
-    fun onTerminalTouch(event: MotionEvent): Boolean {
-        val view = terminalView ?: return false
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                val cell = view.getColumnAndRow(event, false) ?: return false
-                val col = cell[0]
-                val row = cell[1]
-                if (col < 0 || row < 0) {
-                    pressedUrl = null
-                    return false
-                }
-                pressedUrl = urlAtCell(view.mTopRow + row, col)
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pressedUrl = null
-        }
-        return false
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -213,113 +87,30 @@ class SearchHighlightOverlay(
 
         val snapshot = readRows() ?: return
         val rowTexts = snapshot.texts
-        val rowContinues = snapshot.continues
 
         val query = searchQuery
-        if (!query.isNullOrEmpty()) {
-            val lowerQuery = query.lowercase()
-            for (visRow in 0 until rows) {
-                val text = rowTexts[visRow] ?: continue
-                if (text.isEmpty()) continue
-                val lowerText = text.lowercase()
-                var start = 0
-                while (true) {
-                    val idx = lowerText.indexOf(lowerQuery, start)
-                    if (idx == -1) break
-                    val matchEnd = idx + query.length
-                    val colStart = idx.coerceAtMost(columns - 1)
-                    val colEnd = matchEnd.coerceAtMost(columns)
-                    val baselineY = (visRow + 1) * fontLineSpacing
-                    rect.left = (colStart * fontWidth).toInt()
-                    rect.right = (colEnd * fontWidth).toInt()
-                    rect.top = baselineY + fontAscent
-                    rect.bottom = rect.top + fontLineSpacing
-                    canvas.drawRect(rect, highlightPaint)
-                    start = matchEnd
-                }
-            }
-        }
+        if (query.isNullOrEmpty()) return
 
-        if (!showUrlHighlights) return
-
-        var groupStart = 0
-        while (groupStart < rows) {
-            var groupEnd = groupStart
-            while (groupEnd < rows && rowContinues[groupEnd] && rowTexts[groupEnd] != null) groupEnd++
-
-            if (groupEnd > groupStart) {
-                drawLogicalLineUrls(canvas, rowTexts, groupStart, groupEnd, columns, fontWidth, fontLineSpacing, fontAscent)
-            }
-            groupStart = groupEnd + 1
-        }
-    }
-
-    /**
-     * Joins rows [groupStart, groupEnd] into one logical line, detects URLs in
-     * it, and paints the cells of every row the match covers. A link that stays
-     * on one row keeps its rounded chip; one the terminal split across rows is
-     * painted square per row.
-     */
-    private fun drawLogicalLineUrls(
-        canvas: Canvas,
-        rowTexts: Array<String?>,
-        groupStart: Int,
-        groupEnd: Int,
-        columns: Int,
-        fontWidth: Float,
-        fontLineSpacing: Int,
-        fontAscent: Int,
-    ) {
-        val builder = StringBuilder()
-        // One slot per row for its start offset, plus a trailing slot holding the
-        // end of the last row, so segmentEnd can be read for any row.
-        val rowOffsets = IntArray(groupEnd - groupStart + 2)
-        for (visRow in groupStart..groupEnd) {
-            rowOffsets[visRow - groupStart] = builder.length
-            builder.append(rowTexts[visRow] ?: "")
-        }
-        rowOffsets[groupEnd - groupStart + 1] = builder.length
-
-        val logicalText = builder.toString()
-        if (logicalText.isEmpty()) return
-
-        for (match in UrlDetector.findUrls(logicalText)) {
-            val isPressed = match.url == pressedUrl
-            for (index in groupStart..groupEnd) {
-                val rowStart = rowOffsets[index - groupStart]
-                val rowEnd = rowOffsets[index - groupStart + 1]
-                val segmentStart = maxOf(match.start, rowStart)
-                val segmentEnd = minOf(match.end, rowEnd)
-                if (segmentStart >= segmentEnd) continue
-
-                val colStart = (segmentStart - rowStart).coerceIn(0, columns)
-                val colEnd = (segmentEnd - rowStart).coerceIn(0, columns)
-                if (colStart >= colEnd) continue
-
-                val x1 = colStart * fontWidth
-                val x2 = colEnd * fontWidth
-                val baselineY = (index + 1) * fontLineSpacing
-                // The cell already has leading above the glyphs, so the surface
-                // looked padded at the top and flush at the bottom. One physical
-                // pixel (the canvas is in pixels) on each side evens that out.
-                val topY = (baselineY + fontAscent - urlHighlightPadding).toFloat()
-                val bottomY = baselineY + urlHighlightPadding
-
-                val isFirstRow = segmentStart == match.start
-                val isLastRow = segmentEnd == match.end
-
-                // Underline marks the link at rest, on every row it covers.
-                canvas.drawLine(x1, bottomY, x2, bottomY, urlUnderlinePaint)
-
-                // The surface is only for a link being held, so resting output
-                // stays unmarked apart from the underline.
-                if (isPressed) {
-                    if (isFirstRow && isLastRow) {
-                        canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint)
-                    } else {
-                        canvas.drawRect(x1, topY, x2, bottomY, urlBackgroundPaint)
-                    }
-                }
+        val lowerQuery = query.lowercase()
+        for (visRow in 0 until rows) {
+            val text = rowTexts[visRow] ?: continue
+            if (text.isEmpty()) continue
+            val lowerText = text.lowercase()
+            var start = 0
+            while (true) {
+                val idx = lowerText.indexOf(lowerQuery, start)
+                if (idx == -1) break
+                val matchEnd = idx + query.length
+                val colStart = idx.coerceAtMost(columns - 1)
+                val colEnd = matchEnd.coerceAtMost(columns)
+                if (colStart >= colEnd) break
+                val baselineY = (visRow + 1) * fontLineSpacing
+                rect.left = (colStart * fontWidth).toInt()
+                rect.right = (colEnd * fontWidth).toInt()
+                rect.top = baselineY + fontAscent
+                rect.bottom = rect.top + fontLineSpacing
+                canvas.drawRect(rect, highlightPaint)
+                start = matchEnd
             }
         }
     }

@@ -26,11 +26,11 @@ class TerminalViewClientImpl(
     var onCopyModeChanged: ((Boolean) -> Unit)? = null
 
     /**
-     * Set once the highlight overlay exists. Resolves taps against the same
+     * Set once the link overlay exists. Resolves taps against the same
      * logical lines the overlay paints, so a URL the terminal wrapped across
      * rows opens whole. Until it is assigned, taps fall back to word matching.
      */
-    var urlHighlightOverlay: SearchHighlightOverlay? = null
+    var urlOverlay: TerminalUrlOverlay? = null
 
     override fun defaultFontSizeSp(): Float = defaultFontSizeSp
 
@@ -50,7 +50,7 @@ class TerminalViewClientImpl(
         val row = colRow[1]
         if (col < 0 || row < 0) return
 
-        val wrapped = urlHighlightOverlay?.urlAtCell(view.mTopRow + row, col)
+        val wrapped = urlOverlay?.urlAtCell(view.mTopRow + row, col)
         if (wrapped != null) {
             onUrlClick?.invoke(wrapped)
             return
