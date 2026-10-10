@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
@@ -377,6 +378,22 @@ private fun ReadyScreen(
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
     val noSessionsLeft by terminalManager.noSessionsLeft.collectAsState()
     val sessions by sessionSwitcherViewModel.allSessions.collectAsStateWithLifecycle()
+
+    /**
+     * The active input method can change while the app is in the background
+     * (user switches to or away from the Drosh Keyboard), so the extra-keys
+     * bar's companion check is re-read on every resume.
+     */
+    val resumeLifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(resumeLifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                inputBarViewModel.refreshImePresence()
+            }
+        }
+        resumeLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { resumeLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     /**
      * The second pane's session name, for its title bar.
@@ -799,7 +816,7 @@ private fun ReadyScreen(
          * Drawn outside [SplitPaneHost] so it stays put when the divider moves —
          * inside it, the bar would travel with whichever pane it belonged to.
          */
-        if (!inputBarState.hardwareKeyboardPresent) {
+        if (!inputBarState.hardwareKeyboardPresent && !inputBarState.droshKeyboardActive) {
             FlatKeyBar(
                 ctrlStuck = inputBarState.ctrlStuck,
                 altStuck = inputBarState.altStuck,

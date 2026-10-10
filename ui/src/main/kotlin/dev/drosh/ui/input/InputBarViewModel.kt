@@ -3,6 +3,7 @@ package dev.drosh.ui.input
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.input.HardwareKeyboardPresence
+import dev.drosh.domain.input.ImePresence
 import dev.drosh.domain.input.InputIntent
 import dev.drosh.domain.input.InputPreferencesRepository
 import dev.drosh.domain.input.SendKeyIntentUseCase
@@ -21,7 +22,9 @@ import javax.inject.Inject
  * `barVisible` is the user's toggle persisted in DataStore — false on
  * first launch. `hardwareKeyboardPresent` suppresses the bar even when
  * the user has set `barVisible = true` (Termux convention — see
- * `docs/MEMORYBANK.md` §8).
+ * `docs/MEMORYBANK.md` §8). `droshKeyboardActive` suppresses it while the
+ * companion Drosh Keyboard IME is selected: that keyboard brings its own
+ * special keys row, so a second one inside the app would be redundant.
  *
  * `ctrlStuck` / `altStuck` mirror the current state of
  * [StickyModifierState] so the extra-key buttons can paint the sticky
@@ -31,12 +34,10 @@ import javax.inject.Inject
 data class InputBarUiState(
     val barVisible: Boolean = false,
     val hardwareKeyboardPresent: Boolean = false,
+    val droshKeyboardActive: Boolean = false,
     val ctrlStuck: Boolean = false,
     val altStuck: Boolean = false,
-) {
-    /** The on-screen bar should actually render — both toggles must agree. */
-    val renderBar: Boolean get() = barVisible && !hardwareKeyboardPresent
-}
+)
 
 /**
  * Single source of truth for the on-screen extra-key bar.
@@ -53,6 +54,7 @@ data class InputBarUiState(
 class InputBarViewModel @Inject constructor(
     private val prefs: InputPreferencesRepository,
     private val hardwareKeyboard: HardwareKeyboardPresence,
+    private val imePresence: ImePresence,
     private val submitRawByte: SubmitRawByteUseCase,
     private val sendKeyIntent: SendKeyIntentUseCase,
     private val modifierState: StickyModifierState,
@@ -64,6 +66,7 @@ class InputBarViewModel @Inject constructor(
     init {
         observePreferences()
         observeHardwareKeyboard()
+        observeDroshKeyboard()
         // When hardware keyboard consumes a sticky modifier (readCtrl/readAlt),
         // push refreshed state so the key-bar highlight clears.
         modifierState.setOnModifierConsumed {
@@ -89,6 +92,21 @@ class InputBarViewModel @Inject constructor(
             }
         }
     }
+
+    private fun observeDroshKeyboard() {
+        viewModelScope.launch {
+            imePresence.droshKeyboardActive.collect { active ->
+                _uiState.value = _uiState.value.copy(droshKeyboardActive = active)
+            }
+        }
+    }
+
+    /**
+     * Re-reads the active input method. Called on resume — the user may have
+     * switched to (or away from) the Drosh Keyboard while the app was in the
+     * background.
+     */
+    fun refreshImePresence() = imePresence.refresh()
 
     fun toggleBarVisible() {
         val next = !_uiState.value.barVisible

@@ -1,6 +1,7 @@
 package dev.drosh.data.di
 
 import dev.drosh.data.input.HardwareKeyboardPresenceImpl
+import dev.drosh.data.input.ImePresenceImpl
 import dev.drosh.data.input.InputPreferencesRepositoryImpl
 import dev.drosh.data.input.SubmitRawByteUseCaseImpl
 import dev.drosh.data.session.ObserveActiveSessionUseCaseImpl
@@ -194,6 +195,12 @@ abstract class BindingsModule {
     abstract fun bindHardwareKeyboardPresence(
         impl: HardwareKeyboardPresenceImpl,
     ): HardwareKeyboardPresence
+
+    @Binds
+    @Singleton
+    abstract fun bindImePresence(
+        impl: ImePresenceImpl,
+    ): ImePresence
 
     @Binds
     @Singleton
