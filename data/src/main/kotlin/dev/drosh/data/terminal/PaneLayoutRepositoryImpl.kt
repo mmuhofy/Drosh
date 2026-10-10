@@ -1,5 +1,6 @@
-package dev.drosh.data.settings
+package dev.drosh.data.terminal
 
+import dev.drosh.domain.settings.SessionSettings
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.terminal.NormalizedRect
 import dev.drosh.domain.terminal.PaneLayout
@@ -43,11 +44,11 @@ class PaneLayoutRepositoryImpl @Inject constructor(
 
     override suspend fun clear() {
         store.update { current ->
-            current.copy(session = dev.drosh.domain.settings.SessionSettings.DEFAULT)
+            current.copy(session = SessionSettings.DEFAULT)
         }
     }
 
-    private fun dev.drosh.domain.settings.SessionSettings.toLayout(): PaneLayout {
+    private fun SessionSettings.toLayout(): PaneLayout {
         if (secondarySessionId.isBlank()) return PaneLayout.EMPTY
         var layout = PaneLayout(secondarySessionId = secondarySessionId, presentation = presentation)
         layout = layout.withSplitFraction(splitFraction)
@@ -64,7 +65,7 @@ class PaneLayoutRepositoryImpl @Inject constructor(
         return layout
     }
 
-    private fun dev.drosh.domain.settings.SessionSettings.from(layout: PaneLayout): dev.drosh.domain.settings.SessionSettings =
+    private fun SessionSettings.from(layout: PaneLayout): SessionSettings =
         copy(
             secondarySessionId = layout.secondarySessionId ?: "",
             presentation = layout.presentation,

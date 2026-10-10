@@ -23,7 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.DroshSettings
-import dev.drosh.domain.settings.ShellChoice
+import dev.drosh.domain.terminal.ShellChoice
 import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.ui.DroshIcons

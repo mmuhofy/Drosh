@@ -11,7 +11,6 @@ import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
-import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.TerminalZoom
 import dagger.hilt.android.lifecycle.HiltViewModel

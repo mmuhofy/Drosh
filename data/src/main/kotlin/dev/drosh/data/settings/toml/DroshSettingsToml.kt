@@ -11,7 +11,6 @@ import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.InputSettings
 import dev.drosh.domain.settings.MetaSettings
 import dev.drosh.domain.settings.MotdMode
-import dev.drosh.domain.settings.PanePresentationHolder
 import dev.drosh.domain.settings.RootfsSettings
 import dev.drosh.domain.settings.SecuritySettings
 import dev.drosh.domain.settings.SessionSettings
