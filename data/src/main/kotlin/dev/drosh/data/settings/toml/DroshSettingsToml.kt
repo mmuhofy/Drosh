@@ -116,19 +116,19 @@ internal object DroshSettingsToml {
         val base = DroshSettings.DEFAULT
         return DroshSettings(
             appearance = base.appearance.copy(
-                themeMode = ThemeMode.fromName(document.getString("appearance", "theme_mode", null)),
-                fontPack = FontPack.fromName(document.getString("appearance", "font_pack", null)),
+                themeMode = ThemeMode.fromName(document.getStringOrNull("appearance", "theme_mode")),
+                fontPack = FontPack.fromName(document.getStringOrNull("appearance", "font_pack")),
                 language = document.getString("appearance", "language", base.appearance.language),
             ),
             terminal = base.terminal.copy(
-                mode = TerminalMode.fromToml(document.getString("terminal", "mode", null)),
+                mode = TerminalMode.fromToml(document.getStringOrNull("terminal", "mode")),
                 defaultFontSizeSp = document.getFloat(
                     "terminal", "default_font_size_sp", base.terminal.defaultFontSizeSp,
                 ),
                 cursorStyle = CursorStyle.fromString(document.getString("terminal", "cursor_style", "")),
                 cursorBlinkMs = document.getInt("terminal", "cursor_blink_ms", base.terminal.cursorBlinkMs),
                 scrollbackRows = document.getInt("terminal", "scrollback_rows", base.terminal.scrollbackRows),
-                bell = BellMode.fromName(document.getString("terminal", "bell", null)),
+                bell = BellMode.fromName(document.getStringOrNull("terminal", "bell")),
                 keepAwake = document.getBoolean("terminal", "keep_awake", base.terminal.keepAwake),
                 immersive = document.getBoolean("terminal", "immersive", base.terminal.immersive),
                 linkDetection = document.getBoolean("terminal", "link_detection", base.terminal.linkDetection),
@@ -147,7 +147,7 @@ internal object DroshSettingsToml {
                 ),
             ),
             shell = base.shell.copy(
-                shell = shellChoiceFrom(document.getString("shell", "shell", null)),
+                shell = shellChoiceFrom(document.getStringOrNull("shell", "shell")),
                 omzTheme = document.getString("shell", "omz_theme", base.shell.omzTheme),
                 omzPlugins = document.getStringList("shell", "omz_plugins", base.shell.omzPlugins),
                 historySize = document.getInt("shell", "history_size", base.shell.historySize),
@@ -159,7 +159,7 @@ internal object DroshSettingsToml {
                 ),
             ),
             rootfs = base.rootfs.copy(
-                packageProfile = packageProfileFrom(document.getString("rootfs", "package_profile", null)),
+                packageProfile = packageProfileFrom(document.getStringOrNull("rootfs", "package_profile")),
                 extraPackages = document.getStringList("rootfs", "extra_packages", base.rootfs.extraPackages),
                 installDedit = document.getBoolean("rootfs", "install_dedit", base.rootfs.installDedit),
                 optimizeOnSetup = document.getBoolean(
@@ -190,7 +190,7 @@ internal object DroshSettingsToml {
                 secondarySessionId = document.getString(
                     "session", "secondary_session_id", base.session.secondarySessionId,
                 ),
-                presentation = panePresentationFrom(document.getString("session", "presentation", null)),
+                presentation = panePresentationFrom(document.getStringOrNull("session", "presentation")),
                 splitFraction = document.getFloat("session", "split_fraction", base.session.splitFraction),
                 floatLeft = document.getFloat("session", "float_left", base.session.floatLeft),
                 floatTop = document.getFloat("session", "float_top", base.session.floatTop),
@@ -243,6 +243,9 @@ private fun ShellChoice.tomlName(): String = name.lowercase()
 private fun PackageProfile.tomlName(): String = name.lowercase()
 private fun PanePresentation.tomlName(): String = name.lowercase()
 private fun TerminalMode.tomlName(): String = name.lowercase()
+
+private fun TerminalMode.Companion.fromToml(value: String?): TerminalMode =
+    TerminalMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: TerminalMode.Stream
 
 private fun BellMode.Companion.fromName(value: String?): BellMode =
     BellMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: BellMode.None

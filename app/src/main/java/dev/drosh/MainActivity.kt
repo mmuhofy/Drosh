@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.drosh.core.LocaleHelper
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.core.view.WindowCompat
 import android.os.SystemClock
 import android.view.WindowManager
@@ -41,6 +42,7 @@ import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.settings.toMillis
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.editor.EditorScreen

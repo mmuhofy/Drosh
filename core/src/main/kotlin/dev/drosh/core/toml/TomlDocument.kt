@@ -31,7 +31,18 @@ class TomlDocument {
         sections[section]?.keys?.toList() ?: emptyList()
 
     fun getString(section: String, key: String, default: String): String =
-        (sections[section]?.get(key) as? TomlValue.Str)?.value ?: default
+        getStringOrNull(section, key) ?: default
+
+    /**
+     * The raw string at [section].[key], or null when the key is absent or
+     * holds another type.
+     *
+     * The gap this covers: an enum resolver answers its own default from a
+     * null, and a "" would have to be distinguished from a real value that
+     * happens to be empty.
+     */
+    fun getStringOrNull(section: String, key: String): String? =
+        (sections[section]?.get(key) as? TomlValue.Str)?.value
 
     fun getInt(section: String, key: String, default: Int): Int =
         (sections[section]?.get(key) as? TomlValue.Int)?.value ?: default

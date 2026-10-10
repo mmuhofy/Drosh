@@ -815,7 +815,6 @@ fun SecurityCategory(
 
                 1 -> SettingsSelectRow(
                     cap = cap,
-                    stacked = true,
                     title = stringResource(R.string.settings_security_auto_lock),
                     icon = DroshIcons.Lock,
                     options = listOf(
@@ -834,7 +833,6 @@ fun SecurityCategory(
 
                 2 -> SettingsSelectRow(
                     cap = cap,
-                    stacked = true,
                     title = stringResource(R.string.settings_security_pin_length),
                     icon = DroshIcons.Lock,
                     options = PinLockRepository.PIN_LENGTH_RANGE.map { it to it.toString() },

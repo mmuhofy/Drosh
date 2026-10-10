@@ -5,7 +5,7 @@
     <string name="settings_section_terminal">Terminal</string>
     <string name="settings_section_projects">Projeler</string>
     <string name="settings_projects">Projeler</string>
-    <string name="settings_projects_desc">Session\'ları projeye göre grupla</string>
+    <string name="settings_projects_desc">Session\\'ları projeye göre grupla</string>
 
     <string name="settings_section_startup">Başlangıç</string>
     <string name="settings_section_motd">Karşılama mesajı</string>
@@ -45,7 +45,7 @@
     <string name="settings_motd_compose_desc">Etkileşimli kart olarak çizilir</string>
     <string name="settings_motd_message">Mesaj</string>
     <string name="settings_motd_empty">Düzenlemek için dokun</string>
-    <string name="settings_motd_default">Drosh\'a hoş geldin</string>
+    <string name="settings_motd_default">Drosh\\'a hoş geldin</string>
 
     <string name="settings_language">Dil</string>
     <string name="settings_language_search">Dillerde ara</string>
@@ -108,7 +108,7 @@
     <string name="settings_terminal_immersive">Arayüzü otomatik gizle</string>
     <string name="settings_terminal_immersive_desc">Geçmişte tam ekrana geç</string>
     <string name="settings_terminal_link_detection">Bağlantı algılama</string>
-    <string name="settings_terminal_link_detection_desc">Geçen URL'lerin altını çiz</string>
+    <string name="settings_terminal_link_detection_desc">Geçen URL\'lerin altını çiz</string>
     <string name="settings_terminal_glass_effects">Cam efekti</string>
     <string name="settings_terminal_glass_effects_desc">Üst çubukta blur ve yarı saydamlık</string>
 
@@ -116,8 +116,8 @@
     <string name="settings_input_extra_keys_desc">Klavyenin üstünde tuş satırı göster</string>
     <string name="settings_input_hardware_keyboard">Donanım klavyesinde gizle</string>
     <string name="settings_input_hardware_keyboard_desc">Fiziksel klavye kendi tuşlarını getirir</string>
-    <string name="settings_input_drosh_ime">Drosh Keyboard'da gizle</string>
-    <string name="settings_input_drosh_ime_desc">Drosh Keyboard'un kendi tuş satırı var</string>
+    <string name="settings_input_drosh_ime">Drosh Keyboard\'da gizle</string>
+    <string name="settings_input_drosh_ime_desc">Drosh Keyboard\'un kendi tuş satırı var</string>
 
     <string name="settings_shell_choice">Kabuk</string>
     <string name="settings_shell_zsh">zsh</string>
@@ -138,7 +138,7 @@
     <string name="settings_rootfs_profile_custom">Özel</string>
     <string name="settings_rootfs_extra_packages">Ek paketler</string>
     <string name="settings_rootfs_extra_packages_hint">Her satıra bir paket</string>
-    <string name="settings_rootfs_dedit">dedit'i kur</string>
+    <string name="settings_rootfs_dedit">dedit\'i kur</string>
     <string name="settings_rootfs_dedit_desc">Terminal içi editör paketi</string>
     <string name="settings_rootfs_optimize">Kurulumda optimize et</string>
     <string name="settings_rootfs_optimize_desc">Kurulum sonrası apt önbelleğini temizle</string>

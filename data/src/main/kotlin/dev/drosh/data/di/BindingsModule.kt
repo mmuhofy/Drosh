@@ -42,6 +42,7 @@ import dev.drosh.domain.session.DeviceIdentityRepository
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.PaneLayoutRepository
