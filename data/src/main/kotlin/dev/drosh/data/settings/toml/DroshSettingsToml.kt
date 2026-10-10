@@ -214,7 +214,7 @@ internal object DroshSettingsToml {
  * to be read from a shell, and the first thing a reader should learn is that
  * editing it is expected and safe.
  */
-internal const val SETTINGS_FILE_HEADER: String = """
+internal val SETTINGS_FILE_HEADER: String = """
     # Drosh settings.
     #
     # This file is the source of truth: the Settings screen reads and writes
