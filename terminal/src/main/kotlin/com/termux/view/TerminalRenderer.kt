@@ -58,6 +58,12 @@ class TerminalRenderer(
 
     private val asciiMeasures = FloatArray(127)
 
+    /** Bold in the first eight colours paints the bright half. */
+    private var mBoldBrightens: Boolean = true
+
+    /** Font feature setting for the current [mLigatures] choice. */
+    private var mFontFeatures: String = "liga"
+
     /**
      * Measure at [mTextSize], in place.
      *
@@ -83,6 +89,27 @@ class TerminalRenderer(
     }
 
     init {
+        measureFont()
+    }
+
+    /**
+     * Applies the two typeface behaviours the settings file carries.
+     *
+     * Ligatures go through the paint's font features rather than a shaping
+     * pass of our own: the runs are already drawn whole, so the platform's
+     * shaper applies them when the typeface has them and the feature says
+     * to — "liga=0" is the honest off, not an approximation.
+     *
+     * Bold-bright is a renderer decision rather than a palette one: the
+     * brightening happens per run, and a terminal that offers the choice
+     * has to be able to stop doing it.
+     */
+    fun setTypeBehaviour(boldBrightens: Boolean, ligatures: Boolean) {
+        mBoldBrightens = boldBrightens
+        val features = if (ligatures) "liga" else "liga=0"
+        if (features == mFontFeatures) return
+        mFontFeatures = features
+        mTextPaint.fontFeatureSettings = features
         measureFont()
     }
 
@@ -268,8 +295,11 @@ class TerminalRenderer(
         val dim = (effect and TextStyle.CHARACTER_ATTRIBUTE_DIM) != 0
 
         if ((foreColor and 0xff000000.toInt()) != 0xff000000.toInt()) {
-            // Let bold have bright colors if applicable (one of the first 8):
-            if (bold && foreColor >= 0 && foreColor < 8) foreColor += 8
+            // Let bold have bright colors if applicable (one of the first 8),
+            // when the user has not turned the behaviour off — a theme's
+            // colours are chosen as a set, and doubling them on bold is not
+            // every theme's intent.
+            if (bold && mBoldBrightens && foreColor >= 0 && foreColor < 8) foreColor += 8
             foreColor = palette[foreColor]
         }
 

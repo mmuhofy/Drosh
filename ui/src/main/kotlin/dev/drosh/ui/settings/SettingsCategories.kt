@@ -48,7 +48,7 @@ import dev.drosh.ui.R
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-private val GROUP_GAP = 22.dp
+internal val GROUP_GAP = 22.dp
 
 /** Content clearance for the system bar, without insetting the background. */
 @Composable
@@ -98,21 +98,41 @@ typealias OnSettingsUpdate = ((DroshSettings) -> DroshSettings) -> Unit
 // ── Appearance ───────────────────────────────────────────────────────────────
 
 @Composable
-fun AppearanceCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
+fun AppearanceCategory(
+    settings: DroshSettings,
+    onBack: () -> Unit,
+    onUpdate: OnSettingsUpdate,
+    onOpenThemeStore: () -> Unit,
+) {
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_category_appearance),
         onBack = onBack,
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_appearance),
-            items = 2,
+            items = 3,
         ) { index, cap ->
+            // The theme row leads: it is the one appearance setting that
+            // rewrites the other twenty-two, and burying it below the theme
+            // and font rows is why nobody found it.
+            if (index == 0) {
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_theme_store),
+                    icon = DroshIcons.Palette,
+                    supporting = settings.terminal.themeId.ifBlank {
+                        stringResource(R.string.settings_theme_active_none)
+                    },
+                    onClick = onOpenThemeStore,
+                ) { SettingsChevron() }
+                return@SettingsGroupColumn
+            }
             when (index) {
-                0 -> SettingsTile(
+                1 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_theme),
-                    icon = DroshIcons.Palette,
+                    icon = DroshIcons.Sun,
                     supporting = when (settings.appearance.themeMode) {
                         ThemeMode.System -> stringResource(R.string.settings_theme_system_desc)
                         ThemeMode.Light -> stringResource(R.string.settings_theme_light_desc)
@@ -151,6 +171,118 @@ fun AppearanceCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: On
                         onSelect = { pack ->
                             onUpdate { it.copy(appearance = it.appearance.copy(fontPack = pack)) }
                         },
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(GROUP_GAP))
+
+        SettingsGroupColumn(
+            label = stringResource(R.string.settings_section_terminal),
+            items = 3,
+        ) { index, cap ->
+            when (index) {
+                0 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_bold_brightens),
+                    icon = DroshIcons.Type,
+                    supporting = stringResource(R.string.settings_bold_brightens_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.boldBrightens,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(terminal = it.terminal.copy(boldBrightens = on)) }
+                        },
+                    )
+                }
+
+                1 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_ligatures),
+                    icon = DroshIcons.Type,
+                    supporting = stringResource(R.string.settings_ligatures_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.ligatures,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(terminal = it.terminal.copy(ligatures = on)) }
+                        },
+                    )
+                }
+
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_dim_inactive_panes),
+                    icon = DroshIcons.Monitor,
+                    supporting = stringResource(R.string.settings_dim_inactive_panes_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.dimInactivePanes,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(terminal = it.terminal.copy(dimInactivePanes = on)) }
+                        },
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(GROUP_GAP))
+
+        SettingsGroupColumn(
+            label = stringResource(R.string.settings_section_background),
+            items = 3,
+        ) { index, cap ->
+            when (index) {
+                0 -> SettingsTextFieldRow(
+                    cap = cap,
+                    title = stringResource(R.string.settings_background_image),
+                    icon = DroshIcons.Monitor,
+                    value = settings.background.imagePath,
+                    onConfirm = { path ->
+                        onUpdate { it.copy(background = it.background.copy(imagePath = path.trim())) }
+                    },
+                    placeholder = "/home/Pictures/background.png",
+                    supportingWhenBlank = stringResource(R.string.settings_background_none),
+                )
+
+                1 -> SettingsTile(
+                    cap = cap,
+                    stacked = true,
+                    title = stringResource(R.string.settings_background_opacity),
+                    icon = DroshIcons.Eye,
+                    supporting = stringResource(
+                        R.string.settings_background_opacity_value,
+                        settings.background.imageOpacity,
+                    ),
+                ) {
+                    SettingsSlider(
+                        value = settings.background.imageOpacity.toFloat(),
+                        onValueChange = { value ->
+                            onUpdate { it.copy(background = it.background.copy(imageOpacity = value.toInt())) }
+                        },
+                        valueRange = 0f..100f,
+                        steps = 19,
+                    )
+                }
+
+                else -> SettingsTile(
+                    cap = cap,
+                    stacked = true,
+                    title = stringResource(R.string.settings_content_padding),
+                    icon = DroshIcons.Maximize,
+                    supporting = stringResource(
+                        R.string.settings_content_padding_value,
+                        settings.background.contentPaddingDp,
+                    ),
+                ) {
+                    SettingsSlider(
+                        value = settings.background.contentPaddingDp.toFloat(),
+                        onValueChange = { value ->
+                            onUpdate { it.copy(background = it.background.copy(contentPaddingDp = value.toInt())) }
+                        },
+                        valueRange = 0f..48f,
+                        steps = 15,
                     )
                 }
             }

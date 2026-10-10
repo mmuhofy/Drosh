@@ -4,6 +4,7 @@ import dev.drosh.core.toml.TomlDocument
 import dev.drosh.domain.settings.AppearanceSettings
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.BellMode
+import dev.drosh.domain.settings.BackgroundSettings
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.EditorSettings
@@ -18,6 +19,7 @@ import dev.drosh.domain.settings.ShellSettings
 import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.TerminalSettings
 import dev.drosh.domain.settings.ThemeMode
+import dev.drosh.domain.settings.ThemePalette
 import dev.drosh.domain.terminal.PackageProfile
 import dev.drosh.domain.terminal.PanePresentation
 import dev.drosh.domain.terminal.ShellChoice
@@ -54,11 +56,39 @@ internal object DroshSettingsToml {
             putBoolean("terminal", "immersive", immersive)
             putBoolean("terminal", "link_detection", linkDetection)
             putBoolean("terminal", "glass_effects", glassEffects)
-            // No settings row for the colour triad — the file and the agent
-            // set these. Written every time so an edit survives the next save.
-            putString("terminal", "background", background)
-            putString("terminal", "foreground", foreground)
-            putString("terminal", "accent", accent)
+            putBoolean("terminal", "bold_brightens", boldBrightens)
+            putBoolean("terminal", "ligatures", ligatures)
+            putBoolean("terminal", "dim_inactive_panes", dimInactivePanes)
+            putString("terminal", "theme_id", themeId)
+        }
+        with(settings.background) {
+            putString("background", "image_path", imagePath)
+            putInt("background", "image_opacity", imageOpacity)
+            putInt("background", "content_padding_dp", contentPaddingDp)
+        }
+        with(settings.terminal.palette) {
+            putString("palette", "background", background)
+            putString("palette", "foreground", foreground)
+            putString("palette", "cursor", cursor)
+            putString("palette", "selection_background", selectionBackground)
+            putString("palette", "selection_foreground", selectionForeground)
+            putString("palette", "accent", accent)
+            putString("palette", "black", black)
+            putString("palette", "red", red)
+            putString("palette", "green", green)
+            putString("palette", "yellow", yellow)
+            putString("palette", "blue", blue)
+            putString("palette", "magenta", magenta)
+            putString("palette", "cyan", cyan)
+            putString("palette", "white", white)
+            putString("palette", "bright_black", brightBlack)
+            putString("palette", "bright_red", brightRed)
+            putString("palette", "bright_green", brightGreen)
+            putString("palette", "bright_yellow", brightYellow)
+            putString("palette", "bright_blue", brightBlue)
+            putString("palette", "bright_magenta", brightMagenta)
+            putString("palette", "bright_cyan", brightCyan)
+            putString("palette", "bright_white", brightWhite)
         }
         with(settings.input) {
             putBoolean("input", "extra_keys_bar", extraKeysBar)
@@ -132,9 +162,16 @@ internal object DroshSettingsToml {
                 immersive = document.getBoolean("terminal", "immersive", base.terminal.immersive),
                 linkDetection = document.getBoolean("terminal", "link_detection", base.terminal.linkDetection),
                 glassEffects = document.getBoolean("terminal", "glass_effects", base.terminal.glassEffects),
-                background = document.getString("terminal", "background", base.terminal.background),
-                foreground = document.getString("terminal", "foreground", base.terminal.foreground),
-                accent = document.getString("terminal", "accent", base.terminal.accent),
+                boldBrightens = document.getBoolean("terminal", "bold_brightens", base.terminal.boldBrightens),
+                ligatures = document.getBoolean("terminal", "ligatures", base.terminal.ligatures),
+                dimInactivePanes = document.getBoolean("terminal", "dim_inactive_panes", base.terminal.dimInactivePanes),
+                themeId = document.getString("terminal", "theme_id", base.terminal.themeId),
+                palette = readPalette(document, base.terminal.palette),
+            ),
+            background = base.background.copy(
+                imagePath = document.getString("background", "image_path", base.background.imagePath),
+                imageOpacity = document.getInt("background", "image_opacity", base.background.imageOpacity),
+                contentPaddingDp = document.getInt("background", "content_padding_dp", base.background.contentPaddingDp),
             ),
             input = base.input.copy(
                 extraKeysBar = document.getBoolean("input", "extra_keys_bar", base.input.extraKeysBar),
@@ -257,3 +294,31 @@ private fun packageProfileFrom(value: String?): PackageProfile =
 
 private fun panePresentationFrom(value: String?): PanePresentation =
     PanePresentation.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: PanePresentation.DOCKED
+
+
+/** Reads the twenty-two colours; each missing key keeps its default. */
+private fun readPalette(document: TomlDocument, base: ThemePalette): ThemePalette =
+    base.copy(
+        background = document.getString("palette", "background", base.background),
+        foreground = document.getString("palette", "foreground", base.foreground),
+        cursor = document.getString("palette", "cursor", base.cursor),
+        selectionBackground = document.getString("palette", "selection_background", base.selectionBackground),
+        selectionForeground = document.getString("palette", "selection_foreground", base.selectionForeground),
+        accent = document.getString("palette", "accent", base.accent),
+        black = document.getString("palette", "black", base.black),
+        red = document.getString("palette", "red", base.red),
+        green = document.getString("palette", "green", base.green),
+        yellow = document.getString("palette", "yellow", base.yellow),
+        blue = document.getString("palette", "blue", base.blue),
+        magenta = document.getString("palette", "magenta", base.magenta),
+        cyan = document.getString("palette", "cyan", base.cyan),
+        white = document.getString("palette", "white", base.white),
+        brightBlack = document.getString("palette", "bright_black", base.brightBlack),
+        brightRed = document.getString("palette", "bright_red", base.brightRed),
+        brightGreen = document.getString("palette", "bright_green", base.brightGreen),
+        brightYellow = document.getString("palette", "bright_yellow", base.brightYellow),
+        brightBlue = document.getString("palette", "bright_blue", base.brightBlue),
+        brightMagenta = document.getString("palette", "bright_magenta", base.brightMagenta),
+        brightCyan = document.getString("palette", "bright_cyan", base.brightCyan),
+        brightWhite = document.getString("palette", "bright_white", base.brightWhite),
+    )

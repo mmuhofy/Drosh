@@ -206,9 +206,11 @@ class TomlSettingsStore @Inject constructor(
                     ?: base.terminal.defaultFontSizeSp,
                 cursorStyle = CursorStyle.fromString(prefs[KEY_CURSOR_STYLE] ?: ""),
                 cursorBlinkMs = prefs[KEY_CURSOR_BLINK_RATE_MS] ?: base.terminal.cursorBlinkMs,
-                background = prefs[KEY_TERMINAL_BG_COLOR] ?: base.terminal.background,
-                foreground = prefs[KEY_TERMINAL_TEXT_COLOR] ?: base.terminal.foreground,
-                accent = prefs[KEY_ACCENT_COLOR] ?: base.terminal.accent,
+                palette = base.terminal.palette.copy(
+                    background = prefs[KEY_TERMINAL_BG_COLOR] ?: base.terminal.palette.background,
+                    foreground = prefs[KEY_TERMINAL_TEXT_COLOR] ?: base.terminal.palette.foreground,
+                    accent = prefs[KEY_ACCENT_COLOR] ?: base.terminal.palette.accent,
+                ),
             ),
             input = base.input.copy(
                 extraKeysBar = prefs[KEY_EXTRA_KEYS_BAR_VISIBLE] ?: base.input.extraKeysBar,

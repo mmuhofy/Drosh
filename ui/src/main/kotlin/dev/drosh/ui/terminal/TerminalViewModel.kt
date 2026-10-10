@@ -3,7 +3,12 @@ package dev.drosh.ui.terminal
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.BackgroundSettings
+import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.MotdMode
+import dev.drosh.domain.settings.ThemePalette
+import dev.drosh.domain.settings.SettingsStore
+import dev.drosh.domain.settings.TerminalSettings
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.TerminalZoom
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,7 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -42,6 +47,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TerminalViewModel @Inject constructor(
     settingsRepository: SettingsRepository,
+    private val store: SettingsStore,
 ) : ViewModel() {
 
     private val settingsRepository = settingsRepository
@@ -73,24 +79,10 @@ class TerminalViewModel @Inject constructor(
      * The terminal module cannot see the design system, so these travel the same
      * channel background and foreground already use rather than a new one.
      */
-    val colorProps: StateFlow<Properties> = combine(
-        settingsRepository.terminalBgColor,
-        settingsRepository.terminalTextColor,
-        settingsRepository.accentColor,
-    ) { bg, fg, accent ->
-        Properties().apply {
-            setProperty("background", bg)
-            setProperty("foreground", fg)
-            setProperty("color6", accent)
-            // TerminalColors.parse drops the alpha channel, so a translucent
-            // colour cannot travel this channel — an 8-digit hex reads as an
-            // invalid colour and update() throws. The tint is therefore mixed
-            // here, which also means it follows whatever background the user
-            // picked instead of assuming the default.
-            setProperty("selectionBackground", mixOver(accent, bg, 0.38f))
-            setProperty("selectionForeground", SELECTION_FOREGROUND)
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, Properties())
+    val colorProps: StateFlow<Properties> = store.settings
+        .map { it.terminal.palette }
+        .map { palette -> paletteToProps(palette) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Properties())
 
     /**
      * The size a session opens at, as stored. The Settings slider writes this.
@@ -100,6 +92,24 @@ class TerminalViewModel @Inject constructor(
 
     private val _fontSizeSp = MutableStateFlow(TerminalZoom.DEFAULT_SP)
     val fontSizeSp: StateFlow<Float> = _fontSizeSp.asStateFlow()
+
+    /**
+     * Appearance as the terminal screen reads it.
+     *
+     * A subset of the file rather than the whole snapshot: the screen needs
+     * the terminal section, the background section, and nothing else, and
+     * handing it everything would recompute the whole tree on every palette
+     * tweak. The store's snapshot is what these come from — one file, one
+     * collector.
+     */
+    val appearance: StateFlow<TerminalAppearance> = store.settings
+        .map { settings ->
+            TerminalAppearance(
+                terminal = settings.terminal,
+                background = settings.background,
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalAppearance.DEFAULT)
 
     init {
         viewModelScope.launch {
@@ -166,29 +176,51 @@ class TerminalViewModel @Inject constructor(
     }
 }
 
-/** Near-black, so selected text keeps its contrast on the tinted accent. */
-private const val SELECTION_FOREGROUND = "#101014"
-
 /**
- * Mixes [fg2] over [bg2] by [amount], returning an opaque #RRGGBB.
+ * The palette as the terminal's colour channel speaks it.
  *
- * The terminal's colour channel is opaque-only, so a translucent selection
- * tint has to arrive pre-mixed. Returns the background unchanged if either
- * colour is unparseable rather than throwing mid-composition.
+ * Keys are the ones [com.termux.terminal.TerminalColorScheme.updateWith]
+ * reads: the three outside the ANSI range, the selection pair, and the
+ * sixteen indexed colours. A theme is twenty-two colours and this is
+ * where all twenty-two land — the accent no longer borrows the cyan slot,
+ * because a palette that has its own cyan has no room for a borrowed one.
  */
-private fun mixOver(fg2: String, bg2: String, amount: Float): String {
-    val a = parseHex(fg2) ?: return bg2
-    val b = parseHex(bg2) ?: return fg2
-    fun mix(shift: Int): Int {
-        val hi = (a shr shift) and 0xFF
-        val lo = (b shr shift) and 0xFF
-        return (hi * amount + lo * (1f - amount)).toInt().coerceIn(0, 255)
-    }
-    return "#%02X%02X%02X".format(mix(16), mix(8), mix(0))
+private fun paletteToProps(palette: ThemePalette): Properties = Properties().apply {
+    setProperty("background", palette.background)
+    setProperty("foreground", palette.foreground)
+    setProperty("cursor", palette.cursor)
+    setProperty("selectionBackground", palette.selectionBackground)
+    setProperty("selectionForeground", palette.selectionForeground)
+    setProperty("color0", palette.black)
+    setProperty("color1", palette.red)
+    setProperty("color2", palette.green)
+    setProperty("color3", palette.yellow)
+    setProperty("color4", palette.blue)
+    setProperty("color5", palette.magenta)
+    setProperty("color6", palette.cyan)
+    setProperty("color7", palette.white)
+    setProperty("color8", palette.brightBlack)
+    setProperty("color9", palette.brightRed)
+    setProperty("color10", palette.brightGreen)
+    setProperty("color11", palette.brightYellow)
+    setProperty("color12", palette.brightBlue)
+    setProperty("color13", palette.brightMagenta)
+    setProperty("color14", palette.brightCyan)
+    setProperty("color15", palette.brightWhite)
 }
 
-private fun parseHex(value: String): Int? {
-    val hex = value.removePrefix("#")
-    if (hex.length != 6) return null
-    return hex.toIntOrNull(16)
+
+/**
+ * What the terminal screen needs from the appearance side of the file.
+ *
+ * A narrow view of the two sections the screen actually draws, so a change
+ * to any other section does not recompute the terminal.
+ */
+data class TerminalAppearance(
+    val terminal: TerminalSettings = TerminalSettings.DEFAULT,
+    val background: BackgroundSettings = BackgroundSettings.DEFAULT,
+) {
+    companion object {
+        val DEFAULT = TerminalAppearance()
+    }
 }

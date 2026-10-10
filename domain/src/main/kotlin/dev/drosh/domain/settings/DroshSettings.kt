@@ -22,6 +22,7 @@ import dev.drosh.domain.terminal.TerminalZoom
 data class DroshSettings(
     val appearance: AppearanceSettings = AppearanceSettings(),
     val terminal: TerminalSettings = TerminalSettings(),
+    val background: BackgroundSettings = BackgroundSettings(),
     val input: InputSettings = InputSettings(),
     val shell: ShellSettings = ShellSettings(),
     val rootfs: RootfsSettings = RootfsSettings(),
@@ -50,10 +51,10 @@ data class AppearanceSettings(
 /**
  * The terminal's own behaviour.
  *
- * [background], [foreground] and [accent] have no settings row on purpose:
- * they are what the file and the agent can set, and what a user edits when
- * they want to. The screen shows theme and font; the colour triad stays in
- * the file.
+ * The colours are a whole palette rather than three keys: a theme is
+ * twenty-two of them, and the file is where they live — the theme store
+ * fills them, the agent can edit them, and the screen shows which theme is
+ * active rather than each colour.
  */
 data class TerminalSettings(
     val mode: TerminalMode = TerminalMode.Stream,
@@ -68,12 +69,40 @@ data class TerminalSettings(
     val immersive: Boolean = true,
     val linkDetection: Boolean = true,
     val glassEffects: Boolean = true,
-    val background: String = "#000000",
-    val foreground: String = "#E8E8E8",
-    val accent: String = "#3B82F6",
+    /** Bold text in the first eight colours uses the bright half. */
+    val boldBrightens: Boolean = true,
+    /** Programming-ligature shaping, where the typeface carries them. */
+    val ligatures: Boolean = true,
+    /** The unfocused pane of a split is drawn dimmer. */
+    val dimInactivePanes: Boolean = true,
+    /** The colours the terminal draws with; a theme writes all of them. */
+    val palette: ThemePalette = ThemePalette.DEFAULT,
+    /** Which installed theme put the palette there; "" means the file's own. */
+    val themeId: String = "",
 ) {
     companion object {
         val DEFAULT = TerminalSettings()
+    }
+}
+
+/**
+ * What sits behind the terminal.
+ *
+ * [imagePath] is a path inside the Linux environment ("/home/Pictures/x.png"),
+ * because that is where a user's files are and where the agent can put one;
+ * [imageOpacity] is how much of it shows through the terminal's own
+ * background. With no path the two are inert, and the terminal is the plain
+ * colour its theme says it is.
+ */
+data class BackgroundSettings(
+    val imagePath: String = "",
+    /** 0..100 — how much of the image shows through. */
+    val imageOpacity: Int = 100,
+    /** Pixels of empty space around the terminal grid. */
+    val contentPaddingDp: Int = 0,
+) {
+    companion object {
+        val DEFAULT = BackgroundSettings()
     }
 }
 

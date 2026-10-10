@@ -198,4 +198,42 @@
     <string name="settings_summary_terminal">%1$s · %2$ssp</string>
     <string name="settings_summary_on">On</string>
     <string name="settings_summary_off">Off</string>
+
+    <!-- ── Settings: theme store ───────────────────────────────────────── -->
+    <string name="settings_theme_store">Theme Store</string>
+    <string name="settings_theme_active">Active theme</string>
+    <string name="settings_theme_active_none">Drosh default</string>
+    <string name="settings_theme_installed">Installed</string>
+    <string name="settings_theme_store_section">Store</string>
+    <string name="settings_theme_store_desc">120 themes from drosh-themes, or install from a URL</string>
+    <string name="settings_theme_available">In the store</string>
+    <string name="settings_theme_refresh">Refresh the index</string>
+    <string name="settings_theme_loading">Loading…</string>
+    <string name="settings_theme_in_use">In use</string>
+    <string name="settings_theme_no_description">No description</string>
+    <string name="settings_theme_from_url">Install from URL</string>
+    <string name="settings_theme_from_url_desc">A theme .toml anywhere it is served</string>
+    <string name="settings_theme_create">Create your own</string>
+    <string name="settings_theme_create_desc">Start from an installed theme, then edit the file</string>
+    <string name="settings_theme_name">Name</string>
+    <string name="settings_theme_author">Author</string>
+    <string name="settings_theme_description">Description</string>
+    <string name="settings_theme_base">Start from</string>
+
+    <!-- ── Settings: type behaviour ────────────────────────────────────── -->
+    <string name="settings_bold_brightens">Bold brightens</string>
+    <string name="settings_bold_brightens_desc">Bold text in the first eight colours uses the bright half</string>
+    <string name="settings_ligatures">Ligatures</string>
+    <string name="settings_ligatures_desc">Programming ligatures where the typeface carries them</string>
+    <string name="settings_dim_inactive_panes">Dim inactive pane</string>
+    <string name="settings_dim_inactive_panes_desc">The unfocused pane of a split is drawn dimmer</string>
+
+    <!-- ── Settings: background ────────────────────────────────────────── -->
+    <string name="settings_section_background">Background</string>
+    <string name="settings_background_image">Background image</string>
+    <string name="settings_background_none">None — the theme colour shows</string>
+    <string name="settings_background_opacity">Image opacity</string>
+    <string name="settings_background_opacity_value">%1$d%%</string>
+    <string name="settings_content_padding">Content padding</string>
+    <string name="settings_content_padding_value">%1$ddp</string>
 </resources>

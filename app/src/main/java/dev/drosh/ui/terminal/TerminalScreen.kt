@@ -49,7 +49,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import dev.drosh.ui.LocalDroshActivity
+import android.view.WindowManager
 import dev.drosh.domain.UrlDetector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
@@ -378,6 +380,7 @@ private fun ReadyScreen(
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
+    val appearance by terminalViewModel.appearance.collectAsState()
     val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
@@ -751,6 +754,11 @@ private fun ReadyScreen(
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
+                    backgroundImage = appearance.background.imagePath,
+                    backgroundOpacity = appearance.background.imageOpacity,
+                    contentPaddingDp = appearance.background.contentPaddingDp,
+                    dimInactivePanes = appearance.terminal.dimInactivePanes,
+                    keepAwake = appearance.terminal.keepAwake,
                     terminalViewModel = terminalViewModel,
                     blockEngineViewModel = blockEngineViewModel,
                     inputBarViewModel = inputBarViewModel,
@@ -779,6 +787,11 @@ private fun ReadyScreen(
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
+                    backgroundImage = appearance.background.imagePath,
+                    backgroundOpacity = appearance.background.imageOpacity,
+                    contentPaddingDp = appearance.background.contentPaddingDp,
+                    dimInactivePanes = appearance.terminal.dimInactivePanes,
+                    keepAwake = appearance.terminal.keepAwake,
                     terminalViewModel = terminalViewModel,
                     blockEngineViewModel = blockEngineViewModel,
                     inputBarViewModel = inputBarViewModel,
@@ -1276,6 +1289,11 @@ private fun TerminalPaneBody(
     fontSizeSp: Float,
     defaultFontSizeSp: Float,
     colorProps: Properties,
+    backgroundImage: String,
+    backgroundOpacity: Int,
+    contentPaddingDp: Int,
+    dimInactivePanes: Boolean,
+    keepAwake: Boolean,
     terminalViewModel: TerminalViewModel,
     blockEngineViewModel: BlockEngineViewModel,
     inputBarViewModel: InputBarViewModel,
@@ -1403,6 +1421,11 @@ private fun TerminalPaneBody(
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
+                    backgroundImage = backgroundImage,
+                    backgroundOpacity = backgroundOpacity,
+                    contentPaddingDp = contentPaddingDp,
+                    dimInactivePanes = dimInactivePanes,
+                    keepAwake = keepAwake,
                     terminalViewModel = terminalViewModel,
                     terminalViewRef = terminalViewRef,
                     extraKeyState = extraKeyState,
@@ -1433,6 +1456,11 @@ private fun TerminalViewHost(
     fontSizeSp: Float,
     defaultFontSizeSp: Float,
     colorProps: Properties,
+    backgroundImage: String,
+    backgroundOpacity: Int,
+    contentPaddingDp: Int,
+    dimInactivePanes: Boolean,
+    keepAwake: Boolean,
     terminalViewModel: TerminalViewModel,
     terminalViewRef: MutableState<TerminalView?>,
     onUrlClick: (String) -> Unit,
@@ -1533,6 +1561,12 @@ private fun TerminalViewHost(
         terminalTypeface?.let { ownView.value?.setTypeface(it) }
     }
 
+    val hostActivity = LocalDroshActivity.current
+    LaunchedEffect(keepAwake) {
+        val window = hostActivity?.window ?: return@LaunchedEffect
+        if (keepAwake) window.addFlags(FLAG_KEEP_SCREEN_ON) else window.clearFlags(FLAG_KEEP_SCREEN_ON)
+    }
+
     LaunchedEffect(colorProps) {
         ownView.value?.updateColors(colorProps)
     }
@@ -1561,7 +1595,9 @@ private fun TerminalViewHost(
         }
     }
 
-    BoxWithConstraints(modifier = modifier) {
+    BoxWithConstraints(
+        modifier = modifier.padding(horizontal = contentPaddingDp.dp, vertical = contentPaddingDp.dp),
+    ) {
     AndroidView(
         modifier = Modifier
             .fillMaxSize()
@@ -1576,6 +1612,25 @@ private fun TerminalViewHost(
                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                 )
+            }
+
+            // Behind everything, because the terminal paints no background of
+            // its own for default cells — the view is transparent and this is
+            // what a background image shows through. A path that does not
+            // resolve leaves the theme colour, which is the honest fallback.
+            if (backgroundImage.isNotBlank()) {
+                val file = terminalManager.resolveGuestPath(backgroundImage)
+                val bitmap = runCatching {
+                    android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+                }.getOrNull()
+                if (bitmap != null) {
+                    val imageView = android.widget.ImageView(ctx).apply {
+                        setImageBitmap(bitmap)
+                        scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                        imageAlpha = (backgroundOpacity.coerceIn(0, 100) * 255) / 100
+                    }
+                    frameLayout.addView(imageView)
+                }
             }
 
             val tv = TerminalView(ctx, null).apply {
@@ -1680,6 +1735,18 @@ private fun TerminalViewHost(
         },
     )
 
+    // The unfocused pane of a split, dimmed. Drawn here rather than inside
+    // the terminal because the terminal is a View and this is a Compose
+    // layer: one alpha box over the whole pane, following focus, and it
+    // cannot fight the renderer for pixels.
+    if (dimInactivePanes && paneSlot != focusedPane) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(DimInactivePane),
+        )
+    }
+
     // The chip, above the terminal and out of its way. Positioned at the point
     // the fingers are on so it reads as attached to the gesture rather than
     // dropped in a corner — but clamped inside the pane, because a pinch near
@@ -1724,6 +1791,9 @@ private fun TerminalViewHost(
  * is not part of the terminal by the time the user looks at the text.
  */
 private const val ZOOM_CHIP_LINGER_MS = 900L
+
+/** How far the unfocused pane of a split is dimmed. */
+private val DimInactivePane = Color.Black.copy(alpha = 0.4f)
 
 /**
  * Chip size used to keep it on screen, in dp.

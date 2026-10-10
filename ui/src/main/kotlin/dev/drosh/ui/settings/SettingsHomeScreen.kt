@@ -31,8 +31,6 @@ import dev.drosh.ui.R
 import dev.drosh.ui.session.DeviceBadge
 import dev.drosh.ui.session.DeviceIdentityViewModel
 
-private val GROUP_GAP = 22.dp
-
 /** Content clearance for the system bar, without insetting the background. */
 @Composable
 private fun statusBarInset(): Dp =
@@ -56,6 +54,7 @@ enum class SettingsCategoryRoute(val id: String) {
     Security("security"),
     Language("language"),
     About("about"),
+    ThemeStore("theme_store"),
     ;
 
     companion object {

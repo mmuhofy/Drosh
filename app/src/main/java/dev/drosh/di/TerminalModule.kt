@@ -5,6 +5,7 @@ import android.content.Context
 import dev.drosh.domain.block.BlockEngineState
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.terminal.BlockEngineWire
 import dev.drosh.terminal.BootstrapStatePort
 import dev.drosh.terminal.ProotRunner
@@ -53,12 +54,14 @@ object TerminalModule {
         bootstrapStatePort: BootstrapStatePort,
         blockEngineWire: BlockEngineWire,
         settingsRepository: SettingsRepository,
+        settingsStore: SettingsStore,
     ): TerminalManager = TerminalManager(
         ubuntuBootstrap = ubuntuBootstrap,
         bootstrapStatePort = bootstrapStatePort,
         application = application,
         blockEngineWire = blockEngineWire,
         settingsRepository = settingsRepository,
+        settingsStore = settingsStore,
     )
 
     /**

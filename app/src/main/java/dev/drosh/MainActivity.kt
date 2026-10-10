@@ -89,6 +89,7 @@ import dev.drosh.ui.settings.SettingsHomeScreen
 import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
+import dev.drosh.ui.settings.ThemeStoreScreen
 import dev.drosh.ui.workspace.WorkspaceScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -369,7 +370,11 @@ class MainActivity : ComponentActivity() {
 
         when (category) {
             SettingsCategoryRoute.Appearance ->
-                AppearanceCategory(settings, onBack, onUpdate)
+                AppearanceCategory(settings, onBack, onUpdate) {
+                    navController.navigate("settings/theme_store")
+                }
+            SettingsCategoryRoute.ThemeStore ->
+                ThemeStoreScreen(onBack = onBack)
             SettingsCategoryRoute.Terminal ->
                 TerminalCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.Keyboard ->

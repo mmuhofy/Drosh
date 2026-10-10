@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.settings.MotdDefaults
 import dev.drosh.domain.settings.MotdMode
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.PaneSessionBinder
 import dev.drosh.domain.terminal.PaneSlot
@@ -49,6 +50,7 @@ class TerminalManager(
     application: Application,
     private val blockEngineWire: BlockEngineWire? = null,
     private val settingsRepository: SettingsRepository,
+    private val settingsStore: SettingsStore? = null,
 ) : PaneSessionBinder {
 
     // PaneSessionBinder: the split screen lives in :ui and cannot import this
@@ -289,6 +291,18 @@ class TerminalManager(
      */
     private var cursorBlinkRateMs: Int = DEFAULT_CURSOR_BLINK_MS
 
+    /** Last type behaviour from the file, replayed onto panes as they register. */
+    private var boldBrightens: Boolean = true
+    private var ligatures: Boolean = true
+
+    /** The theme's background, as a colour. Held so a late pane gets it too. */
+    private var terminalBgColor: Int = DEFAULT_TERMINAL_BG_COLOR
+
+    /** Applies [color] to [view] as the terminal's own background. */
+    private fun applyTerminalBackground(view: TerminalView, color: Int) {
+        view.setBackgroundColor(color)
+    }
+
     /**
      * Applies [rate] to [view], starting or stopping the blinker with it.
      *
@@ -305,6 +319,17 @@ class TerminalManager(
 
     /** The pane's view, or null when the pane is not on screen. */
     fun viewForPane(slot: PaneSlot): TerminalView? = paneViews[slot]
+
+    /**
+     * Host file for a path inside the Linux environment.
+     *
+     * The rootfs is a plain directory, so "/home/Pictures/x.png" is that
+     * directory plus the path — the same mapping the guest-file repository
+     * uses, exposed here so the terminal screen can load a background image
+     * without reaching into the bootstrap.
+     */
+    fun resolveGuestPath(guestPath: String): File =
+        File(ubuntuBootstrap.rootfsDir, guestPath.removePrefix("/"))
 
     /** The focused pane's view — the one keystrokes and pastes go to. */
     val focusedView: TerminalView? get() = paneViews[focusedPane.value]
@@ -743,6 +768,21 @@ class TerminalManager(
             }
             .launchIn(managerScope)
 
+        settingsStore?.settings
+            ?.onEach { settings ->
+                boldBrightens = settings.terminal.boldBrightens
+                ligatures = settings.terminal.ligatures
+                val bg = parseHexColor(settings.terminal.palette.background)
+                if (bg != null && bg != terminalBgColor) {
+                    terminalBgColor = bg
+                    paneViews.values.forEach { view -> applyTerminalBackground(view, bg) }
+                }
+                paneViews.values.forEach { view ->
+                    view.setTerminalTypeBehaviour(boldBrightens, ligatures)
+                }
+            }
+            ?.launchIn(managerScope)
+
         settingsRepository.cursorBlinkRateMs
             .onEach { rate ->
                 // Held, not just applied: a view registered later must get the
@@ -850,6 +890,12 @@ class TerminalManager(
         // given builds one. Applying it first meant every pane registered
         // before its session existed never blinked at all.
         applyCursorBlinkRate(view, cursorBlinkRateMs)
+        // The renderer is rebuilt by every size and typeface change, so the
+        // type behaviour is held and replayed rather than applied once.
+        view.setTerminalTypeBehaviour(boldBrightens, ligatures)
+        // The terminal paints no background of its own for default cells -
+        // the view's is what shows, and it is what a theme changes.
+        applyTerminalBackground(view, terminalBgColor)
 
         if (slot == focusedPane.value) activatePaneView(slot, view)
     }
@@ -1510,6 +1556,9 @@ class TerminalManager(
          */
         const val DEFAULT_CURSOR_BLINK_MS = 500
 
+        /** Matches [TerminalSettings.background]'s default. */
+        const val DEFAULT_TERMINAL_BG_COLOR = 0xFF000000.toInt()
+
         /**
          * The rates the vendored view accepts, mirroring its own
          * [TerminalView.TERMINAL_CURSOR_BLINK_RATE_MIN] /
@@ -1604,3 +1653,12 @@ fun chromeCollapsed(
     tuiActive: Boolean,
     hasScrolled: Boolean,
 ): Boolean = tuiActive || !hasScrolled || !chromeIsAtLiveEdge(topRow, wasAtLiveEdge)
+
+
+/** "#RRGGBB" as a colour, or null when it is not one. */
+private fun parseHexColor(hex: String): Int? {
+    val body = hex.removePrefix("#")
+    if (body.length != 6) return null
+    val value = body.toIntOrNull(16) ?: return null
+    return 0xFF000000.toInt() or value
+}

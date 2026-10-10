@@ -25,13 +25,19 @@ class SettingsPaths @Inject constructor(
     private val bootstrap: UbuntuBootstrap,
 ) {
 
+    /** The `.drosh` directory inside the Linux environment. */
+    val primaryDir: File
+        get() = File(bootstrap.rootfsDir, "home/.drosh")
+
+    /** The app-private `.drosh` directory. */
+    val backupDir: File
+        get() = File(context.filesDir, DROSH_DIR)
+
     /** The file the Linux side sees. Missing until the rootfs exists. */
-    val primaryFile: File
-        get() = File(File(bootstrap.rootfsDir, "home/.drosh"), FILE_NAME)
+    val primaryFile: File get() = File(primaryDir, FILE_NAME)
 
     /** The app-private copy, always written. */
-    val backupFile: File
-        get() = File(File(context.filesDir, DROSH_DIR), FILE_NAME)
+    val backupFile: File get() = File(backupDir, FILE_NAME)
 
     companion object {
         const val FILE_NAME = "settings.toml"
