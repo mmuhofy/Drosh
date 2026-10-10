@@ -74,6 +74,9 @@ class BackgroundImageStoreImpl @Inject constructor(
                 ?.forEach { it.delete() }
             File(backupDir(), ".").listFiles { f -> f.name.contains(".blurred.") }
                 ?.forEach { it.delete() }
+            // The block's last expression decides the Result's type: without
+            // this it is Unit?, and the interface promises Unit.
+            Unit
         }
     }
 
