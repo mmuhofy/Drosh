@@ -1627,7 +1627,7 @@ private fun TerminalViewHost(
                 terminalView = tv
                 // Opening a link is the screen's business — in-app browser,
                 // sheet, whatever — not the overlay's.
-                onUrlClick = onUrlClick
+                onLinkClick = onUrlClick
                 isFocusable = false
                 isFocusableInTouchMode = false
             }

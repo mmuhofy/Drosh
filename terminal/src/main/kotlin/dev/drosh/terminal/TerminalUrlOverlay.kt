@@ -100,8 +100,13 @@ class TerminalUrlOverlay(
     /**
      * Called when a tap resolves to a URL. Opening it — in-app browser or
      * otherwise — is the caller's business; the overlay only knows the link.
+     *
+     * Not named `onUrlClick` on purpose: the terminal screen that hosts this
+     * overlay has a parameter by that name, and a property with the same name
+     * inside the hosting `apply` block resolves to the val on the left of its
+     * own assignment.
      */
-    var onUrlClick: ((String) -> Unit)? = null
+    var onLinkClick: ((String) -> Unit)? = null
 
     /**
      * The link currently held down, and the only one that gets a filled surface.
