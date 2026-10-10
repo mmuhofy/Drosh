@@ -58,6 +58,10 @@ class ThemeRepositoryImpl @Inject constructor(
     /** Re-reads both theme directories, the rootfs copy winning per id. */
     private fun refreshInstalled() {
         val byId = LinkedHashMap<String, DroshTheme>()
+        // The built-in leads the list: it is the way back to the colours the
+        // app started with, and a store that only lists what was downloaded
+        // has no home.
+        byId[DroshTheme.DEFAULT.id] = DroshTheme.DEFAULT
         // Backup first so the rootfs copy overwrites it when both exist.
         readThemeDir(backupThemesDir()).forEach { byId[it.id] = it }
         readThemeDir(rootfsThemesDir()).forEach { byId[it.id] = it }
