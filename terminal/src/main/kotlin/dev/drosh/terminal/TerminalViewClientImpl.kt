@@ -4,12 +4,18 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import dev.drosh.domain.UrlDetector
+import dev.drosh.domain.terminal.TerminalZoom
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 
 class TerminalViewClientImpl(
-    private val onScaleChange: ((Float) -> Float)? = null,
+    /** Notified on every frame of a pinch, with the live size and focus point. */
+    private val onZoomChange: ((textSizeSp: Float, focusX: Float, focusY: Float) -> Unit)? = null,
+    /** Notified once when the fingers lift, with the size to persist. */
+    private val onZoomEndChange: ((textSizeSp: Float) -> Unit)? = null,
+    /** What a double-tap returns to. */
+    private val defaultFontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     val extraKeyState: ExtraKeyState? = null,
     private val context: android.content.Context? = null,
     private val onUrlClick: ((String) -> Unit)? = null,
@@ -26,8 +32,14 @@ class TerminalViewClientImpl(
      */
     var urlHighlightOverlay: SearchHighlightOverlay? = null
 
-    override fun onScale(scale: Float): Float {
-        return onScaleChange?.invoke(scale) ?: 1.0f
+    override fun defaultFontSizeSp(): Float = defaultFontSizeSp
+
+    override fun onZoom(textSizeSp: Float, focusX: Float, focusY: Float) {
+        onZoomChange?.invoke(textSizeSp, focusX, focusY)
+    }
+
+    override fun onZoomEnd(textSizeSp: Float) {
+        onZoomEndChange?.invoke(textSizeSp)
     }
 
     override fun onSingleTapUp(e: MotionEvent) {

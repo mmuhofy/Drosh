@@ -43,10 +43,11 @@ interface SettingsRepository {
     suspend fun setExtraKeysBarVisible(visible: Boolean)
 
     /** Hot stream of the font size in sp. Emits 14 on first launch. */
-    val fontSizeSp: Flow<Int>
+    val fontSizeSp: Flow<Float>
 
-    /** Persists the font size in sp. */
-    suspend fun setFontSize(size: Int)
+    /** Persists the font size in sp. Fractional: a pinch can land between two
+     *  whole sizes, and rounding the user's choice away is not our call. */
+    suspend fun setFontSize(size: Float)
 
     /** Hot stream of the terminal background color as a hex string. Default: "#000000". */
     val terminalBgColor: Flow<String>

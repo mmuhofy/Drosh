@@ -32,7 +32,9 @@
     <string name="settings_font_inter_desc">Inter with JetBrains Mono</string>
 
     <!-- ── Settings: terminal ──────────────────────────────────────────── -->
-    <string name="settings_font_size_value">%1$dsp</string>
+    <!-- %1$s, not %1$d: the size is fractional (a pinch lands on 0.1sp
+         steps), and the caller formats it. Passing a float to %1$d throws. -->
+    <string name="settings_font_size_value">%1$ssp</string>
     <string name="settings_cursor_blink">Cursor blink</string>
     <string name="settings_cursor_blink_off">Off</string>
     <string name="settings_cursor_blink_value">%1$dms</string>

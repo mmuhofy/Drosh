@@ -45,6 +45,7 @@ import com.termux.terminal.TerminalSession
 import com.termux.view.textselection.TextSelectionCursorController
 
 import dev.drosh.terminal.SearchHighlightOverlay
+import dev.drosh.domain.terminal.TerminalZoom
 
 import java.util.Properties
 import kotlin.math.abs
@@ -168,6 +169,25 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
     @JvmField
     var mScaleFactor: Float = 1f
+
+    /**
+     * Font size at the moment a pinch began, in sp. 0 when no pinch is running.
+     *
+     * The zoom is computed from this rather than from the previous frame, so a
+     * long gesture cannot drift and shrinking back returns to the size the
+     * gesture started from.
+     */
+    private var mZoomGestureBaseSp: Float = 0f
+
+    /**
+     * True once the current pinch has moved far enough to count as a zoom.
+     *
+     * Latched for the rest of the gesture, and reset when it ends. The dead
+     * zone exists to ignore a two-finger landing wobble — it is not a limit on
+     * how far a zoom may travel, so once a gesture has crossed it, coming back
+     * to the origin has to be able to undo what going out did.
+     */
+    private var mZoomGesturePassedDeadZone: Boolean = false
 
     internal lateinit var mGestureRecognizer: GestureAndScaleRecognizer
 
@@ -319,11 +339,58 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                 return true
             }
 
+            override fun onScaleBegin() {
+                // Where this gesture starts, so the size is recomputed from the
+                // gesture's own origin rather than from the last frame's
+                // rounded value.
+                mZoomGestureBaseSp = textSizeSp
+                mScaleFactor = 1f
+                mZoomGesturePassedDeadZone = false
+            }
+
             override fun onScale(focusX: Float, focusY: Float, scale: Float): Boolean {
                 if (mEmulator == null || isSelectingText) return true
-                mScaleFactor *= scale
-                mScaleFactor = mClient!!.onScale(mScaleFactor)
+                // One event, one bounded step. A finger that moves 40% between
+                // two events — or a third finger arriving — would otherwise
+                // take several steps in a single frame and read as a jump.
+                val step = scale.coerceIn(1f / TerminalZoom.MAX_STEP_FACTOR, TerminalZoom.MAX_STEP_FACTOR)
+
+                // Total finger travel this gesture, so a long pinch does not
+                // drift by a rounding error per frame.
+                mScaleFactor *= step
+
+                // Dead zone, in log-scale so it is symmetric: 4% either way
+                // reads as no movement at this size, and testing it per event
+                // would accumulate — 1.04^n passes the threshold during a
+                // gesture that was never a zoom.
+                //
+                // Latched once crossed, and that latch is the whole point of
+                // tracking it separately: without it, returning the fingers to
+                // where they started puts the total back inside the dead zone
+                // and the terminal keeps the size from the peak of the pinch —
+                // a zoom that cannot be undone by the same gesture.
+                if (!mZoomGesturePassedDeadZone) {
+                    if (Math.abs(Math.log(mScaleFactor.toDouble())) < TerminalZoom.DEAD_ZONE) return true
+                    mZoomGesturePassedDeadZone = true
+                }
+
+                // From the gesture's origin, not from the current size: past
+                // the dead zone the terminal goes to where the fingers
+                // actually are, rather than ramping from the size it stalled
+                // at.
+                val base = if (mZoomGestureBaseSp > 0f) mZoomGestureBaseSp else textSizeSp
+                zoomTo(base * mScaleFactor, focusX, focusY)
+                mClient?.onZoom(textSizeSp, focusX, focusY)
                 return true
+            }
+
+            override fun onScaleEnd() {
+                // The gesture is over: the dead zone is per-gesture, and the
+                // size is now worth persisting.
+                mScaleFactor = 1f
+                mZoomGestureBaseSp = 0f
+                mZoomGesturePassedDeadZone = false
+                mClient?.onZoomEnd(textSizeSp)
             }
 
             override fun onFling(e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
@@ -378,6 +445,23 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
             override fun onDoubleTap(event: MotionEvent): Boolean {
                 // Do not treat is as a single confirmed tap - it may be followed by zoom.
+                //
+                // A second finger means a pinch, so a double-tap that grows
+                // into a pinch must not have already moved the font: the
+                // ScaleGestureDetector claims the gesture once the second
+                // finger lands, but the first tap has been delivered by then.
+                if (mGestureRecognizer.isInProgress()) return false
+                if (mEmulator == null || isSelectingText) return false
+
+                // Deferred to the next frame rather than applied here. This
+                // callback arrives before the second tap has been
+                // disambiguated — the gesture detector calls this on the
+                // second ACTION_DOWN, and whether that tap is the start of a
+                // double-tap or the end of a pinch is only known on the
+                // following frame. Zooming now and un-zooming a moment later
+                // is exactly the flicker this is avoiding, so the work waits
+                // until the gesture has settled.
+                post { if (!mGestureRecognizer.isInProgress()) resetToDefaultSize(event.x, event.y) }
                 return false
             }
 
@@ -779,22 +863,132 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         unsetStoredSelectedText()
     }
 
-    /**
+/**
      * Sets the text size, which in turn sets the number of rows and columns.
+     *
+     * Fractional so a pinch can follow the fingers. The grid rounds down to
+     * whole columns and [updateSize] reflows only when that count actually
+     * changes, so the sizes between two grid changes cost a repaint and
+     * nothing else — which is most of a pinch.
+     *
+     * Not the same path as [zoomTo]: this one is told a size, from Settings or
+     * from a restore, and has no focus point to anchor against.
      *
      * @param textSize the new font size, in density-independent pixels.
      */
-     fun setTextSize(textSize: Int) {
-         mRenderer = TerminalRenderer(textSize, mRenderer?.mTypeface ?: Typeface.MONOSPACE)
-         updateSize()
-     }
+    fun setTextSize(textSize: Float) {
+        if (mRenderer == null) {
+            mRenderer = TerminalRenderer(textSize, Typeface.MONOSPACE)
+        } else {
+            mRenderer!!.updateTextSize(textSize)
+        }
+        updateSize()
+    }
 
-     /**
-      * Override the terminal color scheme (foreground / background / cursor /
-      * indexed colors) from a [Properties] map — e.g. set from a hex color
-      * picker in Settings. Redraws immediately.
-      */
-     fun updateColors(props: Properties) {
+    /** The font size the terminal is drawing at, in sp. */
+    val textSizeSp: Float
+        get() = mRenderer?.mTextSize ?: 0f
+
+    /**
+     * Set the font size outright, keeping the cell under ([focusX], [focusY])
+     * where the fingers are.
+     *
+     * The anchor is what makes a pinch feel attached to the content rather than
+     * to the screen: without it, growing the text pushes the line being read
+     * away from the fingers on every column change, and the reading position
+     * has to be found again after each pinch.
+     *
+     * Takes the target size rather than a factor because a pinch computes it
+     * from where the gesture began (see [mZoomGestureBaseSp]); a factor would
+     * have to be re-derived from a size that was already rounded, which is how
+     * a long gesture ends up somewhere other than where the fingers stopped.
+     *
+     * Called from the touch handler, so it stays cheap: the renderer re-measures
+     * in place, and the reflow in [updateSize] is skipped unless the column
+     * count actually moved.
+     *
+     * A no-op when the size lands on the one already in use. That is what makes
+     * the dead zone safe to re-test per frame in a gesture that never zooms:
+     * every frame computes the same size and every frame costs a comparison.
+     */
+fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
+        if (mEmulator == null || mRenderer == null) return
+        val target = quantiseTextSize(textSizeSp)
+        if (target == mRenderer!!.mTextSize) return
+
+        // The row the focus is on before the change, as an absolute row index
+        // — a top-row offset survives the reflow, a viewport-relative one does
+        // not.
+        val spacingBefore = mRenderer!!.mFontLineSpacing
+        val anchoredRow = mTopRow + if (spacingBefore > 0) (focusY / spacingBefore).toInt() else 0
+
+        mRenderer!!.updateTextSize(target)
+        updateSize()
+
+        // Put that row back under the fingers. The grid is usually shorter after
+        // zooming out, in which case the bottom of the screen is empty and
+        // there is nothing to pin — the clamp covers that, and it also covers
+        // the other direction: a row index cannot be pushed past the live edge
+        // without the terminal scrolling off its own output.
+        val spacingAfter = mRenderer!!.mFontLineSpacing
+        if (spacingAfter > 0) {
+            val screenRowUnderFocus = (focusY / spacingAfter).toInt()
+            mTopRow = (anchoredRow - screenRowUnderFocus)
+                .coerceIn(-mEmulator!!.getScreen().activeTranscriptRows, 0)
+        }
+        invalidate()
+    }
+
+/**
+     * Return to the configured default size, if we are not already there.
+     *
+     * The one zoom value a pinch cannot reach on purpose: no amount of pinching
+     * gets a user back to the size they started the app with, and making them
+     * remember a number to undo a zoom is not a control.
+     *
+     * The target is the app's default, not the persisted size. After a pinch the
+     * persisted size *is* the pinched one, so resetting to it would do nothing
+     * the moment anyone pinched — which is exactly when a reset is wanted.
+     *
+     * Reports the result as a gesture so the chip appears and the size is
+     * persisted: a double-tap that changed nothing has nothing to persist, and
+     * one that did must not be lost on the next launch.
+     */
+    private fun resetToDefaultSize(focusX: Float, focusY: Float) {
+        if (mEmulator == null) return
+        val target = mClient?.defaultFontSizeSp() ?: TerminalZoom.DEFAULT_SP
+        if (target <= 0f) return
+        if (quantiseTextSize(target) == textSizeSp) return
+        zoomTo(target, focusX, focusY)
+        mClient?.onZoom(textSizeSp, focusX, focusY)
+        mClient?.onZoomEnd(textSizeSp)
+    }
+
+    /**
+     * Round a size to the 0.1sp grid, inside the limits.
+     *
+     * Both halves matter. Rounding alone would let a long gesture accumulate a
+     * float tail (14.300000000000001) that persists and reloads as a slightly
+     * different number; the clamp alone would leave the tail in the value the
+     * chip showed and the user had seen.
+     *
+     * Re-clamped after rounding. Both limits are whole tenths today, so that is
+     * belt-and-braces — but the day one is not, a value just outside could round
+     * inside while a value just inside rounds out, and then the chip could show
+     * a size the terminal will not draw.
+     */
+    private fun quantiseTextSize(value: Float): Float {
+        val clamped = value.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
+        val steps = Math.round(clamped / TerminalZoom.STEP_SP)
+        return (steps * TerminalZoom.STEP_SP).coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
+    }
+
+    /**
+     * Override the terminal color scheme (foreground / background / cursor /
+     * indexed colors) from a [Properties] map — e.g. set from a hex color
+     * picker in Settings. Redraws immediately.
+     */
+    fun updateColors(props: Properties) {
          val colors = mEmulator?.mColors
          if (colors != null) {
              TerminalColors.COLOR_SCHEME.updateWith(props)
@@ -812,7 +1006,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
      * the Termux default so a font arriving first still draws.
      */
     fun setTypeface(newTypeface: Typeface) {
-        mRenderer = TerminalRenderer(mRenderer?.mTextSize ?: DEFAULT_TEXT_SIZE, newTypeface)
+        mRenderer = TerminalRenderer(mRenderer?.mTextSize ?: DEFAULT_TEXT_SIZE.toFloat(), newTypeface)
         updateSize()
         invalidate()
     }

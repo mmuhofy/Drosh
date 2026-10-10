@@ -13,9 +13,34 @@ import com.termux.terminal.TerminalSession
 interface TerminalViewClient {
 
     /**
-     * Callback function on scale events according to [android.view.ScaleGestureDetector.getScaleFactor].
+     * The terminal font size a double-tap returns to.
+     *
+     * Asked of the client rather than hard-coded, so the reset target can follow
+     * the app rather than a constant baked into a vendored view. It is the app's
+     * default — not the current size: after a pinch, the current size is whatever
+     * the pinch produced, and a reset to that would do nothing.
      */
-    fun onScale(scale: Float): Float
+    fun defaultFontSizeSp(): Float
+
+    /**
+     * Called on every frame of a pinch, with the size the terminal has settled
+     * on and the point the fingers are centred on.
+     *
+     * A notification, not a request: the view has already applied the size. What
+     * the client does with it is display-only work — a size chip, a preview —
+     * because the alternative (routing the size back through a flow) makes a
+     * 60 Hz gesture drive recomposition of the whole screen.
+     */
+    fun onZoom(textSizeSp: Float, focusX: Float, focusY: Float)
+
+    /**
+     * Called once when the fingers lift, with the size to keep.
+     *
+     * This is the only point at which a zoom is worth persisting: writing on
+     * every frame would be a storage write per 16ms, for a value that is still
+     * changing.
+     */
+    fun onZoomEnd(textSizeSp: Float)
 
     /**
      * On a single tap on the terminal if terminal mouse reporting not enabled.

@@ -10,6 +10,7 @@ import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.terminal.TerminalZoom
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -67,8 +68,8 @@ class SettingsViewModel @Inject constructor(
 
     // ── Font size ─────────────────────────────────────────────────────────────
 
-    val fontSizeSp: StateFlow<Int> = settings.fontSizeSp
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 14)
+    val fontSizeSp: StateFlow<Float> = settings.fontSizeSp
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalZoom.DEFAULT_SP)
 
     // ── Colors ────────────────────────────────────────────────────────────────
 
@@ -111,8 +112,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setExtraKeysBarVisible(visible) }
     }
 
-    fun setFontSize(size: Int) {
-        viewModelScope.launch { settings.setFontSize(size) }
+    fun setFontSize(size: Float) {
+        viewModelScope.launch {
+            settings.setFontSize(size.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP))
+        }
     }
 
     fun setTerminalBgColor(hex: String) {

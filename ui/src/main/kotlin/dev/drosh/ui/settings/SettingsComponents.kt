@@ -75,6 +75,7 @@ import dev.drosh.design.system.LocalFontSet
 import androidx.compose.ui.graphics.Color
 import coil3.compose.AsyncImage
 import dev.drosh.domain.session.DeviceIdentity
+import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.session.DeviceBadge
 
@@ -387,7 +388,7 @@ fun CursorSegmentedControl(
 fun TerminalPreviewCard(
     cursorStyle: String = "Block",
     cursorBlinkRateMs: Int = 500,
-    fontSizeSp: Int = 14,
+    fontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     useBlockEngine: Boolean = true,
 ) {
     val lines = listOf(
@@ -482,7 +483,7 @@ fun TerminalPreviewCard(
 }
 
 @Composable
-fun BlinkingCursor(visible: Boolean, rateMs: Int, style: String, fontSizeSp: Int) {
+fun BlinkingCursor(visible: Boolean, rateMs: Int, style: String, fontSizeSp: Float) {
     if (visible) {
         var isVisible by remember { mutableStateOf(true) }
         LaunchedEffect(rateMs, style) {

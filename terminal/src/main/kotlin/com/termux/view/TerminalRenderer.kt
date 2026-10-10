@@ -13,38 +13,62 @@ import com.termux.terminal.WcWidth
 /**
  * Renderer of a [TerminalEmulator] into a [Canvas].
  *
- * Saves font metrics, so needs to be recreated each time the typeface or font size changes.
+ * Font metrics are recomputed by [updateTextSize] rather than by building a new
+ * renderer: a pinch that follows the fingers re-measures every glyph width on
+ * every frame, and allocating a renderer per frame is what made zooming stutter.
+ * Everything the size change invalidates is therefore mutable — behind private
+ * setters, since only [measureFont] may write them — and the paint is kept; only
+ * a typeface change needs a fresh renderer.
  */
 class TerminalRenderer(
-    @JvmField val mTextSize: Int,
+    /**
+     * Font size in sp.
+     *
+     * Written only through [updateTextSize]; a caller that sets it directly
+     * desynchronises every measured value below, which is why the metrics are
+     * behind private setters and this one is not.
+     */
+    var mTextSize: Float,
     @JvmField val mTypeface: Typeface
 ) {
     private val mTextPaint = Paint()
 
-    /** The width of a single mono spaced character obtained by [Paint.measureText] on a single 'X'. */
-    @JvmField
-    val mFontWidth: Float
+    /**
+     * The width of a single mono spaced character obtained by [Paint.measureText]
+     * on a single 'X'.
+     *
+     * No `@JvmField`: a private setter is a custom accessor, and `@JvmField`
+     * cannot be combined with one. Every consumer is Kotlin, so the property
+     * accessor is not a cost — and the private setter is what stops a caller
+     * from setting a width that was never measured.
+     */
+    var mFontWidth: Float = 0f
+        private set
 
     /** The [Paint.getFontSpacing]. See http://www.fampennings.nl/maarten/android/08numgrid/font.png */
-    @JvmField
-    val mFontLineSpacing: Int
+    var mFontLineSpacing: Int = 0
+        private set
 
     /** The [Paint.ascent]. See http://www.fampennings.nl/maarten/android/08numgrid/font.png */
-    private val mFontAscent: Int
+    private var mFontAscent: Int = 0
 
     /** The [mFontLineSpacing] + [mFontAscent]. */
-    @JvmField
-    val mFontLineSpacingAndAscent: Int
+    var mFontLineSpacingAndAscent: Int = 0
+        private set
 
     private val asciiMeasures = FloatArray(127)
 
-    /** Backs the text selection block; colour comes from the palette each frame. */
-
-
-    init {
+    /**
+     * Measure at [mTextSize], in place.
+     *
+     * Called from the constructor and again from [updateTextSize]; there is
+     * nothing to preserve across a size change, because the only state is the
+     * size itself and the typeface, which does not move.
+     */
+    private fun measureFont() {
         mTextPaint.typeface = mTypeface
         mTextPaint.isAntiAlias = true
-        mTextPaint.textSize = mTextSize.toFloat()
+        mTextPaint.textSize = mTextSize
 
         mFontLineSpacing = Math.ceil(mTextPaint.fontSpacing.toDouble()).toInt()
         mFontAscent = Math.ceil(mTextPaint.ascent().toDouble()).toInt()
@@ -56,6 +80,22 @@ class TerminalRenderer(
             sb.setCharAt(0, i.toChar())
             asciiMeasures[i] = mTextPaint.measureText(sb, 0, 1)
         }
+    }
+
+    init {
+        measureFont()
+    }
+
+    /**
+     * Re-measure for [newTextSize] without allocating a renderer.
+     *
+     * A pinch emits a scale event per frame, so this is the difference between
+     * zooming at frame rate and zooming in visible steps.
+     */
+    fun updateTextSize(newTextSize: Float) {
+        if (newTextSize == mTextSize) return
+        mTextSize = newTextSize
+        measureFont()
     }
 
     /** Render the terminal to a canvas with at a specified row scroll, and an optional rectangular selection. */

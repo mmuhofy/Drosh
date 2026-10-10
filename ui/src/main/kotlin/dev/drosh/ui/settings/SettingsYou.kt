@@ -387,6 +387,11 @@ fun <T> SettingsSegmented(
  *
  * [steps] gives evenly spaced detents across the range. The value is
  * quantised to the nearest one, and the drawn handle eases toward it.
+ *
+ * [steps] counts the *interior* detents — the range is divided into steps + 1
+ * intervals, matching `Slider`'s own convention. A large count is fine here: the
+ * handle position is animated rather than snapped, so hundreds of detents read
+ * as a continuous scale instead of a coarse one.
  */
 @Composable
 fun SettingsSlider(

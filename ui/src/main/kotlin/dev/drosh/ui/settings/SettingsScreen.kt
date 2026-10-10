@@ -37,12 +37,23 @@ import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.ThemeMode
+import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.session.DeviceBadge
 import dev.drosh.ui.session.DeviceIdentityViewModel
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 private val GROUP_GAP = 22.dp
+
+/**
+ * Detents on the font-size slider, so it lands on the same 0.1sp grid the pinch
+ * does: (MAX - MIN) / STEP - 1, i.e. every step but the two endpoints. Deriving
+ * it from [TerminalZoom] is the point — a hard-coded count silently stops
+ * matching the pinch the moment either limit or the step changes.
+ */
+private val FONT_SIZE_DETENTS: Int =
+    ((TerminalZoom.MAX_SP - TerminalZoom.MIN_SP) / TerminalZoom.STEP_SP).toInt() - 1
 
 /** Content clearance for the system bar, without insetting the background. */
 @Composable
@@ -74,7 +85,7 @@ fun SettingsScreen(
     val fontPack          by viewModel.fontPack.collectAsStateWithLifecycle(FontPack.Geist)
     val locale            by viewModel.locale.collectAsStateWithLifecycle("")
     val useBlockEngine    by viewModel.useBlockEngine.collectAsStateWithLifecycle(false)
-    val fontSizeSp        by viewModel.fontSizeSp.collectAsStateWithLifecycle(14)
+    val fontSizeSp        by viewModel.fontSizeSp.collectAsStateWithLifecycle(TerminalZoom.DEFAULT_SP)
     val prootStartCommand by viewModel.prootStartCommand.collectAsStateWithLifecycle("")
     val isPinLockEnabled  by viewModel.isPinLockEnabled.collectAsStateWithLifecycle(false)
     val cursorBlinkRateMs by viewModel.cursorBlinkRateMs.collectAsStateWithLifecycle(500)
@@ -205,13 +216,29 @@ fun SettingsScreen(
                         stacked = true,
                         title = stringResource(R.string.settings_font_size),
                         icon = DroshIcons.Resize,
-                        supporting = stringResource(R.string.settings_font_size_value, fontSizeSp),
+                        // The resource carries the "sp" suffix and takes a
+                        // float, because the value can be fractional: a pinch
+                        // that stops at 14.3sp persisted 14.3sp, and showing
+                        // "14" would claim a precision the terminal does not
+                        // have. Formatted here rather than in the resource so
+                        // the Turkish string does not have to carry a %1$.1f
+                        // and stay in step with this one.
+                        supporting = stringResource(
+                            R.string.settings_font_size_value,
+                            String.format(Locale.US, "%.1f", fontSizeSp),
+                        ),
                     ) {
                         SettingsSlider(
-                            value = fontSizeSp.toFloat(),
-                            onValueChange = { viewModel.setFontSize(it.toInt()) },
-                            valueRange = 8f..24f,
-                            steps = 15,
+                            // The same limits and the same 0.1sp detent as the
+                            // pinch. The slider used to run 8..24 while the
+                            // pinch ran 10..32, so a size set by one gesture
+                            // could not be reproduced by the other, and
+                            // dragging this could land on a size the pinch
+                            // cannot produce.
+                            value = fontSizeSp,
+                            onValueChange = { viewModel.setFontSize(it) },
+                            valueRange = TerminalZoom.MIN_SP..TerminalZoom.MAX_SP,
+                            steps = FONT_SIZE_DETENTS,
                         )
                     }
 
