@@ -77,6 +77,7 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.LocalFontSet
 import dev.drosh.terminal.SearchHighlightOverlay
+import dev.drosh.terminal.TerminalUrlOverlay
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
@@ -1611,26 +1612,41 @@ private fun TerminalViewHost(
                 viewTreeObserver.addOnGlobalLayoutListener(listener)
             }
 
-            val overlay = SearchHighlightOverlay(ctx).apply {
+            // Two overlays, two jobs. Search is a row-local text scan; links
+            // need logical-line grouping across soft-wrapped rows and a press
+            // state. They were one View until that combination crashed the
+            // draw pass, so the link half now lives in TerminalUrlOverlay and
+            // this one stays search-only.
+            val searchOverlay = SearchHighlightOverlay(ctx).apply {
                 terminalView = tv
                 updateQuery(searchQuery)
                 isFocusable = false
                 isFocusableInTouchMode = false
             }
-            tv.searchHighlightOverlay = overlay
+            val urlOverlay = TerminalUrlOverlay(ctx).apply {
+                terminalView = tv
+                // Opening a link is the screen's business — in-app browser,
+                // sheet, whatever — not the overlay's.
+                onLinkClick = onUrlClick
+                isFocusable = false
+                isFocusableInTouchMode = false
+            }
+            tv.searchHighlightOverlay = searchOverlay
+            tv.urlOverlay = urlOverlay
             // Let taps resolve against the overlay's logical lines so a URL the
             // terminal wrapped across rows opens whole.
-            viewClient.urlHighlightOverlay = overlay
+            viewClient.urlOverlay = urlOverlay
             // Feed raw touches to the overlay so a held link can show its
             // surface. Returning false leaves the terminal's own handling intact.
             tv.setOnTouchListener { _, event ->
-                overlay.onTerminalTouch(event)
+                urlOverlay.onTerminalTouch(event)
                 false
             }
 
             frameLayout.addView(tv)
-            frameLayout.addView(overlay)
-            searchOverlayRef.value = overlay
+            frameLayout.addView(searchOverlay)
+            frameLayout.addView(urlOverlay)
+            searchOverlayRef.value = searchOverlay
 
             frameLayout
         },

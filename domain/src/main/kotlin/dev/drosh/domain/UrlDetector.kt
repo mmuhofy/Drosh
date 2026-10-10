@@ -3,7 +3,7 @@ package dev.drosh.domain
 /**
  * Shared URL detection used by both rendering paths:
  *  - block mode, in `ui/block/PromptBlock.kt`
- *  - classic TUI, in `terminal/SearchHighlightOverlay.kt` plus the tap handler
+ *  - classic TUI, in `terminal/TerminalUrlOverlay.kt` plus the tap handler
  *    in `terminal/TerminalViewClientImpl.kt`
  *
  * Strategy is deliberately lexical rather than grammatical. A URL is
