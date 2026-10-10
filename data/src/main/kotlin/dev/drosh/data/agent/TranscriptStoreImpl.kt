@@ -10,6 +10,7 @@ import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.domain.agent.assembleModelHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,6 +28,13 @@ import javax.inject.Singleton
 class TranscriptStoreImpl @Inject constructor(
     private val dao: AgentMessageDao,
 ) : TranscriptStore {
+
+    /**
+     * Lenient by default: a column written by an older build, or truncated by a
+     * crash, must read back as "arguments unknown" rather than throwing and
+     * taking the whole transcript down with it.
+     */
+    private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun load(chatId: String): List<ChatMessage> = withContext(Dispatchers.IO) {
         dao.load(chatId).mapNotNull { it.toMessage() }

@@ -39,6 +39,11 @@ sealed interface ChatMessage {
         val state: ToolCallState,
         /** Live output, newest last. Capped by the caller. */
         val output: List<String> = emptyList(),
+        /** Final output after the tool finished; null while running. */
+        val finalOutput: String? = null,
+        /** Set when the result was clipped before reaching the model. */
+        val truncated: Boolean = false,
+        val durationMs: Long? = null,
         /**
          * The arguments the model sent for this call, as JSON.
          *
@@ -47,13 +52,11 @@ sealed interface ChatMessage {
          * could be the answer to, and every provider rejects that pairing.
          * Empty when the row predates the column, or was written before the
          * call had any arguments to speak of.
+         *
+         * Last, and defaulted, so a positional call site keeps meaning what it
+         * meant before this field existed.
          */
         val arguments: JsonObject = JsonObject(emptyMap()),
-        /** Final output after the tool finished; null while running. */
-        val finalOutput: String? = null,
-        /** Set when the result was clipped before reaching the model. */
-        val truncated: Boolean = false,
-        val durationMs: Long? = null,
         /**
          * The checklist, when this call was `update_todo`.
          *
