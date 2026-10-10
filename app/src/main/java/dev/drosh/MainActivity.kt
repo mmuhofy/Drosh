@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.drosh.core.LocaleHelper
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import androidx.core.view.WindowCompat
 import android.os.SystemClock
 import android.view.WindowManager
@@ -234,7 +235,7 @@ class MainActivity : ComponentActivity() {
         sessionManagerAdapter.onUiForegrounded()
         registerKeyboardModeReceiver()
         collectAutoLockPreferences()
-        maybeRelock()
+        lifecycleScope.launch { maybeRelock() }
     }
 
     override fun onStop() {
@@ -256,11 +257,11 @@ class MainActivity : ComponentActivity() {
      * and "Immediately" locks on the way out every time. "Never" holds the
      * window open for as long as it likes.
      */
-    private fun maybeRelock() {
+    private suspend fun maybeRelock() {
         if (backgroundedAt == 0L) return
         val away = SystemClock.elapsedRealtime() - backgroundedAt
         backgroundedAt = 0L
-        if (pinLock.isEnabled.value != true) return
+        if (!pinLock.isEnabled.first()) return
         if (away >= autoLockTimeoutMs) locked.value = true
     }
 
