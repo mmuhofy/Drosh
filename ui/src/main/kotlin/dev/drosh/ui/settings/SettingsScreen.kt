@@ -235,6 +235,11 @@ fun SettingsScreen(
                             // could not be reproduced by the other, and
                             // dragging this could land on a size the pinch
                             // cannot produce.
+                            //
+                            // A *default* rather than the live size: it is what
+                            // a session opens at, and a pinch after that moves
+                            // the session it happened in without rewriting the
+                            // default underneath the next one.
                             value = fontSizeSp,
                             onValueChange = { viewModel.setFontSize(it) },
                             valueRange = TerminalZoom.MIN_SP..TerminalZoom.MAX_SP,
@@ -253,11 +258,11 @@ fun SettingsScreen(
                         SettingsSlider(
                             value = cursorBlinkRateMs.toFloat(),
                             onValueChange = { viewModel.setCursorBlinkRateMs(it.toInt()) },
-                            // The vendored view's own window - 100..2000ms -
+                            // The vendored view's own window — 100..2000ms —
                             // with 0 as the off position below it. The slider
                             // used to stop at 1200, so the top fifth of what
                             // the blinker accepts could not be reached from
-                            // here.
+                            // here, and a 0 write was the only way to stop it.
                             valueRange = 0f..2000f,
                             steps = 19,
                         )

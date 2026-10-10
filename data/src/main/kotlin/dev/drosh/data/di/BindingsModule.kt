@@ -16,7 +16,6 @@ import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
 import dev.drosh.data.settings.FirstLaunchRepositoryImpl
 import dev.drosh.data.settings.SettingsRepositoryImpl
-import dev.drosh.data.settings.TerminalFontSizeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
@@ -45,7 +44,6 @@ import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.PaneLayoutRepository
-import dev.drosh.domain.terminal.SetTerminalFontSizeUseCase
 import dev.drosh.domain.terminal.SubmitBlockCommandUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.domain.workspace.WorkspaceRepository
@@ -93,12 +91,6 @@ abstract class BindingsModule {
     abstract fun bindObserveFirstLaunch(
         impl: FirstLaunchRepositoryImpl,
     ): ObserveFirstLaunchUseCase
-
-    @Binds
-    @Singleton
-    abstract fun bindSetTerminalFontSize(
-        impl: TerminalFontSizeRepositoryImpl,
-    ): SetTerminalFontSizeUseCase
 
     @Binds
     @Singleton
