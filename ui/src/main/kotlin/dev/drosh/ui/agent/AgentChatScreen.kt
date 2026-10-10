@@ -73,7 +73,6 @@ import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshSurfaceLow
-import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshSuccess
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
@@ -109,6 +108,7 @@ import dev.drosh.ui.agent.components.AgentPill
 import dev.drosh.ui.agent.components.AgentSelectableText
 import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.LocalAgentGlass
+import dev.drosh.ui.agent.components.glassRow
 import dev.drosh.ui.agent.components.glassSurface
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.agentGlassStyle
@@ -1359,8 +1359,7 @@ private fun ApprovalBlock(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DroshSurfaceLow)
+            .glassRow(RoundedCornerShape(16.dp))
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1591,8 +1590,7 @@ private fun QuestionControls(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(DroshSurfaceVariant)
+                .glassRow(RoundedCornerShape(12.dp), raised = true)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
             if (reply.isEmpty()) {
@@ -1642,8 +1640,7 @@ private fun ChoiceRow(option: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(11.dp))
-            .background(DroshSurfaceVariant)
+            .glassRow(RoundedCornerShape(11.dp), raised = true)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 11.dp)
             .semantics { contentDescription = option },

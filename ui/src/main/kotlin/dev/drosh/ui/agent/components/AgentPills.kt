@@ -5,8 +5,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.foundation.border
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -52,6 +55,8 @@ import dev.chrisbanes.haze.rememberHazeState
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurfaceHigh
+import dev.drosh.design.system.DroshSurfaceLow
+import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.ui.DroshIcons
@@ -194,8 +199,8 @@ fun ProvideAgentGlass(glass: AgentGlass, content: @Composable () -> Unit) {
  * A flat translucent colour reads as a grey chip. Apple's glass reads as glass
  * because it has depth: it is lighter where the light would catch it and darker
  * where it would fall away, and it has an edge that separates it from whatever is
- * behind. A vertical gradient at 13%→6% white gives the first; a 1dp border at
- * 9% gives the second.
+ * behind. A vertical gradient at 13%→6% white gives the first; [glassEdge] gives
+ * the second.
  *
  * ## The inner reflection
  *
@@ -239,17 +244,18 @@ fun Modifier.glassSurface(
         )
     }
 
-    val edge = if (primary) {
-        Color.White.copy(alpha = 0.16f)
-    } else {
-        Color.White.copy(alpha = if (pressed) 0.15f else 0.09f)
-    }
-
     return this
         .clip(shape)
         .then(blur)
         .background(fill)
-        .border(1.dp, edge, shape)
+        .glassEdge(
+            shape = shape,
+            strength = when {
+                primary -> 0.6f
+                pressed -> 1.35f
+                else -> 1f
+            },
+        )
         .drawWithContent {
             drawContent()
             if (!primary) {
@@ -265,6 +271,71 @@ fun Modifier.glassSurface(
             }
         }
 }
+
+/**
+ * The light on the glass edge, as (position, alpha) along the top-left -> bottom-right
+ * diagonal. Same stops as the terminal top bar, so both screens carry one edge.
+ *
+ * Bright at the top-left crest, nearly gone through the middle, a softer second
+ * catch at the bottom-right. The floor is never 0: a little rim all the way round
+ * keeps the silhouette readable on a bright transcript.
+ */
+private val GLASS_EDGE_STOPS = arrayOf(
+    0.00f to 0.42f,
+    0.30f to 0.14f,
+    0.50f to 0.09f,
+    0.70f to 0.14f,
+    1.00f to 0.30f,
+)
+
+/**
+ * A fake liquid-glass edge: a diagonal gradient stroke that follows [shape].
+ *
+ * It strokes the shape's own outline at double width and clips to the shape, which
+ * leaves exactly [width] inside -- so it cannot disagree with the clip, whatever
+ * the shape is. Drawn after the content so nothing opaque inside can cover it.
+ *
+ * [strength] scales every stop: quiet rows use under 1, a pressed control more.
+ */
+fun Modifier.glassEdge(
+    shape: Shape,
+    width: Dp = 1.dp,
+    strength: Float = 1f,
+): Modifier = this
+    .clip(shape)
+    .drawWithCache {
+        val strokePx = width.toPx()
+        val outline = shape.createOutline(size, layoutDirection, this)
+        val brush = Brush.linearGradient(
+            colorStops = Array(GLASS_EDGE_STOPS.size) { i ->
+                GLASS_EDGE_STOPS[i].first to
+                    Color.White.copy(alpha = (GLASS_EDGE_STOPS[i].second * strength).coerceIn(0f, 1f))
+            },
+            start = Offset.Zero,
+            end = Offset(size.width, size.height),
+        )
+        onDrawWithContent {
+            drawContent()
+            if (strokePx > 0f) {
+                drawOutline(outline, brush, style = Stroke(width = strokePx * 2f))
+            }
+        }
+    }
+
+/**
+ * A list row / card surface with the same edge as the pills, but no blur.
+ *
+ * For things that sit in a sheet or in the flow rather than floating over the
+ * transcript: they do not need a backdrop, only to read as the same material.
+ * [raised] is the lifted fill (a selected row, a choice, an input); the edge is
+ * quieter on a resting row so a long list does not become a stack of outlines.
+ *
+ * Clip first, so a ripple or [clickable] after this stays inside the shape.
+ */
+fun Modifier.glassRow(shape: Shape, raised: Boolean = false): Modifier = this
+    .clip(shape)
+    .background(if (raised) DroshSurfaceVariant else DroshSurfaceLow)
+    .glassEdge(shape, strength = if (raised) 0.9f else 0.55f)
 
 /**
  * `clickable` with the ripple suppressed, wired to a supplied interaction source.

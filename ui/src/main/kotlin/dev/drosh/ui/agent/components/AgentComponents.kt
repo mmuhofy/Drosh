@@ -40,8 +40,6 @@ import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.DroshSurfaceLow
-import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.LocalFontSet
@@ -128,6 +126,7 @@ fun ActionButton(
             } else {
                 DroshSurfaceHigh
             })
+            .glassEdge(RoundedCornerShape(11.dp), strength = if (enabled) 0.6f else 0.8f)
             .clickable(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = text },
         contentAlignment = Alignment.Center,
@@ -158,6 +157,7 @@ fun FlatButton(
             .heightIn(min = BUTTON_HEIGHT)
             .clip(RoundedCornerShape(11.dp))
             .background(DroshSurfaceHigh)
+            .glassEdge(RoundedCornerShape(11.dp))
             .clickable(onClick = onClick)
             .semantics { contentDescription = text },
         contentAlignment = Alignment.Center,
@@ -215,8 +215,7 @@ fun CollapsibleRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(DroshSurfaceLow),
+            .glassRow(RoundedCornerShape(12.dp)),
     ) {
         Row(
             modifier = Modifier
@@ -293,8 +292,7 @@ fun MonoBlock(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(max = maxHeight)
-            .clip(RoundedCornerShape(8.dp))
-            .background(DroshSurfaceVariant)
+            .glassRow(RoundedCornerShape(8.dp), raised = true)
             .padding(10.dp),
     ) {
         Text(
