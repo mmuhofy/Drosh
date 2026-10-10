@@ -1,9 +1,14 @@
 package dev.drosh
 
+import android.app.Activity
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.drosh.core.LocaleHelper
+import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.DroshText
+import dev.drosh.design.system.DroshSurfaceVariant
+import dev.drosh.design.system.DroshPrimary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import androidx.core.view.WindowCompat
@@ -14,7 +19,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -236,6 +245,12 @@ class MainActivity : ComponentActivity() {
         registerKeyboardModeReceiver()
         collectAutoLockPreferences()
         lifecycleScope.launch {
+            // Re-read the settings file on every resume. The file lives where
+            // a shell can edit it, and a FileObserver is not something to
+            // trust alone: an edit made while the app was away, or in a
+            // directory that only appeared later, would otherwise sit
+            // unnoticed until the next write from here.
+            settingsStore.reload()
             // With the lock off there is nothing to ask, and a stale locked
             // value from an earlier enable must not outlive the disabling.
             if (pinLock.isEnabled.first()) maybeRelock() else locked.value = false
@@ -407,6 +422,30 @@ class MainActivity : ComponentActivity() {
                 onCancel = { finish() },
             )
             return
+        }
+
+        // The settings file was edited while the app was running — by a shell,
+        // a script or the agent. The new values are already live, but some of
+        // them (shell, rootfs, the editor) are only read at the moment they
+        // are used, and a restart is the honest thing to offer.
+        val externalEdit by settingsStore.changedExternally.collectAsStateWithLifecycle()
+        if (externalEdit) {
+            AlertDialog(
+                onDismissRequest = { settingsStore.acknowledgeExternalChange() },
+                containerColor = DroshSurfaceVariant,
+                title = { Text(stringResource(R.string.settings_external_title), color = DroshText) },
+                text = { Text(stringResource(R.string.settings_external_body), color = DroshTextSecondary) },
+                confirmButton = {
+                    TextButton(onClick = { restartApp() }) {
+                        Text(stringResource(R.string.settings_external_restart), color = DroshPrimary)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { settingsStore.acknowledgeExternalChange() }) {
+                        Text(stringResource(R.string.settings_external_ok), color = DroshTextSecondary)
+                    }
+                },
+            )
         }
 
         val navController = rememberNavController()
@@ -614,6 +653,21 @@ private fun NavHostController.returnToTerminal() {
 }
 
 private const val TERMINAL_ROUTE = "terminal"
+
+/**
+ * Starts the app again from its launcher intent.
+ *
+ * A fresh task rather than `recreate()`: the point of the restart is that
+ * everything reads its settings from the beginning, and a recreated activity
+ * shares its singletons with the run that is being left behind.
+ */
+private fun Activity.restartApp() {
+    val intent = packageManager.getLaunchIntentForPackage(packageName)
+        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ?: return
+    finishAffinity()
+    startActivity(intent)
+}
 
 /**
  * Opens the editor for a guest path.

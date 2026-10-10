@@ -39,4 +39,9 @@
     <string name="settings_back_content_description">Geri</string>
     <string name="pin_entry_title">PIN Belirle</string>
     <string name="pin_entry_subtitle">Yeni 4 haneli bir PIN girin</string>
+
+    <string name="settings_external_title">Ayarlar değişti</string>
+    <string name="settings_external_body">settings.toml uygulamanın dışında düzenlendi. Yeni değerler canlı olarak uygulandı; bazılarının tam olarak etkin olması için yeniden başlatma gerekir.</string>
+    <string name="settings_external_restart">Yeniden başlat</string>
+    <string name="settings_external_ok">Tamam</string>
 </resources>

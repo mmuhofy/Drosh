@@ -71,7 +71,25 @@ class TomlSettingsStore @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private var observer: FileObserver? = null
+    /** Every watcher, so none of them is collectable while still running. */
+    private val observers = mutableListOf<FileObserver>()
+
+    /** Which directories already have a watcher, so none is registered twice. */
+    private val watchedDirs = mutableSetOf<String>()
+
+    /**
+     * Set when a reload found values that did not come from this process's
+     * own write — a shell, a script or the agent edited the file. Sticky
+     * until the UI acknowledges it, because the edit is the kind of thing
+     * that deserves a sentence rather than a silent swap.
+     */
+    private val _changedExternally = MutableStateFlow(false)
+    val changedExternally: StateFlow<Boolean> = _changedExternally.asStateFlow()
+
+    /** Acknowledges an external edit; the dialog calls it when dismissed. */
+    fun acknowledgeExternalChange() {
+        _changedExternally.value = false
+    }
 
     init {
         // Synchronous on purpose: MainActivity's attachBaseContext, the
@@ -101,12 +119,17 @@ class TomlSettingsStore @Inject constructor(
     }
 
     override suspend fun reload() {
+        // A reload is also the cheapest place to notice a directory that has
+        // appeared since startup - the resume path runs this on every
+        // onStart.
+        watch()
         val read = withContext(Dispatchers.IO) { readFile() }
         val parsed = read?.let { runCatching { TomlDocument.parse(it) }.getOrNull() }
             ?: return
         val next = DroshSettingsToml.fromDocument(parsed)
         if (next != _settings.value) {
             _settings.value = next
+            _changedExternally.value = true
             Timber.i("settings: file changed outside the app, reloaded")
         }
     }
@@ -224,6 +247,8 @@ class TomlSettingsStore @Inject constructor(
         val text = SETTINGS_FILE_HEADER + "\n\n" + DroshSettingsToml.toDocument(settings).render()
         val primaryOk = writeAtomically(paths.primaryFile, text)
         val backupOk = writeAtomically(paths.backupFile, text)
+        // The write may have just created the directory it wrote into.
+        watch()
         return primaryOk && backupOk
     }
 
@@ -258,16 +283,19 @@ class TomlSettingsStore @Inject constructor(
     }
 
     /**
-     * Watches [dir] for writes to `settings.toml`.
+     * Watches [dir] for writes to `settings.toml`, once.
      *
-     * Two observers rather than one on a common ancestor: the rootfs copy and
-     * the backup can live far enough apart that a single watch on a shared
-     * parent would miss both, and the file name is the only event worth
-     * waking for — the directory holds nothing else.
+     * Every watcher is kept in [observers]: a FileObserver nobody holds a
+     * reference to can be finalised while its native watch is still armed,
+     * and the one watcher this used to keep was the second one registered —
+     * the rootfs copy, the one a shell actually edits, was the one left
+     * unheld. Called again after every write and reload so a directory that
+     * did not exist yet (a rootfs that finished installing, a backup
+     * directory created by the first write) gets one when it appears.
      */
     private fun watchDirectory(dir: File?) {
         val path = dir?.path ?: return
-        if (!dir.exists()) return
+        if (!dir.exists() || path in watchedDirs) return
         // The String overload, not the File one: the File constructor is
         // API 29 and minSdk is 26, and the path is all either one is given.
         val watcher = object : FileObserver(path, CLOSE_WRITE or MOVED_TO or CREATE) {
@@ -277,7 +305,8 @@ class TomlSettingsStore @Inject constructor(
             }
         }
         watcher.startWatching()
-        observer = watcher
+        observers += watcher
+        watchedDirs += path
     }
 
     /** Legacy DataStore keys — read once, by [migrateFromLegacyDataStore]. */
