@@ -213,7 +213,7 @@ fun ThemeStoreScreen(
             title = stringResource(R.string.settings_theme_from_url),
             initial = "",
             placeholder = "https://example.com/theme.toml",
-            onDismiss = { viewModel.urlDialogOpen = false },
+            onDismiss = { viewModel.dismissUrlInstall() },
             onConfirm = { url ->
                 viewModel.dismissUrlInstall()
                 viewModel.installFromUrl(url)

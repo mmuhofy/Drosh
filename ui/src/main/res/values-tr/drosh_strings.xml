@@ -210,4 +210,5 @@
     <string name="settings_background_opacity_value">%1$d%%</string>
     <string name="settings_content_padding">İçerik boşluğu</string>
     <string name="settings_content_padding_value">%1$ddp</string>
+    <string name="settings_section_custom">Özel</string>
 </resources>

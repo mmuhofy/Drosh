@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.drosh.domain.settings.DroshTheme
-import dev.drosh.domain.settings.DroshTheme
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.ThemeIndexEntry
 import dev.drosh.domain.settings.ThemeRepository
