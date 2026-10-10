@@ -351,6 +351,22 @@ class TerminalEmulator(
 
     fun getCursorRow(): Int = mCursorRow
     fun getCursorCol(): Int = mCursorCol
+
+    /**
+     * Moves the cursor to a screen cell, 0-based.
+     *
+     * Used by the mouse pad when no application has mouse tracking enabled:
+     * a click then means "put the cursor here" instead of "send a mouse
+     * event nobody listens to". The shell's own line editor keeps its own
+     * position and repaints on the next keystroke, so this is a visual
+     * placement that the next output re-syncs.
+     */
+    fun setCursorPosition(col: Int, row: Int) {
+        if (mTermSession == null) return
+        mCursorCol = col.coerceIn(0, mColumns - 1)
+        mCursorRow = row.coerceIn(0, mRows - 1)
+    }
+
     fun getCursorStyle(): Int = mCursorStyle
 
     fun setCursorStyle() {
