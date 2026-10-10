@@ -1,128 +1,78 @@
-package dev.drosh.data.terminal
+package dev.drosh.data.settings
 
-import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
-import dev.drosh.data.local.irisShellDataStore
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.terminal.NormalizedRect
 import dev.drosh.domain.terminal.PaneLayout
 import dev.drosh.domain.terminal.PaneLayoutRepository
 import dev.drosh.domain.terminal.PanePresentation
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
-import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * DataStore-backed [PaneLayoutRepository].
+ * TOML-backed [PaneLayoutRepository].
  *
- * Reads never throw: a corrupt or unreadable preferences file yields
- * [PaneLayout.EMPTY], so a bad value costs the user their split arrangement
- * and nothing else. Losing an arrangement is recoverable; a terminal screen
- * that cannot compose is not.
+ * Reads never throw: a value the file cannot offer yields [PaneLayout.EMPTY] —
+ * a stored value that is out of range is clamped through the model's own
+ * mutators, exactly as before, because a zero-width pane is worse than a lost
+ * arrangement.
  *
- * UNTESTED — verify before use in production.
+ * The pane is runtime state, but it is the user's arrangement, so it lives
+ * with the rest of their settings rather than in a store of its own.
  */
 @Singleton
 class PaneLayoutRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+    private val store: SettingsStore,
 ) : PaneLayoutRepository {
 
-    private val dataStore: DataStore<Preferences> = context.irisShellDataStore
-
-    override val layout: Flow<PaneLayout> = dataStore.data
-        .catch { cause ->
-            if (cause is IOException) emit(emptyPreferences())
-            else throw cause
-        }
-        .map { prefs -> prefs.toLayout() }
+    override val layout: Flow<PaneLayout> =
+        store.settings.map { it.session.toLayout() }
 
     override suspend fun setLayout(layout: PaneLayout) {
-        dataStore.edit { prefs ->
-            val secondary = layout.secondarySessionId
-            if (secondary == null) {
-                prefs.remove(KEY_SECONDARY_SESSION_ID)
-            } else {
-                prefs[KEY_SECONDARY_SESSION_ID] = secondary
-            }
-            prefs[KEY_SPLIT_FRACTION] = layout.splitFraction
-            prefs[KEY_PRESENTATION] = layout.presentation.name
-            prefs[KEY_FLOAT_LEFT] = layout.floatingBounds.left
-            prefs[KEY_FLOAT_TOP] = layout.floatingBounds.top
-            prefs[KEY_FLOAT_WIDTH] = layout.floatingBounds.width
-            prefs[KEY_FLOAT_HEIGHT] = layout.floatingBounds.height
-            prefs[KEY_MAXIMIZED] = layout.maximized
+        store.update { current ->
+            current.copy(session = current.session.from(layout))
         }
     }
 
     override suspend fun setSplitFraction(fraction: Float) {
-        dataStore.edit { prefs ->
-            prefs[KEY_SPLIT_FRACTION] = fraction
+        store.update { current ->
+            current.copy(session = current.session.copy(splitFraction = fraction))
         }
     }
 
     override suspend fun clear() {
-        dataStore.edit { prefs ->
-            prefs.remove(KEY_SECONDARY_SESSION_ID)
-            prefs.remove(KEY_SPLIT_FRACTION)
-            prefs.remove(KEY_PRESENTATION)
-            prefs.remove(KEY_FLOAT_LEFT)
-            prefs.remove(KEY_FLOAT_TOP)
-            prefs.remove(KEY_FLOAT_WIDTH)
-            prefs.remove(KEY_FLOAT_HEIGHT)
-            prefs.remove(KEY_MAXIMIZED)
+        store.update { current ->
+            current.copy(session = dev.drosh.domain.settings.SessionSettings.DEFAULT)
         }
     }
 
-    /**
-     * Rebuilds a layout from stored keys.
-     *
-     * Built through the model's own mutators rather than by assigning fields,
-     * so a stored value that is out of range — from an older build with
-     * different limits, say — is clamped on the way in instead of rendering as
-     * a zero-width pane.
-     */
-    private fun Preferences.toLayout(): PaneLayout {
-        val secondary = this[KEY_SECONDARY_SESSION_ID]
-        if (secondary.isNullOrBlank()) return PaneLayout.EMPTY
-
-        val presentation = this[KEY_PRESENTATION]
-            ?.let { name ->
-                PanePresentation.entries.firstOrNull { it.name == name }
-            }
-            ?: PanePresentation.DOCKED
-
-        var layout = PaneLayout(secondarySessionId = secondary, presentation = presentation)
-        layout = layout.withSplitFraction(this[KEY_SPLIT_FRACTION] ?: PaneLayout.DEFAULT_SPLIT_FRACTION)
+    private fun dev.drosh.domain.settings.SessionSettings.toLayout(): PaneLayout {
+        if (secondarySessionId.isBlank()) return PaneLayout.EMPTY
+        var layout = PaneLayout(secondarySessionId = secondarySessionId, presentation = presentation)
+        layout = layout.withSplitFraction(splitFraction)
         if (presentation == PanePresentation.FLOATING) {
             val bounds = NormalizedRect(
-                left = this[KEY_FLOAT_LEFT] ?: NormalizedRect.DEFAULT.left,
-                top = this[KEY_FLOAT_TOP] ?: NormalizedRect.DEFAULT.top,
-                width = this[KEY_FLOAT_WIDTH] ?: NormalizedRect.DEFAULT.width,
-                height = this[KEY_FLOAT_HEIGHT] ?: NormalizedRect.DEFAULT.height,
+                left = floatLeft,
+                top = floatTop,
+                width = floatWidth,
+                height = floatHeight,
             )
             layout = layout.withFloatingBounds(bounds)
-            if (this[KEY_MAXIMIZED] == true) layout = layout.toggleMaximized()
+            if (maximized) layout = layout.toggleMaximized()
         }
         return layout
     }
 
-    private companion object {
-        val KEY_SECONDARY_SESSION_ID = stringPreferencesKey("pane_secondary_session_id")
-        val KEY_SPLIT_FRACTION = floatPreferencesKey("pane_split_fraction")
-        val KEY_PRESENTATION = stringPreferencesKey("pane_presentation")
-        val KEY_FLOAT_LEFT = floatPreferencesKey("pane_float_left")
-        val KEY_FLOAT_TOP = floatPreferencesKey("pane_float_top")
-        val KEY_FLOAT_WIDTH = floatPreferencesKey("pane_float_width")
-        val KEY_FLOAT_HEIGHT = floatPreferencesKey("pane_float_height")
-        val KEY_MAXIMIZED = booleanPreferencesKey("pane_maximized")
-    }
+    private fun dev.drosh.domain.settings.SessionSettings.from(layout: PaneLayout): dev.drosh.domain.settings.SessionSettings =
+        copy(
+            secondarySessionId = layout.secondarySessionId ?: "",
+            presentation = layout.presentation,
+            splitFraction = layout.splitFraction,
+            floatLeft = layout.floatingBounds.left,
+            floatTop = layout.floatingBounds.top,
+            floatWidth = layout.floatingBounds.width,
+            floatHeight = layout.floatingBounds.height,
+            maximized = layout.maximized,
+        )
 }

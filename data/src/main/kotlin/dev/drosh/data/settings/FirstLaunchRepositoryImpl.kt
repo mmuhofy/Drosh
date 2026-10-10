@@ -1,39 +1,28 @@
 package dev.drosh.data.settings
 
-import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import dev.drosh.data.local.irisShellDataStore
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * DataStore-backed implementation of [ObserveFirstLaunchUseCase].
+ * TOML-backed [ObserveFirstLaunchUseCase].
  *
- * Persists the boolean under [KEY_FIRST_LAUNCH_COMPLETED]. The UI uses this flag
- * to decide whether to render SetupFlowScreen or jump straight to the terminal.
+ * The flag is a key in the settings file's `[meta]` section like any other —
+ * it used to be a lone DataStore key, which meant the first-launch decision
+ * and the user's preferences could not be migrated together.
  */
 @Singleton
 class FirstLaunchRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+    private val store: SettingsStore,
 ) : ObserveFirstLaunchUseCase {
 
-    private val dataStore: DataStore<Preferences> = context.irisShellDataStore
-
     override fun isCompleted(): Flow<Boolean> =
-        dataStore.data.map { prefs -> prefs[KEY_FIRST_LAUNCH_COMPLETED] ?: false }
+        store.settings.map { it.meta.firstLaunchCompleted }
 
     override suspend fun markCompleted() {
-        dataStore.edit { prefs -> prefs[KEY_FIRST_LAUNCH_COMPLETED] = true }
-    }
-
-    private companion object {
-        val KEY_FIRST_LAUNCH_COMPLETED = booleanPreferencesKey("first_launch_completed")
+        store.update { it.copy(meta = it.meta.copy(firstLaunchCompleted = true)) }
     }
 }

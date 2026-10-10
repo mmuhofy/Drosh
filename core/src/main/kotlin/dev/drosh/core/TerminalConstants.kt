@@ -21,14 +21,4 @@ object TerminalConstants {
     const val OVERLAY_CHANNEL_ID = "dev.drosh_overlay_service"
 
     const val ACTION_STOP_OVERLAY = "dev.drosh.action.STOP_OVERLAY"
-
-    // ── MOTD default text ───────────────────────────────────────────────────────
-
-    /** Default MOTD banner echoed by the shell when mode is PlainText. */
-    val DEFAULT_MOTD_TEXT: String = """
-        ╔══════════════════════════════════════════╗
-        ║        Welcome to Drosh v1.0           ║
-        ║     Your phone is a Unix machine.     ║
-        ╚══════════════════════════════════════════╝
-    """.trimIndent()
 }

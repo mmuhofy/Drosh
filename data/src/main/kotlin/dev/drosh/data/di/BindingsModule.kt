@@ -16,6 +16,7 @@ import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
 import dev.drosh.data.settings.FirstLaunchRepositoryImpl
 import dev.drosh.data.settings.SettingsRepositoryImpl
+import dev.drosh.data.settings.toml.TomlSettingsStore
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
 import dev.drosh.data.terminal.SubmitBlockCommandUseCaseImpl
@@ -139,6 +140,13 @@ abstract class BindingsModule {
     abstract fun bindSettingsRepository(
         impl: SettingsRepositoryImpl,
     ): SettingsRepository
+
+    /** The TOML file behind the facade above. */
+    @Binds
+    @Singleton
+    abstract fun bindSettingsStore(
+        impl: TomlSettingsStore,
+    ): SettingsStore
 
     @Binds
     @Singleton

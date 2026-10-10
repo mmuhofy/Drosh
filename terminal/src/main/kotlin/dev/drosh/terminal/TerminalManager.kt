@@ -14,8 +14,8 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-import dev.drosh.core.TerminalConstants
 import dev.drosh.domain.agent.ToolResult
+import dev.drosh.domain.settings.MotdDefaults
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.PaneSessionBinder
@@ -654,7 +654,7 @@ class TerminalManager(
     private var prootStartCommand: String = ""
 
     private var motdMode: MotdMode = MotdMode.PlainText
-    private var motdText: String = TerminalConstants.DEFAULT_MOTD_TEXT
+    private var motdText: String = MotdDefaults.DEFAULT_MOTD_TEXT
 
     var projectPath: String? = null
 

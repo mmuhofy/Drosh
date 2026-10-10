@@ -1,19 +1,15 @@
 package dev.drosh.data.settings
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
-import dev.drosh.core.TerminalConstants
-import dev.drosh.data.local.irisShellDataStore
 import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.AutoLockTimeout
+import dev.drosh.domain.settings.CursorStyle
+import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.settings.SettingsStore
+import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.ThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -23,117 +19,111 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * DataStore-backed implementation of [SettingsRepository].
+ * [SettingsRepository] as a view over the TOML-backed [SettingsStore].
  *
- * Persists all user preferences under named keys. Defaults match
- * MEMORYBANK.md §5 Visual Identity tokens.
+ * The per-key interface is kept while its consumers are moved to the
+ * snapshot: each flow maps the section it names out of the one store value,
+ * and each setter is a transform over it. Nothing here holds state of its
+ * own, so a key cannot disagree with the file it was read from.
+ *
+ * When the last consumer has moved to [SettingsStore] this facade goes with
+ * it; until then it is the seam that keeps the app working on the new
+ * storage without a flag day.
  */
 @Singleton
 class SettingsRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val store: SettingsStore,
 ) : SettingsRepository {
 
-    private val dataStore: DataStore<Preferences> = context.irisShellDataStore
+    private val settings: Flow<DroshSettings> get() = store.settings
 
-    // ── Block Mode ────────────────────────────────────────────────────────────
-
-    override val themeMode: Flow<ThemeMode> =
-        dataStore.data.map { prefs -> ThemeMode.fromName(prefs[KEY_THEME_MODE]) }
+    override val themeMode: Flow<ThemeMode> = settings.map { it.appearance.themeMode }
 
     override suspend fun setThemeMode(mode: ThemeMode) {
-        dataStore.edit { prefs -> prefs[KEY_THEME_MODE] = mode.name }
+        store.update { it.copy(appearance = it.appearance.copy(themeMode = mode)) }
     }
 
-    override val fontPack: Flow<FontPack> =
-        dataStore.data.map { prefs -> FontPack.fromName(prefs[KEY_FONT_PACK]) }
+    override val fontPack: Flow<FontPack> = settings.map { it.appearance.fontPack }
 
     override suspend fun setFontPack(pack: FontPack) {
-        dataStore.edit { prefs -> prefs[KEY_FONT_PACK] = pack.name }
+        store.update { it.copy(appearance = it.appearance.copy(fontPack = pack)) }
     }
 
     override val useBlockEngine: Flow<Boolean> =
-        dataStore.data.map { prefs -> prefs[KEY_USE_BLOCK_ENGINE] ?: DEFAULT_USE_BLOCK_ENGINE }
+        settings.map { it.terminal.mode == TerminalMode.Blocks }
 
     override suspend fun setUseBlockEngine(enabled: Boolean) {
-        dataStore.edit { prefs -> prefs[KEY_USE_BLOCK_ENGINE] = enabled }
+        store.update {
+            it.copy(
+                terminal = it.terminal.copy(
+                    mode = if (enabled) TerminalMode.Blocks else TerminalMode.Stream,
+                ),
+            )
+        }
     }
 
-    // ── Extra Keys Bar ────────────────────────────────────────────────────────
-
-    override val extraKeysBarVisible: Flow<Boolean> =
-        dataStore.data.map { prefs -> prefs[KEY_EXTRA_KEYS_BAR_VISIBLE] ?: DEFAULT_EXTRA_KEYS_BAR_VISIBLE }
+    override val extraKeysBarVisible: Flow<Boolean> = settings.map { it.input.extraKeysBar }
 
     override suspend fun setExtraKeysBarVisible(visible: Boolean) {
-        dataStore.edit { prefs -> prefs[KEY_EXTRA_KEYS_BAR_VISIBLE] = visible }
+        store.update { it.copy(input = it.input.copy(extraKeysBar = visible)) }
     }
 
-    // ── Font Size ─────────────────────────────────────────────────────────────
-
-    override val fontSizeSp: Flow<Float> =
-        dataStore.data.map { prefs -> prefs[KEY_FONT_SIZE_SP] ?: DEFAULT_FONT_SIZE_SP }
+    override val fontSizeSp: Flow<Float> = settings.map { it.terminal.defaultFontSizeSp }
 
     override suspend fun setFontSize(size: Float) {
-        dataStore.edit { prefs -> prefs[KEY_FONT_SIZE_SP] = size }
+        store.update { it.copy(terminal = it.terminal.copy(defaultFontSizeSp = size)) }
     }
 
-    // ── Terminal Background Color ─────────────────────────────────────────────
-
-    override val terminalBgColor: Flow<String> =
-        dataStore.data.map { prefs -> prefs[KEY_TERMINAL_BG_COLOR] ?: DEFAULT_TERMINAL_BG_COLOR }
+    override val terminalBgColor: Flow<String> = settings.map { it.terminal.background }
 
     override suspend fun setTerminalBgColor(hex: String) {
-        dataStore.edit { prefs -> prefs[KEY_TERMINAL_BG_COLOR] = hex }
+        store.update { it.copy(terminal = it.terminal.copy(background = hex)) }
     }
 
-    // ── Accent Color ──────────────────────────────────────────────────────────
-
-    override val accentColor: Flow<String> =
-        dataStore.data.map { prefs -> prefs[KEY_ACCENT_COLOR] ?: DEFAULT_ACCENT_COLOR }
+    override val accentColor: Flow<String> = settings.map { it.terminal.accent }
 
     override suspend fun setAccentColor(hex: String) {
-        dataStore.edit { prefs -> prefs[KEY_ACCENT_COLOR] = hex }
+        store.update { it.copy(terminal = it.terminal.copy(accent = hex)) }
     }
 
-    // ── Terminal Text Color ───────────────────────────────────────────────────
-
-    override val terminalTextColor: Flow<String> =
-        dataStore.data.map { prefs -> prefs[KEY_TERMINAL_TEXT_COLOR] ?: DEFAULT_TERMINAL_TEXT_COLOR }
+    override val terminalTextColor: Flow<String> = settings.map { it.terminal.foreground }
 
     override suspend fun setTerminalTextColor(hex: String) {
-        dataStore.edit { prefs -> prefs[KEY_TERMINAL_TEXT_COLOR] = hex }
+        store.update { it.copy(terminal = it.terminal.copy(foreground = hex)) }
     }
 
-    // ── PRoot Start Command ─────────────────────────────────────────────────────
-
-    override val prootStartCommand: Flow<String> =
-        dataStore.data.map { prefs -> prefs[KEY_PROOT_START_COMMAND] ?: DEFAULT_PROOT_START_COMMAND }
+    override val prootStartCommand: Flow<String> = settings.map { it.shell.startupCommand }
 
     override suspend fun setProotStartCommand(command: String) {
-        dataStore.edit { prefs -> prefs[KEY_PROOT_START_COMMAND] = command }
+        store.update { it.copy(shell = it.shell.copy(startupCommand = command)) }
     }
 
-    override val cursorStyle: Flow<String> =
-        dataStore.data.map { prefs -> prefs[KEY_CURSOR_STYLE] ?: DEFAULT_CURSOR_STYLE }
+    override val cursorStyle: Flow<String> = settings.map { it.terminal.cursorStyle.name }
 
     override suspend fun setCursorStyle(style: String) {
-        dataStore.edit { prefs -> prefs[KEY_CURSOR_STYLE] = style }
+        store.update {
+            it.copy(
+                terminal = it.terminal.copy(
+                    cursorStyle = CursorStyle.fromString(style),
+                ),
+            )
+        }
     }
 
-    override val cursorBlinkRateMs: Flow<Int> =
-        dataStore.data.map { prefs -> prefs[KEY_CURSOR_BLINK_RATE_MS] ?: DEFAULT_CURSOR_BLINK_RATE_MS }
+    override val cursorBlinkRateMs: Flow<Int> = settings.map { it.terminal.cursorBlinkMs }
 
     override suspend fun setCursorBlinkRateMs(rate: Int) {
-        dataStore.edit { prefs -> prefs[KEY_CURSOR_BLINK_RATE_MS] = rate }
+        store.update { it.copy(terminal = it.terminal.copy(cursorBlinkMs = rate)) }
     }
 
-    override val autoLockTimeout: Flow<String> =
-        dataStore.data.map { prefs -> prefs[KEY_AUTO_LOCK_TIMEOUT] ?: DEFAULT_AUTO_LOCK_TIMEOUT }
+    override val autoLockTimeout: Flow<String> = settings.map { it.security.autoLock.name }
 
     override suspend fun setAutoLockTimeout(timeout: String) {
-        dataStore.edit { prefs -> prefs[KEY_AUTO_LOCK_TIMEOUT] = timeout }
+        store.update { it.copy(security = it.security.copy(autoLock = AutoLockTimeout.fromString(timeout))) }
     }
 
-    // ── App Info (about.json in assets) ─
+    // ── App Info (about.json in assets) ──────────────────────────────────────
 
     private fun jsonProp(text: String, key: String): String =
         Regex("\"$key\"\\s*:\\s*\"([^\"]*)\"").find(text)?.groupValues?.get(1) ?: ""
@@ -145,69 +135,25 @@ class SettingsRepositoryImpl @Inject constructor(
         emit(AboutInfo(jsonProp(text, "version"), jsonProp(text, "build"), jsonProp(text, "license")))
     }
 
-    // ── Locale ───────────────────────────────────────────────────────────
+    // ── Locale ───────────────────────────────────────────────────────────────
 
-    override val locale: Flow<String> = dataStore.data.map { prefs -> prefs[KEY_LOCALE] ?: DEFAULT_LOCALE }
+    override val locale: Flow<String> = settings.map { it.appearance.language }
 
     override suspend fun setLocale(tag: String) {
-        dataStore.edit { prefs -> prefs[KEY_LOCALE] = tag }
+        store.update { it.copy(appearance = it.appearance.copy(language = tag)) }
     }
 
-    // ── MOTD ────────────────────────────────────────────────────────────────────
+    // ── MOTD ─────────────────────────────────────────────────────────────────
 
-    override val motdMode: Flow<MotdMode> =
-        dataStore.data.map { prefs ->
-            MotdMode.fromString(prefs[KEY_MOTD_MODE] ?: DEFAULT_MOTD_MODE)
-        }
+    override val motdMode: Flow<MotdMode> = settings.map { it.shell.motdMode }
 
     override suspend fun setMotdMode(mode: MotdMode) {
-        dataStore.edit { prefs -> prefs[KEY_MOTD_MODE] = mode.name }
+        store.update { it.copy(shell = it.shell.copy(motdMode = mode)) }
     }
 
-    override val motdText: Flow<String> =
-        dataStore.data.map { prefs -> prefs[KEY_MOTD_TEXT] ?: DEFAULT_MOTD_TEXT }
+    override val motdText: Flow<String> = settings.map { it.shell.motdText }
 
     override suspend fun setMotdText(text: String) {
-        dataStore.edit { prefs -> prefs[KEY_MOTD_TEXT] = text }
-    }
-
-    // ── Keys & Defaults ───────────────────────────────────────────────────────
-
-    private companion object {
-        val KEY_THEME_MODE             = stringPreferencesKey("theme_mode")
-        val KEY_FONT_PACK              = stringPreferencesKey("font_pack")
-        val KEY_USE_BLOCK_ENGINE        = booleanPreferencesKey("use_block_engine")
-        val KEY_EXTRA_KEYS_BAR_VISIBLE  = booleanPreferencesKey("extra_keys_bar_visible")
-        // Float, and the same key name as the Int this replaced. DataStore keys
-        // are typed: the Int a previous build wrote is not readable through a
-        // float key, so an install that upgrades falls back to the default once
-        // and keeps a fractional size from then on. Keeping the name means
-        // there is one key to reason about; renaming it would leave the old Int
-        // in storage forever with nothing reading it.
-        val KEY_FONT_SIZE_SP            = floatPreferencesKey("font_size_sp")
-        val KEY_TERMINAL_BG_COLOR       = stringPreferencesKey("terminal_bg_color")
-        val KEY_ACCENT_COLOR            = stringPreferencesKey("accent_color")
-        val KEY_TERMINAL_TEXT_COLOR     = stringPreferencesKey("terminal_text_color")
-        val KEY_PROOT_START_COMMAND     = stringPreferencesKey("proot_start_command")
-        val KEY_CURSOR_STYLE            = stringPreferencesKey("cursor_style")
-        val KEY_CURSOR_BLINK_RATE_MS    = intPreferencesKey("cursor_blink_rate_ms")
-        val KEY_AUTO_LOCK_TIMEOUT       = stringPreferencesKey("auto_lock_timeout")
-        val KEY_LOCALE                  = stringPreferencesKey("locale")
-        val KEY_MOTD_MODE               = stringPreferencesKey("motd_mode")
-        val KEY_MOTD_TEXT               = stringPreferencesKey("motd_text")
-
-        const val DEFAULT_USE_BLOCK_ENGINE       = false
-        const val DEFAULT_EXTRA_KEYS_BAR_VISIBLE = true
-        const val DEFAULT_FONT_SIZE_SP           = 14f
-        const val DEFAULT_TERMINAL_BG_COLOR      = "#000000"
-        const val DEFAULT_ACCENT_COLOR           = "#3B82F6"
-        const val DEFAULT_TERMINAL_TEXT_COLOR    = "#E8E8E8"
-        const val DEFAULT_PROOT_START_COMMAND    = ""
-        const val DEFAULT_CURSOR_STYLE           = "Block"
-        const val DEFAULT_CURSOR_BLINK_RATE_MS   = 500
-        const val DEFAULT_AUTO_LOCK_TIMEOUT      = "Immediately"
-        const val DEFAULT_LOCALE                 = ""
-        const val DEFAULT_MOTD_MODE              = "PlainText"
-        val DEFAULT_MOTD_TEXT                    = TerminalConstants.DEFAULT_MOTD_TEXT
+        store.update { it.copy(shell = it.shell.copy(motdText = text)) }
     }
 }
