@@ -211,4 +211,11 @@
     <string name="settings_content_padding">İçerik boşluğu</string>
     <string name="settings_content_padding_value">%1$ddp</string>
     <string name="settings_section_custom">Özel</string>
+    <string name="settings_background_remove">Arka plan resmini kaldır</string>
+    <string name="settings_background_remove_desc">.drosh içindeki dosyayı sil</string>
+    <string name="settings_background_blur">Bulanıklık</string>
+    <string name="settings_background_blur_off">Kapalı</string>
+    <string name="settings_background_blur_value">Yarıçap %1$d</string>
+    <string name="settings_content_corners">Köşe yarıçapı</string>
+    <string name="settings_content_corners_value">%1$ddp</string>
 </resources>

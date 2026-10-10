@@ -15,6 +15,7 @@ import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
 import dev.drosh.data.settings.FirstLaunchRepositoryImpl
+import dev.drosh.data.settings.BackgroundImageStoreImpl
 import dev.drosh.data.settings.SettingsRepositoryImpl
 import dev.drosh.data.settings.toml.TomlSettingsStore
 import dev.drosh.data.theme.ThemeRepositoryImpl
@@ -41,6 +42,7 @@ import dev.drosh.domain.input.SubmitRawByteUseCase
 import dev.drosh.domain.session.ObserveActiveSessionUseCase
 import dev.drosh.domain.session.DeviceIdentityRepository
 import dev.drosh.domain.session.SessionRepository
+import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.SettingsStore
@@ -156,6 +158,12 @@ abstract class BindingsModule {
     abstract fun bindThemeRepository(
         impl: ThemeRepositoryImpl,
     ): ThemeRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindBackgroundImageStore(
+        impl: BackgroundImageStoreImpl,
+    ): BackgroundImageStore
 
     @Binds
     @Singleton

@@ -80,12 +80,22 @@ fun PinEntryScreen(
     LaunchedEffect(pin) {
         if (pin.length == pinLength) onPinReadyState.value(pin)
     }
-    // A rejected PIN clears itself: the caller raises the error, the digits
-    // leave, and the next attempt starts from an empty row. Without this the
-    // full row sat there refusing input, because nothing could grow past
-    // pinLength to fire the submit again.
+    // The error is shown once and then it is the digits' turn: a rejected PIN
+    // reddens the row and shakes it, and the next keypress clears both. Held
+    // here rather than read straight off the parameter, because the caller's
+    // error is a fact about the last attempt, not a state of the row — and a
+    // row that stays red after the first mistake punishes every attempt after
+    // it with the colour of the one that failed.
+    var errorShowing by remember { mutableStateOf(errorMessage != null) }
     LaunchedEffect(errorMessage) {
-        if (errorMessage != null) pin = ""
+        if (errorMessage != null) {
+            // The digits leave too: with a full row nothing could grow past
+            // pinLength to fire the submit again.
+            pin = ""
+            errorShowing = true
+        } else {
+            errorShowing = false
+        }
     }
 
     Box(
@@ -124,13 +134,13 @@ fun PinEntryScreen(
             PinDotBoxes(
                 pin = pin,
                 length = pinLength,
-                error = errorMessage != null,
+                error = errorShowing,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
             )
 
-            AnimatedVisibility(visible = errorMessage != null) {
+            AnimatedVisibility(visible = errorShowing && errorMessage != null) {
                 Text(
                     text = errorMessage.orEmpty(),
                     color = DroshError,
@@ -144,9 +154,11 @@ fun PinEntryScreen(
 
             PinKeypad(
                 onDigit = { digit ->
+                    errorShowing = false
                     if (pin.length < pinLength) pin += digit
                 },
                 onDelete = {
+                    errorShowing = false
                     if (pin.isNotEmpty()) pin = pin.dropLast(1)
                 },
             )

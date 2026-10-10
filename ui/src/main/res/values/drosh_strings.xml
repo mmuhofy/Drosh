@@ -237,4 +237,11 @@
     <string name="settings_content_padding">Content padding</string>
     <string name="settings_content_padding_value">%1$ddp</string>
     <string name="settings_section_custom">Custom</string>
+    <string name="settings_background_remove">Remove background image</string>
+    <string name="settings_background_remove_desc">Delete the file from .drosh</string>
+    <string name="settings_background_blur">Blur</string>
+    <string name="settings_background_blur_off">Off</string>
+    <string name="settings_background_blur_value">Radius %1$d</string>
+    <string name="settings_content_corners">Corner radius</string>
+    <string name="settings_content_corners_value">%1$ddp</string>
 </resources>

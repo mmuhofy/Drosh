@@ -51,6 +51,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import dev.drosh.ui.LocalDroshActivity
+import java.io.File
+import android.os.Build
 import android.view.WindowManager
 import dev.drosh.domain.UrlDetector
 import androidx.compose.ui.platform.LocalDensity
@@ -381,6 +383,7 @@ private fun ReadyScreen(
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
     val appearance by terminalViewModel.appearance.collectAsState()
+    val backgroundFile by terminalViewModel.backgroundFile.collectAsStateWithLifecycle()
     val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
@@ -754,9 +757,10 @@ private fun ReadyScreen(
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
-                    backgroundImage = appearance.background.imagePath,
+                    backgroundFile = backgroundFile,
                     backgroundOpacity = appearance.background.imageOpacity,
                     contentPaddingDp = appearance.background.contentPaddingDp,
+                    cornerRadiusDp = appearance.background.cornerRadiusDp,
                     dimInactivePanes = appearance.terminal.dimInactivePanes,
                     keepAwake = appearance.terminal.keepAwake,
                     terminalViewModel = terminalViewModel,
@@ -787,9 +791,10 @@ private fun ReadyScreen(
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
-                    backgroundImage = appearance.background.imagePath,
+                    backgroundFile = backgroundFile,
                     backgroundOpacity = appearance.background.imageOpacity,
                     contentPaddingDp = appearance.background.contentPaddingDp,
+                    cornerRadiusDp = appearance.background.cornerRadiusDp,
                     dimInactivePanes = appearance.terminal.dimInactivePanes,
                     keepAwake = appearance.terminal.keepAwake,
                     terminalViewModel = terminalViewModel,
@@ -1289,9 +1294,10 @@ private fun TerminalPaneBody(
     fontSizeSp: Float,
     defaultFontSizeSp: Float,
     colorProps: Properties,
-    backgroundImage: String,
+    backgroundFile: File?,
     backgroundOpacity: Int,
     contentPaddingDp: Int,
+    cornerRadiusDp: Int,
     dimInactivePanes: Boolean,
     keepAwake: Boolean,
     terminalViewModel: TerminalViewModel,
@@ -1421,9 +1427,10 @@ private fun TerminalPaneBody(
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
                     colorProps = colorProps,
-                    backgroundImage = backgroundImage,
+                    backgroundFile = backgroundFile,
                     backgroundOpacity = backgroundOpacity,
                     contentPaddingDp = contentPaddingDp,
+                    cornerRadiusDp = cornerRadiusDp,
                     dimInactivePanes = dimInactivePanes,
                     keepAwake = keepAwake,
                     terminalViewModel = terminalViewModel,
@@ -1456,9 +1463,10 @@ private fun TerminalViewHost(
     fontSizeSp: Float,
     defaultFontSizeSp: Float,
     colorProps: Properties,
-    backgroundImage: String,
+    backgroundFile: File?,
     backgroundOpacity: Int,
     contentPaddingDp: Int,
+    cornerRadiusDp: Int,
     dimInactivePanes: Boolean,
     keepAwake: Boolean,
     terminalViewModel: TerminalViewModel,
@@ -1597,7 +1605,12 @@ private fun TerminalViewHost(
     }
 
     BoxWithConstraints(
-        modifier = modifier.padding(horizontal = contentPaddingDp.dp, vertical = contentPaddingDp.dp),
+        modifier = modifier
+            .padding(horizontal = contentPaddingDp.dp, vertical = contentPaddingDp.dp)
+            // Rounded corners on the content, settings-side. Clipping the host
+            // rather than the view itself: the terminal is a View, and a View
+            // cannot be asked to round its own edges from here.
+            .clip(RoundedCornerShape(cornerRadiusDp.dp)),
     ) {
     AndroidView(
         modifier = Modifier
@@ -1617,16 +1630,12 @@ private fun TerminalViewHost(
 
             // Behind everything, because the terminal paints no background of
             // its own for default cells — the view is transparent and this is
-            // what a background image shows through. A path that does not
-            // resolve leaves the theme colour, which is the honest fallback.
-            if (backgroundImage.isNotBlank()) {
-                val file = terminalManager.resolveGuestPath(backgroundImage)
-                val bitmap = runCatching {
-                    android.graphics.BitmapFactory.decodeFile(file.absolutePath)
-                }.getOrNull()
-                if (bitmap != null) {
+            // what a background image shows through. A missing or undecodable
+            // file leaves the theme colour, which is the honest fallback.
+            backgroundFile?.let { file ->
+                loadBackgroundDrawable(ctx, file)?.let { drawable ->
                     val imageView = android.widget.ImageView(ctx).apply {
-                        setImageBitmap(bitmap)
+                        setImageDrawable(drawable)
                         scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
                         imageAlpha = (backgroundOpacity.coerceIn(0, 100) * 255) / 100
                     }
@@ -1791,6 +1800,30 @@ private fun TerminalViewHost(
  * Long enough to read a number that has stopped moving, short enough that it
  * is not part of the terminal by the time the user looks at the text.
  */
+/**
+ * Loads a background file — including a GIF, which plays.
+ *
+ * [android.graphics.ImageDecoder] handles every format the convention
+ * recognises and, from API 28, hands back an animated drawable for a GIF;
+ * below that a plain bitmap decode is what there is. A file that will not
+ * decode answers null rather than throwing into a factory.
+ */
+private fun loadBackgroundDrawable(context: Context, file: File): android.graphics.drawable.Drawable? =
+    runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val drawable = android.graphics.ImageDecoder.decodeDrawable(
+                android.graphics.ImageDecoder.createSource(file),
+            )
+            (drawable as? android.graphics.drawable.AnimatedImageDrawable)?.start()
+            drawable
+        } else {
+            android.graphics.drawable.BitmapDrawable(
+                context.resources,
+                android.graphics.BitmapFactory.decodeFile(file.absolutePath),
+            )
+        }
+    }.getOrNull()
+
 private const val ZOOM_CHIP_LINGER_MS = 900L
 
 /** How far the unfocused pane of a split is dimmed. */

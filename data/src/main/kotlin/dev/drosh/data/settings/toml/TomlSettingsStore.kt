@@ -71,6 +71,10 @@ class TomlSettingsStore @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** When this process last wrote the file - see [reload]. */
+    private var lastWriteElapsed = 0L
+    private var lastWriteAtWallClock = 0L
+
     /** Every watcher, so none of them is collectable while still running. */
     private val observers = mutableListOf<FileObserver>()
 
@@ -123,6 +127,21 @@ class TomlSettingsStore @Inject constructor(
         // appeared since startup - the resume path runs this on every
         // onStart.
         watch()
+        // Two guards against reading our own write as an external edit. The
+        // observer watches the directory this class writes into, so a write
+        // from the app arrives here too, and a reload that races it reads the
+        // previous contents and calls the difference somebody else's:
+        //
+        //  - a quiet window after each write, which covers the rename's
+        //    two-step (write the sibling, rename over the target);
+        //  - the file's own modification time against the moment of our last
+        //    write, which covers everything the window does not — an edit
+        //    made a minute later still compares the way it should.
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastWriteElapsed != 0L && now - lastWriteElapsed < WRITE_QUIET_WINDOW_MS) return
+        val mtime = withContext(Dispatchers.IO) { readFileModified() }
+        if (mtime in 1 until lastWriteAtWallClock) return
+
         val read = withContext(Dispatchers.IO) { readFile() }
         val parsed = read?.let { runCatching { TomlDocument.parse(it) }.getOrNull() }
             ?: return
@@ -251,8 +270,20 @@ class TomlSettingsStore @Inject constructor(
         val backupOk = writeAtomically(paths.backupFile, text)
         // The write may have just created the directory it wrote into.
         watch()
+        if (primaryOk || backupOk) {
+            // Stamped after the write, so the file's modification time is
+            // always at or before this moment - which is the comparison the
+            // reload makes.
+            lastWriteAtWallClock = System.currentTimeMillis()
+            lastWriteElapsed = android.os.SystemClock.elapsedRealtime()
+        }
         return primaryOk && backupOk
     }
+
+    /** The primary file's modification time, or 0 when there is none. */
+    private fun readFileModified(): Long =
+        paths.primaryFile.lastModified().takeIf { it > 0 }
+            ?: paths.backupFile.lastModified()
 
     private fun writeAtomically(target: File, text: String): Boolean = try {
         target.parentFile?.mkdirs()
@@ -313,6 +344,9 @@ class TomlSettingsStore @Inject constructor(
 
     /** Legacy DataStore keys — read once, by [migrateFromLegacyDataStore]. */
     private companion object {
+        /** How long after our own write a reload stays quiet. */
+        const val WRITE_QUIET_WINDOW_MS = 2_000L
+
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_FONT_PACK = stringPreferencesKey("font_pack")
         val KEY_USE_BLOCK_ENGINE = booleanPreferencesKey("use_block_engine")

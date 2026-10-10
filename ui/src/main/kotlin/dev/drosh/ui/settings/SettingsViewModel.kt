@@ -3,6 +3,7 @@ package dev.drosh.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.ThemeMode
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
@@ -25,6 +27,7 @@ class SettingsViewModel @Inject constructor(
     private val settings: SettingsRepository,
     private val pinLock: PinLockRepository,
     private val store: SettingsStore,
+    private val backgroundImages: BackgroundImageStore,
 ) : ViewModel() {
 
     /**
@@ -45,6 +48,29 @@ class SettingsViewModel @Inject constructor(
     /** Re-reads the file, for a "the file changed under us" refresh. */
     fun reload() {
         viewModelScope.launch { store.reload() }
+    }
+
+    // ── Background image ──────────────────────────────────────────────────────
+
+    /** The convention file's name, or null when there is none. */
+    fun backgroundFileName(): String? = backgroundImages.currentFileName()
+
+    /**
+     * Imports a picked document into the convention.
+     *
+     * The picker puts a file in `.drosh/background.*` and returns; the
+     * terminal re-reads the convention on the next settings emission, which
+     * the store has already produced by the time this answers.
+     */
+    fun importBackgroundImage(uri: android.net.Uri) {
+        viewModelScope.launch {
+            backgroundImages.import(uri)
+                .onFailure { Timber.w(it, "settings: background import failed") }
+        }
+    }
+
+    fun removeBackgroundImage() {
+        viewModelScope.launch { backgroundImages.remove() }
     }
 
     // ── PIN Lock ────────────────────────────────────────────────────────────────

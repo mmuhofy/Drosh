@@ -62,9 +62,11 @@ internal object DroshSettingsToml {
             putString("terminal", "theme_id", themeId)
         }
         with(settings.background) {
-            putString("background", "image_path", imagePath)
+            putBoolean("background", "image_enabled", imageEnabled)
             putInt("background", "image_opacity", imageOpacity)
+            putInt("background", "blur_radius", blurRadius)
             putInt("background", "content_padding_dp", contentPaddingDp)
+            putInt("background", "corner_radius_dp", cornerRadiusDp)
         }
         with(settings.terminal.palette) {
             putString("palette", "background", background)
@@ -169,9 +171,11 @@ internal object DroshSettingsToml {
                 palette = readPalette(document, base.terminal.palette),
             ),
             background = base.background.copy(
-                imagePath = document.getString("background", "image_path", base.background.imagePath),
+                imageEnabled = document.getBoolean("background", "image_enabled", base.background.imageEnabled),
                 imageOpacity = document.getInt("background", "image_opacity", base.background.imageOpacity),
+                blurRadius = document.getInt("background", "blur_radius", base.background.blurRadius),
                 contentPaddingDp = document.getInt("background", "content_padding_dp", base.background.contentPaddingDp),
+                cornerRadiusDp = document.getInt("background", "corner_radius_dp", base.background.cornerRadiusDp),
             ),
             input = base.input.copy(
                 extraKeysBar = document.getBoolean("input", "extra_keys_bar", base.input.extraKeysBar),

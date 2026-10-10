@@ -15,6 +15,12 @@ import androidx.core.view.WindowCompat
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -371,7 +377,7 @@ class MainActivity : ComponentActivity() {
 
         when (category) {
             SettingsCategoryRoute.Appearance ->
-                AppearanceCategory(settings, onBack, onUpdate, onOpenThemeStore)
+                AppearanceCategory(settings, onBack, onUpdate, onOpenThemeStore, viewModel)
             SettingsCategoryRoute.ThemeStore ->
                 ThemeStoreScreen(onBack = onBack)
             SettingsCategoryRoute.Terminal ->
@@ -404,29 +410,6 @@ class MainActivity : ComponentActivity() {
         val pinEnabled by pinLock.isEnabled.collectAsStateWithLifecycle(initialValue = false)
         val isLocked by locked.collectAsStateWithLifecycle()
         var pinError by rememberSaveable { mutableStateOf<String?>(null) }
-        if (pinEnabled && isLocked) {
-            PinEntryScreen(
-                title = "Enter PIN",
-                subtitle = "App lock enabled",
-                errorMessage = pinError,
-                pinLength = pinLength,
-                onPinReady = { pin ->
-                    lifecycleScope.launch {
-                        // A wrong PIN leaves the digits on screen long enough
-                        // to see them and clears for the next try; the entry
-                        // screen wipes itself when the error appears.
-                        if (pinLock.verify(pin)) {
-                            pinError = null
-                            locked.value = false
-                        } else {
-                            pinError = "Wrong PIN"
-                        }
-                    }
-                },
-                onCancel = { finish() },
-            )
-            return
-        }
 
         // The settings file was edited while the app was running — by a shell,
         // a script or the agent. The new values are already live, but some of
@@ -454,6 +437,46 @@ class MainActivity : ComponentActivity() {
 
         val navController = rememberNavController()
         val coroutineScope = rememberCoroutineScope()
+
+        // The nav host stays alive behind the lock. It used to be replaced by
+        // the PIN screen, which meant the loading route — the rootfs check,
+        // the splash, the setup resume — did not start until the PIN was
+        // already in, and the first thing after unlocking was a blank screen
+        // while it caught up. Now it runs, and the lock is a curtain over it.
+        Box(modifier = Modifier.fillMaxSize()) {
+            DroshNavGraph(navController, coroutineScope)
+
+            AnimatedVisibility(
+                visible = pinEnabled && isLocked,
+                // Entering, the lock drops onto a live terminal; leaving, it
+                // lifts off one. A fade alone read as a screen swap; the scale
+                // makes it read as the same screen being uncovered.
+                enter = fadeIn(tween(220)) + scaleIn(initialScale = 1.05f, animationSpec = tween(280)),
+                exit = fadeOut(tween(240)) + scaleOut(targetScale = 1.05f, animationSpec = tween(280)),
+            ) {
+                PinEntryScreen(
+                    title = "Enter PIN",
+                    subtitle = "App lock enabled",
+                    errorMessage = pinError,
+                    pinLength = pinLength,
+                    onPinReady = { pin ->
+                        lifecycleScope.launch {
+                            if (pinLock.verify(pin)) {
+                                pinError = null
+                                locked.value = false
+                            } else {
+                                pinError = "Wrong PIN"
+                            }
+                        }
+                    },
+                    onCancel = { finish() },
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun DroshNavGraph(navController: NavHostController, coroutineScope: CoroutineScope) {
 
         var firstCompleted by rememberSaveable { mutableStateOf<Boolean?>(null) }
 

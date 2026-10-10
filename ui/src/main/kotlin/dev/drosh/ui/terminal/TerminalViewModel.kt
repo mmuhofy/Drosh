@@ -3,6 +3,7 @@ package dev.drosh.ui.terminal
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.AboutInfo
+import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.BackgroundSettings
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.MotdMode
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 /**
@@ -48,9 +50,20 @@ import javax.inject.Inject
 class TerminalViewModel @Inject constructor(
     settingsRepository: SettingsRepository,
     private val store: SettingsStore,
+    private val backgroundImages: BackgroundImageStore,
 ) : ViewModel() {
 
     private val settingsRepository = settingsRepository
+
+    /**
+     * The background image to draw, or null for none.
+     *
+     * Follows the convention file and the blur radius together: either
+     * changing regenerates what the terminal shows, and neither of them is a
+     * path the screen has to know about.
+     */
+    private val _backgroundFile = MutableStateFlow<File?>(null)
+    val backgroundFile: StateFlow<File?> = _backgroundFile.asFileStateFlow()
 
     val useBlockEngine: StateFlow<Boolean> = settingsRepository.useBlockEngine
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -119,6 +132,15 @@ class TerminalViewModel @Inject constructor(
             settingsRepository.fontSizeSp.collect { stored ->
                 _fontSizeSp.value = stored.coerceIn(TerminalZoom.MIN_SP, TerminalZoom.MAX_SP)
             }
+        }
+        viewModelScope.launch {
+            store.settings
+                .map { background -> background.background.imageEnabled to background.background.blurRadius }
+                .distinctUntilChanged()
+                .collect { (enabled, blur) ->
+                    _backgroundFile.value =
+                        if (enabled) backgroundImages.displayFile(blur) else null
+                }
         }
     }
 
@@ -224,3 +246,7 @@ data class TerminalAppearance(
         val DEFAULT = TerminalAppearance()
     }
 }
+
+
+/** Keeps the field's type private to this file. */
+private fun MutableStateFlow<File?>.asFileStateFlow(): StateFlow<File?> = this

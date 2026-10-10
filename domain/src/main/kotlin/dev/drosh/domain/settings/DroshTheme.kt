@@ -12,9 +12,16 @@ package dev.drosh.domain.settings
  * written before themes existed renders exactly as it did.
  */
 data class ThemePalette(
-    val background: String = "#000000",
+    /**
+     * Drosh's own background, not black: the terminal view used to show the
+     * app's surface through it (#0E0E0E), and "the terminal is black" was a
+     * habit from other terminals rather than how Drosh looked. A theme
+     * brings its own background; without one, this is it.
+     */
+    val background: String = "#0E0E0E",
     val foreground: String = "#E8E8E8",
-    val cursor: String = "#E8E8E8",
+    /** The scheme's own default for a dark background: white. */
+    val cursor: String = "#FFFFFF",
     val selectionBackground: String = "#16315D",
     val selectionForeground: String = "#101014",
     /** The app's tint, drawn from the palette's blue when a theme is applied. */

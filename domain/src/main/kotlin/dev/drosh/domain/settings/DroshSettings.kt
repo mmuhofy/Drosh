@@ -86,20 +86,24 @@ data class TerminalSettings(
 }
 
 /**
- * What sits behind the terminal.
+ * What sits behind and around the terminal.
  *
- * [imagePath] is a path inside the Linux environment ("/home/Pictures/x.png"),
- * because that is where a user's files are and where the agent can put one;
- * [imageOpacity] is how much of it shows through the terminal's own
- * background. With no path the two are inert, and the terminal is the plain
- * colour its theme says it is.
+ * The image is a convention rather than a setting: a file called
+ * `background.<ext>` in `.drosh/` *is* the background, so there is no path
+ * to get wrong and a shell can put one there as easily as the picker can.
+ * [blurRadius] is applied once, to a cached file, rather than every frame.
  */
 data class BackgroundSettings(
-    val imagePath: String = "",
+    /** A background file in `.drosh/` is used when there is one. */
+    val imageEnabled: Boolean = true,
     /** 0..100 — how much of the image shows through. */
     val imageOpacity: Int = 100,
+    /** 0 is none; anything else is a radius, applied once and cached. */
+    val blurRadius: Int = 0,
     /** Pixels of empty space around the terminal grid. */
     val contentPaddingDp: Int = 0,
+    /** Rounded corners on the terminal content. */
+    val cornerRadiusDp: Int = 0,
 ) {
     companion object {
         val DEFAULT = BackgroundSettings()

@@ -28,6 +28,8 @@ dependencies {
     api(project(":domain"))
     implementation(project(":core"))
     implementation(project(":design-system"))
+    // The system file picker the background-image row opens.
+    implementation(libs.androidx.activity.compose)
 
     // AndroidX Lifecycle + ViewModel
     implementation(libs.androidx.lifecycle.viewmodel.compose)
