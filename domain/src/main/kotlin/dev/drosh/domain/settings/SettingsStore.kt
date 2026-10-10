@@ -34,4 +34,14 @@ interface SettingsStore {
 
     /** Re-reads the file, picking up an edit made outside the app. */
     suspend fun reload()
+
+    /**
+     * Set while a change that did not come from this process stands
+     * unacknowledged. Sticky until [acknowledgeExternalChange], because the
+     * edit deserves a sentence rather than a silent swap.
+     */
+    val changedExternally: StateFlow<Boolean>
+
+    /** Acknowledges an external edit; the dialog calls it when dismissed. */
+    fun acknowledgeExternalChange()
 }

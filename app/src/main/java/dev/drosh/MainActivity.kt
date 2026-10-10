@@ -357,6 +357,7 @@ class MainActivity : ComponentActivity() {
     private fun SettingsCategoryHost(
         category: SettingsCategoryRoute?,
         onBack: () -> Unit,
+        onOpenThemeStore: () -> Unit,
     ) {
         val viewModel: SettingsViewModel = hiltViewModel()
         val settings by viewModel.snapshot.collectAsStateWithLifecycle()
@@ -370,9 +371,7 @@ class MainActivity : ComponentActivity() {
 
         when (category) {
             SettingsCategoryRoute.Appearance ->
-                AppearanceCategory(settings, onBack, onUpdate) {
-                    navController.navigate("settings/theme_store")
-                }
+                AppearanceCategory(settings, onBack, onUpdate, onOpenThemeStore)
             SettingsCategoryRoute.ThemeStore ->
                 ThemeStoreScreen(onBack = onBack)
             SettingsCategoryRoute.Terminal ->
@@ -592,6 +591,7 @@ class MainActivity : ComponentActivity() {
                 SettingsCategoryHost(
                     category = SettingsCategoryRoute.fromId(entry.arguments?.getString("category")),
                     onBack = { navController.popBackStack() },
+                    onOpenThemeStore = { navController.navigate("settings/theme_store") },
                 )
             }
 

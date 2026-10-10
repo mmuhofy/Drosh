@@ -1564,7 +1564,8 @@ private fun TerminalViewHost(
     val hostActivity = LocalDroshActivity.current
     LaunchedEffect(keepAwake) {
         val window = hostActivity?.window ?: return@LaunchedEffect
-        if (keepAwake) window.addFlags(FLAG_KEEP_SCREEN_ON) else window.clearFlags(FLAG_KEEP_SCREEN_ON)
+        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        if (keepAwake) window.addFlags(flag) else window.clearFlags(flag)
     }
 
     LaunchedEffect(colorProps) {
