@@ -70,7 +70,9 @@ class TomlDocumentTest {
         assertEquals("x", parsed.getString("terminal", "absent", "x"))
         assertEquals(7, parsed.getInt("terminal", "absent", 7))
         assertEquals(7.5f, parsed.getFloat("terminal", "absent", 7.5f))
-        assertFalse(parsed.getBoolean("terminal", "absent", true))
+        // Both directions: the default is what comes back, whatever it is.
+        assertTrue(parsed.getBoolean("terminal", "absent", true))
+        assertFalse(parsed.getBoolean("terminal", "absent", false))
         assertEquals(listOf("a"), parsed.getStringList("terminal", "absent", listOf("a")))
         assertFalse(parsed.contains("terminal", "absent"))
     }
