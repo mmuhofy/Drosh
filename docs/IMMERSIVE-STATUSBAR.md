@@ -1,7 +1,7 @@
 # Immersive Status Bar — kaldırıldı
 
 > Durum: **kapsandı, tamamen kaldırıldı.** Muhofy ile netleştirildi (2026-10-09).
-> Prototip: `docs/statusbar-immersive-prototype.html` — artık geçerli değil.
+> Prototip: `html/statusbar-immersive-prototype.html` — artık geçerli değil.
 > Üç ayrı deneme, üçü de cihazda yanlış bulundu; sonunda özellik tamamen çıkarıldı.
 
 ---
@@ -47,7 +47,7 @@ Google'ın kendi uyarısı:
 > and down during transitions."*
 
 **Yön.** Dokümanlar da prototipin biri de "canlı kenar = fullscreen" derken
-diğeri "scrollback = fullscreen" diyordu (`docs/statusbar-immersive-prototype.html`
+diğeri "scrollback = fullscreen" diyordu (`html/statusbar-immersive-prototype.html`
 `.dbar` dönüşü, `html/topbar_scroll_prototype.html` `scrollTop < 8` dönüşü). Kod da
 sırayla iki yönü de denedi. Sunulan davranışın hangisi doğruydu cihazda belli oluyor
 du, ve üçü de reddedildi.

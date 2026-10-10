@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Drosh — Pinch-to-Zoom deneyim testi</title>
+<style>
+  :root {
+    --bg: #0E0E0E;
+    --surface: #1A1A1A;
+    --surface-high: #2E2E2E;
+    --border: #3A3A3A;
+    --text: #F2F2F2;
+    --muted: #7A7A7A;
+    --accent: #4C9EFF;
+    --green: #3DD68C;
+    --red: #F2555A;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: Outfit, system-ui, -apple-system, sans-serif;
+    overscroll-behavior: none;
+  }
+  body { display: flex; flex-direction: column; }
+
+  header {
+    padding: calc(env(safe-area-inset-top) + 10px) 14px 8px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  header .hint { font-size: 11px; color: var(--muted); }
+
+  .modes { display: flex; gap: 6px; padding: 8px 14px; flex-wrap: wrap; }
+  .modes button {
+    font: inherit; font-size: 11px; padding: 6px 10px; border-radius: 8px;
+    background: var(--surface); color: var(--muted); border: 1px solid var(--border);
+  }
+  .modes button[aria-pressed="true"] { color: #0E0E0E; background: var(--accent); border-color: var(--accent); }
+
+  #stage {
+    flex: 1; position: relative; overflow: hidden; touch-action: none;
+    background: var(--bg); padding: 8px 10px;
+  }
+  #grid {
+    position: absolute; top: 8px; left: 10px; right: 10px;
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    white-space: pre; line-height: 1.25; color: var(--text);
+    transform-origin: 0 0;
+  }
+  .row { height: var(--lh); }
+  .g { color: var(--green); } .r { color: var(--red); } .a { color: var(--accent); } .d { color: var(--muted); }
+
+  #badge {
+    position: absolute; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -140%) scale(.92);
+    background: rgba(26,26,26,.94); border: 1px solid var(--border);
+    color: var(--text); font-size: 13px; font-weight: 600;
+    padding: 6px 10px; border-radius: 999px; transition: opacity .16s ease, transform .16s ease;
+    font-variant-numeric: tabular-nums;
+  }
+  #badge.show { opacity: 1; transform: translate(-50%, -180%) scale(1); }
+
+  #hud {
+    padding: 8px 14px calc(env(safe-area-inset-bottom) + 8px);
+    font-size: 11px; color: var(--muted); border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; gap: 8px;
+  }
+  #hud b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Pinch-to-Zoom deneyimi</h1>
+  <span class="hint">iki parmakla aç/kapa — modu değiştirip karşılaştır</span>
+</header>
+
+<div class="modes" id="modes">
+  <button data-mode="continuous" aria-pressed="true">Sürekli (0.1sp)</button>
+  <button data-mode="half" aria-pressed="false">0.5sp kademe</button>
+  <button data-mode="int" aria-pressed="false">1sp kademe (mevcut)</button>
+  <button data-mode="canvas" aria-pressed="false">Canvas ölçek (reflow yok)</button>
+  <button data-reset>Varsayılan (14)</button>
+</div>
+
+<div id="stage">
+  <div id="grid"></div>
+  <div id="badge">14.0sp</div>
+</div>
+
+<div id="hud">
+  <span>boyut <b id="sizeOut">14.0</b>sp</span>
+  <span>sütun <b id="colsOut">80</b></span>
+  <span>reflow <b id="reflows">0</b></span>
+  <span>fps <b id="fps">–</b></span>
+</div>
+
+<script>
+const MIN = 8, MAX = 40, DEFAULT = 14;
+
+const LINES = [
+  ['d', 'muhofy@drosh:~$ neofetch'],
+  ['', ''],
+  ['a', '             .-"""-.'],
+  ['a', '            / .===. \\'],
+  ['d', '            \\/ 6 6 \\/\\'],
+  ['a', '             \\ .---. /'],
+  ['d', '              /`"---"`\\'],
+  ['', ''],
+  ['d', 'OS:       Ubuntu 24.04 (aarch64)'],
+  ['a', 'Host:     Pixel 8 Pro'],
+  ['a', 'Kernel:   6.1.0-android14'],
+  ['a', 'Uptime:   4h 12m'],
+  ['d', 'Shell:    zsh 5.9'],
+  ['d', 'Terminal: drosh'],
+  ['', ''],
+  ['d', '        .--.     .--.'],
+  ['d', '     .-(    )-.(    )-.'],
+  ['', ''],
+  ['d', 'muhofy@drosh:~$ ssh prod-server'],
+  ['d', 'Last login: Mon Oct  6 21:04:11 2026'],
+  ['', ''],
+  ['a', 'Welcome to Ubuntu 24.04 LTS (GNU/Linux 6.8.0-45-generic arm64)'],
+  ['', ''],
+  ['d', ' * Documentation:  https://help.ubuntu.com'],
+  ['d', ' * System information as of Tue Oct  7 09:12:44 UTC 2026'],
+  ['', ''],
+  ['r', '  System load:  0.42  0.37  0.31   Processes:        187'],
+  ['d', '  CPU usage:    3.1%   Memory: 3.4GiB / 7.6GiB'],
+  ['', ''],
+  ['g', 'dev@prod-server:~$ systemctl is-active drosh-agent'],
+  ['g', 'active'],
+  ['d', 'dev@prod-server:~$ git log --oneline -3'],
+  ['a', '8f21c4a fix(block): keep OSC 133 marks across reflow'],
+  ['a', '1b09d77 feat(ssh): bridge SSHJ shell into termux session'],
+  ['a', 'c3e77aa refactor(ui): single accent for shell and chrome'],
+  ['', ''],
+  ['d', 'dev@prod-server:~$ docker ps --format "{{.Names}}  {{.Status}}"'],
+  ['g', 'drosh-api     Up 6 days (healthy)'],
+  ['g', 'postgres     Up 6 days'],
+  ['', ''],
+  ['d', 'dev@prod-server:~$ _'],
+];
+
+const stage = document.getElementById('stage');
+const grid = document.getElementById('grid');
+const badge = document.getElementById('badge');
+
+let size = DEFAULT;          // sp
+let mode = 'continuous';
+let reflows = 0;
+let committed = DEFAULT;     // canvas mode için reflow olmadan tutulan değer
+
+function rowsFor(sizePx) {
+  // sp ≈ px (prototipte 1sp = 1px kabul)
+  return LINES.map(([, text]) => `<div class="row">${escapeHtml(text) || '&nbsp;'}</div>`).join('');
+}
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/** Sütun sayısı: sabit 80 karakter — reflow gerçekçiliği için sabit tutuyoruz. */
+function render() {
+  grid.style.setProperty('--lh', (size * 1.25).toFixed(2) + 'px');
+  grid.style.fontSize = size.toFixed(2) + 'px';
+  grid.innerHTML = rowsFor(size);
+}
+
+/* ── Canvas modu: reflow yok, sadece transform ─────────────────────────── */
+function applyCanvas(scale, fx, fy) {
+  committed = DEFAULT * scale;
+  grid.style.transformOrigin = `${fx}px ${fy}px`;
+  grid.style.transform = `scale(${scale})`;
+}
+
+/* ── Mod seçimi ─────────────────────────────────────────────────────────── */
+const btns = [...document.querySelectorAll('#modes button[data-mode]')];
+btns.forEach(b => b.addEventListener('click', () => {
+  mode = b.dataset.mode;
+  btns.forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  // canvas moduna geçerken gerçek boyuta dön, transform sıfırlansın
+  if (mode !== 'canvas') { grid.style.transform = 'none'; size = committed = Math.min(MAX, Math.max(MIN, committed)); render(); }
+}));
+
+document.querySelector('#modes button[data-reset]').addEventListener('click', () => {
+  size = committed = DEFAULT;
+  grid.style.transform = 'none';
+  render();
+});
+
+/* ── Pinch ──────────────────────────────────────────────────────────────── */
+const points = new Map();
+let startSize = DEFAULT, startDist = 0, badgeTimer = null;
+
+function dist() {
+  const [a, b] = [...points.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+function mid() {
+  const [a, b] = [...points.values()];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function snap(v, step) { return Math.round(v / step) * step; }
+
+stage.addEventListener('pointerdown', e => {
+  stage.setPointerCapture(e.pointerId);
+  points.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (points.size === 2) {
+    startDist = dist();
+    startSize = mode === 'canvas' ? committed : size;
+    showBadge(mid());
+  }
+});
+
+stage.addEventListener('pointermove', e => {
+  if (!points.has(e.pointerId)) return;
+  points.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (points.size < 2) return;
+  e.preventDefault();
+
+  const scale = dist() / startDist;
+  const f = mid();
+
+  if (mode === 'canvas') {
+    applyCanvas(scale, f.x, f.y);
+    size = DEFAULT * scale;
+  } else {
+    let next = startSize * scale;
+    if (mode === 'half') next = snap(next, 0.5);
+    else if (mode === 'int') next = Math.round(next);
+    else next = Math.round(next * 10) / 10;
+    next = Math.min(MAX, Math.max(MIN, next));
+    if (next !== size) { size = next; render(); reflows++; }
+  }
+  showBadge(f);
+});
+
+function endPointer(e) {
+  points.delete(e.pointerId);
+  if (points.size < 2) {
+    committed = size;
+    hideBadge();
+  }
+}
+stage.addEventListener('pointerup', endPointer);
+stage.addEventListener('pointercancel', endPointer);
+
+function showBadge(f) {
+  const st = stage.getBoundingClientRect();
+  badge.style.left = (f.x - st.left) + 'px';
+  badge.style.top = (f.y - st.top) + 'px';
+  badge.textContent = size.toFixed(1) + 'sp';
+  badge.classList.add('show');
+  clearTimeout(badgeTimer);
+}
+function hideBadge() {
+  badgeTimer = setTimeout(() => badge.classList.remove('show'), 450);
+}
+
+/* ── HUD ────────────────────────────────────────────────────────────────── */
+const sizeOut = document.getElementById('sizeOut');
+const colsOut = document.getElementById('colsOut');
+const reflowsOut = document.getElementById('reflows');
+const fpsOut = document.getElementById('fps');
+let frames = 0, last = performance.now();
+function tick(now) {
+  frames++;
+  if (now - last >= 500) {
+    fpsOut.textContent = Math.round(frames * 1000 / (now - last));
+    frames = 0; last = now;
+    sizeOut.textContent = size.toFixed(1);
+    reflowsOut.textContent = reflows;
+  }
+  requestAnimationFrame(tick);
+}
+render();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drosh — Gradient Sweep + Pills</title>
+<style>
+  :root{
+    --bg:#0E0E0E; --surface:#1A1A1A; --surfaceVariant:#242424;
+    --surfaceHigh:#2E2E2E; --outline:#3A3A3A;
+    --primary:#4C9EFF; --onPrimary:#0E0E0E;
+    --text:#F2F2F2; --text2:#B4B4B4; --text3:#8A8A8A;
+    --success:#3DD68C; --error:#F2555A; --warning:#F0B429;
+    --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#000;color:var(--text);font-family:var(--sans);padding:48px 24px;display:flex;flex-direction:column;align-items:center;gap:48px}
+  .caption{width:100%;max-width:720px}
+  .caption h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
+  .caption p{font-size:13px;color:var(--text3);line-height:1.6;margin-top:6px}
+
+  .section{width:100%;max-width:720px}
+  .section h2{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:14px;text-transform:uppercase;letter-spacing:.05em}
+  .section .note{font-size:12px;color:var(--text3);margin-top:10px;line-height:1.6}
+
+  /* ── PILL BUTTONS ─────────────────────────────────────────────── */
+  /* Apple-style pill, fake glass, kesik (dashed) border */
+  .pillrow{display:flex;gap:10px;flex-wrap:wrap}
+  .pill{
+    height:40px;padding:0 16px;border-radius:20px;
+    display:inline-flex;align-items:center;gap:7px;
+    font-family:var(--sans);font-size:14px;font-weight:500;
+    color:var(--text);cursor:pointer;
+    /* fake glass: translucent fill + blur, but not real glass */
+    background:rgba(255,255,255,.07);
+    -webkit-backdrop-filter:blur(12px) saturate(140%);
+    backdrop-filter:blur(12px) saturate(140%);
+    /* kesik border: dashed, subtle */
+    border:1.5px dashed rgba(255,255,255,.14);
+    transition:background .15s ease;
+  }
+  .pill:hover{background:rgba(255,255,255,.12)}
+  .pill:active{background:rgba(255,255,255,.16)}
+  .pill.primary{background:var(--primary);color:var(--onPrimary);border-color:transparent}
+  .pill.ghost{background:rgba(255,255,255,.04);color:var(--text2)}
+  .pill .chev{width:14px;height:14px;opacity:.5}
+  .pill .ico{width:16px;height:16px}
+
+  /* ── GRADIENT SWEEP TEXT ──────────────────────────────────────── */
+  /* The text is its own colour; a primary-coloured band travels across it.
+     background-clip:text keeps the gradient on the glyphs only. */
+  .gs{
+    background:linear-gradient(90deg,
+      var(--text) 0%, var(--text) 38%,
+      var(--primary) 50%,
+      var(--text) 62%, var(--text) 100%);
+    background-size:250% 100%;
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:transparent;
+    animation:gsweep 1.2s linear infinite;
+  }
+  @keyframes gsweep{
+    0%{background-position:200% 0}
+    100%{background-position:-50% 0}
+  }
+  /* dimmer variant for the summary */
+  .gs-dim{
+    background:linear-gradient(90deg,
+      var(--text3) 0%, var(--text3) 38%,
+      var(--primary) 50%,
+      var(--text3) 62%, var(--text3) 100%);
+    background-size:250% 100%;
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:transparent;
+    animation:gsweep 1.2s linear infinite;
+  }
+
+  /* ── TOOL ROW ─────────────────────────────────────────────────── */
+  .toolrow{display:flex;align-items:center;width:100%;padding:10px 4px;cursor:pointer}
+  .t-ico{width:15px;height:15px;flex:0 0 auto}
+  .t-verb{font-family:var(--mono);font-size:12px;font-weight:500;margin-left:9px;flex:0 0 auto}
+  .t-sum{font-family:var(--mono);font-size:11.5px;color:var(--text3);margin-left:8px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .t-dur{font-family:var(--mono);font-size:11px;margin-left:8px;flex:0 0 auto}
+  .t-chev{width:14px;height:14px;color:var(--text3);margin-left:8px;flex:0 0 auto}
+  .run{color:var(--primary)} .done{color:var(--text)} .err{color:var(--error)} .muted{color:var(--text3)}
+
+  /* thinking label */
+  .thinking{font-family:var(--mono);font-size:11.5px;padding:10px 4px;display:inline-block}
+
+  .divider{height:1px;background:#1c1c1c;width:100%;margin:8px 0}
+</style>
+</head>
+<body>
+
+<div class="caption">
+  <h1>Gradient Sweep + Pill Buttons</h1>
+  <p>
+    Shimmer yok. Metnin üzerinden bir <strong>gradyan bandı</strong> geçiyor — gliflere kırpılıyor,
+    metnin kendi rengi korunuyor, primary renk üzerinden süpürüyor.
+    Bitince duruyor ve <strong>süre</strong> yazıyor: <code>Thought 12s</code>.
+  </p>
+</div>
+
+<!-- ── PILLS ─────────────────────────────────────────────────────────── -->
+<div class="section">
+  <h2>Pill Buttons — sahte glass, kesik border</h2>
+  <div class="pillrow">
+    <div class="pill">
+      <svg class="ico" viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="14" rx="4" stroke="currentColor" stroke-width="1.8"/><circle cx="9.5" cy="13" r="1.4" fill="currentColor"/><circle cx="14.5" cy="13" r="1.4" fill="currentColor"/><path d="M12 3v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      Agent
+      <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+    <div class="pill">
+      <svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      claude-3.5-sonnet
+      <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+    <div class="pill primary">
+      <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      Yeni
+    </div>
+    <div class="pill ghost">
+      <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" stroke="currentColor" stroke-width="1.8"/></svg>
+      ~/projeler/drosh
+      <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+  <div class="note">
+    Yarı saydam dolgu + blur, ama gerçek glass değil. Border <strong>kesik</strong> (kesikli çizgi) ve
+    alçak opaklıkta — keskin bir çerçeve yerine kesik, organik bir kenar.
+  </div>
+</div>
+
+<!-- ── THINKING ──────────────────────────────────────────────────────── -->
+<div class="section">
+  <h2>Düşünme — çalışırken / bitti</h2>
+  <div class="thinking"><span class="gs">Thinking 12s</span></div>
+  <div class="divider"></div>
+  <div class="thinking" style="color:var(--text)">Thought 12s</div>
+  <div class="note">
+    Çalışırken: <code>Thinking 12s</code> — gradyan süpürüyor, süre sayılıyor.<br>
+    Bitti: <code>Thought 12s</code> — gradyan duruyor, süre kalıyor.
+  </div>
+</div>
+
+<!-- ── TOOL ROWS ─────────────────────────────────────────────────────── -->
+<div class="section">
+  <h2>Araç Satırları — çalışırken / bitti</h2>
+
+  <div class="toolrow">
+    <svg class="t-ico run" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M7 9l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="t-verb run"><span class="gs">Running</span></span>
+    <span class="t-sum"><span class="gs-dim">npm install --legacy-peer-deps</span></span>
+    <span class="t-dur run">8s</span>
+    <svg class="t-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+
+  <div class="toolrow">
+    <svg class="t-ico run" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M7 9l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="t-verb run"><span class="gs">Running</span></span>
+    <span class="t-sum"><span class="gs-dim">npm test</span></span>
+    <span class="t-dur run">3s</span>
+    <svg class="t-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="toolrow">
+    <svg class="t-ico" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M7 9l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="t-verb done">Ran</span>
+    <span class="t-sum">npm install --legacy-peer-deps</span>
+    <svg class="t-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+
+  <div class="toolrow">
+    <svg class="t-ico" viewBox="0 0 24 24" fill="none"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="t-verb done">Read</span>
+    <span class="t-sum">src/.../AgentChatScreen.kt</span>
+    <svg class="t-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+
+  <div class="toolrow">
+    <svg class="t-ico" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 015.4-5.4l-2.6 2.6-2.4-.6-.6-2.4 2.6-2.6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <span class="t-verb done">Wrote</span>
+    <span class="t-sum">app/build.gradle.kts</span>
+    <svg class="t-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+
+  <div class="toolrow">
+    <svg class="t-ico" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span class="t-verb done">Searched</span>
+    <span class="t-sum">grep -rn "shell" terminal/</span>
+    <svg class="t-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+
+  <div class="toolrow">
+    <svg class="t-ico" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span class="t-verb done">Updated</span>
+    <span class="t-sum">todo list (3 items)</span>
+    <svg class="t-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+
+  <div class="toolrow">
+    <svg class="t-ico" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <span class="t-verb done">Asked</span>
+    <span class="t-sum">vite.config.ts değiştirilsin mi?</span>
+    <svg class="t-chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+
+  <div class="note">
+    Çalışırken: fiil + özet <strong>gradyan süpürüyor</strong>, süre sayılıyor.<br>
+    Bitti: fiil <strong>geçmiş zaman</strong>, gradyan duruyor, süre satırda yok.
+  </div>
+</div>
+
+</body>
+</html>

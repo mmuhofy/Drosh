@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drosh — Top bar</title>
+<style>
+  :root{
+    --bg:#0E0E0E; --surface:#1A1A1A; --surfaceVariant:#242424;
+    --surfaceHigh:#2E2E2E; --outline:#3A3A3A;
+    --primary:#4C9EFF; --onPrimary:#0E0E0E;
+    --text:#F2F2F2; --text2:#B4B4B4; --text3:#8A8A8A;
+    --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#000;color:var(--text);font-family:var(--sans);
+       padding:44px 24px 88px;display:flex;flex-direction:column;align-items:center;gap:44px}
+  .caption{width:100%;max-width:860px}
+  .caption h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
+  .caption p{font-size:13px;color:var(--text3);line-height:1.65;margin-top:8px}
+  .caption b{color:var(--text2);font-weight:600}
+  .caption code{font-family:var(--mono);font-size:12px;color:var(--primary);
+                background:rgba(76,158,255,.09);padding:1px 5px;border-radius:4px}
+
+  .phone{
+    width:393px;height:852px;flex:none;position:relative;overflow:hidden;
+    background:var(--bg);border-radius:44px;
+    box-shadow:0 0 0 10px #1b1b1b,0 0 0 11px #2f2f2f,0 32px 90px rgba(0,0,0,.85);
+    display:flex;flex-direction:column;
+  }
+  .statusbar{height:54px;flex:none;display:flex;align-items:flex-end;
+             justify-content:space-between;padding:0 30px 6px;
+             font-size:15px;font-weight:600}
+  .statusbar .r{font-size:13px;font-weight:500;color:var(--text2);
+                display:flex;align-items:center;gap:6px}
+  .batt{width:26px;height:13px;border:1.4px solid var(--text2);border-radius:4px;
+        position:relative;padding:1.5px}
+  .batt::after{content:'';position:absolute;right:-4px;top:3.5px;width:2px;height:5px;
+               background:var(--text2);border-radius:0 1px 1px 0}
+  .batt i{display:block;height:100%;width:10%;background:var(--error);border-radius:2px}
+  .homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+           width:134px;height:5px;border-radius:3px;background:rgba(255,255,255,.32)}
+
+  /* ── TOP BAR ──────────────────────────────────────────────────── */
+  /* Every control on this row is the same height. That is the rule the whole row
+     depends on: mixed heights read as a collection of unrelated controls, and the
+     row stops looking like one thing you operate. */
+  .topbar{
+    flex:none;display:flex;align-items:center;gap:8px;padding:4px 12px 10px;
+  }
+
+  /* Daire ikon düğmesi — 40dp, tam yuvarlak, labeled pill ile aynı yükseklik */
+  .circ{
+    width:40px;height:40px;flex:none;border-radius:50%;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);
+    backdrop-filter:blur(20px) saturate(180%);
+    display:grid;place-items:center;cursor:pointer;color:var(--text2);
+    transition:background .18s ease,color .18s ease;
+  }
+  .circ:hover{background:rgba(255,255,255,.10);color:var(--text)}
+  .circ:active{background:rgba(255,255,255,.14)}
+  .circ svg{width:19px;height:19px}
+
+  /* Etiketli pill — radius yüksekliğin yarısı, yani tam yuvarlak */
+  .pill{
+    height:40px;padding:0 13px;border-radius:20px;flex:none;
+    display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);
+    backdrop-filter:blur(20px) saturate(180%);
+    font-size:15.5px;font-weight:600;letter-spacing:-.01em;color:var(--text);
+    white-space:nowrap;
+    transition:background .18s ease,border-color .18s ease;
+  }
+  .pill:hover{background:rgba(255,255,255,.10)}
+  .pill:active{background:rgba(255,255,255,.14)}
+  .pill svg.lead{width:18px;height:18px;flex:none;color:var(--text2)}
+  .pill svg.chev{width:14px;height:14px;flex:none;opacity:.5}
+  .pill.ghost{background:rgba(255,255,255,.03)}
+  .pill.ghost svg.lead{color:var(--text3)}
+  .pill.accent{background:rgba(76,158,255,.13);border-color:rgba(76,158,255,.30);color:var(--primary)}
+  .pill.accent:hover{background:rgba(76,158,255,.19)}
+  .pill.accent svg.lead{color:var(--primary)}
+
+  .spacer{flex:1;min-width:0}
+
+  /* ── STAGE ────────────────────────────────────────────────────── */
+  .stage{flex:1;min-height:0;display:flex;flex-direction:column;
+         align-items:center;justify-content:center;gap:22px;padding:0 30px}
+  .orb{width:88px;height:88px;border-radius:50%;position:relative;
+       background:radial-gradient(circle at 34% 30%,#7FC4FF 0%,#3B8FE8 42%,#2A6FC4 100%);
+       box-shadow:0 0 0 1px rgba(255,255,255,.13),0 10px 34px rgba(59,143,232,.34)}
+  .orb i{position:absolute;top:32px;width:7px;height:17px;border-radius:4px;background:#fff;opacity:.95}
+  .orb i.a{left:31px} .orb i.b{right:31px}
+  .hello{font-size:22px;font-weight:700;line-height:1.32;letter-spacing:-.015em;
+         text-align:center;max-width:330px}
+  .upgrade{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 17px;
+           border-radius:19px;background:rgba(76,158,255,.10);
+           border:1px solid rgba(76,158,255,.24);color:var(--primary);
+           font-size:14.5px;font-weight:600;cursor:pointer;
+           -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+  .upgrade:hover{background:rgba(76,158,255,.16)}
+  .upgrade svg{width:15px;height:15px}
+
+  /* ── CHAT ─────────────────────────────────────────────────────── */
+  .chat{flex:1;min-height:0;overflow-y:auto;padding:6px 14px 0;display:flex;
+        flex-direction:column;gap:9px;scrollbar-width:none}
+  .chat::-webkit-scrollbar{display:none}
+  .ububble{align-self:flex-end;max-width:82%;padding:10px 14px;border-radius:19px;
+           background:var(--surfaceVariant);border:1px solid var(--outline);
+           font-size:15px;line-height:1.45}
+  .ablock{align-self:stretch;display:flex;flex-direction:column;gap:7px}
+  .atxt{font-size:15px;line-height:1.55;padding-right:6px}
+  .atxt .kv{color:var(--primary)}
+  .tool{display:flex;align-items:flex-start;gap:8px;padding:2px 0;
+        font-size:14px;line-height:1.45;color:var(--text2)}
+  .tool .mk{width:15px;height:15px;flex:none;margin-top:2px;color:var(--text3)}
+  .tool .vb{color:var(--text);font-weight:500}
+  .tool .sum{color:var(--text3)}
+  .tool.run .vb{background:linear-gradient(90deg,var(--text) 0%,var(--text) 38%,
+                var(--primary) 50%,var(--text) 62%,var(--text) 100%);
+                background-size:250% 100%;-webkit-background-clip:text;background-clip:text;
+                -webkit-text-fill-color:transparent;color:transparent;
+                animation:sweep 1.2s linear infinite}
+  @keyframes sweep{0%{background-position:200% 0}100%{background-position:-50% 0}}
+
+  /* ── COMPOSER ─────────────────────────────────────────────────── */
+  .composer{flex:none;margin:10px 14px 30px;height:58px;border-radius:29px;
+            background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10);
+            -webkit-backdrop-filter:blur(20px) saturate(180%);
+            backdrop-filter:blur(20px) saturate(180%);
+            display:flex;align-items:center;gap:5px;padding:0 7px 0 8px}
+  .composer .cb{width:42px;height:42px;flex:none;border-radius:50%;border:none;
+                background:transparent;color:var(--text2);display:grid;place-items:center;
+                cursor:pointer;transition:background .18s ease,color .18s ease}
+  .composer .cb:hover{background:rgba(255,255,255,.08);color:var(--text)}
+  .composer .cb svg{width:21px;height:21px}
+  .composer .cb.send{background:rgba(255,255,255,.10)}
+  .composer .cb.send:hover{background:rgba(255,255,255,.16);color:var(--text)}
+  .composer input{flex:1;min-width:0;border:none;outline:none;background:transparent;
+                  color:var(--text);font-family:var(--sans);font-size:15.5px}
+  .composer input::placeholder{color:var(--text3)}
+
+  /* ── LIGHT VARIANT ────────────────────────────────────────────── */
+  .phone.light{background:#FAFAFA}
+  .phone.light .topbar .circ,.phone.light .pill{
+    background:rgba(0,0,0,.045);border-color:rgba(0,0,0,.09)}
+  .phone.light .topbar .circ:hover,.phone.light .topbar .pill:hover{background:rgba(0,0,0,.075)}
+  .phone.light .topbar .circ:active,.phone.light .topbar .pill:active{background:rgba(0,0,0,.11)}
+  .phone.light .topbar .circ{color:#5B5B5B}
+  .phone.light .pill{color:#1A1A1A}
+  .phone.light .pill svg.lead{color:#5B5B5B}
+  .phone.light .pill.ghost{background:rgba(0,0,0,.025)}
+  .phone.light .pill.accent{background:rgba(76,158,255,.11);border-color:rgba(76,158,255,.28);color:#0B63CE}
+  .phone.light .pill.accent svg.lead{color:#0B63CE}
+  .phone.light .statusbar,.phone.light .hello{color:#1A1A1A}
+  .phone.light .statusbar .r{color:#5B5B5B}
+  .phone.light .stage .hello{color:#1A1A1A}
+  .phone.light .chat .atxt{color:#1A1A1A}
+  .phone.light .chat .tool{color:#3D3D3D}
+  .phone.light .chat .tool .vb{color:#1A1A1A}
+  .phone.light .chat .tool .sum{color:#6B6B6B}
+  .phone.light .chat .tool .mk{color:#8A8A8A}
+  .phone.light .ububble{background:#F0F0F0;border-color:#E0E0E0;color:#1A1A1A}
+  .phone.light .composer{background:rgba(0,0,0,.045);border-color:rgba(0,0,0,.09)}
+  .phone.light .composer .cb{color:#5B5B5B}
+  .phone.light .composer .cb.send{background:rgba(0,0,0,.075)}
+  .phone.light .composer input{color:#1A1A1A}
+  .phone.light .composer input::placeholder{color:#8A8A8A}
+  .phone.light .homebar{background:rgba(0,0,0,.28)}
+  .phone.light .box-shadow{box-shadow:none}
+
+  /* ── SPECS ────────────────────────────────────────────────────── */
+  .strip{width:100%;max-width:860px;display:flex;gap:10px;flex-wrap:wrap}
+  .cell{flex:1;min-width:128px;background:#111;border:1px solid #1e1e1e;
+        border-radius:13px;padding:14px 16px}
+  .cell .k{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)}
+  .cell .v{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--primary);margin-top:5px}
+  .cell .d{font-size:11.5px;color:var(--text3);margin-top:3px;line-height:1.45}
+
+  .notes{width:100%;max-width:860px;display:flex;flex-direction:column;gap:20px}
+  .note h3{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:7px;
+           text-transform:uppercase;letter-spacing:.05em}
+  .note p,.note li{font-size:13px;color:var(--text3);line-height:1.7}
+  .note ul{margin:0;padding-left:18px}
+  .note li{margin-bottom:5px}
+  .note b{color:var(--text2);font-weight:600}
+  .grid2{display:flex;gap:26px;flex-wrap:wrap}
+  .grid2 > div{flex:1;min-width:290px}
+</style>
+</head>
+<body>
+
+<div class="caption">
+  <h1>Top bar</h1>
+  <p>Referans görseldeki biçim, bizim içerikle: <b>solda daire menü + model pill'i</b>,
+  <b>sağda daire</b>. Satırdaki her kontrol <b>40dp</b> ve <b>tam yuvarlak</b> — yükseklik
+  aynı olduğu için satır bir bütün olarak okunuyor, karışık yükseklikte olsaydı
+  birbirinden ayrı şeyler gibi görünürdü.</p>
+</div>
+
+<!-- ══ HOME ══ -->
+<div class="phone">
+  <div class="statusbar">
+    <div>16:29</div>
+    <div class="r"><span>31.1 KB/s</span><span>×</span>
+      <svg width="15" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 18.5a1.3 1.3 0 100 2.6 1.3 1.3 0 000-2.5zM4.9 11.3a10 10 0 0114.2 0l-1.5 1.5a7.7 7.7 0 00-11.2 0l-1.5-1.5zM1.4 7.8a15 15 0 0121.2 0l-1.5 1.5a12.7 12.7 0 00-18.2 0L1.4 7.8z"/></svg>
+      <span class="batt"><i></i></span><span>10%</span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="circ" title="Menü">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+           stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </div>
+    <div class="pill">
+      Agent
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="spacer"></div>
+    <div class="pill accent">
+      <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Yeni
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="orb"><i class="a"></i><i class="b"></i></div>
+    <div class="hello">Merhaba Muhofy Social,<br>bugün ne yapalım?</div>
+    <div class="upgrade">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+      </svg>
+      Upgrade Plan
+    </div>
+  </div>
+
+  <div class="composer">
+    <button class="cb" title="Ekle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <input placeholder="Bana sor. Bana görev ver." />
+    <button class="cb send" title="Gönder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 9.5a4 4 0 010 5M19 6.5a8 8 0 010 11"/></svg></button>
+  </div>
+  <div class="homebar"></div>
+</div>
+
+<!-- ══ CHAT ══ -->
+<div class="phone">
+  <div class="statusbar">
+    <div>16:29</div>
+    <div class="r"><span>31.1 KB/s</span><span>×</span>
+      <svg width="15" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 18.5a1.3 1.3 0 100 2.6 1.3 1.3 0 000-2.5zM4.9 11.3a10 10 0 0114.2 0l-1.5 1.5a7.7 7.7 0 00-11.2 0l-1.5-1.5zM1.4 7.8a15 15 0 0121.2 0l-1.5 1.5a12.7 12.7 0 00-18.2 0L1.4 7.8z"/></svg>
+      <span class="batt"><i></i></span><span>10%</span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="circ" title="Geri">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </div>
+    <div class="pill">
+      Kimi K3
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="spacer"></div>
+    <div class="circ" title="Menü">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+           stroke-linecap="round"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/>
+           <circle cx="12" cy="19" r="1.6"/></svg>
+    </div>
+  </div>
+
+  <div class="chat">
+    <div class="ububble">TerminalManager'daki çok oturumlu destek eksik, ekle.</div>
+    <div class="ablock"><div class="atxt">Önce mevcut durumu okuyorum.</div></div>
+    <div class="tool">
+      <svg class="mk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5M12 17h8"/></svg>
+      <div><span class="vb">Read</span> <span class="sum">TerminalManager.kt</span></div>
+    </div>
+    <div class="tool">
+      <svg class="mk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>
+      <div><span class="vb">Bash</span> <span class="sum">./gradlew :ui:compileDebugKotlin</span></div>
+    </div>
+    <div class="tool run">
+      <svg class="mk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>
+      <div><span class="vb">Writing</span> <span class="sum">TerminalSessionStore.kt</span></div>
+    </div>
+    <div class="ablock">
+      <div class="atxt">Oturum yaşam döngüsü için <span class="kv">TerminalSessionStore</span>
+        ekliyorum. Süreç ölümünde oturum düşecek, yeniden bağlanınca kaldığı yerden devam edecek.</div>
+    </div>
+    <div class="tool">
+      <svg class="mk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      <div><span class="vb">Wrote</span> <span class="sum">TerminalSessionStore.kt</span></div>
+    </div>
+  </div>
+
+  <div class="composer">
+    <button class="cb" title="Ekle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <input placeholder="Bana sor. Bana görev ver." />
+    <button class="cb send" title="Gönder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 9.5a4 4 0 010 5M19 6.5a8 8 0 010 11"/></svg></button>
+  </div>
+  <div class="homebar"></div>
+</div>
+
+<!-- ══ LIGHT ══ -->
+<div class="phone light">
+  <div class="statusbar">
+    <div>16:29</div>
+    <div class="r"><span>31.1 KB/s</span><span>×</span>
+      <svg width="15" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 18.5a1.3 1.3 0 100 2.6 1.3 1.3 0 000-2.5zM4.9 11.3a10 10 0 0114.2 0l-1.5 1.5a7.7 7.7 0 00-11.2 0l-1.5-1.5zM1.4 7.8a15 15 0 0121.2 0l-1.5 1.5a12.7 12.7 0 00-18.2 0L1.4 7.8z"/></svg>
+      <span class="batt"><i></i></span><span>10%</span>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="circ" title="Geri">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </div>
+    <div class="pill">
+      Kimi K3
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="spacer"></div>
+    <div class="circ" title="Menü">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+           stroke-linecap="round"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/>
+           <circle cx="12" cy="19" r="1.6"/></svg>
+    </div>
+  </div>
+
+  <div class="chat">
+    <div class="ububble">TerminalManager'daki çok oturumlu destek eksik, ekle.</div>
+    <div class="ablock"><div class="atxt">Önce mevcut durumu okuyorum.</div></div>
+    <div class="tool">
+      <svg class="mk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5-5 5M12 17h8"/></svg>
+      <div><span class="vb">Read</span> <span class="sum">TerminalManager.kt</span></div>
+    </div>
+    <div class="tool run">
+      <svg class="mk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>
+      <div><span class="vb">Writing</span> <span class="sum">TerminalSessionStore.kt</span></div>
+    </div>
+    <div class="ablock">
+      <div class="atxt">Oturum yaşam döngüsü için <span class="kv">TerminalSessionStore</span>
+        ekliyorum. Süreç ölümünde oturum düşecek, yeniden bağlanınca kaldığı yerden devam edecek.</div>
+    </div>
+  </div>
+
+  <div class="composer">
+    <button class="cb" title="Ekle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <input placeholder="Bana sor. Bana görev ver." />
+    <button class="cb send" title="Gönder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 9.5a4 4 0 010 5M19 6.5a8 8 0 010 11"/></svg></button>
+  </div>
+  <div class="homebar"></div>
+</div>
+
+<div class="strip">
+  <div class="cell"><div class="k">Yükseklik</div><div class="v">40dp</div><div class="d">her kontrol aynı</div></div>
+  <div class="cell"><div class="k">Radius</div><div class="v">20dp</div><div class="d">yüksekliğin yarısı</div></div>
+  <div class="cell"><div class="k">Border</div><div class="v">1px</div><div class="d">dark: white %10</div></div>
+  <div class="cell"><div class="k">Border light</div><div class="v">black %10</div><div class="d">white görünmez</div></div>
+  <div class="cell"><div class="k">Fill</div><div class="v">%10→4.5</div><div class="d">dikey gradyan</div></div>
+  <div class="cell"><div class="k">Gap</div><div class="v">8dp</div><div class="d">satır içi</div></div>
+</div>
+
+<div class="notes">
+  <div class="note">
+    <h3>Referansın biçimi, bizim içeriğimiz</h3>
+    <p>Fotoğrafta <b>solda daire + tek pill</b>, <b>sağda tek daire</b> var. Chat ekranında
+    solda geri oku, ortada model pill'i, sağda menü dairesi var — aynı iskelet.
+    Home'da ise solda menü dairesi, sağda <code>Yeni</code> pill'i: orada "Yeni" tek birincil
+    eylem, daire olsaydı ikinci bir eylem daha eklenirdi.</p>
+  </div>
+
+  <div class="note">
+    <h3>Radius 20 — neden 17 değil</h3>
+    <p><code>AgentPills.kt</code>'de şu an <code>RoundedCornerShape(17.dp)</code>. 40dp
+    yükseklikte 17dp köşeleri <b>ancak yeterince</b> yuvarlatıyor; kontrol küçük bir
+    dikdörtgen gibi okunuyor ve pill karakterini kaybediyor. Referansın karakteri tam
+    yuvarlaklıktan geliyor: <b>radius = yükseklik / 2</b>. Bu boyutta 20dp.</p>
+  </div>
+
+  <div class="note">
+    <h3>Border — kodun savunduğu şeyi düzeltiyorum</h3>
+    <p>Mevcut kod 1px outline'ı <b>kasten koymuyor</b>, gerekçesi: "borderless bir kontrolün
+    olmaması gerekir". Referans tersini söylüyor ve haklı — ama mesele görünürlük.
+    Koyu zeminde <code>white %7</code> o kadar ince ki kontrol "dokunulabilir bir şey"
+    değil, "arkası biraz farkli bir alan" gibi duruyor. <b>%10</b> anlaşılır ama
+    bağırmıyor; Apple'ın yaptığı da bu.</p>
+    <p><b>Light tema ayrı:</b> dolgu beyaz, yani açık zeminde beyaz kenarlık
+    <b>hiç</b> görünmez. Kenar siyahlaştırılıyor.</p>
+  </div>
+
+  <div class="note">
+    <h3>Basma: ölçek yok, sadece dolgu</h3>
+    <p>Ölçek bir grafik dönüşümü olduğu için layout'ta <b>hiçbir şeyi kaydırmaz</b> —
+    ama parmağın altındaki hedef küçülür. 0.88'de her basmada görünür geri çekilme
+    oluyor. Burada yalnızca dolgu <code>%10 → %20</code>, kutu basıldığında da
+    basılmadan da aynı boyutta. Ekranda hiçbir şey hareket etmiyor.</p>
+  </div>
+
+  <div class="note">
+    <h3>Etiket boyutu</h3>
+    <p><code>14.sp</code> → <code>15.5.sp</code>. Kontrolü okunabilir kılıyor ve satırı
+    "transcript'in çevresindeki chrome" gibi okutmaktan çıkarıyor. Ağırlık 500 → 600.</p>
+  </div>
+
+  <div class="note">
+    <h3>Code'e dönerken karar verilecekler</h3>
+    <ul>
+      <li><b>Light tema kenarı.</b> Yukarıda siyah %10 kullandım. Daha koyu olsun mu
+          (çünkü beyaz dolgu üstünde ince kalıyor)?</li>
+      <li><b>Home'daki sol daire.</b> Menü, yoksa terminale dönüş mü olmalı?
+          Chat'te geri oku var, Home'da menü — bu tutarsız olabilir.</li>
+      <li><b>Model adı pill'de mi?</b> Chat'te <code>Kimi K3</code> yazıyor.
+          Home'da <code>Agent</code>. Aynı olmaları mı gerekmiyor, çünkü farklı ekranlar?</li>
+      <li><b>Satır boşluğu 8dp.</b> Referansta 9-10'a yakın. El hissi fark eder mi?</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

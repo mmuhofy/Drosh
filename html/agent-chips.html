@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drosh — Agent Home, scrollable chips</title>
+<style>
+  :root{
+    --bg:#0E0E0E; --surface:#1A1A1A; --surfaceVariant:#242424;
+    --surfaceHigh:#2E2E2E; --outline:#3A3A3A;
+    --primary:#4C9EFF; --onPrimary:#0E0E0E;
+    --text:#F2F2F2; --text2:#B4B4B4; --text3:#8A8A8A;
+    --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#000;color:var(--text);font-family:var(--sans);padding:48px 24px 96px;
+       display:flex;flex-direction:column;align-items:center;gap:40px}
+  .caption{width:100%;max-width:820px}
+  .caption h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
+  .caption p{font-size:13px;color:var(--text3);line-height:1.65;margin-top:8px}
+  .caption b{color:var(--text2);font-weight:600}
+  .caption code{font-family:var(--mono);font-size:12px;color:var(--primary);
+                background:rgba(76,158,255,.09);padding:1px 5px;border-radius:4px}
+
+  /* ── PHONE ───────────────────────────────────────────────────── */
+  .phone{
+    width:393px;height:852px;flex:none;position:relative;overflow:hidden;
+    background:var(--bg);border-radius:44px;
+    box-shadow:0 0 0 10px #1b1b1b, 0 0 0 11px #2f2f2f, 0 32px 90px rgba(0,0,0,.85);
+    display:flex;flex-direction:column;
+  }
+  .statusbar{height:54px;flex:none;display:flex;align-items:flex-end;
+             justify-content:space-between;padding:0 30px 6px;
+             font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .statusbar .r{font-size:13px;font-weight:500;color:var(--text2);
+                display:flex;align-items:center;gap:6px}
+  .batt{width:26px;height:13px;border:1.4px solid var(--text2);border-radius:4px;
+        position:relative;padding:1.5px}
+  .batt::after{content:'';position:absolute;right:-4px;top:3.5px;width:2px;height:5px;
+               background:var(--text2);border-radius:0 1px 1px 0}
+  .batt i{display:block;height:100%;width:10%;background:var(--error);border-radius:2px}
+
+  .homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+           width:134px;height:5px;border-radius:3px;background:rgba(255,255,255,.32)}
+
+  /* ── TOP ROW ─────────────────────────────────────────────────── */
+  .toprow{flex:none;display:flex;align-items:center;gap:8px;
+          padding:4px 14px 10px 12px}
+  .circbtn{
+    width:42px;height:42px;flex:none;border-radius:50%;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.09);
+    display:grid;place-items:center;cursor:pointer;color:var(--text2);
+    transition:background .15s ease,color .15s ease;
+  }
+  .circbtn:hover{background:rgba(255,255,255,.1);color:var(--text)}
+  .circbtn svg{width:19px;height:19px}
+  .modelpill{
+    display:flex;align-items:center;gap:6px;height:42px;padding:0 15px;
+    border-radius:21px;background:rgba(255,255,255,.055);
+    border:1px solid rgba(255,255,255,.09);cursor:pointer;
+    font-size:16px;font-weight:600;color:var(--text);
+    transition:background .15s ease;
+  }
+  .modelpill:hover{background:rgba(255,255,255,.1)}
+  .modelpill .cv{width:13px;height:13px;opacity:.55}
+
+  /* ── STAGE ───────────────────────────────────────────────────── */
+  .stage{flex:1;min-height:0;display:flex;flex-direction:column;
+         align-items:center;justify-content:center;gap:20px;padding:0 28px}
+  .orb{
+    width:86px;height:86px;border-radius:50%;position:relative;
+    background:radial-gradient(circle at 34% 30%,#7FC4FF 0%,#3B8FE8 42%,#2A6FC4 100%);
+    box-shadow:0 0 0 1px rgba(255,255,255,.13), 0 10px 34px rgba(59,143,232,.34);
+  }
+  .orb i{position:absolute;top:31px;width:7px;height:16px;border-radius:4px;
+         background:#fff;opacity:.95}
+  .orb i.a{left:30px} .orb i.b{right:30px}
+  .hello{
+    font-size:22px;font-weight:700;line-height:1.32;letter-spacing:-.015em;
+    text-align:center;color:var(--text);max-width:320px;
+  }
+  .upgrade{
+    display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 17px;
+    border-radius:19px;background:rgba(76,158,255,.10);
+    border:1px solid rgba(76,158,255,.22);
+    color:var(--primary);font-size:14.5px;font-weight:600;cursor:pointer;
+    transition:background .15s ease;
+  }
+  .upgrade:hover{background:rgba(76,158,255,.16)}
+  .upgrade svg{width:15px;height:15px}
+
+  /* ── CHAT LIST ───────────────────────────────────────────────── */
+  .listwrap{flex:none;max-height:266px;overflow-y:auto;padding:0 14px;
+            scrollbar-width:none;display:flex;flex-direction:column;gap:7px}
+  .listwrap::-webkit-scrollbar{display:none}
+  .chatrow{
+    display:flex;align-items:center;gap:11px;padding:12px 14px;
+    background:var(--surface);border:1px solid var(--outline);
+    border-radius:15px;cursor:pointer;
+    transition:background .15s ease,border-color .15s ease;
+  }
+  .chatrow:hover{background:var(--surfaceVariant);border-color:#454545}
+  .dot{width:7px;height:7px;flex:none;border-radius:50%}
+  .chatrow .t{flex:1;min-width:0;font-size:14.5px;font-weight:500;color:var(--text);
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chatrow .s{flex:none;font-size:12px;font-weight:500;color:var(--text3);
+              font-family:var(--mono)}
+
+  .sec{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+       color:var(--text3);padding:10px 4px 2px}
+
+  /* ── CHIP RAIL ───────────────────────────────────────────────── */
+  /* The thing being changed: a single horizontally scrolling rail pinned above the
+     composer. Replaces the wrapped pill grid, and it is pinned rather than scrolled
+     with the list because the composer is pinned — a control that scrolls away while
+     the bar under it does not is a control the user has to hunt for. */
+  .rail{
+    flex:none;display:flex;gap:9px;align-items:center;
+    padding:10px 14px 8px;overflow-x:auto;scrollbar-width:none;
+    /* the fade is on a wrapper, not here, so it does not scroll with the chips */
+    -webkit-overflow-scrolling:touch;
+  }
+  .rail::-webkit-scrollbar{display:none}
+  .railwrap{position:relative;flex:none}
+  .railwrap::after{
+    content:'';position:absolute;top:0;right:0;bottom:0;width:36px;
+    background:linear-gradient(90deg,rgba(14,14,14,0) 0%,var(--bg) 88%);
+    pointer-events:none;
+  }
+  .chip{
+    flex:none;height:42px;padding:0 16px 0 13px;border-radius:21px;
+    display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.09);
+    font-size:14.5px;font-weight:600;color:var(--text);white-space:nowrap;
+    transition:background .15s ease,border-color .15s ease;
+  }
+  .chip:hover{background:rgba(255,255,255,.1)}
+  .chip:active{background:rgba(255,255,255,.14)}
+  .chip svg{width:17px;height:17px;color:var(--text2);flex:none}
+  /* one accent chip, so the rail has an entry point instead of reading as a legend */
+  .chip.accent{
+    background:rgba(76,158,255,.11);border-color:rgba(76,158,255,.26);color:var(--primary);
+  }
+  .chip.accent svg{color:var(--primary)}
+
+  /* ── COMPOSER ────────────────────────────────────────────────── */
+  .composer{
+    flex:none;margin:0 14px 30px;height:58px;border-radius:29px;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.09);
+    display:flex;align-items:center;gap:6px;padding:0 7px 0 8px;
+  }
+  .composer .cbtn{
+    width:42px;height:42px;flex:none;border-radius:50%;border:none;cursor:pointer;
+    background:transparent;color:var(--text2);display:grid;place-items:center;
+    transition:background .15s ease,color .15s ease;
+  }
+  .composer .cbtn:hover{background:rgba(255,255,255,.08);color:var(--text)}
+  .composer .cbtn svg{width:21px;height:21px}
+  .composer input{
+    flex:1;min-width:0;border:none;outline:none;background:transparent;
+    color:var(--text);font-family:var(--sans);font-size:15.5px;
+  }
+  .composer input::placeholder{color:var(--text3)}
+  .composer .send{
+    background:rgba(255,255,255,.10);color:var(--text2);
+  }
+  .composer .send:hover{background:rgba(255,255,255,.16);color:var(--text)}
+
+  /* ── NOTES ───────────────────────────────────────────────────── */
+  .notes{width:100%;max-width:820px;display:flex;flex-direction:column;gap:18px}
+  .note h3{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:7px;
+           text-transform:uppercase;letter-spacing:.05em}
+  .note p,.note li{font-size:13px;color:var(--text3);line-height:1.7}
+  .note ul{margin:0;padding-left:18px}
+  .note li{margin-bottom:5px}
+  .note b{color:var(--text2);font-weight:600}
+
+  /* ── SPEC STRIP ──────────────────────────────────────────────── */
+  .strip{width:100%;max-width:820px;display:flex;gap:10px;flex-wrap:wrap}
+  .cell{flex:1;min-width:150px;background:#111;border:1px solid #1e1e1e;
+        border-radius:13px;padding:14px 16px}
+  .cell .k{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+           color:var(--text3)}
+  .cell .v{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--primary);
+           margin-top:5px}
+  .cell .d{font-size:11.5px;color:var(--text3);margin-top:3px}
+</style>
+</head>
+<body>
+
+<div class="caption">
+  <h1>Agent Home — yatay kaydırmalı chip rayı</h1>
+  <p>Pill düğmelerin <b>tek satırlık, kaydırmalı bir ray</b> hali. Sarmalanan ızgara yerine geçti:
+  ekran genişliği sabit olmadığı için sarma, dördüncü/beşinci chip'i ikinci satıra itip
+  kompozitörü aşağı itiyordu — yani <b>dört yerde de aynı yükseklikte olması gereken bir ray,
+  ekranın yüksekliğine göre değişiyordu.</b> Tek satır + yatay kaydırma, listenin boyu ne olursa
+  olsun rayın ve kompozitörün konumu sabit kalıyor.</p>
+</div>
+
+<div class="phone">
+
+  <!-- status bar -->
+  <div class="statusbar">
+    <div>16:29</div>
+    <div class="r">
+      <span>31.1 KB/s</span><span>×</span>
+      <svg width="15" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 18.5a1.3 1.3 0 100 2.6 1.3 1.3 0 000-2.5zM4.9 11.3a10 10 0 0114.2 0l-1.5 1.5a7.7 7.7 0 00-11.2 0l-1.5-1.5zM1.4 7.8a15 15 0 0121.2 0l-1.5 1.5a12.7 12.7 0 00-18.2 0L1.4 7.8z"/></svg>
+      <span class="batt"><i></i></span><span>10%</span>
+    </div>
+  </div>
+
+  <!-- top row -->
+  <div class="toprow">
+    <div class="circbtn" title="Menü">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </div>
+    <div class="modelpill">
+      Kimi K3
+      <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div style="flex:1"></div>
+    <div class="circbtn" title="Sessiz">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>
+    </div>
+  </div>
+
+  <!-- stage -->
+  <div class="stage">
+    <div class="orb"><i class="a"></i><i class="b"></i></div>
+    <div class="hello">Merhaba Muhofy Social,<br>bugün Kimi ile ne yapalım?</div>
+    <div class="upgrade">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+      </svg>
+      Upgrade Plan
+    </div>
+  </div>
+
+  <!-- chat list -->
+  <div class="listwrap">
+    <div class="sec">Çalışan</div>
+    <div class="chatrow">
+      <div class="dot" style="background:var(--primary)"></div>
+      <div class="t">TerminalManager refactor</div>
+      <div class="s">çalışıyor</div>
+    </div>
+
+    <div class="sec">Son</div>
+    <div class="chatrow">
+      <div class="dot" style="background:var(--success)"></div>
+      <div class="t">PR #39 markdown geçişi</div>
+      <div class="s">2 dk</div>
+    </div>
+    <div class="chatrow">
+      <div class="dot" style="background:var(--success)"></div>
+      <div class="t">Room v4 şema birleştirme</div>
+      <div class="s">1 sa</div>
+    </div>
+    <div class="chatrow">
+      <div class="dot" style="background:var(--success)"></div>
+      <div class="t">Haze blur performans düzeltmesi</div>
+      <div class="s">3 sa</div>
+    </div>
+  </div>
+
+  <!-- the rail -->
+  <div class="railwrap">
+    <div class="rail">
+      <div class="chip accent">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+        Proje
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v4M8 21h8M7 13V9h6v4"/></svg>
+        Slaytlar
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 13h.01M15 13h.01M9.5 16.5c1.5 1.2 3.5 1.2 5 0"/></svg>
+        Swarm
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="6" y="3" width="12" height="18" rx="3"/><path d="M10.5 18h3"/></svg>
+        Uygulama özeti
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
+        Zamanlanmış görev
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        Denetim kaydı
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/></svg>
+        Notlar
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v18M5 8l7-5 7 5v8l-7 5-7-5V8z"/></svg>
+        Bileşenler
+      </div>
+    </div>
+  </div>
+
+  <!-- composer -->
+  <div class="composer">
+    <button class="cbtn" title="Ekle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+           stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <input placeholder="Bana sor. Bana görev ver." />
+    <button class="cbtn send" title="Gönder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 9.5a4 4 0 010 5M19 6.5a8 8 0 010 11"/></svg>
+    </button>
+  </div>
+
+  <div class="homebar"></div>
+</div>
+
+<div class="strip">
+  <div class="cell">
+    <div class="k">Yükseklik</div>
+    <div class="v">42dp</div>
+    <div class="d">tek satır, sabit</div>
+  </div>
+  <div class="cell">
+    <div class="k">Sarma</div>
+    <div class="v">yok</div>
+    <div class="d">yatay kaydırma</div>
+  </div>
+  <div class="cell">
+    <div class="k">Chip genişliği</div>
+    <div class="v">içerik</div>
+    <div class="d">flex:none, ellipsis yok</div>
+  </div>
+  <div class="cell">
+    <div class="k">Vurgulu</div>
+    <div class="v">1</div>
+    <div class="d">accent, giriş noktası</div>
+  </div>
+  <div class="cell">
+    <div class="k">Konum</div>
+    <div class="v">pin</div>
+    <div class="d">liste ile kaymaz</div>
+  </div>
+</div>
+
+<div class="notes">
+  <div class="note">
+    <h3>Neden ray listenin dışında</h3>
+    <p>Kompozitör pin'li — liste kaydırılırken o duruyor. Ray da pin'li, çünkü kompozitörün
+       hemen üstünde duran bir kontrolün liste ile birlikte kayması, altındaki çubuk
+       dururken kaybolan bir düğme demek: kullanıcı onu aramak zorunda kalır.
+       Yatay kaydırma tek elle, dikey kaydırmayla çakışmıyor — iki eksen ayrı.</p>
+  </div>
+
+  <div class="note">
+    <h3>Neden sarma yok</h3>
+    <p>Sarmalayan ızgara, chip sayısı ekran genişliğini aştığı anda <b>kendi yüksekliğini
+       değiştirir</b>. Kompozitör aşağı kayar, rayın üstüne biner, ve bu listenin kaç
+       sohbeti olduğuna bağlı olur — yani aynı ekranda, aynı bileşende, iki farklı
+       yükseklik. Kaydırmalı ray bu sorunu kaldırıyor: ray her zaman 42dp, kaç chip
+       olursa olsun.</p>
+  </div>
+
+  <div class="note">
+    <h3>Soldaki solma</h3>
+    <p>Sadece <code>.railwrap::after</code> üzerinde — ray'ın kendisinde değil. Ray
+       <code>overflow-x</code> taşıdığı için maske onunla birlikte kayardı ve yanlış
+       yerde belirirdi. Bu yüzden sarmalayıcı: maske sabit, içerik kayar.</p>
+  </div>
+
+  <div class="note">
+    <h3>Henüz karar verilmemiş</h3>
+    <ul>
+      <li><b>Ray liste ile birlikte mi kaymalı?</b> Yukarıda pin'li seçildi, çünkü
+          kompozitör pin'li. Chat ekranında liste kısaldığında davranış farklı olabilir.</li>
+      <li><b>Kaç chip?</b> Burada 8 var. Ray kaydığı için sınır yok ama ilk ekranda
+          5-6 görünüyor; fazlası keşfedilemez olabilir.</li>
+      <li><b>Etiketler nereden gelmeli?</b> Bunlar şu an statik. Gerçekte yakın
+          konuşmalardan mı, yoksa sabit öneriler mi — ikisi farklı bir bileşen.</li>
+      <li><b>Seçili durum.</b> Bir chip'e basılınca ne olacak — filtre mi, ekran mı açıyor?
+          Buna göre seçili görsel gerekip gerekmediği belli olur.</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

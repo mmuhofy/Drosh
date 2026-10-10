@@ -1016,9 +1016,10 @@ two used to disagree in both range and granularity.
 
 An HTML prototype compared four models — continuous 0.1sp, 0.5sp steps, 1sp
 steps, and a reflow-free canvas scale — with a live fps/reflow counter.
-0.1sp continuous was chosen from it (Muhofy, 2026-10-08). `mockups/` is
-gitignored, so the prototype is not in the repository; rebuild it from this
-description if the question comes up again.
+0.1sp continuous was chosen from it (Muhofy, 2026-10-08). The prototype now
+lives with the rest of them in `html/pinch-zoom-prototype.html`;
+`feature/pinch-zoom`'s `TerminalZoomTest` carries the decided behaviour into
+tests, so the HTML is evidence of the choice rather than its source.
 
 ### Tests
 

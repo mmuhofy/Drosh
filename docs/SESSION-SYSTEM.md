@@ -132,7 +132,7 @@ regex'le tahmin ediyoruz. Bu tek eksikliğin doğrudan sonuçları:
 - hatalı komutların yeşil görünmesi — `BlockEngineWire` çıkış kodunu `0`
   sabitliyor, çünkü elimizde gerçeği yok
 
-Ayrıntılı tasarım: `docs/PHASE-6-ARCHITECTURE.md` ve TODO §Phase 6.
+Ayrıntılı tasarım: `docs/archive/PHASE-6-ARCHITECTURE.md` ve TODO §Phase 6.
 
 ---
 

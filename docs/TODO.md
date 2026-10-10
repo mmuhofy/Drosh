@@ -148,7 +148,7 @@ Gruplama çalışıyordu; çevresi çalışmıyordu.
 - [ ] **AgentRuntime.kt** — bounded loop, step counter (OpenCode + Cline pattern)
 - [ ] **MultiStepStreamer.kt** — StreamEvent → ToolCall accumulation
 - [x] **ChatAdapter.kt** (interface) + **OpenAiCompatAdapter.kt** + **AnthropicAdapter.kt** + **GeminiAdapter.kt** + **OpenAiResponsesAdapter.kt**
-- [x] **RESOLVED (2026-09-19):** Per-provider adapters, NOT OpenAI proxy. Gemini uses `google-genai` lib directly. See MEMORYBANK.md §3 and PHASE-6-ARCHITECTURE.md §4.
+- [x] **RESOLVED (2026-09-19):** Per-provider adapters, NOT OpenAI proxy. Gemini uses `google-genai` lib directly. See MEMORYBANK.md §3 and `docs/archive/PHASE-6-ARCHITECTURE.md` §4.
 - [x] Provider catalog — 225 providers from models.dev, fetched once and cached
 - [x] Reasoning effort — per-model, per-protocol, persisted
 - [x] API Vault — per provider key management (EncryptedSharedPreferences)
