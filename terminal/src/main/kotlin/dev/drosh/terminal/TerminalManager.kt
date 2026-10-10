@@ -838,17 +838,18 @@ class TerminalManager(
         paneViews[slot] = view
         sessionClient.clipboard =
             context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        // Rate and state together, and in that order: the view is fresh, so it
-        // has neither, and a blinker started without a rate is stopped again by
-        // the range check inside it.
-        applyCursorBlinkRate(view, cursorBlinkRateMs)
-
         // The pane may have been given its session before its view existed —
         // the layout is restored from storage before the first composition
         // builds anything, and a pane arriving in the overlay window has no
         // composition of its own to wait for — so attach now rather than waiting
         // for a change that has already happened.
         sessionForSlot(slot)?.let { view.attachSession(it) }
+
+        // After the attach, not before: the blinker can only run against an
+        // emulator, and a fresh view has none until the session it was just
+        // given builds one. Applying it first meant every pane registered
+        // before its session existed never blinked at all.
+        applyCursorBlinkRate(view, cursorBlinkRateMs)
 
         if (slot == focusedPane.value) activatePaneView(slot, view)
     }

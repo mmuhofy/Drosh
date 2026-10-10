@@ -160,6 +160,18 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     private var mTerminalCursorBlinkerRate: Int = 0
     private var mCursorInvisibleIgnoreOnce: Boolean = false
 
+    /**
+     * Whether blinking is wanted at all — rate valid AND the state call said
+     * start. Held across emulator changes, because the blinker has to be
+     * re-armed on every new emulator and only this says whether it should be.
+     *
+     * Drosh-added: without it, a view that registered its session after the
+     * rate arrived never blinked at all — the start call ran while the view
+     * still had no emulator, and the session that arrived later was never
+     * told about it.
+     */
+    private var mCursorBlinkerActive: Boolean = false
+
     /** The top row of text to display. Ranges from -activeTranscriptRows to 0. */
     @JvmField
     var mTopRow: Int = 0
@@ -1626,6 +1638,11 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
 
             // Update mTerminalCursorBlinkerRunnable inner class mEmulator on session change
             mTerminalCursorBlinkerRunnable?.setEmulator(mEmulator!!)
+            // A new emulator blinks nothing until told to: its blinking flag
+            // starts false and the runnable follows it only if it is running.
+            // This is what keeps the cursor blinking across a session swap,
+            // a restart, or a late pane registration.
+            startTerminalCursorBlinker()
 
             // Clamped rather than zeroed. Drosh changes the grid's height on
             // purpose — the terminal's top padding follows the chrome state — and
@@ -1882,6 +1899,11 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         // Stop any existing cursor blinker callbacks
         stopTerminalCursorBlinker()
 
+        // Held false until the start below succeeds, so a declined start
+        // (no emulator yet, a rate outside the window) is not remembered as
+        // "blink wanted" and re-armed by the next emulator.
+        mCursorBlinkerActive = false
+
         if (mEmulator == null) return
 
         mEmulator!!.setCursorBlinkingEnabled(false)
@@ -1900,12 +1922,32 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             // Start cursor blinker runnable
             if (TERMINAL_VIEW_KEY_LOGGING_ENABLED)
                 mClient!!.logVerbose(LOG_TAG, "Starting cursor blinker with the blink rate $mTerminalCursorBlinkerRate")
-            if (mTerminalCursorBlinkerHandler == null)
-                mTerminalCursorBlinkerHandler = Handler(Looper.getMainLooper())
-            mTerminalCursorBlinkerRunnable = TerminalCursorBlinkerRunnable(mEmulator!!, mTerminalCursorBlinkerRate)
-            mEmulator!!.setCursorBlinkingEnabled(true)
-            mTerminalCursorBlinkerRunnable!!.run()
+            mCursorBlinkerActive = true
+            startTerminalCursorBlinker()
         }
+    }
+
+    /**
+     * Arms the blinker against the current emulator.
+     *
+     * Called from [setTerminalCursorBlinkerState] and again from [updateSize]
+     * whenever a new emulator arrives: the blinking flag and the runnable's
+     * emulator reference both belong to one emulator, and a session swap
+     * installs a new one whose blinking is off - a cursor that blinked before
+     * the swap would freeze solid after it.
+     */
+    private fun startTerminalCursorBlinker() {
+        if (!mCursorBlinkerActive) return
+        if (mTerminalCursorBlinkerRate < TERMINAL_CURSOR_BLINK_RATE_MIN || mTerminalCursorBlinkerRate > TERMINAL_CURSOR_BLINK_RATE_MAX) return
+        val emulator = mEmulator ?: return
+        // One runnable at a time: a second would toggle twice per tick and
+        // read as a cursor that never moves.
+        stopTerminalCursorBlinker()
+        if (mTerminalCursorBlinkerHandler == null)
+            mTerminalCursorBlinkerHandler = Handler(Looper.getMainLooper())
+        mTerminalCursorBlinkerRunnable = TerminalCursorBlinkerRunnable(emulator, mTerminalCursorBlinkerRate)
+        emulator.setCursorBlinkingEnabled(true)
+        mTerminalCursorBlinkerRunnable!!.run()
     }
 
     /**
