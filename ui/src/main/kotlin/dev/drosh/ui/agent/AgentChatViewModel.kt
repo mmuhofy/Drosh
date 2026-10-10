@@ -66,11 +66,28 @@ class AgentChatViewModel @Inject constructor(
     private val _providerState = MutableStateFlow(ProviderState())
     val providerState: StateFlow<ProviderState> = _providerState.asStateFlow()
 
+    /**
+     * Whether a run is in flight, as observable state.
+     *
+     * A plain `get()` here meant Compose read it once while composing and never
+     * again: the run ends, no state changed, so nothing recomposed and the stop
+     * button stayed on screen under a finished transcript. Kept as a
+     * [StateFlow] so the screen observes it like every other piece of state.
+     */
+    private val _running = MutableStateFlow(false)
+    val running: StateFlow<Boolean> = _running.asStateFlow()
+
+    /** True while a run is in flight. */
+    val isRunning: Boolean get() = _running.value
+
     private var runJob: Job? = null
     private var chatId: String? = null
 
     /** Guards the single catalog collector, which must outlive one [attach]. */
     private var watchingCatalog = false
+
+    /** The chat-metadata collector, cancelled when switching chats. */
+    private var observeJob: Job? = null
     private var onChatCreatedCallback: (String) -> Unit = {}
 
     /**
@@ -100,7 +117,6 @@ class AgentChatViewModel @Inject constructor(
         val error: String? = null,
     )
 
-    val isRunning: Boolean get() = runJob?.isActive == true
 
     /** (approvalId, chatId) pairs the user has not answered yet. */
     private val _pendingApproval = MutableStateFlow<List<Pair<String, String>>>(emptyList())
@@ -129,11 +145,18 @@ class AgentChatViewModel @Inject constructor(
     /**
      * Bind to an existing chat.
      *
-     * Idempotent: recomposition and configuration changes re-run this, and
-     * re-subscribing each time would duplicate the metadata collection.
+     * Switching chats stops the previous one. A run holds its chat id to append
+     * tool results to, so leaving it running would keep writing into a
+     * transcript nobody is looking at, and the loop's history would diverge from
+     * what the screen shows. The run's own output is already in the transcript
+     * and in storage, so stopping loses nothing the user has not seen.
      */
     fun attach(id: String, onCreated: (String) -> Unit = {}) {
         if (chatId == id) return
+
+        if (id != NEW_CHAT_ID) {
+            stopRun()
+        }
 
         // One collector for the screen's lifetime, so a catalog that lands after
         // the screen is already up still resolves the provider.
@@ -155,17 +178,36 @@ class AgentChatViewModel @Inject constructor(
         }
 
         chatId = id
-        viewModelScope.launch {
+        observeJob?.cancel()
+        observeJob = viewModelScope.launch {
             // The transcript first, so the first frame shows the conversation
             // rather than an empty screen that fills in a moment later.
             val stored = transcripts.load(id)
             if (stored.isNotEmpty()) {
                 builder.restore(stored)
-                _messages.value = builder.snapshot()
+            } else {
+                // Nothing stored yet: clear whatever the previous chat left.
+                builder.restore(emptyList())
             }
+            _messages.value = builder.snapshot()
             chats.observe(id).collect { _chat.value = it }
         }
         loadProvider()
+    }
+
+    /**
+     * Cancel the run in flight, if any, and clear the running flag.
+     *
+     * Separate from [stop] only in that it does not touch the loop's own
+     * cancellation path — callers here are switching chats or clearing the
+     * ViewModel, where the run is being abandoned rather than asked to stop.
+     */
+    private fun stopRun() {
+        val job = runJob
+        runJob = null
+        _running.value = false
+        chatId?.let { agentSession.cancel(it) }
+        job?.cancel()
     }
 
     /** Create a chat from the first prompt and report its id back to the caller. */
@@ -219,6 +261,15 @@ class AgentChatViewModel @Inject constructor(
         }
         val id = chatId ?: return
 
+        // First prompt of a chat the user opened empty from Home: it is still
+        // carrying the placeholder name, so name it after what was asked. Later
+        // prompts leave the name alone — the user may have renamed it, and
+        // overwriting that with a follow-up question would be worse.
+        val currentName = _chat.value?.name.orEmpty()
+        if (currentName.isBlank() || currentName == PLACEHOLDER_NAME) {
+            viewModelScope.launch { chats.rename(id, text.take(NAME_LIMIT)) }
+        }
+
         val providerState = _providerState.value
         val provider = providerState.provider
         if (provider == null) {
@@ -246,6 +297,7 @@ class AgentChatViewModel @Inject constructor(
         _messages.value = builder.snapshot()
         _providerState.value = providerState.copy(error = null)
 
+        _running.value = true
         runJob = viewModelScope.launch {
             chats.touch(id)
             _retrying.value = null
@@ -294,6 +346,7 @@ class AgentChatViewModel @Inject constructor(
                 }
             }
             runJob = null
+            _running.value = false
         }
     }
 
@@ -311,6 +364,11 @@ class AgentChatViewModel @Inject constructor(
         val id = chatId ?: return
         agentSession.cancel(id)
         _pendingApproval.value = emptyList()
+        // The loop's cancellation is what stops it, but the flag has to move now
+        // or the button stays lit until the flow actually finishes.
+        runJob?.cancel()
+        runJob = null
+        _running.value = false
     }
 
     fun answer(approvalId: String, decision: ApprovalDecision) {
@@ -431,7 +489,9 @@ class AgentChatViewModel @Inject constructor(
         // The run is in this ViewModel's scope so it dies with it anyway. Cancelling
         // also declines anything the run is parked on, so a tool awaiting consent is
         // not left holding a deferred nobody will ever answer.
+        observeJob?.cancel()
         chatId?.let { agentSession.cancel(it) }
+        _running.value = false
     }
 
     private fun RunOutcome.toChatStatus(): ChatStatus = when (this) {
@@ -447,5 +507,14 @@ class AgentChatViewModel @Inject constructor(
         /** Route placeholder for a chat that does not exist yet. */
         const val NEW_CHAT_ID = "new"
         private const val NAME_LIMIT = 48
+
+        /**
+         * The name a chat carries before its first prompt.
+         *
+         * Must match `AgentHomeViewModel.DEFAULT_NAME`. Kept as the same literal
+         * in both places rather than one referencing the other, so neither
+         * ViewModel has to know about the other.
+         */
+        private const val PLACEHOLDER_NAME = "New chat"
     }
 }

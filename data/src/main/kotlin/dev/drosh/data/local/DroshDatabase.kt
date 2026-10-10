@@ -38,7 +38,7 @@ import dev.drosh.data.workspace.WorkspaceEntity
         SshHostEntity::class,
         SshKeyEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class DroshDatabase : RoomDatabase() {
@@ -290,12 +290,30 @@ abstract class DroshDatabase : RoomDatabase() {
         }
 
         /**
+         * 5 → 6: tool-call arguments.
+         *
+         * Additive — one nullable column on `agent_messages`, defaulted null.
+         * A transcript written by an older build restores with an empty argument
+         * object, which the restore path treats as "arguments unknown" and
+         * handles by dropping the call and its result together rather than
+         * sending a `tool_use` the model never issued.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `agent_messages` ADD COLUMN `tool_arguments` TEXT DEFAULT NULL",
+                )
+            }
+        }
+
+        /**
          * Every migration, in order.
          *
          * Registered in `DatabaseModule`. Room walks this to find a path from
          * whatever version a device is at, so a device on 1, on 2 or on the broken
          * 3 all reach the current schema.
          */
-        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        val ALL_MIGRATIONS: Array<Migration> =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     }
 }

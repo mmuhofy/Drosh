@@ -59,16 +59,40 @@ class TranscriptBuilder(
      * transcript with a caret nothing is going to move, and would swallow the next
      * delta instead of starting a new message.
      *
-     * Only valid on an empty builder. Restoring over a live conversation would
-     * silently discard what is on screen.
+     * Safe to call on a builder that already holds another chat. Switching chats
+     * reuses the same ViewModel, so refusing would mean a crash on the second
+     * chat — the transcript is replaced and [seq] restarts from the new store's
+     * ids, so nothing of the previous chat survives.
      */
     fun restore(messages: List<ChatMessage>) {
-        check(this.messages.isEmpty()) { "refusing to restore over a live transcript" }
+        this.messages.clear()
         this.messages += messages.map { message ->
             if (message is ChatMessage.Assistant) message.copy(streaming = false) else message
         }
         streamingAssistantId = null
         streamingReasoningId = null
+        seq = 0
+        advanceSeqPast(messages)
+    }
+
+    /**
+     * Move [seq] past every restored id so the next generated id cannot collide.
+     *
+     * Without this, a restored transcript containing `m0` is followed by
+     * `nextId()` returning `m0` again — the LazyColumn then sees one key on two
+     * rows and throws. It also means a text delta lands on the *restored*
+     * message instead of the new one, because `update` resolves by the first
+     * matching id.
+     *
+     * Ids are not always `m<number>`: the model-facing view stored by
+     * `saveModelView` uses `model_a<index>_<hash>`, so a non-numeric suffix is
+     * simply skipped rather than treated as zero.
+     */
+    private fun advanceSeqPast(restored: List<ChatMessage>) {
+        val highest = restored.mapNotNull { message ->
+            ID_PATTERN.matchEntire(message.id)?.groupValues?.get(1)?.toIntOrNull()
+        }.maxOrNull()
+        if (highest != null && highest >= seq) seq = highest + 1
     }
 
     fun accept(event: AgentEvent) {
@@ -226,6 +250,10 @@ class TranscriptBuilder(
                 name = event.name,
                 summary = "",
                 state = stateFor(event.result),
+                // Recorded even for a call that was never announced: the row is
+                // what restore reads, and a result with no call is a protocol
+                // error on its own.
+                arguments = event.arguments,
                 finalOutput = finalText(event.result),
                 truncated = event.truncated,
                 durationMs = event.durationMs,
@@ -236,6 +264,7 @@ class TranscriptBuilder(
         }
         messages[index] = (messages[index] as ChatMessage.ToolCall).copy(
             state = stateFor(event.result),
+            arguments = event.arguments,
             finalOutput = finalText(event.result),
             truncated = event.truncated,
             durationMs = event.durationMs,
@@ -311,5 +340,8 @@ class TranscriptBuilder(
 
         /** Must match `UpdateTodoTool.NAME`. */
         const val TODO_TOOL: String = "update_todo"
+
+        /** `m<number>` — the ids this builder mints. */
+        private val ID_PATTERN = Regex("""m(\d+)""")
     }
 }

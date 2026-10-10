@@ -53,6 +53,14 @@ sealed interface AgentEvent {
         val name: String,
         val result: ToolResult,
         /**
+         * The arguments the model sent, as JSON.
+         *
+         * Carried so the transcript row can store them: a restored conversation
+         * needs the assistant's `tool_use` block rebuilt, and that block is made
+         * of these. See [ChatMessage.ToolCall.arguments].
+         */
+        val arguments: JsonObject,
+        /**
          * True when the output was clipped before being handed to the model.
          * The UI shows this on the row so a shortened result is never mistaken
          * for a complete one.

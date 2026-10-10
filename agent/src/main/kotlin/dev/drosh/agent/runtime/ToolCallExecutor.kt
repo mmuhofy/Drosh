@@ -123,6 +123,9 @@ internal class ToolCallExecutor(
                 callId = call.id,
                 name = tool.name,
                 result = result,
+                // The model's own arguments, so the row can rebuild the
+                // assistant's tool_use block on restore.
+                arguments = call.arguments,
                 truncated = trimmed.truncated,
                 durationMs = System.currentTimeMillis() - startedAt,
             ),
@@ -150,6 +153,9 @@ internal class ToolCallExecutor(
                 callId = call.id,
                 name = call.name,
                 result = ToolResult.Error(message),
+                // The model did send arguments; they are what the block rebuild
+                // needs, whether or not a tool by that name exists.
+                arguments = call.arguments,
                 truncated = false,
                 durationMs = 0,
             ),

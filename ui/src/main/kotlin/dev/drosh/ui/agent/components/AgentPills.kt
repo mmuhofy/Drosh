@@ -332,10 +332,16 @@ fun Modifier.glassEdge(
  *
  * Clip first, so a ripple or [clickable] after this stays inside the shape.
  */
-fun Modifier.glassRow(shape: Shape, raised: Boolean = false): Modifier = this
-    .clip(shape)
-    .background(if (raised) DroshSurfaceVariant else DroshSurfaceLow)
-    .glassEdge(shape, strength = if (raised) 0.9f else 0.55f)
+@Composable
+fun Modifier.glassRow(shape: Shape, raised: Boolean = false): Modifier {
+    // DroshSurfaceVariant and DroshSurfaceLow are composable getters over the
+    // theme, so this has to be @Composable too.
+    val fill = if (raised) DroshSurfaceVariant else DroshSurfaceLow
+    return this
+        .clip(shape)
+        .background(fill)
+        .glassEdge(shape, strength = if (raised) 0.9f else 0.55f)
+}
 
 /**
  * `clickable` with the ripple suppressed, wired to a supplied interaction source.

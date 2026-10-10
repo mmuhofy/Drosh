@@ -1,5 +1,7 @@
 package dev.drosh.domain.agent
 
+import kotlinx.serialization.json.JsonObject
+
 /**
  * The rendered shape of a conversation.
  *
@@ -37,6 +39,16 @@ sealed interface ChatMessage {
         val state: ToolCallState,
         /** Live output, newest last. Capped by the caller. */
         val output: List<String> = emptyList(),
+        /**
+         * The arguments the model sent for this call, as JSON.
+         *
+         * Stored so a restored conversation can rebuild the assistant's
+         * `tool_use` block. Without it the result row restores with nothing it
+         * could be the answer to, and every provider rejects that pairing.
+         * Empty when the row predates the column, or was written before the
+         * call had any arguments to speak of.
+         */
+        val arguments: JsonObject = JsonObject(emptyMap()),
         /** Final output after the tool finished; null while running. */
         val finalOutput: String? = null,
         /** Set when the result was clipped before reaching the model. */

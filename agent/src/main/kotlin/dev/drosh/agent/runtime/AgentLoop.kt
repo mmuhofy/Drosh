@@ -116,6 +116,14 @@ class AgentLoop @Inject constructor(
             emit(AgentEvent.RunFinished(runLoop(request, runtime, this)))
         } finally {
             runtime.release()
+            // The runtime holds the whole conversation for this chat, so every
+            // finished chat left one in the map forever. Two chats a day for a
+            // month is sixty conversations the process never lets go of.
+            //
+            // Removed only when nothing holds a reference to it: a collector
+            // still attached to the run's flow would otherwise get its history
+            // pulled out from under it.
+            if (runtime.isIdle()) chats.remove(request.chatId, runtime)
             markStopped(request.chatId)
         }
     }

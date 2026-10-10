@@ -47,30 +47,47 @@ class TranscriptStoreImpl @Inject constructor(
      * Ids are derived from position and content, not random: the same turn is
      * written again on every call and the row must be replaced rather than
      * duplicated. The index disambiguates two identical turns in a row.
+     *
+     * Rows this call does not produce are deleted. They are the remains of a
+     * *different* id for the same logical message — compaction shifts every
+     * index, and a user message whose text changed no longer hashes the same, so
+     * without the sweep a transcript accumulates a stale copy of each of those
+     * and restore shows the conversation twice.
      */
     override suspend fun saveModelView(chatId: String, messages: List<LlmMessage>) =
         withContext(Dispatchers.IO) {
-            if (messages.isEmpty()) return@withContext
+            if (messages.isEmpty()) {
+                // Nothing to write is the same as nothing stored: leaving the
+                // previous rows would restore a conversation that no longer
+                // exists in the loop's view.
+                dao.deleteForChat(chatId)
+                return@withContext
+            }
             val existing = dao.load(chatId).associateBy { it.messageId }
             var seq = dao.maxSeq(chatId)
             val now = System.currentTimeMillis()
 
-            messages.forEachIndexed { index, message ->
+            val written = mutableSetOf<String>()
+            val rows = messages.mapIndexed { index, message ->
                 val id = when (message) {
                     is LlmMessage.User -> "model_u${index}_${message.text.hashCode()}"
                     is LlmMessage.Assistant -> "model_a${index}_${message.text.hashCode()}"
                     is LlmMessage.ToolResultMessage -> "model_t${index}_${message.callId}"
                 }
+                written += id
                 val prior = existing[id]
-                dao.upsert(
-                    message.toEntity(
-                        chatId = chatId,
-                        messageId = id,
-                        seq = prior?.seq ?: ++seq,
-                        createdAtMs = prior?.createdAtMs ?: now,
-                    ),
+                message.toEntity(
+                    chatId = chatId,
+                    messageId = id,
+                    seq = prior?.seq ?: ++seq,
+                    createdAtMs = prior?.createdAtMs ?: now,
                 )
             }
+
+            // Only model-view rows: the user's view is written by `save`, which
+            // replaces the lot, and deleting those would race a UI write.
+            val stale = existing.keys.filter { it.startsWith(MODEL_VIEW_PREFIX) && it !in written }
+            dao.saveModelView(rows, stale)
         }
 
     override suspend fun replaceAll(chatId: String, messages: List<ChatMessage>) =
@@ -110,6 +127,7 @@ class TranscriptStoreImpl @Inject constructor(
         messageId = messageId,
         text = textForStorage(),
         toolCallId = (this as? ChatMessage.ToolCall)?.callId,
+        toolArguments = (this as? ChatMessage.ToolCall)?.arguments?.takeIf { it.isNotEmpty() }?.toString(),
         toolName = (this as? ChatMessage.ToolCall)?.name,
         toolSummary = (this as? ChatMessage.ToolCall)?.summary,
         toolState = (this as? ChatMessage.ToolCall)?.state?.let(::stateName),
@@ -140,6 +158,16 @@ class TranscriptStoreImpl @Inject constructor(
         is ChatMessage.ToolCall -> ""
         is ChatMessage.Approval -> ""
     }
+
+    /**
+     * Arguments as text, or null when there are none.
+     *
+     * Null rather than `"{}"` so a row that never had arguments is
+     * distinguishable from one whose call genuinely took none — the restore path
+     * can tell "unknown" from "empty", and only the second is safe to replay.
+     */
+    private fun JsonObject?.asStorageText(): String? =
+        this?.takeIf { it.isNotEmpty() }?.toString()
 
     private fun LlmMessage.toEntity(
         chatId: String,
@@ -195,6 +223,11 @@ class TranscriptStoreImpl @Inject constructor(
                 name = name,
                 summary = toolSummary.orEmpty(),
                 state = toolState.toState(),
+                // Null means the row predates the column, which reads as "the
+                // arguments are not known" rather than as "there were none".
+                arguments = toolArguments?.let { text ->
+                    runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
+                } ?: JsonObject(emptyMap()),
                 output = toolOutput
                     ?.split("\n")
                     ?.filter { it.isNotEmpty() }
@@ -294,6 +327,9 @@ class TranscriptStoreImpl @Inject constructor(
 
         /** Must match `UpdateTodoTool.NAME`. */
         const val TODO_TOOL = "update_todo"
+
+        /** Marks a row written by [saveModelView] rather than by `save`. */
+        const val MODEL_VIEW_PREFIX = "model_"
     }
 }
 

@@ -165,7 +165,10 @@ fun AgentChatScreen(
     val failure by viewModel.failure.collectAsStateWithLifecycle()
 
     val waiting = runState is AgentRunState.WaitingApproval
-    val running = viewModel.isRunning
+    // Observed as state, not read as a getter: a plain read happens once during
+    // composition, and the run ending changes nothing else, so the stop button
+    // would stay on screen under a finished transcript.
+    val running by viewModel.running.collectAsStateWithLifecycle()
 
     // One glass state for the whole screen: the transcript is the blur source and
     // every floating control — pills, the overflow menu, the sheet — is an effect

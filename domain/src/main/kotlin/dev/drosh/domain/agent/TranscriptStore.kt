@@ -68,37 +68,94 @@ interface TranscriptStore {
  * Kept in `:domain` as a pure function so the mapping is unit-testable and has no
  * storage dependency — it is the part that decides whether the agent actually
  * remembers, and it is worth being able to assert on directly.
+ *
+ * ## Tool calls belong to the assistant turn that made them
+ *
+ * A transcript stores an assistant row followed by its tool-call rows. Sent
+ * separately that is a `tool_result` with no `tool_use` before it, which all four
+ * protocols reject outright. So a turn is rebuilt as one assistant message
+ * carrying its calls, then the results.
+ *
+ * A turn made of tool calls and no text has no assistant row at all, so one is
+ * synthesized with empty text — that is what the wire expects, and it is what
+ * the loop itself writes during a live run.
+ *
+ * ## An approval row sits between the calls
+ *
+ * The builder puts the approval after the call it belongs to, so two calls in
+ * one turn have an approval row between them. Breaks on `User` or a new
+ * `Assistant`, never on an approval.
  */
-fun assembleModelHistory(messages: List<ChatMessage>): List<LlmMessage> =
-    messages.mapNotNull { message ->
+fun assembleModelHistory(messages: List<ChatMessage>): List<LlmMessage> {
+    val assembled = mutableListOf<LlmMessage>()
+
+    /** Tool calls of the turn being read, in order. */
+    var pendingTools = mutableListOf<ChatMessage.ToolCall>()
+
+    /** Text of the turn's assistant message, held until the turn is closed. */
+    var pendingText: String? = null
+
+    /** True when the turn is one the model should see an assistant turn for. */
+    var turnHasAssistant = false
+
+    /**
+     * Close the turn being read.
+     *
+     * The assistant message is emitted here rather than when its row was read,
+     * because the wire wants the text and the tool calls in the *same* message:
+     * emitting it separately would produce an assistant turn with no calls
+     * followed by another with no text, which is two turns the model never had.
+     */
+    fun flush() {
+        // A call whose arguments were never stored cannot be replayed: a
+        // `tool_use` with invented arguments asks the model to run something it
+        // never asked for. Dropping the call and its result together leaves a
+        // conversation the model can still follow.
+        val replayable = pendingTools.filter { it.arguments.isNotEmpty() }
+
+        if (turnHasAssistant || replayable.isNotEmpty()) {
+            assembled += LlmMessage.Assistant(
+                text = pendingText.orEmpty(),
+                toolCalls = replayable.map { LlmToolCall(it.callId, it.name, it.arguments) },
+            )
+        }
+        assembled += replayable.map {
+            LlmMessage.ToolResultMessage(it.callId, it.name, it.finalOutput.orEmpty())
+        }
+
+        pendingTools.clear()
+        pendingText = null
+        turnHasAssistant = false
+    }
+
+    messages.forEach { message ->
         when (message) {
-            is ChatMessage.User ->
-                LlmMessage.User(message.text)
+            is ChatMessage.User -> {
+                flush()
+                assembled += LlmMessage.User(message.text)
+            }
 
             is ChatMessage.Assistant -> {
-                // A trailing empty assistant turn is what the provider sent when it
-                // went straight to a tool call. Sending it back would make the model
-                // repeat the empty turn.
+                flush()
+                // A trailing empty assistant turn is what the provider sent when
+                // it went straight to a tool call. Sending it back would make
+                // the model repeat the empty turn — so it is dropped, and the
+                // turn the calls belong to is synthesized at flush instead.
                 if (message.text.isEmpty() && message.streaming) {
-                    null
+                    turnHasAssistant = false
+                    pendingText = null
                 } else {
-                    LlmMessage.Assistant(message.text)
+                    turnHasAssistant = true
+                    pendingText = message.text
                 }
             }
 
             is ChatMessage.ToolCall -> {
-                // Only a finished call has a result the model can read. A call that
-                // was cancelled or is still running has nothing to report, and
-                // omitting it leaves a dangling tool_call id in the history.
-                val result = message.finalOutput
-                if (message.state != ToolCallState.Succeeded || result == null) {
-                    null
-                } else {
-                    LlmMessage.ToolResultMessage(
-                        callId = message.callId,
-                        name = message.name,
-                        content = result,
-                    )
+                // Only a finished call has a result the model can read. A call
+                // that was cancelled or is still running has nothing to report,
+                // and omitting it leaves a dangling tool_call id in the history.
+                if (message.state == ToolCallState.Succeeded && message.finalOutput != null) {
+                    pendingTools += message
                 }
             }
 
@@ -108,6 +165,9 @@ fun assembleModelHistory(messages: List<ChatMessage>): List<LlmMessage> =
             is ChatMessage.Approval,
             is ChatMessage.Failure,
             is ChatMessage.Notice,
-            -> null
+            -> Unit
         }
     }
+    flush()
+    return assembled
+}

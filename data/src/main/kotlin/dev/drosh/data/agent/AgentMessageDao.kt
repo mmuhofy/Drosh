@@ -21,6 +21,9 @@ interface AgentMessageDao {
     @Query("DELETE FROM agent_messages WHERE chat_id = :chatId")
     suspend fun deleteForChat(chatId: String)
 
+    @Query("DELETE FROM agent_messages WHERE message_id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     /**
      * Rows the model would see, oldest first.
      *
@@ -44,9 +47,15 @@ interface AgentMessageDao {
      * chat restored with half its history produces a conversation the model cannot
      * follow and the user cannot explain.
      */
+    /**
+     * Write or replace a batch of model-view rows, deleting the stale ones.
+     *
+     * One transaction: a partial write restores as a conversation that jumps,
+     * which the model cannot follow and the user cannot explain.
+     */
     @Transaction
-    suspend fun replaceAll(chatId: String, messages: List<AgentMessageEntity>) {
-        deleteForChat(chatId)
+    suspend fun saveModelView(messages: List<AgentMessageEntity>, staleIds: List<String>) {
         messages.forEach { upsert(it) }
+        if (staleIds.isNotEmpty()) deleteByIds(staleIds)
     }
 }

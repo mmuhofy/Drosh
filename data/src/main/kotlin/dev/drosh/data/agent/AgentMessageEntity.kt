@@ -62,6 +62,15 @@ data class AgentMessageEntity(
 
     @ColumnInfo(name = "tool_call_id")
     val toolCallId: String? = null,
+    /**
+     * The arguments the model sent, as JSON text.
+     *
+     * Null rather than empty for rows written before this column existed, and
+     * for rows of kinds that have no arguments. Read back as an empty object so
+     * callers never branch on it.
+     */
+    @ColumnInfo(name = "tool_arguments")
+    val toolArguments: String? = null,
     @ColumnInfo(name = "tool_name")
     val toolName: String? = null,
     @ColumnInfo(name = "tool_summary")

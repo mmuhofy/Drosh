@@ -51,6 +51,15 @@ internal class ChatRuntime(val chatId: String) {
 
     val isRunning: Boolean get() = running.get()
 
+    /**
+     * True when no run is attached to this runtime.
+     *
+     * The loop uses it to decide whether the runtime may be dropped from its
+     * map: a finished run leaves one behind and the map never shrinks, so every
+     * chat ever run in this process stays resident for the life of the process.
+     */
+    fun isIdle(): Boolean = !running.get() && job == null
+
     fun remember(message: LlmMessage) {
         history += message
     }
