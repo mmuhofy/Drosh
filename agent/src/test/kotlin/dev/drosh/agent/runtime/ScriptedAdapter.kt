@@ -181,7 +181,41 @@ internal class FakeTranscriptStore : TranscriptStore {
     val modelViews = mutableMapOf<String, List<LlmMessage>>()
     val messages = mutableMapOf<String, List<ChatMessage>>()
 
-    override suspend fun load(chatId: String): List<ChatMessage> = messages[chatId].orEmpty()
+    /**
+     * Reads the model-facing view back through [assembleHistory].
+     *
+     * Real storage flattens both views into one table and `load` returns
+     * whichever rows are there. The fake keeps them apart, so the model view has
+     * to be assembled the same way a restore would — otherwise a second run in
+     * the same process finds nothing and starts from scratch, which is not what
+     * a device does after the runtime map drops the finished chat.
+     */
+    override suspend fun load(chatId: String): List<ChatMessage> {
+        val stored = messages[chatId]
+        if (!stored.isNullOrEmpty()) return stored
+        return assembleModelHistory(modelViewAsRows(chatId))
+    }
+
+    /** The model view as the transcript rows a restore would read. */
+    private fun modelViewAsRows(chatId: String): List<ChatMessage> =
+        modelViews[chatId].orEmpty().map { message ->
+            when (message) {
+                is LlmMessage.User -> ChatMessage.User("u_${message.text.hashCode()}", message.text)
+                is LlmMessage.Assistant -> ChatMessage.Assistant(
+                    "a_${message.text.hashCode()}",
+                    message.text,
+                )
+
+                is LlmMessage.ToolResultMessage -> ChatMessage.ToolCall(
+                    id = "t_${message.callId}",
+                    callId = message.callId,
+                    name = message.name,
+                    summary = message.name,
+                    state = ToolCallState.Succeeded,
+                    finalOutput = message.content,
+                )
+            }
+        }
 
     override suspend fun save(chatId: String, messages: List<ChatMessage>) {
         this.messages[chatId] = messages

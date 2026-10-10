@@ -47,6 +47,12 @@ interface AgentMessageDao {
      * chat restored with half its history produces a conversation the model cannot
      * follow and the user cannot explain.
      */
+    @Transaction
+    suspend fun replaceAll(chatId: String, messages: List<AgentMessageEntity>) {
+        deleteForChat(chatId)
+        messages.forEach { upsert(it) }
+    }
+
     /**
      * Write or replace a batch of model-view rows, deleting the stale ones.
      *
