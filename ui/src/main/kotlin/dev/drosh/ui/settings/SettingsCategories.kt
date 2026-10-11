@@ -482,6 +482,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     }
 }
 
+@Composable
 fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_category_keyboard),
@@ -508,6 +509,7 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     }
 }
 
+@Composable
 fun ShellCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
     var showMotdDialog by rememberSaveable { mutableStateOf(false) }
     var showStartupDialog by rememberSaveable { mutableStateOf(false) }
@@ -600,6 +602,7 @@ fun ShellCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSetti
     }
 }
 
+@Composable
 fun SecurityCategory(
     settings: DroshSettings,
     onBack: () -> Unit,
@@ -702,6 +705,7 @@ fun SecurityCategory(
     }
 }
 
+@Composable
 fun LanguageCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
     var showLanguageSheet by rememberSaveable { mutableStateOf(false) }
     var showShellLocaleSheet by rememberSaveable { mutableStateOf(false) }
@@ -762,6 +766,7 @@ fun LanguageCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     }
 }
 
+@Composable
 fun AboutCategory(
     onBack: () -> Unit,
     viewModel: SettingsViewModel,
