@@ -394,7 +394,7 @@ fun TerminalPreviewCard(
     useBlockEngine: Boolean = true,
 ) {
     val lines = listOf(
-        Triple("user@irisshell ~ %", "neofetch", true),
+        Triple("user@drosh ~ %", "neofetch", true),
         Triple("OS:", " Drosh Linux aarch64 (POSIX)", false),
         Triple("Shell:", " zsh 5.9 \u2022 Term: xterm-256color", false),
     )
@@ -459,7 +459,7 @@ fun TerminalPreviewCard(
                 .padding(top = 12.dp),
         ) {
             Text(
-                text = "user@irisshell ~ %",
+                text = "user@drosh ~ %",
                 color = DroshPrimary,
                 fontSize = fontSizeSp.sp,
                 fontFamily = LocalFontSet.current.mono,
