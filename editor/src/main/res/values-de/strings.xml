@@ -3,4 +3,5 @@
     <string name="editor_discard_title">Änderungen verwerfen?</string>
     <string name="editor_discard_confirm">Verwerfen</string>
     <string name="editor_keep_editing">Weiter bearbeiten</string>
+    <string name="editor_unsaved_message">Diese Datei enthält nicht gespeicherte Änderungen.</string>
 </resources>

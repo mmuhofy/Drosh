@@ -3,4 +3,5 @@
     <string name="editor_discard_title">Descartar alterações?</string>
     <string name="editor_discard_confirm">Descartar</string>
     <string name="editor_keep_editing">Continuar editando</string>
+    <string name="editor_unsaved_message">Este arquivo tem alterações que não foram salvas.</string>
 </resources>

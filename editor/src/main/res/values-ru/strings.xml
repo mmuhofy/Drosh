@@ -3,4 +3,5 @@
     <string name="editor_discard_title">Отменить изменения?</string>
     <string name="editor_discard_confirm">Отменить</string>
     <string name="editor_keep_editing">Продолжить редактирование</string>
+    <string name="editor_unsaved_message">В этом файле есть несохранённые изменения.</string>
 </resources>

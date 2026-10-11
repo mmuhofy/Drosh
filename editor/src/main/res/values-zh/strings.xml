@@ -3,4 +3,5 @@
     <string name="editor_discard_title">放弃更改？</string>
     <string name="editor_discard_confirm">放弃</string>
     <string name="editor_keep_editing">继续编辑</string>
+    <string name="editor_unsaved_message">此文件有尚未保存的修改。</string>
 </resources>

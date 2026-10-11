@@ -3,4 +3,5 @@
     <string name="editor_discard_title">I-discard ang mga pagbabago?</string>
     <string name="editor_discard_confirm">I-discard</string>
     <string name="editor_keep_editing">Ipagpatuloy ang pag-edit</string>
+    <string name="editor_unsaved_message">May mga hindi na-save na pagbabago ang file na ito.</string>
 </resources>

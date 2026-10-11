@@ -3,4 +3,5 @@
     <string name="editor_discard_title">تجاهل التغييرات؟</string>
     <string name="editor_discard_confirm">تجاهل</string>
     <string name="editor_keep_editing">متابعة التعديل</string>
+    <string name="editor_unsaved_message">يحتوي هذا الملف على تعديلات لم يتم حفظها.</string>
 </resources>
