@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import dev.drosh.ui.session.DeviceBadge
+import dev.drosh.design.system.DroshPrimary
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -642,7 +648,6 @@ fun SecurityCategory(
 
                 1 -> SettingsSelectRow(
                     cap = cap,
-                    stacked = true,
                     title = stringResource(R.string.settings_security_auto_lock),
                     icon = DroshIcons.Lock,
                     options = listOf(
@@ -661,7 +666,6 @@ fun SecurityCategory(
 
                 2 -> SettingsSelectRow(
                     cap = cap,
-                    stacked = true,
                     title = stringResource(R.string.settings_security_pin_length),
                     icon = DroshIcons.Lock,
                     options = PinLockRepository.PIN_LENGTH_RANGE.map { it to it.toString() },
