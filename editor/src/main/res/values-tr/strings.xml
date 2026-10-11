@@ -3,4 +3,5 @@
     <string name="editor_discard_title">Değişiklikler silinsin mi?</string>
     <string name="editor_discard_confirm">Sil</string>
     <string name="editor_keep_editing">Düzenlemeye devam et</string>
+    <string name="editor_unsaved_message">Bu dosyada kaydedilmemiş değişiklikler var.</string>
 </resources>

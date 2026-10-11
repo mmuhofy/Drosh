@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,6 +34,7 @@ import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.ssh.AuthMethod
 import dev.drosh.domain.ssh.SshHost
+import dev.drosh.ui.R
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
 
@@ -60,8 +62,8 @@ fun SshHomeScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(text = "SSH", color = DroshText, fontSize = 20.sp, modifier = Modifier.weight(1f))
-            Button(onClick = { showAdd = true }) { Text("Add") }
-            Button(onClick = onBack) { Text("Back") }
+            Button(onClick = { showAdd = true }) { Text(stringResource(R.string.action_add)) }
+            Button(onClick = onBack) { Text(stringResource(R.string.action_back)) }
         }
 
         message?.let { Text(text = it, color = DroshTextMuted, fontSize = 13.sp) }
@@ -141,26 +143,26 @@ private fun AddHostDialog(
         confirmButton = {
             Button(onClick = {
                 onSave(name, hostname, port.toIntOrNull() ?: 22, username, authMethod, password.takeIf { it.isNotBlank() }, pem.takeIf { it.isNotBlank() }, passphrase.takeIf { it.isNotBlank() })
-            }) { Text("Save") }
+            }) { Text(stringResource(R.string.action_save)) }
         },
-        dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } },
-        title = { Text("Add host") },
+        dismissButton = { Button(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        title = { Text(stringResource(R.string.ssh_add_host_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") })
-                OutlinedTextField(value = hostname, onValueChange = { hostname = it }, label = { Text("Hostname or IP") })
-                OutlinedTextField(value = port, onValueChange = { port = it }, label = { Text("Port") })
-                OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Username") })
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.ssh_name_label)) })
+                OutlinedTextField(value = hostname, onValueChange = { hostname = it }, label = { Text(stringResource(R.string.ssh_hostname_label)) })
+                OutlinedTextField(value = port, onValueChange = { port = it }, label = { Text(stringResource(R.string.ssh_port_label)) })
+                OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text(stringResource(R.string.ssh_username_label)) })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AuthMethod.entries.forEach { method ->
                         Button(onClick = { authMethod = method }) { Text(method.name) }
                     }
                 }
                 when (authMethod) {
-                    AuthMethod.PASSWORD -> OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") })
+                    AuthMethod.PASSWORD -> OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text(stringResource(R.string.ssh_password_label)) })
                     AuthMethod.KEY, AuthMethod.KEY_WITH_PASSPHRASE -> {
-                        OutlinedTextField(value = pem, onValueChange = { pem = it }, label = { Text("Private key PEM") })
-                        OutlinedTextField(value = passphrase, onValueChange = { passphrase = it }, label = { Text("Passphrase (optional)") })
+                        OutlinedTextField(value = pem, onValueChange = { pem = it }, label = { Text(stringResource(R.string.ssh_private_key_label)) })
+                        OutlinedTextField(value = passphrase, onValueChange = { passphrase = it }, label = { Text(stringResource(R.string.ssh_passphrase_label)) })
                     }
                 }
             }

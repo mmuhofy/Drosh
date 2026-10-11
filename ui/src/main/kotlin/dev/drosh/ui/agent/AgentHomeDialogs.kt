@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -43,6 +44,7 @@ import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.AgentChat
+import dev.drosh.ui.R
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.TOUCH_TARGET
 
@@ -66,11 +68,11 @@ fun RenameChatDialog(
         containerColor = DroshSurface,
         titleContentColor = DroshText,
         textContentColor = DroshTextSecondary,
-        title = { Text("Chat adı", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(stringResource(R.string.agent_chat_name_hint), fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column {
                 Text(
-                    text = "Bu ad Agent Home listesinde ve oturumda görünür.",
+                    text = stringResource(R.string.agent_chat_name_help),
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
                     color = DroshTextSecondary,
@@ -111,12 +113,12 @@ fun RenameChatDialog(
                 // button says.
                 enabled = name.isNotBlank(),
             ) {
-                Text("Kaydet", color = if (name.isNotBlank()) DroshPrimary else DroshTextMuted)
+                Text(stringResource(R.string.action_save), color = if (name.isNotBlank()) DroshPrimary else DroshTextMuted)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Vazgeç", color = DroshTextSecondary)
+                Text(stringResource(R.string.action_cancel), color = DroshTextSecondary)
             }
         },
     )
@@ -142,7 +144,7 @@ fun DeleteChatDialog(
         textContentColor = DroshTextSecondary,
         title = {
             Text(
-                text = "Bu sohbet silinsin mi?",
+                text = stringResource(R.string.agent_chat_delete_confirm),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -156,12 +158,12 @@ fun DeleteChatDialog(
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Sil", color = DroshError)
+                Text(stringResource(R.string.agent_chat_delete), color = DroshError)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Vazgeç", color = DroshTextSecondary)
+                Text(stringResource(R.string.action_cancel), color = DroshTextSecondary)
             }
         },
     )
@@ -204,7 +206,7 @@ fun RowContextMenu(
                 maxLines = 1,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )
-            MenuRow(label = "Yeniden adlandır", tint = DroshText, onClick = onRename)
+            MenuRow(label = stringResource(R.string.agent_rename), tint = DroshText, onClick = onRename)
             MenuRow(label = "Sil", tint = DroshError, onClick = onDelete)
         }
     }

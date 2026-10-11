@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.terminal.BootstrapError
 import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.domain.terminal.RecoveryAction
+import dev.drosh.ui.R
 import dev.drosh.ui.setup.BootstrapViewModel
 import dev.drosh.ui.setup.label
 import dev.drosh.ui.setup.theme.SetupPalette
@@ -89,14 +91,14 @@ fun SetupRecoveryScreen(
                 .padding(horizontal = 24.dp),
         ) {
             FailureBadge(
-                message = "Setup failed at: ${error.step.label()}",
+                message = stringResource(R.string.setup_failed_message, error.step.label()),
                 detail = error.shortMessage,
             )
 
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "Last 50 log lines",
+                text = stringResource(R.string.setup_logs_title),
                 color = SetupPalette.TextMuted,
                 style = TextStyle(
                     fontFamily = LocalFontSet.current.sans,
@@ -184,7 +186,7 @@ private fun LogPeek(lines: List<String>) {
         if (lines.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "No logs captured.",
+                    text = stringResource(R.string.setup_no_logs),
                     color = SetupPalette.TextMuted,
                 )
             }
@@ -226,26 +228,26 @@ private fun RecoveryActions(
         actions.forEach { action ->
             when (action) {
                 RecoveryAction.Retry -> PrimaryRecoveryButton(
-                    label = "Retry",
-                    sublabel = "Try the same steps again with cached files.",
+                    label = stringResource(R.string.action_retry),
+                    sublabel = stringResource(R.string.setup_retry_sublabel),
                     accent = SetupPalette.Primary,
                     onClick = onRetry,
                 )
                 RecoveryAction.ReDownloadRootfs -> PrimaryRecoveryButton(
-                    label = "Re-download rootfs",
-                    sublabel = "Delete cached rootfs and re-download from Ubuntu.",
+                    label = stringResource(R.string.setup_redownload_label),
+                    sublabel = stringResource(R.string.setup_redownload_sublabel),
                     accent = SetupPalette.Primary,
                     onClick = onReDownload,
                 )
                 RecoveryAction.ResetEverything -> PrimaryRecoveryButton(
-                    label = "Reset everything",
-                    sublabel = "Wipe ~/.drosh/ folder. Next launch will redownload all.",
+                    label = stringResource(R.string.setup_reset_label),
+                    sublabel = stringResource(R.string.setup_reset_sublabel),
                     accent = SetupPalette.Warning,
                     onClick = onReset,
                 )
                 RecoveryAction.ReportIssue -> PrimaryRecoveryButton(
-                    label = "Report issue on GitHub",
-                    sublabel = "Copies a diagnostic bundle to your clipboard.",
+                    label = stringResource(R.string.setup_report_label),
+                    sublabel = stringResource(R.string.setup_report_sublabel),
                     accent = SetupPalette.TextSecondary,
                     onClick = onReport,
                 )
@@ -317,8 +319,8 @@ private fun reportIssue(
         appendLine("**ABI:** ${android.os.Build.SUPPORTED_ABIS.joinToString()}")
     }
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("Drosh diagnostic", body))
-    Toast.makeText(context, "Diagnostic copied to clipboard", Toast.LENGTH_SHORT).show()
+    clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.setup_diagnostic), body))
+    Toast.makeText(context, context.getString(R.string.setup_diagnostic_copied), Toast.LENGTH_SHORT).show()
 
     val intent = Intent(
         Intent.ACTION_VIEW,

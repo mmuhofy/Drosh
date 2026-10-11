@@ -33,7 +33,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
+import dev.drosh.editor.R
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
@@ -74,10 +74,10 @@ fun EditorScreen(
     if (confirmDiscard) {
         AlertDialog(
             onDismissRequest = { confirmDiscard = false },
-            title = { Text("Discard changes?", color = DroshText) },
+            title = { Text(stringResource(R.string.editor_discard_title), color = DroshText) },
             text = {
                 Text(
-                    "This file has edits that have not been saved.",
+                    stringResource(R.string.editor_unsaved_message),
                     color = DroshTextSecondary,
                 )
             },
@@ -86,11 +86,11 @@ fun EditorScreen(
                     confirmDiscard = false
                     viewModel.onClosed()
                     onClose()
-                }) { Text("Discard", color = DroshPrimary) }
+                }) { Text(stringResource(R.string.editor_discard_confirm), color = DroshPrimary) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDiscard = false }) {
-                    Text("Keep editing", color = DroshTextSecondary)
+                    Text(stringResource(R.string.editor_keep_editing), color = DroshTextSecondary)
                 }
             },
             containerColor = DroshSurface,

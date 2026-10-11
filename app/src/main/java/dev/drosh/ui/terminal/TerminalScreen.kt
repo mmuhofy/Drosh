@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import dev.drosh.ui.R
 import dev.drosh.ui.keyboard.droshImePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -67,6 +68,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -1071,7 +1073,7 @@ private fun ReadyScreen(
                 },
                 title = {
                     Text(
-                        text = "Delete the last session?",
+                        text = stringResource(R.string.terminal_delete_last_session_title),
                         color = DroshText,
                         fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.SemiBold,
@@ -1082,9 +1084,9 @@ private fun ReadyScreen(
                     val exitCode = sessionEndEvent?.exitCode
                     Text(
                         text = if (exitCode != null) {
-                            "It ended with exit code $exitCode. Deleting it closes the app; a new session starts from scratch."
+                            stringResource(R.string.terminal_delete_last_session_ended_body, exitCode)
                         } else {
-                            "Deleting it closes the app; a new session starts from scratch."
+                            stringResource(R.string.terminal_delete_last_session_body)
                         },
                         color = DroshTextSecondary,
                         fontFamily = LocalFontSet.current.sans,
@@ -1178,29 +1180,29 @@ private fun SetupProgress(
 ) {
     val label = when (state) {
         UbuntuSetupState.Idle ->
-            "Preparing…"
+            stringResource(R.string.terminal_preparing)
 
         UbuntuSetupState.Extracting ->
-            "Extracting Ubuntu rootfs…"
+            stringResource(R.string.terminal_extracting_rootfs)
 
         UbuntuSetupState.Configuring ->
-            "Configuring system…"
+            stringResource(R.string.terminal_configuring)
 
         is UbuntuSetupState.InstallingPackages ->
             if (state.message.isNotEmpty()) {
                 state.message
             } else {
-                "Installing packages…"
+                stringResource(R.string.terminal_installing_packages)
             }
 
         is UbuntuSetupState.InstallingOhMyZsh ->
             state.message
 
         UbuntuSetupState.Optimizing ->
-            "Cleaning up…"
+            stringResource(R.string.terminal_cleaning)
 
         UbuntuSetupState.Ready ->
-            "Ready"
+            stringResource(R.string.terminal_ready)
 
         is UbuntuSetupState.Failed ->
             state.error
@@ -1216,7 +1218,7 @@ private fun SetupProgress(
             CircularProgressIndicator()
 
             Text(
-                text = "Setting up terminal",
+                text = stringResource(R.string.terminal_setting_up),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 16.dp),
             )
@@ -1248,7 +1250,7 @@ private fun SetupFailure(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "Failed to set up terminal",
+                text = stringResource(R.string.terminal_setup_failed),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -1268,7 +1270,7 @@ private fun SetupFailure(
                 onClick = onRetry,
                 modifier = Modifier.padding(top = 16.dp),
             ) {
-                Text("Retry")
+                Text(stringResource(R.string.action_retry))
             }
         }
     }

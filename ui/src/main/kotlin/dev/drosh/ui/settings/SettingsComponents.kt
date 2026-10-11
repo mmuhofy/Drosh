@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -77,6 +78,7 @@ import coil3.compose.AsyncImage
 import dev.drosh.domain.session.DeviceIdentity
 import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 import dev.drosh.ui.session.DeviceBadge
 
 @Composable
@@ -309,7 +311,7 @@ fun TerminalModeRow(
 ) {
     SettingsSubRow(
         icon = DroshIcons.Terminal,
-        label = "Terminal Mode",
+        label = stringResource(R.string.settings_terminal_mode),
     ) {
         SegmentControl(
             options = listOf("Classic", "Block"),
@@ -532,7 +534,7 @@ fun BlinkRateSlider(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "Slow",
+            text = stringResource(R.string.settings_speed_slow),
             color = DroshTextSecondary,
             fontSize = 12.sp,
             fontFamily = LocalFontSet.current.sans,
@@ -545,7 +547,7 @@ fun BlinkRateSlider(
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = "Fast",
+            text = stringResource(R.string.settings_speed_fast),
             color = DroshTextSecondary,
             fontSize = 12.sp,
             fontFamily = LocalFontSet.current.sans,
@@ -568,7 +570,7 @@ fun FontSizeSlider(
         ) {
             Icon(
                 imageVector = DroshIcons.Minus,
-                contentDescription = "Decrease font size",
+                contentDescription = stringResource(R.string.settings_font_decrease_cd),
                 tint = DroshTextSecondary,
                 modifier = Modifier.size(14.dp),
             )
@@ -586,7 +588,7 @@ fun FontSizeSlider(
         ) {
             Icon(
                 imageVector = DroshIcons.Plus,
-                contentDescription = "Increase font size",
+                contentDescription = stringResource(R.string.settings_font_increase_cd),
                 tint = DroshTextSecondary,
                 modifier = Modifier.size(14.dp),
             )
@@ -760,7 +762,7 @@ fun MotdTextDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Edit Greeting Text",
+                text = stringResource(R.string.settings_motd_dialog_title),
                 color = DroshText,
                 fontFamily = LocalFontSet.current.sans,
                 fontWeight = FontWeight.SemiBold,
@@ -770,7 +772,7 @@ fun MotdTextDialog(
         text = {
             Column {
                 Text(
-                    text = "Use \\n for new lines. This text is shown on shell connect.",
+                    text = stringResource(R.string.settings_motd_text_hint),
                     color = DroshTextSecondary,
                     fontSize = 12.sp,
                     fontFamily = LocalFontSet.current.sans,
@@ -805,16 +807,16 @@ fun MotdTextDialog(
                 onConfirm(text)
                 onDismiss()
             }) {
-                Text("Done", color = DroshPrimary, fontFamily = LocalFontSet.current.sans)
+                Text(stringResource(R.string.action_done), color = DroshPrimary, fontFamily = LocalFontSet.current.sans)
             }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onRestoreDefault) {
-                    Text("Restore Default", color = DroshTextSecondary, fontSize = 12.sp, fontFamily = LocalFontSet.current.sans)
+                    Text(stringResource(R.string.action_restore_default), color = DroshTextSecondary, fontSize = 12.sp, fontFamily = LocalFontSet.current.sans)
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("Cancel", color = DroshTextSecondary, fontSize = 12.sp, fontFamily = LocalFontSet.current.sans)
+                    Text(stringResource(R.string.action_cancel), color = DroshTextSecondary, fontSize = 12.sp, fontFamily = LocalFontSet.current.sans)
                 }
             }
         },
@@ -899,13 +901,13 @@ fun StartupCommandDialog(
         onDismissRequest = onDismiss,
         containerColor = DroshSurfaceVariant,
         shape = RoundedCornerShape(20.dp),
-        title = { Text("Startup command", color = DroshText, fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.settings_startup_command), color = DroshText, fontWeight = FontWeight.Bold) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 singleLine = true,
-                placeholder = { Text("\$shell --login", color = DroshTextMuted) },
+                placeholder = { Text(stringResource(R.string.settings_startup_default), color = DroshTextMuted) },
                 textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = DroshPrimary,
@@ -917,12 +919,12 @@ fun StartupCommandDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(text.trim()) }) {
-                Text("Save", color = DroshPrimary)
+                Text(stringResource(R.string.action_save), color = DroshPrimary)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = DroshTextSecondary)
+                Text(stringResource(R.string.action_cancel), color = DroshTextSecondary)
             }
         },
     )
