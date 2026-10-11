@@ -3,5 +3,5 @@
     <string name="editor_discard_title">Discard changes?</string>
     <string name="editor_discard_confirm">Discard</string>
     <string name="editor_keep_editing">Keep editing</string>
-    <string name="editor_unsaved_message">Bu dosyada kaydedilmemiş değişiklikler var.</string>
+    <string name="editor_unsaved_message">This file has edits that have not been saved.</string>
 </resources>

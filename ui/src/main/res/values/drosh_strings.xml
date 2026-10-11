@@ -284,9 +284,9 @@
     <string name="terminal_setup_failed">Failed to set up terminal</string>
     <string name="settings_font_decrease_cd">Decrease font size</string>
     <string name="settings_font_increase_cd">Increase font size</string>
-    <string name="settings_speed_slow">S</string>
-    <string name="settings_speed_fast">F</string>
-    <string name="terminal_preparing">P</string>
-    <string name="terminal_installing_packages">I</string>
-    <string name="terminal_ready">R</string>
+    <string name="settings_speed_slow">Slow</string>
+    <string name="settings_speed_fast">Fast</string>
+    <string name="terminal_preparing">Preparing…</string>
+    <string name="terminal_installing_packages">Installing packages…</string>
+    <string name="terminal_ready">Ready</string>
 </resources>
