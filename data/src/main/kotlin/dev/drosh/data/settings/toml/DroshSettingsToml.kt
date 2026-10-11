@@ -3,16 +3,13 @@ package dev.drosh.data.settings.toml
 import dev.drosh.core.toml.TomlDocument
 import dev.drosh.domain.settings.AppearanceSettings
 import dev.drosh.domain.settings.AutoLockTimeout
-import dev.drosh.domain.settings.BellMode
 import dev.drosh.domain.settings.BackgroundSettings
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.DroshSettings
-import dev.drosh.domain.settings.EditorSettings
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.InputSettings
 import dev.drosh.domain.settings.MetaSettings
 import dev.drosh.domain.settings.MotdMode
-import dev.drosh.domain.settings.RootfsSettings
 import dev.drosh.domain.settings.SecuritySettings
 import dev.drosh.domain.settings.SessionSettings
 import dev.drosh.domain.settings.ShellSettings
@@ -20,9 +17,7 @@ import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.TerminalSettings
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.settings.ThemePalette
-import dev.drosh.domain.terminal.PackageProfile
 import dev.drosh.domain.terminal.PanePresentation
-import dev.drosh.domain.terminal.ShellChoice
 
 /**
  * The mapping between [DroshSettings] and the TOML document on disk.
@@ -50,12 +45,7 @@ internal object DroshSettingsToml {
             putFloat("terminal", "default_font_size_sp", defaultFontSizeSp)
             putString("terminal", "cursor_style", cursorStyle.tomlName())
             putInt("terminal", "cursor_blink_ms", cursorBlinkMs)
-            putInt("terminal", "scrollback_rows", scrollbackRows)
-            putString("terminal", "bell", bell.tomlName())
             putBoolean("terminal", "keep_awake", keepAwake)
-            putBoolean("terminal", "immersive", immersive)
-            putBoolean("terminal", "link_detection", linkDetection)
-            putBoolean("terminal", "glass_effects", glassEffects)
             putBoolean("terminal", "bold_brightens", boldBrightens)
             putBoolean("terminal", "ligatures", ligatures)
             putBoolean("terminal", "dim_inactive_panes", dimInactivePanes)
@@ -94,38 +84,17 @@ internal object DroshSettingsToml {
         }
         with(settings.input) {
             putBoolean("input", "extra_keys_bar", extraKeysBar)
-            putBoolean("input", "hide_bar_hardware_keyboard", hideBarOnHardwareKeyboard)
-            putBoolean("input", "hide_bar_drosh_ime", hideBarWhenDroshIme)
         }
         with(settings.shell) {
-            putString("shell", "shell", shell.tomlName())
-            putString("shell", "omz_theme", omzTheme)
-            putStringList("shell", "omz_plugins", omzPlugins)
-            putInt("shell", "history_size", historySize)
             putString("shell", "motd_mode", motdMode.tomlName())
             putString("shell", "motd_text", motdText)
             putString("shell", "startup_command", startupCommand)
-            putBoolean("shell", "shell_integration", shellIntegration)
-        }
-        with(settings.rootfs) {
-            putString("rootfs", "package_profile", packageProfile.tomlName())
-            putStringList("rootfs", "extra_packages", extraPackages)
-            putBoolean("rootfs", "install_dedit", installDedit)
-            putBoolean("rootfs", "optimize_on_setup", optimizeOnSetup)
-            putInt("rootfs", "max_edit_size_kb", maxEditSizeKb)
-        }
-        with(settings.editor) {
-            putFloat("editor", "font_size_sp", fontSizeSp)
-            putBoolean("editor", "word_wrap", wordWrap)
-            putInt("editor", "tab_width", tabWidth)
-            putBoolean("editor", "line_numbers", lineNumbers)
+            putString("shell", "locale", locale)
         }
         with(settings.security) {
             putString("security", "auto_lock", autoLock.tomlName())
             putInt("security", "pin_length", pinLength)
-            putBoolean("security", "biometric_unlock", biometricUnlock)
             putBoolean("security", "block_screenshots", blockScreenshots)
-            putBoolean("security", "clipboard_sensitive", clipboardSensitive)
         }
         with(settings.session) {
             putString("session", "secondary_session_id", secondarySessionId)
@@ -158,12 +127,7 @@ internal object DroshSettingsToml {
                 ),
                 cursorStyle = CursorStyle.fromString(document.getString("terminal", "cursor_style", "")),
                 cursorBlinkMs = document.getInt("terminal", "cursor_blink_ms", base.terminal.cursorBlinkMs),
-                scrollbackRows = document.getInt("terminal", "scrollback_rows", base.terminal.scrollbackRows),
-                bell = BellMode.fromName(document.getStringOrNull("terminal", "bell")),
                 keepAwake = document.getBoolean("terminal", "keep_awake", base.terminal.keepAwake),
-                immersive = document.getBoolean("terminal", "immersive", base.terminal.immersive),
-                linkDetection = document.getBoolean("terminal", "link_detection", base.terminal.linkDetection),
-                glassEffects = document.getBoolean("terminal", "glass_effects", base.terminal.glassEffects),
                 boldBrightens = document.getBoolean("terminal", "bold_brightens", base.terminal.boldBrightens),
                 ligatures = document.getBoolean("terminal", "ligatures", base.terminal.ligatures),
                 dimInactivePanes = document.getBoolean("terminal", "dim_inactive_panes", base.terminal.dimInactivePanes),
@@ -179,51 +143,18 @@ internal object DroshSettingsToml {
             ),
             input = base.input.copy(
                 extraKeysBar = document.getBoolean("input", "extra_keys_bar", base.input.extraKeysBar),
-                hideBarOnHardwareKeyboard = document.getBoolean(
-                    "input", "hide_bar_hardware_keyboard", base.input.hideBarOnHardwareKeyboard,
-                ),
-                hideBarWhenDroshIme = document.getBoolean(
-                    "input", "hide_bar_drosh_ime", base.input.hideBarWhenDroshIme,
-                ),
             ),
             shell = base.shell.copy(
-                shell = shellChoiceFrom(document.getStringOrNull("shell", "shell")),
-                omzTheme = document.getString("shell", "omz_theme", base.shell.omzTheme),
-                omzPlugins = document.getStringList("shell", "omz_plugins", base.shell.omzPlugins),
-                historySize = document.getInt("shell", "history_size", base.shell.historySize),
                 motdMode = MotdMode.fromString(document.getString("shell", "motd_mode", "")),
                 motdText = document.getString("shell", "motd_text", base.shell.motdText),
                 startupCommand = document.getString("shell", "startup_command", base.shell.startupCommand),
-                shellIntegration = document.getBoolean(
-                    "shell", "shell_integration", base.shell.shellIntegration,
-                ),
-            ),
-            rootfs = base.rootfs.copy(
-                packageProfile = packageProfileFrom(document.getStringOrNull("rootfs", "package_profile")),
-                extraPackages = document.getStringList("rootfs", "extra_packages", base.rootfs.extraPackages),
-                installDedit = document.getBoolean("rootfs", "install_dedit", base.rootfs.installDedit),
-                optimizeOnSetup = document.getBoolean(
-                    "rootfs", "optimize_on_setup", base.rootfs.optimizeOnSetup,
-                ),
-                maxEditSizeKb = document.getInt("rootfs", "max_edit_size_kb", base.rootfs.maxEditSizeKb),
-            ),
-            editor = base.editor.copy(
-                fontSizeSp = document.getFloat("editor", "font_size_sp", base.editor.fontSizeSp),
-                wordWrap = document.getBoolean("editor", "word_wrap", base.editor.wordWrap),
-                tabWidth = document.getInt("editor", "tab_width", base.editor.tabWidth),
-                lineNumbers = document.getBoolean("editor", "line_numbers", base.editor.lineNumbers),
+                locale = document.getString("shell", "locale", base.shell.locale),
             ),
             security = base.security.copy(
                 autoLock = AutoLockTimeout.fromString(document.getString("security", "auto_lock", "")),
                 pinLength = document.getInt("security", "pin_length", base.security.pinLength),
-                biometricUnlock = document.getBoolean(
-                    "security", "biometric_unlock", base.security.biometricUnlock,
-                ),
                 blockScreenshots = document.getBoolean(
                     "security", "block_screenshots", base.security.blockScreenshots,
-                ),
-                clipboardSensitive = document.getBoolean(
-                    "security", "clipboard_sensitive", base.security.clipboardSensitive,
                 ),
             ),
             session = base.session.copy(
@@ -276,11 +207,8 @@ internal val SETTINGS_FILE_HEADER: String = """
 private fun ThemeMode.tomlName(): String = name.lowercase()
 private fun FontPack.tomlName(): String = name.lowercase()
 private fun CursorStyle.tomlName(): String = name.lowercase()
-private fun BellMode.tomlName(): String = name.lowercase()
 private fun MotdMode.tomlName(): String = name.lowercase()
 private fun AutoLockTimeout.tomlName(): String = name.lowercase()
-private fun ShellChoice.tomlName(): String = name.lowercase()
-private fun PackageProfile.tomlName(): String = name.lowercase()
 private fun PanePresentation.tomlName(): String = name.lowercase()
 private fun TerminalMode.tomlName(): String = name.lowercase()
 
@@ -289,12 +217,6 @@ private fun TerminalMode.Companion.fromToml(value: String?): TerminalMode =
 
 private fun BellMode.Companion.fromName(value: String?): BellMode =
     BellMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: BellMode.None
-
-private fun shellChoiceFrom(value: String?): ShellChoice =
-    ShellChoice.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: ShellChoice.Zsh
-
-private fun packageProfileFrom(value: String?): PackageProfile =
-    PackageProfile.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: PackageProfile.Standard
 
 private fun panePresentationFrom(value: String?): PanePresentation =
     PanePresentation.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: PanePresentation.DOCKED

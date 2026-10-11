@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -433,7 +434,7 @@ fun SettingsSlider(
     // with one small overshoot instead of stopping dead. One spec for both
     // directions is what made the old thumb read as a plain rectangle.
     val handleWidth by animateDpAsState(
-        targetValue = if (dragging) 12.dp else 8.dp,
+        targetValue = if (dragging) 10.dp else 8.dp,
         animationSpec = if (dragging) {
             spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -448,7 +449,7 @@ fun SettingsSlider(
         label = "handleWidth",
     )
     val handleHeight by animateDpAsState(
-        targetValue = if (dragging) 44.dp else 30.dp,
+        targetValue = if (dragging) 34.dp else 26.dp,
         animationSpec = if (dragging) {
             spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -525,13 +526,24 @@ fun SettingsSlider(
                         cap = StrokeCap.Round,
                     )
                 }
-                // A thumb, not a dash: taller than it is wide, and it grows
-                // taller still under the finger.
+                // Two-tone: the track is thick and reads as the value itself —
+                // accent to the left, track colour to the right — and the
+                // handle is a white grip standing on it. The ring is what
+                // separates the grip from the fill under it; without it the
+                // thumb reads as a gap in the track rather than a thing
+                // holding it.
                 drawRoundRect(
-                    color = accent,
+                    color = Color.White,
                     topLeft = Offset(centre - half, top),
                     size = androidx.compose.ui.geometry.Size(handleWidth.toPx(), handleHeight.toPx()),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(handleWidth.toPx() / 2f),
+                )
+                drawRoundRect(
+                    color = trackColor,
+                    topLeft = Offset(centre - half, top),
+                    size = androidx.compose.ui.geometry.Size(handleWidth.toPx(), handleHeight.toPx()),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(handleWidth.toPx() / 2f),
+                    style = Stroke(width = 2.dp.toPx()),
                 )
             }
             .pointerInput(steps) {
@@ -563,8 +575,8 @@ fun SettingsSlider(
     )
 }
 
-private val TRACK_THICKNESS = 10.dp
-private val HANDLE_GAP = 4.dp
+private val TRACK_THICKNESS = 22.dp
+private val HANDLE_GAP = 2.dp
 
 
 /** Switch with the accent fill and a soft drop on the thumb. */

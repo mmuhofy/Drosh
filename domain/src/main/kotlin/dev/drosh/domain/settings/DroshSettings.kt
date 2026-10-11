@@ -1,8 +1,6 @@
 package dev.drosh.domain.settings
 
-import dev.drosh.domain.terminal.PackageProfile
 import dev.drosh.domain.terminal.PanePresentation
-import dev.drosh.domain.terminal.ShellChoice
 import dev.drosh.domain.terminal.TerminalZoom
 
 /**
@@ -25,8 +23,6 @@ data class DroshSettings(
     val background: BackgroundSettings = BackgroundSettings(),
     val input: InputSettings = InputSettings(),
     val shell: ShellSettings = ShellSettings(),
-    val rootfs: RootfsSettings = RootfsSettings(),
-    val editor: EditorSettings = EditorSettings(),
     val security: SecuritySettings = SecuritySettings(),
     val session: SessionSettings = SessionSettings(),
     val meta: MetaSettings = MetaSettings(),
@@ -63,12 +59,7 @@ data class TerminalSettings(
     val cursorStyle: CursorStyle = CursorStyle.Block,
     /** Milliseconds; 0 is off. The view accepts 100..2000. */
     val cursorBlinkMs: Int = 500,
-    val scrollbackRows: Int = 3000,
-    val bell: BellMode = BellMode.None,
     val keepAwake: Boolean = false,
-    val immersive: Boolean = true,
-    val linkDetection: Boolean = true,
-    val glassEffects: Boolean = true,
     /** Bold text in the first eight colours uses the bright half. */
     val boldBrightens: Boolean = true,
     /** Programming-ligature shaping, where the typeface carries them. */
@@ -113,54 +104,35 @@ data class BackgroundSettings(
 /** How the keyboard and its bars behave. */
 data class InputSettings(
     val extraKeysBar: Boolean = true,
-    val hideBarOnHardwareKeyboard: Boolean = true,
-    val hideBarWhenDroshIme: Boolean = true,
 ) {
     companion object {
         val DEFAULT = InputSettings()
     }
 }
 
-/** The Linux environment's shell, prompt and greeting. */
+/**
+ * The Linux environment's shell, prompt and greeting.
+ *
+ * Only what the app actually controls at runtime: the shell it launches,
+ * how it greets, and the language it speaks. Anything else — zsh themes,
+ * plugins, history size — belongs to the user's dotfiles, which are
+ * theirs, not ours to duplicate.
+ */
 data class ShellSettings(
-    val shell: ShellChoice = ShellChoice.Zsh,
-    val omzTheme: String = "agnoster",
-    val omzPlugins: List<String> = listOf("git", "zsh-autosuggestions", "zsh-syntax-highlighting"),
-    val historySize: Int = 10000,
     val motdMode: MotdMode = MotdMode.PlainText,
     val motdText: String = MotdDefaults.DEFAULT_MOTD_TEXT,
     /** Custom PRoot start command; "" is the default shell. */
     val startupCommand: String = "",
-    /** OSC 133/1337 markers and the `editor` shell function. */
-    val shellIntegration: Boolean = true,
+    /**
+     * The shell's locale, as LANG/LC_ALL on every session — from the file
+     * rather than from the user's dotfiles, so the agent's shell and a
+     * session opened next week speak the same one. "" leaves the image's
+     * own default alone.
+     */
+    val locale: String = "",
 ) {
     companion object {
         val DEFAULT = ShellSettings()
-    }
-}
-
-/** The rootfs and what the bootstrap does to it. */
-data class RootfsSettings(
-    val packageProfile: PackageProfile = PackageProfile.Standard,
-    val extraPackages: List<String> = emptyList(),
-    val installDedit: Boolean = true,
-    val optimizeOnSetup: Boolean = true,
-    val maxEditSizeKb: Int = 2048,
-) {
-    companion object {
-        val DEFAULT = RootfsSettings()
-    }
-}
-
-/** The in-app code editor. */
-data class EditorSettings(
-    val fontSizeSp: Float = 14f,
-    val wordWrap: Boolean = false,
-    val tabWidth: Int = 4,
-    val lineNumbers: Boolean = true,
-) {
-    companion object {
-        val DEFAULT = EditorSettings()
     }
 }
 
@@ -169,10 +141,7 @@ data class SecuritySettings(
     /** The PIN itself lives in encrypted prefs; this is only the timeout. */
     val autoLock: AutoLockTimeout = AutoLockTimeout.Immediately,
     val pinLength: Int = 4,
-    val biometricUnlock: Boolean = false,
     val blockScreenshots: Boolean = false,
-    /** Marks the clipboard as sensitive so the OS hides a preview of it. */
-    val clipboardSensitive: Boolean = true,
 ) {
     companion object {
         val DEFAULT = SecuritySettings()
@@ -224,17 +193,3 @@ enum class TerminalMode {
     }
 }
 
-/** What the terminal does when the shell rings the bell. */
-enum class BellMode {
-    None,
-    Vibrate,
-    Sound,
-    ;
-
-    fun tomlName(): String = name.lowercase()
-
-    companion object {
-        fun fromToml(value: String?): BellMode =
-            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: None
-    }
-}

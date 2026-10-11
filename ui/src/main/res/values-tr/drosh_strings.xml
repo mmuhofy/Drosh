@@ -348,4 +348,18 @@ terminal session açmana gerek yok.</string>
     <string name="sidebar_this_device">Bu cihaz</string>
     <string name="topbar_open_sessions">Oturumları aç</string>
     <string name="motd_dismiss">MOTD\'u kapat</string>
+    <string name="app_name">Drosh</string>
+    <string name="about_tagline">Telefonun bir Unix makinesi.</string>
+    <string name="about_section_app">Uygulama</string>
+    <string name="about_section_theme">Tema</string>
+    <string name="about_theme">Etkin tema</string>
+    <string name="about_section_env">Ortam</string>
+    <string name="about_settings_file">Ayar dosyası</string>
+    <string name="about_shell">Kabuk dili</string>
+    <string name="about_system">Sistem</string>
+    <string name="about_system_value">Android %1$s</string>
+    <string name="about_section_device">Bu cihaz</string>
+    <string name="about_links">GitHub</string>
+    <string name="settings_shell_locale">Kabuk dili</string>
+    <string name="settings_shell_locale_desc">Her oturumda LANG ve LC_ALL — dosyadan gelir, dotfile'larına dokunulmaz.</string>
 </resources>
