@@ -5,7 +5,7 @@
     <string name="settings_section_terminal">Terminal</string>
     <string name="settings_section_projects">Projeler</string>
     <string name="settings_projects">Projeler</string>
-    <string name="settings_projects_desc">Session\\'ları projeye göre grupla</string>
+    <string name="settings_projects_desc">Session\'ları projeye göre grupla</string>
 
     <string name="settings_section_startup">Başlangıç</string>
     <string name="settings_section_motd">Karşılama mesajı</string>
@@ -45,7 +45,7 @@
     <string name="settings_motd_compose_desc">Etkileşimli kart olarak çizilir</string>
     <string name="settings_motd_message">Mesaj</string>
     <string name="settings_motd_empty">Düzenlemek için dokun</string>
-    <string name="settings_motd_default">Drosh\\'a hoş geldin</string>
+    <string name="settings_motd_default">Drosh\'a hoş geldin</string>
 
     <string name="settings_language">Dil</string>
     <string name="settings_language_search">Dillerde ara</string>
@@ -108,7 +108,7 @@
     <string name="settings_terminal_immersive">Arayüzü otomatik gizle</string>
     <string name="settings_terminal_immersive_desc">Geçmişte tam ekrana geç</string>
     <string name="settings_terminal_link_detection">Bağlantı algılama</string>
-    <string name="settings_terminal_link_detection_desc">Geçen URL\\'lerin altını çiz</string>
+    <string name="settings_terminal_link_detection_desc">Geçen URL\'lerin altını çiz</string>
     <string name="settings_terminal_glass_effects">Cam efekti</string>
     <string name="settings_terminal_glass_effects_desc">Üst çubukta blur ve yarı saydamlık</string>
 
@@ -116,8 +116,8 @@
     <string name="settings_input_extra_keys_desc">Klavyenin üstünde tuş satırı göster</string>
     <string name="settings_input_hardware_keyboard">Donanım klavyesinde gizle</string>
     <string name="settings_input_hardware_keyboard_desc">Fiziksel klavye kendi tuşlarını getirir</string>
-    <string name="settings_input_drosh_ime">Drosh Keyboard\\'da gizle</string>
-    <string name="settings_input_drosh_ime_desc">Drosh Keyboard\\'un kendi tuş satırı var</string>
+    <string name="settings_input_drosh_ime">Drosh Keyboard\'da gizle</string>
+    <string name="settings_input_drosh_ime_desc">Drosh Keyboard\'un kendi tuş satırı var</string>
 
     <string name="settings_shell_choice">Kabuk</string>
     <string name="settings_shell_zsh">zsh</string>
@@ -138,7 +138,7 @@
     <string name="settings_rootfs_profile_custom">Özel</string>
     <string name="settings_rootfs_extra_packages">Ek paketler</string>
     <string name="settings_rootfs_extra_packages_hint">Her satıra bir paket</string>
-    <string name="settings_rootfs_dedit">dedit\\'i kur</string>
+    <string name="settings_rootfs_dedit">dedit\'i kur</string>
     <string name="settings_rootfs_dedit_desc">Terminal içi editör paketi</string>
     <string name="settings_rootfs_optimize">Kurulumda optimize et</string>
     <string name="settings_rootfs_optimize_desc">Kurulum sonrası apt önbelleğini temizle</string>
@@ -181,13 +181,13 @@
     <string name="settings_theme_active_none">Drosh varsayılanı</string>
     <string name="settings_theme_installed">Kurulu</string>
     <string name="settings_theme_store_section">Mağaza</string>
-    <string name="settings_theme_store_desc">drosh-themes\\'tan 120 tema, ya da URL\\'den kur</string>
+    <string name="settings_theme_store_desc">drosh-themes\'tan 120 tema, ya da URL\'den kur</string>
     <string name="settings_theme_available">Mağazada</string>
     <string name="settings_theme_refresh">Listeyi yenile</string>
     <string name="settings_theme_loading">Yükleniyor…</string>
     <string name="settings_theme_in_use">Kullanımda</string>
     <string name="settings_theme_no_description">Açıklama yok</string>
-    <string name="settings_theme_from_url">URL\\'den kur</string>
+    <string name="settings_theme_from_url">URL\'den kur</string>
     <string name="settings_theme_from_url_desc">Tema .toml dosyası nerede sunuluyorsa</string>
     <string name="settings_theme_create">Kendi temanı yap</string>
     <string name="settings_theme_create_desc">Kurulu bir temadan başla, sonra dosyayı düzenle</string>
@@ -200,7 +200,7 @@
     <string name="settings_bold_brightens_desc">Kalın metin ilk sekiz renkte parlak yarıyı kullanır</string>
     <string name="settings_ligatures">Ligatürler</string>
     <string name="settings_ligatures_desc">Yazı tipi taşıyorsa programlama ligatürleri</string>
-    <string name="settings_dim_inactive_panes">Etkin olmayan pane\\'i karart</string>
+    <string name="settings_dim_inactive_panes">Etkin olmayan pane\'i karart</string>
     <string name="settings_dim_inactive_panes_desc">Bölünmüş ekranda odakta olmayan pane koyu çizilir</string>
 
     <string name="settings_section_background">Arka plan</string>
@@ -241,11 +241,11 @@
     <string name="setup_logs_title">Son 50 log satırı</string>
     <string name="setup_no_logs">Log kaydı yok.</string>
     <string name="setup_retry_sublabel">Aynı adımları önbellekteki dosyalarla yeniden dene.</string>
-    <string name="setup_redownload_label">Rootfs\\'yi yeniden indir</string>
-    <string name="setup_redownload_sublabel">Önbellekteki rootfs\\'i sil ve Ubuntu\\'dan yeniden indir.</string>
+    <string name="setup_redownload_label">Rootfs\'yi yeniden indir</string>
+    <string name="setup_redownload_sublabel">Önbellekteki rootfs\'i sil ve Ubuntu\'dan yeniden indir.</string>
     <string name="setup_reset_label">Her şeyi sıfırla</string>
     <string name="setup_reset_sublabel">~/.drosh/ klasörünü sil. Sonraki açılış her şeyi yeniden indirir.</string>
-    <string name="setup_report_label">GitHub\\'da sorun bildir</string>
+    <string name="setup_report_label">GitHub\'da sorun bildir</string>
     <string name="setup_report_sublabel">Tanılama paketini panoya kopyalar.</string>
     <string name="setup_diagnostic_copied">Tanılama panoya kopyalandı</string>
     <string name="terminal_delete_last_session_title">Son oturum silinsin mi?</string>
@@ -265,10 +265,10 @@
     <string name="terminal_ready">Hazır</string>
     <string name="action_apply">Uygula</string>
     <string name="action_close">Kapat</string>
-    <string name="action_close_pane">İkinci pane\\'yi kapat</string>
+    <string name="action_close_pane">İkinci pane\'yi kapat</string>
     <string name="action_collapse">Daralt</string>
     <string name="action_copy">Kopyala</string>
-    <string name="action_dock_pane">Pane\\'yi sabitle</string>
+    <string name="action_dock_pane">Pane\'yi sabitle</string>
     <string name="action_expand">Genişlet</string>
     <string name="action_float_window">Pencereyi yüzer yap</string>
     <string name="action_move_divider">Ayırıcıyı taşı</string>
@@ -276,11 +276,11 @@
     <string name="action_rename">Yeniden adlandır</string>
     <string name="action_skip">Atla</string>
     <string name="action_swap_panes">Panelleri değiştir</string>
-    <string name="action_system_bring_back">Pane\\'yi geri getir</string>
+    <string name="action_system_bring_back">Pane\'yi geri getir</string>
     <string name="action_system_float">Diğer uygulamaların üzerinde yüz</string>
     <string name="agent_add_key">Anahtar ekle</string>
     <string name="agent_api_required">API anahtarı gerekli</string>
-    <string name="agent_api_required_body">Agent\\'ı çalıştırmak için bir OpenRouter anahtarı ekle. Cihazda şifreli saklanır.</string>
+    <string name="agent_api_required_body">Agent\'ı çalıştırmak için bir OpenRouter anahtarı ekle. Cihazda şifreli saklanır.</string>
     <string name="agent_approval">ONAY</string>
     <string name="agent_chat">Sohbet</string>
     <string name="agent_chat_menu_cd">Sohbet menüsü</string>
@@ -306,7 +306,7 @@ terminal session açmana gerek yok.</string>
     <string name="agent_no_commands_hint">Agent bir shell komutu çalıştırdığında burada görünür.</string>
     <string name="agent_open_settings">Ayarları aç</string>
     <string name="agent_open_settings_cd">Agent ayarlarını aç</string>
-    <string name="agent_output_clipped">çıktı kırpıldı — tam hâli context\\'e kısıtlı olarak gitti</string>
+    <string name="agent_output_clipped">çıktı kırpıldı — tam hâli context\'e kısıtlı olarak gitti</string>
     <string name="agent_question">SORU</string>
     <string name="agent_reasoned">Reasoning tamam</string>
     <string name="agent_reasoning_secs">Reasoning %1$s sn</string>
@@ -347,7 +347,7 @@ terminal session açmana gerek yok.</string>
     <string name="sidebar_swap_split">Bölmeye taşı</string>
     <string name="sidebar_this_device">Bu cihaz</string>
     <string name="topbar_open_sessions">Oturumları aç</string>
-    <string name="motd_dismiss">MOTD\\'u kapat</string>
+    <string name="motd_dismiss">MOTD\'u kapat</string>
     <string name="app_name">Drosh</string>
     <string name="about_tagline">Telefonun bir Unix makinesi.</string>
     <string name="about_section_app">Uygulama</string>
