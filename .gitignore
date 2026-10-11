@@ -93,6 +93,10 @@ secrets.properties
 # Native libs decrypted at runtime
 !gradle/wrapper/gradle-wrapper.jar
 
+# Local junk that does not belong in the repository
+.recycle/
+bug.jpg
+
 # HTML prototypes and design mockups live outside the repo, in the design
 # vault (MuhofyBox/Drosh/). Ignored so a download or an old checkout cannot
 # put them back.
