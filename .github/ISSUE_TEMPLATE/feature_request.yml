@@ -1,0 +1,19 @@
+---
+name: Feature request
+about: Suggest something Drosh should do
+title: ''
+labels: enhancement
+assignees: ''
+---
+
+**What should it do**
+The feature, in one paragraph. What does the user get that they do not have today?
+
+**Why**
+The problem it solves. If it replaces a workflow, describe the workflow —
+Drosh's design decisions are written down in `docs/MEMORYBANK.md`, and the
+ones that survived contact with a device have a reason attached.
+
+**What it is not**
+If this has a cheap version and an expensive version, which one are you
+asking for? Scope is the usual reason a good idea waits.

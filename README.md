@@ -1,5 +1,11 @@
 # Drosh
 
+[![Build Debug](https://github.com/mmuhofy/Drosh/actions/workflows/debug.yml/badge.svg)](https://github.com/mmuhofy/Drosh/actions/workflows/debug.yml)
+[![Unit Tests](https://github.com/mmuhofy/Drosh/actions/workflows/tests.yml/badge.svg)](https://github.com/mmuhofy/Drosh/actions/workflows/tests.yml)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE.md)
+[![Min SDK: 26](https://img.shields.io/badge/Min%20SDK-26%20%28Android%208.0%29-green.svg)](https://developer.android.com/about/versions/oreo)
+[![Strings: 10 languages](https://img.shields.io/badge/Strings-10%20languages-orange.svg)](docs/TRANSLATION-MANIFEST.md)
+
 > Your phone is a Unix machine. Finally.
 
 Drosh is a ground-up reimagination of what a mobile terminal should be:
@@ -13,100 +19,93 @@ browser for links.
 
 ## Status
 
-🚧 **Active development.** Phases 1, 2, 3 and 5 are substantially complete.
-Phase 6 (agent) is started; Phase 4 (SSH) has not begun.
+🚧 **Active development, pre-release.** Everything below is in the tree and
+compiles; nothing has been verified on a physical device yet. The changelog
+in [`CHANGELOG.md`](CHANGELOG.md) is the per-release record, and the design
+decisions live in [`docs/MEMORYBANK.md`](docs/MEMORYBANK.md).
 
-| Phase | Status |
-|-------|--------|
-| 1. Terminal Core | ✅ Done — PRoot + Ubuntu 24.04, PTY, block engine, ANSI pipeline |
-| 2. UI & Session System | ✅ Done — session sidebar, Room persistence, settings, in-app browser |
-| 3. Input System | ✅ Done — extra-key bar, sticky modifiers, keyboard handle, search |
-| 4. SSH & Remote | ❌ Not started — module is a stub |
-| 5. Safety, Polish & Distribution | 🟡 Partial — PIN lock and notification service done, CI/release set up |
-| 6. Agent Intelligence | 🟡 Partial — loop and SSE streaming done, 1 of 6 tools |
+## What's in it
 
-## Feature Matrix
+**The terminal.** A full Ubuntu 24.04 userspace under PRoot, a vendored termux
+engine, PTY sessions that survive rotation, OSC 133 shell integration per
+shell, sub-line scrolling with momentum, a block mode with per-command
+prompt cards, and text selection that works the way it does on a desktop.
 
-| Feature | State |
-|---------|-------|
+**The agent.** Eight tools (`shell`, `read_file`, `write_file`, `grep`,
+`move_file`, `ask_user`, `update_todo`, `web_search`), four provider
+protocols (OpenAI-compatible, Anthropic, Gemini, OpenAI Responses), a
+225-provider catalog, per-model reasoning effort, API keys in an encrypted
+vault. Shell output streams into the chat live, writes show a diff and wait
+for approval, and the chat history is durable with automatic compaction.
+
+**SSH.** Hosts and keys managed in-app, trust-on-first-use host key
+verification, an encrypted credential vault, and SSHJ sessions bridged into
+the real terminal — an SSH connection is a tab, not a bolt-on.
+
+**Everything else.** A native code editor (`editor <path>`) with syntax
+highlighting, split panes with a floating window you can drag over other
+apps, smooth pinch-to-zoom anchored on the row under your fingers, split
+panes, a project system that groups sessions, a theme store with installable
+themes and background images, a 4-digit PIN lock, and a UI that speaks ten
+languages completely.
+
+## Feature matrix
+
+| Area | State |
+|---|---|
 | **Terminal core** | |
-| PRoot 5.2.0 + Ubuntu 24.04 rootfs | ✅ Working — asset extract, HTTP fallback, tar.gz unpacker |
-| 9 setup shell scripts (shell, packages, oh-my-zsh, rootfs) | ✅ Working |
-| PTY session via vendored `libtermux.so` | ✅ Working |
-| Multi-session lifecycle + Room reconciliation | ✅ Working |
-| ANSI strip / SGR handling | ✅ Working (`AnsiStripper`) |
+| PRoot 5.2.0 + Ubuntu 24.04 rootfs | ✅ asset extract, HTTP fallback, tar.gz unpacker |
+| PTY sessions, multi-session lifecycle, Room reconciliation | ✅ |
+| ANSI/SGR pipeline, OSC 133 + OSC 7 parsing | ✅ |
+| Sub-line scrolling with momentum | ✅ |
 | **Block output** | |
-| Block repository + engine state (200-block ring) | ✅ Working |
-| PromptBlock rendering + per-block menu | ✅ Working |
-| Long-output collapse / "show N more" | ❌ Missing — lived in the deleted `BlockBody` |
-| Jump-to-bottom affordance | ❌ Missing — lived in the deleted `JumpToBottom` |
-| Real exit codes in block mode | ❌ **Broken** — always `0`, see Known Issues |
-| Semantic output classification (ERROR/WARN/OK) | ❌ Missing |
-| **Input** | |
-| FlatKeyBar + sticky CTRL/ALT, modifier popup | ✅ Working |
-| Hardware keyboard detection / auto-hide | ✅ Working |
-| Block-mode raw byte injection (Ctrl+C, ESC) | ✅ Working |
-| Ghost-text autocomplete | ❌ Missing |
-| Shortcut overlay, voice input | ❌ Not started |
-| **Session** | |
-| Room-backed sessions + active-session state | ✅ Working |
-| Session sidebar | ✅ Working |
-| Session switcher view model | ✅ Working (sidebar is the rendered surface) |
-| Grouping, favourites, drag-reorder | ❌ Not started |
-| **UI** | |
-| Setup wizard (4 scenes) + bootstrap stage view | ✅ Working |
-| Setup recovery (retry / re-download / reset / report) | ✅ Working |
-| Settings (16 persisted keys) + theme | ✅ Working |
-| In-app browser (WebViewSheet) | ✅ Working |
-| Draggable search bar + match highlighting | ✅ Working |
-| PIN lock (SHA-256, EncryptedSharedPreferences) | ✅ Working |
-| Foreground service + notifications | ✅ Working |
-| DocumentsProvider | ✅ Working |
+| Block repository + engine, prompt cards, per-block menu | ✅ |
+| Long-output collapse / "show N more" | ❌ not built |
+| Real exit codes in block mode | ❌ **broken** — always `0`, see Known Issues |
+| Semantic classification (ERROR/WARN/OK) | ❌ not built |
 | **Agent** | |
-| Bounded multi-step loop + tool-call accumulation | ✅ Working |
-| OpenAI-compatible SSE adapter (tool calls, reasoning) | ✅ Working |
-| `shell` tool via PRoot | ✅ Working |
-| `read_file` / `write_file` / `ask_user` / `update_todo` / `web_search` | ❌ Missing |
-| Diff + approve flow before write | ❌ Missing |
-| Shell output streaming to the chat pane | ❌ Broken — listener never wired |
-| API key persistence | ❌ In-memory only |
-| **Data** | |
-| Room DB v1 + session DAO | ✅ Working |
-| Room migrations | ❌ None, and no destructive fallback |
-| Command DNA (FTS5) | ❌ Missing |
+| Bounded multi-step loop, retries, approval parking | ✅ |
+| Four provider protocols, 225-provider catalog, per-model effort | ✅ |
+| Eight tools, live shell streaming, diff + approve before writes | ✅ |
+| Durable transcripts with compaction | ✅ |
+| Agent chats share the guest home directory | ❌ per-chat terminals not wired |
 | **SSH** | |
-| SshjManager, key vault, constellation | ❌ Module is empty (0 source files) |
-| **Background** | |
-| WorkManager cron / agent watch | ❌ Dependencies declared, no workers |
+| Hosts, keys, TOFU verification, credential vault, interactive sessions | ✅ |
+| Mosh, SFTP, jump hosts, port forwarding | ❌ not built |
+| **Editor** | ✅ `editor <path>`, syntax highlighting, discard confirmation |
+| **Input** | ✅ FlatKeyBar with blur, sticky modifiers, key repeat, IME-aware |
+| **UI** | |
+| Session sidebar, search, ended-session handling | ✅ |
+| Split panes (top-to-bottom, five snaps) + floating window | ✅ |
+| Pinch-to-zoom (0.1sp, focal anchoring, size chip) | ✅ |
+| In-app browser (WebViewSheet) with nav, progress, dropdown | ✅ |
+| Settings by category, theme store, backgrounds, font packs | ✅ |
+| 4-digit PIN lock, foreground service, DocumentsProvider | ✅ |
+| **Localization** | ✅ **ten languages, 413 strings, zero missing** |
+| **Not built** | Command DNA (history search), ghost-text autocomplete |
 
 ## Stack
 
-Versions below are the values actually pinned in `gradle/libs.versions.toml`,
-which is the single source of truth.
+The values in `gradle/libs.versions.toml` are the source of truth; this table
+is a summary of it.
 
 | Component | Technology |
 |-----------|------------|
-| Language | Kotlin 2.2.0 |
-| KSP | 2.2.0-2.0.2 |
+| Language | Kotlin 2.2.0, Java 17 |
 | UI | Jetpack Compose BOM 2026.04.01 + Material 3 |
-| Architecture | MVVM + Clean Architecture |
-| DI | Hilt 2.57 |
-| Local DB | Room 2.8.4 |
-| Async | Kotlin Coroutines 1.10.2 + Flow |
-| HTTP / streaming | OkHttp 4.12.0 + SSE |
-| Serialization | Kotlinx Serialization 1.7.3 |
-| SSH | SSHJ 0.39.0 (declared, not yet used) |
-| Terminal engine | termux-view + termux-terminal-emulator, vendored |
+| Architecture | MVVM + Clean Architecture (10 Gradle modules) |
+| DI | Hilt 2.58 |
+| Local DB | Room 2.8.5 (schema v6, migrations 1→6) |
+| Async | Coroutines 1.11.0 + Flow |
+| HTTP / streaming | OkHttp 5.4.0 + SSE |
+| SSH | SSHJ 0.41.1 |
+| Terminal engine | termux-view + termux-terminal-emulator, vendored in-tree |
 | Linux env | PRoot 5.2.0 + Ubuntu 24.04 rootfs |
-| Min SDK | 26 (Android 8.0+) |
-| Target SDK | 28 — see Known Issues |
-| Compile SDK | 36 |
-| Java / JVM target | 17 |
+| Min SDK / Target SDK / Compile SDK | 26 / 28 / 36 |
 | ABI | arm64-v8a only |
 
-> `targetSdk` is deliberately still 28 so the app keeps broad OEM
-> compatibility on Android 8+. It is not 36; if you are syncing from
-> `docs/MEMORYBANK.md`, trust this table and `libs.versions.toml`.
+> `targetSdk` is deliberately 28 to keep broad OEM compatibility on Android 8+.
+> The lint suppression for it is in `app/build.gradle.kts`.
 
 ## Architecture
 
@@ -115,79 +114,88 @@ app/            → MainActivity + NavHost, DI seam, TerminalService
 ui/             → Compose screens, ViewModels (never imports data/agent/terminal/ssh)
 domain/         → Models, use cases, repository interfaces (pure Kotlin, no Android)
 data/           → Repository implementations, Room, DataStore, DI bindings
-agent/          → AgentRuntime, ToolRegistry, ProviderAdapter, ShellTool
+agent/          → AgentRuntime, ToolRegistry, provider adapters, eight tools
 terminal/       → TerminalManager, UbuntuBootstrap, ProotRunner, vendored termux
-ssh/            → Empty. Reserved for SSHJ manager and key vault
+ssh/            → SSHJ session bridge
+editor/         → Sora editor wrapper, TextMate grammars
 core/           → Locale, constants, extensions
-design-system/  → DroshColors, typography, dropdown
+design-system/  → DroshColors, typography, dropdown menu
 build-logic/    → Gradle convention plugins
 ```
 
-Strict layering: `ui/` consumes only `domain/` types. `domain/` is pure
-Kotlin. See `docs/AGENT.md` for the full rules.
-
-### Rendering pipeline
+Strict layering: `ui/` consumes only `domain/` types; `domain/` is pure
+Kotlin. The rules are in [`docs/AGENT.md`](docs/AGENT.md).
 
 ```
 PTY output → AnsiStripper → block boundary detection → BlockRepository → Compose BlockList
 ```
 
-## Known Issues
+## Install
 
-- **Block mode always reports exit code 0.** `terminal/BlockEngineWire.kt`
-  hardcodes `onCommandCompleted(exitCode = 0)`, so a failing command renders
-  as successful and `BlockState.Error` is unreachable.
-- **targetSdk 28** on a compileSdk 36 project. AndroidX APIs gated behind
-  SDK 29+ are unavailable, and `ExpiredTargetSdkVersion` is suppressed in
-  `app/build.gradle.kts` to keep lint quiet.
-- **Room has no migration path.** `DroshDatabase` is v1 with neither
-  migrations nor `fallbackToDestructiveMigration()`; a schema bump without
-  adding them will crash on upgrade.
-- **Agent shell output never reaches the chat pane.** `ShellTool.onOutputLine`
-  is never wired, so `AgentEvent.BashStarted/BashOutput/BashCompleted` are
-  consumed by the ViewModel but never emitted.
-- **Agent `fetchModels()` sends no Authorization header** and will 401 against
-  OpenRouter.
-- **PIN lock hashes a 4-digit code without a salt.** Only 10,000 candidates;
-  acceptable as a UI lock, not as authentication.
-- **`ssh/` is an empty module** that `app` still depends on, pulling in SSHJ,
-  biometric and security-crypto for nothing.
-- **Release builds are signed with the debug keystore** and run with
-  `isMinifyEnabled = false`.
-- **`docs/MEMORYBANK.md` §1 lists the license as MIT.** It is GPLv3; see below.
+Release APKs are attached to
+[GitHub Releases](https://github.com/mmuhofy/Drosh/releases) alongside a
+`.sha256` checksum:
+
+```bash
+sha256sum -c drosh-release-arm64-v8a-release.apk.sha256
+adb install drosh-release-arm64-v8a-release.apk
+```
+
+All builds — CI and local — are signed with the debug key committed to the
+repository, so an official APK installs over your own build without an
+uninstall. That is a deliberate single-identity choice; it is recorded as a
+known issue, not a secret.
 
 ## Build
 
 ```bash
-./gradlew assembleDebug        # arm64-v8a APK
-./gradlew testDebugUnitTest    # 38 unit tests across domain + terminal
-./gradlew spotlessCheck
-./gradlew detekt
+./gradlew assembleDebug        # debug APK, arm64-v8a
+./gradlew testDebugUnitTest    # the unit test suite
 ```
 
-No local build is required to validate a change — CI runs
-`Build Debug`, `Tests` and `Release` on every push.
+CI runs `Build Debug` and `Unit Tests` on every push and pull request, and
+`Build Release` on tags.
 
 ## Tests
 
-38 unit tests, all in pure-JVM modules:
+464 unit tests across the pure-JVM modules — domain, data, terminal, agent
+and ui — covering the block engine's boundary detection, the input
+dispatcher, the ANSI pipeline, the agent loop and its four provider
+adapters, the zoom gesture maths, and the room migrations.
 
-| Suite | Tests | Coverage |
-|-------|-------|----------|
-| `CommandBoundaryDetectorTest` | 10 | prompt detection across shell and zsh patterns |
-| `BlockTest` | 9 | elapsed time, network delta, exit code per block state |
-| `InputDispatcherTest` | 7 | sticky modifiers, control-byte translation, ordering |
-| `AnsiStripperTest` | 5 | CSI SGR, OSC, 2-byte escape, zsh prompt codes |
-| `BlockEngineScenarioTest` | 4 | transcript-shaped scenarios |
-| `NetworkDeltaTest` | 3 | traffic detection |
+## Known issues
 
-No tests yet for the agent, data, ui or app modules.
+- **Block mode always reports exit code 0.** `terminal/BlockEngineWire.kt`
+  hardcodes `onCommandCompleted(exitCode = 0)`, so a failing command renders
+  as successful.
+- **`targetSdk` 28** on a compileSdk 36 project; AndroidX APIs gated behind
+  SDK 29+ are unavailable.
+- **Release builds are signed with the committed debug key** and run with
+  `isMinifyEnabled = false`.
+- **Nothing has been verified on a physical device.** CI builds and
+  unit-tests; a real device has not confirmed the terminal, the agent, or
+  any gesture yet.
+- **Agent chats share one guest home directory** — per-chat terminals are
+  not wired.
 
 ## License
 
-GPLv3 — see [LICENSE](LICENSE).
+Drosh is split-licensed, and the map is in
+[`LICENSE.md`](LICENSE.md):
 
-This project uses code from [Termux](https://github.com/termux), which is
-licensed under the GNU General Public License v3.0. As required by the terms
-of that license, Drosh is also licensed under GPLv3 to ensure license
-compatibility and to preserve the same freedoms for all users.
+- The APK and `:terminal` are **GPL-3.0** — the terminal module contains
+  modified Termux code, and Termux is GPLv3.
+- The Drosh-authored modules are **Apache-2.0**, so the design system and the
+  agent adapters can be reused without copyleft.
+
+Third-party components — Termux, PRoot, sora-editor (LGPL), the TextMate
+grammars (MIT), and the Geist, Inter and JetBrains Mono fonts (OFL) — are
+named with their licenses in `LICENSE.md`, `editor/NOTICE.md` and
+`CREDITS.md`.
+
+## Documentation
+
+- [`docs/README.md`](docs/README.md) — the living documents
+- [`CHANGELOG.md`](CHANGELOG.md) — release record
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — build, commit, changelog and release rules
+- [`docs/TRANSLATION-MANIFEST.md`](docs/TRANSLATION-MANIFEST.md) — the string inventory, per language

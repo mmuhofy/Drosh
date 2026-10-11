@@ -1,0 +1,31 @@
+---
+name: Bug report
+about: Something crashed, rendered wrong, or behaved unexpectedly
+title: ''
+labels: bug
+assignees: ''
+---
+
+**What happened**
+A clear description of the bug. If it rendered wrong, what did you expect to see instead?
+
+**To reproduce**
+Steps, as exact as you can make them:
+1. Open the app
+2. …
+3. …
+
+**Environment**
+- Device: (e.g. Pixel 7, Samsung A54)
+- Android version:
+- Drosh version: (Settings → About, or the release tag)
+- Shell: zsh / bash
+
+**Logs**
+If the app crashed, the setup recovery screen's **Report issue** button
+builds a diagnostic bundle (last 50 log lines + device info) and opens a
+prefilled issue — that is the fastest path, and pasting it here is welcome.
+
+**Screenshots**
+If it is a rendering bug, a screenshot or a short screen recording is the
+single most useful thing you can attach.
