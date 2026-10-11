@@ -65,6 +65,7 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -100,6 +101,7 @@ import dev.drosh.design.system.DroshTextSecondary
 import coil3.compose.AsyncImage
 import dev.drosh.domain.session.DeviceIdentity
 import dev.drosh.domain.session.SessionSnapshot
+import dev.drosh.ui.R
 import dev.drosh.domain.session.SessionState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.IconAction
@@ -347,25 +349,29 @@ private fun SidebarContent(
             contentPadding = PaddingValues(bottom = 8.dp),
         ) {
             item(key = "nav_new") {
-                PressableRow(DroshIcons.Plus, "New session") { viewModel.createNew("shell") }
+                PressableRow(DroshIcons.Plus, stringResource(R.string.sidebar_new_session)) { viewModel.createNew("shell") }
             }
             item(key = "nav_agent") {
-                PressableRow(DroshIcons.SquareTerminal, "Agent", onOpenAgent)
+                PressableRow(DroshIcons.SquareTerminal, stringResource(R.string.agent_title), onOpenAgent)
             }
             item(key = "nav_projects") {
-                PressableRow(DroshIcons.Folder, "Projects", onOpenProjects)
-                PressableRow(DroshIcons.Terminal, "SSH", onOpenSsh)
+                PressableRow(DroshIcons.Folder, stringResource(R.string.sidebar_projects), onOpenProjects)
+                PressableRow(DroshIcons.Terminal, stringResource(R.string.sidebar_ssh), onOpenSsh)
             }
             item(key = "nav_settings") {
-                PressableRow(DroshIcons.Settings, "Settings", onOpenSettings)
+                PressableRow(DroshIcons.Settings, stringResource(R.string.sidebar_settings), onOpenSettings)
             }
 
-            item(key = "sessions_header") { SectionLabel("SESSIONS", null) }
+            item(key = "sessions_header") { SectionLabel(stringResource(R.string.sidebar_sessions), null) }
 
             if (live.isEmpty()) {
                 item(key = "live_empty") {
                     Text(
-                        text = if (searchQuery.isBlank()) "No open sessions" else "No results",
+                        text = if (searchQuery.isBlank()) {
+                            stringResource(R.string.sidebar_empty_sessions)
+                        } else {
+                            stringResource(R.string.sidebar_no_results)
+                        },
                         color = DroshTextMuted,
                         fontSize = 14.sp,
                         modifier = Modifier
@@ -477,7 +483,11 @@ private fun SidebarContent(
 
             if (ended.isNotEmpty()) {
                                     item(key = "ended_header") {
-                                    SectionLabel("ENDED", null, "clear ${ended.size}") { viewModel.purgeEnded() }
+                                    SectionLabel(
+                            stringResource(R.string.sidebar_ended),
+                            null,
+                            stringResource(R.string.sidebar_clear_count, ended.size),
+                        ) { viewModel.purgeEnded() }
                                     }
                                     items(ended.size, key = { "ended_${ended[it].id}" }) { index ->
                                     val snapshot = ended[index]
@@ -520,7 +530,7 @@ private fun SidebarContent(
                                     identity: DeviceIdentity?,
                                     onNewSession: () -> Unit,
                                     ) {
-                                    val name = identity?.marketingName.orEmpty().ifBlank { "This device" }
+                                    val name = identity?.marketingName.orEmpty().ifBlank { stringResource(R.string.sidebar_this_device) }
                                     val subtitle = identity?.takeIf { it.marketingName != it.model }
                                     ?.let { it.manufacturer + " " + it.model }
                                     ?.takeIf { it.isNotBlank() }
@@ -559,7 +569,7 @@ private fun SidebarContent(
                                     }
                                     CircleButton(
                                     onClick = onNewSession,
-                                    contentDescription = "New session",
+                                    contentDescription = stringResource(R.string.sidebar_new_session),
                                     icon = DroshIcons.Plus,
                                     )
                                     }
@@ -1007,7 +1017,8 @@ private fun SessionRow(
                             // position. Once it *is* the lower pane that claim is
                             // false — the action swaps the pair — so the entry says
                             // what it does.
-                            label = if (isSecondaryPane) "Swap into split" else "Split below",
+                            label = stringResource(if (isSecondaryPane) R.string.sidebar_swap_split else R.string.sidebar_split_below),
+                            id = if (isSecondaryPane) "swap" else "split",
                             icon = DroshIcons.PanelLeft,
                         ),
                     )
@@ -1018,11 +1029,14 @@ private fun SessionRow(
                             // "Dock pane" only where it can be acted on: it is the
                             // inverse of "Open in window", so it belongs to a
                             // row that is already floating and to nothing else.
-                            label = if (isSecondaryPane && floatingPane) {
-                                "Dock pane"
-                            } else {
-                                "Open in window"
-                            },
+                            label = stringResource(
+                                if (isSecondaryPane && floatingPane) {
+                                    R.string.action_dock_pane
+                                } else {
+                                    R.string.sidebar_open_window
+                                },
+                            ),
+                            id = if (isSecondaryPane && floatingPane) "dock" else "float",
                             icon = if (isSecondaryPane && floatingPane) {
                                 DroshIcons.PanelBottom
                             } else {
@@ -1031,25 +1045,26 @@ private fun SessionRow(
                         ),
                     )
                 }
-                add(DroshMenuItem(label = "Rename", icon = DroshIcons.Pencil))
+                add(DroshMenuItem(label = stringResource(R.string.action_rename), icon = DroshIcons.Pencil, id = "rename"))
                 add(
                     DroshMenuItem(
-                        label = "Delete",
+                        label = stringResource(R.string.action_delete),
                         icon = DroshIcons.Trash2,
                         style = DroshMenuItemStyle.Destructive,
+                        id = "delete",
                     ),
                 )
             },
             onItemClick = { item ->
-                when (item.label) {
-                    "Split below" -> onSplit?.invoke()
+                when (item.id) {
+                    "split" -> onSplit?.invoke()
                     // Both of these are reachable only on a row that is already
                     // in the split, and both used to fall through to nothing.
-                    "Swap into split" -> onSwapPanes?.invoke()
-                    "Dock pane" -> onDock?.invoke()
-                    "Open in window" -> onFloat?.invoke()
-                    "Rename" -> onStartRename()
-                    "Delete" -> onDelete()
+                    "swap" -> onSwapPanes?.invoke()
+                    "dock" -> onDock?.invoke()
+                    "float" -> onFloat?.invoke()
+                    "rename" -> onStartRename()
+                    "delete" -> onDelete()
                 }
             },
         )

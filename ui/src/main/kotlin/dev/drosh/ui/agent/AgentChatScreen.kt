@@ -123,6 +123,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import dev.drosh.ui.agent.components.MOTION_MS
 import dev.drosh.ui.agent.components.MarkdownText
+import androidx.compose.ui.res.stringResource
+import dev.drosh.ui.R
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -208,7 +210,7 @@ fun AgentChatScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 ChatPillRow(
                     modelLabel = providerState.selectedModelId.ifEmpty {
-                        providerState.models.firstOrNull()?.id ?: "model seç"
+                        providerState.models.firstOrNull()?.id ?: stringResource(R.string.agent_select_model)
                     },
                     onBack = onBack,
                     onOpenMenu = { menuOpen = true },
@@ -302,7 +304,7 @@ fun AgentChatScreen(
             if (menuOpen) {
                 AgentChatMenu(
                     visible = menuOpen,
-                    chatName = chat?.name ?: "Sohbet",
+                    chatName = chat?.name ?: stringResource(R.string.agent_chat),
                     onRename = {
                         menuOpen = false
                         renaming = true
@@ -340,7 +342,7 @@ fun AgentChatScreen(
 
             if (deleting) {
                 DeleteChatDialog(
-                    name = chat?.name ?: "Sohbet",
+                    name = chat?.name ?: stringResource(R.string.agent_chat),
                     onDismiss = { deleting = false },
                     onConfirm = {
                         deleting = false
@@ -389,7 +391,7 @@ private fun ChatPillRow(
     ) {
         AgentIconPill(
             icon = DroshIcons.ArrowLeft,
-            contentDescription = "Geri",
+            contentDescription = stringResource(R.string.action_back),
             onClick = onBack,
             tint = DroshTextSecondary,
         )
@@ -407,7 +409,7 @@ private fun ChatPillRow(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 6.dp, end = 6.dp),
-            contentDescription = "Model: $modelLabel",
+            contentDescription = stringResource(R.string.agent_model_cd, modelLabel),
             trailingChevron = true,
             contentAlignment = Alignment.CenterStart,
         )
@@ -420,7 +422,7 @@ private fun ChatPillRow(
         // time a run starts.
         AgentIconPill(
             icon = DroshIcons.EllipsisVertical,
-            contentDescription = "Sohbet menüsü",
+            contentDescription = stringResource(R.string.agent_chat_menu_cd),
             onClick = onOpenMenu,
             tint = DroshTextSecondary,
         )
@@ -453,7 +455,7 @@ private fun ModelPickerSheet(
                     indication = null,
                     onClick = onDismiss,
                 )
-                .semantics { contentDescription = "Kapat" },
+                .semantics { contentDescription = stringResource(R.string.action_close) },
         )
 
         val glass = LocalAgentGlass.current
@@ -486,7 +488,7 @@ private fun ModelPickerSheet(
             Spacer(Modifier.height(8.dp))
 
             Text(
-                text = "Model",
+                text = stringResource(R.string.agent_model),
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = DroshText,
@@ -506,34 +508,33 @@ private fun ModelPickerSheet(
                 ) {
                     if (loading) {
                         Text(
-                            text = "modeller yükleniyor…",
+                            text = stringResource(R.string.agent_models_loading),
                             fontSize = 13.sp,
                             color = DroshTextSecondary,
                         )
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "Model listesi boş",
+                                text = stringResource(R.string.agent_models_empty),
                                 fontSize = 14.sp,
                                 color = DroshText,
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = "OpenRouter anahtarı kayıtlı değil ya da model " +
-                                    "listesi çekilemedi.",
+                                text = stringResource(R.string.agent_models_error),
                                 fontSize = 12.sp,
                                 lineHeight = 17.sp,
                                 color = DroshTextMuted,
                             )
                             Spacer(Modifier.height(14.dp))
                             AgentPill(
-                                label = "Ayarları aç",
+                                label = stringResource(R.string.agent_open_settings),
                                 onClick = {
                                     onDismiss()
                                     onOpenSettings()
                                 },
                                 primary = true,
-                                contentDescription = "Agent ayarlarını aç",
+                                contentDescription = stringResource(R.string.agent_open_settings_cd),
                             )
                         }
                     }
@@ -643,7 +644,11 @@ private fun AgentComposer(
                 Box {
                     if (text.isEmpty()) {
                         Text(
-                            text = if (enabled) "Ne yapmamı istiyorsun?" else "çalışıyor…",
+                            text = if (enabled) {
+                                stringResource(R.string.agent_composer_hint)
+                            } else {
+                                stringResource(R.string.agent_composer_busy)
+                            },
                             fontSize = 14.5.sp,
                             color = DroshTextMuted,
                         )
@@ -681,7 +686,7 @@ private fun AgentComposer(
                                     .clip(CircleShape)
                                     .background(DroshError)
                                     .clickable(onClick = onStop)
-                                    .semantics { contentDescription = "Durdur" },
+                                    .semantics { contentDescription = stringResource(R.string.agent_stop) },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
@@ -702,7 +707,7 @@ private fun AgentComposer(
                                         text = ""
                                         onSend(sent)
                                     }
-                                    .semantics { contentDescription = "Gönder" },
+                                    .semantics { contentDescription = stringResource(R.string.agent_send) },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
@@ -738,10 +743,14 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit, onFix: () -> Uni
             // Announced when it appears: a failed run the user cannot hear about
             // is a failed run they do not know about.
         )
-        FlatButton(text = "Çöz", onClick = onFix, modifier = Modifier.width(72.dp))
+        FlatButton(
+            text = stringResource(R.string.agent_fix),
+            onClick = onFix,
+            modifier = Modifier.width(72.dp),
+        )
         IconAction(
             icon = DroshIcons.X,
-            contentDescription = "Kapat",
+            contentDescription = stringResource(R.string.action_close),
             onClick = onDismiss,
         )
     }
@@ -768,7 +777,7 @@ private fun MessageRow(
         is ChatMessage.Failure -> NoticeBlock(
             text = message.message,
             color = DroshError,
-            description = "Hata: ${message.message}",
+            description = stringResource(R.string.agent_error, message.message),
         )
 
         is ChatMessage.Notice -> NoticeBlock(
@@ -879,12 +888,12 @@ private fun ThinkingDots(modifier: Modifier = Modifier) {
     )
 
     Text(
-        text = "Thinking ${elapsed}s",
+        text = stringResource(R.string.agent_thinking_secs, elapsed),
         fontSize = 11.5.sp,
         fontFamily = LocalFontSet.current.mono,
         color = DroshPrimary,
         modifier = modifier
-            .semantics { contentDescription = "düşünüyor" }
+            .semantics { contentDescription = stringResource(R.string.agent_thinking_cd) }
             .sweepHighlight(progress),
     )
 }
@@ -946,7 +955,7 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
                 .fillMaxWidth()
                 .clickable { open = !open }
                 .padding(vertical = 1.dp)
-                .semantics { contentDescription = "Düşünme" },
+                .semantics { contentDescription = stringResource(R.string.agent_stop_thinking) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -958,7 +967,7 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
             Spacer(Modifier.width(7.dp))
 
             Text(
-                text = if (running) "Reasoning ${elapsed}s" else "Reasoned",
+                text = if (running) stringResource(R.string.agent_reasoning_secs, elapsed) else stringResource(R.string.agent_reasoned),
                 fontSize = 11.5.sp,
                 fontFamily = LocalFontSet.current.mono,
                 color = if (running) DroshPrimary else DroshTextMuted,
@@ -969,7 +978,7 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
 
             Icon(
                 imageVector = DroshIcons.ChevronRight,
-                contentDescription = if (open) "Daralt" else "Genişlet",
+                contentDescription = stringResource(if (open) R.string.action_collapse else R.string.action_expand),
                 tint = DroshTextMuted,
                 modifier = Modifier
                     .size(12.dp)
@@ -1225,7 +1234,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
 
                     if (message.truncated) {
                         Text(
-                            text = "çıktı kırpıldı — tam hâli context'e kısıtlı olarak gitti",
+                            text = stringResource(R.string.agent_output_clipped),
                             fontSize = 10.sp,
                             color = DroshWarning,
                             modifier = Modifier.padding(top = 6.dp),
@@ -1246,14 +1255,14 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                             if (body != null) {
                                 Spacer(Modifier.width(10.dp))
                                 Text(
-                                    text = "Kopyala",
+                                    text = stringResource(R.string.action_copy),
                                     fontSize = 11.sp,
                                     color = DroshTextMuted,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable { clipboard(body) }
                                         .padding(horizontal = 8.dp, vertical = 5.dp)
-                                        .semantics { contentDescription = "Çıktıyı kopyala" },
+                                        .semantics { contentDescription = stringResource(R.string.agent_copy_output_cd) },
                                 )
                             }
                         }
@@ -1374,7 +1383,7 @@ private fun ApprovalBlock(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (isQuestion) "SORU" else "ONAY",
+                text = if (isQuestion) stringResource(R.string.agent_question) else stringResource(R.string.agent_approval),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.9.sp,
@@ -1423,12 +1432,12 @@ private fun ApprovalBlock(
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FlatButton(
-                    text = "Reddet",
+                    text = stringResource(R.string.action_reject),
                     onClick = { onAnswer(approval.id, ApprovalDecision.Reject("declined")) },
                     modifier = Modifier.weight(1f),
                 )
                 ActionButton(
-                    text = "Uygula",
+                    text = stringResource(R.string.action_apply),
                     onClick = { onAnswer(approval.id, ApprovalDecision.Approve) },
                     modifier = Modifier.weight(1f),
                 )
@@ -1598,7 +1607,7 @@ private fun QuestionControls(
         ) {
             if (reply.isEmpty()) {
                 Text(
-                    text = "Yanıtını yaz…",
+                    text = stringResource(R.string.agent_reply_hint),
                     fontSize = 13.5.sp,
                     color = DroshTextMuted,
                 )
@@ -1617,14 +1626,14 @@ private fun QuestionControls(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Atla",
+                text = stringResource(R.string.action_skip),
                 fontSize = 13.sp,
                 color = DroshTextSecondary,
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .clickable { onAnswer(ApprovalDecision.Reject("dismissed")) }
                     .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .semantics { contentDescription = "Soruyu atla" },
+                    .semantics { contentDescription = stringResource(R.string.agent_skip_question_cd) },
             )
             Spacer(Modifier.weight(1f))
             AgentPill(
@@ -1632,7 +1641,7 @@ private fun QuestionControls(
                 onClick = { onAnswer(ApprovalDecision.Answer(reply.trim())) },
                 primary = true,
                 enabled = canSend,
-                contentDescription = "Yanıtı gönder",
+                contentDescription = stringResource(R.string.agent_send_reply_cd),
             )
         }
     }
@@ -1778,13 +1787,13 @@ private fun ChatEmptyHint() {
         // is decoration, and the same glyph on a terminal button is what tells the
         // user that button opens the agent rather than a shell.
         Text(
-            text = "Ne yapmamı istiyorsun?",
+            text = stringResource(R.string.agent_composer_hint),
             fontSize = 15.sp,
             color = DroshText,
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Örnek: \"bu projedeki testleri koş ve hataları düzelt\"",
+            text = stringResource(R.string.agent_composer_example),
             fontSize = 12.sp,
             color = DroshTextMuted,
         )
@@ -1852,7 +1861,7 @@ private fun RetryBanner(notice: AgentChatViewModel.RetryNotice) {
         Text(
             // The attempt count is shown because "waiting" with no progress reads
             // as a hang, and the backoff between retries is up to fifteen seconds.
-            text = "Bağlantı hatası, ${notice.attempt}/${notice.maxAttempts} denendi — tekrar deneniyor…",
+            text = stringResource(R.string.agent_retry_notice, notice.attempt, notice.maxAttempts),
             fontSize = 12.sp,
             lineHeight = 17.sp,
             color = DroshWarning,
@@ -1881,7 +1890,7 @@ private fun FailureCard(
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(
-            text = "Çalıştırma başarısız",
+            text = stringResource(R.string.agent_run_failed),
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             color = DroshError,
@@ -1896,13 +1905,13 @@ private fun FailureCard(
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton(
-                text = "Tekrar dene",
+                text = stringResource(R.string.action_retry),
                 onClick = onRetry,
                 modifier = Modifier.weight(1f),
             )
             IconAction(
                 icon = DroshIcons.X,
-                contentDescription = "Kapat",
+                contentDescription = stringResource(R.string.action_close),
                 onClick = onDismiss,
             )
         }

@@ -37,6 +37,15 @@ data class DroshMenuItem(
     val style: DroshMenuItemStyle = DroshMenuItemStyle.Default,
     val dividerBefore: Boolean = false,
     val enabled: Boolean = true,
+    /**
+     * Stable identity for click dispatch.
+     *
+     * A translated label is a display string, not a routing key: a German menu
+     * that dispatches on `when (item.label)` silently stops matching the menu
+     * it draws. Callers that translate their labels pass an English id here;
+     * everything else keeps matching on the label.
+     */
+    val id: String = label,
 )
 
 @Composable

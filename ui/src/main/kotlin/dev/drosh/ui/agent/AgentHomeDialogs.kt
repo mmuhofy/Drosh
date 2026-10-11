@@ -101,7 +101,7 @@ fun RenameChatDialog(
                         cursorBrush = SolidColor(DroshPrimary),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .semantics { contentDescription = "Chat adı" },
+                            .semantics { contentDescription = stringResource(R.string.agent_chat_name_hint) },
                     )
                 }
             }
@@ -273,12 +273,12 @@ fun DirectoryChip(
                     cursorBrush = SolidColor(DroshPrimary),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .semantics { contentDescription = "Çalışma dizini" },
+                        .semantics { contentDescription = stringResource(R.string.agent_working_directory) },
                 )
             }
             Spacer(Modifier.width(6.dp))
             FlatButton(
-                text = "Kaydet",
+                text = stringResource(R.string.action_save),
                 onClick = {
                     onChange(draft)
                     editing = false
@@ -294,7 +294,7 @@ fun DirectoryChip(
             .clip(RoundedCornerShape(8.dp))
             .background(DroshSurfaceLow)
             .clickable { editing = true }
-            .semantics { contentDescription = "Çalışma dizini: $directory. Değiştirmek için dokun." }
+            .semantics { contentDescription = stringResource(R.string.agent_working_directory_cd, directory) }
             .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
         Text(

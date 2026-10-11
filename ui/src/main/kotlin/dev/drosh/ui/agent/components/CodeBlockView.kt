@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
 import dev.drosh.design.system.LocalFontSet
 import org.intellij.markdown.IElementType
+import androidx.compose.ui.res.stringResource
+import dev.drosh.ui.R
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
 
@@ -117,7 +119,7 @@ internal fun CodeBlockView(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "Kopyala",
+                text = stringResource(R.string.action_copy),
                 fontSize = 11.sp,
                 color = palette.punctuation,
                 modifier = Modifier

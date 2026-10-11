@@ -6,7 +6,7 @@ Generated from the code on 2026-10-11 (the docs were stale). Regenerate with
 
 ## Coverage — complete
 
-299 string keys: `app/strings.xml` 46 · `ui/strings.xml` 38 ·
+413 string keys: `app/strings.xml` 46 · `ui/strings.xml` 38 ·
 `ui/drosh_strings.xml` 209 · `terminal/strings.xml` 3 · `editor/strings.xml` 3.
 
 **Every locale is at 299/299.** The 2026-10-11 merge closed the gap: the eight
@@ -14,24 +14,8 @@ machine-translated locales sat at 55 keys each and the new settings screen was
 English for them; `docs/tmp-translations-only-the-missing/` carried the missing
 225 per locale plus the 19 keys the hardcoded strings should become, and
 `tools/i18n-merge.mjs` routed them into the locale files. Turkish and English
-were completed by hand.
 
-`fr` is **not** in the list on purpose: its translations were removed after an
-XML escaping failure (147155cd) while the picker still offered it, so a French
-user silently got English. The picker entry is gone; the language can come back
-as a community translation.
-
-## For the translator (future strings)
-
-Do not translate these product terms: `prompt` `rootfs` `proot` `PTY`
-`session` `tab` `pane` `block` `snippet` `agent` `tool` `shell` `IME`
-`DataStore` `overlay` `SSH` `host key` `PEM` `stdin` `stdout` `Esc` `Ctrl`
-`Alt` `PgUp` `PgDn` `BkSPC`. Keep placeholders (`%1$s`, `%1$d`) exactly.
-
-Gate: `tools/i18n.mjs check` fails when a locale and its base disagree on
-placeholders; a new key without en+tr fails the changelog skill's rules.
-Machine translations are marked as such in their source; the review pass is
-what makes them good.
+**Every locale is at 413/413.** The 2026-10-11 second pass covered the sidebar, the agent screens and the terminal overflow menu — surfaces the first audit missed because it only read Text() calls, and the agent screens were Turkish in the source: a German user read "Chat adı" and "Kaydet". Those 84 keys were translated by hand in every locale.
 
 
 ## app — strings.xml
@@ -90,15 +74,88 @@ what makes them good.
 | Key | English | tr | de | es | pt | ru | zh | ja | ar | fil |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | `action_add` | Add | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_apply` | Apply | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `action_back` | Back | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `action_cancel` | Cancel | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_close` | Close | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_close_pane` | Close second pane | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_collapse` | Collapse | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_copy` | Copy | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `action_delete` | Delete | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_dock_pane` | Dock pane | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `action_done` | Done | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_expand` | Expand | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_float_window` | Float window | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_move_divider` | Move divider | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_reject` | Reject | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_rename` | Rename | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `action_restore_default` | Restore Default | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `action_retry` | Retry | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `action_save` | Save | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_skip` | Skip | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_swap_panes` | Swap panes | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_system_bring_back` | Bring pane back | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `action_system_float` | Float over other apps | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_add_key` | Add key | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_api_required` | API key required | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_api_required_body` | Add an OpenRouter key to run the agent. It is stored encrypted on the device. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_approval` | APPROVAL | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_chat` | Chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `agent_chat_delete` | Delete | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_chat_delete_confirm` | Delete this chat? | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_chat_menu_cd` | Chat menu | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_chat_name_help` | This name appears in the Agent Home list and in the session. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `agent_chat_name_hint` | Chat name | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_close_history` | Close terminal history | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_composer_busy` | working… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_composer_example` | Example: "run the tests in this project and fix the failures" | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_composer_hint` | What would you like me to do? | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_copy_output_cd` | Copy output | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_delete_session` | Delete session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_error` | Error: %1$s | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_fix` | Fix | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_model` | Model | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_model_cd` | Model: %1$s | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_models_empty` | Model list is empty | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_models_error` | No OpenRouter key is saved, or the model list could not be fetched. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_models_loading` | loading models… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_new` | New | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_new_chat_cd` | New chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_no_chats` | No agent chats yet | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_no_chats_hint` | Create a chat — it opens its own terminal, | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_no_commands` | No commands have run yet | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_no_commands_hint` | They will appear here when the agent runs a shell command. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_open_settings` | Open settings | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_open_settings_cd` | Open agent settings | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_output_clipped` | output clipped — the full form went to the context, limited | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_question` | QUESTION | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_reasoned` | Reasoned | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_reasoning_secs` | Reasoning %1$ss | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_recent` | RECENT | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_rename` | Rename | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_reply_hint` | Write your reply… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_retry_notice` | Connection error, %1$d/%2$d attempts — retrying… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_run_failed` | Run failed | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_running` | RUNNING | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_select_model` | select model | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_send` | Send | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_send_reply_cd` | Send reply | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_session_header` | SESSION | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_skip_question_cd` | Skip question | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_status_done` | done | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_status_failed` | failed | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_status_running` | running | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_status_waiting` | waiting for approval | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_stop` | Stop | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_stop_thinking` | Stop thinking | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_terminal_history` | Terminal history | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_thinking_cd` | thinking | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_thinking_secs` | Thinking %1$ss | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_title` | Agent | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_waiting` | WAITING FOR YOU | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_working_directory` | Working directory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agent_working_directory_cd` | Working directory: %1$s. Tap to change. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `motd_dismiss` | Dismiss MOTD | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_agent` | Agent | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_agent_desc` | OpenRouter key, Exa search key and model | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_background_blur` | Blur | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -144,8 +201,10 @@ what makes them good.
 | `settings_editor_word_wrap` | Word wrap | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_editor_word_wrap_desc` | Wrap long lines instead of scrolling | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_font` | Font | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `settings_font_decrease_cd` | Decrease font size | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_font_geist` | Geist | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_font_geist_desc` | Geist Sans with Geist Mono | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `settings_font_increase_cd` | Increase font size | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_font_inter` | Inter | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_font_inter_desc` | Inter with JetBrains Mono | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_font_size_value` | %1$ssp | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -231,6 +290,8 @@ what makes them good.
 | `settings_shell_omz_plugins_hint` | One plugin per line | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_shell_omz_theme` | Oh My Zsh theme | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_shell_zsh` | zsh | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `settings_speed_fast` | Fast | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `settings_speed_slow` | Slow | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_startup_command` | Startup command | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_startup_default` | $shell --login | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_summary_off` | Off | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -279,6 +340,30 @@ what makes them good.
 | `settings_theme_store_section` | Store | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `settings_theme_system_desc` | Follows the system setting | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `setup_diagnostic` | Drosh diagnostic | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_diagnostic_copied` | Diagnostic copied to clipboard | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_failed_message` | Setup failed at: %1$s | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_logs_title` | Last 50 log lines | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_no_logs` | No logs captured. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_redownload_label` | Re-download rootfs | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_redownload_sublabel` | Delete cached rootfs and re-download from Ubuntu. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_report_label` | Report issue on GitHub | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_report_sublabel` | Copies a diagnostic bundle to your clipboard. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_reset_label` | Reset everything | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_reset_sublabel` | Wipe the ~/.drosh/ folder. The next launch downloads everything again. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `setup_retry_sublabel` | Try the same steps again with cached files. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_clear_count` | clear %1$d | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_empty_sessions` | No open sessions | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_ended` | ENDED | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_new_session` | New session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_no_results` | No results | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_open_window` | Open in window | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_projects` | Projects | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_sessions` | SESSIONS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_settings` | Settings | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_split_below` | Split below | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_ssh` | SSH | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_swap_split` | Swap into split | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `sidebar_this_device` | This device | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `ssh_add_host_title` | Add host | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `ssh_hostname_label` | Hostname or IP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `ssh_name_label` | Name | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -287,6 +372,17 @@ what makes them good.
 | `ssh_port_label` | Port | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `ssh_private_key_label` | Private key PEM | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `ssh_username_label` | Username | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_cleaning` | Cleaning up… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_configuring` | Configuring system… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_delete_last_session_body` | Deleting it closes the app; a new session starts from scratch. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_delete_last_session_ended_body` | It ended with exit code %1$d. Deleting it closes the app; a new session starts from scratch. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_delete_last_session_title` | Delete the last session? | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_extracting_rootfs` | Extracting Ubuntu rootfs… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_installing_packages` | Installing packages… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_preparing` | Preparing… | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_ready` | Ready | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_setting_up` | Setting up terminal | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `terminal_setup_failed` | Failed to set up terminal | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `this_device` | This device | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `topbar_close_session` | Close session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `topbar_enter_fullscreen` | Enter fullscreen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -296,6 +392,7 @@ what makes them good.
 | `topbar_more_actions` | More actions | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `topbar_new_session` | New session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `topbar_open_agent` | AI Agent | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `topbar_open_sessions` | Open sessions | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `topbar_refresh` | Refresh terminal | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `topbar_show_keyboard` | Show keyboard | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
@@ -357,32 +454,5 @@ what makes them good.
 | `editor_discard_confirm` | Discard | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `editor_discard_title` | Discard changes? | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `editor_keep_editing` | Keep editing | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `editor_unsaved_message` | This file has edits that have not been saved. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-
-## New keys — landed 2026-10-11
-
-The 19 keys below were hardcoded strings (five of them Turkish in the source —
-a German user read Turkish). They now exist in all ten locales; the wiring of
-the code to them is the remaining half of that work.
-
-| Key | EN | tr |
-|---|---|---|
-| `agent_chat_name_hint` | Chat name | Chat adı |
-| `agent_chat_delete` | Delete | Sil |
-| `action_add` | Add | Ekle |
-| `action_retry` | Retry | Yeniden dene |
-| `action_done` | Done | Tamam |
-| `action_restore_default` | Restore Default | Varsayılanlara dön |
-| `action_delete` | Delete | Sil |
-| `ssh_add_host_title` | Add host | Sunucu ekle |
-| `ssh_name_label` | Name | Ad |
-| `ssh_hostname_label` | Hostname or IP | Sunucu adı veya IP |
-| `ssh_port_label` | Port | Port |
-| `ssh_username_label` | Username | Kullanıcı adı |
-| `ssh_password_label` | Password | Parola |
-| `ssh_private_key_label` | Private key PEM | Özel anahtar PEM |
-| `ssh_passphrase_label` | Passphrase (optional) | Anahtar parolası (isteğe bağlı) |
-| `setup_diagnostic` | Drosh diagnostic | Drosh tanılama |
-| `editor_discard_title` | Discard changes? | Değişiklikler silinsin mi? |
-| `editor_discard_confirm` | Discard | Sil |
-| `editor_keep_editing` | Keep editing | Düzenlemeye devam et |

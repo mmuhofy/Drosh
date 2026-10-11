@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -457,7 +458,7 @@ fun TerminalTopBar(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
                     icon = DroshIcons.PanelLeft,
-                    contentDescription = "Open sessions",
+                    contentDescription = stringResource(dev.drosh.ui.R.string.topbar_open_sessions),
                     height = rowHeight,
                     iconSize = pillIconSize,
                     onClick = onOpenSidebar,
@@ -513,7 +514,7 @@ fun TerminalTopBar(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
                     drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
-                    contentDescription = "Agent",
+                    contentDescription = stringResource(dev.drosh.ui.R.string.agent_title),
                     width = PILL_WIDTH,
                     height = rowHeight,
                     iconSize = pillIconSize,
@@ -542,7 +543,7 @@ fun TerminalTopBar(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
                     icon = DroshIcons.EllipsisVertical,
-                    contentDescription = "More actions",
+                    contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
                     width = PILL_WIDTH,
                     height = rowHeight,
                     iconSize = pillIconSize,
@@ -616,14 +617,16 @@ private fun MoreActionsDropdown(
                 if (isSystemOverlay) {
                     add(
                         DroshMenuItem(
-                            label = "Bring pane back",
+                            label = stringResource(dev.drosh.ui.R.string.action_system_bring_back),
+                            id = "system_bring_back",
                             icon = DroshIcons.Square,
                         ),
                     )
                 } else {
                     add(
                         DroshMenuItem(
-                            label = if (isFloating) "Dock pane" else "Float window",
+                            label = stringResource(if (isFloating) dev.drosh.ui.R.string.action_dock_pane else dev.drosh.ui.R.string.action_float_window),
+                            id = if (isFloating) "dock" else "float",
                             icon = DroshIcons.Square,
                         ),
                     )
@@ -633,7 +636,8 @@ private fun MoreActionsDropdown(
                     if (canDrawOverlays) {
                         add(
                             DroshMenuItem(
-                                label = "Float over other apps",
+                                label = stringResource(dev.drosh.ui.R.string.action_system_float),
+                            id = "system_float",
                                 icon = DroshIcons.PanelBottom,
                             ),
                         )
@@ -641,39 +645,42 @@ private fun MoreActionsDropdown(
                 }
                 add(
                     DroshMenuItem(
-                        label = "Move divider",
+                        label = stringResource(dev.drosh.ui.R.string.action_move_divider),
+                            id = "move_divider",
                         icon = DroshIcons.RotateCcw,
                     ),
                 )
                 add(
                     DroshMenuItem(
-                        label = "Swap panes",
+                        label = stringResource(dev.drosh.ui.R.string.action_swap_panes),
+                            id = "swap_panes",
                         icon = DroshIcons.ArrowUpDown,
                     ),
                 )
                 add(
                     DroshMenuItem(
-                        label = "Close second pane",
+                        label = stringResource(dev.drosh.ui.R.string.action_close_pane),
+                            id = "close_pane",
                         icon = DroshIcons.X,
                     ),
                 )
             }
-            add(DroshMenuItem(label = "Refresh terminal", icon = DroshIcons.RotateCw))
-            add(DroshMenuItem(label = "Find in output", icon = DroshIcons.Search))
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = "refresh"))
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_find), icon = DroshIcons.Search, id = "find"))
             // Settings is gone from here. It is reachable from the drawer, and
             // an overflow entry that duplicates a drawer item gives two ways to
             // open the same screen.
         },
         onItemClick = { item ->
             onDismiss()
-            when (item.label) {
-                "Refresh terminal" -> onRefresh()
-                "Find in output" -> onFindInOutput()
-                "Float window", "Dock pane" -> onToggleFloat()
-                "Float over other apps", "Bring pane back" -> onToggleSystemOverlay()
-                "Move divider" -> onCycleSplit()
-                "Swap panes" -> onSwapPanes()
-                "Close second pane" -> onCloseSplit()
+            when (item.id) {
+                "refresh" -> onRefresh()
+                "find" -> onFindInOutput()
+                "float", "dock" -> onToggleFloat()
+                "system_float", "system_bring_back" -> onToggleSystemOverlay()
+                "move_divider" -> onCycleSplit()
+                "swap_panes" -> onSwapPanes()
+                "close_pane" -> onCloseSplit()
             }
         },
     )

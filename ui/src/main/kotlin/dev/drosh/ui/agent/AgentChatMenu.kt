@@ -53,11 +53,13 @@ import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.domain.agent.TerminalLine
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 import dev.drosh.ui.agent.components.AgentMenuDivider
 import dev.drosh.ui.agent.components.AgentTerminalPane
 import dev.drosh.ui.agent.components.LocalAgentGlass
 import dev.drosh.ui.agent.components.agentGlassStyle
 import kotlin.math.roundToInt
+import androidx.compose.ui.res.stringResource
 
 /**
  * The chat overflow menu.
@@ -101,7 +103,7 @@ fun AgentChatMenu(
                     indication = null,
                     onClick = onDismiss,
                 )
-                .semantics { contentDescription = "Menüyü kapat" },
+                .semantics { contentDescription = stringResource(R.string.action_close) },
         )
 
         AgentMenuSurface(
@@ -119,12 +121,12 @@ fun AgentChatMenu(
 
             AgentMenuItem(
                 icon = DroshIcons.Pencil,
-                label = "Yeniden adlandır",
+                label = stringResource(R.string.agent_rename),
                 onClick = onRename,
             )
             AgentMenuItem(
                 icon = DroshIcons.SquareTerminal,
-                label = "Terminal geçmişi",
+                label = stringResource(R.string.agent_terminal_history),
                 onClick = onShowTerminalHistory,
             )
 
@@ -132,7 +134,7 @@ fun AgentChatMenu(
 
             AgentMenuItem(
                 icon = DroshIcons.Trash2,
-                label = "Oturumu sil",
+                label = stringResource(R.string.agent_delete_session),
                 tint = DroshError,
                 onClick = onDelete,
             )
@@ -204,7 +206,7 @@ private val MENU_TOP_INSET = 56.dp
 private fun AgentMenuHeader(text: String) {
     Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp)) {
         Text(
-            text = "OTURUM",
+            text = stringResource(R.string.agent_session_header),
             fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.9.sp,
@@ -292,7 +294,7 @@ fun TerminalHistorySheet(
                     indication = null,
                     onClick = onDismiss,
                 )
-                .semantics { contentDescription = "Kapat" },
+                .semantics { contentDescription = stringResource(R.string.action_close) },
         )
 
         val glass = LocalAgentGlass.current
@@ -384,21 +386,21 @@ private fun TerminalHistoryHeader(onDismiss: () -> Unit) {
         )
         Spacer(Modifier.width(9.dp))
         Text(
-            text = "Terminal geçmişi",
+            text = stringResource(R.string.agent_terminal_history),
             fontSize = 15.5.sp,
             fontWeight = FontWeight.SemiBold,
             color = DroshText,
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = "Kapat",
+            text = stringResource(R.string.action_close),
             fontSize = 13.sp,
             color = DroshTextSecondary,
             modifier = Modifier
                 .clip(RoundedCornerShape(10.dp))
                 .clickable(onClick = onDismiss)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
-                .semantics { contentDescription = "Terminal geçmişini kapat" },
+                .semantics { contentDescription = stringResource(R.string.agent_close_history) },
         )
     }
 }
@@ -416,13 +418,13 @@ private fun TerminalHistoryEmpty(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(32.dp),
         ) {
             Text(
-                text = "Henüz komut çalıştırılmadı",
+                text = stringResource(R.string.agent_no_commands),
                 fontSize = 13.sp,
                 color = DroshTextSecondary,
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Agent bir shell komutu çalıştırdığında burada görünür.",
+                text = stringResource(R.string.agent_no_commands_hint),
                 fontSize = 11.5.sp,
                 color = DroshTextMuted,
                 modifier = Modifier.alpha(0.9f),

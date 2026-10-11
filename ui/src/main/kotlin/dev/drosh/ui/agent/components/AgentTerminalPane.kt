@@ -30,6 +30,7 @@ import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.TerminalLine
+import dev.drosh.ui.R
 
 /**
  * A read-only view of what the agent ran.
@@ -157,7 +158,7 @@ fun AgentTerminalEmpty(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = if (running) "çalışıyor…" else "henüz komut çalıştırılmadı",
+            text = if (running) stringResource(R.string.agent_composer_busy) else stringResource(R.string.agent_no_commands),
             fontSize = 12.sp,
             fontFamily = LocalFontSet.current.mono,
             color = DroshTextMuted,

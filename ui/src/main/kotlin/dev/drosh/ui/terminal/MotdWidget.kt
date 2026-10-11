@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.design.system.DroshPrimary
@@ -38,6 +39,7 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 
 /**
  * Interactive MOTD (Message of the Day) widget rendered in Block Mode.
@@ -113,7 +115,7 @@ fun MotdWidget(
         ) {
             Icon(
                 imageVector = DroshIcons.X,
-                contentDescription = "Dismiss MOTD",
+                contentDescription = stringResource(R.string.motd_dismiss),
                 tint = DroshTextSecondary,
                 modifier = Modifier.size(14.dp),
             )

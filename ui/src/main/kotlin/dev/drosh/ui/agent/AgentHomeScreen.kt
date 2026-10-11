@@ -62,6 +62,8 @@ import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.rememberAgentGlass
 import dev.drosh.ui.agent.components.SectionHeader
+import androidx.compose.ui.res.stringResource
+import dev.drosh.ui.R
 
 /**
  * Agent Home — every agent chat, grouped by whether it needs attention.
@@ -121,7 +123,7 @@ fun AgentHomeScreen(
                 }
 
                 if (grouped.running.isNotEmpty()) {
-                    item(key = "hdr_running") { SectionHeader("ÇALIŞAN") }
+                    item(key = "hdr_running") { SectionHeader(stringResource(R.string.agent_running)) }
                     items(grouped.running, key = { "run_${it.id}" }) { chat ->
                         ChatCard(
                             chat = chat,
@@ -133,7 +135,7 @@ fun AgentHomeScreen(
                 }
 
                 if (grouped.waiting.isNotEmpty()) {
-                    item(key = "hdr_waiting") { SectionHeader("SENİ BEKLİYOR") }
+                    item(key = "hdr_waiting") { SectionHeader(stringResource(R.string.agent_waiting)) }
                     items(grouped.waiting, key = { "wait_${it.id}" }) { chat ->
                         ChatCard(
                             chat = chat,
@@ -145,7 +147,7 @@ fun AgentHomeScreen(
                 }
 
                 if (grouped.recent.isNotEmpty()) {
-                    item(key = "hdr_recent") { SectionHeader("SON") }
+                    item(key = "hdr_recent") { SectionHeader(stringResource(R.string.agent_recent)) }
                     items(grouped.recent, key = { "recent_${it.id}" }) { chat ->
                         ChatCard(
                             chat = chat,
@@ -249,7 +251,7 @@ private fun HomePillRow(
         ) {
             AgentIconPill(
                 icon = DroshIcons.ArrowLeft,
-                contentDescription = "Geri",
+                contentDescription = stringResource(R.string.action_back),
                 onClick = onBack,
                 tint = DroshTextSecondary,
             )
@@ -258,7 +260,7 @@ private fun HomePillRow(
             // is not a destination and there is nothing to tap; a greyed-out pill
             // would promise a tap that does nothing.
             Text(
-                text = "Agent",
+                text = stringResource(R.string.agent_title),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = DroshText,
@@ -268,11 +270,11 @@ private fun HomePillRow(
             )
 
             AgentPill(
-                label = "Yeni",
+                label = stringResource(R.string.agent_new),
                 onClick = onNewChat,
                 primary = true,
                 leadingIcon = DroshIcons.Plus,
-                contentDescription = "Yeni sohbet",
+                contentDescription = stringResource(R.string.agent_new_chat_cd),
             )
         }
 
@@ -295,10 +297,10 @@ private fun ChatCard(
     onLongPress: () -> Unit,
 ) {
     val (dotColor, statusLabel) = when (chat.status) {
-        ChatStatus.Running -> DroshPrimary to "çalışıyor"
-        ChatStatus.WaitingApproval -> DroshWarning to "onay bekliyor"
-        ChatStatus.Done -> DroshSuccess to "tamamlandı"
-        ChatStatus.Failed -> DroshError to "hata"
+        ChatStatus.Running -> DroshPrimary to stringResource(R.string.agent_status_running)
+        ChatStatus.WaitingApproval -> DroshWarning to stringResource(R.string.agent_status_waiting)
+        ChatStatus.Done -> DroshSuccess to stringResource(R.string.agent_status_done)
+        ChatStatus.Failed -> DroshError to stringResource(R.string.agent_status_failed)
         ChatStatus.Idle -> DroshOutline to ""
     }
 
@@ -395,22 +397,21 @@ private fun MissingKeyCard(onOpenSettings: () -> Unit) {
             .padding(14.dp),
     ) {
         Text(
-            text = "API anahtarı gerekli",
+            text = stringResource(R.string.agent_api_required),
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = DroshText,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Agent'ı çalıştırmak için bir OpenRouter anahtarı ekle. " +
-                "Cihazda şifreli saklanır.",
+            text = stringResource(R.string.agent_api_required_body),
             fontSize = 12.sp,
             lineHeight = 17.sp,
             color = DroshTextSecondary,
         )
         Spacer(Modifier.height(12.dp))
         ActionButton(
-            text = "Anahtar ekle",
+            text = stringResource(R.string.agent_add_key),
             onClick = onOpenSettings,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -430,13 +431,13 @@ private fun EmptyChats() {
         // is decoration, and the same glyph on a terminal button is what tells the
         // user that button opens the agent rather than a shell.
         Text(
-            text = "Henüz agent chat yok",
+            text = stringResource(R.string.agent_no_chats),
             fontSize = 15.sp,
             color = DroshText,
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Bir chat oluştur — kendi terminalini açar,\nterminal session açmana gerek yok.",
+            text = stringResource(R.string.agent_no_chats_hint),
             fontSize = 12.sp,
             lineHeight = 18.sp,
             color = DroshTextMuted,
