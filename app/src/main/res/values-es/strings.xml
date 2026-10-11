@@ -39,4 +39,21 @@
     <string name="settings_back_content_description">Atrás</string>
     <string name="pin_entry_title">Establecer PIN</string>
     <string name="pin_entry_subtitle">Introduce un nuevo PIN de 4 dígitos</string>
+    <string name="permission_read_command_state_label">Leer el estado del comando de terminal</string>
+    <string name="permission_read_command_state_description">Permite que Drosh Keyboard vea si un comando de terminal se está ejecutando y cómo terminó.</string>
+    <string name="permission_send_keyboard_mode_label">Informar la posición del teclado</string>
+    <string name="permission_send_keyboard_mode_description">Permite que Drosh Keyboard indique a Drosh si está anclado o flotando, para que el diseño reserve espacio solo mientras el teclado esté anclado.</string>
+    <string name="overlay_channel_name">Pane flotante</string>
+    <string name="overlay_notification_title">Pane flotando sobre otras apps</string>
+    <string name="overlay_notification_text">Toca para abrir, o detén para traer de vuelta el pane</string>
+    <string name="overlay_notification_stop">Detener</string>
+    <string name="overlay_pane_title">Pane flotante</string>
+    <string name="overlay_pane_close">Cerrar pane flotante</string>
+    <string name="overlay_permission_title">Permitir que Drosh se dibuje sobre otras apps</string>
+    <string name="overlay_permission_rationale">Un pane solo puede flotar sobre otras apps si se permite que Drosh se dibuje sobre ellas. Nada sale de tu dispositivo.</string>
+    <string name="overlay_permission_grant">Abrir ajustes</string>
+    <string name="settings_external_title">Ajustes modificados</string>
+    <string name="settings_external_body">settings.toml se editó fuera de la app. Los nuevos valores ya están activos; algunos solo surten efecto completo tras reiniciar.</string>
+    <string name="settings_external_restart">Reiniciar</string>
+    <string name="settings_external_ok">Aceptar</string>
 </resources>

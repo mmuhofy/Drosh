@@ -39,4 +39,21 @@
     <string name="settings_back_content_description">返回</string>
     <string name="pin_entry_title">设置 PIN</string>
     <string name="pin_entry_subtitle">输入新的 4 位 PIN</string>
+    <string name="permission_read_command_state_label">读取终端命令状态</string>
+    <string name="permission_read_command_state_description">允许 Drosh Keyboard 查看终端命令是否正在运行以及其结束方式。</string>
+    <string name="permission_send_keyboard_mode_label">报告键盘停靠状态</string>
+    <string name="permission_send_keyboard_mode_description">允许 Drosh Keyboard 告知 Drosh 当前是停靠还是悬浮，使布局仅在键盘停靠时预留空间。</string>
+    <string name="overlay_channel_name">悬浮 pane</string>
+    <string name="overlay_notification_title">pane 正悬浮于其他应用之上</string>
+    <string name="overlay_notification_text">点按可打开，或停止以收回 pane</string>
+    <string name="overlay_notification_stop">停止</string>
+    <string name="overlay_pane_title">悬浮 pane</string>
+    <string name="overlay_pane_close">关闭悬浮 pane</string>
+    <string name="overlay_permission_title">允许 Drosh 在其他应用上层绘制</string>
+    <string name="overlay_permission_rationale">只有允许 Drosh 在其他应用上层绘制，pane 才能悬浮显示。任何内容都不会离开您的设备。</string>
+    <string name="overlay_permission_grant">打开设置</string>
+    <string name="settings_external_title">设置已更改</string>
+    <string name="settings_external_body">settings.toml 已在应用外被编辑。新的值已生效；部分设置需要重启后才能完全生效。</string>
+    <string name="settings_external_restart">重启</string>
+    <string name="settings_external_ok">确定</string>
 </resources>

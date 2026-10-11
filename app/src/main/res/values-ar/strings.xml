@@ -43,4 +43,21 @@
     <string name="settings_back_content_description">رجوع</string>
     <string name="pin_entry_title">تعيين رمز PIN</string>
     <string name="pin_entry_subtitle">أدخل رمز PIN جديدًا مكونًا من 4 أرقام</string>
+    <string name="permission_read_command_state_label">قراءة حالة أمر الطرفية</string>
+    <string name="permission_read_command_state_description">يسمح لـ Drosh Keyboard بمعرفة ما إذا كان أمر طرفية قيد التشغيل وكيف انتهى.</string>
+    <string name="permission_send_keyboard_mode_label">الإبلاغ عن وضع لوحة المفاتيح</string>
+    <string name="permission_send_keyboard_mode_description">يسمح لـ Drosh Keyboard بإخبار Drosh عمّا إذا كانت مثبّتة أو عائمة، بحيث يحجز التخطيط مساحة فقط أثناء تثبيت لوحة المفاتيح.</string>
+    <string name="overlay_channel_name">pane عائم</string>
+    <string name="overlay_notification_title">pane يطفو فوق تطبيقات أخرى</string>
+    <string name="overlay_notification_text">اضغط للفتح، أو أوقف لإعادة الـ pane</string>
+    <string name="overlay_notification_stop">إيقاف</string>
+    <string name="overlay_pane_title">pane عائم</string>
+    <string name="overlay_pane_close">إغلاق الـ pane العائم</string>
+    <string name="overlay_permission_title">السماح لـ Drosh بالرسم فوق التطبيقات الأخرى</string>
+    <string name="overlay_permission_rationale">لا يمكن لـ pane أن يطفو فوق تطبيقات أخرى إلا إذا سُمح لـ Drosh بالرسم فوقها. لا يغادر أي شيء جهازك.</string>
+    <string name="overlay_permission_grant">فتح الإعدادات</string>
+    <string name="settings_external_title">تم تغيير الإعدادات</string>
+    <string name="settings_external_body">تم تعديل settings.toml خارج التطبيق. القيم الجديدة مُفعّلة الآن؛ يسري مفعول بعضها بالكامل بعد إعادة التشغيل.</string>
+    <string name="settings_external_restart">إعادة التشغيل</string>
+    <string name="settings_external_ok">موافق</string>
 </resources>

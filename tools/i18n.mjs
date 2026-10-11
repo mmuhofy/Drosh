@@ -40,6 +40,7 @@ const TARGETS = [
   { module: 'ui', file: 'strings.xml' },
   { module: 'ui', file: 'drosh_strings.xml' },
   { module: 'terminal', file: 'strings.xml' },
+  { module: 'editor', file: 'strings.xml' },
 ]
 
 /**

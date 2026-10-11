@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_discard_title">変更を破棄しますか？</string>
+    <string name="editor_discard_confirm">破棄</string>
+    <string name="editor_keep_editing">編集を続ける</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_discard_title">Отменить изменения?</string>
+    <string name="editor_discard_confirm">Отменить</string>
+    <string name="editor_keep_editing">Продолжить редактирование</string>
+</resources>

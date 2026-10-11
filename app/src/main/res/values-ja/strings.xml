@@ -38,4 +38,21 @@
     <string name="settings_back_content_description">戻る</string>
     <string name="pin_entry_title">PIN を設定</string>
     <string name="pin_entry_subtitle">新しい4桁の PIN を入力してください</string>
+    <string name="permission_read_command_state_label">ターミナルのコマンド状態を読み取る</string>
+    <string name="permission_read_command_state_description">Drosh Keyboard がターミナルコマンドの実行中かどうかと、その終了結果を確認できるようにします。</string>
+    <string name="permission_send_keyboard_mode_label">キーボードの配置を通知する</string>
+    <string name="permission_send_keyboard_mode_description">Drosh Keyboard が固定表示かフローティング表示かを Drosh に伝えられるようにし、固定表示のときだけレイアウトでスペースを確保します。</string>
+    <string name="overlay_channel_name">フローティング pane</string>
+    <string name="overlay_notification_title">pane が他のアプリの上に表示されています</string>
+    <string name="overlay_notification_text">タップで開く、停止で pane を元に戻す</string>
+    <string name="overlay_notification_stop">停止</string>
+    <string name="overlay_pane_title">フローティング pane</string>
+    <string name="overlay_pane_close">フローティング pane を閉じる</string>
+    <string name="overlay_permission_title">Drosh が他のアプリの上に描画することを許可</string>
+    <string name="overlay_permission_rationale">pane を他のアプリの上にフローティング表示するには、Drosh がその上に描画する許可が必要です。デバイスから外部に送信されるものはありません。</string>
+    <string name="overlay_permission_grant">設定を開く</string>
+    <string name="settings_external_title">設定が変更されました</string>
+    <string name="settings_external_body">settings.toml がアプリの外部で編集されました。新しい値は反映済みですが、一部は再起動後に完全に有効になります。</string>
+    <string name="settings_external_restart">再起動</string>
+    <string name="settings_external_ok">OK</string>
 </resources>

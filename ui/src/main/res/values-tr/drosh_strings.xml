@@ -218,4 +218,20 @@
     <string name="settings_background_blur_value">Yarıçap %1$d</string>
     <string name="settings_content_corners">Köşe yarıçapı</string>
     <string name="settings_content_corners_value">%1$ddp</string>
+    <string name="agent_chat_name_hint">Chat adı</string>
+    <string name="agent_chat_delete">Sil</string>
+    <string name="action_add">Ekle</string>
+    <string name="action_retry">Yeniden dene</string>
+    <string name="action_done">Tamam</string>
+    <string name="action_restore_default">Varsayılanlara dön</string>
+    <string name="action_delete">Sil</string>
+    <string name="ssh_add_host_title">Sunucu ekle</string>
+    <string name="ssh_name_label">Ad</string>
+    <string name="ssh_hostname_label">Sunucu adı veya IP</string>
+    <string name="ssh_port_label">Port</string>
+    <string name="ssh_username_label">Kullanıcı adı</string>
+    <string name="ssh_password_label">Parola</string>
+    <string name="ssh_private_key_label">Özel anahtar PEM</string>
+    <string name="ssh_passphrase_label">Anahtar parolası (isteğe bağlı)</string>
+    <string name="setup_diagnostic">Drosh tanılama</string>
 </resources>

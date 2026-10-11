@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_discard_title">تجاهل التغييرات؟</string>
+    <string name="editor_discard_confirm">تجاهل</string>
+    <string name="editor_keep_editing">متابعة التعديل</string>
+</resources>

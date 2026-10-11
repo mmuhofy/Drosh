@@ -26,4 +26,16 @@
     <string name="settings_back_content_description">返回</string>
     <string name="pin_entry_title">设置 PIN</string>
     <string name="pin_entry_subtitle">输入新的 4 位 PIN</string>
+    <string name="settings_motd_section">MOTD（问候语）</string>
+    <string name="settings_motd_mode">显示模式</string>
+    <string name="settings_motd_mode_disabled">已禁用</string>
+    <string name="settings_motd_mode_plaintext">纯文本</string>
+    <string name="settings_motd_mode_compose">小组件</string>
+    <string name="settings_motd_text">问候文本</string>
+    <string name="settings_motd_text_hint">输入自定义问候文本…\n使用 \n 换行</string>
+    <string name="settings_motd_edit">编辑问候语</string>
+    <string name="settings_motd_restore_default">恢复默认值</string>
+    <string name="settings_motd_preview">预览</string>
+    <string name="settings_motd_dialog_title">编辑问候文本</string>
+    <string name="settings_motd_dialog_done">完成</string>
 </resources>

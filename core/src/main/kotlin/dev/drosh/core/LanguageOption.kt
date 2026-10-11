@@ -13,7 +13,6 @@ object LanguageCatalog {
         LanguageOption(tag = "tr", displayName = "Turkish", nativeName = "Türkçe"),
         LanguageOption(tag = "de", displayName = "German", nativeName = "Deutsch"),
         LanguageOption(tag = "es", displayName = "Spanish", nativeName = "Español"),
-        LanguageOption(tag = "fr", displayName = "French", nativeName = "Français"),
         LanguageOption(tag = "pt", displayName = "Portuguese", nativeName = "Português"),
         LanguageOption(tag = "ru", displayName = "Russian", nativeName = "Русский"),
         LanguageOption(tag = "zh", displayName = "Chinese", nativeName = "中文"),

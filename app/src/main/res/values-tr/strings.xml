@@ -44,4 +44,17 @@
     <string name="settings_external_body">settings.toml uygulamanın dışında düzenlendi. Yeni değerler canlı olarak uygulandı; bazılarının tam olarak etkin olması için yeniden başlatma gerekir.</string>
     <string name="settings_external_restart">Yeniden başlat</string>
     <string name="settings_external_ok">Tamam</string>
+    <string name="permission_read_command_state_label">Terminal komut durumunu oku</string>
+    <string name="permission_read_command_state_description">Drosh Keyboard\'ın bir terminal komutunun çalışıp çalışmadığını ve nasıl sonuçlandığını görmesine izin verir.</string>
+    <string name="permission_send_keyboard_mode_label">Klavye yerleşimini bildir</string>
+    <string name="permission_send_keyboard_mode_description">Drosh Keyboard\'ın yerleşimin yalnızca klavye sabitlenmişken yer kaplaması için, Drosh\'a sabitlenmiş mi yoksa yüzer mi olduğunu bildirmesine izin verir.</string>
+    <string name="overlay_channel_name">Yüzen pane</string>
+    <string name="overlay_notification_title">Pane diğer uygulamaların üzerinde yüzüyor</string>
+    <string name="overlay_notification_text">Açmak için dokun, pane\'i geri getirmek için durdur</string>
+    <string name="overlay_notification_stop">Durdur</string>
+    <string name="overlay_pane_title">Yüzen pane</string>
+    <string name="overlay_pane_close">Yüzen pane\'i kapat</string>
+    <string name="overlay_permission_title">Drosh\'un diğer uygulamaların üzerine çizmesine izin ver</string>
+    <string name="overlay_permission_rationale">Bir pane\'in diğer uygulamaların üzerinde yüzebilmesi için Drosh\'un onların üzerine çizmesine izin verilmesi gerekir. Hiçbir şey cihazından çıkmaz.</string>
+    <string name="overlay_permission_grant">Ayarları aç</string>
 </resources>

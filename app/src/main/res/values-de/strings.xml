@@ -39,4 +39,21 @@
     <string name="settings_back_content_description">Zurück</string>
     <string name="pin_entry_title">PIN festlegen</string>
     <string name="pin_entry_subtitle">Neue 4-stellige PIN eingeben</string>
+    <string name="permission_read_command_state_label">Terminal-Befehlsstatus lesen</string>
+    <string name="permission_read_command_state_description">Erlaubt Drosh Keyboard zu erkennen, ob ein Terminal-Befehl läuft und wie er beendet wurde.</string>
+    <string name="permission_send_keyboard_mode_label">Tastaturposition melden</string>
+    <string name="permission_send_keyboard_mode_description">Erlaubt Drosh Keyboard, Drosh mitzuteilen, ob sie angedockt oder frei schwebend ist, damit das Layout nur bei angedockter Tastatur Platz reserviert.</string>
+    <string name="overlay_channel_name">Schwebendes pane</string>
+    <string name="overlay_notification_title">Pane schwebt über anderen Apps</string>
+    <string name="overlay_notification_text">Tippen zum Öffnen, oder stoppen, um das pane zurückzuholen</string>
+    <string name="overlay_notification_stop">Stopp</string>
+    <string name="overlay_pane_title">Schwebendes pane</string>
+    <string name="overlay_pane_close">Schwebendes pane schließen</string>
+    <string name="overlay_permission_title">Drosh erlauben, über anderen Apps zu zeichnen</string>
+    <string name="overlay_permission_rationale">Ein pane kann nur über anderen Apps schweben, wenn Drosh erlaubt ist, über ihnen zu zeichnen. Es verlässt nichts dein Gerät.</string>
+    <string name="overlay_permission_grant">Einstellungen öffnen</string>
+    <string name="settings_external_title">Einstellungen geändert</string>
+    <string name="settings_external_body">settings.toml wurde außerhalb der App bearbeitet. Die neuen Werte sind aktiv; einige wirken erst vollständig nach einem Neustart.</string>
+    <string name="settings_external_restart">Neu starten</string>
+    <string name="settings_external_ok">OK</string>
 </resources>

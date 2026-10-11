@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_discard_title">I-discard ang mga pagbabago?</string>
+    <string name="editor_discard_confirm">I-discard</string>
+    <string name="editor_keep_editing">Ipagpatuloy ang pag-edit</string>
+</resources>

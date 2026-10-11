@@ -26,4 +26,16 @@
     <string name="settings_back_content_description">Zurück</string>
     <string name="pin_entry_title">PIN festlegen</string>
     <string name="pin_entry_subtitle">Neue 4-stellige PIN eingeben</string>
+    <string name="settings_motd_section">MOTD (Begrüßung)</string>
+    <string name="settings_motd_mode">Anzeigemodus</string>
+    <string name="settings_motd_mode_disabled">Deaktiviert</string>
+    <string name="settings_motd_mode_plaintext">Nur Text</string>
+    <string name="settings_motd_mode_compose">Widget</string>
+    <string name="settings_motd_text">Begrüßungstext</string>
+    <string name="settings_motd_text_hint">Eigenen Begrüßungstext eingeben…\nMit \n einen Zeilenumbruch einfügen</string>
+    <string name="settings_motd_edit">Begrüßung bearbeiten</string>
+    <string name="settings_motd_restore_default">Standard wiederherstellen</string>
+    <string name="settings_motd_preview">Vorschau</string>
+    <string name="settings_motd_dialog_title">Begrüßungstext bearbeiten</string>
+    <string name="settings_motd_dialog_done">Fertig</string>
 </resources>

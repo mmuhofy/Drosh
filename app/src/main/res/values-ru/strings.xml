@@ -41,4 +41,21 @@
     <string name="settings_back_content_description">Назад</string>
     <string name="pin_entry_title">Установить PIN</string>
     <string name="pin_entry_subtitle">Введите новый 4-значный PIN-код</string>
+    <string name="permission_read_command_state_label">Чтение состояния команды терминала</string>
+    <string name="permission_read_command_state_description">Позволяет Drosh Keyboard видеть, выполняется ли команда терминала и чем она завершилась.</string>
+    <string name="permission_send_keyboard_mode_label">Сообщать положение клавиатуры</string>
+    <string name="permission_send_keyboard_mode_description">Позволяет Drosh Keyboard сообщать Drosh, закреплена она или плавает, чтобы место под неё резервировалось только когда клавиатура закреплена.</string>
+    <string name="overlay_channel_name">Плавающий pane</string>
+    <string name="overlay_notification_title">Pane плавает над другими приложениями</string>
+    <string name="overlay_notification_text">Нажмите, чтобы открыть, или остановите, чтобы вернуть pane</string>
+    <string name="overlay_notification_stop">Остановить</string>
+    <string name="overlay_pane_title">Плавающий pane</string>
+    <string name="overlay_pane_close">Закрыть плавающий pane</string>
+    <string name="overlay_permission_title">Разрешить Drosh отображаться поверх других приложений</string>
+    <string name="overlay_permission_rationale">Pane может плавать над другими приложениями, только если Drosh разрешено отображаться поверх них. Ничего не покидает ваше устройство.</string>
+    <string name="overlay_permission_grant">Открыть настройки</string>
+    <string name="settings_external_title">Настройки изменены</string>
+    <string name="settings_external_body">Файл settings.toml был изменён вне приложения. Новые значения уже действуют; некоторые полностью вступят в силу после перезапуска.</string>
+    <string name="settings_external_restart">Перезапустить</string>
+    <string name="settings_external_ok">ОК</string>
 </resources>

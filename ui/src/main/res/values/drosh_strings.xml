@@ -244,4 +244,20 @@
     <string name="settings_background_blur_value">Radius %1$d</string>
     <string name="settings_content_corners">Corner radius</string>
     <string name="settings_content_corners_value">%1$ddp</string>
+    <string name="agent_chat_name_hint">Chat name</string>
+    <string name="agent_chat_delete">Delete</string>
+    <string name="action_add">Add</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_done">Done</string>
+    <string name="action_restore_default">Restore Default</string>
+    <string name="action_delete">Delete</string>
+    <string name="ssh_add_host_title">Add host</string>
+    <string name="ssh_name_label">Name</string>
+    <string name="ssh_hostname_label">Hostname or IP</string>
+    <string name="ssh_port_label">Port</string>
+    <string name="ssh_username_label">Username</string>
+    <string name="ssh_password_label">Password</string>
+    <string name="ssh_private_key_label">Private key PEM</string>
+    <string name="ssh_passphrase_label">Passphrase (optional)</string>
+    <string name="setup_diagnostic">Drosh diagnostic</string>
 </resources>

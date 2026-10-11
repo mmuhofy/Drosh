@@ -26,4 +26,16 @@
     <string name="settings_back_content_description">Bumalik</string>
     <string name="pin_entry_title">Itakda ang PIN</string>
     <string name="pin_entry_subtitle">Maglagay ng bagong 4-digit na PIN</string>
+    <string name="settings_motd_section">MOTD (Pagbati)</string>
+    <string name="settings_motd_mode">Mode ng pagpapakita</string>
+    <string name="settings_motd_mode_disabled">Naka-disable</string>
+    <string name="settings_motd_mode_plaintext">Plain Text</string>
+    <string name="settings_motd_mode_compose">Widget</string>
+    <string name="settings_motd_text">Teksto ng pagbati</string>
+    <string name="settings_motd_text_hint">Maglagay ng custom na teksto ng pagbati…\nGamitin ang \n para sa bagong linya</string>
+    <string name="settings_motd_edit">I-edit ang pagbati</string>
+    <string name="settings_motd_restore_default">Ibalik sa default</string>
+    <string name="settings_motd_preview">Preview</string>
+    <string name="settings_motd_dialog_title">I-edit ang teksto ng pagbati</string>
+    <string name="settings_motd_dialog_done">Tapos na</string>
 </resources>

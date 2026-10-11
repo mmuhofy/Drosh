@@ -106,3 +106,6 @@ html/
 # something is deleted from the device. Metadata records, not source — and it
 # shows up as untracked on every run that deleted a file.
 .recycle/
+
+# i18n staging: prepared translations, already merged into values-XX/
+docs/tmp-translations-only-the-missing/

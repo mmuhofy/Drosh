@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="paste_text">I-paste</string>
+    <string name="copy_text">Kopyahin</string>
+    <string name="text_selection_more">Higit pa…</string>
+</resources>

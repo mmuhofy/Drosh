@@ -26,4 +26,16 @@
     <string name="settings_back_content_description">Voltar</string>
     <string name="pin_entry_title">Definir PIN</string>
     <string name="pin_entry_subtitle">Digite um novo PIN de 4 dígitos</string>
+    <string name="settings_motd_section">MOTD (Saudação)</string>
+    <string name="settings_motd_mode">Modo de exibição</string>
+    <string name="settings_motd_mode_disabled">Desativado</string>
+    <string name="settings_motd_mode_plaintext">Texto simples</string>
+    <string name="settings_motd_mode_compose">Widget</string>
+    <string name="settings_motd_text">Texto de saudação</string>
+    <string name="settings_motd_text_hint">Digite um texto de saudação personalizado…\nUse \n para novas linhas</string>
+    <string name="settings_motd_edit">Editar saudação</string>
+    <string name="settings_motd_restore_default">Restaurar padrão</string>
+    <string name="settings_motd_preview">Pré-visualização</string>
+    <string name="settings_motd_dialog_title">Editar texto de saudação</string>
+    <string name="settings_motd_dialog_done">Concluído</string>
 </resources>

@@ -39,4 +39,21 @@
     <string name="settings_back_content_description">Bumalik</string>
     <string name="pin_entry_title">Itakda ang PIN</string>
     <string name="pin_entry_subtitle">Maglagay ng bagong 4-digit na PIN</string>
+    <string name="permission_read_command_state_label">Basahin ang status ng command ng terminal</string>
+    <string name="permission_read_command_state_description">Pinapayagan ang Drosh Keyboard na makita kung tumatakbo ang isang terminal command at kung paano ito natapos.</string>
+    <string name="permission_send_keyboard_mode_label">I-report ang posisyon ng keyboard</string>
+    <string name="permission_send_keyboard_mode_description">Pinapayagan ang Drosh Keyboard na sabihin sa Drosh kung naka-dock o lumulutang ito, para magreserba ng espasyo ang layout lang habang naka-dock ang keyboard.</string>
+    <string name="overlay_channel_name">Lumulutang na pane</string>
+    <string name="overlay_notification_title">Lumulutang ang pane sa ibabaw ng ibang app</string>
+    <string name="overlay_notification_text">I-tap para buksan, o i-stop para ibalik ang pane</string>
+    <string name="overlay_notification_stop">Itigil</string>
+    <string name="overlay_pane_title">Lumulutang na pane</string>
+    <string name="overlay_pane_close">Isara ang lumulutang na pane</string>
+    <string name="overlay_permission_title">Payagan ang Drosh na gumuhit sa ibabaw ng ibang app</string>
+    <string name="overlay_permission_rationale">Puwede lang lumutang ang pane sa ibabaw ng ibang app kung papayagan ang Drosh na gumuhit sa ibabaw nito. Walang aalis sa device mo.</string>
+    <string name="overlay_permission_grant">Buksan ang settings</string>
+    <string name="settings_external_title">Nabago ang settings</string>
+    <string name="settings_external_body">Na-edit ang settings.toml sa labas ng app. Aktibo na ang mga bagong value; ganap na magkakabisa ang ilan pagkatapos mag-restart.</string>
+    <string name="settings_external_restart">I-restart</string>
+    <string name="settings_external_ok">OK</string>
 </resources>
