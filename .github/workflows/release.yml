@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   release:
-    name: Release APK + AAB
+    name: Release APK + checksum
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -43,12 +43,25 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > app/keystore.jks
           fi
 
+      # The keystore secrets are decoded but the build signs with the committed
+      # debug key (see keystore.properties and the note in README) — a single
+      # signing identity across CI and local installs. When a real release key
+      # lands, wire KEYSTORE_PATH through app/build.gradle.kts so this step
+      # stops being theatre.
       - name: Assemble release (build cache + config cache enabled)
-        run: ./gradlew clean assembleRelease --no-daemon --stacktrace --max-workers=2
+        run: |
+          ARGS=""
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            ARGS="-PversionName=${GITHUB_REF_NAME#v}"
+            echo "Releasing versionName ${GITHUB_REF_NAME#v} (tag $GITHUB_REF_NAME)"
+          else
+            echo "Dispatch build without a tag — the commit-count versionName applies"
+          fi
+          ./gradlew clean assembleRelease $ARGS --no-daemon --stacktrace --max-workers=2
         env:
           KEYSTORE_PATH: app/keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Generate release SHA-256
@@ -64,11 +77,28 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      - name: Extract release notes from CHANGELOG (tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            /^## / { insec = ($0 ~ "^## \\[" ver "\\]"); next }
+            insec { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for [$VERSION] — add one before tagging"
+            exit 1
+          fi
+          echo "--- notes for $VERSION ---"
+          head -5 release-notes.md
+
       - name: Create GitHub Release (tag push)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/app-arm64-v8a-release.apk
-          generate_release_notes: true
+          files: |
+            app/build/outputs/apk/release/app-arm64-v8a-release.apk
+            app/build/outputs/apk/release/drosh-release-arm64-v8a-release.apk.sha256
+          body_path: release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

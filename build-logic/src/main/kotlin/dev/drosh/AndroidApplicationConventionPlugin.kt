@@ -31,6 +31,15 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
         val publishVersionCode = resolveVersionCode(target)
         val publishVersionName = resolveVersionName(target)
 
+        // Printed at configuration so the build log names the exact version
+        // that is about to ship. The release workflow passes the tag through
+        // -PversionName, and a mismatch between the tag and the APK is
+        // otherwise invisible until someone installs the wrong thing.
+        target.logger.lifecycle(
+            "Drosh: publishing versionName=$publishVersionName " +
+                "versionCode=$publishVersionCode",
+        )
+
         with(target) {
             with(pluginManager) {
                 apply("com.android.application")
