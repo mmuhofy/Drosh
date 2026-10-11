@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drosh — Settings Slider Mockup (10 stil)</title>
+<style>
+  :root {
+    --bg: #0E0E0E;
+    --tile: #17191D;
+    --tile-2: #1D2025;
+    --line: #2A2E35;
+    --text: #E8E8E8;
+    --muted: #8A8F98;
+    --accent: #3B82F6;
+    --accent-soft: rgba(59,130,246,.22);
+    --error: #F87171;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 28px 16px 64px;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 26px; }
+  .sub code { color: #b9c0ca; background: #1b1e23; padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+
+  .group { margin: 0 0 30px; }
+  .group-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 8px 6px;
+  }
+  .group-label .badge {
+    display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+    background: var(--accent-soft); color: #9dc0ff; font-size: 10px; letter-spacing: .04em;
+  }
+  .tile {
+    background: var(--tile); border: 1px solid var(--line);
+    border-radius: 18px; padding: 16px 16px 18px;
+  }
+  .tile + .tile { margin-top: 8px; }
+  .row-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .row-title { font-size: 15px; font-weight: 500; }
+  .row-value { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .row-sub { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+
+  /* ── slider demek için ortak ─────────────────────────────────────────── */
+  .sl { position: relative; height: 44px; display: flex; align-items: center; touch-action: none; cursor: pointer; user-select: none; }
+  .sl .track { position: absolute; left: 0; right: 0; border-radius: 999px; background: #2A2E35; overflow: hidden; }
+  .sl .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 999px; }
+  .sl .thumb {
+    position: absolute; top: 50%; transform: translate(-50%,-50%);
+    border-radius: 999px; background: #fff; pointer-events: none;
+  }
+  .sl:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 12px; }
+
+  /* 1 — Hairline: ince çizgi, küçük topuz */
+  .s1 .track { height: 2px; }
+  .s1 .fill { background: #6B7686; }
+  .s1 .thumb { width: 13px; height: 13px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.55); }
+
+  /* 2 — iOS: kalın track, büyük gölgeli topuz */
+  .s2 { height: 40px; }
+  .s2 .track { height: 4px; background: #3a4048; }
+  .s2 .thumb { width: 27px; height: 27px; box-shadow: 0 3px 8px rgba(0,0,0,.45), 0 0 0 .5px rgba(0,0,0,.08); }
+
+  /* 3 — Material 3: halftone active track, geniş tutamak */
+  .s3 { height: 48px; }
+  .s3 .track { height: 16px; background: #2A2E35; border-radius: 8px; }
+  .s3 .fill {
+    background: repeating-linear-gradient(90deg, var(--accent) 0 2px, transparent 2px 4px);
+    border-radius: 8px; opacity: .9;
+  }
+  .s3 .thumb { width: 4px; height: 40px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 0 4px rgba(59,130,246,.18); }
+  .s3 .bubble {
+    position: absolute; bottom: calc(100% - 6px); transform: translateX(-50%);
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 600;
+    padding: 3px 8px; border-radius: 7px; white-space: nowrap; pointer-events: none;
+  }
+  .s3 .bubble::after {
+    content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    border: 4px solid transparent; border-top-color: var(--accent);
+  }
+
+  /* 4 — Stepped dots: adımlı noktalar (mevcut Drosh hissiyatı) */
+  .s4 { height: 46px; }
+  .s4 .track { height: 6px; background: #262a30; }
+  .s4 .fill { background: var(--accent); }
+  .s4 .dots { position: absolute; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 2px; }
+  .s4 .dots i { width: 5px; height: 5px; border-radius: 50%; background: #4a5058; margin-top: .5px; }
+  .s4 .dots i.on { background: rgba(255,255,255,.85); }
+  .s4 .thumb { width: 20px; height: 20px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+
+  /* 5 — Fill + bubble: sade ama sürüklerken değer balonu */
+  .s5 .track { height: 8px; }
+  .s5 .thumb { width: 18px; height: 18px; box-shadow: 0 2px 7px rgba(0,0,0,.5); transition: transform .12s; }
+  .s5.dragging .thumb { transform: translate(-50%,-50%) scale(1.25); }
+  .s5 .bubble {
+    position: absolute; bottom: calc(100% - 8px); transform: translateX(-50%);
+    background: #101319; border: 1px solid var(--line); color: var(--text);
+    font-size: 12px; padding: 3px 9px; border-radius: 8px; white-space: nowrap;
+    pointer-events: none; opacity: 0; transition: opacity .15s;
+  }
+  .s5.dragging .bubble { opacity: 1; }
+
+  /* 6 — Pill handle: kalın track, stadyum tutamak */
+  .s6 { height: 48px; }
+  .s6 .track { height: 14px; background: #262a30; }
+  .s6 .fill { background: var(--accent); }
+  .s6 .thumb {
+    width: 12px; height: 30px; border-radius: 6px; background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  }
+
+  /* 7 — Terminal meter: segmentli, yanan bloklar */
+  .s7 { height: 46px; gap: 3px; }
+  .s7 .seg { flex: 1; height: 10px; border-radius: 3px; background: #262a30; transition: background .08s, box-shadow .08s; }
+  .s7 .seg.on { background: var(--accent); box-shadow: 0 0 10px rgba(59,130,246,.45); }
+  .s7 .seg.peak { background: #8fb8ff; }
+
+  /* 8 — Soft / inset (neumorphic) */
+  .s8 { height: 46px; }
+  .s8 .track {
+    height: 14px; background: #14171b;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.75), inset 0 -1px 0 rgba(255,255,255,.03);
+  }
+  .s8 .fill { background: linear-gradient(180deg, #4d92f7, #2f6fe0); box-shadow: 0 0 12px rgba(59,130,246,.35); }
+  .s8 .thumb {
+    width: 24px; height: 24px; background: linear-gradient(180deg, #2b3038, #1b1f25);
+    border: 1px solid #343a44; box-shadow: 0 3px 7px rgba(0,0,0,.6);
+  }
+
+  /* 9 — Two-tone rounded: kalın yuvarlak track, ince ızgara topuz */
+  .s9 { height: 48px; }
+  .s9 .track { height: 22px; border-radius: 11px; background: #262a30; }
+  .s9 .fill { background: var(--accent); border-radius: 11px; }
+  .s9 .thumb {
+    width: 8px; height: 26px; border-radius: 4px; background: #fff;
+    box-shadow: 0 0 0 2px rgba(14,14,14,.9), 0 2px 6px rgba(0,0,0,.5);
+  }
+
+  /* 10 — Glass glow: yarı saydam cam + parlayan dolgu */
+  .s10 { height: 48px; }
+  .s10 .track {
+    height: 18px; border-radius: 9px; background: rgba(255,255,255,.05);
+    backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.07);
+  }
+  .s10 .fill {
+    background: linear-gradient(90deg, rgba(59,130,246,.55), rgba(96,165,250,.9));
+    box-shadow: 0 0 16px rgba(59,130,246,.55), inset 0 0 8px rgba(255,255,255,.15);
+  }
+  .s10 .thumb {
+    width: 26px; height: 26px; background: rgba(255,255,255,.92);
+    box-shadow: 0 0 14px rgba(96,165,250,.8), 0 3px 8px rgba(0,0,0,.45);
+    backdrop-filter: blur(4px);
+  }
+
+  .meta { display:flex; justify-content: space-between; align-items:center; margin-top: 10px; }
+  .meta .hint { font-size: 11.5px; color: #6b7178; }
+  .pick { display:flex; gap: 6px; }
+  .pick button {
+    font: inherit; font-size: 12px; padding: 5px 11px; border-radius: 8px;
+    background: var(--tile-2); color: var(--muted); border: 1px solid var(--line); cursor: pointer;
+  }
+  .pick button:hover { color: var(--text); border-color: #3a414b; }
+  .pick button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  footer { color: #6b7178; font-size: 12px; margin-top: 34px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Settings slider — 10 stil</h1>
+  <p class="sub">Her slider gerçekten sürüklenebilir. Birini seçmek için satırın altındaki numaraya dokun.
+  Tüm stiller Drosh'un koyu zemini ve <code>#3B82F6</code> accent'ı üzerinde denenmiş durumda.</p>
+
+  <div id="groups"></div>
+
+  <footer>Drosh · ayarlar slider mockup'ı · karar ver, numarayı söyle</footer>
+</div>
+
+<script>
+const STYLES = [
+  { n: 1,  name: "Hairline",        sub: "2dp çizgi, küçük topuz. En sakin seçenek.",            cls: "s1" },
+  { n: 2,  name: "iOS",             sub: "4dp track, 27px gölgeli topuz. Tanıdık.",              cls: "s2" },
+  { n: 3,  name: "Material 3",      sub: "Halftone active track + geniş tutamak + değer etiketi.", cls: "s3" },
+  { n: 4,  name: "Stepped dots",    sub: "Adımlı noktalar, snap'li. Mevcut Drosh hissiyatına en yakın.", cls: "s4", dots: 20 },
+  { n: 5,  name: "Fill + bubble",   sub: "Sade track, sürüklerken değer balonu.",                cls: "s5" },
+  { n: 6,  name: "Pill handle",     sub: "14dp kalın track, stadyum tutamak.",                   cls: "s6" },
+  { n: 7,  name: "Terminal meter",  sub: "Segmentli bloklar, yanan dolgu. Terminal estetiği.",   cls: "s7", segs: 20 },
+  { n: 8,  name: "Soft / inset",    sub: "İçeri gömük track, kabartmalı topuz.",                 cls: "s8" },
+  { n: 9,  name: "Two-tone",        sub: "Kalın yuvarlak track, ince ızgara topuz.",             cls: "s9" },
+  { n: 10, name: "Glass glow",      sub: "Yarı saydam cam track, parlayan dolgu.",               cls: "s10" },
+];
+
+const CONFIGS = [
+  { group: "Yazı boyutu", rows: [
+      { title: "Varsayılan yazı boyutu", sub: "Oturum açılışında uygulanan boyut — pinch sonrası değişmez.", value: "14.0sp", start: 0.33 },
+  ]},
+  { group: "İmleç", rows: [
+      { title: "İmleç yanıp sönme hızı", sub: "0 = kapalı. Görünüm 100–2000ms.", value: "500ms", start: 0.24 },
+  ]},
+  { group: "Arka plan", rows: [
+      { title: "Görsel opaklığı", value: "%100", start: 1.0 },
+      { title: "Bulanıklık", value: "Kapalı", start: 0.0 },
+      { title: "İçerik boşluğu", value: "0dp", start: 0.0 },
+      { title: "Köşe yarıçapı", value: "0dp", start: 0.0 },
+  ]},
+];
+
+const picked = new Set();
+const root = document.getElementById("groups");
+
+for (const style of STYLES) {
+  const group = document.createElement("div");
+  group.className = "group";
+  group.innerHTML = `<p class="group-label">${style.n} · ${style.name}</p>`;
+
+  for (const cfg of CONFIGS) {
+    for (const row of cfg.rows) {
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      tile.innerHTML = `
+        <div class="row-head"><span class="row-title">${row.title}</span><span class="row-value"></span></div>
+        ${row.sub ? `<p class="row-sub">${row.sub}</p>` : ""}
+        <div class="sl ${style.cls}" tabindex="0" role="slider">
+          <div class="track"><div class="fill"></div></div>
+          <div class="thumb"></div>
+        </div>
+        <div class="meta">
+          <span class="hint">${cfg.group} · %${Math.round(row.start * 100)}</span>
+          <span class="pick"><button data-n="${style.n}">${style.n} numara</button></span>
+        </div>`;
+      group.appendChild(tile);
+      const sl = tile.querySelector(".sl");
+      buildSlider(sl, style, row);
+      tile.querySelector("button").addEventListener("click", () => {
+        picked.clear(); picked.add(style.n);
+        document.querySelectorAll(".pick button").forEach(b => b.classList.remove("on"));
+        tile.querySelector("button").classList.add("on");
+        tile.querySelector("button").textContent = `${style.n} seçildi ✓`;
+        setTimeout(() => { tile.querySelector("button").textContent = `${style.n} numara`; }, 1400);
+      });
+    }
+  }
+  root.appendChild(group);
+}
+
+function buildSlider(sl, style, row) {
+  const fill = sl.querySelector(".fill");
+  const thumb = sl.querySelector(".thumb");
+  const valueEl = sl.closest(".tile").querySelector(".row-value");
+  let value = row.start;
+  let bubble = null;
+
+  if (style.cls === "s3" || style.cls === "s5") {
+    bubble = document.createElement("div");
+    bubble.className = "bubble";
+    sl.appendChild(bubble);
+  }
+  let dots = null;
+  if (style.dots) {
+    dots = document.createElement("div");
+    dots.className = "dots";
+    for (let i = 0; i < style.dots; i++) dots.appendChild(document.createElement("i"));
+    sl.appendChild(dots);
+  }
+  let segs = null;
+  if (style.segs) {
+    sl.innerHTML = "";
+    sl.style.gap = "3px";
+    segs = [];
+    for (let i = 0; i < style.segs; i++) {
+      const s = document.createElement("div");
+      s.className = "seg";
+      sl.appendChild(s);
+      segs.push(s);
+    }
+  }
+
+  function label(v) { return row.value.replace(/%[^%]*%/, Math.round(v * 100)).replace(/^[\d.]+/, (v >= 1 ? "100" : (v * 64).toFixed(1))) }
+  function paint() {
+    const pct = Math.round(value * 100);
+    if (fill) fill.style.width = pct + "%";
+    if (thumb) thumb.style.left = pct + "%";
+    if (bubble) { bubble.style.left = pct + "%"; bubble.textContent = pct + "%"; }
+    if (dots) [...dots.children].forEach((d, i) => d.classList.toggle("on", i / style.dots <= value + 1e-6));
+    if (segs) segs.forEach((s, i) => {
+      const on = i / style.segs <= value + 1e-6;
+      s.classList.toggle("on", on);
+      s.classList.toggle("peak", on && i / style.segs > value - 1.5 / style.segs);
+    });
+    if (valueEl) valueEl.textContent = style.cls === "s3" ? pct + "%" : row.value;
+  }
+  paint();
+
+  function setFromEvent(e) {
+    const r = sl.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    value = Math.max(0, Math.min(1, x / r.width));
+    paint();
+  }
+  let dragging = false;
+  sl.addEventListener("pointerdown", e => {
+    dragging = true; sl.setPointerCapture(e.pointerId); sl.classList.add("dragging");
+    setFromEvent(e); e.preventDefault();
+  });
+  sl.addEventListener("pointermove", e => { if (dragging) setFromEvent(e); });
+  const end = () => { dragging = false; sl.classList.remove("dragging"); };
+  sl.addEventListener("pointerup", end);
+  sl.addEventListener("pointercancel", end);
+  sl.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") { value = Math.max(0, value - .05); paint(); e.preventDefault(); }
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") { value = Math.min(1, value + .05); paint(); e.preventDefault(); }
+  });
+}
+</script>
+</body>
+</html>

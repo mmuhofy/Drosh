@@ -48,17 +48,36 @@ object DroshShellIntegration {
         val shellArgs: List<String> = emptyList(),
     )
 
-    fun install(context: Context, shellPath: String): Plan {
+    /**
+     * @param locale the shell's locale, as stored in the settings file — an
+     *   "en_US.UTF-8"-shaped tag, or "" to leave the image's own default
+     *   alone. It rides in the session environment rather than in the user's
+     *   dotfiles: the app owns the launch environment, so a locale set once
+     *   in the file reaches every session — the one on screen and the one the
+     *   agent opens — without touching a file that is the user's.
+     */
+    fun install(context: Context, shellPath: String, locale: String = ""): Plan {
         val name = shellPath.substringAfterLast('/')
         val script = when (name) {
             "zsh" -> writeScript(context, "zsh", ZSH)
             "bash" -> writeScript(context, "bash", BASH)
             else -> return Plan()
         }
+        val environment = buildMap {
+            if (name == "zsh") put("ENV", script.absolutePath)
+            // The bash script sources the user's own .bashrc first, and both
+            // shells take the locale through the environment alike.
+            if (locale.isNotBlank()) {
+                put("LANG", locale)
+                put("LC_ALL", locale)
+            }
+        }
         return when (name) {
-            "zsh" -> Plan(environment = mapOf("ENV" to script.absolutePath))
-            // The bash script sources the user's own .bashrc first.
-            "bash" -> Plan(shellArgs = listOf("--rcfile", script.absolutePath))
+            "zsh" -> Plan(environment = environment)
+            "bash" -> Plan(
+                shellArgs = listOf("--rcfile", script.absolutePath),
+                environment = environment,
+            )
             else -> Plan()
         }
     }

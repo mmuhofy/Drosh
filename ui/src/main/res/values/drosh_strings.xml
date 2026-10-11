@@ -374,4 +374,18 @@ no terminal session needed.</string>
     <string name="sidebar_this_device">This device</string>
     <string name="topbar_open_sessions">Open sessions</string>
     <string name="motd_dismiss">Dismiss MOTD</string>
+    <string name="app_name">Drosh</string>
+    <string name="about_tagline">Your phone is a Unix machine.</string>
+    <string name="about_section_app">App</string>
+    <string name="about_section_theme">Theme</string>
+    <string name="about_theme">Active theme</string>
+    <string name="about_section_env">Environment</string>
+    <string name="about_settings_file">Settings file</string>
+    <string name="about_shell">Shell language</string>
+    <string name="about_system">System</string>
+    <string name="about_system_value">Android %1$s</string>
+    <string name="about_section_device">This device</string>
+    <string name="about_links">GitHub</string>
+    <string name="settings_shell_locale">Shell language</string>
+    <string name="settings_shell_locale_desc">LANG and LC_ALL on every session — from the file, not from your dotfiles.</string>
 </resources>

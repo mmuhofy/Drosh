@@ -86,13 +86,13 @@ import dev.drosh.ui.agent.AgentSettingsScreen
 import dev.drosh.ui.settings.AboutCategory
 import dev.drosh.ui.settings.AppearanceCategory
 import dev.drosh.domain.settings.DroshSettings
-import dev.drosh.ui.settings.EditorCategory
 import dev.drosh.ui.settings.KeyboardCategory
 import dev.drosh.ui.settings.LanguageCategory
 import dev.drosh.ui.settings.SecurityCategory
 import dev.drosh.ui.settings.SettingsCategoryRoute
 import dev.drosh.ui.settings.OnSettingsUpdate
 import dev.drosh.ui.settings.SettingsHomeScreen
+import dev.drosh.ui.session.DeviceIdentityViewModel
 import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
@@ -367,6 +367,7 @@ class MainActivity : ComponentActivity() {
         onOpenThemeStore: () -> Unit,
     ) {
         val viewModel: SettingsViewModel = hiltViewModel()
+        val deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel()
         val settings by viewModel.snapshot.collectAsStateWithLifecycle()
         val onUpdate: OnSettingsUpdate = { transform -> viewModel.update(transform) }
 
@@ -387,14 +388,12 @@ class MainActivity : ComponentActivity() {
                 KeyboardCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.Shell ->
                 ShellCategory(settings, onBack, onUpdate)
-            SettingsCategoryRoute.Editor ->
-                EditorCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.Security ->
                 SecurityCategory(settings, onBack, onUpdate, viewModel)
             SettingsCategoryRoute.Language ->
                 LanguageCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.About ->
-                AboutCategory(onBack, viewModel)
+                AboutCategory(onBack, viewModel, deviceIdentityViewModel)
         }
     }
 

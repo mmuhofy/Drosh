@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import dev.drosh.ui.session.DeviceBadge
+import dev.drosh.design.system.DroshPrimary
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -31,8 +37,14 @@ import dev.drosh.core.LanguageCatalog
 import dev.drosh.core.copyToClipboard
 import dev.drosh.core.toast
 import dev.drosh.design.system.DroshBackground
+import dev.drosh.ui.session.DeviceIdentityViewModel
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import android.os.Build
+import dev.drosh.core.ShellLocaleCatalog
 import dev.drosh.domain.settings.AutoLockTimeout
-import dev.drosh.domain.settings.BellMode
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.FontPack
@@ -42,7 +54,6 @@ import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.terminal.PackageProfile
-import dev.drosh.domain.terminal.ShellChoice
 import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.LocalDroshActivity
@@ -461,54 +472,6 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
 
                 else -> SettingsTile(
                     cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_terminal_scrollback),
-                    icon = DroshIcons.Archive,
-                    supporting = stringResource(
-                        R.string.settings_terminal_scrollback_value,
-                        settings.terminal.scrollbackRows,
-                    ),
-                ) {
-                    SettingsSlider(
-                        value = settings.terminal.scrollbackRows.toFloat(),
-                        onValueChange = { rows ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(scrollbackRows = rows.toInt())) }
-                        },
-                        valueRange = 500f..20000f,
-                        steps = 18,
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(GROUP_GAP))
-
-        SettingsGroupColumn(
-            label = stringResource(R.string.settings_section_terminal),
-            items = 5,
-        ) { index, cap ->
-            when (index) {
-                0 -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_terminal_bell),
-                    icon = DroshIcons.Gauge,
-                ) {
-                    SettingsSegmented(
-                        options = listOf(
-                            BellMode.None to stringResource(R.string.settings_terminal_bell_none),
-                            BellMode.Vibrate to stringResource(R.string.settings_terminal_bell_vibrate),
-                            BellMode.Sound to stringResource(R.string.settings_terminal_bell_sound),
-                        ),
-                        selected = settings.terminal.bell,
-                        onSelect = { bell ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(bell = bell)) }
-                        },
-                    )
-                }
-
-                1 -> SettingsTile(
-                    cap = cap,
                     title = stringResource(R.string.settings_terminal_keep_awake),
                     icon = DroshIcons.Eye,
                     supporting = stringResource(R.string.settings_terminal_keep_awake_desc),
@@ -520,54 +483,10 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                         },
                     )
                 }
-
-                2 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_terminal_immersive),
-                    icon = DroshIcons.Maximize,
-                    supporting = stringResource(R.string.settings_terminal_immersive_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.immersive,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(immersive = on)) }
-                        },
-                    )
-                }
-
-                3 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_terminal_link_detection),
-                    icon = DroshIcons.ExternalLink,
-                    supporting = stringResource(R.string.settings_terminal_link_detection_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.linkDetection,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(linkDetection = on)) }
-                        },
-                    )
-                }
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_terminal_glass_effects),
-                    icon = DroshIcons.Smartphone,
-                    supporting = stringResource(R.string.settings_terminal_glass_effects_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.glassEffects,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(glassEffects = on)) }
-                        },
-                    )
-                }
             }
         }
     }
 }
-
-// ── Keyboard & input ─────────────────────────────────────────────────────────
 
 @Composable
 fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
@@ -577,60 +496,27 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_keyboard),
-            items = 3,
-        ) { index, cap ->
-            when (index) {
-                0 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_input_extra_keys),
-                    icon = DroshIcons.Keyboard,
-                    supporting = stringResource(R.string.settings_input_extra_keys_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.input.extraKeysBar,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(input = it.input.copy(extraKeysBar = on)) }
-                        },
-                    )
-                }
-
-                1 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_input_hardware_keyboard),
-                    icon = DroshIcons.KeyboardOff,
-                    supporting = stringResource(R.string.settings_input_hardware_keyboard_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.input.hideBarOnHardwareKeyboard,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(input = it.input.copy(hideBarOnHardwareKeyboard = on)) }
-                        },
-                    )
-                }
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_input_drosh_ime),
-                    icon = DroshIcons.KeyboardOff,
-                    supporting = stringResource(R.string.settings_input_drosh_ime_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.input.hideBarWhenDroshIme,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(input = it.input.copy(hideBarWhenDroshIme = on)) }
-                        },
-                    )
-                }
+            items = 1,
+        ) { _, cap ->
+            SettingsTile(
+                cap = cap,
+                title = stringResource(R.string.settings_input_extra_keys),
+                icon = DroshIcons.Keyboard,
+                supporting = stringResource(R.string.settings_input_extra_keys_desc),
+            ) {
+                SettingsSwitch(
+                    checked = settings.input.extraKeysBar,
+                    onCheckedChange = { on ->
+                        onUpdate { it.copy(input = it.input.copy(extraKeysBar = on)) }
+                    },
+                )
             }
         }
     }
 }
 
-// ── Shell & rootfs ───────────────────────────────────────────────────────────
-
 @Composable
 fun ShellCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
-    val scope = rememberCoroutineScope()
     var showMotdDialog by rememberSaveable { mutableStateOf(false) }
     var showStartupDialog by rememberSaveable { mutableStateOf(false) }
     val defaultMotd = remember { MotdDefaults.DEFAULT_MOTD_TEXT }
@@ -639,91 +525,6 @@ fun ShellCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSetti
         title = stringResource(R.string.settings_category_shell),
         onBack = onBack,
     ) {
-        SettingsGroupColumn(
-            label = stringResource(R.string.settings_section_shell),
-            items = 5,
-        ) { index, cap ->
-            when (index) {
-                0 -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_shell_choice),
-                    icon = DroshIcons.Terminal,
-                    supporting = stringResource(R.string.settings_shell_choice_desc),
-                ) {
-                    SettingsSegmented(
-                        options = listOf(
-                            ShellChoice.Zsh to stringResource(R.string.settings_shell_zsh),
-                            ShellChoice.Bash to stringResource(R.string.settings_shell_bash),
-                        ),
-                        selected = settings.shell.shell,
-                        onSelect = { shell ->
-                            onUpdate { it.copy(shell = it.shell.copy(shell = shell)) }
-                        },
-                    )
-                }
-
-                1 -> SettingsTextFieldRow(
-                    cap = cap,
-                    title = stringResource(R.string.settings_shell_omz_theme),
-                    icon = DroshIcons.Palette,
-                    value = settings.shell.omzTheme,
-                    onConfirm = { theme ->
-                        onUpdate { it.copy(shell = it.shell.copy(omzTheme = theme)) }
-                    },
-                    placeholder = "agnoster",
-                )
-
-                2 -> SettingsListRow(
-                    cap = cap,
-                    title = stringResource(R.string.settings_shell_omz_plugins),
-                    icon = DroshIcons.Package,
-                    values = settings.shell.omzPlugins,
-                    onConfirm = { plugins ->
-                        onUpdate { it.copy(shell = it.shell.copy(omzPlugins = plugins)) }
-                    },
-                    placeholder = stringResource(R.string.settings_shell_omz_plugins_hint),
-                )
-
-                3 -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_shell_history),
-                    icon = DroshIcons.Clock,
-                    supporting = stringResource(
-                        R.string.settings_shell_history_value,
-                        settings.shell.historySize,
-                    ),
-                ) {
-                    SettingsSlider(
-                        value = settings.shell.historySize.toFloat(),
-                        onValueChange = { size ->
-                            onUpdate { it.copy(shell = it.shell.copy(historySize = size.toInt())) }
-                        },
-                        valueRange = 100f..100000f,
-                        steps = 18,
-                    )
-                }
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_shell_integration),
-                    icon = DroshIcons.Code,
-                    supporting = stringResource(R.string.settings_shell_integration_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.shell.shellIntegration,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(shell = it.shell.copy(shellIntegration = on)) }
-                        },
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(GROUP_GAP))
-
-        // MOTD
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_motd),
             items = 2,
@@ -767,7 +568,6 @@ fun ShellCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSetti
 
         Spacer(Modifier.height(GROUP_GAP))
 
-        // Startup
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_startup),
             items = 1,
@@ -781,91 +581,6 @@ fun ShellCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSetti
                 },
                 onClick = { showStartupDialog = true },
             ) { SettingsChevron() }
-        }
-
-        Spacer(Modifier.height(GROUP_GAP))
-
-        // Rootfs
-        SettingsGroupColumn(
-            label = stringResource(R.string.settings_section_rootfs),
-            items = 5,
-        ) { index, cap ->
-            when (index) {
-                0 -> SettingsSelectRow(
-                    cap = cap,
-                    title = stringResource(R.string.settings_rootfs_profile),
-                    icon = DroshIcons.Package,
-                    options = listOf(
-                        PackageProfile.Minimal to stringResource(R.string.settings_rootfs_profile_minimal),
-                        PackageProfile.Standard to stringResource(R.string.settings_rootfs_profile_standard),
-                        PackageProfile.Full to stringResource(R.string.settings_rootfs_profile_full),
-                        PackageProfile.Custom to stringResource(R.string.settings_rootfs_profile_custom),
-                    ),
-                    selected = settings.rootfs.packageProfile,
-                    onSelect = { profile ->
-                        onUpdate { it.copy(rootfs = it.rootfs.copy(packageProfile = profile)) }
-                    },
-                )
-
-                1 -> SettingsListRow(
-                    cap = cap,
-                    title = stringResource(R.string.settings_rootfs_extra_packages),
-                    icon = DroshIcons.Plus,
-                    values = settings.rootfs.extraPackages,
-                    onConfirm = { packages ->
-                        onUpdate { it.copy(rootfs = it.rootfs.copy(extraPackages = packages)) }
-                    },
-                    placeholder = stringResource(R.string.settings_rootfs_extra_packages_hint),
-                )
-
-                2 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_rootfs_dedit),
-                    icon = DroshIcons.Code,
-                    supporting = stringResource(R.string.settings_rootfs_dedit_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.rootfs.installDedit,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(rootfs = it.rootfs.copy(installDedit = on)) }
-                        },
-                    )
-                }
-
-                3 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_rootfs_optimize),
-                    icon = DroshIcons.Archive,
-                    supporting = stringResource(R.string.settings_rootfs_optimize_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.rootfs.optimizeOnSetup,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(rootfs = it.rootfs.copy(optimizeOnSetup = on)) }
-                        },
-                    )
-                }
-
-                else -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_rootfs_max_edit),
-                    icon = DroshIcons.Resize,
-                    supporting = stringResource(
-                        R.string.settings_rootfs_max_edit_value,
-                        settings.rootfs.maxEditSizeKb,
-                    ),
-                ) {
-                    SettingsSlider(
-                        value = settings.rootfs.maxEditSizeKb.toFloat(),
-                        onValueChange = { kb ->
-                            onUpdate { it.copy(rootfs = it.rootfs.copy(maxEditSizeKb = kb.toInt())) }
-                        },
-                        valueRange = 256f..8192f,
-                        steps = 14,
-                    )
-                }
-            }
         }
     }
 
@@ -893,88 +608,6 @@ fun ShellCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSetti
     }
 }
 
-// ── Editor ───────────────────────────────────────────────────────────────────
-
-@Composable
-fun EditorCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
-    SettingsCategoryScreen(
-        title = stringResource(R.string.settings_category_editor),
-        onBack = onBack,
-    ) {
-        SettingsGroupColumn(
-            label = stringResource(R.string.settings_section_editor),
-            items = 4,
-        ) { index, cap ->
-            when (index) {
-                0 -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_editor_font),
-                    icon = DroshIcons.Type,
-                    supporting = stringResource(
-                        R.string.settings_font_size_value,
-                        String.format(Locale.US, "%.1f", settings.editor.fontSizeSp),
-                    ),
-                ) {
-                    SettingsSlider(
-                        value = settings.editor.fontSizeSp,
-                        onValueChange = { sp ->
-                            onUpdate { it.copy(editor = it.editor.copy(fontSizeSp = sp)) }
-                        },
-                        valueRange = 10f..24f,
-                        steps = 27,
-                    )
-                }
-
-                1 -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_editor_tab_width),
-                    icon = DroshIcons.Resize,
-                ) {
-                    SettingsSegmented(
-                        options = listOf(2, 4, 8).map { it to it.toString() },
-                        selected = settings.editor.tabWidth,
-                        onSelect = { width ->
-                            onUpdate { it.copy(editor = it.editor.copy(tabWidth = width)) }
-                        },
-                    )
-                }
-
-                2 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_editor_word_wrap),
-                    icon = DroshIcons.PanelBottom,
-                    supporting = stringResource(R.string.settings_editor_word_wrap_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.editor.wordWrap,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(editor = it.editor.copy(wordWrap = on)) }
-                        },
-                    )
-                }
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_editor_line_numbers),
-                    icon = DroshIcons.ListChecks,
-                    supporting = stringResource(R.string.settings_editor_line_numbers_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.editor.lineNumbers,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(editor = it.editor.copy(lineNumbers = on)) }
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ── Security ─────────────────────────────────────────────────────────────────
-
 @Composable
 fun SecurityCategory(
     settings: DroshSettings,
@@ -992,7 +625,7 @@ fun SecurityCategory(
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_security),
-            items = 6,
+            items = 4,
         ) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -1042,21 +675,7 @@ fun SecurityCategory(
                     },
                 )
 
-                3 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_security_biometric),
-                    icon = DroshIcons.ShieldCheck,
-                    supporting = stringResource(R.string.settings_security_biometric_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.security.biometricUnlock,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(security = it.security.copy(biometricUnlock = on)) }
-                        },
-                    )
-                }
-
-                4 -> SettingsTile(
+                else -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_security_screenshots),
                     icon = DroshIcons.EyeOff,
@@ -1068,20 +687,6 @@ fun SecurityCategory(
                             onUpdate { it.copy(security = it.security.copy(blockScreenshots = on)) }
                         },
                     )
-                }
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_security_clipboard),
-                    icon = DroshIcons.ClipboardPaste,
-                    supporting = stringResource(R.string.settings_security_clipboard_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.security.clipboardSensitive,
-                        onCheckedChange = { on ->
-                            onUpdate { it.copy(security = it.security.copy(clipboardSensitive = on)) }
-                        },
-                   )
                 }
             }
         }
@@ -1104,11 +709,10 @@ fun SecurityCategory(
     }
 }
 
-// ── Language ─────────────────────────────────────────────────────────────────
-
 @Composable
 fun LanguageCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSettingsUpdate) {
     var showLanguageSheet by rememberSaveable { mutableStateOf(false) }
+    var showShellLocaleSheet by rememberSaveable { mutableStateOf(false) }
 
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_category_language),
@@ -1116,17 +720,30 @@ fun LanguageCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_language),
-            items = 1,
-        ) { _, cap ->
-            SettingsTile(
-                cap = cap,
-                title = stringResource(R.string.settings_language),
-                icon = DroshIcons.Languages,
-                supporting = LanguageCatalog.options
-                    .firstOrNull { it.tag == settings.appearance.language }?.displayName
-                    ?: stringResource(R.string.settings_language_system),
-                onClick = { showLanguageSheet = true },
-            ) { SettingsChevron() }
+            items = 2,
+        ) { index, cap ->
+            when (index) {
+                0 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_language),
+                    icon = DroshIcons.Languages,
+                    supporting = LanguageCatalog.options
+                        .firstOrNull { it.tag == settings.appearance.language }?.displayName
+                        ?: stringResource(R.string.settings_language_system),
+                    onClick = { showLanguageSheet = true },
+                ) { SettingsChevron() }
+
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_shell_locale),
+                    icon = DroshIcons.Terminal,
+                    // The shell speaks this one, from the file rather than from
+                    // anyone's dotfiles.
+                    supporting = ShellLocaleCatalog.displayName(settings.shell.locale)
+                        .ifBlank { stringResource(R.string.settings_language_system) },
+                    onClick = { showShellLocaleSheet = true },
+                ) { SettingsChevron() }
+            }
         }
     }
 
@@ -1141,41 +758,81 @@ fun LanguageCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
             onDismiss = { showLanguageSheet = false },
         )
     }
+
+    if (showShellLocaleSheet) {
+        ShellLocaleSheet(
+            currentTag = settings.shell.locale,
+            onSelect = { tag ->
+                onUpdate { it.copy(shell = it.shell.copy(locale = tag)) }
+            },
+            onDismiss = { showShellLocaleSheet = false },
+        )
+    }
 }
 
-// ── About ────────────────────────────────────────────────────────────────────
-
 @Composable
-fun AboutCategory(onBack: () -> Unit, viewModel: SettingsViewModel) {
+fun AboutCategory(
+    onBack: () -> Unit,
+    viewModel: SettingsViewModel,
+    deviceIdentityViewModel: DeviceIdentityViewModel,
+) {
     val activity = LocalDroshActivity.current
+    val scope = rememberCoroutineScope()
     val aboutInfo by viewModel.aboutInfo.collectAsStateWithLifecycle(null)
+    val settings by viewModel.snapshot.collectAsStateWithLifecycle()
+    val deviceIdentity by deviceIdentityViewModel.identity.collectAsStateWithLifecycle()
 
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_category_about),
         onBack = onBack,
     ) {
-        SettingsGroupColumn(
-            label = stringResource(R.string.settings_section_about),
-            items = 3,
-        ) { index, cap ->
+        // ── the app ───────────────────────────────────────────────────────────
+        SettingsGroupColumn(label = stringResource(R.string.about_section_app), items = 4) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.app_name),
+                    icon = DroshIcons.SquareTerminal,
+                    supporting = stringResource(R.string.about_tagline),
+                    leading = {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(DroshPrimary),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "D",
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    },
+                )
+
+                1 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_version),
                     icon = DroshIcons.Info,
                     supporting = aboutInfo?.version ?: "—",
-                    onClick = {},
+                    onClick = {
+                        (activity as? Activity)?.let { host ->
+                            host.copyToClipboard("Version", aboutInfo?.version ?: "")
+                            host.toast(host.getString(R.string.settings_build_copied))
+                        }
+                    },
                 ) { SettingsChevron() }
 
-                1 -> SettingsTile(
+                2 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_build),
                     icon = DroshIcons.Terminal,
                     supporting = aboutInfo?.build ?: "dev",
                     onClick = {
                         (activity as? Activity)?.let { host ->
-                            val build = aboutInfo?.build ?: "dev"
-                            host.copyToClipboard("Build", build)
+                            host.copyToClipboard("Build", aboutInfo?.build ?: "dev")
                             host.toast(host.getString(R.string.settings_build_copied))
                         }
                     },
@@ -1185,10 +842,112 @@ fun AboutCategory(onBack: () -> Unit, viewModel: SettingsViewModel) {
                     cap = cap,
                     title = stringResource(R.string.settings_license),
                     icon = DroshIcons.ShieldCheck,
-                    supporting = stringResource(R.string.settings_license),
-                    onClick = {},
+                    supporting = aboutInfo?.license ?: "GPL-3.0",
+                    onClick = { openUrl(activity, LICENSE_URL) },
                 ) { SettingsChevron() }
             }
         }
+
+        Spacer(Modifier.height(GROUP_GAP))
+
+        // ── the theme ─────────────────────────────────────────────────────────
+        val activeTheme = settings.terminal.themeId
+        SettingsGroupColumn(label = stringResource(R.string.about_section_theme), items = 1) { _, cap ->
+            SettingsTile(
+                cap = cap,
+                title = stringResource(R.string.about_theme),
+                icon = DroshIcons.Palette,
+                supporting = if (activeTheme.isBlank()) {
+                    stringResource(R.string.settings_theme_active_none)
+                } else {
+                    activeTheme
+                },
+                onClick = { openUrl(activity, THEME_STORE_URL) },
+            ) { SettingsChevron() }
+        }
+
+        Spacer(Modifier.height(GROUP_GAP))
+
+        // ── the environment ───────────────────────────────────────────────────
+        SettingsGroupColumn(label = stringResource(R.string.about_section_env), items = 3) { index, cap ->
+            when (index) {
+                0 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.about_settings_file),
+                    icon = DroshIcons.Code,
+                    // The file is the point: this is the one screen that says
+                    // where it is, in the form a shell user can use.
+                    supporting = "~/.drosh/settings.toml",
+                    onClick = {
+                        (activity as? Activity)?.let { host ->
+                            host.copyToClipboard("Path", "~/.drosh/settings.toml")
+                            host.toast(host.getString(R.string.settings_build_copied))
+                        }
+                    },
+                ) { SettingsChevron() }
+
+                1 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.about_shell),
+                    icon = DroshIcons.Terminal,
+                    supporting = ShellLocaleCatalog.displayName(settings.shell.locale)
+                        .ifBlank { stringResource(R.string.settings_language_system) },
+                )
+
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.about_system),
+                    icon = DroshIcons.Smartphone,
+                    supporting = stringResource(
+                        R.string.about_system_value,
+                        Build.VERSION.RELEASE ?: "?",
+                    ),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(GROUP_GAP))
+
+        // ── this device ───────────────────────────────────────────────────────
+        SettingsGroupColumn(label = stringResource(R.string.about_section_device), items = 2) { index, cap ->
+            when (index) {
+                0 -> SettingsTile(
+                    cap = cap,
+                    title = deviceIdentity?.marketingName ?: stringResource(R.string.this_device),
+                    icon = DroshIcons.Smartphone,
+                    supporting = deviceIdentity?.model ?: Build.MODEL ?: "",
+                    leading = {
+                        DeviceBadge(
+                            imageUrl = deviceIdentity?.visualUrl,
+                            fallbackLetter = (deviceIdentity?.marketingName ?: "?")
+                                .firstOrNull()?.uppercase() ?: "?",
+                            size = 40.dp,
+                        )
+                    },
+                )
+
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.about_links),
+                    icon = DroshIcons.Globe,
+                    supporting = GITHUB_URL,
+                    onClick = { openUrl(activity, GITHUB_URL) },
+                ) { SettingsChevron() }
+            }
+        }
+    }
+}
+
+private const val GITHUB_URL = "https://github.com/mmuhofy/Drosh"
+private const val THEME_STORE_URL = "https://github.com/mmuhofy/drosh-themes"
+private const val LICENSE_URL = "https://www.gnu.org/licenses/gpl-3.0.html"
+
+/** Opens [url] in the browser, quietly doing nothing if nothing can. */
+private fun openUrl(activity: Activity?, url: String) {
+    if (activity == null) return
+    runCatching {
+        activity.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)),
+        )
     }
 }

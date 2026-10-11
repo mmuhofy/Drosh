@@ -738,6 +738,9 @@ class TerminalManager(
 
     private var prootStartCommand: String = ""
 
+    /** The shell's locale, from the file; "" leaves the image's default. */
+    private var shellLocale: String = ""
+
     private var motdMode: MotdMode = MotdMode.PlainText
     private var motdText: String = MotdDefaults.DEFAULT_MOTD_TEXT
 
@@ -830,6 +833,7 @@ class TerminalManager(
 
         settingsStore?.settings
             ?.onEach { settings ->
+                shellLocale = settings.shell.locale
                 boldBrightens = settings.terminal.boldBrightens
                 ligatures = settings.terminal.ligatures
                 val bg = parseHexColor(settings.terminal.palette.background)
@@ -1375,7 +1379,7 @@ class TerminalManager(
             } else null
 
             val shell = effectiveShellPath()
-            val integration = DroshShellIntegration.install(appContext, shell)
+            val integration = DroshShellIntegration.install(appContext, shell, shellLocale)
 
             val cmd = prootRunner.build(
             guestWd,

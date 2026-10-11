@@ -23,7 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.DroshSettings
-import dev.drosh.domain.terminal.ShellChoice
+import dev.drosh.core.ShellLocaleCatalog
 import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.ui.DroshIcons
@@ -50,7 +50,6 @@ enum class SettingsCategoryRoute(val id: String) {
     Terminal("terminal"),
     Keyboard("keyboard"),
     Shell("shell"),
-    Editor("editor"),
     Security("security"),
     Language("language"),
     About("about"),
@@ -106,7 +105,7 @@ fun SettingsHomeScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = null, items = 8) { index, cap ->
+            SettingsGroupColumn(label = null, items = 7) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
@@ -154,14 +153,6 @@ fun SettingsHomeScreen(
                         icon = DroshIcons.Code,
                         supporting = stringResource(R.string.settings_agent_desc),
                         onClick = onOpenAgentSettings,
-                    ) { SettingsChevron() }
-
-                    6 -> SettingsTile(
-                        cap = cap,
-                        title = stringResource(R.string.settings_category_editor),
-                        icon = DroshIcons.Pencil,
-                        supporting = editorSummary(settings),
-                        onClick = { onOpenCategory(SettingsCategoryRoute.Editor) },
                     ) { SettingsChevron() }
 
                     else -> SettingsTile(
@@ -239,17 +230,8 @@ private fun inputSummary(settings: DroshSettings): String =
 
 @Composable
 private fun shellSummary(settings: DroshSettings): String =
-    when (settings.shell.shell) {
-        ShellChoice.Zsh -> stringResource(R.string.settings_shell_zsh)
-        ShellChoice.Bash -> stringResource(R.string.settings_shell_bash)
-    }
-
-@Composable
-private fun editorSummary(settings: DroshSettings): String =
-    stringResource(
-        R.string.settings_font_size_value,
-        String.format(java.util.Locale.US, "%.0f", settings.editor.fontSizeSp),
-    )
+    ShellLocaleCatalog.displayName(settings.shell.locale)
+        .ifBlank { stringResource(R.string.settings_motd_message) }
 
 @Composable
 private fun securitySummary(settings: DroshSettings): String =
