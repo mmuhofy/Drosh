@@ -215,9 +215,6 @@ private fun TerminalMode.tomlName(): String = name.lowercase()
 private fun TerminalMode.Companion.fromToml(value: String?): TerminalMode =
     TerminalMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: TerminalMode.Stream
 
-private fun BellMode.Companion.fromName(value: String?): BellMode =
-    BellMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: BellMode.None
-
 private fun panePresentationFrom(value: String?): PanePresentation =
     PanePresentation.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: PanePresentation.DOCKED
 
