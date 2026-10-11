@@ -67,7 +67,9 @@ private val ARROW_NAV_KEYS = setOf(
 /**
  * Flat key bar — text-only keys with blur behind, no surface background.
  *
- * Inspired by the HTML mockup `html/drosh_keybar_flat_mockup.html`.
+ * Inspired by the HTML mockup `drosh_keybar_flat_mockup.html`, which lives in
+ * the design vault (`MuhofyBox/Drosh/`) — prototypes are kept outside the
+ * repository, so the comment names the file rather than a path in the repo.
  * Keys are text-only (transparent background), positioned above the
  * terminal at the bottom of the screen. On Android 12+ the bar uses
  * RenderEffect blur sampling whatever is behind it; on API 26-30 a

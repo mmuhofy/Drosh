@@ -15,5 +15,5 @@ edit, not a deletion.
 | `icon/` | launcher icon proposal (Open Decision #5) — not yet adopted; `app/src/main/res` still holds the placeholder |
 | `archive/` | superseded, kept for history: `PLAN.md` (DroshKeyboard fork — a separate repo), `PHASE-6-ARCHITECTURE.md` (agent design research — the code has since shipped) |
 
-HTML prototypes are not in this folder — they live in `html/` with their own
-index.
+HTML prototypes are not in this folder, and not in the repository at all —
+they live in the design vault (`MuhofyBox/Drosh/`), outside git.

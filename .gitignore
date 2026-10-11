@@ -93,6 +93,11 @@ secrets.properties
 # Native libs decrypted at runtime
 !gradle/wrapper/gradle-wrapper.jar
 
+# HTML prototypes and design mockups live outside the repo, in the design
+# vault (MuhofyBox/Drosh/). Ignored so a download or an old checkout cannot
+# put them back.
+html/
+
 # Android file manager's recycle bin, dropped into the working tree when
 # something is deleted from the device. Metadata records, not source — and it
 # shows up as untracked on every run that deleted a file.
