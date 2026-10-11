@@ -61,6 +61,7 @@ fun RenameChatDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
+    val nameHintCd = stringResource(R.string.agent_chat_name_hint)
     var name by remember { mutableStateOf(initial) }
 
     AlertDialog(
@@ -101,7 +102,7 @@ fun RenameChatDialog(
                         cursorBrush = SolidColor(DroshPrimary),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .semantics { contentDescription = stringResource(R.string.agent_chat_name_hint) },
+                            .semantics { contentDescription = nameHintCd },
                     )
                 }
             }
@@ -245,6 +246,8 @@ fun DirectoryChip(
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val workDirCd2 = stringResource(R.string.agent_working_directory_cd, directory)
+    val workDirCd = stringResource(R.string.agent_working_directory)
     var editing by remember { mutableStateOf(false) }
     var draft by remember(directory) { mutableStateOf(directory) }
 
@@ -273,7 +276,7 @@ fun DirectoryChip(
                     cursorBrush = SolidColor(DroshPrimary),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .semantics { contentDescription = stringResource(R.string.agent_working_directory) },
+                        .semantics { contentDescription = workDirCd },
                 )
             }
             Spacer(Modifier.width(6.dp))
@@ -294,7 +297,7 @@ fun DirectoryChip(
             .clip(RoundedCornerShape(8.dp))
             .background(DroshSurfaceLow)
             .clickable { editing = true }
-            .semantics { contentDescription = stringResource(R.string.agent_working_directory_cd, directory) }
+            .semantics { contentDescription = workDirCd2 }
             .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
         Text(

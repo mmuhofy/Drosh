@@ -445,6 +445,7 @@ private fun ModelPickerSheet(
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val closeCd = stringResource(R.string.action_close)
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -455,7 +456,7 @@ private fun ModelPickerSheet(
                     indication = null,
                     onClick = onDismiss,
                 )
-                .semantics { contentDescription = stringResource(R.string.action_close) },
+                .semantics { contentDescription = closeCd },
         )
 
         val glass = LocalAgentGlass.current
@@ -618,6 +619,8 @@ private fun AgentComposer(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
 ) {
+    val sendCd = stringResource(R.string.agent_send)
+    val stopCd = stringResource(R.string.agent_stop)
     var text by rememberSaveable { mutableStateOf("") }
     val enabled = !running
     val canSend = text.isNotBlank() && enabled
@@ -686,7 +689,7 @@ private fun AgentComposer(
                                     .clip(CircleShape)
                                     .background(DroshError)
                                     .clickable(onClick = onStop)
-                                    .semantics { contentDescription = stringResource(R.string.agent_stop) },
+                                    .semantics { contentDescription = stopCd },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
@@ -707,7 +710,7 @@ private fun AgentComposer(
                                         text = ""
                                         onSend(sent)
                                     }
-                                    .semantics { contentDescription = stringResource(R.string.agent_send) },
+                                    .semantics { contentDescription = sendCd },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
@@ -868,6 +871,7 @@ private fun AssistantText(
  */
 @Composable
 private fun ThinkingDots(modifier: Modifier = Modifier) {
+    val thinkingCd = stringResource(R.string.agent_thinking_cd)
     var elapsed by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -893,7 +897,7 @@ private fun ThinkingDots(modifier: Modifier = Modifier) {
         fontFamily = LocalFontSet.current.mono,
         color = DroshPrimary,
         modifier = modifier
-            .semantics { contentDescription = stringResource(R.string.agent_thinking_cd) }
+            .semantics { contentDescription = thinkingCd }
             .sweepHighlight(progress),
     )
 }
@@ -917,6 +921,7 @@ private fun ThinkingDots(modifier: Modifier = Modifier) {
  */
 @Composable
 private fun ReasoningBlock(message: ChatMessage.Reasoning) {
+    val stopThinkingCd = stringResource(R.string.agent_stop_thinking)
     var open by rememberSaveable(message.id) { mutableStateOf(false) }
 
     // Elapsed, counted rather than measured, for the same reason as the tool rows.
@@ -955,7 +960,7 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
                 .fillMaxWidth()
                 .clickable { open = !open }
                 .padding(vertical = 1.dp)
-                .semantics { contentDescription = stringResource(R.string.agent_stop_thinking) },
+                .semantics { contentDescription = stopThinkingCd },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -1074,6 +1079,7 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
  */
 @Composable
 private fun ToolCallRow(message: ChatMessage.ToolCall) {
+    val copyCd = stringResource(R.string.agent_copy_output_cd)
     var open by rememberSaveable(message.id) {
         mutableStateOf(message.state == ToolCallState.Running)
     }
@@ -1262,7 +1268,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable { clipboard(body) }
                                         .padding(horizontal = 8.dp, vertical = 5.dp)
-                                        .semantics { contentDescription = stringResource(R.string.agent_copy_output_cd) },
+                                        .semantics { contentDescription = copyCd },
                                 )
                             }
                         }
@@ -1584,6 +1590,7 @@ private fun QuestionControls(
     options: List<String>,
     onAnswer: (ApprovalDecision) -> Unit,
 ) {
+    val skipCd = stringResource(R.string.agent_skip_question_cd)
     if (options.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             options.forEach { option ->
@@ -1633,7 +1640,7 @@ private fun QuestionControls(
                     .clip(RoundedCornerShape(10.dp))
                     .clickable { onAnswer(ApprovalDecision.Reject("dismissed")) }
                     .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .semantics { contentDescription = stringResource(R.string.agent_skip_question_cd) },
+                    .semantics { contentDescription = skipCd },
             )
             Spacer(Modifier.weight(1f))
             AgentPill(

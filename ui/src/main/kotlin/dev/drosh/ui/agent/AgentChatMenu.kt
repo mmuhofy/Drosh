@@ -83,6 +83,7 @@ fun AgentChatMenu(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val closeCd = stringResource(R.string.action_close)
     Box(modifier = modifier.fillMaxSize()) {
         // Keyed on [visible] so it runs at all: targeting 1f from an initial of 1f is
         // an animation that never moves.
@@ -103,7 +104,7 @@ fun AgentChatMenu(
                     indication = null,
                     onClick = onDismiss,
                 )
-                .semantics { contentDescription = stringResource(R.string.action_close) },
+                .semantics { contentDescription = closeCd },
         )
 
         AgentMenuSurface(
@@ -279,6 +280,7 @@ fun TerminalHistorySheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val closeCd = stringResource(R.string.action_close)
     Box(modifier = modifier.fillMaxSize()) {
         val scrim by animateFloatAsState(
             targetValue = if (sheetVisible) 1f else 0f,
@@ -294,7 +296,7 @@ fun TerminalHistorySheet(
                     indication = null,
                     onClick = onDismiss,
                 )
-                .semantics { contentDescription = stringResource(R.string.action_close) },
+                .semantics { contentDescription = closeCd },
         )
 
         val glass = LocalAgentGlass.current
@@ -372,6 +374,7 @@ fun TerminalHistorySheet(
 
 @Composable
 private fun TerminalHistoryHeader(onDismiss: () -> Unit) {
+    val closeHistoryCd = stringResource(R.string.agent_close_history)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -400,7 +403,7 @@ private fun TerminalHistoryHeader(onDismiss: () -> Unit) {
                 .clip(RoundedCornerShape(10.dp))
                 .clickable(onClick = onDismiss)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
-                .semantics { contentDescription = stringResource(R.string.agent_close_history) },
+                .semantics { contentDescription = closeHistoryCd },
         )
     }
 }
