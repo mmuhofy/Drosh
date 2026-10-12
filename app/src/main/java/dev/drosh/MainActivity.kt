@@ -508,18 +508,6 @@ class MainActivity : ComponentActivity() {
             settingsReady = true
         }
 
-        // The lock, cold. A return from the background locks over a terminal
-        // that is already alive — that one is the host's overlay, below — and
-        // the difference matters: a lock that arrives before the terminal
-        // exists must not be the reason the terminal takes three seconds to
-        // appear, so it takes its own destination instead.
-        LaunchedEffect(locked.value) {
-            val current = navController.currentBackStackEntry?.destination?.route
-            if (locked.value && pinEnabled && current == "terminal") {
-                navController.navigate("lock") { popUpTo("terminal") { inclusive = true } }
-            }
-        }
-
         LaunchedEffect(firstCompleted) {
             if (firstCompleted == true && triggerBootstrap.state == TriggerBootstrapUseCase.State.NotStarted) {
                 triggerBootstrap.start()
