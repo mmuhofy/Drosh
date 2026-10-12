@@ -1,5 +1,6 @@
 package dev.drosh.agent.runtime
 
+import dev.drosh.agent.provider.MediaEncoding
 import dev.drosh.agent.provider.ProviderErrorClassifier
 import dev.drosh.agent.provider.ProviderRegistry
 import dev.drosh.agent.tool.ToolRegistry
@@ -90,6 +91,29 @@ class AgentLoop @Inject constructor(
     override val state: StateFlow<AgentRunState> = _state.asStateFlow()
 
     override fun send(request: AgentRequest): Flow<AgentEvent> = flow {
+        // Before anything is claimed or remembered, because a request the
+        // protocol cannot carry is not a run: the user turn must not enter the
+        // history, or the next turn replays a picture the provider never saw
+        // and answers for a conversation that never included it.
+        //
+        // The UI already refuses this at the composer; this is the backstop for
+        // a request assembled somewhere else.
+        val provider = providers.provider(request.providerId)
+        val unsupported = provider?.let { resolved ->
+            MediaEncoding.firstUnsupported(resolved.kind, request.attachments)
+        }
+        if (unsupported != null) {
+            emit(
+                AgentEvent.RunFinished(
+                    RunOutcome.Failed(
+                        "${request.modelId} cannot take ${unsupported.kind.name.lowercase()} " +
+                            "input, so nothing was sent.",
+                    ),
+                ),
+            )
+            return@flow
+        }
+
         val runtime = chats.getOrPut(request.chatId) { ChatRuntime(request.chatId) }
 
         // Fails fast rather than interleaving two conversations over one history,
@@ -111,7 +135,11 @@ class AgentLoop @Inject constructor(
                 val stored = transcripts.load(request.chatId)
                 if (stored.isNotEmpty()) runtime.restore(transcripts.assembleHistory(stored))
             }
-            runtime.remember(LlmMessage.User(request.prompt))
+            // One turn, text and media together. The prompt is not rewritten on
+            // the way in: whatever the user typed is what the model is asked,
+            // and the attachments ride in the same message because no protocol
+            // accepts a picture and the sentence about it as two user turns.
+            runtime.remember(LlmMessage.User(request.prompt, request.attachments))
 
             emit(AgentEvent.RunFinished(runLoop(request, runtime, this)))
         } finally {

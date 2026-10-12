@@ -11,7 +11,9 @@ import dev.drosh.agent.provider.AnthropicAdapter
 import dev.drosh.agent.provider.GeminiAdapter
 import dev.drosh.agent.provider.OpenAiCompatAdapter
 import dev.drosh.agent.provider.OpenAiResponsesAdapter
+import dev.drosh.agent.runtime.AgentChatTitleSuggester
 import dev.drosh.domain.agent.ChatAdapter
+import dev.drosh.domain.agent.ChatTitleSuggester
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 
@@ -80,6 +82,18 @@ abstract class AdapterModule {
     @Binds
     @IntoSet
     abstract fun bindOpenAiResponsesAdapter(impl: OpenAiResponsesAdapter): ChatAdapter
+
+    /**
+     * Chat naming, behind the domain interface the chat screen depends on.
+     *
+     * Bound here rather than in `:data` because it is built out of two things
+     * this module already owns — the provider repository and the adapter
+     * registry — and a name is not something the storage layer should be
+     * reaching for.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindChatTitleSuggester(impl: AgentChatTitleSuggester): ChatTitleSuggester
 
     @Multibinds
     abstract fun adapters(): Set<@JvmSuppressWildcards ChatAdapter>

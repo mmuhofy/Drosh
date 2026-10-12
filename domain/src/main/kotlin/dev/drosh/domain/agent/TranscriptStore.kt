@@ -132,7 +132,12 @@ fun assembleModelHistory(messages: List<ChatMessage>): List<LlmMessage> {
         when (message) {
             is ChatMessage.User -> {
                 flush()
-                assembled += LlmMessage.User(message.text)
+                // The attachments ride along when the row still has them. A
+                // transcript restored from storage generally does not — the
+                // bytes are not written to the table — so the model is told
+                // about the picture in text rather than being handed a
+                // half-remembered turn.
+                assembled += LlmMessage.User(message.text, message.attachments)
             }
 
             is ChatMessage.Assistant -> {

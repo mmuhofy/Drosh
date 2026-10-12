@@ -473,4 +473,27 @@ no terminal session needed.</string>
     <string name="agent_trust_rules_title">Always allowed</string>
     <string name="agent_trust_rules_note">Tap to revoke</string>
     <string name="agent_trust_rules_revoke">Revoke</string>
+    <!-- ── Agent media ────────────────────────────────────────────────────
+         Refusals name the model and the file on purpose: switching model is the
+         fix, and "video input" is a puzzle when three files are attached and
+         only one of them is the video. -->
+    <string name="agent_media_model_lacks">%1$s does not accept %2$s input.</string>
+    <string name="agent_media_model_lacks_named">%1$s does not accept %2$s input, so %3$s was not attached.</string>
+    <string name="agent_media_model_unknown">this model</string>
+    <string name="agent_media_kind_text">text</string>
+    <string name="agent_media_kind_image">image</string>
+    <string name="agent_media_kind_video">video</string>
+    <string name="agent_media_kind_audio">audio</string>
+    <string name="agent_media_kind_image_title">Image</string>
+    <string name="agent_media_unsupported_type">%1$s is not a file the agent can send.</string>
+    <string name="agent_media_too_large_named">%1$s is too large. The limit is %2$s.</string>
+    <string name="agent_media_anonymous_file">that file</string>
+    <string name="agent_media_too_many">Up to %1$d files can be attached to one message.</string>
+    <string name="agent_media_unreadable">That file could not be read.</string>
+    <string name="agent_media_nothing_to_send">Type something or attach a file.</string>
+    <string name="agent_media_attach_cd">Attach a file</string>
+    <string name="agent_media_attach_label">Attach</string>
+    <string name="agent_media_remove_cd">Remove %1$s from the prompt</string>
+    <string name="agent_attachment_chip">%1$s · %2$s</string>
+    <string name="agent_attachment_badge_video">Video</string>
 </resources>

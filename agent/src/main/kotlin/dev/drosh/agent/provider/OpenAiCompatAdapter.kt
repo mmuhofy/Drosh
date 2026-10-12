@@ -406,7 +406,33 @@ class OpenAiCompatAdapter @Inject constructor(
     private fun encodeMessage(message: LlmMessage): JsonObject = when (message) {
         is LlmMessage.User -> buildJsonObject {
             put("role", "user")
-            put("content", message.text)
+            if (message.attachments.isEmpty()) {
+                put("content", message.text)
+            } else {
+                // A user turn carrying media is a content array, not a string.
+                //
+                // The text part is omitted when the message is only a picture:
+                // an empty `{"type":"text","text":""}` is accepted by some
+                // gateways and rejected by others, and a turn with a
+                // screenshot and nothing written under it has no text to send.
+                put("content", buildJsonArray {
+                    message.text.takeIf { it.isNotBlank() }?.let { text ->
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", text)
+                        })
+                    }
+                    message.attachments.forEach { attachment ->
+                        add(buildJsonObject {
+                            put("type", "image_url")
+                            // The whole data URL, media type included: this
+                            // protocol takes one string and not the three
+                            // fields Anthropic wants.
+                            put("image_url", buildJsonObject { put("url", attachment.dataUrl) })
+                        })
+                    }
+                })
+            }
         }
 
         is LlmMessage.Assistant -> buildJsonObject {

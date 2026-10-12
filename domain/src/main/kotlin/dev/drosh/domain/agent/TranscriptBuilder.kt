@@ -128,6 +128,27 @@ class TranscriptBuilder(
     /** Immutable copy for rendering. */
     fun snapshot(): List<ChatMessage> = messages.toList()
 
+    /**
+     * Put a warning in the transcript.
+     *
+     * The counterpart to refusing a submission rather than running it: the
+     * user has to be able to scroll back and see that the screenshot they
+     * attached went nowhere and why. Model output cannot carry that — nothing
+     * was asked — so it is a row of its own, next to where the turn would
+     * have been.
+     *
+     * Deduplicated against the row immediately above, because the same refusal
+     * happens once per press and a transcript of six identical warnings is its
+     * own kind of noise.
+     */
+    fun warn(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        closeStreaming()
+        if (messages.lastOrNull() is ChatMessage.Notice && messages.last().text == trimmed) return
+        messages += ChatMessage.Notice(nextId(), trimmed)
+    }
+
     // ── internals ────────────────────────────────────────────────────────
 
     private fun nextId(): String = "m${seq++}"

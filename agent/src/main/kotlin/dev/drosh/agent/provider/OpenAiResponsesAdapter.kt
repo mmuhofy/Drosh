@@ -483,10 +483,26 @@ class OpenAiResponsesAdapter @Inject constructor(
                     put(
                         "content",
                         buildJsonArray {
-                            add(buildJsonObject {
-                                put("type", "input_text")
-                                put("text", message.text)
-                            })
+                            // Text part only when there is text. A turn that is
+                            // nothing but a screenshot has no text block to
+                            // send, and an empty `input_text` is what some
+                            // gateways answer a 400 to.
+                            message.text.takeIf { it.isNotBlank() }?.let { text ->
+                                add(buildJsonObject {
+                                    put("type", "input_text")
+                                    put("text", text)
+                                })
+                            }
+                            message.attachments.forEach { attachment ->
+                                add(buildJsonObject {
+                                    put("type", "input_image")
+                                    // This protocol takes the data URL whole,
+                                    // under a key of its own naming rather than
+                                    // the nested `image_url` object the Chat
+                                    // Completions shape uses.
+                                    put("image_url", attachment.dataUrl)
+                                })
+                            }
                         },
                     )
                 }

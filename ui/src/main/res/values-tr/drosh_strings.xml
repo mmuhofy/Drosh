@@ -447,4 +447,26 @@ terminal session açmana gerek yok.</string>
     <string name="agent_trust_rules_title">Her zaman izin verilenler</string>
     <string name="agent_trust_rules_note">Iptal etmek icin dokun</string>
     <string name="agent_trust_rules_revoke">Iptal</string>
+    <!-- Ortam reddi mesajları. Model adı ve dosya adı bilerek geçiyor: çözüm
+         modeli değiştirmek, ve üç dosya ekliyken yalnızca biri video
+         olduğunda "video girdisi" demek tek başına anlaşılmaz. -->
+    <string name="agent_media_model_lacks">%1$s, %2$s girdisi kabul etmiyor.</string>
+    <string name="agent_media_model_lacks_named">%1$s, %2$s girdisi kabul etmiyor, bu yüzden %3$s eklenmedi.</string>
+    <string name="agent_media_model_unknown">bu model</string>
+    <string name="agent_media_kind_text">metin</string>
+    <string name="agent_media_kind_image">görsel</string>
+    <string name="agent_media_kind_video">video</string>
+    <string name="agent_media_kind_audio">ses</string>
+    <string name="agent_media_kind_image_title">Görsel</string>
+    <string name="agent_media_unsupported_type">%1$s, ajanın gönderebileceği bir dosya değil.</string>
+    <string name="agent_media_too_large_named">%1$s çok büyük. Sınır %2$s.</string>
+    <string name="agent_media_anonymous_file">bu dosya</string>
+    <string name="agent_media_too_many">Bir mesaja en fazla %1$d dosya eklenebilir.</string>
+    <string name="agent_media_unreadable">Bu dosya okunamadı.</string>
+    <string name="agent_media_nothing_to_send">Bir şeyler yaz ya da bir dosya ekle.</string>
+    <string name="agent_media_attach_cd">Dosya ekle</string>
+    <string name="agent_media_attach_label">Ekle</string>
+    <string name="agent_media_remove_cd">%1$s ekini prompttan kaldır</string>
+    <string name="agent_attachment_chip">%1$s · %2$s</string>
+    <string name="agent_attachment_badge_video">Video</string>
 </resources>

@@ -364,7 +364,26 @@ class GeminiAdapter @Inject constructor(
             when (message) {
                 is LlmMessage.User -> encoded += buildJsonObject {
                     put("role", "user")
-                    put("parts", buildJsonArray { add(textPart(message.text)) })
+                    put("parts", buildJsonArray {
+                        // Text part only when there is text — a turn carrying
+                        // only a picture has nothing to say in words.
+                        message.text.takeIf { it.isNotBlank() }?.let { add(textPart(it)) }
+                        // `inlineData` is the one part shape that takes bytes
+                        // directly, and it is the only documented way to hand
+                        // this API an image (or, on the models that declare it,
+                        // a video) without uploading to the Files API first.
+                        message.attachments.forEach { attachment ->
+                            add(buildJsonObject {
+                                put(
+                                    "inlineData",
+                                    buildJsonObject {
+                                        put("mimeType", attachment.mediaType)
+                                        put("data", attachment.base64Payload)
+                                    },
+                                )
+                            })
+                        }
+                    })
                 }
 
                 is LlmMessage.Assistant -> {

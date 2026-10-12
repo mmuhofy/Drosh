@@ -14,9 +14,22 @@ sealed interface ChatMessage {
 
     val id: String
 
+    /**
+     * A turn the user sent.
+     *
+     * [attachments] is empty for every turn that was only text, which is the
+     * overwhelming majority — they are defaulted and last so a positional call
+     * site keeps meaning what it meant before media existed.
+     *
+     * A turn with attachments and no [text] is valid and normal: a screenshot
+     * with nothing written under it is a question, and asking the user to type
+     * something to make the row legal would have taught them that pictures are
+     * a feature you have to also write a sentence for.
+     */
     data class User(
         override val id: String,
         val text: String,
+        val attachments: List<MessageAttachment> = emptyList(),
     ) : ChatMessage
 
     data class Assistant(

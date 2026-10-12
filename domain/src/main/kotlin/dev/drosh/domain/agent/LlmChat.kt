@@ -57,6 +57,32 @@ interface ChatAdapter {
         request: LlmRequest,
         credential: LlmCredential,
     ): Flow<LlmStreamEvent>
+
+    /**
+     * Ask the same model for a short name for a conversation.
+     *
+     * A default implementation rather than a second method every adapter has to
+     * answer, because the answer does not depend on the protocol: it is one
+     * request with one user turn, no tools, and a system prompt that says what
+     * a title is. Every adapter already knows how to send that.
+     *
+     * Returned as a stream rather than a string so a title call is cancellable
+     * and cannot outlive the chat it was for.
+     */
+    fun titleStream(
+        provider: LlmProvider,
+        modelId: String,
+        credential: LlmCredential,
+        userText: String,
+    ): Flow<LlmStreamEvent> = stream(
+        provider = provider,
+        request = LlmRequest(
+            model = modelId,
+            messages = listOf(LlmMessage.User(userText)),
+            systemPrompt = ChatTitle.SYSTEM_PROMPT,
+        ),
+        credential = credential,
+    )
 }
 
 /**
@@ -88,7 +114,19 @@ data class LlmRequest(
 /** Model-facing conversation history. Distinct from [ChatMessage]. */
 sealed interface LlmMessage {
 
-    data class User(val text: String) : LlmMessage
+    /**
+     * One user turn.
+     *
+     * [attachments] rides along rather than being a second message type: every
+     * protocol accepts a multimodal user turn and none of them accept two
+     * consecutive user turns that say the same thing, so a picture sent with a
+     * sentence has to be one message. Empty text with attachments present is
+     * valid — that is a screenshot on its own.
+     */
+    data class User(
+        val text: String,
+        val attachments: List<MessageAttachment> = emptyList(),
+    ) : LlmMessage
 
     data class Assistant(
         val text: String,

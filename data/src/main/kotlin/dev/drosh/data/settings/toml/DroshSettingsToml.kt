@@ -3,6 +3,7 @@ package dev.drosh.data.settings.toml
 import dev.drosh.core.toml.TomlDocument
 import dev.drosh.domain.agent.ApprovalRule
 import dev.drosh.domain.agent.AutonomyLevel
+import dev.drosh.domain.settings.AgentEffort
 import dev.drosh.domain.settings.AgentSettings
 import dev.drosh.domain.settings.AppearanceSettings
 import dev.drosh.domain.settings.AutoLockTimeout
@@ -99,6 +100,8 @@ internal object DroshSettingsToml {
         with(settings.agent) {
             putString("agent", "autonomy", autonomy.key)
             putStringList("agent", "always_allow", alwaysAllow.map { it.pattern })
+            putBoolean("agent", "web_search", webSearch)
+            putString("agent", "effort", effort)
         }
         with(settings.security) {
             putString("security", "auto_lock", autoLock.tomlName())
@@ -162,6 +165,10 @@ internal object DroshSettingsToml {
                 motdText = document.getString("shell", "motd_text", base.shell.motdText),
                 startupCommand = document.getString("shell", "startup_command", base.shell.startupCommand),
                 locale = document.getString("shell", "locale", base.shell.locale),
+            ),
+            agent = base.agent.copy(
+                webSearch = document.getBoolean("agent", "web_search", base.agent.webSearch),
+                effort = AgentEffort.fromName(document.getStringOrNull("agent", "effort")),
             ),
             security = base.security.copy(
                 autoLock = AutoLockTimeout.fromString(document.getString("security", "auto_lock", "")),

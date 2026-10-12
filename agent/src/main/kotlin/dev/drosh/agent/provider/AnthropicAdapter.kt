@@ -450,10 +450,32 @@ class AnthropicAdapter @Inject constructor(
                 is LlmMessage.User -> encoded += buildJsonObject {
                     put("role", "user")
                     put("content", buildJsonArray {
-                        add(buildJsonObject {
-                            put("type", "text")
-                            put("text", message.text)
-                        })
+                        // No text block for a picture-only turn, for the same
+                        // reason the other adapters omit theirs: an empty text
+                        // block is noise, and this API is the strictest of the
+                        // four about what a content block must contain.
+                        message.text.takeIf { it.isNotBlank() }?.let { text ->
+                            add(buildJsonObject {
+                                put("type", "text")
+                                put("text", text)
+                            })
+                        }
+                        message.attachments.forEach { attachment ->
+                            add(buildJsonObject {
+                                put("type", "image")
+                                // Three fields rather than one data URL: the
+                                // media type and the payload are separate here,
+                                // and the `data` value is the payload alone.
+                                put(
+                                    "source",
+                                    buildJsonObject {
+                                        put("type", "base64")
+                                        put("media_type", attachment.mediaType)
+                                        put("data", attachment.base64Payload)
+                                    },
+                                )
+                            })
+                        }
                     })
                 }
 
