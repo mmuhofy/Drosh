@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.calculateTopPadding
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -76,34 +79,55 @@ fun ThemeStoreScreen(
     var room by rememberSaveable { mutableStateOf(StoreRoom.Store) }
     var pendingDelete by remember { mutableStateOf<String?>(null) }
 
-    SettingsCategoryScreen(
-        title = stringResource(R.string.settings_theme_store),
-        onBack = onBack,
-        modifier = modifier,
+    /**
+     * The store's own scaffold, not the settings one.
+     *
+     * [SettingsCategoryScreen] wraps its content in a scrolling column, which is
+     * right for a page of rows and wrong for a grid: a lazy grid inside a
+     * vertical scroll is measured with an infinite height and refuses to build.
+     * The grid scrolls itself here, with only the bar above it fixed.
+     */
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(DroshBackground),
     ) {
-        StoreRoomBar(
-            room = room,
-            installedCount = installed.size,
-            onRoomChange = { room = it },
-        )
-
-        when (room) {
-            StoreRoom.Store -> StoreShelf(
-                entries = storeIndex,
-                installedIds = installed.map { it.id }.toSet(),
-                busy = busy,
-                onInstall = viewModel::install,
-                onRefresh = viewModel::refreshIndex,
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = storeStatusBarInset()),
+        ) {
+            SettingsTopBar(
+                title = stringResource(R.string.settings_theme_store),
+                onBack = onBack,
             )
 
-            StoreRoom.Library -> ThemeLibrary(
-                installed = installed,
-                activeId = activeId,
-                onApply = { id -> viewModel.apply(id) },
-                onRemove = { id -> pendingDelete = id },
-                onInstallFromUrl = viewModel::startUrlInstall,
-                onCreate = viewModel::startCreate,
+            StoreRoomBar(
+                room = room,
+                installedCount = installed.size,
+                onRoomChange = { room = it },
             )
+
+            when (room) {
+                StoreRoom.Store -> StoreShelf(
+                    entries = storeIndex,
+                    installedIds = installed.map { it.id }.toSet(),
+                    busy = busy,
+                    onInstall = viewModel::install,
+                    onRefresh = viewModel::refreshIndex,
+                    modifier = Modifier.weight(1f),
+                )
+
+                StoreRoom.Library -> ThemeLibrary(
+                    installed = installed,
+                    activeId = activeId,
+                    onApply = { id -> viewModel.apply(id) },
+                    onRemove = { id -> pendingDelete = id },
+                    onInstallFromUrl = viewModel::startUrlInstall,
+                    onCreate = viewModel::startCreate,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 
@@ -484,6 +508,11 @@ fun ThemeGridLogo(
         }
     }
 }
+
+/** Content clearance for the system bar, without insetting the background. */
+@Composable
+internal fun storeStatusBarInset(): Dp =
+    WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
 /** "#RRGGBB" as a colour, black when it is not one. */
 internal fun parseHexColor(hex: String): Color =

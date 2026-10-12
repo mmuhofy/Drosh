@@ -90,6 +90,7 @@ import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.design.system.DroshMenuItem
 import dev.drosh.design.system.DroshDropdownMenu
+import dev.drosh.ui.settings.SettingsCheck
 import dev.drosh.ui.agent.components.ActionButton
 import dev.drosh.ui.agent.components.CollapsibleRow
 import dev.drosh.ui.agent.components.DiffBlock

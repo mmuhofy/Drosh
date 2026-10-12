@@ -380,7 +380,7 @@ terminal session açmana gerek yok.</string>
     <string name="settings_theme_installed_tag">Kurulu</string>
     <string name="settings_theme_install">Kur</string>
     <string name="settings_theme_remove_title">%1$s kaldırılsın mı?</string>
-    <string name="settings_theme_remove_body">Tema dosyası .drosh içinden çıkar. Ekrandaki renkler Drosh'un kendi renklerine döner.</string>
+    <string name="settings_theme_remove_body">Tema dosyası .drosh içinden çıkar. Ekrandaki renkler yerleşik Drosh paletine döner.</string>
     <string name="settings_theme_remove_confirm">Kaldır</string>
     <string name="sidebar_menu">Session menüsü</string>
 </resources>
