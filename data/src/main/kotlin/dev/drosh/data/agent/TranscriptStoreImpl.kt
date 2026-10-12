@@ -2,6 +2,7 @@ package dev.drosh.data.agent
 
 import dev.drosh.domain.agent.AgentApproval
 import dev.drosh.domain.agent.ApprovalDecision
+import dev.drosh.domain.agent.ApprovalRule
 import dev.drosh.domain.agent.AgentTodoCodec
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.LlmMessage
@@ -321,6 +322,7 @@ class TranscriptStoreImpl @Inject constructor(
         "approve" -> ApprovalDecision.Approve
         "reject" -> ApprovalDecision.Reject(value.orEmpty())
         "answer" -> ApprovalDecision.Answer(value.orEmpty())
+        "always_allow" -> ApprovalDecision.AlwaysAllow(ApprovalRule(value.orEmpty()))
         else -> null
     }
 
@@ -347,6 +349,7 @@ private val ApprovalDecision.kind: String
         is ApprovalDecision.Approve -> "approve"
         is ApprovalDecision.Reject -> "reject"
         is ApprovalDecision.Answer -> "answer"
+        is ApprovalDecision.AlwaysAllow -> "always_allow"
     }
 
 private val ApprovalDecision.value: String?
@@ -354,4 +357,8 @@ private val ApprovalDecision.value: String?
         is ApprovalDecision.Approve -> null
         is ApprovalDecision.Reject -> reason
         is ApprovalDecision.Answer -> text
+        // The pattern, not the command it was learned from: the rule is what
+        // was remembered, and a transcript is read back long after the command
+        // that raised the question has scrolled past.
+        is ApprovalDecision.AlwaysAllow -> rule.pattern
     }

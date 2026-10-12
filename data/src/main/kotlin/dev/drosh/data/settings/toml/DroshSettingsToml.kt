@@ -174,7 +174,7 @@ internal object DroshSettingsToml {
                 autonomy = AutonomyLevel.entries.firstOrNull {
                     it.key == document.getStringOrNull("agent", "autonomy")
                 } ?: base.agent.autonomy,
-                alwaysAllow = document.getStringList("agent", "always_allow")
+                alwaysAllow = document.getStringList("agent", "always_allow", emptyList())
                     .map { ApprovalRule(it) },
             ),
             session = base.session.copy(
