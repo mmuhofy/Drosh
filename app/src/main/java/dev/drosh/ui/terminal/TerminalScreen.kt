@@ -322,6 +322,11 @@ private fun ReadyScreen(
     // `hasScrolled` is what tells "just opened" from "sitting at the prompt" --
     // position alone cannot, because both sit at the same row.
     //
+    // Read before the chrome's own state, because the immersive decision is the
+    // two of them multiplied together: the scroll says the chrome may go, and
+    // the setting says whether it is allowed to.
+    val appearance by terminalViewModel.appearance.collectAsState()
+
     // The direction is the point: you are not looking for the clock while you are
     // typing, and you are definitely looking for it while reading something that
     // scrolled off. The bar disappears exactly when it is not needed.
@@ -408,7 +413,6 @@ private fun ReadyScreen(
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
-    val appearance by terminalViewModel.appearance.collectAsState()
     val backgroundFile by terminalViewModel.backgroundFile.collectAsStateWithLifecycle()
     val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
