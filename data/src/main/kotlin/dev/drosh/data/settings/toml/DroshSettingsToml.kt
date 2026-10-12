@@ -1,6 +1,9 @@
 package dev.drosh.data.settings.toml
 
 import dev.drosh.core.toml.TomlDocument
+import dev.drosh.domain.agent.ApprovalRule
+import dev.drosh.domain.agent.AutonomyLevel
+import dev.drosh.domain.settings.AgentSettings
 import dev.drosh.domain.settings.AppearanceSettings
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.BackgroundSettings
@@ -93,6 +96,10 @@ internal object DroshSettingsToml {
             putString("shell", "startup_command", startupCommand)
             putString("shell", "locale", locale)
         }
+        with(settings.agent) {
+            putString("agent", "autonomy", autonomy.key)
+            putStringList("agent", "always_allow", alwaysAllow.map { it.pattern })
+        }
         with(settings.security) {
             putString("security", "auto_lock", autoLock.tomlName())
             putInt("security", "pin_length", pinLength)
@@ -162,6 +169,13 @@ internal object DroshSettingsToml {
                 blockScreenshots = document.getBoolean(
                     "security", "block_screenshots", base.security.blockScreenshots,
                 ),
+            ),
+            agent = base.agent.copy(
+                autonomy = AutonomyLevel.entries.firstOrNull {
+                    it.key == document.getStringOrNull("agent", "autonomy")
+                } ?: base.agent.autonomy,
+                alwaysAllow = document.getStringList("agent", "always_allow")
+                    .map { ApprovalRule(it) },
             ),
             session = base.session.copy(
                 secondarySessionId = document.getString(

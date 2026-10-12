@@ -1,5 +1,7 @@
 package dev.drosh.domain.settings
 
+import dev.drosh.domain.agent.ApprovalRule
+import dev.drosh.domain.agent.AutonomyLevel
 import dev.drosh.domain.terminal.PanePresentation
 import dev.drosh.domain.terminal.TerminalZoom
 
@@ -23,6 +25,8 @@ data class DroshSettings(
     val background: BackgroundSettings = BackgroundSettings(),
     val input: InputSettings = InputSettings(),
     val shell: ShellSettings = ShellSettings(),
+    /** The agent's own trust settings. */
+    val agent: AgentSettings = AgentSettings(),
     val security: SecuritySettings = SecuritySettings(),
     val session: SessionSettings = SessionSettings(),
     val meta: MetaSettings = MetaSettings(),
@@ -166,6 +170,37 @@ data class SecuritySettings(
 ) {
     companion object {
         val DEFAULT = SecuritySettings()
+    }
+}
+
+/**
+ * How much the agent may do before it has to ask.
+ *
+ * The level and the rules live in the file because the file is what survives
+ * an app restart, and a permission that evaporates when the process dies is
+ * a permission the user has to grant again at the worst possible moment.
+ */
+data class AgentSettings(
+    /**
+     * How much the agent may run without asking.
+     *
+     * [AutonomyLevel.AUTO_SAFE] is the default: read-only commands run, and
+     * anything that writes, deletes, installs, escalates or reaches the network
+     * is asked. The one below it asks for everything, the one above it asks for
+     * nothing — and the deterministic layer in [CommandSafety] refuses its list
+     * at every level, because a level is a preference and the list is a floor.
+     */
+    val autonomy: AutonomyLevel = AutonomyLevel.AUTO_SAFE,
+    /**
+     * Commands the user has said "always" to.
+     *
+     * Patterns rather than whole commands: `git status *` covers the hundred
+     * statuses a session runs and not the hundred git commands there are.
+     */
+    val alwaysAllow: List<ApprovalRule> = emptyList(),
+) {
+    companion object {
+        val DEFAULT = AgentSettings()
     }
 }
 
