@@ -688,6 +688,10 @@ private fun FloatingPaneWindow(
         // means it is a sibling of the content, not a row below it. Aligning it
         // inside a Column would also not compile: ColumnScope.align takes a
         // vertical only, and a corner needs both axes.
+        // A card, not a rectangle: rounded, and casting a real shadow so it
+        // reads as sitting *over* the terminal behind it rather than as a hole
+        // cut in it. The shadow is drawn by the modifier, which means it has to
+        // come before the clip that gives the card its shape.
         Box(
             modifier = Modifier
                 .offset { IntOffset(leftPx, topPx) }
@@ -695,7 +699,12 @@ private fun FloatingPaneWindow(
                     width = with(density) { widthPx.toDp() },
                     height = with(density) { heightPx.toDp() },
                 )
-                .clip(RoundedCornerShape(14.dp))
+                .shadow(
+                    elevation = 14.dp,
+                    shape = RoundedCornerShape(18.dp),
+                    clip = false,
+                )
+                .clip(RoundedCornerShape(18.dp))
                 .background(DroshSurface),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {

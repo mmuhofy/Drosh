@@ -403,6 +403,20 @@ private fun ReadyScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 inputBarViewModel.refreshImePresence()
             }
+            // A floating pane outlives the app only over other apps: while the
+            // app is on screen the window belongs to the app, and the moment
+            // it goes away the pane has to move to the overlay or it dies with
+            // the activity it was drawn in. It comes home the same way — the
+            // overlay is a place to wait, not a place to stay.
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    scope.launch { paneLayoutViewModel.floatOverOtherApps() }
+                }
+                Lifecycle.Event.ON_START -> {
+                    paneLayoutViewModel.dockFromOverlay()
+                }
+                else -> Unit
+            }
         }
         resumeLifecycleOwner.lifecycle.addObserver(observer)
         onDispose { resumeLifecycleOwner.lifecycle.removeObserver(observer) }
