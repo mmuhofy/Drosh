@@ -307,8 +307,10 @@ private fun ChatCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (busy) DroshSurfaceVariant else DroshSurfaceLow)
+            // One flat surface and one border — the same material the
+            // terminal's pills are made of, at the radius a card wants. The
+            // busy state is a fill change and not a second layer.
+            .glassRow(shape = RoundedCornerShape(14.dp), raised = busy)
             .combinedClickable(onClick = onClick, onLongClick = onLongPress)
             // One description for the whole card: a screen reader reading four
             // separate fragments would not say "vendor-split, çalışıyor, ~/zsh".
@@ -392,8 +394,7 @@ private fun MissingKeyCard(onOpenSettings: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(DroshSurfaceVariant)
+            .glassRow(shape = RoundedCornerShape(14.dp), raised = true)
             .padding(14.dp),
     ) {
         Text(

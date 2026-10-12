@@ -146,7 +146,6 @@ fun AgentSelectionMenu(
  */
 @Composable
 private fun agentSelectionStyle(): HazeStyle = HazeStyle(
-    tint = HazeTint(DroshSurfaceHigh.copy(alpha = 0.26f)),
     blurRadius = 32.dp,
 )
 

@@ -46,6 +46,7 @@ import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.AgentChat
 import dev.drosh.ui.R
 import dev.drosh.ui.agent.components.FlatButton
+import dev.drosh.ui.agent.components.glassRow
 import dev.drosh.ui.agent.components.TOUCH_TARGET
 
 /**
@@ -260,8 +261,7 @@ fun DirectoryChip(
                 modifier = Modifier
                     .width(180.dp)
                     .heightIn(min = 36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(DroshSurfaceVariant)
+                    .glassRow(shape = RoundedCornerShape(10.dp), raised = true)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
                 BasicTextField(
@@ -294,11 +294,10 @@ fun DirectoryChip(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(DroshSurfaceLow)
+            .glassRow(shape = RoundedCornerShape(999.dp))
             .clickable { editing = true }
             .semantics { contentDescription = workDirCd2 }
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(
             text = directory,
