@@ -186,6 +186,14 @@ fun SessionSidebar(
     onSplitSession: ((String) -> Unit)? = null,
     /** Opens this session straight into a floating window. */
     onFloatSession: ((String) -> Unit)? = null,
+    /**
+     * Raises or lowers the terminal's keyboard, from the drawer's footer.
+     *
+     * A callback because the drawer lives in `:ui` and the keyboard is a
+     * window the terminal screen owns. Null hides the button — which is what
+     * a drawer opened somewhere without a terminal should do.
+     */
+    onToggleKeyboard: (() -> Unit)? = null,
     /** True while a second pane is open, so the rows can show it. */
     isSplit: Boolean = false,
     /**
@@ -261,6 +269,7 @@ fun SessionSidebar(
             onSwapPanes = onSwapPanes,
             onDock = onDock,
             onDragSplit = onDragSplit,
+            onToggleKeyboard = onToggleKeyboard,
         )
     }
 }
@@ -290,6 +299,7 @@ private fun SidebarContent(
     onCloseSplit: (() -> Unit)?,
     onSwapPanes: (() -> Unit)?,
     onDock: (() -> Unit)?,
+    onToggleKeyboard: (() -> Unit)? = null,
     onDragSplit: ((String, String) -> Unit)?,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
@@ -616,6 +626,7 @@ private fun SidebarContent(
                                     onOpenSearch = { searchOpen = true },
                                     onCloseSearch = ::closeSearch,
                                     onOpenSettings = onOpenSettings,
+                                    onToggleKeyboard = onToggleKeyboard,
                                     )
                                     }
                                     }
@@ -1587,6 +1598,7 @@ private fun SidebarFooter(
     onOpenSearch: () -> Unit,
     onCloseSearch: () -> Unit,
     onOpenSettings: () -> Unit,
+    onToggleKeyboard: (() -> Unit)?,
 ) {
     val focusManager = LocalFocusManager.current
 
@@ -1655,6 +1667,35 @@ private fun SidebarFooter(
                         )
                     }
                 }
+            }
+        }
+
+        // The keyboard, beside the settings. The selection menu used to carry
+        // it and the drawer is where a keyboard belongs: it is the one control
+        // the terminal needs most often and the drawer is the one place that
+        // is always reachable while typing.
+        if (onToggleKeyboard != null) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(DroshSurfaceVariant.copy(alpha = 0.75f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = {
+                            focusManager.clearFocus()
+                            onToggleKeyboard()
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = DroshIcons.Keyboard,
+                    contentDescription = "Keyboard",
+                    tint = DroshTextSecondary,
+                    modifier = Modifier.size(19.dp),
+                )
             }
         }
 
