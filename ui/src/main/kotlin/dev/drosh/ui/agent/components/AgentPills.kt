@@ -49,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.rememberHazeState
 import dev.drosh.design.system.DroshOnPrimary
@@ -184,8 +183,18 @@ fun rememberAgentGlass(): AgentGlass = AgentGlass(rememberHazeState())
  * sitting inline in the flow.
  */
 @Composable
+/**
+ * The glass style: the blur, and nothing else.
+ *
+ * The tint used to live here as well, which made a second surface — the haze
+ * painted one and [Modifier.glassSurface] another. The fill is one flat colour
+ * now, and the style is asked only for the blur.
+ */
 fun agentGlassStyle(): HazeStyle = HazeStyle(
-    tint = HazeTint(DroshSurfaceHigh.copy(alpha = 0.30f)),
+    // Named, and null: the library offers this style twice — one tint, a list of
+    // tints — and a call that names neither is a call the compiler cannot choose
+    // between.
+    tint = null,
     blurRadius = AgentPillDefaults.BlurRadius,
 )
 
@@ -198,32 +207,24 @@ fun ProvideAgentGlass(glass: AgentGlass, content: @Composable () -> Unit) {
 }
 
 /**
- * The liquid-glass surface: a gradient fill, a hairline edge, and an inner
- * reflection at the top.
+ * The agent's surface: one flat fill, one border, and a real blur of whatever
+ * is behind it.
  *
- * ## Why it is not a flat fill
+ * ## Why it is a flat fill
  *
- * A flat translucent colour reads as a grey chip. Apple's glass reads as glass
- * because it has depth: it is lighter where the light would catch it and darker
- * where it would fall away, and it has an edge that separates it from whatever is
- * behind. A vertical gradient at 13%→6% white gives the first; [glassEdge] gives
- * the second.
+ * It used to be two surfaces — a gradient fill with a second, lighter layer
+ * painted over its top half — which read as a stack of plastic rather than as
+ * one thing. The terminal's own pills draw a single colour at a single alpha
+ * and they are the reference: one fill, one border, done. The border below is
+ * that same border.
  *
- * ## The inner reflection
+ * ## The blur is the depth
  *
- * A gradient from 7% white to transparent over the top 45% of the surface. This is
- * the highlight a curved piece of glass throws at its top edge, and it is the
- * detail that makes the surface read as a solid object rather than as a tint. It is
- * drawn over the content, so it brightens the glyphs slightly — at 7% that is
- * enough to see and not enough to hurt legibility.
- *
- * ## Why the blur is still Haze
- *
- * The gradient and the border are the "fake glass" part: they are painted, so they
- * cost nothing and work everywhere. The blur is the real part, and it is Haze
- * because the alternative — sampling the backdrop into a bitmap — is what the
- * terminal's selection menu does, and it cannot keep up with a scrolling
- * transcript.
+ * A flat translucent colour over a blur is what a surface over a surface looks
+ * like, and the blur is the part that does the work — the gradient it replaced
+ * was doing the blur's job badly. The blur is Haze because the alternative —
+ * sampling the backdrop into a bitmap — is what the terminal's selection menu
+ * does, and it cannot keep up with a scrolling transcript.
  */
 @Composable
 fun Modifier.glassSurface(
@@ -233,27 +234,27 @@ fun Modifier.glassSurface(
     shape: Shape = AgentPillDefaults.Shape,
 ): Modifier {
     val state = glass?.state
-    val blur = if (state == null) Modifier else Modifier.hazeEffect(state, agentGlassStyle())
 
-    val fill = if (primary) {
-        Brush.verticalGradient(
-            listOf(
-                DroshPrimary.copy(alpha = 0.88f),
-                DroshPrimary,
-            ),
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = if (pressed) 0.20f else 0.13f),
-                Color.White.copy(alpha = if (pressed) 0.10f else 0.06f),
-            ),
-        )
+    // The same two alphas the terminal's own pills use: a lighter fill when
+    // there is a blur behind it to do the separating, a heavier one when there
+    // is not and the fill has to hold the surface on its own.
+    val fill = when {
+        primary -> DroshSurfaceHigh
+        state != null -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_BLURRED)
+        else -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_PLAIN)
     }
 
     return this
         .clip(shape)
-        .then(blur)
+        // The blur alone, with no tint of its own: the flat fill below is the
+        // surface, and a tint in the haze style would be a second one.
+        .then(
+            if (state == null) {
+                Modifier
+            } else {
+                Modifier.hazeEffect(state, agentGlassStyle())
+            },
+        )
         .background(fill)
         .glassEdge(
             shape = shape,
@@ -263,21 +264,13 @@ fun Modifier.glassSurface(
                 else -> 1f
             },
         )
-        .drawWithContent {
-            drawContent()
-            if (!primary) {
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.07f),
-                            Color.Transparent,
-                        ),
-                    ),
-                    size = Size(size.width, size.height * 0.45f),
-                )
-            }
-        }
 }
+
+/** The fill the terminal's pills use when there is a real blur behind them. */
+private const val AGENT_FILL_BLURRED = 0.28f
+
+/** The fill when there is not, and the surface has to hold itself. */
+private const val AGENT_FILL_PLAIN = 0.88f
 
 /**
  * The light on the glass edge, as (position, alpha) along the top-left -> bottom-right

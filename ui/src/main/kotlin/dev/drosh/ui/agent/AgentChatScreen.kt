@@ -786,6 +786,7 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit, onFix: () -> Uni
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
             .background(DroshError.copy(alpha = 0.12f))
             .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -854,15 +855,19 @@ private fun UserBubble(
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.86f)
-                .clip(
-                    RoundedCornerShape(
+                // A flat surface with one border, the same material as the row
+                // of pills above and the composer below. A tinted blob with no
+                // edge was a third kind of thing on a screen that now speaks
+                // with one voice.
+                .glassRow(
+                    shape = RoundedCornerShape(
                         topStart = 14.dp,
                         topEnd = 14.dp,
                         bottomEnd = 4.dp,
                         bottomStart = 14.dp,
                     ),
+                    raised = true,
                 )
-                .background(DroshPrimary.copy(alpha = 0.13f))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             AgentSelectableText(

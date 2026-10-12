@@ -409,4 +409,5 @@ no terminal session needed.</string>
     <string name="settings_theme_remove_body">The theme file leaves .drosh. The colours on screen go back to the built-in Drosh palette.</string>
     <string name="settings_theme_remove_confirm">Remove</string>
     <string name="sidebar_menu">Session menu</string>
+    <string name="sidebar_drop_to_split">Drop to split</string>
 </resources>

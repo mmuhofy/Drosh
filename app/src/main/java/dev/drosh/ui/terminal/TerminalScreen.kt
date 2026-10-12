@@ -11,6 +11,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,9 @@ import dev.drosh.ui.R
 import dev.drosh.ui.keyboard.droshImePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -31,6 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -67,8 +72,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
+import dev.drosh.ui.DroshIcons
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -351,6 +358,15 @@ private fun ReadyScreen(
     }
     var sidebarOpen by remember { mutableStateOf(false) }
     val sidebarPush = rememberSidebarPushState(sidebarOpen)
+    /**
+     * The session the drawer is carrying, or null.
+     *
+     * The drawer owns the gesture and the terminal owns the screen, so the one
+     * thing that crosses between them is this: which session is in the air. It
+     * is what turns the terminal into a drop target without the two of them
+     * having to agree on where the finger is.
+     */
+    var heldSessionId by remember { mutableStateOf<String?>(null) }
     var browserUrl by remember { mutableStateOf<String?>(null) }
 
     var searchActive by remember { mutableStateOf(false) }
@@ -1034,6 +1050,52 @@ private fun ReadyScreen(
             )
         }
 
+        // A card carried out of the drawer lights the terminal as the place it
+        // will land. Purely visual: the gesture belongs to the row, and a target
+        // that consumed touches would end the very drag it is advertising.
+        //
+        // It sits at the drawer's far edge rather than the screen's middle,
+        // because the drawer is over the middle — the visible terminal is the
+        // strip beside it, and a target under the drawer is a target nobody
+        // can drop on.
+        if (sidebarOpen && heldSessionId != null) {
+            val held = sessions.firstOrNull { it.id == heldSessionId }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 20.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(DroshPrimary.copy(alpha = 0.12f))
+                    .border(1.dp, DroshPrimary, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = DroshIcons.PanelBottom,
+                        contentDescription = null,
+                        tint = DroshPrimary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.sidebar_drop_to_split),
+                        color = DroshPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (held != null) {
+                        Text(
+                            text = held.name,
+                            color = DroshTextSecondary,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+
         // Only shown when the last session is gone, whether by typing `exit`, by
         // closing from the toolbar, or by deleting from the sidebar. A session
         // exiting while siblings remain is routine and says nothing here; the
@@ -1144,6 +1206,20 @@ private fun ReadyScreen(
         // bar's own control does — the drawer is simply the one place that
         // stays reachable while the keyboard is up.
         onToggleKeyboard = ::toggleKeyboard,
+        /**
+         * A card carried out of the drawer and dropped on the terminal.
+         *
+         * The same split the row menu's "Split below" makes, so the gesture and
+         * the menu agree about what they do. Offered when there is a second
+         * session to make a pair with, which is the same condition the row's
+         * own grip uses.
+         */
+        onHoldChange = { id -> heldSessionId = id },
+        onDropOnTerminal = if (liveSessionIds.size >= 2) {
+            { id -> paneLayoutViewModel.openSplit(id, activeId) }
+        } else {
+            null
+        },
         /**
          * Ids, not names, and in the order they are drawn: the upper pane
          * first. The drawer's pair card mirrors the screen, and a swap changes
