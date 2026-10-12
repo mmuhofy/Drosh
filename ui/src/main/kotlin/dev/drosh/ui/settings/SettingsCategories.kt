@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -932,7 +933,7 @@ private class StarsState {
                 connection.readTimeout = 5000
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 connection.disconnect()
-                val match = Regex("\"stargazers_count\"\s*:\s*(\d+)").find(body)
+                val match = Regex("\"stargazers_count\"\\s*:\\s*(\\d+)").find(body)
                 val value = match?.groupValues?.get(1)?.toIntOrNull()
                 if (value != null) {
                     count = value
