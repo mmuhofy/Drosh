@@ -771,7 +771,11 @@ private fun ReadyScreen(
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
                     useBlockEngine = useBlockEngine,
-                    topPadding = terminalTopPadding,
+                    // Nothing sits above this pane but the first one, so it
+                    // clears nothing: the 52dp of chrome clearance belongs to
+                    // the pills over the primary pane, and a pane that starts
+                    // half a bar lower than its content reads as broken.
+                    topPadding = 0.dp,
                     inputBarState = inputBarState,
                     motdMode = motdMode,
                     motdText = motdText,
@@ -1315,9 +1319,12 @@ private fun TerminalPaneBody(
     /**
      * The grid's top padding, already animated in step with the pill row.
      *
-     * Passed in rather than derived here because it is a property of the screen,
-     * not of a pane: both panes share one status bar and one row, and a pane that
-     * computed its own would answer a moment later than the row it is clearing.
+     * Passed in rather than derived here because it is a property of what sits
+     * above the pane, not of the pane itself: the primary pane has the status
+     * bar and the pill row above it and clears them both, and the second pane
+     * has the first pane above it and clears nothing. Giving both the same
+     * number is what pushed the lower session's whole grid down by the height
+     * of a bar that was never over it.
      */
     topPadding: Dp,
     inputBarState: dev.drosh.ui.input.InputBarUiState,
