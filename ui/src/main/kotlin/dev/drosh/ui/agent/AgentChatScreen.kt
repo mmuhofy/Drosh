@@ -363,7 +363,7 @@ fun AgentChatScreen(
             inspecting?.let { tool ->
                 AgentToolDetailSheet(
                     visible = true,
-                    title = toolVerbs(tool.name).first,
+                    title = tool.name,
                     subtitle = tool.summary,
                     body = tool.finalOutput ?: tool.output.joinToString("\n"),
                     state = tool.state,
@@ -1451,16 +1451,6 @@ private fun ToolCallRow(
     }
 }
 
-/**
- * Seconds, not milliseconds.
- *
- * "18420 ms" is a number with no scale attached; the reader has to divide it by a
- * thousand in their head to learn that it was slow. Sub-second runs keep one decimal
- * because 0.2s and 1s are different experiences.
- */
-private fun formatToolDuration(ms: Long): String =
-    if (ms < 1000) "${(ms / 10.0).let { String.format("%.1f", it) }} sn" else "${ms / 1000} sn"
-
 /** Spoken form of a row, for a screen reader rather than the eye. */
 private fun toolRowDescription(message: ChatMessage.ToolCall): String = buildString {
     append(message.name)
@@ -2008,9 +1998,6 @@ private suspend fun shareText(context: android.content.Context, text: String) {
         Timber.w(error, "share unavailable")
     }
 }
-
-/** Enough live lines to follow a build; the rest arrives as you scroll back. */
-private const val MAX_LIVE_LINES = 60
 
 // ── run-level banners ────────────────────────────────────────────────────
 
