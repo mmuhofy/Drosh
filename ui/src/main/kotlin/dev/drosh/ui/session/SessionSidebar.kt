@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.border
@@ -60,6 +61,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -267,6 +269,7 @@ fun SessionSidebar(
 private fun SidebarContent(
     viewModel: SessionSwitcherViewModel,
     deviceIdentityViewModel: DeviceIdentityViewModel,
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
     onOpenProjects: () -> Unit,
@@ -310,6 +313,12 @@ private fun SidebarContent(
     // One holder for the whole drawer. The row being carried and the row
     // being aimed at are different rows; per-row state cannot see across.
     val dragState = remember { SidebarDragState() }
+
+    // Whether the rows sit on a surface of their own. One read for the whole
+    // drawer: the rows are the same shape or they are not.
+    val sessionSurface by settingsViewModel.snapshot
+        .map { it.appearance.sessionSurface }
+        .collectAsStateWithLifecycle(initialValue = true)
 
     // A hold that outlives the drawer.
     //
@@ -361,6 +370,14 @@ private fun SidebarContent(
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(bottom = 8.dp),
+            // A gap between the rows only when they are tiles. Two lines that
+            // touch read as a list; two tiles that touch read as one long
+            // surface with seams in it.
+            verticalArrangement = if (sessionSurface) {
+                Arrangement.spacedBy(4.dp)
+            } else {
+                Arrangement.Top
+            },
         ) {
             item(key = "nav_new") {
                 PressableRow(DroshIcons.Plus, stringResource(R.string.sidebar_new_session)) { viewModel.createNew("shell") }
@@ -429,17 +446,83 @@ private fun SidebarContent(
                 live.forEachIndexed { index, snapshot ->
                     if (snapshot.id == pairAnchor && pairPartner != null) {
                         item(key = "splitpair_${snapshot.id}") {
-                            SplitPairCard(
-                                floating = isFloatingPane,
-                                topName = snapshot.name,
-                                bottomName = sessions.firstOrNull { it.id == pairPartner }
-                                    ?.name ?: pairPartner,
-                                isActiveTop = snapshot.id == activeId,
-                                isActiveBottom = pairPartner == activeId,
-                                onOpenTop = { viewModel.activate(snapshot.id) },
-                                onOpenBottom = { viewModel.activate(pairPartner) },
-                                onCloseSplit = onCloseSplit,
-                                onSwapPanes = onSwapPanes,
+                            // The card is a picture of the two panes and nothing
+                            // else: every action it used to carry sits in the
+                            // three dots beside it, the same place a session row
+                            // keeps its own. A card with buttons on it is two
+                            // kinds of thing wearing one shape.
+                            var pairMenuOpen by remember { mutableStateOf(false) }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                SplitPairCard(
+                                    floating = isFloatingPane,
+                                    topName = snapshot.name,
+                                    bottomName = sessions.firstOrNull { it.id == pairPartner }
+                                        ?.name ?: pairPartner,
+                                    isActiveTop = snapshot.id == activeId,
+                                    isActiveBottom = pairPartner == activeId,
+                                    onOpenTop = { viewModel.activate(snapshot.id) },
+                                    onOpenBottom = { viewModel.activate(pairPartner) },
+                                    modifier = Modifier.weight(1f),
+                                )
+
+                                IconButton(
+                                    onClick = { pairMenuOpen = true },
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Icon(
+                                        painter = rememberVectorPainter(DroshIcons.EllipsisVertical),
+                                        contentDescription = stringResource(R.string.sidebar_menu),
+                                        tint = DroshTextSecondary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+
+                            DroshDropdownMenu(
+                                expanded = pairMenuOpen,
+                                onDismissRequest = { pairMenuOpen = false },
+                                offset = DpOffset(0.dp, 4.dp),
+                                items = buildList {
+                                    if (onSwapPanes != null) {
+                                        add(
+                                            DroshMenuItem(
+                                                label = stringResource(R.string.sidebar_swap_split),
+                                                id = "swap",
+                                                icon = DroshIcons.ArrowUpDown,
+                                            ),
+                                        )
+                                    }
+                                    if (onDock != null && isFloatingPane) {
+                                        add(
+                                            DroshMenuItem(
+                                                label = stringResource(R.string.action_dock_pane),
+                                                id = "dock",
+                                                icon = DroshIcons.PanelBottom,
+                                            ),
+                                        )
+                                    }
+                                    if (onCloseSplit != null) {
+                                        add(
+                                            DroshMenuItem(
+                                                label = stringResource(R.string.sidebar_close_split),
+                                                id = "close",
+                                                icon = DroshIcons.X,
+                                            ),
+                                        )
+                                    }
+                                },
+                                onItemClick = { id ->
+                                    pairMenuOpen = false
+                                    when (id) {
+                                        "swap" -> onSwapPanes?.invoke()
+                                        "dock" -> onDock?.invoke()
+                                        "close" -> onCloseSplit?.invoke()
+                                    }
+                                },
                             )
                         }
                         // Two, not one: only the anchor row was being replaced, so
@@ -462,6 +545,7 @@ private fun SidebarContent(
                                 snapshot = snapshot,
                                 isActive = snapshot.id == activeId,
                                 recencyRank = index - rankOffset,
+                                sessionSurface = sessionSurface,
                                 onClick = { viewModel.activate(snapshot.id) },
                                 onStartRename = { renamingSession = snapshot },
                                 onDelete = { viewModel.delete(snapshot.id) },
@@ -505,6 +589,7 @@ private fun SidebarContent(
                                     snapshot = snapshot,
                                     isActive = false,
                                     recencyRank = 0,
+                                    sessionSurface = sessionSurface,
                                     onClick = {},
                                     onStartRename = { renamingSession = snapshot },
                                     onDelete = { viewModel.delete(snapshot.id) },
@@ -642,6 +727,15 @@ private fun SidebarContent(
 private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+
+    // The row's surface in one number: a row being carried is fully opaque
+    // (it is a card now, off the list), a row on a surface never goes fully
+    // clear, and a row on lines is clear until it is touched.
+    val rowSurfaceAlpha = when {
+        dragging -> 1f
+        sessionSurface -> 0.55f + 0.45f * surface
+        else -> surface
+    }
     // Needed inside `pointerInput`, whose block is not a composable scope: the
     // touch slop has to be in pixels, and the slop is a dp constant.
     val density = LocalDensity.current
@@ -779,6 +873,14 @@ private fun SessionRow(
      * needs to see.
      */
     dragState: SidebarDragState? = null,
+    /**
+     * Whether the row sits on a surface of its own.
+     *
+     * Off, rows are lines on the drawer — only the press and the menu light
+     * one up. On, each row is a tile, and a row that is picked up becomes the
+     * same tile lifted off the list, which is what a drag should look like.
+     */
+    sessionSurface: Boolean = true,
     /** Opens this row's menu — where the long press used to open it. */
     onOpenMenu: () -> Unit = {},
     /** Called with the session a held row was released over. */
@@ -834,7 +936,10 @@ private fun SessionRow(
                 .padding(start = 22.dp, end = 12.dp)
                 .height(44.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(DroshSurfaceVariant.copy(alpha = surface))
+                // A tile or a line. Off, nothing shows until the row is
+                // pressed or its menu is up — the drawer's old look. On, the
+                // row is a surface of its own, and the press only deepens it.
+                .background(DroshSurfaceVariant.copy(alpha = rowSurfaceAlpha))
                 // The drop target lights with the accent, not just a raised
                 // surface. A held row and a target row are otherwise identical
                 // apart from the recency mark, and the user has to see at a
@@ -883,6 +988,12 @@ private fun SessionRow(
                         val drag = dragState?.offset ?: Offset.Zero
                         Modifier
                             .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
+                            // A real shadow under a real card: the layer's own
+                            // elevation is not drawn for a surface with no
+                            // outline of its own, and this is what makes the
+                            // row read as lifted off the list rather than
+                            // floating text.
+                            .shadow(10.dp, RoundedCornerShape(14.dp))
                             .graphicsLayer {
                                 scaleX = HELD_SCALE
                                 scaleY = HELD_SCALE
@@ -1214,15 +1325,6 @@ private fun SessionRow(
  */
 @Composable
 private fun SplitPairCard(
-    /**
-     * True when the second pane is a window on top rather than a half below.
-     *
-     * It changes the shape of the card and not just a label: a docked pair is
-     * two stacked terminals, so the card is two names either side of a seam. A
-     * floating window is *over* one of them, so the card is a full-width row with
-     * a small inset one marked as the floating one — drawing a seam for a window
-     * on top is a diagram of something else.
-     */
     floating: Boolean,
     topName: String,
     bottomName: String,
@@ -1230,15 +1332,14 @@ private fun SplitPairCard(
     isActiveBottom: Boolean,
     onOpenTop: () -> Unit,
     onOpenBottom: () -> Unit,
-    onCloseSplit: (() -> Unit)?,
-    onSwapPanes: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .padding(horizontal = 10.dp)
-            .height(52.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .height(58.dp)
+            .shadow(6.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(DroshSurfaceVariant),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1249,14 +1350,13 @@ private fun SplitPairCard(
             modifier = Modifier.weight(1f),
         )
 
-        // The seam, for a docked pair only. Matches the divider on the terminal:
-        // same colour, same weight, so the card reads as a miniature of what is
-        // on screen.
+        // The seam, for a docked pair only — the divider's own hairline, at the
+        // same weight, so the card reads as a miniature of the split on screen.
         if (!floating) {
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(28.dp)
+                    .height(30.dp)
                     .background(DroshOutline.copy(alpha = 0.7f)),
             )
         }
@@ -1265,42 +1365,65 @@ private fun SplitPairCard(
             name = bottomName,
             active = isActiveBottom,
             onClick = onOpenBottom,
-            // Inset when floating: the window sits *over* the pane below it, so
-            // it is drawn inside the card's width rather than beside it. Without
-            // the inset the card says "two halves", which is what a docked split
-            // means and not what a floating window means.
             modifier = if (floating) {
                 Modifier
                     .weight(1f)
                     .padding(start = 10.dp, bottom = 6.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(DroshSurfaceHigh)
             } else {
                 Modifier.weight(1f)
             },
         )
+    }
+}
 
-        // The same two things the divider and the floating window's chrome can
-        // do, in the same order. A control that exists on the terminal but not on
-        // its own diagram is a control the drawer does not admit exists.
-        if (onSwapPanes != null) {
-            IconAction(
-                icon = DroshIcons.ArrowUpDown,
-                contentDescription = "Paneleri degistir",
-                onClick = onSwapPanes,
-                modifier = Modifier.size(34.dp),
-                tint = DroshTextMuted,
-            )
+/**
+ * One session's half of the card: a mark, a name, and a two-line sketch of a
+ * terminal so the card reads as panes rather than as two rows of text.
+ */
+@Composable
+private fun SplitPairHalf(
+    name: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        // Two stacked hairlines: a terminal's worth of output, in the smallest
+        // space that still says "screen". The active half's are lit.
+        Column(
+            modifier = Modifier.width(14.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            repeat(2) { row ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(if (row == 0) 1f else 0.62f)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(
+                            if (active) DroshPrimary else DroshTextMuted.copy(alpha = 0.5f),
+                        ),
+                )
+            }
         }
-        if (onCloseSplit != null) {
-            IconAction(
-                icon = DroshIcons.X,
-                contentDescription = "Bolmeyi kapat",
-                onClick = onCloseSplit,
-                modifier = Modifier.size(34.dp),
-                tint = DroshTextMuted,
-            )
-        }
+        Text(
+            text = name,
+            color = if (active) DroshText else DroshTextSecondary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
