@@ -174,7 +174,7 @@ fun AppearanceCategory(
                     )
                 }
 
-                else -> SettingsTile(
+                2 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_font),

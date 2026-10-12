@@ -124,6 +124,7 @@ import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.IconAction
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.map
 
 /**
  * Slide-in session drawer — a push/translate layout, so the terminal behind
@@ -789,6 +790,14 @@ private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) 
         animationSpec = tween(durationMillis = 120),
         label = "rowPress",
     )
+    // The row's surface in one number: a row being carried is fully opaque —
+    // it is a card now, off the list — a row on a surface never goes fully
+    // clear, and a row on lines is clear until it is touched.
+    val rowSurfaceAlpha = when {
+        dragging -> 1f
+        sessionSurface -> 0.55f + 0.45f * surface
+        else -> surface
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -960,14 +969,6 @@ private fun SessionRow(
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    // The row's surface in one number: a row being carried is fully opaque —
-    // it is a card now, off the list — a row on a surface never goes fully
-    // clear, and a row on lines is clear until it is touched.
-    val rowSurfaceAlpha = when {
-        dragging -> 1f
-        sessionSurface -> 0.55f + 0.45f * surface
-        else -> surface
-    }
     // Needed inside `pointerInput`, whose block is not a composable scope: the
     // touch slop has to be in pixels, and the slop is a dp constant.
     val density = LocalDensity.current
@@ -1482,57 +1483,6 @@ private const val HELD_SCALE = 1.04f
 /** The lift a held row gets, in pixels. `graphicsLayer` takes a Float. */
 private val HELD_ELEVATION_PX = 8f
 
-/** One session's half of a split pair card. */
-@Composable
-private fun SplitPairHalf(
-    name: String,
-    active: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxHeight()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .height(if (active) 20.dp else 10.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(if (active) DroshPrimary else DroshOutline),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = name,
-            color = if (active) DroshText else DroshTextSecondary,
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
-        )
-    }
-}
-
-/**
- * The grip that drags a session into the second pane.
- *
- * A deliberate threshold rather than "any drag opens the split": a user who
- * brushes the grip while scrolling the list should not end up with two panes
- * they did not ask for, and one that opens only past half the row's width can
- * be cancelled by dragging back without lifting off.
- *
- * The progress is drawn on the grip itself rather than as an overlay across
- * the terminal. An overlay would be the clearer sign, but it has to be driven
- * from here and this row is inside a drawer that is itself translating — the
- * two would not agree about where the finger is.
- */
 /**
  * The card a row turns into while it is carried.
  *
@@ -1588,6 +1538,14 @@ private fun SessionDragCard(
     }
 }
 
+/**
+ * The grip that drags a session into the second pane.
+ *
+ * A deliberate threshold rather than "any drag opens the split": a user who
+ * brushes the grip while scrolling the list should not end up with two panes
+ * they did not ask for, and one that opens only past half the row's width can
+ * be cancelled by dragging back without lifting off.
+ */
 @Composable
 private fun SplitDragHandle(
     onTap: () -> Unit,

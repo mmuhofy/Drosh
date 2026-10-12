@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.OptIn
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -104,6 +105,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import dev.drosh.design.system.DroshTile
@@ -473,6 +475,7 @@ private fun ChatPillRow(
  * own surface, its own row — which made two pickers on two screens look
  * like two apps.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModelPickerSheet(
     models: List<LlmModel>,
