@@ -1120,6 +1120,10 @@ private fun ReadyScreen(
         },
         isSplit = paneLayout.isSplit,
         isFloatingPane = paneLayout.isFloating,
+        // The drawer's keyboard button, reaching the same toggle the top
+        // bar's own control does — the drawer is simply the one place that
+        // stays reachable while the keyboard is up.
+        onToggleKeyboard = ::toggleKeyboard,
         /**
          * Ids, not names, and in the order they are drawn: the upper pane
          * first. The drawer's pair card mirrors the screen, and a swap changes
