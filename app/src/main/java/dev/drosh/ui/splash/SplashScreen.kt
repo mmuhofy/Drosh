@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -100,16 +101,21 @@ fun SplashScreen(
             .background(DroshBackground),
         contentAlignment = Alignment.Center,
     ) {
+        // Read out here: a `remember` block is not a composable scope, and a
+        // colour read inside one is a composable call outside one.
+        val restColor = DroshText
+        val litColor = DroshPrimary
+
         // One column: the word, and under it the hairline. Both are centred
         // on the same axis so the pair reads as one mark.
         ColumnCentered {
-            val text = remember(shown, lit) {
+            val text = remember(shown, lit, restColor, litColor) {
                 if (lit == 0 || lit > shown.length) {
                     AnnotatedString(shown)
                 } else {
                     AnnotatedString.Builder().apply {
                         append(shown.substring(0, lit - 1))
-                        withStyle(SpanStyle(color = DroshPrimary)) { append(shown[lit - 1]) }
+                        withStyle(SpanStyle(color = litColor)) { append(shown[lit - 1]) }
                         if (lit < shown.length) append(shown.substring(lit))
                     }.toAnnotatedString()
                 }
