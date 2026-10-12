@@ -92,7 +92,12 @@ class ShellTool @Inject constructor(
                             body = check.reason,
                         ),
                     )
-                    if (decision !is ApprovalDecision.Approve) {
+                    // "Always allow" runs the command too: the rule was written
+                    // before the answer was delivered, and what the user asked
+                    // for is this command and every one shaped like it.
+                    if (decision !is ApprovalDecision.Approve &&
+                        decision !is ApprovalDecision.AlwaysAllow
+                    ) {
                         return ToolResult.Error("the user declined this command")
                     }
                 }

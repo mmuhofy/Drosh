@@ -102,6 +102,12 @@ class MoveFileTool @Inject constructor(
                 return ToolResult.Cancelled("user declined the move: ${decision.reason}")
             is ApprovalDecision.Answer ->
                 return ToolResult.Error("move_file needs an approve or reject decision")
+
+            // "Always allow" is offered for a shell command and nothing else,
+            // so this is unreachable — the file must not move on a remembered
+            // rule.
+            is ApprovalDecision.AlwaysAllow ->
+                return ToolResult.Error("move_file needs an approve or reject decision")
         }
 
         destinationFile.parentFile?.mkdirs()
