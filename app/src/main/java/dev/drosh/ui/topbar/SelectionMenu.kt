@@ -211,15 +211,12 @@ fun SelectionMenuRow(
     selectedText: String?,
     url: String?,
     canPaste: Boolean,
-    /** Whether the on-screen keyboard is up, so the action can name the inverse. */
-    keyboardFocused: Boolean,
     blurRadius: Dp,
     onCopy: () -> Unit,
     onPaste: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onSelectAll: () -> Unit,
     onShare: () -> Unit,
-    onToggleKeyboard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SelectionMenuSurface(
@@ -238,15 +235,6 @@ fun SelectionMenuRow(
             if (url != null) MenuAction(DroshIcons.ExternalLink, "Aç", { onOpenUrl(url) })
             MenuAction(DroshIcons.Type, "Tümü", onSelectAll)
             MenuAction(DroshIcons.Share, "Paylaş", onShare)
-            // Last, because it is the only action here that does not act on the
-            // selection. The label says the inverse of what the tap will do, since
-            // "Klavye" next to a keyboard that is already up reads as an invitation to
-            // open it again rather than as a way to put it away.
-            MenuAction(
-                icon = if (keyboardFocused) DroshIcons.KeyboardOff else DroshIcons.Keyboard,
-                label = if (keyboardFocused) "Kapat" else "Klavye",
-                onClick = onToggleKeyboard,
-            )
         }
     }
 }

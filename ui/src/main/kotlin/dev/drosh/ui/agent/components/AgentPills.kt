@@ -101,8 +101,12 @@ object AgentPillDefaults {
      * over. Still one fixed height for every pill, which is the part that matters:
      * the size never depends on the label.
      */
-    val Height: Dp = 40.dp
-    val IconSize: Dp = 19.dp
+    // The same box the terminal's own pills draw: 44 high, a 22 glyph, a
+    // fully-rounded capsule. The agent's pills used to be their own size — 40
+    // with a 19 glyph and a 17dp radius — which made the two screens look like
+    // two apps that happened to share a palette.
+    val Height: Dp = 44.dp
+    val IconSize: Dp = 22.dp
     val ChevronSize: Dp = 16.dp
     val LabelSize = 14.sp
 
@@ -126,9 +130,12 @@ object AgentPillDefaults {
      * Strong enough that transcript text behind a pill is unreadable, which is the
      * point: a surface you can read through is not a surface.
      */
-    val BlurRadius: Dp = 20.dp
+    // The terminal's own blur radius, so the glass reads the same in both
+    // places: strong enough that nothing behind a pill is legible.
+    val BlurRadius: Dp = 44.dp
 
-    val Shape: Shape = RoundedCornerShape(17.dp)
+    /** Fully rounded, as the terminal's pills are. */
+    val Shape: Shape = RoundedCornerShape(percent = 50)
 
     /**
      * The resting fill.

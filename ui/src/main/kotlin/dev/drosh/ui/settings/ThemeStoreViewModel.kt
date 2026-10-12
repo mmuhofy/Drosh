@@ -159,6 +159,21 @@ class ThemeStoreViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Removes an installed theme.
+     *
+     * The active one is refused by the caller: taking the theme the terminal
+     * is drawing with out from under it would leave a palette pointing at a
+     * file that is no longer there.
+     */
+    fun remove(id: String) {
+        viewModelScope.launch {
+            themes.delete(id)
+                .onSuccess { _message.value = "Theme removed" }
+                .onFailure { error -> _message.value = error.message ?: "Remove failed" }
+        }
+    }
+
     fun dismissMessage() {
         _message.value = null
     }

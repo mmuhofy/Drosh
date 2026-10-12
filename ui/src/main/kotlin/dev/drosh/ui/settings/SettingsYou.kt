@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -214,6 +215,14 @@ fun SettingsTile(
     stacked: Boolean = false,
     selected: Boolean = false,
     onClick: (() -> Unit)? = null,
+    /**
+     * A second action behind a long press.
+     *
+     * Where a row's secondary or destructive action lives — the theme library
+     * removes a theme here. A button for it on every row is a row that acts by
+     * accident.
+     */
+    onLongClick: (() -> Unit)? = null,
     /** Sits to the left of the label, where an avatar or a device image goes. */
     leading: @Composable (() -> Unit)? = null,
     /** Sits to the right, for a switch, a value or a chevron. */
@@ -240,14 +249,19 @@ fun SettingsTile(
             .clip(shape)
             .background(background)
             .then(
-                if (onClick != null) {
-                    Modifier.clickable(
+                when {
+                    onClick != null && onLongClick != null -> Modifier.combinedClickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    )
+                    onClick != null -> Modifier.clickable(
                         interactionSource = interaction,
                         indication = null,
                         onClick = onClick,
                     )
-                } else {
-                    Modifier
+                    else -> Modifier
                 }
             )
             .padding(horizontal = 16.dp, vertical = 13.dp),

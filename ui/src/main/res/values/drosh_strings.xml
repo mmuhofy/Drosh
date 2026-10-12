@@ -396,4 +396,17 @@ no terminal session needed.</string>
     <string name="about_version">Version</string>
     <string name="about_version_code">Version code</string>
     <string name="about_build_hash">Build hash</string>
+    <string name="settings_session_surface">Session rows on a surface</string>
+    <string name="settings_session_surface_desc">Off: lines on the drawer. On: a tile per session, with a gap.</string>
+    <string name="sidebar_close_split">Close split</string>
+    <string name="agent_search_models">Search models</string>
+    <string name="agent_no_models">No model matches that search.</string>
+    <string name="settings_theme_room_store">Store</string>
+    <string name="settings_theme_room_library">Library</string>
+    <string name="settings_theme_installed_tag">Installed</string>
+    <string name="settings_theme_install">Install</string>
+    <string name="settings_theme_remove_title">Remove %1$s?</string>
+    <string name="settings_theme_remove_body">The theme file leaves .drosh. The colours on screen go back to the built-in Drosh palette.</string>
+    <string name="settings_theme_remove_confirm">Remove</string>
+    <string name="sidebar_menu">Session menu</string>
 </resources>

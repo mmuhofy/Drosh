@@ -132,7 +132,7 @@ fun AppearanceCategory(
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_appearance),
-            items = 3,
+            items = 4,
         ) { index, cap ->
             // The theme row leads: it is the one appearance setting that
             // rewrites the other twenty-two, and burying it below the theme
@@ -174,7 +174,7 @@ fun AppearanceCategory(
                     )
                 }
 
-                else -> SettingsTile(
+                2 -> SettingsTile(
                     cap = cap,
                     stacked = true,
                     title = stringResource(R.string.settings_font),
@@ -192,6 +192,22 @@ fun AppearanceCategory(
                         selected = settings.appearance.fontPack,
                         onSelect = { pack ->
                             onUpdate { it.copy(appearance = it.appearance.copy(fontPack = pack)) }
+                        },
+                    )
+                }
+
+                // The drawer's shape, last: it is the one row here that changes
+                // how the session list is built rather than how it is coloured.
+                3 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_session_surface),
+                    icon = DroshIcons.Smartphone,
+                    supporting = stringResource(R.string.settings_session_surface_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.appearance.sessionSurface,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(appearance = it.appearance.copy(sessionSurface = on)) }
                         },
                     )
                 }

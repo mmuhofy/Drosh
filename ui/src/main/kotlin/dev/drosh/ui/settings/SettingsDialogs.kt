@@ -150,3 +150,40 @@ fun SettingsListInputDialog(
         },
     )
 }
+
+
+/**
+ * A question with two answers, one of them destructive.
+ *
+ * Same surface and the same buttons as [SettingsTextInputDialog] — a dialog
+ * that looked like something else would make an irreversible act look like a
+ * typo.
+ */
+@Composable
+fun SettingsConfirmDialog(
+    title: String,
+    body: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = modifier,
+        containerColor = DroshSurfaceVariant,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text(title, color = DroshText, fontWeight = FontWeight.Bold) },
+        text = { Text(body, color = DroshTextSecondary) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(confirmLabel, color = DroshPrimary)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_dialog_cancel), color = DroshTextSecondary)
+            }
+        },
+    )
+}

@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.border
@@ -57,8 +58,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,6 +77,9 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -99,6 +105,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
+import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.design.system.DroshMenuItemStyle
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
@@ -117,6 +124,7 @@ import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.IconAction
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.map
 
 /**
  * Slide-in session drawer — a push/translate layout, so the terminal behind
@@ -183,6 +191,14 @@ fun SessionSidebar(
     onSplitSession: ((String) -> Unit)? = null,
     /** Opens this session straight into a floating window. */
     onFloatSession: ((String) -> Unit)? = null,
+    /**
+     * Raises or lowers the terminal's keyboard, from the drawer's footer.
+     *
+     * A callback because the drawer lives in `:ui` and the keyboard is a
+     * window the terminal screen owns. Null hides the button — which is what
+     * a drawer opened somewhere without a terminal should do.
+     */
+    onToggleKeyboard: (() -> Unit)? = null,
     /** True while a second pane is open, so the rows can show it. */
     isSplit: Boolean = false,
     /**
@@ -258,6 +274,7 @@ fun SessionSidebar(
             onSwapPanes = onSwapPanes,
             onDock = onDock,
             onDragSplit = onDragSplit,
+            onToggleKeyboard = onToggleKeyboard,
         )
     }
 }
@@ -266,6 +283,7 @@ fun SessionSidebar(
 private fun SidebarContent(
     viewModel: SessionSwitcherViewModel,
     deviceIdentityViewModel: DeviceIdentityViewModel,
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
     onOpenSettings: () -> Unit,
     onOpenAgent: () -> Unit,
     onOpenProjects: () -> Unit,
@@ -286,6 +304,7 @@ private fun SidebarContent(
     onCloseSplit: (() -> Unit)?,
     onSwapPanes: (() -> Unit)?,
     onDock: (() -> Unit)?,
+    onToggleKeyboard: (() -> Unit)? = null,
     onDragSplit: ((String, String) -> Unit)?,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
@@ -310,6 +329,12 @@ private fun SidebarContent(
     // being aimed at are different rows; per-row state cannot see across.
     val dragState = remember { SidebarDragState() }
 
+    // Whether the rows sit on a surface of their own. One read for the whole
+    // drawer: the rows are the same shape or they are not.
+    val sessionSurface by settingsViewModel.snapshot
+        .map { it.appearance.sessionSurface }
+        .collectAsStateWithLifecycle(initialValue = true)
+
     // A hold that outlives the drawer.
     //
     // The drawer stays composed while it is closed — it is translated off screen,
@@ -323,6 +348,44 @@ private fun SidebarContent(
     // cancel the hold the moment the drawer started to move.
     LaunchedEffect(isOpen) {
         if (!isOpen) dragState.cancel()
+    }
+
+    /**
+     * The card, drawn in a window of its own.
+     *
+     * The row that is carried goes invisible and the card takes its place here:
+     * a popup is a child of the window rather than of the list, so nothing clips
+     * it and it can follow the finger past the drawer's edge — out of the drawer
+     * and over whatever is beside it. Dragging something and having it stop at
+     * the edge of the thing you are dragging it from is a drag that does not
+     * really drag.
+     *
+     * Anchored at the row's own rectangle, moved by the gesture's offset, so the
+     * card leaves under the finger exactly where the finger picked it up.
+     */
+    val heldRect = dragState.heldRect()
+    val heldSession = sessions.firstOrNull { it.id == dragState.heldId }
+    if (heldRect != null && heldSession != null) {
+        Popup(
+            alignment = Alignment.TopStart,
+            offset = IntOffset(
+                (heldRect.left + dragState.offset.x).roundToInt(),
+                (heldRect.top + dragState.offset.y).roundToInt(),
+            ),
+            // Not focusable, and it does not dismiss on an outside touch: the
+            // gesture belongs to the row underneath it, and a popup that ate
+            // the first event of the drag would end the drag it is drawing.
+            properties = PopupProperties(
+                focusable = false,
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+            ),
+        ) {
+            SessionDragCard(
+                name = heldSession.name,
+                width = with(LocalDensity.current) { heldRect.width.toDp() },
+            )
+        }
     }
 
     val filtered = remember(sessions, searchQuery) {
@@ -360,6 +423,14 @@ private fun SidebarContent(
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(bottom = 8.dp),
+            // A gap between the rows only when they are tiles. Two lines that
+            // touch read as a list; two tiles that touch read as one long
+            // surface with seams in it.
+            verticalArrangement = if (sessionSurface) {
+                Arrangement.spacedBy(4.dp)
+            } else {
+                Arrangement.Top
+            },
         ) {
             item(key = "nav_new") {
                 PressableRow(DroshIcons.Plus, stringResource(R.string.sidebar_new_session)) { viewModel.createNew("shell") }
@@ -428,17 +499,83 @@ private fun SidebarContent(
                 live.forEachIndexed { index, snapshot ->
                     if (snapshot.id == pairAnchor && pairPartner != null) {
                         item(key = "splitpair_${snapshot.id}") {
-                            SplitPairCard(
-                                floating = isFloatingPane,
-                                topName = snapshot.name,
-                                bottomName = sessions.firstOrNull { it.id == pairPartner }
-                                    ?.name ?: pairPartner,
-                                isActiveTop = snapshot.id == activeId,
-                                isActiveBottom = pairPartner == activeId,
-                                onOpenTop = { viewModel.activate(snapshot.id) },
-                                onOpenBottom = { viewModel.activate(pairPartner) },
-                                onCloseSplit = onCloseSplit,
-                                onSwapPanes = onSwapPanes,
+                            // The card is a picture of the two panes and nothing
+                            // else: every action it used to carry sits in the
+                            // three dots beside it, the same place a session row
+                            // keeps its own. A card with buttons on it is two
+                            // kinds of thing wearing one shape.
+                            var pairMenuOpen by remember { mutableStateOf(false) }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                SplitPairCard(
+                                    floating = isFloatingPane,
+                                    topName = snapshot.name,
+                                    bottomName = sessions.firstOrNull { it.id == pairPartner }
+                                        ?.name ?: pairPartner,
+                                    isActiveTop = snapshot.id == activeId,
+                                    isActiveBottom = pairPartner == activeId,
+                                    onOpenTop = { viewModel.activate(snapshot.id) },
+                                    onOpenBottom = { viewModel.activate(pairPartner) },
+                                    modifier = Modifier.weight(1f),
+                                )
+
+                                IconButton(
+                                    onClick = { pairMenuOpen = true },
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Icon(
+                                        painter = rememberVectorPainter(DroshIcons.EllipsisVertical),
+                                        contentDescription = stringResource(R.string.sidebar_menu),
+                                        tint = DroshTextSecondary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+
+                            DroshDropdownMenu(
+                                expanded = pairMenuOpen,
+                                onDismissRequest = { pairMenuOpen = false },
+                                offset = DpOffset(0.dp, 4.dp),
+                                items = buildList {
+                                    if (onSwapPanes != null) {
+                                        add(
+                                            DroshMenuItem(
+                                                label = stringResource(R.string.sidebar_swap_split),
+                                                id = "swap",
+                                                icon = DroshIcons.ArrowUpDown,
+                                            ),
+                                        )
+                                    }
+                                    if (onDock != null && isFloatingPane) {
+                                        add(
+                                            DroshMenuItem(
+                                                label = stringResource(R.string.action_dock_pane),
+                                                id = "dock",
+                                                icon = DroshIcons.PanelBottom,
+                                            ),
+                                        )
+                                    }
+                                    if (onCloseSplit != null) {
+                                        add(
+                                            DroshMenuItem(
+                                                label = stringResource(R.string.sidebar_close_split),
+                                                id = "close",
+                                                icon = DroshIcons.X,
+                                            ),
+                                        )
+                                    }
+                                },
+                                onItemClick = { item ->
+                                    pairMenuOpen = false
+                                    when (item.id) {
+                                        "swap" -> onSwapPanes?.invoke()
+                                        "dock" -> onDock?.invoke()
+                                        "close" -> onCloseSplit?.invoke()
+                                    }
+                                },
                             )
                         }
                         // Two, not one: only the anchor row was being replaced, so
@@ -461,6 +598,7 @@ private fun SidebarContent(
                                 snapshot = snapshot,
                                 isActive = snapshot.id == activeId,
                                 recencyRank = index - rankOffset,
+                                sessionSurface = sessionSurface,
                                 onClick = { viewModel.activate(snapshot.id) },
                                 onStartRename = { renamingSession = snapshot },
                                 onDelete = { viewModel.delete(snapshot.id) },
@@ -504,6 +642,7 @@ private fun SidebarContent(
                                     snapshot = snapshot,
                                     isActive = false,
                                     recencyRank = 0,
+                                    sessionSurface = sessionSurface,
                                     onClick = {},
                                     onStartRename = { renamingSession = snapshot },
                                     onDelete = { viewModel.delete(snapshot.id) },
@@ -530,6 +669,7 @@ private fun SidebarContent(
                                     onOpenSearch = { searchOpen = true },
                                     onCloseSearch = ::closeSearch,
                                     onOpenSettings = onOpenSettings,
+                                    onToggleKeyboard = onToggleKeyboard,
                                     )
                                     }
                                     }
@@ -641,6 +781,7 @@ private fun SidebarContent(
 private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+
     // Needed inside `pointerInput`, whose block is not a composable scope: the
     // touch slop has to be in pixels, and the slop is a dp constant.
     val density = LocalDensity.current
@@ -778,6 +919,14 @@ private fun SessionRow(
      * needs to see.
      */
     dragState: SidebarDragState? = null,
+    /**
+     * Whether the row sits on a surface of its own.
+     *
+     * Off, rows are lines on the drawer — only the press and the menu light
+     * one up. On, each row is a tile, and a row that is picked up becomes the
+     * same tile lifted off the list, which is what a drag should look like.
+     */
+    sessionSurface: Boolean = true,
     /** Opens this row's menu — where the long press used to open it. */
     onOpenMenu: () -> Unit = {},
     /** Called with the session a held row was released over. */
@@ -815,7 +964,6 @@ private fun SessionRow(
     // Needed inside `pointerInput`, whose block is not a composable scope: the
     // touch slop has to be in pixels, and the slop is a dp constant.
     val density = LocalDensity.current
-    // Stays raised while the menu is open, not only while a finger is down:
     // the row is still the thing the menu belongs to. Dismissing the menu —
     // including by tapping empty space — puts it back.
     val surface by animateFloatAsState(
@@ -823,6 +971,15 @@ private fun SessionRow(
         animationSpec = tween(durationMillis = 120),
         label = "sessionPress",
     )
+
+    // The row's surface in one number: a row being carried is fully opaque —
+    // it is a card now, off the list — a row on a surface never goes fully
+    // clear, and a row on lines is clear until it is touched.
+    val rowSurfaceAlpha = when {
+        dragging -> 1f
+        sessionSurface -> 0.55f + 0.45f * surface
+        else -> surface
+    }
 
     Box {
         Row(
@@ -833,7 +990,10 @@ private fun SessionRow(
                 .padding(start = 22.dp, end = 12.dp)
                 .height(44.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(DroshSurfaceVariant.copy(alpha = surface))
+                // A tile or a line. Off, nothing shows until the row is
+                // pressed or its menu is up — the drawer's old look. On, the
+                // row is a surface of its own, and the press only deepens it.
+                .background(DroshSurfaceVariant.copy(alpha = rowSurfaceAlpha))
                 // The drop target lights with the accent, not just a raised
                 // surface. A held row and a target row are otherwise identical
                 // apart from the recency mark, and the user has to see at a
@@ -874,21 +1034,14 @@ private fun SessionRow(
                 }
                 .then(
                     if (dragging) {
-                        // Two layers, deliberately: `offset` moves the row in
-                        // layout, `graphicsLayer` scales and lifts it at draw
-                        // time. Doing both in the layer would scale the offset
-                        // along with the row, and the row would drift off the
-                        // finger.
-                        val drag = dragState?.offset ?: Offset.Zero
-                        Modifier
-                            .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
-                            .graphicsLayer {
-                                scaleX = HELD_SCALE
-                                scaleY = HELD_SCALE
-                                shadowElevation = HELD_ELEVATION_PX
-                                shape = RoundedCornerShape(14.dp)
-                                clip = false
-                            }
+                        // The row's slot stays — taking it out would collapse the
+                        // list while the finger is still down — but the row itself
+                        // is drawn by the drag card in a window of its own, outside
+                        // the drawer, where nothing clips it. An invisible row
+                        // still takes the gestures, which is what lets one row
+                        // both carry and receive: the press that lifts a card is
+                        // still the press that lands it.
+                        Modifier.alpha(0f)
                     } else {
                         Modifier
                     },
@@ -1071,6 +1224,24 @@ private fun SessionRow(
                 }
             }
 
+            // The three dots: the row's menu, always reachable. The long
+            // press used to open it and the pick-up took that over, so the
+            // menu now has a door of its own — a dot is the smallest one
+            // there is, and it sits where a menu belongs.
+            if (!ended) {
+                IconButton(
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        painter = rememberVectorPainter(DroshIcons.EllipsisVertical),
+                        contentDescription = stringResource(R.string.sidebar_menu),
+                        tint = DroshTextSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+
             if (onSplit != null && !ended && !isSecondaryPane) {
                 SplitDragHandle(
                     onTap = { menuOpen = true },
@@ -1195,15 +1366,6 @@ private fun SessionRow(
  */
 @Composable
 private fun SplitPairCard(
-    /**
-     * True when the second pane is a window on top rather than a half below.
-     *
-     * It changes the shape of the card and not just a label: a docked pair is
-     * two stacked terminals, so the card is two names either side of a seam. A
-     * floating window is *over* one of them, so the card is a full-width row with
-     * a small inset one marked as the floating one — drawing a seam for a window
-     * on top is a diagram of something else.
-     */
     floating: Boolean,
     topName: String,
     bottomName: String,
@@ -1211,15 +1373,14 @@ private fun SplitPairCard(
     isActiveBottom: Boolean,
     onOpenTop: () -> Unit,
     onOpenBottom: () -> Unit,
-    onCloseSplit: (() -> Unit)?,
-    onSwapPanes: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .padding(horizontal = 10.dp)
-            .height(52.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .height(58.dp)
+            .shadow(6.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(DroshSurfaceVariant),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1230,14 +1391,13 @@ private fun SplitPairCard(
             modifier = Modifier.weight(1f),
         )
 
-        // The seam, for a docked pair only. Matches the divider on the terminal:
-        // same colour, same weight, so the card reads as a miniature of what is
-        // on screen.
+        // The seam, for a docked pair only — the divider's own hairline, at the
+        // same weight, so the card reads as a miniature of the split on screen.
         if (!floating) {
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(28.dp)
+                    .height(30.dp)
                     .background(DroshOutline.copy(alpha = 0.7f)),
             )
         }
@@ -1246,42 +1406,65 @@ private fun SplitPairCard(
             name = bottomName,
             active = isActiveBottom,
             onClick = onOpenBottom,
-            // Inset when floating: the window sits *over* the pane below it, so
-            // it is drawn inside the card's width rather than beside it. Without
-            // the inset the card says "two halves", which is what a docked split
-            // means and not what a floating window means.
             modifier = if (floating) {
                 Modifier
                     .weight(1f)
                     .padding(start = 10.dp, bottom = 6.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(DroshSurfaceHigh)
             } else {
                 Modifier.weight(1f)
             },
         )
+    }
+}
 
-        // The same two things the divider and the floating window's chrome can
-        // do, in the same order. A control that exists on the terminal but not on
-        // its own diagram is a control the drawer does not admit exists.
-        if (onSwapPanes != null) {
-            IconAction(
-                icon = DroshIcons.ArrowUpDown,
-                contentDescription = "Paneleri degistir",
-                onClick = onSwapPanes,
-                modifier = Modifier.size(34.dp),
-                tint = DroshTextMuted,
-            )
+/**
+ * One session's half of the card: a mark, a name, and a two-line sketch of a
+ * terminal so the card reads as panes rather than as two rows of text.
+ */
+@Composable
+private fun SplitPairHalf(
+    name: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        // Two stacked hairlines: a terminal's worth of output, in the smallest
+        // space that still says "screen". The active half's are lit.
+        Column(
+            modifier = Modifier.width(14.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            repeat(2) { row ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(if (row == 0) 1f else 0.62f)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(
+                            if (active) DroshPrimary else DroshTextMuted.copy(alpha = 0.5f),
+                        ),
+                )
+            }
         }
-        if (onCloseSplit != null) {
-            IconAction(
-                icon = DroshIcons.X,
-                contentDescription = "Bolmeyi kapat",
-                onClick = onCloseSplit,
-                modifier = Modifier.size(34.dp),
-                tint = DroshTextMuted,
-            )
-        }
+        Text(
+            text = name,
+            color = if (active) DroshText else DroshTextSecondary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -1301,40 +1484,57 @@ private const val HELD_SCALE = 1.04f
 /** The lift a held row gets, in pixels. `graphicsLayer` takes a Float. */
 private val HELD_ELEVATION_PX = 8f
 
-/** One session's half of a split pair card. */
+/**
+ * The card a row turns into while it is carried.
+ *
+ * Its own surface, its own shadow, its own window — so it reads as an object
+ * off the list and not as a row that changed colour. The two stacked bars say
+ * what releasing it will make, the same way the row it lands on does.
+ */
 @Composable
-private fun SplitPairHalf(
+private fun SessionDragCard(
     name: String,
-    active: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+    width: Dp,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxHeight()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(horizontal = 10.dp),
+        modifier = Modifier
+            .width(width)
+            .height(44.dp)
+            .shadow(12.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(DroshSurfaceHigh)
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .height(if (active) 20.dp else 10.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(if (active) DroshPrimary else DroshOutline),
-        )
-        Spacer(Modifier.width(8.dp))
+        Column(
+            modifier = Modifier.width(14.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            repeat(2) { row ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(if (row == 0) 1f else 0.62f)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(DroshPrimary),
+                )
+            }
+        }
         Text(
             text = name,
-            color = if (active) DroshText else DroshTextSecondary,
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.Medium,
+            color = DroshText,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            painter = rememberVectorPainter(DroshIcons.EllipsisVertical),
+            contentDescription = null,
+            tint = DroshTextMuted,
+            modifier = Modifier.size(16.dp),
         )
     }
 }
@@ -1346,11 +1546,6 @@ private fun SplitPairHalf(
  * brushes the grip while scrolling the list should not end up with two panes
  * they did not ask for, and one that opens only past half the row's width can
  * be cancelled by dragging back without lifting off.
- *
- * The progress is drawn on the grip itself rather than as an overlay across
- * the terminal. An overlay would be the clearer sign, but it has to be driven
- * from here and this row is inside a drawer that is itself translating — the
- * two would not agree about where the finger is.
  */
 @Composable
 private fun SplitDragHandle(
@@ -1445,6 +1640,7 @@ private fun SidebarFooter(
     onOpenSearch: () -> Unit,
     onCloseSearch: () -> Unit,
     onOpenSettings: () -> Unit,
+    onToggleKeyboard: (() -> Unit)?,
 ) {
     val focusManager = LocalFocusManager.current
 
@@ -1513,6 +1709,35 @@ private fun SidebarFooter(
                         )
                     }
                 }
+            }
+        }
+
+        // The keyboard, beside the settings. The selection menu used to carry
+        // it and the drawer is where a keyboard belongs: it is the one control
+        // the terminal needs most often and the drawer is the one place that
+        // is always reachable while typing.
+        if (onToggleKeyboard != null) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(DroshSurfaceVariant.copy(alpha = 0.75f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = {
+                            focusManager.clearFocus()
+                            onToggleKeyboard()
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = DroshIcons.Keyboard,
+                    contentDescription = "Keyboard",
+                    tint = DroshTextSecondary,
+                    modifier = Modifier.size(19.dp),
+                )
             }
         }
 

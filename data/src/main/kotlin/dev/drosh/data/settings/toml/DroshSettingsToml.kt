@@ -39,6 +39,7 @@ internal object DroshSettingsToml {
             putString("appearance", "theme_mode", themeMode.tomlName())
             putString("appearance", "font_pack", fontPack.tomlName())
             putString("appearance", "language", language)
+            putBoolean("appearance", "session_surface", sessionSurface)
         }
         with(settings.terminal) {
             putString("terminal", "mode", mode.tomlName())
@@ -119,6 +120,9 @@ internal object DroshSettingsToml {
                 themeMode = ThemeMode.fromName(document.getStringOrNull("appearance", "theme_mode")),
                 fontPack = FontPack.fromName(document.getStringOrNull("appearance", "font_pack")),
                 language = document.getString("appearance", "language", base.appearance.language),
+                sessionSurface = document.getBoolean(
+                    "appearance", "session_surface", base.appearance.sessionSurface,
+                ),
             ),
             terminal = base.terminal.copy(
                 mode = TerminalMode.fromToml(document.getStringOrNull("terminal", "mode")),

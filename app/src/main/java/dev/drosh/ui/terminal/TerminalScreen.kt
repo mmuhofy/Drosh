@@ -403,6 +403,20 @@ private fun ReadyScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 inputBarViewModel.refreshImePresence()
             }
+            // A floating pane outlives the app only over other apps: while the
+            // app is on screen the window belongs to the app, and the moment
+            // it goes away the pane has to move to the overlay or it dies with
+            // the activity it was drawn in. It comes home the same way — the
+            // overlay is a place to wait, not a place to stay.
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    scope.launch { paneLayoutViewModel.floatOverOtherApps() }
+                }
+                Lifecycle.Event.ON_START -> {
+                    paneLayoutViewModel.dockFromOverlay()
+                }
+                else -> Unit
+            }
         }
         resumeLifecycleOwner.lifecycle.addObserver(observer)
         onDispose { resumeLifecycleOwner.lifecycle.removeObserver(observer) }
@@ -748,6 +762,8 @@ private fun ReadyScreen(
             onClosePane = paneLayoutViewModel::closeFloatingPane,
             onSwapPanes = paneLayoutViewModel::swapPanes,
             floatingTitle = secondarySessionName,
+            // The name the dock pill shows when the seam is dragged to an edge.
+            secondaryTitle = secondarySessionName,
             // weight, not fillMaxSize: the extra-key bar is drawn by this
             // Column, below the host, and a host that filled the available height
             // would push it past the bottom edge.
@@ -771,7 +787,11 @@ private fun ReadyScreen(
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
                     useBlockEngine = useBlockEngine,
-                    topPadding = terminalTopPadding,
+                    // Nothing sits above this pane but the first one, so it
+                    // clears nothing: the 52dp of chrome clearance belongs to
+                    // the pills over the primary pane, and a pane that starts
+                    // half a bar lower than its content reads as broken.
+                    topPadding = 0.dp,
                     inputBarState = inputBarState,
                     motdMode = motdMode,
                     motdText = motdText,
@@ -886,7 +906,6 @@ private fun ReadyScreen(
                 selectedText = selectionText,
                 url = selectionUrl,
                 canPaste = hasClipboardText,
-                keyboardFocused = keyboardFocused,
                 blurRadius = MENU_BLUR,
                 onCopy = {
                     selectionText?.let { context.copyToClipboard("terminal", it) }
@@ -899,7 +918,6 @@ private fun ReadyScreen(
                 },
                 onSelectAll = { terminalViewRef.value?.selectAll() },
                 onShare = { selectionText?.let { context.shareText(it) } },
-                onToggleKeyboard = ::toggleKeyboard,
                 modifier = Modifier
                     .offset(x = anchorX, y = belowSelection)
                     .onSizeChanged { measured = it },
@@ -1122,6 +1140,10 @@ private fun ReadyScreen(
         },
         isSplit = paneLayout.isSplit,
         isFloatingPane = paneLayout.isFloating,
+        // The drawer's keyboard button, reaching the same toggle the top
+        // bar's own control does — the drawer is simply the one place that
+        // stays reachable while the keyboard is up.
+        onToggleKeyboard = ::toggleKeyboard,
         /**
          * Ids, not names, and in the order they are drawn: the upper pane
          * first. The drawer's pair card mirrors the screen, and a swap changes
@@ -1313,9 +1335,12 @@ private fun TerminalPaneBody(
     /**
      * The grid's top padding, already animated in step with the pill row.
      *
-     * Passed in rather than derived here because it is a property of the screen,
-     * not of a pane: both panes share one status bar and one row, and a pane that
-     * computed its own would answer a moment later than the row it is clearing.
+     * Passed in rather than derived here because it is a property of what sits
+     * above the pane, not of the pane itself: the primary pane has the status
+     * bar and the pill row above it and clears them both, and the second pane
+     * has the first pane above it and clears nothing. Giving both the same
+     * number is what pushed the lower session's whole grid down by the height
+     * of a bar that was never over it.
      */
     topPadding: Dp,
     inputBarState: dev.drosh.ui.input.InputBarUiState,
