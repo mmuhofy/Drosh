@@ -403,10 +403,10 @@ no terminal session needed.</string>
     <string name="agent_no_models">No model matches that search.</string>
     <string name="settings_theme_room_store">Store</string>
     <string name="settings_theme_room_library">Library</string>
-    <string name="settings_theme_store_section">Store</string>
     <string name="settings_theme_installed_tag">Installed</string>
     <string name="settings_theme_install">Install</string>
     <string name="settings_theme_remove_title">Remove %1$s?</string>
     <string name="settings_theme_remove_body">The theme file leaves .drosh. The colours on screen go back to Drosh's own.</string>
     <string name="settings_theme_remove_confirm">Remove</string>
+    <string name="sidebar_menu">Session menu</string>
 </resources>
