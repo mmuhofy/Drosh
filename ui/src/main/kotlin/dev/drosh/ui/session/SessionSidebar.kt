@@ -57,6 +57,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -1067,6 +1068,24 @@ private fun SessionRow(
                             .weight(1f)
                             .height(3.dp)
                             .background(DroshPrimary),
+                    )
+                }
+            }
+
+            // The three dots: the row's menu, always reachable. The long
+            // press used to open it and the pick-up took that over, so the
+            // menu now has a door of its own — a dot is the smallest one
+            // there is, and it sits where a menu belongs.
+            if (!ended) {
+                IconButton(
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        painter = rememberVectorPainter(DroshIcons.EllipsisVertical),
+                        contentDescription = stringResource(R.string.sidebar_menu),
+                        tint = DroshTextSecondary,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }

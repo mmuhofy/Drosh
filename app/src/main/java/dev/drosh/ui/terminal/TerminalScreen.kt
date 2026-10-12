@@ -886,7 +886,6 @@ private fun ReadyScreen(
                 selectedText = selectionText,
                 url = selectionUrl,
                 canPaste = hasClipboardText,
-                keyboardFocused = keyboardFocused,
                 blurRadius = MENU_BLUR,
                 onCopy = {
                     selectionText?.let { context.copyToClipboard("terminal", it) }
@@ -899,7 +898,6 @@ private fun ReadyScreen(
                 },
                 onSelectAll = { terminalViewRef.value?.selectAll() },
                 onShare = { selectionText?.let { context.shareText(it) } },
-                onToggleKeyboard = ::toggleKeyboard,
                 modifier = Modifier
                     .offset(x = anchorX, y = belowSelection)
                     .onSizeChanged { measured = it },
