@@ -165,14 +165,20 @@ fun SettingsTopBar(
             label = "backScale",
         )
         Box(
+            // A glass pill, not a filled circle. It is the same control the
+            // terminal's pill row draws: 44dp of touch target, the same
+            // translucent surface and the same hairline edge — so a screen the
+            // user arrives at from the terminal carries the terminal's own
+            // chrome rather than a second, heavier-looking variant of it.
             modifier = Modifier
-                .size(38.dp)
+                .size(44.dp)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                 }
                 .clip(CircleShape)
-                .background(if (pressed) DroshTilePressed else DroshTile)
+                .background(if (pressed) DroshSurfaceHigh else DroshSurfaceHigh.copy(alpha = 0.6f))
+                .border(1.dp, DroshOutline, CircleShape)
                 .clickable(
                     interactionSource = interaction,
                     indication = null,
@@ -463,7 +469,7 @@ fun SettingsSlider(
         label = "handleWidth",
     )
     val handleHeight by animateDpAsState(
-        targetValue = if (dragging) 34.dp else 26.dp,
+        targetValue = if (dragging) 30.dp else 22.dp,
         animationSpec = if (dragging) {
             spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -498,9 +504,12 @@ fun SettingsSlider(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            // Room for the thumb to grow to 44dp under the finger without
-            // clipping against the tile edge.
-            .height(56.dp)
+            // Room for the thumb to grow under the finger without clipping
+            // against the tile edge — and no more than that. This was 56dp for
+            // a 34dp thumb, which left 11dp of nothing above and below the
+            // control on every row that carried one, and a page of settings
+            // reads as a page of gaps when the gap is bigger than the control.
+            .height(46.dp)
             .onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
             .drawBehind {
                 val w = trackWidth.toFloat()

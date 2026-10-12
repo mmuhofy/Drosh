@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
@@ -689,11 +690,23 @@ private fun AgentComposer(
         // the whole app's controls, so the composer and the pill row read as the
         // same material rather than as two things that happen to be on the same
         // screen.
+        //
+        // It floats, and it is the one surface on this screen that does: a real
+        // shadow beneath it, so it reads as sitting over the transcript rather
+        // than as a bar the transcript stops at. The border is drawn here and
+        // nowhere else outside the pills — an outline is what says "this is a
+        // control", and the composer is the one card-sized control on screen.
         val glass = LocalAgentGlass.current
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassSurface(glass, pressed = false, shape = RoundedCornerShape(20.dp))
+                .shadow(10.dp, RoundedCornerShape(20.dp), clip = false)
+                .glassSurface(
+                    glass,
+                    pressed = false,
+                    shape = RoundedCornerShape(20.dp),
+                    edged = true,
+                )
                 .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
         ) {
             Column {
