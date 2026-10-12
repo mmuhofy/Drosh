@@ -17,7 +17,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.draw.scale
-import androidx.compose.runtime.onDispose
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.border
@@ -27,11 +26,14 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.util.onDispose
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -776,6 +778,8 @@ private fun SessionRow(
     dragState: SidebarDragState? = null,
     /** Opens this row's menu — where the long press used to open it. */
     onOpenMenu: () -> Unit = {},
+    /** Called with the session a held row was released over. */
+    onDrop: (String) -> Unit = {},
     /**
      * True when this row's session is the one in the second pane.
      *
@@ -1427,5 +1431,211 @@ private fun SplitDragHandle(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SidebarFooter(
+    searchOpen: Boolean,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onOpenSearch: () -> Unit,
+    onCloseSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val focusManager = LocalFocusManager.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DroshSurface)
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp)
+            .padding(top = 10.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // The pill and the field occupy the same slot and keep the same width,
+        // so the row never jumps; what animates is the swap between them and
+        // the button turning into the close control. Animating a weight for
+        // this was the obvious approach and it is invalid — weight must be
+        // greater than zero, so the collapsed state crashed the moment the
+        // footer composed.
+        Box(modifier = Modifier.weight(1f)) {
+            AnimatedContent(
+                targetState = searchOpen,
+                transitionSpec = {
+                    (fadeIn(tween(200)) + slideInHorizontally { it / 8 }) togetherWith
+                        (fadeOut(tween(120)) + slideOutHorizontally { -it / 8 })
+                },
+                label = "searchSwap",
+            ) { open ->
+                if (open) {
+                    SearchField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    // Collapsed it is a plain target, not a text field: a focused
+                    // field here summons the keyboard, which resizes the drawer
+                    // and fights the push animation.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(DroshSurfaceVariant)
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() },
+                                onClick = onOpenSearch,
+                            )
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
+                        Icon(
+                            imageVector = DroshIcons.Search,
+                            contentDescription = null,
+                            tint = DroshTextMuted,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = "Search sessions",
+                            color = DroshTextMuted,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(DroshSurfaceVariant.copy(alpha = 0.75f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = {
+                        focusManager.clearFocus()
+                        if (searchOpen) onCloseSearch() else onOpenSettings()
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            AnimatedContent(
+                targetState = searchOpen,
+                transitionSpec = {
+                    (fadeIn(tween(160)) + scaleIn()) togetherWith
+                        (fadeOut(tween(120)) + scaleOut())
+                },
+                label = "searchButton",
+            ) { open ->
+                Icon(
+                    imageVector = if (open) DroshIcons.X else DroshIcons.Settings,
+                    contentDescription = if (open) "Close search" else "Settings",
+                    tint = DroshTextSecondary,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    Row(
+        modifier = modifier
+            .height(42.dp)
+            .clip(RoundedCornerShape(50))
+            .background(DroshSurfaceVariant)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Icon(
+            imageVector = DroshIcons.Search,
+            contentDescription = null,
+            tint = DroshTextMuted,
+            modifier = Modifier.size(16.dp),
+        )
+        Box(modifier = Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(text = "Search sessions", color = DroshTextMuted, fontSize = 14.sp)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
+                cursorBrush = SolidColor(DroshPrimary),
+                interactionSource = interactionSource,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CircleButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    icon: ImageVector,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    // Needed inside `pointerInput`, whose block is not a composable scope: the
+    // touch slop has to be in pixels, and the slop is a dp constant.
+    val density = LocalDensity.current
+    val surface by animateFloatAsState(
+        targetValue = if (pressed) 1f else 0f,
+        animationSpec = tween(durationMillis = 120),
+        label = "circlePress",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "circleScale",
+    )
+    Box(
+        modifier = Modifier
+            .size(42.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(CircleShape)
+            .background(DroshSurfaceVariant.copy(alpha = if (pressed) 1f else 0.75f))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = DroshTextSecondary,
+            modifier = Modifier.size(19.dp),
+        )
     }
 }
