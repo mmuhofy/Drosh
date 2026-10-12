@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -87,6 +88,8 @@ import dev.drosh.domain.agent.TerminalProjection
 import dev.drosh.domain.agent.TokenUsage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
+import dev.drosh.design.system.DroshMenuItem
+import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.ui.agent.components.ActionButton
 import dev.drosh.ui.agent.components.CollapsibleRow
 import dev.drosh.ui.agent.components.DiffBlock
@@ -177,7 +180,6 @@ fun AgentChatScreen(
     // reading it. Sharing it is what keeps this to one offscreen render.
     val glass = rememberAgentGlass()
 
-    var menuOpen by rememberSaveable(chatId) { mutableStateOf(false) }
     var sheetOpen by rememberSaveable(chatId) { mutableStateOf(false) }
     var modelPickerOpen by rememberSaveable(chatId) { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
@@ -213,8 +215,31 @@ fun AgentChatScreen(
                         providerState.models.firstOrNull()?.id ?: stringResource(R.string.agent_select_model)
                     },
                     onBack = onBack,
-                    onOpenMenu = { menuOpen = true },
                     onOpenModelPicker = { modelPickerOpen = true },
+                    menuItems = listOf(
+                        DroshMenuItem(
+                            label = stringResource(R.string.agent_rename),
+                            id = "rename",
+                            icon = DroshIcons.Pencil,
+                        ),
+                        DroshMenuItem(
+                            label = stringResource(R.string.agent_terminal_history),
+                            id = "history",
+                            icon = DroshIcons.Terminal,
+                        ),
+                        DroshMenuItem(
+                            label = stringResource(R.string.agent_delete_session),
+                            id = "delete",
+                            icon = DroshIcons.Trash2,
+                        ),
+                    ),
+                    onMenuItemClick = { id ->
+                        when (id) {
+                            "rename" -> renaming = true
+                            "history" -> sheetOpen = true
+                            "delete" -> deleting = true
+                        }
+                    },
                 )
 
                 providerState.error?.let { message ->
@@ -301,25 +326,7 @@ fun AgentChatScreen(
                 )
             }
 
-            if (menuOpen) {
-                AgentChatMenu(
-                    visible = menuOpen,
-                    chatName = chat?.name ?: stringResource(R.string.agent_chat),
-                    onRename = {
-                        menuOpen = false
-                        renaming = true
-                    },
-                    onShowTerminalHistory = {
-                        menuOpen = false
-                        sheetOpen = true
-                    },
-                    onDelete = {
-                        menuOpen = false
-                        deleting = true
-                    },
-                    onDismiss = { menuOpen = false },
-                )
-            }
+
 
             if (sheetOpen) {
                 TerminalHistorySheet(
@@ -379,9 +386,11 @@ fun AgentChatScreen(
 private fun ChatPillRow(
     modelLabel: String,
     onBack: () -> Unit,
-    onOpenMenu: () -> Unit,
     onOpenModelPicker: () -> Unit,
+    menuItems: List<DroshMenuItem>,
+    onMenuItemClick: (String) -> Unit,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -420,12 +429,25 @@ private fun ChatPillRow(
         // Stop lives in the composer instead, next to the text that is generating.
         // Two controls in one row that swap identity is a bar you have to re-read every
         // time a run starts.
-        AgentIconPill(
-            icon = DroshIcons.EllipsisVertical,
-            contentDescription = stringResource(R.string.agent_chat_menu_cd),
-            onClick = onOpenMenu,
-            tint = DroshTextSecondary,
-        )
+        //
+        // The menu is the drawer's own: the same DroshDropdownMenu the terminal's
+        // overflow opens, anchored to the pill it belongs to. It used to be a
+        // full-screen scrim with a surface of its own, which made one screen carry
+        // two dropdowns.
+        Box {
+            AgentIconPill(
+                icon = DroshIcons.EllipsisVertical,
+                contentDescription = stringResource(R.string.agent_chat_menu_cd),
+                onClick = { menuOpen = true },
+                tint = DroshTextSecondary,
+            )
+            DroshDropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+                items = menuItems,
+                onItemClick = onMenuItemClick,
+            )
+        }
     }
 }
 
@@ -436,6 +458,15 @@ private fun ChatPillRow(
  * and a menu that grows past half the screen stops being a menu. The selection is
  * marked with a tick as well as a background, so it does not depend on colour.
  */
+/**
+ * The model picker, as the same sheet the language picker is.
+ *
+ * One bottom-sheet shape for the whole app: the same grabber, the same
+ * capsule search, the same row with a circle of the model's initials and
+ * the same check. The model sheet used to be its own shape — a scrim, its
+ * own surface, its own row — which made two pickers on two screens look
+ * like two apps.
+ */
 @Composable
 private fun ModelPickerSheet(
     models: List<LlmModel>,
@@ -445,174 +476,188 @@ private fun ModelPickerSheet(
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val closeCd = stringResource(R.string.action_close)
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                )
-                .semantics { contentDescription = closeCd },
-        )
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var query by remember { mutableStateOf("") }
 
-        val glass = LocalAgentGlass.current
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.7f)
-                .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
-                .then(
-                    if (glass == null) {
-                        Modifier.background(DroshSurface)
-                    } else {
-                        Modifier
-                            .hazeEffect(glass.state, agentGlassStyle())
-                            .background(DroshSurface.copy(alpha = 0.9f))
-                    }
-                )
-                .navigationBarsPadding()
-                .padding(top = 10.dp, bottom = 8.dp),
-        ) {
+    val matches = remember(query, models) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) models
+        else models.filter { model ->
+            model.id.lowercase().contains(q) ||
+                (model.label?.lowercase()?.contains(q) == true)
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = DroshTile,
+        dragHandle = {
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(DroshText.copy(alpha = 0.2f)),
+                    .padding(vertical = 12.dp)
+                    .size(width = 38.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(DroshTrack),
             )
-            Spacer(Modifier.height(8.dp))
-
+        },
+    ) {
+        Column(modifier = Modifier.navigationBarsPadding()) {
             Text(
                 text = stringResource(R.string.agent_model),
-                fontSize = 15.5.sp,
-                fontWeight = FontWeight.SemiBold,
                 color = DroshText,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 4.dp),
             )
 
-            // An empty sheet is the worst outcome here: it looks like a broken list
-            // rather than a catalogue that has not arrived. Both states say which one
-            // it is, and the empty one offers the thing that fixes it.
-            if (models.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(28.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (loading) {
+            // The same capsule the language sheet searches through.
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 22.dp, vertical = 10.dp)
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(DroshTilePressed)
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                Icon(
+                    imageVector = DroshIcons.Search,
+                    contentDescription = null,
+                    tint = DroshTextMuted,
+                    modifier = Modifier.size(18.dp),
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    if (query.isEmpty()) {
                         Text(
-                            text = stringResource(R.string.agent_models_loading),
-                            fontSize = 13.sp,
-                            color = DroshTextSecondary,
+                            text = stringResource(R.string.agent_search_models),
+                            color = DroshTextMuted,
+                            fontSize = 14.5.sp,
                         )
-                    } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = stringResource(R.string.agent_models_empty),
-                                fontSize = 14.sp,
-                                color = DroshText,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = stringResource(R.string.agent_models_error),
-                                fontSize = 12.sp,
-                                lineHeight = 17.sp,
-                                color = DroshTextMuted,
-                            )
-                            Spacer(Modifier.height(14.dp))
-                            AgentPill(
-                                label = stringResource(R.string.agent_open_settings),
-                                onClick = {
-                                    onDismiss()
-                                    onOpenSettings()
-                                },
-                                primary = true,
-                                contentDescription = stringResource(R.string.agent_open_settings_cd),
-                            )
-                        }
                     }
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = DroshText, fontSize = 14.5.sp),
+                        cursorBrush = SolidColor(DroshPrimary),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-                return@Column
             }
 
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                items(models, key = { it.id }) { model ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = TOUCH_TARGET)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (model.id == selectedId) {
-                                    DroshTileSelected
-                                } else {
-                                    Color.Transparent
-                                }
-                            )
-                            .clickable { onSelect(model.id) }
-                            .semantics {
-                                contentDescription = model.id +
-                                    if (model.id == selectedId) ", seçili" else ""
-                            }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+            when {
+                loading -> {
+                    Text(
+                        text = stringResource(R.string.agent_models_loading),
+                        color = DroshTextMuted,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(22.dp),
+                    )
+                }
+                matches.isEmpty() -> {
+                    // The way out of an empty picker: the keys live in settings,
+                    // and a sheet that can only be dismissed is a dead end.
+                    Text(
+                        text = stringResource(R.string.agent_no_models),
+                        color = DroshTextMuted,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 22.dp),
+                    )
+                    TextButton(
+                        onClick = {
+                            onDismiss()
+                            onOpenSettings()
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp),
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = model.label ?: model.id,
-                                fontSize = 14.sp,
-                                color = if (model.id == selectedId) DroshPrimary else DroshText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = model.id,
-                                fontSize = 11.sp,
-                                fontFamily = LocalFontSet.current.mono,
-                                color = DroshTextMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (model.id == selectedId) {
-                            Icon(
-                                imageVector = DroshIcons.Check,
-                                contentDescription = null,
-                                tint = DroshPrimary,
-                                modifier = Modifier.size(17.dp),
+                        Text(stringResource(R.string.agent_open_settings), color = DroshPrimary)
+                    }
+                }
+                else -> {
+                    LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                        items(matches, key = { it.id }) { model ->
+                            ModelOptionRow(
+                                model = model,
+                                selected = model.id == selectedId,
+                                onClick = { onSelect(model.id) },
                             )
                         }
                     }
                 }
             }
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
 
-/**
- * The composer.
- *
- * One surface: the text field above, the controls in a row inside its lower edge.
- * A separate send button outside the field was tried and read as two objects —
- * on a 390dp screen the field ends up about 300dp wide and the button claims 44dp
- * of prime right-thumb space for one action.
- *
- * The send control is the only filled thing down here, and it fills only when there
- * is something to send. A permanently filled button is a claim about what the next
- * tap will do, and it should not make that claim when there is nothing typed.
- */
+@Composable
+private fun ModelOptionRow(
+    model: LlmModel,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) DroshTileSelected else Color.Transparent)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // The model's initials, in the language sheet's own circle.
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(if (selected) DroshPrimary else DroshTilePressed),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = modelInitials(model),
+                color = if (selected) DroshTile else DroshTextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = model.label ?: model.id,
+                color = if (selected) DroshPrimary else DroshText,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = model.id,
+                color = DroshTextMuted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (selected) SettingsCheck()
+    }
+}
+
+/** Two letters from the model's label, or its id when there is no label. */
+private fun modelInitials(model: LlmModel): String {
+    val words = (model.label ?: model.id).split(' ', '-', '_', ':', '/').filter { it.isNotBlank() }
+    val initials = words.take(2).map { it.first().uppercase() }.joinToString("")
+    return initials.ifEmpty { model.id.take(2).uppercase() }
+}
+
 @Composable
 private fun AgentComposer(
     running: Boolean,

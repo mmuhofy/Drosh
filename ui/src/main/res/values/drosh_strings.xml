@@ -399,4 +399,6 @@ no terminal session needed.</string>
     <string name="settings_session_surface">Session rows on a surface</string>
     <string name="settings_session_surface_desc">Off: lines on the drawer. On: a tile per session, with a gap.</string>
     <string name="sidebar_close_split">Close split</string>
+    <string name="agent_search_models">Search models</string>
+    <string name="agent_no_models">No model matches that search.</string>
 </resources>

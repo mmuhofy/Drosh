@@ -373,4 +373,6 @@ terminal session açmana gerek yok.</string>
     <string name="settings_session_surface">Session satırları zeminli</string>
     <string name="settings_session_surface_desc">Kapalı: çekmece üzerinde çizgiler. Açık: her session için kart, aralarında boşluk.</string>
     <string name="sidebar_close_split">Bölmeyi kapat</string>
+    <string name="agent_search_models">Model ara</string>
+    <string name="agent_no_models">Bu aramaya uyan model yok.</string>
 </resources>
