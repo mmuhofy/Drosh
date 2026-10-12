@@ -790,14 +790,6 @@ private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) 
         animationSpec = tween(durationMillis = 120),
         label = "rowPress",
     )
-    // The row's surface in one number: a row being carried is fully opaque —
-    // it is a card now, off the list — a row on a surface never goes fully
-    // clear, and a row on lines is clear until it is touched.
-    val rowSurfaceAlpha = when {
-        dragging -> 1f
-        sessionSurface -> 0.55f + 0.45f * surface
-        else -> surface
-    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -979,6 +971,15 @@ private fun SessionRow(
         animationSpec = tween(durationMillis = 120),
         label = "sessionPress",
     )
+
+    // The row's surface in one number: a row being carried is fully opaque —
+    // it is a card now, off the list — a row on a surface never goes fully
+    // clear, and a row on lines is clear until it is touched.
+    val rowSurfaceAlpha = when {
+        dragging -> 1f
+        sessionSurface -> 0.55f + 0.45f * surface
+        else -> surface
+    }
 
     Box {
         Row(
