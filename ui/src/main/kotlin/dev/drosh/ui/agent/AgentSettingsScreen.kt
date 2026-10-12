@@ -332,6 +332,12 @@ fun AgentSettingsScreen(
         }
 
         SettingsCaption(text = stringResource(R.string.agent_settings_model_hint))
+
+        // ── Trust ───────────────────────────────────────────────────────────
+        // Last, because it is the setting with the most consequences and the
+        // one whose caption matters most: it has to say what the level does
+        // *not* change as well as what it does.
+        AgentTrustSection()
     }
 
     if (showKeyDialog) {

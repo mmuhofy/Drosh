@@ -435,4 +435,16 @@ terminal session açmana gerek yok.</string>
     <string name="agent_settings_effort">Düşünme eforu</string>
     <string name="agent_settings_effort_default">Varsayılan</string>
     <string name="agent_settings_model_hint">Model, sohbetin üstündeki model düğmesinden de değiştirilir. Agent simgesi yalnızca terminal ekranındaki agent düğmesinde görünür — ayarlarda değil.</string>
+    <string name="agent_settings_section_trust">Guven</string>
+    <string name="agent_trust_autonomy">Ne kadarini tek basina yapabilir</string>
+    <string name="agent_trust_level_ask">Her seferinde sor</string>
+    <string name="agent_trust_level_auto">Yazmadan once sor</string>
+    <string name="agent_trust_level_yolo">Sorma</string>
+    <string name="agent_trust_desc_ask">Her kabuk komutu calismadan once sana sorulur.</string>
+    <string name="agent_trust_desc_auto">Okuyan komutlar kendi calisir; yazan, silen, kurulum yapan ya da agda cikan her sey sorulur.</string>
+    <string name="agent_trust_desc_yolo">Asagidaki komutlar disinda hicbir sey sorulmaz.</string>
+    <string name="agent_trust_floor_note">Bazi komut bicimleri her seviyede reddedilir: yanlislikla degil, calistiklari makineye zarar verirler. Hicbir ayar onlari acmaz.</string>
+    <string name="agent_trust_rules_title">Her zaman izin verilenler</string>
+    <string name="agent_trust_rules_note">Iptal etmek icin dokun</string>
+    <string name="agent_trust_rules_revoke">Iptal</string>
 </resources>
