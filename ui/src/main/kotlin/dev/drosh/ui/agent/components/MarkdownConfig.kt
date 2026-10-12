@@ -81,13 +81,17 @@ private class DroshMarkdownTypography(
     private val mono: FontFamily,
 ) : MarkdownTypography {
     // Headings step down from h1 in a ratio that stays legible at reading size on a
-    // phone. A library default of 2x for h1 would be a headline in the transcript.
+    // phone — and stops there. A library default of 2x for h1 would be a headline in
+    // the transcript, and a transcript where a sub-heading is twice the body size
+    // reads as a page someone shout into, not an answer. h1 lands at 1.15x the body
+    // text and the rest fall away inside a point of it: a heading is a *break* in the
+    // text, and its weight and spacing say that already.
     override val text: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 21.sp)
     override val paragraph: TextStyle get() = text
-    override val h1: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
-    override val h2: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 17.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold)
-    override val h3: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
-    override val h4: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+    override val h1: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
+    override val h2: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
+    override val h3: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+    override val h4: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
     override val h5: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
     override val h6: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, color = secondary)
     override val quote: TextStyle get() = text.copy(color = secondary)
@@ -146,5 +150,12 @@ fun droshMarkdownComponents(onCopy: (String) -> Unit): MarkdownComponents =
                 model = model,
                 onCopy = onCopy,
             )
+        },
+        // A table is a table. The renderer parses the pipe form and would
+        // otherwise draw its source — three lines of punctuation with the
+        // answer somewhere inside them — so the AST is read and the rows and
+        // cells are laid out as what they are.
+        table = { model ->
+            DroshMarkdownTable(model = model)
         },
     )

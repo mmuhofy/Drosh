@@ -396,4 +396,6 @@ terminal session açmana gerek yok.</string>
     <string name="agent_retry">Yeniden dene</string>
     <string name="agent_edit_message">Duzenle</string>
     <string name="agent_select_text">Metni sec</string>
+    <string name="agent_copy_code">Kodu kopyala</string>
+    <string name="agent_table">Tablo</string>
 </resources>

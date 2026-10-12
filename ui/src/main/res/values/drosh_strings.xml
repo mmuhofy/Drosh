@@ -422,4 +422,6 @@ no terminal session needed.</string>
     <string name="agent_retry">Retry</string>
     <string name="agent_edit_message">Edit</string>
     <string name="agent_select_text">Select text</string>
+    <string name="agent_copy_code">Copy code</string>
+    <string name="agent_table">Table</string>
 </resources>
