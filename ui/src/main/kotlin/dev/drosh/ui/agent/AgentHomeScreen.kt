@@ -61,6 +61,7 @@ import dev.drosh.ui.agent.components.AgentPill
 import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.rememberAgentGlass
+import dev.drosh.ui.agent.components.glassRow
 import dev.drosh.ui.agent.components.SectionHeader
 import androidx.compose.ui.res.stringResource
 import dev.drosh.ui.R

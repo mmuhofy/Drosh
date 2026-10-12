@@ -191,6 +191,10 @@ fun rememberAgentGlass(): AgentGlass = AgentGlass(rememberHazeState())
  * now, and the style is asked only for the blur.
  */
 fun agentGlassStyle(): HazeStyle = HazeStyle(
+    // Named, and null: the library offers this style twice — one tint, a list of
+    // tints — and a call that names neither is a call the compiler cannot choose
+    // between.
+    tint = null,
     blurRadius = AgentPillDefaults.BlurRadius,
 )
 
