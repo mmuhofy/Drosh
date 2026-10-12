@@ -461,4 +461,19 @@ no terminal session needed.</string>
     <string name="agent_settings_effort">Reasoning effort</string>
     <string name="agent_settings_effort_default">Default</string>
     <string name="agent_settings_model_hint">The model can also be changed from the model button above a chat. The agent icon appears only on the agent button on the terminal screen — not in settings.</string>
+    <string name="session_log_attach">Log to agent</string>
+    <string name="session_log_pick_title">Take a log from</string>
+    <string name="session_log_pick_body">Pick the session whose output you want to share.</string>
+    <string name="session_log_no_sessions">No open sessions to read.</string>
+    <string name="session_log_empty">This session has no output yet.</string>
+    <string name="session_log_line_count">%1$d lines</string>
+    <string name="session_log_hint">Tap a line, tap another to extend, or hold and drag.</string>
+    <string name="session_log_selected">%1$d lines selected</string>
+    <string name="session_log_select_all">Select all</string>
+    <string name="session_log_clear">Clear</string>
+    <string name="session_log_add_to_agent">To agent</string>
+    <string name="session_log_added_title">Ready for the agent</string>
+    <string name="session_log_added_body">%1$s output is waiting in the agent composer.</string>
+    <string name="session_log_added_clipboard">The selected lines are also on the clipboard.</string>
+    <string name="session_log_continue">Continue in chat</string>
 </resources>
