@@ -386,4 +386,10 @@ terminal session açmana gerek yok.</string>
     <string name="sidebar_drop_to_split">Birakinca bol</string>
     <string name="settings_immersive">Tam ekran (immersive)</string>
     <string name="settings_immersive_desc">Terminalde kaydirirken durum cubugu ve pill satirini gizle</string>
+    <string name="agent_terminal_cancelled">iptal edildi</string>
+    <string name="agent_terminal_exit">exit %1$d</string>
+    <string name="agent_terminal_more_lines">+%1$d satir daha</string>
+    <string name="agent_no_commands_running">calisiyor…</string>
+    <string name="agent_no_commands_yet">Agent henuz bir komut calistirmadi</string>
+    <string name="agent_no_commands_output_soon">cikti burada belirir</string>
 </resources>
