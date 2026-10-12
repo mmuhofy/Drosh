@@ -100,6 +100,16 @@ internal object DroshSettingsToml {
             putString("agent", "autonomy", autonomy.key)
             putStringList("agent", "always_allow", alwaysAllow.map { it.pattern })
         }
+        with(settings.agentTools) {
+            // Same `[agent]` section, not a section of its own: the trust keys
+            // above and these two are all read by the same thing — a shell, a
+            // script, the agent — and splitting them would mean two places to
+            // look for "what can this agent do". TomlDocument keeps one table per
+            // section name, so two `with` blocks writing `agent` merge rather
+            // than overwrite.
+            putBoolean("agent", "web_search", webSearch)
+            putString("agent", "effort", effort)
+        }
         with(settings.security) {
             putString("security", "auto_lock", autoLock.tomlName())
             putInt("security", "pin_length", pinLength)
@@ -162,6 +172,10 @@ internal object DroshSettingsToml {
                 motdText = document.getString("shell", "motd_text", base.shell.motdText),
                 startupCommand = document.getString("shell", "startup_command", base.shell.startupCommand),
                 locale = document.getString("shell", "locale", base.shell.locale),
+            ),
+            agentTools = base.agentTools.copy(
+                webSearch = document.getBoolean("agent", "web_search", base.agentTools.webSearch),
+                effort = document.getString("agent", "effort", base.agentTools.effort),
             ),
             security = base.security.copy(
                 autoLock = AutoLockTimeout.fromString(document.getString("security", "auto_lock", "")),

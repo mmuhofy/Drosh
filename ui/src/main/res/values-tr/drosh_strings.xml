@@ -447,4 +447,56 @@ terminal session açmana gerek yok.</string>
     <string name="agent_trust_rules_title">Her zaman izin verilenler</string>
     <string name="agent_trust_rules_note">Iptal etmek icin dokun</string>
     <string name="agent_trust_rules_revoke">Iptal</string>
+
+
+    <!-- ── composer: + sheeti ──────────────────────────────────────────────── -->
+    <string name="agent_attach_cd">Prompta ekle</string>
+    <string name="agent_attach_title">Prompta ekle</string>
+    <string name="agent_attach_group_attach">Ekle</string>
+    <string name="agent_attach_group_settings">Bu sohbet</string>
+    <string name="agent_attach_image">Görsel</string>
+    <string name="agent_attach_image_desc">Galeriden bir görsel seç</string>
+    <string name="agent_attach_file">Dosya</string>
+    <string name="agent_attach_file_desc">Bu cihazdan bir dosya ekle</string>
+    <string name="agent_attach_camera">Kamera</string>
+    <string name="agent_attach_camera_desc">Fotoğraf çek ve ekle</string>
+    <string name="agent_attach_camera_unavailable">Bu cihazda kamera uygulaması yok</string>
+    <string name="agent_attach_log">Session logundan</string>
+    <string name="agent_attach_log_desc">Son komutu ve çıktısını ekle</string>
+    <string name="agent_attach_log_empty">Bu sohbette henüz komut çalışmadı</string>
+    <string name="agent_attach_web_search">Web arama</string>
+    <string name="agent_attach_web_search_desc">Agentın çalışırken internette arama yapabilsin</string>
+    <string name="agent_attach_web_search_on">Açık — agent internette arayabilir</string>
+    <string name="agent_attach_web_search_off">Kapalı — web arama aracı sunulmuyor</string>
+    <string name="agent_attach_effort">Düşünme eforu</string>
+    <string name="agent_attach_effort_low">Düşük</string>
+    <string name="agent_attach_effort_medium">Orta</string>
+    <string name="agent_attach_effort_high">Yüksek</string>
+    <string name="agent_attach_effort_none">Bu modelde seçilecek bir düşünme seviyesi yok</string>
+    <string name="agent_attach_preparing">Ek hazırlanıyor…</string>
+    <string name="agent_attach_too_large">Bu dosya 5 MB üzerinde. Daha küçük bir şey seç.</string>
+    <string name="agent_attach_unreadable">Bu dosya okunamadı.</string>
+    <string name="agent_attach_remove_cd">Prompttan kaldır</string>
+    <string name="agent_attach_chip_cd">%1$s eklendi</string>
+    <string name="agent_attach_binary_kb">%1$d KB — ikili olarak eklendi</string>
+    <string name="agent_attach_saved">%1$s — eklendi</string>
+
+    <!-- ── web arama sonuçları ─────────────────────────────────────────────── -->
+    <string name="agent_search_title">Web sonuçları</string>
+    <string name="agent_search_query">%1$s</string>
+    <string name="agent_search_count">%1$d sonuç</string>
+    <string name="agent_search_count_one">1 sonuç</string>
+    <string name="agent_search_empty">Bu arama için bir şey dönmedi.</string>
+    <string name="agent_search_error">Bu arama okunabilir bir şey döndürmedi.</string>
+    <string name="agent_search_raw">Ham çıktıyı oku</string>
+
+    <!-- ── kaynaklar ──────────────────────────────────────────────────────── -->
+    <string name="agent_sources_title">Kaynaklar</string>
+    <string name="agent_sources_share_cd">Bu bağlantıyı paylaş</string>
+    <string name="agent_sources_open_cd">Bu bağlantıyı tarayıcıda aç</string>
+    <string name="agent_sources_leave_title">Drosh çıkılsın mı?</string>
+    <string name="agent_sources_leave_body">Bu bağlantıyı açmak Drosh uygulamasından çıkıp bağlantıyı tarayıcıya verir.</string>
+    <string name="agent_sources_leave_yes">Aç</string>
+    <string name="agent_sources_no_browser">Bu cihazda bu bağlantıyı açabilecek bir uygulama yok.</string>
+    <string name="agent_sources_share_failed">Bu cihazda bağlantı paylaşabilecek bir şey yok.</string>
 </resources>

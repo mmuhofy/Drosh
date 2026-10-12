@@ -21,6 +21,7 @@ import dev.drosh.domain.agent.LlmToolCall
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.ToolDefinition
 import dev.drosh.domain.agent.TranscriptStore
+import dev.drosh.domain.settings.SettingsStore
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -77,6 +78,7 @@ class AgentLoop @Inject constructor(
     private val registry: ProviderRegistry,
     private val toolRegistry: ToolRegistry,
     private val transcripts: TranscriptStore,
+    private val settings: SettingsStore,
 ) : AgentSession {
 
     private val chats = ConcurrentHashMap<String, ChatRuntime>()
@@ -174,7 +176,13 @@ class AgentLoop @Inject constructor(
         }
 
         val adapter = registry.adapterFor(provider)
-        val declarations = toolRegistry.all().map { tool ->
+        val declarations = toolRegistry.all().mapNotNull { tool ->
+            // A tool the user has switched off is not declared at all, rather than
+            // declared and refused: a model that can see a tool and cannot use it
+            // keeps calling it, and each refusal costs a step of the run.
+            if (tool.name == WEB_SEARCH_TOOL && !settings.settings.value.agentTools.webSearch) {
+                return@mapNotNull null
+            }
             ToolDefinition(tool.name, tool.description, tool.parameters)
         }
 
@@ -454,5 +462,8 @@ class AgentLoop @Inject constructor(
                 "- If a decision is needed that only the user can make, call ask_user " +
                 "instead of guessing.\n" +
                 "- When the task is done, say so plainly and say what you changed."
+
+        /** Must match `WebSearchTool.NAME` — the tool the `+` sheet can switch off. */
+        private const val WEB_SEARCH_TOOL = "web_search"
     }
 }

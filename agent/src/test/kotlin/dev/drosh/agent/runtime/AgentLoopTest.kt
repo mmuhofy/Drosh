@@ -14,10 +14,15 @@ import dev.drosh.domain.agent.LlmRequest
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolResult
+import dev.drosh.domain.settings.DroshSettings
+import dev.drosh.domain.settings.SettingsStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -34,6 +39,16 @@ class AgentLoopTest {
 
     private val adapter = ScriptedAdapter()
 
+    /**
+     * The settings the loop is given, so a test can switch a tool off.
+     *
+     * Held rather than built inside `loop()` because the switch is the thing
+     * under test: a store constructed inside the helper could not be configured
+     * by the caller, and a test for a gate that cannot turn the gate off is not
+     * a test.
+     */
+    private val settings = FakeSettingsStore()
+
 
     private val transcripts = FakeTranscriptStore()
 
@@ -45,6 +60,7 @@ class AgentLoopTest {
         registry = ProviderRegistry(setOf(adapter)),
         toolRegistry = ToolRegistry(tools.toSet()),
         transcripts = transcripts,
+        settings = settings,
     )
 
     private fun request(
@@ -677,6 +693,55 @@ class AgentLoopTest {
 
         assertEquals(AgentRunState.Idle, loop.state.value)
     }
+
+    // ── the web-search gate ─────────────────────────────────────────────────
+
+    @Test
+    fun `web search is declared to the model by default`() = runTest {
+        adapter.script = mutableListOf(answerTurn("done"))
+
+        loop(tools = arrayOf(FakeTool("web_search"))).send(request()).toList()
+
+        assertEquals(
+            listOf("web_search"),
+            adapter.requests.single().tools.map { it.name },
+        )
+    }
+
+    @Test
+    fun `web search off means the tool is never declared`() = runTest {
+        settings.webSearch = false
+        adapter.script = mutableListOf(answerTurn("done"))
+
+        loop(tools = arrayOf(FakeTool("web_search"), FakeTool("shell")))
+            .send(request())
+            .toList()
+
+        // Withheld rather than declared-and-refused: a model that can see a tool
+        // it cannot call keeps calling it, and every refusal costs a step.
+        assertEquals(
+            listOf("shell"),
+            adapter.requests.single().tools.map { it.name },
+        )
+    }
+
+    @Test
+    fun `switching web search back on declares it again without a restart`() = runTest {
+        adapter.script = mutableListOf(answerTurn("done"), answerTurn("done again"))
+
+        val session = loop(tools = arrayOf(FakeTool("web_search")))
+
+        settings.webSearch = false
+        session.send(request()).toList()
+
+        settings.webSearch = true
+        session.send(request(chatId = "chat-2")).toList()
+
+        assertEquals(
+            listOf(emptyList<String>(), listOf("web_search")),
+            adapter.requests.map { declared -> declared.tools.map { it.name } },
+        )
+    }
 }
 
 // ── assertion helpers ─────────────────────────────────────────────────────
@@ -691,3 +756,40 @@ private fun LlmRequest.userTexts(): List<String> =
 
 private fun JsonObject.stringOf(key: String): String? =
     (this[key] as? kotlinx.serialization.json.JsonPrimitive)?.content
+
+/**
+ * The settings file, held in memory.
+ *
+ * The loop reads one thing from it — whether `web_search` is offered — so the
+ * fake is the same shape with the value a test sets and the write a no-op.
+ */
+
+private class FakeSettingsStore(
+    initial: DroshSettings = DroshSettings.DEFAULT,
+) : SettingsStore {
+
+    private val state = MutableStateFlow(initial)
+    override val settings: StateFlow<DroshSettings> = state.asStateFlow()
+
+    /** The switch the tests flip, without going through a settings file. */
+    var webSearch: Boolean
+        get() = state.value.agentTools.webSearch
+        set(value) {
+            state.value = state.value.copy(
+                agentTools = state.value.agentTools.copy(webSearch = value),
+            )
+        }
+
+    override suspend fun update(transform: (DroshSettings) -> DroshSettings) {
+        state.value = transform(state.value)
+    }
+
+    override suspend fun reload() = Unit
+
+    private val external = MutableStateFlow(false)
+    override val changedExternally: StateFlow<Boolean> = external.asStateFlow()
+
+    override fun acknowledgeExternalChange() {
+        external.value = false
+    }
+}
