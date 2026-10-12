@@ -110,4 +110,13 @@ class SidebarDragState {
 
     /** True when any row is being carried, so every other row may light up. */
     val isDragging: Boolean get() = heldId != null
+
+    /**
+     * The held row's rectangle in root coordinates, or null.
+     *
+     * Read by the drag card, which is drawn in a window of its own so that it
+     * can follow the finger past the drawer's edge: it starts at the rect the
+     * row left behind and moves by the offset the gesture accumulated.
+     */
+    fun heldRect(): Rect? = heldId?.let { bounds[it] }
 }

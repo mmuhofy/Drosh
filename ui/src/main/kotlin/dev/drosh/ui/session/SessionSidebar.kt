@@ -77,6 +77,8 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -343,6 +345,44 @@ private fun SidebarContent(
     // cancel the hold the moment the drawer started to move.
     LaunchedEffect(isOpen) {
         if (!isOpen) dragState.cancel()
+    }
+
+    /**
+     * The card, drawn in a window of its own.
+     *
+     * The row that is carried goes invisible and the card takes its place here:
+     * a popup is a child of the window rather than of the list, so nothing clips
+     * it and it can follow the finger past the drawer's edge — out of the drawer
+     * and over whatever is beside it. Dragging something and having it stop at
+     * the edge of the thing you are dragging it from is a drag that does not
+     * really drag.
+     *
+     * Anchored at the row's own rectangle, moved by the gesture's offset, so the
+     * card leaves under the finger exactly where the finger picked it up.
+     */
+    val heldRect = dragState.heldRect()
+    val heldSession = sessions.firstOrNull { it.id == dragState.heldId }
+    if (heldRect != null && heldSession != null) {
+        Popup(
+            alignment = Alignment.TopStart,
+            offset = IntOffset(
+                (heldRect.left + dragState.offset.x).roundToInt(),
+                (heldRect.top + dragState.offset.y).roundToInt(),
+            ),
+            // Not focusable, and it does not dismiss on an outside touch: the
+            // gesture belongs to the row underneath it, and a popup that ate
+            // the first event of the drag would end the drag it is drawing.
+            properties = PopupProperties(
+                focusable = false,
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+            ),
+        ) {
+            SessionDragCard(
+                name = heldSession.name,
+                width = with(LocalDensity.current) { heldRect.width.toDp() },
+            )
+        }
     }
 
     val filtered = remember(sessions, searchQuery) {
@@ -991,27 +1031,14 @@ private fun SessionRow(
                 }
                 .then(
                     if (dragging) {
-                        // Two layers, deliberately: `offset` moves the row in
-                        // layout, `graphicsLayer` scales and lifts it at draw
-                        // time. Doing both in the layer would scale the offset
-                        // along with the row, and the row would drift off the
-                        // finger.
-                        val drag = dragState?.offset ?: Offset.Zero
-                        Modifier
-                            .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
-                            // A real shadow under a real card: the layer's own
-                            // elevation is not drawn for a surface with no
-                            // outline of its own, and this is what makes the
-                            // row read as lifted off the list rather than
-                            // floating text.
-                            .shadow(10.dp, RoundedCornerShape(14.dp))
-                            .graphicsLayer {
-                                scaleX = HELD_SCALE
-                                scaleY = HELD_SCALE
-                                shadowElevation = HELD_ELEVATION_PX
-                                shape = RoundedCornerShape(14.dp)
-                                clip = false
-                            }
+                        // The row's slot stays — taking it out would collapse the
+                        // list while the finger is still down — but the row itself
+                        // is drawn by the drag card in a window of its own, outside
+                        // the drawer, where nothing clips it. An invisible row
+                        // still takes the gestures, which is what lets one row
+                        // both carry and receive: the press that lifts a card is
+                        // still the press that lands it.
+                        Modifier.alpha(0f)
                     } else {
                         Modifier
                     },
@@ -1505,6 +1532,61 @@ private fun SplitPairHalf(
  * from here and this row is inside a drawer that is itself translating — the
  * two would not agree about where the finger is.
  */
+/**
+ * The card a row turns into while it is carried.
+ *
+ * Its own surface, its own shadow, its own window — so it reads as an object
+ * off the list and not as a row that changed colour. The two stacked bars say
+ * what releasing it will make, the same way the row it lands on does.
+ */
+@Composable
+private fun SessionDragCard(
+    name: String,
+    width: Dp,
+) {
+    Row(
+        modifier = Modifier
+            .width(width)
+            .height(44.dp)
+            .shadow(12.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(DroshSurfaceHigh)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(
+            modifier = Modifier.width(14.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            repeat(2) { row ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(if (row == 0) 1f else 0.62f)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(DroshPrimary),
+                )
+            }
+        }
+        Text(
+            text = name,
+            color = DroshText,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            painter = rememberVectorPainter(DroshIcons.EllipsisVertical),
+            contentDescription = null,
+            tint = DroshTextMuted,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
 @Composable
 private fun SplitDragHandle(
     onTap: () -> Unit,
