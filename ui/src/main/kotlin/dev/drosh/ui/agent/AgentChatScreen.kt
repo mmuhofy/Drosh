@@ -104,6 +104,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import dev.drosh.design.system.DroshTile
+import dev.drosh.design.system.DroshTilePressed
+import dev.drosh.design.system.DroshTrack
 import dev.drosh.design.system.DroshTileSelected
 import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.LlmModel
@@ -234,8 +239,8 @@ fun AgentChatScreen(
                             icon = DroshIcons.Trash2,
                         ),
                     ),
-                    onMenuItemClick = { id ->
-                        when (id) {
+                    onMenuItemClick = { item ->
+                        when (item.id) {
                             "rename" -> renaming = true
                             "history" -> sheetOpen = true
                             "delete" -> deleting = true
@@ -389,7 +394,7 @@ private fun ChatPillRow(
     onBack: () -> Unit,
     onOpenModelPicker: () -> Unit,
     menuItems: List<DroshMenuItem>,
-    onMenuItemClick: (String) -> Unit,
+    onMenuItemClick: (DroshMenuItem) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(

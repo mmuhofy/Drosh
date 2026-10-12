@@ -196,7 +196,9 @@ fun AppearanceCategory(
                     )
                 }
 
-                else -> SettingsTile(
+                // The drawer's shape, last: it is the one row here that changes
+                // how the session list is built rather than how it is coloured.
+                3 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_session_surface),
                     icon = DroshIcons.Smartphone,

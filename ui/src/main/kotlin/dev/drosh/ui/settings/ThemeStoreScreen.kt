@@ -1,6 +1,5 @@
 package dev.drosh.ui.settings
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -49,6 +48,18 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.settings.DroshTheme
 import dev.drosh.domain.settings.ThemeIndexEntry
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.luminance
+import dev.drosh.design.system.DroshBackground
+import dev.drosh.design.system.DroshOutline
+import dev.drosh.design.system.DroshPrimary
+import dev.drosh.design.system.DroshSurfaceVariant
+import dev.drosh.design.system.DroshText
+import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.DroshTile
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 
@@ -259,6 +270,7 @@ private fun StoreShelf(
     busy: Boolean,
     onInstall: (ThemeIndexEntry) -> Unit,
     onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     if (entries.isEmpty()) {
         SettingsGroupColumn(label = stringResource(R.string.settings_theme_store_section), items = 1) { _, cap ->
@@ -285,7 +297,7 @@ private fun StoreShelf(
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -396,9 +408,10 @@ private fun ThemeLibrary(
     onRemove: (String) -> Unit,
     onInstallFromUrl: () -> Unit,
     onCreate: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -509,6 +522,22 @@ fun ThemeGridLogo(
     }
 }
 
+/** One line of news, from an install or a removal. */
+@Composable
+private fun SettingsMessageDialog(text: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DroshSurfaceVariant,
+        title = { Text(stringResource(R.string.settings_theme_store), color = DroshText) },
+        text = { Text(text, color = DroshTextSecondary) },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_dialog_save), color = DroshPrimary)
+            }
+        },
+    )
+}
+
 /** Content clearance for the system bar, without insetting the background. */
 @Composable
 internal fun storeStatusBarInset(): Dp =
@@ -519,7 +548,7 @@ internal fun parseHexColor(hex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Black)
 
 /** True for the pale swatches, where text has to be dark to be read. */
-internal fun Color.isLight(): Boolean = androidx.compose.ui.graphics.luminance() > 0.5f
+internal fun Color.isLight(): Boolean = luminance() > 0.5f
 
 @Composable
 private fun ThemeCreatorDialog(
@@ -561,7 +590,10 @@ private fun ThemeCreatorDialog(
                         fontSize = 13.sp,
                     )
                     LazyColumn(modifier = Modifier.height(140.dp)) {
-                        items(options) { theme ->
+                        // Indexed, not the list overload: this file also brings
+                        // the grid's `items` into scope, and two of the same
+                        // name is one too many for the compiler to choose.
+                        itemsIndexed(options) { _, theme ->
                             val selected = theme.id == base?.id
                             Row(
                                 modifier = Modifier

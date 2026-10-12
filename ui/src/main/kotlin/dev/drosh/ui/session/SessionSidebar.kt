@@ -79,6 +79,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -104,6 +105,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.design.system.DroshMenuItem
+import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.design.system.DroshMenuItemStyle
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
@@ -565,9 +567,9 @@ private fun SidebarContent(
                                         )
                                     }
                                 },
-                                onItemClick = { id ->
+                                onItemClick = { item ->
                                     pairMenuOpen = false
-                                    when (id) {
+                                    when (item.id) {
                                         "swap" -> onSwapPanes?.invoke()
                                         "dock" -> onDock?.invoke()
                                         "close" -> onCloseSplit?.invoke()
@@ -779,14 +781,6 @@ private fun PressableRow(icon: ImageVector, label: String, onClick: () -> Unit) 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
 
-    // The row's surface in one number: a row being carried is fully opaque
-    // (it is a card now, off the list), a row on a surface never goes fully
-    // clear, and a row on lines is clear until it is touched.
-    val rowSurfaceAlpha = when {
-        dragging -> 1f
-        sessionSurface -> 0.55f + 0.45f * surface
-        else -> surface
-    }
     // Needed inside `pointerInput`, whose block is not a composable scope: the
     // touch slop has to be in pixels, and the slop is a dp constant.
     val density = LocalDensity.current
@@ -966,10 +960,17 @@ private fun SessionRow(
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    // The row's surface in one number: a row being carried is fully opaque —
+    // it is a card now, off the list — a row on a surface never goes fully
+    // clear, and a row on lines is clear until it is touched.
+    val rowSurfaceAlpha = when {
+        dragging -> 1f
+        sessionSurface -> 0.55f + 0.45f * surface
+        else -> surface
+    }
     // Needed inside `pointerInput`, whose block is not a composable scope: the
     // touch slop has to be in pixels, and the slop is a dp constant.
     val density = LocalDensity.current
-    // Stays raised while the menu is open, not only while a finger is down:
     // the row is still the thing the menu belongs to. Dismissing the menu —
     // including by tapping empty space — puts it back.
     val surface by animateFloatAsState(
