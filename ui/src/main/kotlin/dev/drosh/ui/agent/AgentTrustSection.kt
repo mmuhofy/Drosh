@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshIcons
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.domain.agent.AutonomyLevel
+import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 import dev.drosh.ui.settings.GROUP_GAP
 import dev.drosh.ui.settings.SettingsGroupColumn
