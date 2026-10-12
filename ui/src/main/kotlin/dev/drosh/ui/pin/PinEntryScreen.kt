@@ -41,6 +41,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,6 +78,16 @@ fun PinEntryScreen(
 ) {
     var pin by rememberSaveable { mutableStateOf("") }
     val onPinReadyState = rememberUpdatedState(onPinReady)
+
+    // The keypad is the only way in, so the keyboard has no business being
+    // up. The view is asked once, after it is attached: a hide requested
+    // during composition is a request to a window that does not exist yet,
+    // and the IME arrives anyway.
+    val hostView = LocalView.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        hostView.post { keyboard?.hide() }
+    }
 
     LaunchedEffect(pin) {
         if (pin.length == pinLength) onPinReadyState.value(pin)

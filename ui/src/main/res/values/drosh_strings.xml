@@ -388,4 +388,12 @@ no terminal session needed.</string>
     <string name="about_links">GitHub</string>
     <string name="settings_shell_locale">Shell language</string>
     <string name="settings_shell_locale_desc">LANG and LC_ALL on every session — from the file, not from your dotfiles.</string>
+    <string name="about_developer">Developer</string>
+    <string name="about_repo">GitHub Repo</string>
+    <string name="about_stars">GitHub stars</string>
+    <string name="about_stars_value">%1$d stars</string>
+    <string name="about_section_version">Version</string>
+    <string name="about_version">Version</string>
+    <string name="about_version_code">Version code</string>
+    <string name="about_build_hash">Build hash</string>
 </resources>

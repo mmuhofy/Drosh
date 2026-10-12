@@ -54,6 +54,14 @@ android {
         buildConfig = true
     }
 
+    defaultConfig {
+        // The commit this build was made from, so the About screen can name
+        // the exact code rather than a version that covers many commits. A
+        // shallow checkout or a missing git answers "unknown" — a build that
+        // cannot say where it came from is still a build.
+        buildConfigField("String", "GIT_SHA", "\"${gitShortSha()}\"")
+    }
+
     compileOptions {
         // Required by :editor, which depends on sora-editor's TextMate module:
         // it uses java.time APIs that do not exist below API 33, and this app
@@ -163,4 +171,26 @@ dependencies {
     androidTestImplementation(libs.hilt.android.testing)
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
+}
+
+
+/**
+ * `git rev-parse --short HEAD`, or "unknown".
+ *
+ * Read once, at configuration time: the hash is a property of the build, not
+ * of the runtime, and a process launch here is the cheapest honest way to
+ * get it. Anything that goes wrong — no git, a shallow checkout, a detached
+ * archive — answers "unknown" rather than failing the build over a string
+ * the About screen shows.
+ */
+fun gitShortSha(): String = try {
+    val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    process.waitFor()
+    output.takeIf { it.matches(Regex("[0-9a-f]{7,40}")) } ?: "unknown"
+} catch (e: Exception) {
+    "unknown"
 }
