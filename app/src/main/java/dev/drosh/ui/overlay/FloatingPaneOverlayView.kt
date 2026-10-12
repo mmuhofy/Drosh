@@ -148,15 +148,17 @@ class FloatingPaneOverlayView(
         const val DEFAULT_WIDTH_DP = 240
         const val DEFAULT_HEIGHT_DP = 320
 
-        private const val TITLE_BAR_DP = 36
-        private const val TITLE_PADDING_DP = 12
-        private const val ICON_DP = 32
-        private const val CORNER_DP = 12
-        private const val ELEVATION_DP = 12
-        private const val TITLE_TEXT_SP = 13f
+        private const val TITLE_BAR_DP = 40
+        private const val TITLE_PADDING_DP = 14
+        private const val ICON_DP = 36
+        // The same radius and elevation the in-app floating card draws, so a
+        // pane that moves between the two does not change shape on the way.
+        private const val CORNER_DP = 18
+        private const val ELEVATION_DP = 14
+        private const val TITLE_TEXT_SP = 13.5f
 
-        private const val COLOR_SURFACE = 0xFF111318.toInt()
-        private const val COLOR_TITLE_BAR = 0xFF1A1D24.toInt()
-        private const val COLOR_TITLE_TEXT = 0xFFE8EAF0.toInt()
+        private const val COLOR_SURFACE = 0xFF17191D.toInt()
+        private const val COLOR_TITLE_BAR = 0xFF1D2025.toInt()
+        private const val COLOR_TITLE_TEXT = 0xFFE8E8E8.toInt()
     }
 }
