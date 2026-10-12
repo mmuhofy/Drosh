@@ -118,6 +118,15 @@ class WriteFileTool @Inject constructor(
                     "write_file needs an approve or reject decision, not free text: " +
                         "\"${decision.text}\"",
                 )
+
+            // "Always allow" is offered for a shell command and nothing else,
+            // so this is unreachable — a remembered rule is not an answer to
+            // "write this file", and the file must not move on one.
+            is ApprovalDecision.AlwaysAllow ->
+                return ToolResult.Error(
+                    "write_file needs an approve or reject decision, " +
+                        "not a remembered rule: ${decision.rule.pattern}",
+                )
         }
 
         val write = GuestPaths.writeText(file, newContent)

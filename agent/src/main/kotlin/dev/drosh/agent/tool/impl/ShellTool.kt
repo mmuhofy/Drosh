@@ -1,6 +1,10 @@
 package dev.drosh.agent.tool.impl
 
 import dev.drosh.domain.agent.AgentLimits
+import dev.drosh.domain.agent.ApprovalDecision
+import dev.drosh.domain.agent.ApprovalRequest
+import dev.drosh.domain.agent.CommandSafety
+import dev.drosh.domain.agent.SafetyCheck
 import dev.drosh.domain.agent.Tool
 import dev.drosh.domain.agent.ToolContext
 import dev.drosh.domain.agent.ToolResult
@@ -8,6 +12,7 @@ import dev.drosh.domain.agent.ToolUpdate
 import dev.drosh.domain.agent.intArg
 import dev.drosh.domain.agent.stringArg
 import dev.drosh.domain.agent.toolSchema
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.terminal.TerminalManager
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
@@ -32,6 +37,7 @@ import javax.inject.Singleton
 @Singleton
 class ShellTool @Inject constructor(
     private val terminalManager: TerminalManager,
+    private val settings: SettingsStore,
 ) : Tool {
 
     override val name: String = NAME
@@ -56,11 +62,57 @@ class ShellTool @Inject constructor(
         return if (command.length <= SUMMARY_LIMIT) command else command.take(SUMMARY_LIMIT) + "…"
     }
 
+    /**
+     * The safety gate.
+     *
+     * Three things can happen to a command before it runs, and they are checked
+     * in an order that cannot be rearranged:
+     *
+     *  1. the deterministic layer refuses it outright — no setting can lower
+     *     this, so it is checked first
+     *  2. a remembered rule allows it without asking
+     *  3. the autonomy level decides, and anything it will not allow quietly is
+     *     put to the user through [ToolContext.awaitApproval], which is the same
+     *     approval the write-file tool uses for one good reason: the user learns
+     *     one question and one shape of answer
+     *
+     * A rejected command is reported as an error with the reason, because the
+     * model needs to know *why* to adapt rather than retrying the same thing.
+     */
+    private suspend fun gate(command: String, context: ToolContext): ToolResult? {
+        val snapshot = settings.settings.value.agent
+        val allowed = snapshot.alwaysAllow.any { it.matches(command) }
+        if (!allowed) {
+            when (val check = CommandSafety.check(command, snapshot.autonomy)) {
+                is SafetyCheck.Reject -> return ToolResult.Error(check.reason)
+                is SafetyCheck.AskUser -> {
+                    val decision = context.awaitApproval(
+                        ApprovalRequest(
+                            title = command,
+                            body = check.reason,
+                        ),
+                    )
+                    // "Always allow" runs the command too: the rule was written
+                    // before the answer was delivered, and what the user asked
+                    // for is this command and every one shaped like it.
+                    if (decision !is ApprovalDecision.Approve &&
+                        decision !is ApprovalDecision.AlwaysAllow
+                    ) {
+                        return ToolResult.Error("the user declined this command")
+                    }
+                }
+                SafetyCheck.AutoApprove -> Unit
+            }
+        }
+        return null
+    }
+
     override suspend fun execute(input: JsonObject, context: ToolContext): ToolResult {
         val command = input.stringArg("command").trim()
         if (command.isEmpty()) {
             return ToolResult.Error("command must not be empty")
         }
+        gate(command, context)?.let { return it }
 
         val timeoutSec = input.intArg("timeout", AgentLimits.SHELL_TIMEOUT_SEC.toInt()).toLong()
             .coerceIn(MIN_TIMEOUT_SEC, MAX_TIMEOUT_SEC)

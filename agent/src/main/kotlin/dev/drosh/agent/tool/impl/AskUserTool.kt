@@ -80,6 +80,12 @@ class AskUserTool @Inject constructor() : Tool {
 
             is ApprovalDecision.Reject ->
                 ToolResult.Cancelled("the user declined to answer: ${decision.reason}")
+
+            // "Always allow" is offered for a shell command and nothing else,
+            // so this is unreachable — a remembered rule is not an answer to a
+            // question.
+            is ApprovalDecision.AlwaysAllow ->
+                ToolResult.Cancelled("the user declined to answer")
         }
     }
 

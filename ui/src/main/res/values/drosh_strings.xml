@@ -431,4 +431,34 @@ no terminal session needed.</string>
     <string name="agent_tool_awaiting">Waiting for you</string>
     <string name="agent_tool_pending">Pending</string>
     <string name="agent_tool_no_output">This tool produced no output.</string>
+    <string name="agent_always_allow">Always allow</string>
+
+    <!-- ── Agent settings screen ────────────────────────────────────────── -->
+    <string name="agent_settings_section_provider">Provider</string>
+    <string name="agent_settings_section_api_key">API key</string>
+    <string name="agent_settings_section_search">Web search</string>
+    <string name="agent_settings_section_model">Model</string>
+    <string name="agent_settings_api_key">API key</string>
+    <string name="agent_settings_provider_select">Choose a provider</string>
+    <string name="agent_settings_provider_choose">Choose from 225 providers</string>
+    <string name="agent_settings_catalog_loading">Loading the provider catalog…</string>
+    <string name="agent_settings_catalog_failed">The provider catalog could not be loaded.</string>
+    <string name="agent_settings_not_set">Not set</string>
+    <string name="agent_settings_base_url">Base URL</string>
+    <string name="agent_settings_base_url_placeholder">https://localhost:11434/v1</string>
+    <string name="agent_settings_key_placeholder">sk-…</string>
+    <string name="agent_settings_key_saved">saved</string>
+    <string name="agent_settings_key_delete">Delete key</string>
+    <string name="agent_settings_key_stored_note">A key is saved. Drosh sends nothing else to the server.</string>
+    <string name="agent_settings_key_encrypted_note">Stored encrypted on the device. Drosh sends nothing else to the server.</string>
+    <string name="agent_settings_key_show">Show</string>
+    <string name="agent_settings_key_hide">Hide</string>
+    <string name="agent_settings_search_key">Search key</string>
+    <string name="agent_settings_search_key_placeholder">exa-…</string>
+    <string name="agent_settings_search_key_delete">Delete search key</string>
+    <string name="agent_settings_search_desc">For information outside this device. It works without a key too — the agent is then limited to the files on this phone.</string>
+    <string name="agent_settings_refresh_models">Refresh models</string>
+    <string name="agent_settings_effort">Reasoning effort</string>
+    <string name="agent_settings_effort_default">Default</string>
+    <string name="agent_settings_model_hint">The model can also be changed from the model button above a chat. The agent icon appears only on the agent button on the terminal screen — not in settings.</string>
 </resources>

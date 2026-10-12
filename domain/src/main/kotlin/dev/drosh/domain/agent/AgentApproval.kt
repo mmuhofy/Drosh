@@ -38,6 +38,17 @@ sealed interface ApprovalDecision {
     data object Approve : ApprovalDecision
 
     /**
+     * Run it, and do not ask again about this *shape* of command.
+     *
+     * @param rule what to remember. A pattern rather than a command — "always
+     *             allow git status" is one rule for the hundred statuses a
+     *             session runs, and "always allow git" would be a rule that
+     *             also allows git reset, which is why [ApprovalRule.forCommand]
+     *             takes two words for git.
+     */
+    data class AlwaysAllow(val rule: ApprovalRule) : ApprovalDecision
+
+    /**
      * Do not run it.
      *
      * @param reason sent back to the model verbatim — say *why*, so it can adapt
