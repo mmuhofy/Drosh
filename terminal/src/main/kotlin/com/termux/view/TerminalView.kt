@@ -108,7 +108,38 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     fun dismissSelection() = stopTextSelectionMode()
 
     fun pasteFromClipboard() {
+        // Pasted text is input like any other: it goes after the held space,
+        // never before it.
+        flushPendingSpace()
         mTermSession?.onPasteTextFromClipboard()
+    }
+
+    /**
+     * Delivers a space that is still waiting out its drag window, right now.
+     *
+     * A lone space from the soft keyboard is held so a drag starting on the
+     * terminal can turn it into cursor movement instead of a space. Nothing
+     * about that needs the space to stay held once the user sends something
+     * else: the next key or character is the user saying "that was a space",
+     * and it must not overtake it. Before this existed the held space was
+     * only written by its 500 ms timer or by releasing the space key, so
+     * typing "ls -la" sent "ls-la " — the character after the space reached
+     * the PTY first and the space arrived last, up to half a second behind.
+     *
+     * This is the timer body, run early. The gesture that needs the window is
+     * a touch sequence, and touches do not come through here, so a drag can
+     * still claim the space while it is pending.
+     */
+    private fun flushPendingSpace() {
+        val pending = pendingSpaceRunnable ?: return
+        pendingSpaceRunnable = null
+        removeCallbacks(pending)
+        if (spaceKeyDown && !spaceDragMoved) mTermSession?.write(" ")
+        spaceKeyDown = false
+        spaceDragActive = false
+        spaceDragMoved = false
+        horizontalDragAccumulator = 0f
+        lastDragX = 0f
     }
 
     /**
@@ -1501,6 +1532,11 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
 
     fun inputCodePoint(eventSource: Int, codePoint: Int, controlDownFromEvent: Boolean, leftAltDownFromEvent: Boolean) {
         var cp = codePoint
+        // A code point on its way to the PTY is the user's next input after a
+        // held space; the space goes first so the line reads in the order it
+        // was typed. Harmless for the paths that write a space themselves —
+        // by then the pending one has already been taken.
+        flushPendingSpace()
         if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) {
             mClient!!.logInfo(LOG_TAG, "inputCodePoint(eventSource=$eventSource, codePoint=$cp, controlDownFromEvent=$controlDownFromEvent, leftAltDownFromEvent=$leftAltDownFromEvent)")
         }
@@ -1550,6 +1586,10 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
 
     /** Input the specified keyCode if applicable and return if the input was consumed. */
     fun handleKeyCode(keyCode: Int, keyMod: Int): Boolean {
+        // Same reasoning as inputCodePoint: a key is input, so a space still
+        // waiting for its drag window is written before this one.
+        flushPendingSpace()
+
         // Ensure cursor is shown when a key is pressed down like long hold on (arrow) keys
         mEmulator?.setCursorBlinkState(true)
 
