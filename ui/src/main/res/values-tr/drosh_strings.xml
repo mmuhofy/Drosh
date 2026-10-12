@@ -406,4 +406,33 @@ terminal session açmana gerek yok.</string>
     <string name="agent_tool_pending">Siraniyor</string>
     <string name="agent_tool_no_output">Bu tool cikti uretmedi.</string>
     <string name="agent_always_allow">Her zaman izin ver</string>
+
+    <!-- ── Agent ayarlar ekranı ─────────────────────────────────────────── -->
+    <string name="agent_settings_section_provider">Provider</string>
+    <string name="agent_settings_section_api_key">API anahtarı</string>
+    <string name="agent_settings_section_search">Web arama</string>
+    <string name="agent_settings_section_model">Model</string>
+    <string name="agent_settings_api_key">API anahtarı</string>
+    <string name="agent_settings_provider_select">Provider seç</string>
+    <string name="agent_settings_provider_choose">225 provider arasından seç</string>
+    <string name="agent_settings_catalog_loading">Provider kataloğu yükleniyor…</string>
+    <string name="agent_settings_catalog_failed">Provider kataloğu alınamadı.</string>
+    <string name="agent_settings_not_set">Ayarlanmadı</string>
+    <string name="agent_settings_base_url">Base URL</string>
+    <string name="agent_settings_base_url_placeholder">https://localhost:11434/v1</string>
+    <string name="agent_settings_key_placeholder">sk-…</string>
+    <string name="agent_settings_key_saved">kayıtlı</string>
+    <string name="agent_settings_key_delete">Anahtarı sil</string>
+    <string name="agent_settings_key_stored_note">Anahtar kayıtlı. Drosh sunucuya başka bir şey göndermez.</string>
+    <string name="agent_settings_key_encrypted_note">Cihazda şifreli saklanır. Drosh sunucuya başka bir şey göndermez.</string>
+    <string name="agent_settings_key_show">Göster</string>
+    <string name="agent_settings_key_hide">Gizle</string>
+    <string name="agent_settings_search_key">Arama anahtarı</string>
+    <string name="agent_settings_search_key_placeholder">exa-…</string>
+    <string name="agent_settings_search_key_delete">Arama anahtarını sil</string>
+    <string name="agent_settings_search_desc">Dışarıdaki bilgiler için. Anahtarsız da çalışır — agent yalnızca bu cihazdaki dosyalarla sınırlı kalır.</string>
+    <string name="agent_settings_refresh_models">Modelleri yenile</string>
+    <string name="agent_settings_effort">Düşünme eforu</string>
+    <string name="agent_settings_effort_default">Varsayılan</string>
+    <string name="agent_settings_model_hint">Model, sohbetin üstündeki model düğmesinden de değiştirilir. Agent simgesi yalnızca terminal ekranındaki agent düğmesinde görünür — ayarlarda değil.</string>
 </resources>
