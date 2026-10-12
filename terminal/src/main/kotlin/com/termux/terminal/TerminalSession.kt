@@ -305,6 +305,64 @@ class TerminalSession(
         mTerminalToProcessIOQueue.close()
         mProcessToTerminalIOQueue.close()
         if (!bridged) JNI.close(mTerminalFileDescriptor)
+        cancelPendingSlice()
+    }
+
+    /**
+     * Drops the queued continuation of a paced read.
+     *
+     * Called when the session ends so a pending slice cannot wake up and read
+     * from a queue that is closed; the message is harmless on its own, but
+     * nothing should outlive the shell.
+     */
+    private fun cancelPendingSlice() {
+        mMainThreadHandler.removeCallbacks(mSliceRunnable)
+    }
+
+    /**
+     * The continuation of a paced read.
+     *
+     * A short delay rather than a frame callback on purpose: frames stop when
+     * the app is not drawing, and output has to keep being parsed then — a
+     * process writing to a full queue would block instead, which is the freeze
+     * this path exists to prevent. The delay is what keeps the loop from being
+     * closed, and it costs nothing measurable.
+     */
+    private val mSliceRunnable = Runnable { mMainThreadHandler.sendEmptyMessage(MSG_NEW_INPUT) }
+
+    /** One slice of pending output. Sized by [MAX_INPUT_BYTES_PER_SLICE]. */
+    private val mReceiveBuffer = ByteArray(MAX_INPUT_BYTES_PER_SLICE)
+
+    /**
+     * Parses at most one slice of pending output, then leaves the rest to the
+     * next slice.
+     *
+     * This used to take everything: read up to 64 KB, append, and re-arm
+     * immediately while the queue still had bytes. Under sustained output —
+     * an install, a build, `yes` — those messages were the queue's only
+     * contents, so the main thread never got back to the looper and the
+     * keyboard stopped being read. Typing during a heavy command felt like
+     * the terminal had frozen, then arrived all at once.
+     *
+     * The slice cap plus the delay between slices bounds how long the main
+     * thread is away from input. Throughput is still far above what a phone
+     * can display: the queue holds 64 KB, and each slice costs a parse of
+     * 16 KB plus the per-chunk work that follows it.
+     */
+    private fun processOutputSlice() {
+        val bytesRead = mProcessToTerminalIOQueue.read(mReceiveBuffer, false)
+        if (bytesRead > 0) {
+            mEmulator?.append(mReceiveBuffer, bytesRead)
+            notifyScreenUpdate()
+        }
+
+        // More may have landed while this chunk was being parsed. Re-arm
+        // rather than waiting for the next write's empty-transition, or a
+        // burst could leave the tail unprocessed.
+        if (mProcessToTerminalIOQueue.hasBytes()) {
+            mMainThreadHandler.removeCallbacks(mSliceRunnable)
+            mMainThreadHandler.postDelayed(mSliceRunnable, SLICE_DELAY_MS)
+        }
     }
 
     override fun titleChanged(oldTitle: String?, newTitle: String?) {
@@ -356,21 +414,8 @@ class TerminalSession(
     @SuppressLint("HandlerLeak")
     inner class MainThreadHandler : Handler() {
 
-        val mReceiveBuffer = ByteArray(64 * 1024)
-
         override fun handleMessage(msg: Message) {
-            val bytesRead = mProcessToTerminalIOQueue.read(mReceiveBuffer, false)
-            if (bytesRead > 0) {
-                mEmulator?.append(mReceiveBuffer, bytesRead)
-                notifyScreenUpdate()
-            }
-
-            // More may have landed while this chunk was being parsed. Re-arm
-            // rather than waiting for the next write's empty-transition, or a
-            // burst could leave the tail unprocessed.
-            if (mProcessToTerminalIOQueue.hasBytes()) {
-                mMainThreadHandler.sendEmptyMessage(MSG_NEW_INPUT)
-            }
+            processOutputSlice()
 
             if (msg.what == MSG_PROCESS_EXITED) {
                 val exitCode = msg.obj as Int
@@ -397,6 +442,19 @@ class TerminalSession(
         private const val MSG_NEW_INPUT = 1
         private const val MSG_PROCESS_EXITED = 4
         private const val LOG_TAG = "TerminalSession"
+
+        /**
+         * How much output one main-thread pass may parse, and how long the
+         * pause before the next pass is.
+         *
+         * The queue holds 64 KB, so a full backlog is four slices: under 12 ms
+         * of parsing spread over four turns of the looper, and the UI thread
+         * gets to answer the keyboard between them. Both numbers are pacing,
+         * not throughput — a class of parse work far above what a phone can
+         * show, chosen so that a burst cannot hold the thread hostage.
+         */
+        private const val MAX_INPUT_BYTES_PER_SLICE = 16 * 1024
+        private const val SLICE_DELAY_MS = 2L
 
         private fun wrapFileDescriptor(fileDescriptor: Int, client: TerminalSessionClient): FileDescriptor {
             val result = FileDescriptor()
