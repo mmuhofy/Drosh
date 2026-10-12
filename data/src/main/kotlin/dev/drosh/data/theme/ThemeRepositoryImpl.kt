@@ -202,7 +202,11 @@ class ThemeRepositoryImpl @Inject constructor(
         val themes: List<IndexEntryFile> = emptyList(),
     ) {
         fun toIndex(): ThemeIndex =
-            ThemeIndex(themes.map { ThemeIndexEntry(it.id, it.name, it.author, it.description, it.file) })
+            ThemeIndex(
+                themes.map {
+                    ThemeIndexEntry(it.id, it.name, it.author, it.description, it.file, it.preview)
+                },
+            )
     }
 
     @Serializable
@@ -212,6 +216,7 @@ class ThemeRepositoryImpl @Inject constructor(
         val author: String = "",
         val description: String = "",
         val file: String = "",
+        val preview: List<String> = emptyList(),
     )
 
     private companion object {

@@ -375,4 +375,12 @@ terminal session açmana gerek yok.</string>
     <string name="sidebar_close_split">Bölmeyi kapat</string>
     <string name="agent_search_models">Model ara</string>
     <string name="agent_no_models">Bu aramaya uyan model yok.</string>
+    <string name="settings_theme_room_store">Mağaza</string>
+    <string name="settings_theme_room_library">Kütüphanem</string>
+    <string name="settings_theme_store_section">Mağaza</string>
+    <string name="settings_theme_installed_tag">Kurulu</string>
+    <string name="settings_theme_install">Kur</string>
+    <string name="settings_theme_remove_title">%1$s kaldırılsın mı?</string>
+    <string name="settings_theme_remove_body">Tema dosyası .drosh içinden çıkar. Ekrandaki renkler Drosh'un kendi renklerine döner.</string>
+    <string name="settings_theme_remove_confirm">Kaldır</string>
 </resources>

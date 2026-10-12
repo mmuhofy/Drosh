@@ -1,18 +1,15 @@
 package dev.drosh.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -21,53 +18,48 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.settings.DroshTheme
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshSurfaceVariant
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshOutline
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.AlertDialog
 import dev.drosh.domain.settings.ThemeIndexEntry
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import kotlinx.coroutines.launch
 
 /**
- * The theme store.
+ * The Drosh store: a shelf, not a list.
  *
- * One screen with three sources: what is installed, what the store lists,
- * and what a user pastes a URL for. A theme's logo is its palette drawn as
- * a grid, because a theme is its colours and a screenshot is a lie about
- * how it will look in *your* terminal.
+ * Two rooms behind one bar. The **store** is the catalogue — a grid of
+ * every theme with its palette drawn as its cover, so two hundred dark
+ * schemes can be told apart at a glance. The **library** is what is
+ * installed: apply it, or take it off the shelf.
+ *
+ * It used to be a settings list — the same rows, the same chevrons, the
+ * catalogue a scrolling column of one-line entries — which is a strange
+ * way to sell someone a colour scheme. A store shows you the thing.
  */
 @Composable
 fun ThemeStoreScreen(
@@ -81,133 +73,42 @@ fun ThemeStoreScreen(
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
-    // The store is the one screen that shows what a theme does, so its own
-    // background is the active theme's — animated, because a palette swap
-    // that snaps reads as a mistake rather than a choice.
-    val activeBackground by animateColorAsState(
-        targetValue = parseHexColor(
-            installed.firstOrNull { it.id == activeId }?.palette?.background ?: "#000000",
-        ),
-        animationSpec = tween(450),
-        label = "themeBackground",
-    )
+    var room by rememberSaveable { mutableStateOf(StoreRoom.Store) }
+    var pendingDelete by remember { mutableStateOf<String?>(null) }
 
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_theme_store),
         onBack = onBack,
-        modifier = modifier.background(activeBackground),
+        modifier = modifier,
     ) {
-        // ── the active theme, large ───────────────────────────────────────────
-        val active = installed.firstOrNull { it.id == activeId }
-        if (active != null) {
-            SettingsGroupColumn(label = stringResource(R.string.settings_theme_active), items = 1) { _, cap ->
-                SettingsTile(
-                    cap = cap,
-                    title = active.name,
-                    icon = DroshIcons.Palette,
-                    supporting = active.description.ifBlank {
-                        stringResource(R.string.settings_theme_no_description)
-                    },
-                    leading = {
-                        ThemeGridLogo(theme = active, modifier = Modifier.size(46.dp))
-                    },
-                )
-            }
-            Spacer(Modifier.height(GROUP_GAP))
+        StoreRoomBar(
+            room = room,
+            installedCount = installed.size,
+            onRoomChange = { room = it },
+        )
+
+        when (room) {
+            StoreRoom.Store -> StoreShelf(
+                entries = storeIndex,
+                installedIds = installed.map { it.id }.toSet(),
+                busy = busy,
+                onInstall = viewModel::install,
+                onRefresh = viewModel::refreshIndex,
+            )
+
+            StoreRoom.Library -> ThemeLibrary(
+                installed = installed,
+                activeId = activeId,
+                onApply = { id -> viewModel.apply(id) },
+                onRemove = { id -> pendingDelete = id },
+                onInstallFromUrl = viewModel::startUrlInstall,
+                onCreate = viewModel::startCreate,
+            )
         }
-
-        // ── installed ─────────────────────────────────────────────────────────
-        SettingsGroupColumn(label = stringResource(R.string.settings_theme_installed), items = installed.size) { index, cap ->
-            val theme = installed[index]
-            SettingsTile(
-                cap = cap,
-                title = theme.name,
-                icon = DroshIcons.Palette,
-                supporting = if (theme.id == activeId) {
-                    stringResource(R.string.settings_theme_in_use)
-                } else {
-                    theme.author.ifBlank { stringResource(R.string.settings_theme_no_description) }
-                },
-                leading = {
-                    ThemeGridLogo(theme = theme, modifier = Modifier.size(38.dp))
-                },
-                onClick = { viewModel.apply(theme.id) },
-            ) {
-                if (theme.id == activeId) SettingsCheck() else SettingsChevron()
-            }
-        }
-
-        Spacer(Modifier.height(GROUP_GAP))
-
-        // ── the store ─────────────────────────────────────────────────────────
-        SettingsGroupColumn(label = stringResource(R.string.settings_theme_store_section), items = 1) { _, cap ->
-            SettingsTile(
-                cap = cap,
-                title = stringResource(R.string.settings_theme_refresh),
-                icon = DroshIcons.RotateCw,
-                supporting = if (busy) {
-                    stringResource(R.string.settings_theme_loading)
-                } else {
-                    stringResource(R.string.settings_theme_store_desc)
-                },
-                onClick = { viewModel.refreshIndex() },
-            ) {
-                if (busy) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    SettingsChevron()
-                }
-            }
-        }
-
-        if (storeIndex.isNotEmpty()) {
-            SettingsGroupColumn(
-                label = stringResource(R.string.settings_theme_available),
-                items = storeIndex.size,
-            ) { index, cap ->
-                val entry = storeIndex[index]
-                val alreadyInstalled = installed.any { it.id == entry.id }
-                SettingsTile(
-                    cap = cap,
-                    title = entry.name,
-                    icon = DroshIcons.Download,
-                    supporting = entry.description.ifBlank { entry.author },
-                    onClick = { viewModel.install(entry) },
-                ) {
-                    if (alreadyInstalled) SettingsCheck() else SettingsChevron()
-                }
-            }
-        }
-
-        Spacer(Modifier.height(GROUP_GAP))
-
-        // ── from a URL ────────────────────────────────────────────────────────
-        SettingsGroupColumn(label = stringResource(R.string.settings_section_custom), items = 1) { _, cap ->
-            SettingsTile(
-                cap = cap,
-                title = stringResource(R.string.settings_theme_from_url),
-                icon = DroshIcons.ExternalLink,
-                supporting = stringResource(R.string.settings_theme_from_url_desc),
-                onClick = { viewModel.startUrlInstall() },
-            ) { SettingsChevron() }
-        }
-
-        SettingsGroupColumn(label = stringResource(R.string.settings_section_custom), items = 1) { _, cap ->
-            SettingsTile(
-                cap = cap,
-                title = stringResource(R.string.settings_theme_create),
-                icon = DroshIcons.Pencil,
-                supporting = stringResource(R.string.settings_theme_create_desc),
-                onClick = { viewModel.startCreate() },
-            ) { SettingsChevron() }
-        }
-
-        Spacer(Modifier.height(32.dp))
     }
 
+    // ── the overlays ─────────────────────────────────────────────────────────
     val urlDialogOpen by viewModel.urlDialogOpen.collectAsStateWithLifecycle()
-    val createFrom by viewModel.createFrom.collectAsStateWithLifecycle()
-
     if (urlDialogOpen) {
         SettingsTextInputDialog(
             title = stringResource(R.string.settings_theme_from_url),
@@ -221,9 +122,6 @@ fun ThemeStoreScreen(
         )
     }
 
-    // A theme arriving: its grid draws itself once, full size, over the
-    // screen. Six hundred milliseconds of a fact that has already happened
-    // — the palette is live before this finishes.
     val applyingId by viewModel.applying.collectAsStateWithLifecycle()
     if (applyingId != null) {
         val applyingTheme = installed.firstOrNull { it.id == applyingId }
@@ -247,15 +145,21 @@ fun ThemeStoreScreen(
         }
     }
 
-    message?.let { text ->
-        SettingsMessageDialog(text = text, onDismiss = { viewModel.dismissMessage() })
+    pendingDelete?.let { id ->
+        val theme = installed.firstOrNull { it.id == id }
+        SettingsConfirmDialog(
+            title = stringResource(R.string.settings_theme_remove_title, theme?.name ?: id),
+            body = stringResource(R.string.settings_theme_remove_body),
+            confirmLabel = stringResource(R.string.settings_theme_remove_confirm),
+            onConfirm = {
+                pendingDelete = null
+                viewModel.remove(id)
+            },
+            onDismiss = { pendingDelete = null },
+        )
     }
 
-    // ── the creator ───────────────────────────────────────────────────────────
-    // Starts from a theme that is already installed, because a palette is
-    // not something anyone wants to build twenty-two colours at a time: pick
-    // the closest, name it, save, and then edit the file itself — it is a
-    // plain TOML document in the rootfs, which is where it belongs.
+    val createFrom by viewModel.createFrom.collectAsStateWithLifecycle()
     if (createFrom != null) {
         ThemeCreatorDialog(
             base = installed.firstOrNull { it.id == createFrom },
@@ -265,15 +169,278 @@ fun ThemeStoreScreen(
             onSave = { name, author, description -> viewModel.saveCustom(name, author, description) },
         )
     }
+
+    message?.let { text ->
+        SettingsMessageDialog(text = text, onDismiss = { viewModel.dismissMessage() })
+    }
+}
+
+private enum class StoreRoom { Store, Library }
+
+/** The two rooms, as a segmented bar rather than as two screens. */
+@Composable
+private fun StoreRoomBar(
+    room: StoreRoom,
+    installedCount: Int,
+    onRoomChange: (StoreRoom) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(DroshSurfaceVariant),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        StoreRoom.entries.forEach { entry ->
+            val selected = entry == room
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(4.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (selected) DroshPrimary else Color.Transparent)
+                    .clickable { onRoomChange(entry) }
+                    .padding(vertical = 9.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(
+                        if (entry == StoreRoom.Store) R.string.settings_theme_room_store
+                        else R.string.settings_theme_room_library,
+                    ),
+                    color = if (selected) DroshTile else DroshTextSecondary,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (entry == StoreRoom.Library) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "$installedCount",
+                        color = if (selected) DroshTile.copy(alpha = 0.8f) else DroshTextMuted,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The catalogue: a grid of covers, and a way to reload it. */
+@Composable
+private fun StoreShelf(
+    entries: List<ThemeIndexEntry>,
+    installedIds: Set<String>,
+    busy: Boolean,
+    onInstall: (ThemeIndexEntry) -> Unit,
+    onRefresh: () -> Unit,
+) {
+    if (entries.isEmpty()) {
+        SettingsGroupColumn(label = stringResource(R.string.settings_theme_store_section), items = 1) { _, cap ->
+            SettingsTile(
+                cap = cap,
+                title = stringResource(R.string.settings_theme_refresh),
+                icon = DroshIcons.RotateCw,
+                supporting = if (busy) {
+                    stringResource(R.string.settings_theme_loading)
+                } else {
+                    stringResource(R.string.settings_theme_store_desc)
+                },
+                onClick = onRefresh,
+            ) {
+                if (busy) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    SettingsChevron()
+                }
+            }
+        }
+        return
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        items(entries, key = { it.id }) { entry ->
+            ThemeStoreCard(
+                entry = entry,
+                installed = entry.id in installedIds,
+                busy = busy,
+                onClick = { onInstall(entry) },
+            )
+        }
+    }
+}
+
+/** One theme on the shelf: its palette is its cover. */
+@Composable
+private fun ThemeStoreCard(
+    entry: ThemeIndexEntry,
+    installed: Boolean,
+    busy: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(DroshSurfaceVariant)
+            .clickable(enabled = !installed && !busy, onClick = onClick)
+            .padding(10.dp),
+    ) {
+        // The palette as a band of colour: the index carries it, so a cover
+        // costs a draw and not a request.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .border(1.dp, DroshOutline, RoundedCornerShape(10.dp)),
+        ) {
+            entry.preview.take(9).forEach { hex ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize()
+                        .background(parseHexColor(hex)),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = entry.name,
+            color = DroshText,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = entry.author.ifBlank { stringResource(R.string.settings_theme_no_description) },
+            color = DroshTextMuted,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (installed) {
+                Icon(
+                    imageVector = DroshIcons.Check,
+                    contentDescription = null,
+                    tint = DroshPrimary,
+                    modifier = Modifier.size(15.dp),
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = stringResource(R.string.settings_theme_installed_tag),
+                    color = DroshPrimary,
+                    fontSize = 12.sp,
+                )
+            } else {
+                Icon(
+                    imageVector = DroshIcons.Download,
+                    contentDescription = null,
+                    tint = DroshTextMuted,
+                    modifier = Modifier.size(15.dp),
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = if (busy) {
+                        stringResource(R.string.settings_theme_loading)
+                    } else {
+                        stringResource(R.string.settings_theme_install)
+                    },
+                    color = DroshTextMuted,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+    }
+}
+
+/** The library: what is installed, and what can be done to it. */
+@Composable
+private fun ThemeLibrary(
+    installed: List<DroshTheme>,
+    activeId: String,
+    onApply: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onInstallFromUrl: () -> Unit,
+    onCreate: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        items(installed.size, key = { installed[it].id }) { index ->
+            val theme = installed[index]
+            val active = theme.id == activeId
+            SettingsTile(
+                cap = when {
+                    installed.size == 1 -> TileCap.Only
+                    index == 0 -> TileCap.First
+                    index == installed.size - 1 -> TileCap.Last
+                    else -> TileCap.Middle
+                },
+                title = theme.name,
+                icon = DroshIcons.Palette,
+                supporting = if (active) {
+                    stringResource(R.string.settings_theme_in_use)
+                } else {
+                    theme.author.ifBlank { stringResource(R.string.settings_theme_no_description) }
+                },
+                leading = {
+                    ThemeGridLogo(theme = theme, modifier = Modifier.size(38.dp))
+                },
+                onClick = { onApply(theme.id) },
+                // Long press takes it off the shelf. A row's second action has
+                // lived behind a long press in this app since the sidebar, and
+                // a delete button on every row is a row that deletes by accident.
+                onLongClick = { onRemove(theme.id) },
+            ) {
+                if (active) SettingsCheck() else SettingsChevron()
+            }
+        }
+
+        item {
+            Spacer(Modifier.height(8.dp))
+        }
+
+        item {
+            SettingsGroupColumn(label = stringResource(R.string.settings_section_custom), items = 2) { index, cap ->
+                if (index == 0) {
+                    SettingsTile(
+                        cap = cap,
+                        title = stringResource(R.string.settings_theme_from_url),
+                        icon = DroshIcons.ExternalLink,
+                        supporting = stringResource(R.string.settings_theme_from_url_desc),
+                        onClick = onInstallFromUrl,
+                    ) { SettingsChevron() }
+                } else {
+                    SettingsTile(
+                        cap = cap,
+                        title = stringResource(R.string.settings_theme_create),
+                        icon = DroshIcons.Pencil,
+                        supporting = stringResource(R.string.settings_theme_create_desc),
+                        onClick = onCreate,
+                    ) { SettingsChevron() }
+                }
+            }
+        }
+    }
 }
 
 /**
  * A theme's logo: its palette as a grid.
  *
- * Nine cells — the background edge, then the eight colours a theme is
- * judged by — because that is the smallest honest picture of a palette.
- * The text on each cell picks its side by luminance, so a name stays
- * readable on a pale swatch.
+ * Nine cells — the background edge, then the eight colours a theme is judged
+ * by — because that is the smallest honest picture of a palette.
  */
 @Composable
 fun ThemeGridLogo(
@@ -318,36 +485,13 @@ fun ThemeGridLogo(
     }
 }
 
-@Composable
-private fun SettingsMessageDialog(text: String, onDismiss: () -> Unit) {
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DroshSurfaceVariant,
-        title = { Text(stringResource(R.string.settings_theme_store), color = DroshText) },
-        text = { Text(text, color = DroshTextSecondary) },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.settings_dialog_save), color = DroshPrimary)
-            }
-        },
-    )
-}
-
 /** "#RRGGBB" as a colour, black when it is not one. */
 internal fun parseHexColor(hex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Black)
 
 /** True for the pale swatches, where text has to be dark to be read. */
-internal fun Color.isLight(): Boolean = luminance() > 0.5f
+internal fun Color.isLight(): Boolean = androidx.compose.ui.graphics.luminance() > 0.5f
 
-/**
- * The creator: pick a base, name it, save it.
- *
- * Not a colour editor. A palette is twenty-two values and a phone keyboard
- * is the worst place to type hex into twenty-two fields — the honest flow is
- * to start from the closest installed theme and then edit the file, which is
- * one line per colour and sits in the rootfs where the user already works.
- */
 @Composable
 private fun ThemeCreatorDialog(
     base: DroshTheme?,

@@ -82,6 +82,14 @@ data class ThemeIndexEntry(
     val description: String = "",
     /** Path of the theme file in the store repo, relative to its root. */
     val file: String = "",
+    /**
+     * Nine colours from the theme's palette, for the store's cover.
+     *
+     * The index carries them so a shelf of two hundred themes can be drawn
+     * without downloading two hundred files — a cover that needs a request
+     * per card is not a cover, it is a loading state.
+     */
+    val preview: List<String> = emptyList(),
 )
 
 /** The whole index, as fetched. */
