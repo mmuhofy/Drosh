@@ -314,7 +314,7 @@ fun AgentChatScreen(
                                 verticalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 row.tools.forEach { tool ->
-                                    ToolCallRow(tool, onInspect = { onInspectTool(tool) })
+                                    ToolCallRow(tool, onInspect = { inspecting = tool })
                                 }
                             }
                         }

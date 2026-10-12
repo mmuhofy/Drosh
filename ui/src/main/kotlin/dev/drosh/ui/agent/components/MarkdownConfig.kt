@@ -151,11 +151,4 @@ fun droshMarkdownComponents(onCopy: (String) -> Unit): MarkdownComponents =
                 onCopy = onCopy,
             )
         },
-        // A table is a table. The renderer parses the pipe form and would
-        // otherwise draw its source — three lines of punctuation with the
-        // answer somewhere inside them — so the AST is read and the rows and
-        // cells are laid out as what they are.
-        table = { model: MarkdownComponentModel ->
-            DroshMarkdownTable(model = model)
-        },
     )
