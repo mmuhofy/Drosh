@@ -74,6 +74,13 @@ class SearchHighlightOverlay(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
+        // Before anything else: with no query there is nothing to draw, and
+        // readRows builds a string per visible row. Checking it after the read
+        // meant every frame of ordinary output paid for a scan whose result
+        // was thrown away.
+        val query = searchQuery
+        if (query.isNullOrEmpty()) return
+
         val view = terminalView ?: return
         val emulator = view.mEmulator ?: return
         val renderer = view.mRenderer ?: return
@@ -87,9 +94,6 @@ class SearchHighlightOverlay(
 
         val snapshot = readRows() ?: return
         val rowTexts = snapshot.texts
-
-        val query = searchQuery
-        if (query.isNullOrEmpty()) return
 
         val lowerQuery = query.lowercase()
         for (visRow in 0 until rows) {
