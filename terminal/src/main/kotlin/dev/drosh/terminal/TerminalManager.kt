@@ -305,6 +305,25 @@ class TerminalManager(
     private var boldBrightens: Boolean = true
     private var ligatures: Boolean = true
 
+    /**
+     * Whether the block engine is following this session's output at all.
+     *
+     * The wire is a transcript poller: on every chunk of output it serialises
+     * the whole transcript, strips ANSI from it, diffs it against the previous
+     * one and runs the prompt regexes. That work is proportional to the size of
+     * the scrollback, and it was paid on every chunk whether or not the user
+     * was looking at blocks — so a long `apt install` in classic mode kept
+     * re-reading its own backlog, once per 64 KB of output, long after the
+     * install was over.
+     *
+     * Classic mode never reads anything the wire produces (the input bar that
+     * consumes `awaitingShellInput` lives on the block side of the screen), so
+     * with the setting off the wire does not run. Defaults on until the setting
+     * says otherwise, so a first launch that has not read the setting yet
+     * behaves as it always did.
+     */
+    private var blockEngineEnabled: Boolean = true
+
     /** The theme's background, as a colour. Held so a late pane gets it too. */
     private var terminalBgColor: Int = DEFAULT_TERMINAL_BG_COLOR
 
@@ -565,7 +584,7 @@ class TerminalManager(
             }
         }
         val promoted = sessionForSlot(PaneSlot.PRIMARY)
-        blockEngineWire?.onSessionChanged(sessionIdForSlot(PaneSlot.PRIMARY), promoted)
+        onBlockSessionChanged(sessionIdForSlot(PaneSlot.PRIMARY), promoted)
         publishAltBufferState()
         publishActiveId()
         return true
@@ -790,7 +809,7 @@ class TerminalManager(
             val persistentId = getIndexOfSession(session)
                 .takeIf { it >= 0 }
                 ?.let { irisSessions[it].persistentId }
-            blockEngineWire?.onSessionTextChanged(session, persistentId)
+            blockEngineWire?.takeIf { blockEngineEnabled }?.onSessionTextChanged(session, persistentId)
         }
         sessionClient.onAltBufferChanged = { session, isActive ->
             // Routed by pane rather than assigned to a shared flag: a TUI
@@ -863,6 +882,19 @@ class TerminalManager(
             .onEach { mode -> motdMode = mode }
             .launchIn(managerScope)
 
+        settingsRepository.useBlockEngine
+            .onEach { enabled ->
+                if (blockEngineEnabled == enabled) return@onEach
+                blockEngineEnabled = enabled
+                // Turning the engine on mid-session: the wire stopped following
+                // the screen while it was off, so its diff anchor describes a
+                // transcript from before. Without a re-seed the first chunk
+                // after the switch would diff the whole backlog and post all of
+                // it as new output.
+                if (enabled) reanchorBlockWire()
+            }
+            .launchIn(managerScope)
+
         settingsRepository.motdText
             .onEach { text -> motdText = text }
             .launchIn(managerScope)
@@ -872,6 +904,31 @@ class TerminalManager(
             .distinctUntilChanged()
             .onEach { recoverFallbackSessions() }
             .launchIn(managerScope)
+    }
+
+    /**
+     * Re-seeds the wire's diff anchor against every live session.
+     *
+     * Only meaningful when the engine is on; called the moment it is turned
+     * back on, because everything the wire knew about the screen went stale
+     * while it was off.
+     */
+    private fun reanchorBlockWire() {
+        val wire = blockEngineWire ?: return
+        irisSessions.forEach { session ->
+            wire.reanchor(session.terminalSession)
+        }
+    }
+
+    /**
+     * Points the wire at a different session, when it is following at all.
+     *
+     * Re-seeding costs a full transcript read, which is the very work the
+     * gate avoids — so a session switch in classic mode does not pay it.
+     */
+    private fun onBlockSessionChanged(sessionId: String?, session: TerminalSession?) {
+        if (!blockEngineEnabled) return
+        blockEngineWire?.onSessionChanged(sessionId, session)
     }
 
     fun updateProotStartCommand(command: String) {
@@ -1041,7 +1098,7 @@ class TerminalManager(
         _selectionBounds.value = null
         _hasSelection.value = false
         activatePaneView(slot, view)
-        blockEngineWire?.onSessionChanged(sessionIdForSlot(slot), sessionForSlot(slot))
+        onBlockSessionChanged(sessionIdForSlot(slot), sessionForSlot(slot))
         publishAltBufferState()
         publishActiveId()
         view.requestFocus()
@@ -1105,7 +1162,7 @@ class TerminalManager(
         // A session exists again, so the exit dialog no longer applies.
         _noSessionsLeft.value = false
         // Block mode shares these sessions; point the block store at the new one.
-        blockEngineWire?.onSessionChanged(persistentId, irisSession.terminalSession)
+        onBlockSessionChanged(persistentId, irisSession.terminalSession)
         paneViews[focusedPane.value]?.attachSession(irisSession.terminalSession)
         syncActiveTabIndex()
         publishAltBufferState()
@@ -1153,7 +1210,7 @@ class TerminalManager(
         _sessionCount.value = irisSessions.size
         _liveSessionIds.value = liveSessionIds()
         _noSessionsLeft.value = false
-        blockEngineWire?.onSessionChanged(persistentId, irisSession.terminalSession)
+        onBlockSessionChanged(persistentId, irisSession.terminalSession)
         paneViews[focusedPane.value]?.attachSession(irisSession.terminalSession)
         syncActiveTabIndex()
         publishAltBufferState()
@@ -1271,7 +1328,7 @@ class TerminalManager(
         // Same session id, so onSessionChanged would be a no-op. The diff anchor
         // has to be re-seeded regardless, or the new shell's first output is
         // diffed against the dead shell's transcript.
-        blockEngineWire?.reanchor(replacement)
+        if (blockEngineEnabled) blockEngineWire?.reanchor(replacement)
         reattachPanesAt(index)
     }
 
@@ -1364,7 +1421,7 @@ class TerminalManager(
         // they had scrolled to belongs to the one that was there before.
         // Blocks are stored per session, so switching shows that session's
         // history instead of clearing the engine.
-        blockEngineWire?.onSessionChanged(target.persistentId, target.terminalSession)
+        onBlockSessionChanged(target.persistentId, target.terminalSession)
         paneViews[slot]?.attachSession(target.terminalSession)
         publishAltBufferState()
         publishActiveId()
