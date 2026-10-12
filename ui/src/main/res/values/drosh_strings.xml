@@ -431,4 +431,5 @@ no terminal session needed.</string>
     <string name="agent_tool_awaiting">Waiting for you</string>
     <string name="agent_tool_pending">Pending</string>
     <string name="agent_tool_no_output">This tool produced no output.</string>
+    <string name="agent_always_allow">Always allow</string>
 </resources>

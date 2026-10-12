@@ -88,6 +88,7 @@ import dev.drosh.domain.agent.AgentRunState
 import dev.drosh.domain.agent.AgentTodo
 import dev.drosh.domain.agent.AgentTodoStatus
 import dev.drosh.domain.agent.ApprovalDecision
+import dev.drosh.domain.agent.ApprovalRule
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.TerminalProjection
 import dev.drosh.domain.agent.TokenUsage
@@ -1595,6 +1596,34 @@ private fun ApprovalBlock(
                 options = approval.options,
                 onAnswer = { onAnswer(approval.id, it) },
             )
+        } else if (approval.toolName == TerminalProjection.SHELL_TOOL) {
+            // A shell command gets the third answer: run it, and do not ask
+            // again about this shape of command. It belongs here and nowhere
+            // else — there is nothing to "always" about writing one file.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlatButton(
+                    text = stringResource(R.string.action_reject),
+                    onClick = { onAnswer(approval.id, ApprovalDecision.Reject("declined")) },
+                    modifier = Modifier.weight(1f),
+                )
+                FlatButton(
+                    text = stringResource(R.string.agent_always_allow),
+                    onClick = {
+                        onAnswer(
+                            approval.id,
+                            ApprovalDecision.AlwaysAllow(
+                                ApprovalRule.forCommand(approval.title),
+                            ),
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                ActionButton(
+                    text = stringResource(R.string.action_apply),
+                    onClick = { onAnswer(approval.id, ApprovalDecision.Approve) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FlatButton(

@@ -9,6 +9,7 @@ import dev.drosh.domain.agent.AgentEvent
 import dev.drosh.domain.agent.AgentRequest
 import dev.drosh.domain.agent.AgentRunState
 import dev.drosh.domain.agent.AgentSession
+import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.agent.ApprovalDecision
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.ChatStatus
@@ -47,6 +48,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AgentChatViewModel @Inject constructor(
     private val agentSession: AgentSession,
+    private val settingsStore: SettingsStore,
     private val chats: AgentChatRepository,
     private val providers: LlmProviderRepository,
     private val transcripts: TranscriptStore,
@@ -372,6 +374,20 @@ class AgentChatViewModel @Inject constructor(
     }
 
     fun answer(approvalId: String, decision: ApprovalDecision) {
+        // "Always allow" writes the rule before it is delivered: the rule is the
+        // whole content of the answer, and a session restart must not lose it.
+        if (decision is ApprovalDecision.AlwaysAllow) {
+            val current = settingsStore.settings.value.agent
+            if (current.alwaysAllow.none { it.pattern == decision.rule.pattern }) {
+                settingsStore.update { snap ->
+                    snap.copy(
+                        agent = snap.agent.copy(
+                            alwaysAllow = snap.agent.alwaysAllow + decision.rule,
+                        ),
+                    )
+                }
+            }
+        }
         if (agentSession.answerApproval(approvalId, decision)) {
             _pendingApproval.value = _pendingApproval.value.filterNot { it.first == approvalId }
         }

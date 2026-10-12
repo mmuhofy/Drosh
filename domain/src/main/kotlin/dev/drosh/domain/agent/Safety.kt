@@ -34,14 +34,16 @@ enum class AutonomyLevel {
 }
 
 /**
- * What the answer to an approval request was.
+ * What the answer to a safety question was.
  *
- * [ALWAYS] is the only one that outlives the request: it writes a rule into
- * the settings file, and the rule is matched the next time the same shape of
- * command comes up.
+ * Not [ApprovalDecision], which is the sealed interface the agent's own
+ * write-file and ask-user tools answer into: this is the safety layer's
+ * three-way answer, and [ALWAYS] is the only one that outlives the request —
+ * it writes a rule into the settings file that is matched the next time the
+ * same shape of command comes up.
  */
 @Serializable
-enum class ApprovalDecision {
+enum class SafetyDecision {
     /** This command, this once. */
     PROCEED,
 

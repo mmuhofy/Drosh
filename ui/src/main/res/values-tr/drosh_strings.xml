@@ -405,4 +405,5 @@ terminal session açmana gerek yok.</string>
     <string name="agent_tool_awaiting">Onay bekliyor</string>
     <string name="agent_tool_pending">Siraniyor</string>
     <string name="agent_tool_no_output">Bu tool cikti uretmedi.</string>
+    <string name="agent_always_allow">Her zaman izin ver</string>
 </resources>
