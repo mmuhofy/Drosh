@@ -228,6 +228,7 @@ private fun List<TerminalLine>.toCommandCards(): List<TerminalCommandCard> {
  * Duration is omitted rather than zeroed when unknown. "0.0s" on a command that
  * was killed mid-flight is a claim, and it is false.
  */
+@Composable
 private fun TerminalLine.Status.label(): String {
     val base = when {
         failed && code < 0 -> stringResource(R.string.agent_terminal_cancelled)

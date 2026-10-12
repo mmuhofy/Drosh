@@ -314,7 +314,7 @@ fun AgentChatScreen(
                                 verticalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 row.tools.forEach { tool ->
-                                    ToolCallRow(tool)
+                                    ToolCallRow(tool, onInspect = { onInspectTool(tool) })
                                 }
                             }
                         }
@@ -829,9 +829,7 @@ private fun AgentComposer(
                                     .clip(CircleShape)
                                     .background(if (canSend) DroshPrimary else DroshSurfaceHigh)
                                     .clickable(enabled = canSend) {
-                                        val sent = text
-                                        text = ""
-                                        onSend(sent)
+                                        onSend(text)
                                     }
                                     .semantics { contentDescription = sendCd },
                                 contentAlignment = Alignment.Center,

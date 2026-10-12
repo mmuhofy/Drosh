@@ -155,7 +155,7 @@ fun droshMarkdownComponents(onCopy: (String) -> Unit): MarkdownComponents =
         // otherwise draw its source — three lines of punctuation with the
         // answer somewhere inside them — so the AST is read and the rows and
         // cells are laid out as what they are.
-        table = { model ->
+        table = { model: MarkdownComponentModel ->
             DroshMarkdownTable(model = model)
         },
     )
