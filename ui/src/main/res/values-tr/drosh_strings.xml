@@ -398,4 +398,11 @@ terminal session açmana gerek yok.</string>
     <string name="agent_select_text">Metni sec</string>
     <string name="agent_copy_code">Kodu kopyala</string>
     <string name="agent_table">Tablo</string>
+    <string name="agent_tool_running">Calisiyor</string>
+    <string name="agent_tool_succeeded">Tamamlandi</string>
+    <string name="agent_tool_failed">Basarisiz</string>
+    <string name="agent_tool_cancelled">Iptal edildi</string>
+    <string name="agent_tool_awaiting">Onay bekliyor</string>
+    <string name="agent_tool_pending">Siraniyor</string>
+    <string name="agent_tool_no_output">Bu tool cikti uretmedi.</string>
 </resources>

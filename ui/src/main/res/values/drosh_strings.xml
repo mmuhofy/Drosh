@@ -424,4 +424,11 @@ no terminal session needed.</string>
     <string name="agent_select_text">Select text</string>
     <string name="agent_copy_code">Copy code</string>
     <string name="agent_table">Table</string>
+    <string name="agent_tool_running">Running</string>
+    <string name="agent_tool_succeeded">Succeeded</string>
+    <string name="agent_tool_failed">Failed</string>
+    <string name="agent_tool_cancelled">Cancelled</string>
+    <string name="agent_tool_awaiting">Waiting for you</string>
+    <string name="agent_tool_pending">Pending</string>
+    <string name="agent_tool_no_output">This tool produced no output.</string>
 </resources>

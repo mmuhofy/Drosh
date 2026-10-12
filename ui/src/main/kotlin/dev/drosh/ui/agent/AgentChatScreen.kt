@@ -194,6 +194,11 @@ fun AgentChatScreen(
     // the user already sent back into it. The composer used to own its own
     // draft, which meant nothing outside it could hand it anything.
     var composerDraft by rememberSaveable(chatId) { mutableStateOf("") }
+    // The tool whose full output is on the sheet, or null. A detail sheet rather
+    // than an inline expansion: an expanded git diff pushes the conversation off
+    // the screen, and the row the user was reading moves out from under their
+    // thumb.
+    var inspecting by remember { mutableStateOf<ChatMessage.ToolCall?>(null) }
     // Bumped when the keyboard should come up after the draft is filled.
     var composerFocusRequest by remember { mutableIntStateOf(0) }
     var modelPickerOpen by rememberSaveable(chatId) { mutableStateOf(false) }
@@ -302,6 +307,7 @@ fun AgentChatScreen(
                                     composerDraft = draft
                                     composerFocusRequest += 1
                                 },
+                                onInspectTool = { tool -> inspecting = tool },
                             )
 
                             is TranscriptRow.ToolGroup -> Column(
@@ -353,6 +359,18 @@ fun AgentChatScreen(
             }
 
 
+
+            inspecting?.let { tool ->
+                AgentToolDetailSheet(
+                    visible = true,
+                    title = toolVerbs(tool.name).first,
+                    subtitle = tool.summary,
+                    body = tool.finalOutput ?: tool.output.joinToString("\n"),
+                    state = tool.state,
+                    onDismiss = { inspecting = null },
+                    onCopy = clipboard,
+                )
+            }
 
             if (sheetOpen) {
                 TerminalHistorySheet(
@@ -874,6 +892,8 @@ private fun MessageRow(
     onRetry: () -> Unit,
     /** Edits what the user sent: the draft comes back for another go. */
     onEdit: (String) -> Unit,
+    /** Opens a tool's full output on the detail sheet. */
+    onInspectTool: (ChatMessage.ToolCall) -> Unit,
 ) {
     when (message) {
         is ChatMessage.User -> UserBubble(
@@ -892,7 +912,7 @@ private fun MessageRow(
 
         is ChatMessage.Reasoning -> ReasoningBlock(message)
 
-        is ChatMessage.ToolCall -> ToolCallRow(message)
+        is ChatMessage.ToolCall -> ToolCallRow(message, onInspect = { onInspectTool(message) })
 
         is ChatMessage.Approval -> ApprovalBlock(message, onAnswer)
 
@@ -1313,16 +1333,17 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
  * result has arrived.
  */
 @Composable
-private fun ToolCallRow(message: ChatMessage.ToolCall) {
+private fun ToolCallRow(
+    message: ChatMessage.ToolCall,
+    onInspect: () -> Unit,
+) {
     val copyCd = stringResource(R.string.agent_copy_output_cd)
-    var open by rememberSaveable(message.id) {
-        mutableStateOf(message.state == ToolCallState.Running)
-    }
     val running = message.state == ToolCallState.Running
 
-    LaunchedEffect(running) {
-        if (running) open = true
-    }
+    // The row is a summary and nothing more: tapping it opens the detail sheet
+    // rather than expanding a wall of output into the middle of the transcript.
+    // An expanded `git diff` on a large change pushes the conversation off the
+    // screen and moves the row the user was reading out from under their thumb.
 
     // Elapsed seconds, counted rather than measured. A timer that reads a start
     // timestamp drifts with frame timing; incrementing once a second is exact to the
@@ -1349,11 +1370,6 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
         label = "toolSweepProgress",
     )
 
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (open) 90f else 0f,
-        animationSpec = tween(MOTION_MS),
-        label = "toolChevronRotation",
-    )
 
     val clipboard = rememberAgentClipboard()
     val (present, past) = toolVerbs(message.name)
@@ -1363,7 +1379,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { open = !open }
+                .clickable(onClick = onInspect)
                 .padding(vertical = 1.dp)
                 .semantics { contentDescription = toolRowDescription(message) },
             verticalAlignment = Alignment.CenterVertically,
@@ -1415,101 +1431,22 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
 
             Icon(
                 imageVector = DroshIcons.ChevronRight,
-                contentDescription = if (open) "Daralt" else "Genişlet",
+                contentDescription = null,
                 tint = DroshTextMuted,
                 modifier = Modifier
-                    .size(12.dp)
-                    .rotate(chevronRotation),
+                    .size(12.dp),
             )
         }
 
-        AnimatedVisibility(
-            visible = open,
-            enter = fadeIn(tween(MOTION_MS)) + expandVertically(tween(MOTION_MS)),
-            exit = fadeOut(tween(MOTION_MS)) + shrinkVertically(tween(MOTION_MS)),
-        ) {
-            Row(modifier = Modifier.padding(top = 2.dp)) {
-                // A hairline from under the glyph down past the output: what ties the
-                // output to the line that produced it, without a second surface.
-                Box(
-                    modifier = Modifier
-                        .padding(start = 7.dp)
-                        .width(1.dp)
-                        .heightIn(min = 16.dp)
-                        .clip(RoundedCornerShape(1.dp))
-                        .background(DroshOutline.copy(alpha = 0.4f)),
-                )
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 10.dp, top = 1.dp, bottom = 3.dp),
-                ) {
-                    // A checklist is the tool's result, not its output text, so it is
-                    // rendered as a list and the text version is not shown.
-                    if (message.todos.isNotEmpty()) {
-                        TodoCard(todos = message.todos)
-                    }
-
-                    val finalOutput = message.finalOutput
-                    val liveOutput = message.output
-                    val body = when {
-                        message.todos.isNotEmpty() -> null
-                        liveOutput.isNotEmpty() ->
-                            liveOutput.takeLast(MAX_LIVE_LINES).joinToString("\n")
-                        finalOutput != null -> finalOutput
-                        else -> null
-                    }
-                    if (body != null) {
-                        // Plain text on the transcript's own background. A fill here
-                        // would make every result a panel again.
-                        Text(
-                            text = body,
-                            fontSize = 11.5.sp,
-                            lineHeight = 16.sp,
-                            fontFamily = LocalFontSet.current.mono,
-                            color = DroshTextSecondary,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-
-                    if (message.truncated) {
-                        Text(
-                            text = stringResource(R.string.agent_output_clipped),
-                            fontSize = 10.sp,
-                            color = DroshWarning,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
-
-                    message.durationMs?.let { duration ->
-                        Row(
-                            modifier = Modifier.padding(top = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = formatToolDuration(duration),
-                                fontSize = 10.sp,
-                                fontFamily = LocalFontSet.current.mono,
-                                color = DroshTextMuted,
-                            )
-                            if (body != null) {
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    text = stringResource(R.string.action_copy),
-                                    fontSize = 11.sp,
-                                    color = DroshTextMuted,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { clipboard(body) }
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                        .semantics { contentDescription = copyCd },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+        // The checklist is the tool's *result* rather than its output text, so it
+        // stays on the transcript: it is the one thing a tool produces that is
+        // itself a thing to look at. Everything else - the raw output, the copy
+        // action, the clipped marker - is on the detail sheet now.
+        if (message.todos.isNotEmpty()) {
+            TodoCard(
+                todos = message.todos,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
