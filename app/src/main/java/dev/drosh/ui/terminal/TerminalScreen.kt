@@ -748,6 +748,8 @@ private fun ReadyScreen(
             onClosePane = paneLayoutViewModel::closeFloatingPane,
             onSwapPanes = paneLayoutViewModel::swapPanes,
             floatingTitle = secondarySessionName,
+            // The name the dock pill shows when the seam is dragged to an edge.
+            secondaryTitle = secondarySessionName,
             // weight, not fillMaxSize: the extra-key bar is drawn by this
             // Column, below the host, and a host that filled the available height
             // would push it past the bottom edge.

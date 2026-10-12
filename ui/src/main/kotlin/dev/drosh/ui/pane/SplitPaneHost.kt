@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -87,6 +89,8 @@ fun SplitPaneHost(
     onSwapPanes: () -> Unit,
     modifier: Modifier = Modifier,
     floatingTitle: String = "",
+    /** The second session's name, for the dock pill that appears at the edge. */
+    secondaryTitle: String = "",
     primary: @Composable () -> Unit,
     secondary: @Composable () -> Unit,
 ) {
@@ -266,6 +270,26 @@ fun SplitPaneHost(
              */
             if (dragging) {
                 StepGuides(currentFraction = seamPx / heightPx)
+                // The dock pill. Dragging the seam to either end collapses the
+                // split — that was the only thing that happened, and it happened
+                // with no sign of what was about to. A pill at the edge the seam
+                // is being dragged toward says what a release there does: the
+                // second pane leaves and its session stays reachable here.
+                val fraction = seamPx / heightPx.coerceAtLeast(1f)
+                if (secondaryTitle.isNotBlank() && heightPx > 0f) {
+                    when {
+                        fraction <= PaneLayout.COLLAPSE_FRACTION -> DockPill(
+                            title = secondaryTitle,
+                            alignToStart = true,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                        fraction >= 1f - PaneLayout.COLLAPSE_FRACTION -> DockPill(
+                            title = secondaryTitle,
+                            alignToStart = false,
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
+                    }
+                }
             }
 
             SplitDivider(
@@ -313,6 +337,48 @@ fun SplitPaneHost(
                 },
             )
         }
+    }
+}
+
+/**
+ * The pill that says where a release at the edge will put the second session.
+ *
+ * A name and a chevron, on a surface, at the edge the seam is being dragged
+ * toward: it is the same promise the floating pane's edge-snap strip makes,
+ * drawn as a target rather than as a result.
+ */
+@Composable
+private fun DockPill(
+    title: String,
+    alignToStart: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .padding(horizontal = 24.dp, vertical = 14.dp)
+            .shadow(8.dp, RoundedCornerShape(50))
+            .clip(RoundedCornerShape(50))
+            .background(DroshSurfaceHigh)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            painter = rememberVectorPainter(
+                if (alignToStart) DroshIcons.ChevronUp else DroshIcons.ChevronDown,
+            ),
+            contentDescription = null,
+            tint = DroshPrimary,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = title,
+            color = DroshText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
