@@ -75,6 +75,18 @@ data class TerminalSettings(
     val ligatures: Boolean = true,
     /** The unfocused pane of a split is drawn dimmer. */
     val dimInactivePanes: Boolean = true,
+    /**
+     * Whether the status bar and the pill row hide themselves while the
+     * terminal is being scrolled.
+     *
+     * This was a placeholder for years, which is why it was taken out. It
+     * came back as a real setting because the behaviour it names is real:
+     * the chrome hides on a scroll down and returns on the way back, and
+     * someone who wants the clock always on screen has had no way to say so.
+     * Off, the chrome never leaves — the bars stay put whatever the terminal
+     * is doing.
+     */
+    val immersive: Boolean = true,
     /** The colours the terminal draws with; a theme writes all of them. */
     val palette: ThemePalette = ThemePalette.DEFAULT,
     /** Which installed theme put the palette there; "" means the file's own. */

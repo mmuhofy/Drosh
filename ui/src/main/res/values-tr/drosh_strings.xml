@@ -384,4 +384,6 @@ terminal session açmana gerek yok.</string>
     <string name="settings_theme_remove_confirm">Kaldır</string>
     <string name="sidebar_menu">Session menüsü</string>
     <string name="sidebar_drop_to_split">Birakinca bol</string>
+    <string name="settings_immersive">Tam ekran (immersive)</string>
+    <string name="settings_immersive_desc">Terminalde kaydirirken durum cubugu ve pill satirini gizle</string>
 </resources>

@@ -218,6 +218,13 @@ fun SessionSidebar(
      * one callback says so once instead of both guessing.
      */
     onHoldChange: ((String?) -> Unit)? = null,
+    /**
+     * Cycles the divider between its stops.
+     *
+     * Behaves on the split rather than on a session, which is why it is
+     * offered from the pair's own menu and not from any row's.
+     */
+    onCycleSplit: (() -> Unit)? = null,
     /** True while a second pane is open, so the rows can show it. */
     isSplit: Boolean = false,
     /**
@@ -296,6 +303,7 @@ fun SessionSidebar(
             onToggleKeyboard = onToggleKeyboard,
             onDropOnTerminal = onDropOnTerminal,
             onHoldChange = onHoldChange,
+            onCycleSplit = onCycleSplit,
         )
     }
 }
@@ -330,6 +338,8 @@ private fun SidebarContent(
     onDragSplit: ((String, String) -> Unit)?,
     onDropOnTerminal: ((String) -> Unit)? = null,
     onHoldChange: ((String?) -> Unit)? = null,
+    /** Cycles the divider between its three stops. */
+    onCycleSplit: (() -> Unit)? = null,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
@@ -649,6 +659,8 @@ private fun SidebarContent(
                                 },
                                 drawerWidthPx = pushState?.widthPx ?: 0f,
                                 onHoldChange = onHoldChange,
+                                isSplitOpen = isSplit,
+                                onCycleSplit = onCycleSplit,
                                 onDrop = { target ->
                                     if (target != snapshot.id) {
                                         onDragSplit?.invoke(snapshot.id, target)
@@ -1003,6 +1015,17 @@ private fun SessionRow(
     isSecondaryPane: Boolean = false,
     /** True while the second pane is a floating window. */
     floatingPane: Boolean = false,
+    /**
+     * True while any split is on screen.
+     *
+     * It gates the split's own controls in the row's menu: the menu a session
+     * offers is about that session, and four entries about an arrangement the
+     * session is only half of would read as actions on it. Shown on a session
+     * that is in the pair — the card's own dots — and on no other.
+     */
+    isSplitOpen: Boolean = false,
+    /** Cycles the divider between the three stops. */
+    onCycleSplit: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -1192,8 +1215,14 @@ private fun SessionRow(
                                             else -> onDrop(target)
                                         }
                                     }
+                                    // The menu's open and close is the three
+                                    // dots' business, and the row's gesture has
+                                    // no say in it. It used to clear it here on
+                                    // every release, which meant the dot opened
+                                    // the menu and the same press closed it in
+                                    // the same frame — one press, two instructions,
+                                    // and the menu never appeared.
                                     moved -> Unit
-                                    menuOpen -> menuOpen = false
                                     else -> onClick()
                                 }
                                 break
@@ -1305,16 +1334,41 @@ private fun SessionRow(
             // press used to open it and the pick-up took that over, so the
             // menu now has a door of its own — a dot is the smallest one
             // there is, and it sits where a menu belongs.
+            //
+            // It is the menu's anchor as well: Material's DropdownMenu opens
+            // from the position of the composable it is called on, so the menu
+            // is called in this button's own box. Called anywhere else in the
+            // row it opens from the row's box — which spans the drawer — and a
+            // menu that opens a hand's width from the button it belongs to is
+            // a menu in the wrong place.
             if (!ended) {
-                IconButton(
-                    onClick = { menuOpen = true },
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        painter = rememberVectorPainter(DroshIcons.EllipsisVertical),
-                        contentDescription = stringResource(R.string.sidebar_menu),
-                        tint = DroshTextSecondary,
-                        modifier = Modifier.size(18.dp),
+                Box {
+                    IconButton(
+                        onClick = { menuOpen = true },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            painter = rememberVectorPainter(DroshIcons.EllipsisVertical),
+                            contentDescription = stringResource(R.string.sidebar_menu),
+                            tint = DroshTextSecondary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    SessionRowMenu(
+                        expanded = menuOpen,
+                        onDismiss = { menuOpen = false },
+                        onSplit = onSplit,
+                        onFloat = onFloat,
+                        onDock = onDock,
+                        onSwapPanes = onSwapPanes,
+                        onCloseSplit = onCloseSplit,
+                        onCycleSplit = onCycleSplit,
+                        isSplitOpen = isSplitOpen,
+                        isSecondaryPane = isSecondaryPane,
+                        floatingPane = floatingPane,
+                        ended = ended,
+                        onStartRename = onStartRename,
+                        onDelete = onDelete,
                     )
                 }
             }
@@ -1350,77 +1404,143 @@ private fun SessionRow(
             }
         }
 
-        // The same menu the terminal's overflow button uses, so the two cannot
-        // drift apart visually. Nudged to the row's content edge because left
-        // alone it sits flush against the screen.
-        DroshDropdownMenu(
-            expanded = menuOpen,
-            onDismissRequest = { menuOpen = false },
-            offset = DpOffset(20.dp, 0.dp),
-            items = buildList {
-                if (onSplit != null && !ended) {
-                    // PanelLeft rather than a two-column glyph. The lucide
-                    // artifact is not on this machine to check a name against,
-                    // and an icon whose absence only shows up at runtime is not
-                    // worth the two lines a custom vector would cost.
-                    add(
-                        DroshMenuItem(
-                            // "Split below" reads as a claim about this session's
-                            // position. Once it *is* the lower pane that claim is
-                            // false — the action swaps the pair — so the entry says
-                            // what it does.
-                            label = stringResource(if (isSecondaryPane) R.string.sidebar_swap_split else R.string.sidebar_split_below),
-                            id = if (isSecondaryPane) "swap" else "split",
-                            icon = DroshIcons.PanelLeft,
-                        ),
-                    )
-                }
-                if (onFloat != null && !ended) {
-                    add(
-                        DroshMenuItem(
-                            // "Dock pane" only where it can be acted on: it is the
-                            // inverse of "Open in window", so it belongs to a
-                            // row that is already floating and to nothing else.
-                            label = stringResource(
-                                if (isSecondaryPane && floatingPane) {
-                                    R.string.action_dock_pane
-                                } else {
-                                    R.string.sidebar_open_window
-                                },
-                            ),
-                            id = if (isSecondaryPane && floatingPane) "dock" else "float",
-                            icon = if (isSecondaryPane && floatingPane) {
-                                DroshIcons.PanelBottom
-                            } else {
-                                DroshIcons.Square
-                            },
-                        ),
-                    )
-                }
-                add(DroshMenuItem(label = stringResource(R.string.action_rename), icon = DroshIcons.Pencil, id = "rename"))
+    }
+}
+
+/**
+ * The session row's menu, in its own composable so the three dots can host it.
+ *
+ * Material's DropdownMenu opens from the position of the composable it is called
+ * on, which means the menu has to be *inside* the dot's own Box. When it lived
+ * at the row's level it anchored to the row — a box that spans the width of the
+ * drawer — and opened wherever that happened to measure, which is the "random
+ * place" a dropdown in a list is usually accused of.
+ */
+@Composable
+private fun SessionRowMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onSplit: (() -> Unit)?,
+    onFloat: (() -> Unit)?,
+    onDock: (() -> Unit)?,
+    onSwapPanes: (() -> Unit)?,
+    onCloseSplit: (() -> Unit)?,
+    onCycleSplit: (() -> Unit)?,
+    isSplitOpen: Boolean,
+    isSecondaryPane: Boolean,
+    floatingPane: Boolean,
+    ended: Boolean,
+    onStartRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    // The same menu the terminal's overflow button uses, so the two cannot
+    // drift apart visually. Nudged to the row's content edge because left
+    // alone it sits flush against the screen.
+    DroshDropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        offset = DpOffset(20.dp, 0.dp),
+        items = buildList {
+            if (onSplit != null && !ended) {
+                // PanelLeft rather than a two-column glyph. The lucide
+                // artifact is not on this machine to check a name against,
+                // and an icon whose absence only shows up at runtime is not
+                // worth the two lines a custom vector would cost.
                 add(
                     DroshMenuItem(
-                        label = stringResource(R.string.action_delete),
-                        icon = DroshIcons.Trash2,
-                        style = DroshMenuItemStyle.Destructive,
-                        id = "delete",
+                        // "Split below" reads as a claim about this session's
+                        // position. Once it *is* the lower pane that claim is
+                        // false — the action swaps the pair — so the entry says
+                        // what it does.
+                        label = stringResource(if (isSecondaryPane) R.string.sidebar_swap_split else R.string.sidebar_split_below),
+                        id = if (isSecondaryPane) "swap" else "split",
+                        icon = DroshIcons.PanelLeft,
                     ),
                 )
-            },
-            onItemClick = { item ->
-                when (item.id) {
-                    "split" -> onSplit?.invoke()
-                    // Both of these are reachable only on a row that is already
-                    // in the split, and both used to fall through to nothing.
-                    "swap" -> onSwapPanes?.invoke()
-                    "dock" -> onDock?.invoke()
-                    "float" -> onFloat?.invoke()
-                    "rename" -> onStartRename()
-                    "delete" -> onDelete()
+            }
+            if (onFloat != null && !ended) {
+                add(
+                    DroshMenuItem(
+                        // "Dock pane" only where it can be acted on: it is the
+                        // inverse of "Open in window", so it belongs to a
+                        // row that is already floating and to nothing else.
+                        label = stringResource(
+                            if (isSecondaryPane && floatingPane) {
+                                R.string.action_dock_pane
+                            } else {
+                                R.string.sidebar_open_window
+                            },
+                        ),
+                        id = if (isSecondaryPane && floatingPane) "dock" else "float",
+                        icon = if (isSecondaryPane && floatingPane) {
+                            DroshIcons.PanelBottom
+                        } else {
+                            DroshIcons.Square
+                        },
+                    ),
+                )
+            }
+            // ── the split's own controls, moved here from the top bar ──────
+            // These four used to sit in the terminal's overflow menu, one
+            // screen away from the pane they act on. They belong beside the
+            // arrangement they change.
+            if (isSplitOpen) {
+                if (onCycleSplit != null) {
+                    add(
+                        DroshMenuItem(
+                            label = stringResource(R.string.action_move_divider),
+                            id = "move_divider",
+                            icon = DroshIcons.RotateCcw,
+                        ),
+                    )
                 }
-            },
-        )
-    }
+                if (onSwapPanes != null) {
+                    add(
+                        DroshMenuItem(
+                            label = stringResource(R.string.action_swap_panes),
+                            id = "swap_panes",
+                            icon = DroshIcons.ArrowUpDown,
+                        ),
+                    )
+                }
+                if (onCloseSplit != null) {
+                    add(
+                        DroshMenuItem(
+                            label = stringResource(R.string.action_close_pane),
+                            id = "close_pane",
+                            icon = DroshIcons.X,
+                        ),
+                    )
+                }
+            }
+            add(DroshMenuItem(label = stringResource(R.string.action_rename), icon = DroshIcons.Pencil, id = "rename"))
+            add(
+                DroshMenuItem(
+                    label = stringResource(R.string.action_delete),
+                    icon = DroshIcons.Trash2,
+                    style = DroshMenuItemStyle.Destructive,
+                    id = "delete",
+                ),
+            )
+        },
+        onItemClick = { item ->
+            onDismiss()
+            when (item.id) {
+                "split" -> onSplit?.invoke()
+                // Both of these are reachable only on a row that is already
+                // in the split, and both used to fall through to nothing.
+                "swap" -> onSwapPanes?.invoke()
+                "dock" -> onDock?.invoke()
+                "float" -> onFloat?.invoke()
+                "rename" -> onStartRename()
+                "delete" -> onDelete()
+                // The split's own controls, arrived from the top bar.
+                "move_divider" -> onCycleSplit?.invoke()
+                "swap_panes" -> onSwapPanes?.invoke()
+                "close_pane" -> onCloseSplit?.invoke()
+            }
+        },
+    )
 }
 
 
