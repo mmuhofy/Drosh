@@ -38,6 +38,15 @@ data class AppearanceSettings(
     val fontPack: FontPack = FontPack.Geist,
     /** BCP-47-ish tag; "" follows the system. */
     val language: String = "",
+    /**
+     * Whether the sidebar's session rows sit on a surface of their own.
+     *
+     * Off, they are lines on the drawer — the current look. On, each row is
+     * a tile with a gap between it and the next, which is what matches the
+     * settings screen and what a dragged session wants to look like when it
+     * lands. The accent mark and the press highlight stay either way.
+     */
+    val sessionSurface: Boolean = true,
 ) {
     companion object {
         val DEFAULT = AppearanceSettings()

@@ -396,4 +396,6 @@ no terminal session needed.</string>
     <string name="about_version">Version</string>
     <string name="about_version_code">Version code</string>
     <string name="about_build_hash">Build hash</string>
+    <string name="settings_session_surface">Session rows on a surface</string>
+    <string name="settings_session_surface_desc">Off: lines on the drawer. On: a tile per session, with a gap.</string>
 </resources>

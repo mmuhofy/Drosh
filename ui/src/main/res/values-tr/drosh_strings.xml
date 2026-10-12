@@ -370,4 +370,6 @@ terminal session açmana gerek yok.</string>
     <string name="about_version">Sürüm</string>
     <string name="about_version_code">Sürüm kodu</string>
     <string name="about_build_hash">Sürüm hash</string>
+    <string name="settings_session_surface">Session satırları zeminli</string>
+    <string name="settings_session_surface_desc">Kapalı: çekmece üzerinde çizgiler. Açık: her session için kart, aralarında boşluk.</string>
 </resources>
