@@ -379,12 +379,17 @@ class AgentChatViewModel @Inject constructor(
         if (decision is ApprovalDecision.AlwaysAllow) {
             val current = settingsStore.settings.value.agent
             if (current.alwaysAllow.none { it.pattern == decision.rule.pattern }) {
-                settingsStore.update { snap ->
-                    snap.copy(
-                        agent = snap.agent.copy(
-                            alwaysAllow = snap.agent.alwaysAllow + decision.rule,
-                        ),
-                    )
+                // The write is dispatched rather than awaited: this runs on the
+                // main thread from a click, and holding the answer until the
+                // file lands would freeze the approval card.
+                viewModelScope.launch {
+                    settingsStore.update { snap ->
+                        snap.copy(
+                            agent = snap.agent.copy(
+                                alwaysAllow = snap.agent.alwaysAllow + decision.rule,
+                            ),
+                        )
+                    }
                 }
             }
         }

@@ -1892,6 +1892,7 @@ private fun DecisionRow(decision: ApprovalDecision) {
         is ApprovalDecision.Approve -> "onaylandı" to DroshSuccess
         is ApprovalDecision.Reject -> "reddedildi" to DroshError
         is ApprovalDecision.Answer -> "yanıtlandı" to DroshSuccess
+        is ApprovalDecision.AlwaysAllow -> "her zaman izin verildi" to DroshSuccess
     }
 
     Row(
@@ -1937,7 +1938,9 @@ private fun DecisionRow(decision: ApprovalDecision) {
                     color = DroshTextSecondary,
                 )
 
-                is ApprovalDecision.Approve -> Unit
+                // Nothing under the label: the rule is not something the user
+                // wrote, and the label already says what happened.
+                is ApprovalDecision.Approve, is ApprovalDecision.AlwaysAllow -> Unit
             }
         }
     }
