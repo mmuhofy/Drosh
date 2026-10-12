@@ -36,15 +36,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -59,6 +64,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
@@ -71,7 +77,6 @@ import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSuccess
@@ -97,12 +102,10 @@ import dev.drosh.ui.agent.components.DiffBlock
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.StatusPill
-import dev.drosh.ui.agent.components.TOUCH_TARGET
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.rememberCoroutineScope
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -121,7 +124,6 @@ import dev.drosh.ui.agent.components.LocalAgentGlass
 import dev.drosh.ui.agent.components.glassRow
 import dev.drosh.ui.agent.components.glassSurface
 import dev.drosh.ui.agent.components.ProvideAgentGlass
-import dev.drosh.ui.agent.components.agentGlassStyle
 import dev.drosh.ui.agent.components.rememberAgentClipboard
 import dev.drosh.ui.agent.components.rememberAgentGlass
 import kotlinx.coroutines.launch
@@ -188,6 +190,17 @@ fun AgentChatScreen(
     val glass = rememberAgentGlass()
 
     var sheetOpen by rememberSaveable(chatId) { mutableStateOf(false) }
+    // The composer's text, held here so a bubble's "Edit" can put a message
+    // the user already sent back into it. The composer used to own its own
+    // draft, which meant nothing outside it could hand it anything.
+    var composerDraft by rememberSaveable(chatId) { mutableStateOf("") }
+    // The tool whose full output is on the sheet, or null. A detail sheet rather
+    // than an inline expansion: an expanded git diff pushes the conversation off
+    // the screen, and the row the user was reading moves out from under their
+    // thumb.
+    var inspecting by remember { mutableStateOf<ChatMessage.ToolCall?>(null) }
+    // Bumped when the keyboard should come up after the draft is filled.
+    var composerFocusRequest by remember { mutableIntStateOf(0) }
     var modelPickerOpen by rememberSaveable(chatId) { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
@@ -289,13 +302,19 @@ fun AgentChatScreen(
                                 onShare = { picked ->
                                     scope.launch { shareText(context, picked) }
                                 },
+                                onRetry = viewModel::retry,
+                                onEdit = { draft ->
+                                    composerDraft = draft
+                                    composerFocusRequest += 1
+                                },
+                                onInspectTool = { tool -> inspecting = tool },
                             )
 
                             is TranscriptRow.ToolGroup -> Column(
                                 verticalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 row.tools.forEach { tool ->
-                                    ToolCallRow(tool)
+                                    ToolCallRow(tool, onInspect = { inspecting = tool })
                                 }
                             }
                         }
@@ -312,8 +331,14 @@ fun AgentChatScreen(
 
                 AgentComposer(
                     running = running,
-                    onSend = viewModel::send,
+                    draft = composerDraft,
+                    onDraftChange = { composerDraft = it },
+                    onSend = { text ->
+                        composerDraft = ""
+                        viewModel.send(text)
+                    },
                     onStop = viewModel::stop,
+                    focusRequest = composerFocusRequest,
                 )
             }
 
@@ -334,6 +359,18 @@ fun AgentChatScreen(
             }
 
 
+
+            inspecting?.let { tool ->
+                AgentToolDetailSheet(
+                    visible = true,
+                    title = tool.name,
+                    subtitle = tool.summary,
+                    body = tool.finalOutput ?: tool.output.joinToString("\n"),
+                    state = tool.state,
+                    onDismiss = { inspecting = null },
+                    onCopy = clipboard,
+                )
+            }
 
             if (sheetOpen) {
                 TerminalHistorySheet(
@@ -669,14 +706,33 @@ private fun modelInitials(model: LlmModel): String {
 @Composable
 private fun AgentComposer(
     running: Boolean,
+    draft: String,
+    onDraftChange: (String) -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    /** Incremented by whoever wants the keyboard raised after filling the draft. */
+    focusRequest: Int = 0,
 ) {
     val sendCd = stringResource(R.string.agent_send)
     val stopCd = stringResource(R.string.agent_stop)
-    var text by rememberSaveable { mutableStateOf("") }
+    // The draft is the screen's, not the composer's: a bubble's "Edit" puts a
+    // message the user already sent back into the box, and a composer that owns
+    // its own text cannot be handed anything.
+    val text = draft
     val enabled = !running
     val canSend = text.isNotBlank() && enabled
+
+    // A focus requester the screen drives. Editing a sent message means the
+    // keyboard should come up — the user is mid-thought, and a filled box with
+    // the keyboard down is a box they have to tap before they can type in.
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(focusRequest) {
+        if (focusRequest > 0) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -689,11 +745,23 @@ private fun AgentComposer(
         // the whole app's controls, so the composer and the pill row read as the
         // same material rather than as two things that happen to be on the same
         // screen.
+        //
+        // It floats, and it is the one surface on this screen that does: a real
+        // shadow beneath it, so it reads as sitting over the transcript rather
+        // than as a bar the transcript stops at. The border is drawn here and
+        // nowhere else outside the pills — an outline is what says "this is a
+        // control", and the composer is the one card-sized control on screen.
         val glass = LocalAgentGlass.current
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .glassSurface(glass, pressed = false, shape = RoundedCornerShape(20.dp))
+                .shadow(10.dp, RoundedCornerShape(20.dp), clip = false)
+                .glassSurface(
+                    glass,
+                    pressed = false,
+                    shape = RoundedCornerShape(20.dp),
+                    edged = true,
+                )
                 .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
         ) {
             Column {
@@ -711,13 +779,15 @@ private fun AgentComposer(
                     }
                     BasicTextField(
                         value = text,
-                        onValueChange = { text = it },
+                        onValueChange = onDraftChange,
                         enabled = enabled,
                         singleLine = false,
                         maxLines = 6,
                         textStyle = TextStyle(fontSize = 14.5.sp, color = DroshText),
                         cursorBrush = SolidColor(DroshPrimary),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
                     )
                 }
 
@@ -759,9 +829,7 @@ private fun AgentComposer(
                                     .clip(CircleShape)
                                     .background(if (canSend) DroshPrimary else DroshSurfaceHigh)
                                     .clickable(enabled = canSend) {
-                                        val sent = text
-                                        text = ""
-                                        onSend(sent)
+                                        onSend(text)
                                     }
                                     .semantics { contentDescription = sendCd },
                                 contentAlignment = Alignment.Center,
@@ -819,15 +887,30 @@ private fun MessageRow(
     onAnswer: (String, ApprovalDecision) -> Unit,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
+    onRetry: () -> Unit,
+    /** Edits what the user sent: the draft comes back for another go. */
+    onEdit: (String) -> Unit,
+    /** Opens a tool's full output on the detail sheet. */
+    onInspectTool: (ChatMessage.ToolCall) -> Unit,
 ) {
     when (message) {
-        is ChatMessage.User -> UserBubble(message, onCopy = onCopy, onShare = onShare)
+        is ChatMessage.User -> UserBubble(
+            message,
+            onCopy = onCopy,
+            onShare = onShare,
+            onEdit = onEdit,
+        )
 
-        is ChatMessage.Assistant -> AssistantText(message, onCopy = onCopy)
+        is ChatMessage.Assistant -> AssistantText(
+            message,
+            onCopy = onCopy,
+            onShare = onShare,
+            onRetry = onRetry,
+        )
 
         is ChatMessage.Reasoning -> ReasoningBlock(message)
 
-        is ChatMessage.ToolCall -> ToolCallRow(message)
+        is ChatMessage.ToolCall -> ToolCallRow(message, onInspect = { onInspectTool(message) })
 
         is ChatMessage.Approval -> ApprovalBlock(message, onAnswer)
 
@@ -850,7 +933,16 @@ private fun UserBubble(
     message: ChatMessage.User,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
+    onEdit: (String) -> Unit,
 ) {
+    // A long press opens the menu; a drag inside the text still makes a
+    // selection, because the text's own recogniser owns that gesture. The menu
+    // is the row of options — edit, copy, select — and the selection is what
+    // you do *after* choosing "select".
+    var menuOpen by remember { mutableStateOf(false) }
+    // The menu's answer, handed down to the text's own recogniser.
+    var selectAllRequested by remember { mutableStateOf(false) }
+
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Box(
             modifier = Modifier
@@ -868,6 +960,17 @@ private fun UserBubble(
                     ),
                     raised = true,
                 )
+                // The press is the bubble's, not the text's: the text's own
+                // recogniser makes a selection, and this one asks what to do
+                // with the whole message. Two recognisers on one gesture would
+                // race, so the bubble takes the press and hands the selection
+                // to the text only once the menu has been answered.
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                    onLongClick = { menuOpen = true },
+                )
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             AgentSelectableText(
@@ -877,8 +980,46 @@ private fun UserBubble(
                 color = DroshText,
                 onCopy = onCopy,
                 onShare = onShare,
+                selectAllRequested = selectAllRequested,
+                onSelectAllConsumed = { selectAllRequested = false },
             )
         }
+
+        // The menu is anchored to the bubble, which is the only position the
+        // user has any reason to expect: the menu appears over the thing that
+        // was pressed, not over the screen and not over the list.
+        DroshDropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            items = listOf(
+                DroshMenuItem(
+                    label = stringResource(R.string.agent_edit_message),
+                    id = "edit",
+                    icon = DroshIcons.Pencil,
+                ),
+                DroshMenuItem(
+                    label = stringResource(R.string.action_copy),
+                    id = "copy",
+                    icon = DroshIcons.Copy,
+                ),
+                DroshMenuItem(
+                    label = stringResource(R.string.agent_select_text),
+                    id = "select",
+                    icon = DroshIcons.Type,
+                ),
+            ),
+            onItemClick = { item ->
+                menuOpen = false
+                when (item.id) {
+                    "edit" -> onEdit(message.text)
+                    "copy" -> onCopy(message.text)
+                    // The text's own selection: the bubble hands the request to
+                    // the text it wraps, which is the only place a selection
+                    // can be made.
+                    "select" -> selectAllRequested = true
+                }
+            },
+        )
     }
 }
 
@@ -886,6 +1027,8 @@ private fun UserBubble(
 private fun AssistantText(
     message: ChatMessage.Assistant,
     onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
+    onRetry: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         MarkdownText(
@@ -895,10 +1038,62 @@ private fun AssistantText(
             // rather than having to poll.
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
+
+        // Three acts on the answer, in three small icons under it.
+        //
+        // They were behind a long press, inside one text selection model, and
+        // the answer they act on is the thing the user just read — so they sit
+        // where the reading finished rather than where a menu has to be fished
+        // out of the text. Share and copy are the two that only make sense on a
+        // finished message, so a streaming answer shows neither.
+        if (!message.streaming && message.text.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                AssistantAction(DroshIcons.Copy, R.string.action_copy, onClick = { onCopy(message.text) })
+                AssistantAction(DroshIcons.Share, R.string.action_share, onClick = { onShare(message.text) })
+                AssistantAction(DroshIcons.RotateCcw, R.string.agent_retry, onClick = onRetry)
+            }
+        }
+
         if (message.streaming) {
             Spacer(Modifier.height(4.dp))
             ThinkingDots()
         }
+    }
+}
+
+/**
+ * One of the three acts under an answer.
+ *
+ * Quiet by design: 16dp glyph, no fill, no border. The row is an afterthought
+ * to the message above it, and a set of button-shaped buttons there would
+ * compete with the text for the eye.
+ */
+@Composable
+private fun AssistantAction(
+    icon: ImageVector,
+    contentDescriptionRes: Int,
+    onClick: () -> Unit,
+) {
+    val cd = stringResource(contentDescriptionRes)
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = cd },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = DroshTextMuted,
+            modifier = Modifier.size(15.dp),
+        )
     }
 }
 
@@ -1136,16 +1331,17 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
  * result has arrived.
  */
 @Composable
-private fun ToolCallRow(message: ChatMessage.ToolCall) {
+private fun ToolCallRow(
+    message: ChatMessage.ToolCall,
+    onInspect: () -> Unit,
+) {
     val copyCd = stringResource(R.string.agent_copy_output_cd)
-    var open by rememberSaveable(message.id) {
-        mutableStateOf(message.state == ToolCallState.Running)
-    }
     val running = message.state == ToolCallState.Running
 
-    LaunchedEffect(running) {
-        if (running) open = true
-    }
+    // The row is a summary and nothing more: tapping it opens the detail sheet
+    // rather than expanding a wall of output into the middle of the transcript.
+    // An expanded `git diff` on a large change pushes the conversation off the
+    // screen and moves the row the user was reading out from under their thumb.
 
     // Elapsed seconds, counted rather than measured. A timer that reads a start
     // timestamp drifts with frame timing; incrementing once a second is exact to the
@@ -1172,11 +1368,6 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
         label = "toolSweepProgress",
     )
 
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (open) 90f else 0f,
-        animationSpec = tween(MOTION_MS),
-        label = "toolChevronRotation",
-    )
 
     val clipboard = rememberAgentClipboard()
     val (present, past) = toolVerbs(message.name)
@@ -1186,7 +1377,7 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { open = !open }
+                .clickable(onClick = onInspect)
                 .padding(vertical = 1.dp)
                 .semantics { contentDescription = toolRowDescription(message) },
             verticalAlignment = Alignment.CenterVertically,
@@ -1238,114 +1429,25 @@ private fun ToolCallRow(message: ChatMessage.ToolCall) {
 
             Icon(
                 imageVector = DroshIcons.ChevronRight,
-                contentDescription = if (open) "Daralt" else "Genişlet",
+                contentDescription = null,
                 tint = DroshTextMuted,
                 modifier = Modifier
-                    .size(12.dp)
-                    .rotate(chevronRotation),
+                    .size(12.dp),
             )
         }
 
-        AnimatedVisibility(
-            visible = open,
-            enter = fadeIn(tween(MOTION_MS)) + expandVertically(tween(MOTION_MS)),
-            exit = fadeOut(tween(MOTION_MS)) + shrinkVertically(tween(MOTION_MS)),
-        ) {
-            Row(modifier = Modifier.padding(top = 2.dp)) {
-                // A hairline from under the glyph down past the output: what ties the
-                // output to the line that produced it, without a second surface.
-                Box(
-                    modifier = Modifier
-                        .padding(start = 7.dp)
-                        .width(1.dp)
-                        .heightIn(min = 16.dp)
-                        .clip(RoundedCornerShape(1.dp))
-                        .background(DroshOutline.copy(alpha = 0.4f)),
-                )
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 10.dp, top = 1.dp, bottom = 3.dp),
-                ) {
-                    // A checklist is the tool's result, not its output text, so it is
-                    // rendered as a list and the text version is not shown.
-                    if (message.todos.isNotEmpty()) {
-                        TodoCard(todos = message.todos)
-                    }
-
-                    val finalOutput = message.finalOutput
-                    val liveOutput = message.output
-                    val body = when {
-                        message.todos.isNotEmpty() -> null
-                        liveOutput.isNotEmpty() ->
-                            liveOutput.takeLast(MAX_LIVE_LINES).joinToString("\n")
-                        finalOutput != null -> finalOutput
-                        else -> null
-                    }
-                    if (body != null) {
-                        // Plain text on the transcript's own background. A fill here
-                        // would make every result a panel again.
-                        Text(
-                            text = body,
-                            fontSize = 11.5.sp,
-                            lineHeight = 16.sp,
-                            fontFamily = LocalFontSet.current.mono,
-                            color = DroshTextSecondary,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-
-                    if (message.truncated) {
-                        Text(
-                            text = stringResource(R.string.agent_output_clipped),
-                            fontSize = 10.sp,
-                            color = DroshWarning,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
-
-                    message.durationMs?.let { duration ->
-                        Row(
-                            modifier = Modifier.padding(top = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = formatToolDuration(duration),
-                                fontSize = 10.sp,
-                                fontFamily = LocalFontSet.current.mono,
-                                color = DroshTextMuted,
-                            )
-                            if (body != null) {
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    text = stringResource(R.string.action_copy),
-                                    fontSize = 11.sp,
-                                    color = DroshTextMuted,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { clipboard(body) }
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                        .semantics { contentDescription = copyCd },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+        // The checklist is the tool's *result* rather than its output text, so it
+        // stays on the transcript: it is the one thing a tool produces that is
+        // itself a thing to look at. Everything else - the raw output, the copy
+        // action, the clipped marker - is on the detail sheet now.
+        if (message.todos.isNotEmpty()) {
+            TodoCard(
+                todos = message.todos,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
-
-/**
- * Seconds, not milliseconds.
- *
- * "18420 ms" is a number with no scale attached; the reader has to divide it by a
- * thousand in their head to learn that it was slow. Sub-second runs keep one decimal
- * because 0.2s and 1s are different experiences.
- */
-private fun formatToolDuration(ms: Long): String =
-    if (ms < 1000) "${(ms / 10.0).let { String.format("%.1f", it) }} sn" else "${ms / 1000} sn"
 
 /** Spoken form of a row, for a screen reader rather than the eye. */
 private fun toolRowDescription(message: ChatMessage.ToolCall): String = buildString {
@@ -1894,9 +1996,6 @@ private suspend fun shareText(context: android.content.Context, text: String) {
         Timber.w(error, "share unavailable")
     }
 }
-
-/** Enough live lines to follow a build; the rest arrives as you scroll back. */
-private const val MAX_LIVE_LINES = 60
 
 // ── run-level banners ────────────────────────────────────────────────────
 

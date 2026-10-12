@@ -412,4 +412,23 @@ no terminal session needed.</string>
     <string name="sidebar_drop_to_split">Drop to split</string>
     <string name="settings_immersive">Immersive mode</string>
     <string name="settings_immersive_desc">Hide the status bar and pill row while you scroll the terminal</string>
+    <string name="agent_terminal_cancelled">cancelled</string>
+    <string name="agent_terminal_exit">exit %1$d</string>
+    <string name="agent_terminal_more_lines">+%1$d more lines</string>
+    <string name="agent_no_commands_running">running…</string>
+    <string name="agent_no_commands_yet">The agent has not run any commands yet</string>
+    <string name="agent_no_commands_output_soon">output appears here</string>
+    <string name="action_share">Share</string>
+    <string name="agent_retry">Retry</string>
+    <string name="agent_edit_message">Edit</string>
+    <string name="agent_select_text">Select text</string>
+    <string name="agent_copy_code">Copy code</string>
+    <string name="agent_table">Table</string>
+    <string name="agent_tool_running">Running</string>
+    <string name="agent_tool_succeeded">Succeeded</string>
+    <string name="agent_tool_failed">Failed</string>
+    <string name="agent_tool_cancelled">Cancelled</string>
+    <string name="agent_tool_awaiting">Waiting for you</string>
+    <string name="agent_tool_pending">Pending</string>
+    <string name="agent_tool_no_output">This tool produced no output.</string>
 </resources>

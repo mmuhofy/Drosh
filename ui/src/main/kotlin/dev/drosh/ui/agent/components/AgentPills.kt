@@ -232,6 +232,16 @@ fun Modifier.glassSurface(
     pressed: Boolean,
     primary: Boolean = false,
     shape: Shape = AgentPillDefaults.Shape,
+    /**
+     * Whether the hairline edge is drawn.
+     *
+     * Off everywhere but the pills and the composer: an outline on every
+     * surface is a surface that looks like a form field — a card with a border
+     * reads as something to fill in, and the whole screen becomes a stack of
+     * boxes. The edge is a control's feature; a pill is a control, a card is
+     * a card.
+     */
+    edged: Boolean = false,
 ): Modifier {
     val state = glass?.state
 
@@ -239,7 +249,11 @@ fun Modifier.glassSurface(
     // there is a blur behind it to do the separating, a heavier one when there
     // is not and the fill has to hold the surface on its own.
     val fill = when {
-        primary -> DroshSurfaceHigh
+        // Accent-filled, not a second glass surface: "Yeni" is the one filled
+        // control on the agent's list screen, and the accent is what makes it
+        // the one filled control. A surface-filled pill here reads as chrome
+        // rather than as the primary action.
+        primary -> DroshPrimary
         state != null -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_BLURRED)
         else -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_PLAIN)
     }
@@ -256,12 +270,18 @@ fun Modifier.glassSurface(
             },
         )
         .background(fill)
-        .glassEdge(
-            shape = shape,
-            strength = when {
-                primary -> 0.6f
-                pressed -> 1.35f
-                else -> 1f
+        .then(
+            if (edged) {
+                Modifier.glassEdge(
+                    shape = shape,
+                    strength = when {
+                        primary -> 0.6f
+                        pressed -> 1.35f
+                        else -> 1f
+                    },
+                )
+            } else {
+                Modifier
             },
         )
 }
@@ -323,12 +343,15 @@ fun Modifier.glassEdge(
     }
 
 /**
- * A list row / card surface with the same edge as the pills, but no blur.
+ * A list row / card surface: one flat fill, and no edge.
  *
  * For things that sit in a sheet or in the flow rather than floating over the
  * transcript: they do not need a backdrop, only to read as the same material.
- * [raised] is the lifted fill (a selected row, a choice, an input); the edge is
- * quieter on a resting row so a long list does not become a stack of outlines.
+ * [raised] is the lifted fill — a selected row, a choice, an input.
+ *
+ * No outline. Every card on a screen carrying one turns the screen into a
+ * stack of boxes, and a card that reads as a box reads as a form field. The
+ * edge is a control's feature and the pills keep theirs.
  *
  * Clip first, so a ripple or [clickable] after this stays inside the shape.
  */
@@ -340,7 +363,6 @@ fun Modifier.glassRow(shape: Shape, raised: Boolean = false): Modifier {
     return this
         .clip(shape)
         .background(fill)
-        .glassEdge(shape, strength = if (raised) 0.9f else 0.55f)
 }
 
 /**
@@ -411,7 +433,7 @@ fun AgentPill(
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = AgentPillDefaults.Height)
-            .glassSurface(glass, pressed, primary)
+            .glassSurface(glass, pressed, primary, edged = true)
             .semantics { this.contentDescription = contentDescription }
             .pressable(interaction, enabled, onClick)
             .padding(horizontal = AgentPillDefaults.LabelPadding, vertical = 9.dp),
@@ -490,7 +512,7 @@ fun AgentIconPill(
         Box(
             modifier = Modifier
                 .size(AgentPillDefaults.Height)
-                .glassSurface(glass, pressed, shape = CircleShape),
+                .glassSurface(glass, pressed, shape = CircleShape, edged = true),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

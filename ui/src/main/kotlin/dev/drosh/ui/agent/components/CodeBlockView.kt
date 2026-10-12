@@ -94,6 +94,7 @@ internal fun CodeBlockView(
     onCopy: (String) -> Unit,
 ) {
     val palette = CodeColors
+    val copyCd = stringResource(R.string.agent_copy_code)
     val highlighted = remember(code, language) {
         SyntaxHighlighter(language, palette).highlight(code)
     }
@@ -126,7 +127,7 @@ internal fun CodeBlockView(
                     .clip(RoundedCornerShape(6.dp))
                     .clickable { onCopy(code) }
                     .padding(horizontal = 7.dp, vertical = 4.dp)
-                    .semantics { contentDescription = "Kodu kopyala" },
+                    .semantics { contentDescription = copyCd },
             )
         }
 
