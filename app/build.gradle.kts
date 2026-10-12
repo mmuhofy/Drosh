@@ -1,5 +1,3 @@
-import org.gradle.api.provider.ValueSource
-import org.gradle.api.provider.ValueSourceParameters
 // app/ — Android entry point.
 // Per AGENT.md §109: Hilt, Navigation, MainActivity live here.
 // Per AGENT.md §112-135: app may depend on ui, data, agent, terminal, ssh,
@@ -61,7 +59,7 @@ android {
         // the exact code rather than a version that covers many commits. A
         // shallow checkout or a missing git answers "unknown" — a build that
         // cannot say where it came from is still a build.
-        buildConfigField("String", "GIT_SHA", "\"${providers.of(GitShaValueSource::class) {}.get()}\"")
+        buildConfigField("String", "GIT_SHA", "\"$gitShortSha\"")
     }
 
     compileOptions {
@@ -179,23 +177,13 @@ dependencies {
 /**
  * The commit this build was made from.
  *
- * A [ValueSource] rather than `ProcessBuilder` here: the configuration
- * cache forbids an external process at configuration time, and this is
- * the one place the build genuinely needs to ask git something. The
- * provider runs once per build, is cached across tasks, and answers
- * "unknown" when there is no git or a shallow checkout — a build that
- * cannot say where it came from is still a build.
+ * `providers.exec` rather than a bare `ProcessBuilder`: the configuration
+ * cache records the command as an input, so this is a tracked, cached
+ * lookup rather than an untracked process at configuration time. Anything
+ * that goes wrong — no git, a shallow checkout — answers "unknown"; a build
+ * that cannot say where it came from is still a build.
  */
-abstract class GitShaValueSource : ValueSource<String, ValueSourceParameters.None> {
-    override fun obtain(): String = try {
-        val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
-            .directory(rootDir)
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText().trim()
-        process.waitFor()
-        output.takeIf { it.matches(Regex("[0-9a-f]{7,40}")) } ?: "unknown"
-    } catch (e: Exception) {
-        "unknown"
-    }
-}
+val gitShortSha: String = providers.exec {
+    commandLine("git", "rev-parse", "--short", "HEAD")
+    workingDir = rootDir
+}.standardOutput.asText.map { it.trim() }.getOrElse("unknown")
