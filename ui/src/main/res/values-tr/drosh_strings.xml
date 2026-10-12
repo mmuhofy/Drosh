@@ -362,4 +362,12 @@ terminal session açmana gerek yok.</string>
     <string name="about_links">GitHub</string>
     <string name="settings_shell_locale">Kabuk dili</string>
     <string name="settings_shell_locale_desc">Her oturumda LANG ve LC_ALL — dosyadan gelir, dotfile\'larına dokunulmaz.</string>
+    <string name="about_developer">Geliştirici</string>
+    <string name="about_repo">GitHub Deposu</string>
+    <string name="about_stars">GitHub yıldızı</string>
+    <string name="about_stars_value">%1$d yıldız</string>
+    <string name="about_section_version">Sürüm</string>
+    <string name="about_version">Sürüm</string>
+    <string name="about_version_code">Sürüm kodu</string>
+    <string name="about_build_hash">Sürüm hash</string>
 </resources>

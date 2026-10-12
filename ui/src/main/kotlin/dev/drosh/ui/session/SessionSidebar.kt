@@ -15,6 +15,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -22,10 +26,14 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,6 +59,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -82,6 +91,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -106,6 +116,7 @@ import dev.drosh.domain.session.SessionState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.IconAction
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 
 /**
  * Slide-in session drawer — a push/translate layout, so the terminal behind
@@ -295,7 +306,9 @@ private fun SidebarContent(
      * A held id plus a per-row highlight gives the same outcome without
      * depending on which row survived.
      */
-    var draggingSessionId by remember { mutableStateOf<String?>(null) }
+    // One holder for the whole drawer. The row being carried and the row
+    // being aimed at are different rows; per-row state cannot see across.
+    val dragState = remember { SidebarDragState() }
 
     // A hold that outlives the drawer.
     //
@@ -309,7 +322,7 @@ private fun SidebarContent(
     // passes through every value on the way out, so clearing on it would also
     // cancel the hold the moment the drawer started to move.
     LaunchedEffect(isOpen) {
-        if (!isOpen) draggingSessionId = null
+        if (!isOpen) dragState.cancel()
     }
 
     val filtered = remember(sessions, searchQuery) {
@@ -458,21 +471,17 @@ private fun SidebarContent(
                                 // a lone session shows a grip that lifts the row
                                 // and then has nowhere to put it.
                                 dragEnabled = onSplitSession != null && onDragSplit != null,
-                                onDragStart = { draggingSessionId = snapshot.id },
-                                isHeldForDrag = draggingSessionId == snapshot.id,
+                                dragState = dragState,
+                                onOpenMenu = { renamingSession = snapshot },
                                 // The session already in a pane cannot be the
                                 // held one: dropping it somewhere would move it,
                                 // not start a split.
                                 isSecondaryPane = snapshot.id in pairOfSessions,
                                 floatingPane = isFloatingPane,
                                 onDock = onDock,
-                                isDropTarget = draggingSessionId != null &&
-                                    draggingSessionId != snapshot.id,
-                                onDrop = {
-                                    val dragged = draggingSessionId
-                                    draggingSessionId = null
-                                    if (dragged != null && dragged != snapshot.id) {
-                                        onDragSplit?.invoke(dragged, snapshot.id)
+                                onDrop = { target ->
+                                    if (target != snapshot.id) {
+                                        onDragSplit?.invoke(snapshot.id, target)
                                     }
                                 },
                             )
@@ -761,14 +770,18 @@ private fun SessionRow(
      * row and then has nowhere to put it.
      */
     dragEnabled: Boolean = false,
-    /** Called when the row is picked up. */
-    onDragStart: () -> Unit = {},
-    /** True while some *other* row is held, so this one reads as a target. */
-    isDropTarget: Boolean = false,
-    /** Called when this row is tapped while another one is held. */
+    /**
+     * The drawer's pick-up-and-drop state, or null when dragging is off.
+     *
+     * One object for every row: the row being carried and the row being
+     * aimed at are different rows, and neither can hold the state the other
+     * needs to see.
+     */
+    dragState: SidebarDragState? = null,
+    /** Opens this row's menu — where the long press used to open it. */
+    onOpenMenu: () -> Unit = {},
+    /** Called with the session a held row was released over. */
     onDrop: (String) -> Unit = {},
-    /** True when *this* row is the one currently held. */
-    isHeldForDrag: Boolean = false,
     /**
      * True when this row's session is the one in the second pane.
      *
@@ -783,8 +796,17 @@ private fun SessionRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
-    /** True while this row is the one being held for a drop. */
-    val dragging = dragEnabled && isHeldForDrag
+    // The row's rectangle is dropped when it leaves the list: a stale one
+    // under the held row's centre would aim the drop at a row that is not
+    // there any more.
+    DisposableEffect(snapshot.id) {
+        onDispose { dragState?.onRowDisposed(snapshot.id) }
+    }
+
+    /** True while this row is the one being carried. */
+    val dragging = dragEnabled && dragState?.isHeld(snapshot.id) == true
+    /** True while this row is the one being aimed at. */
+    val isTarget = dragEnabled && dragState?.isTarget(snapshot.id) == true
 
     val ended = snapshot.state == SessionState.Closed
 
@@ -817,12 +839,17 @@ private fun SessionRow(
                 // apart from the recency mark, and the user has to see at a
                 // glance which one their finger should land on.
                 .then(
-                    if (isDropTarget) {
-                        Modifier.border(
-                            width = 1.dp,
-                            color = DroshPrimary,
-                            shape = RoundedCornerShape(10.dp),
-                        )
+                    if (isTarget) {
+                        Modifier
+                            .background(
+                                DroshPrimary.copy(alpha = 0.12f),
+                                RoundedCornerShape(10.dp),
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = DroshPrimary,
+                                shape = RoundedCornerShape(10.dp),
+                            )
                     } else {
                         Modifier
                     },
@@ -838,24 +865,30 @@ private fun SessionRow(
                  * snapping back, which is what tells you the menu was the first
                  * stage and not a failed drag.
                  */
+                // The row records where it is, so the drag can ask which row
+                // is under the finger.
+                .onGloballyPositioned { coords ->
+                    if (dragState != null) {
+                        dragState.onRowPositioned(snapshot.id, coords.boundsInRoot())
+                    }
+                }
                 .then(
                     if (dragging) {
-                        // Every property here is a Float in pixels, not a Dp:
-                        // `graphicsLayer` is the draw-time layer, and it has no
-                        // density to convert with. A Dp passed here is a type
-                        // error, and a value silently scaled would be worse.
-                        Modifier.graphicsLayer {
-                            scaleX = HELD_SCALE
-                            scaleY = HELD_SCALE
-                            // Lifted off the surface. Without a shadow the shrink
-                            // reads as the row being deleted rather than picked up.
-                            shadowElevation = HELD_ELEVATION_PX
-                            // `shape` and `clip` take Dp-geometry — `clip = true`
-                            // alone would cut the shadow off at the bounds, which
-                            // is the one thing the elevation is for.
-                            shape = RoundedCornerShape(10.dp)
-                            clip = false
-                        }
+                        // Two layers, deliberately: `offset` moves the row in
+                        // layout, `graphicsLayer` scales and lifts it at draw
+                        // time. Doing both in the layer would scale the offset
+                        // along with the row, and the row would drift off the
+                        // finger.
+                        val drag = dragState?.offset ?: Offset.Zero
+                        Modifier
+                            .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
+                            .graphicsLayer {
+                                scaleX = HELD_SCALE
+                                scaleY = HELD_SCALE
+                                shadowElevation = HELD_ELEVATION_PX
+                                shape = RoundedCornerShape(14.dp)
+                                clip = false
+                            }
                     } else {
                         Modifier
                     },
@@ -877,77 +910,90 @@ private fun SessionRow(
                  *  - still down at [dragAfter]     → drag: shrink and pick up
                  *  - released between the two      → the menu, as it always was
                  *
-                 * The middle window is what the request asked for and what
-                 * `combinedClickable` cannot express: one gesture, two long-press
-                 * thresholds, and the *short* one still belongs to the menu.
+                 * One gesture recogniser, because two would race.
+                 *
+                 * The row needs three outcomes from one press — open it,
+                 * pick it up, or get out of the way of a scroll — and
+                 * `combinedClickable` cannot express all three once the
+                 * pick-up follows the finger. So:
+                 *
+                 *  - released short            → tap: open
+                 *  - held past the long press → pick up, and the row
+                 *    follows the finger from there
+                 *  - moved before either      → a scroll: the gesture is
+                 *    returned to the list
+                 *
+                 * The menu left the long press when the pick-up took it:
+                 * one gesture, one long press, and the menu now lives on the
+                 * grip, which is where a menu icon belongs anyway.
                  */
-                .pointerInput(snapshot.id, dragEnabled, isDropTarget) {
-                    val viewConfig = viewConfiguration
+                .pointerInput(snapshot.id, dragEnabled, dragState != null) {
+                    if (!dragEnabled || dragState == null) {
+                        // No dragging here: a plain tap-opens recogniser.
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val up = waitForUpOrCancellation()
+                            if (up != null && !menuOpen) onClick()
+                        }
+                        return@pointerInput
+                    }
                     val touchSlop = with(density) { TOUCH_SLOP.toPx() }
-                    val menuAfter = viewConfig.longPressTimeoutMillis
-                    val dragAfter = (menuAfter * DRAG_HOLD_MULTIPLIER).toLong()
-                    var dragStarted = false
+                    val longPressMs = viewConfiguration.longPressTimeoutMillis
 
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val startedAt = System.currentTimeMillis()
-                        var consumedMove = false
+                        var dragging = false
+                        var moved = false
 
                         while (true) {
                             val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id }
-                                ?: break
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
 
                             if (change.changedToUpIgnoreConsumed()) {
                                 change.consume()
-                                val held = System.currentTimeMillis() - startedAt
                                 when {
-                                    dragStarted -> Unit
-                                    isDropTarget -> onDrop(snapshot.id)
-                                    held >= menuAfter -> Unit // menu is opened below, not a tap
+                                    dragging -> {
+                                        // `end` clears the held id, so the
+                                        // dragged one is read first — the
+                                        // callback is told which session to
+                                        // split and which to split it with.
+                                        val dragged = snapshot.id
+                                        val target = dragState.end()
+                                        if (target != null) onDrop(target)
+                                    }
+                                    moved -> Unit
                                     menuOpen -> menuOpen = false
                                     else -> onClick()
                                 }
                                 break
                             }
 
-                            val held = System.currentTimeMillis() - startedAt
-
-                            // Rolling the finger first means this is a scroll, and the
-                            // gesture has to be returned — otherwise a finger resting on a
-                            // row while the drawer moves would pick the row up.
                             val movement = change.positionChange()
                             val travelled = hypot(movement.x, movement.y)
                             if (travelled != 0f) {
-                                if (dragStarted) {
-                                    consumedMove = true
-                                    change.consume()
-                                } else if (travelled > touchSlop) {
-                                    break
+                                when {
+                                    dragging -> {
+                                        change.consume()
+                                        dragState.drag(movement)
+                                    }
+                                    travelled > touchSlop -> {
+                                        moved = true
+                                        break
+                                    }
                                 }
                             }
 
-                            // A *longer* hold enters drag mode. The menu is a separate,
-                            // short release; one gesture must not open a menu and also
-                            // start a drag, so the drag path clears it.
-                            if (!dragStarted && dragEnabled && held >= dragAfter) {
-                                dragStarted = true
+                            if (!dragging && System.currentTimeMillis() - startedAt >= longPressMs) {
+                                dragging = true
+                                moved = true
                                 menuOpen = false
-                                onDragStart()
-                            }
-                        }
-
-                        // Release without ever starting the drag, but past the long-press
-                        // threshold. That is "short hold": open the menu and leave it up.
-                        if (!dragStarted && !consumedMove) {
-                            val held = System.currentTimeMillis() - startedAt
-                            if (held >= menuAfter && !menuOpen) {
-                                menuOpen = true
+                                dragState.begin(snapshot.id)
                             }
                         }
                     }
                 }
-                .padding(end = 8.dp),
+.padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // The mark fades with recency, the way a taskbar does for windows
@@ -993,8 +1039,50 @@ private fun SessionRow(
             // would replace the pane's other session rather than start a split,
             // and a grip that means "do something to the other row" is worse than
             // no grip at all.
+            // The preview: two stacked bars, the top one the current session
+            // and the bottom one the one being carried. It says what a drop
+            // here *makes*, which a border on its own never did.
+            AnimatedVisibility(
+                visible = isTarget,
+                enter = fadeIn(tween(120)) + scaleIn(tween(160), initialScale = 0.6f),
+                exit = fadeOut(tween(120)),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(width = 22.dp, height = 26.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .border(1.dp, DroshPrimary, RoundedCornerShape(6.dp)),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(3.dp)
+                            .background(DroshTextMuted),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(3.dp)
+                            .background(DroshPrimary),
+                    )
+                }
+            }
+
             if (onSplit != null && !ended && !isSecondaryPane) {
-                SplitDragHandle(onSplit = onSplit)
+                SplitDragHandle(
+                    onTap = { menuOpen = true },
+                    onPickUp = { dragState?.begin(snapshot.id) },
+                    onDragBy = { delta -> dragState?.drag(delta) },
+                    onRelease = {
+                        val dragged = snapshot.id
+                        val target = dragState?.end()
+                        if (target != null) onDrop(target)
+                    },
+                    enabled = dragEnabled,
+                )
             }
         }
 
@@ -1200,17 +1288,15 @@ private fun SplitPairCard(
 /**
  * How much longer than a plain long press the drag threshold is.
  *
- * Two. Long enough that the menu can appear and the user can see it and keep
- * holding — the only cue that there is a second stage — and short enough that
- * "hold it a bit longer" is not a wait.
+ * The pick-up takes the standard long press now. It used to need twice it,
+ * because the menu owned the first threshold and the drag the second — one
+ * gesture with two long presses, which nobody found. The menu moved to the
+ * grip, and the long press is the pick-up.
  */
-private const val DRAG_HOLD_MULTIPLIER = 2
 
 /** How far a finger may travel before a press becomes a drawer scroll. */
 private val TOUCH_SLOP = 12.dp
-
-/** How small a held row shrinks. Small enough to look carried, big enough to read. */
-private const val HELD_SCALE = 0.82f
+private const val HELD_SCALE = 1.04f
 
 /** The lift a held row gets, in pixels. `graphicsLayer` takes a Float. */
 private val HELD_ELEVATION_PX = 8f
@@ -1268,89 +1354,88 @@ private fun SplitPairHalf(
  */
 @Composable
 private fun SplitDragHandle(
-    onSplit: () -> Unit,
+    onTap: () -> Unit,
+    onPickUp: () -> Unit,
+    onDragBy: (Offset) -> Unit,
+    onRelease: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
-    var dragged by remember { mutableFloatStateOf(0f) }
-
-    // In dp, not pixels. This was a raw 96f, which on a 3x device is about 32dp
-    // of travel — a brush, not a drag — and on a 1x device is 96dp, so the same
-    // gesture needed a wildly different amount of finger on different phones.
-    val thresholdPx = with(LocalDensity.current) { SPLIT_DRAG_THRESHOLD.toPx() }
-
-    val progress = (dragged / thresholdPx.coerceAtLeast(1f)).coerceIn(0f, 1f)
-    val armed = progress >= 1f
-
-    val barColor by animateColorAsState(
-        targetValue = when {
-            armed -> DroshPrimary
-            progress > 0f -> DroshTextMuted
-            else -> DroshOutline
-        },
-        label = "splitGripColor",
+    var armed by remember { mutableFloatStateOf(0f) }
+    var holding by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (holding) 0.86f else 1f,
+        animationSpec = tween(90),
+        label = "gripScale",
     )
 
     Box(
         modifier = modifier
-            // 24dp wide and the full row height: a grip inside a 44dp row has
-            // to be a decent target, and the row has no other vertical room.
-            .width(24.dp)
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(6.dp))
-            .draggable(
-                orientation = Orientation.Horizontal,
-                state = rememberDraggableState { delta ->
-                    dragged += delta
-                    // Fires the moment the threshold is *crossed*, not on
-                    // release, so the split appears while the finger is still
-                    // down and the gesture reads as a cause. `dragged` resets at
-                    // the same moment so a long drag past the threshold cannot
-                    // re-fire it every frame.
-                    if (dragged >= thresholdPx) {
-                        dragged = 0f
-                        onSplit()
-                    } else if (dragged <= -thresholdPx) {
-                        dragged = 0f
+            .size(30.dp)
+            .scale(scale)
+            .clip(CircleShape)
+            .pointerInput(enabled) {
+                if (!enabled) {
+                    // Still a button: the menu is the only thing the row's
+                    // own long press no longer opens.
+                    detectTapGestures { onTap() }
+                    return@pointerInput
+                }
+                val slopPx = viewConfiguration.touchSlop
+                val holdMs = viewConfiguration.longPressTimeoutMillis
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startedAt = System.currentTimeMillis()
+                    var picked = false
+                    var moved = false
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (change.changedToUpIgnoreConsumed()) {
+                            change.consume()
+                            when {
+                                picked -> onRelease()
+                                moved -> Unit
+                                else -> onTap()
+                            }
+                            break
+                        }
+                        val movement = change.positionChange()
+                        val travelled = hypot(movement.x, movement.y)
+                        if (travelled != 0f) {
+                            when {
+                                picked -> { change.consume(); onDragBy(movement) }
+                                travelled > slopPx -> { moved = true; break }
+                            }
+                        }
+                        if (!picked && System.currentTimeMillis() - startedAt >= holdMs) {
+                            picked = true
+                            holding = true
+                            onPickUp()
+                        }
                     }
-                },
-                // The part that was missing, and the whole of the "it split on
-                // its own". Without it the accumulator kept its value after the
-                // finger lifted, so a drag stopped at 90% of the threshold armed
-                // the grip for good: the next incidental brush opened a split the
-                // user had abandoned a moment ago. Accumulated travel is a
-                // property of one gesture and has to die with it, or the grip
-                // stops being a deliberate act and becomes something that happens
-                // to you.
-                onDragStopped = { dragged = 0f },
-            ),
+                    holding = false
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
-        // Three bars that close up as the drag approaches the threshold, so the
-        // grip itself reads as filling. An opacity fade was the first attempt
-        // and it was invisible against the row's own surface at these sizes.
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            repeat(3) { index ->
-                val inRange = progress > (index + 1) / 3f
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .height(if (inRange) 16.dp else 10.dp)
-                        .clip(RoundedCornerShape(1.dp))
-                        .background(if (inRange) barColor else barColor.copy(alpha = 0.45f)),
-                )
+        // Six dots, three rows of two: the universal "this can be moved".
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            repeat(3) {
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    repeat(2) {
+                        Box(
+                            modifier = Modifier
+                                .size(3.dp)
+                                .clip(CircleShape)
+                                .background(DroshTextMuted),
+                        )
+                    }
+                }
             }
         }
     }
 }
-
-/**
- * How far the grip must be dragged before the split opens.
- *
- * Deliberate rather than incidental. Past the row's own width would be too far
- * to be comfortable on a narrow phone, and short enough to be crossed by a
- * careless brush is not a threshold at all.
- */
-private val SPLIT_DRAG_THRESHOLD = 64.dp
 
 @Composable
 private fun SidebarFooter(

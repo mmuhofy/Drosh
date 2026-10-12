@@ -12,6 +12,7 @@ import dev.drosh.design.system.DroshPrimary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import androidx.core.view.WindowCompat
 import android.os.SystemClock
 import android.view.WindowManager
@@ -34,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -49,6 +51,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -367,7 +370,6 @@ class MainActivity : ComponentActivity() {
         onOpenThemeStore: () -> Unit,
     ) {
         val viewModel: SettingsViewModel = hiltViewModel()
-        val deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel()
         val settings by viewModel.snapshot.collectAsStateWithLifecycle()
         val onUpdate: OnSettingsUpdate = { transform -> viewModel.update(transform) }
 
@@ -393,7 +395,13 @@ class MainActivity : ComponentActivity() {
             SettingsCategoryRoute.Language ->
                 LanguageCategory(settings, onBack, onUpdate)
             SettingsCategoryRoute.About ->
-                AboutCategory(onBack, viewModel, deviceIdentityViewModel)
+                AboutCategory(
+                    onBack = onBack,
+                    viewModel = viewModel,
+                    versionName = BuildConfig.VERSION_NAME,
+                    versionCode = BuildConfig.VERSION_CODE,
+                    gitSha = BuildConfig.GIT_SHA,
+                )
         }
     }
 
@@ -438,16 +446,21 @@ class MainActivity : ComponentActivity() {
         val navController = rememberNavController()
         val coroutineScope = rememberCoroutineScope()
 
-        // The nav host stays alive behind the lock. It used to be replaced by
-        // the PIN screen, which meant the loading route — the rootfs check,
-        // the splash, the setup resume — did not start until the PIN was
-        // already in, and the first thing after unlocking was a blank screen
-        // while it caught up. Now it runs, and the lock is a curtain over it.
+        // The nav host stays alive behind a *returning* lock: the terminal is
+        // already up, the session is already warm, and a curtain over that is
+        // instant. A cold start does not use this — it goes loading → lock →
+        // terminal as destinations, so the lock never waits on a terminal that
+        // has not been built yet.
+        val currentRoute by navController.currentBackStackEntryAsState()
         Box(modifier = Modifier.fillMaxSize()) {
             DroshNavGraph(navController, coroutineScope)
 
+            // Only over a screen that is alive. The cold-start lock is a
+            // destination, not a curtain — so the gate shows for a return from
+            // the background and nothing else.
+            val lockable = currentRoute?.destination?.route !in setOf(null, "loading", "lock", "setup_flow", "recovery")
             AnimatedVisibility(
-                visible = pinEnabled && isLocked,
+                visible = pinEnabled && isLocked && lockable,
                 // Entering, the lock drops onto a live terminal; leaving, it
                 // lifts off one. A fade alone read as a screen swap; the scale
                 // makes it read as the same screen being uncovered.
@@ -479,9 +492,21 @@ class MainActivity : ComponentActivity() {
     private fun DroshNavGraph(navController: NavHostController, coroutineScope: CoroutineScope) {
 
         var firstCompleted by rememberSaveable { mutableStateOf<Boolean?>(null) }
+        var settingsReady by remember { mutableStateOf(false) }
+        var pinEnabled by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
             firstLaunchUseCase.isCompleted().collect { firstCompleted = it }
+        }
+
+        // The settings file's first read happens here rather than wherever
+        // the terminal happens to need it first: the splash is the one screen
+        // that can honestly show work being done, and a lock screen that has
+        // to read a file under the user's fingers is a lock screen that janks.
+        LaunchedEffect(Unit) {
+            pinEnabled = pinLock.isEnabled.first()
+            settingsStore.settings.first()
+            settingsReady = true
         }
 
         LaunchedEffect(firstCompleted) {
@@ -496,16 +521,18 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
         ) {
             composable("loading") {
-                val destination = if (firstCompleted == true) "terminal" else "setup_flow"
+                val destination = when {
+                    firstCompleted != true -> "setup_flow"
+                    locked.value && pinEnabled -> "lock"
+                    else -> "terminal"
+                }
                 var splashDone by rememberSaveable { mutableStateOf(false) }
                 var left by rememberSaveable { mutableStateOf(false) }
 
-                // Wait for both halves: the word to finish being drawn, and the
-                // stored flag to say where to go. Either alone races — leaving on
-                // the flag cuts the word short, waiting on the splash's timer
-                // can leave it waiting for a callback that already fired.
-                LaunchedEffect(splashDone, firstCompleted) {
-                    if (splashDone && firstCompleted != null && !left) {
+                // Three halves now: the word, the stored flag, and the file's
+                // first read. Any one of them alone races.
+                LaunchedEffect(splashDone, firstCompleted, settingsReady) {
+                    if (splashDone && firstCompleted != null && settingsReady && !left) {
                         left = true
                         navController.navigate(destination) {
                             popUpTo("loading") { inclusive = true }
@@ -513,7 +540,41 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                SplashScreen(onFinished = { splashDone = true })
+                SplashScreen(
+                    onFinished = { splashDone = true },
+                    ready = firstCompleted != null && settingsReady,
+                )
+            }
+
+            composable("lock") {
+                // The lock's own screen. Its background is the app's, its
+                // keypad raises no keyboard, and the terminal behind it does
+                // not exist yet — nothing here can stall on the terminal's
+                // work.
+                var pinError by rememberSaveable { mutableStateOf<String?>(null) }
+                val pinLength by settingsStore.settings
+                    .map { it.security.pinLength }
+                    .collectAsStateWithLifecycle(initialValue = 4)
+
+                PinEntryScreen(
+                    title = "Enter PIN",
+                    subtitle = "App lock enabled",
+                    errorMessage = pinError,
+                    pinLength = pinLength,
+                    onPinReady = { pin ->
+                        lifecycleScope.launch {
+                            if (pinLock.verify(pin)) {
+                                locked.value = false
+                                navController.navigate("terminal") {
+                                    popUpTo("lock") { inclusive = true }
+                                }
+                            } else {
+                                pinError = "Wrong PIN"
+                            }
+                        }
+                    },
+                    onCancel = { finish() },
+                )
             }
 
             composable("setup_flow") {

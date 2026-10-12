@@ -54,6 +54,14 @@ android {
         buildConfig = true
     }
 
+    defaultConfig {
+        // The commit this build was made from, so the About screen can name
+        // the exact code rather than a version that covers many commits. A
+        // shallow checkout or a missing git answers "unknown" — a build that
+        // cannot say where it came from is still a build.
+        buildConfigField("String", "GIT_SHA", "\"$gitShortSha\"")
+    }
+
     compileOptions {
         // Required by :editor, which depends on sora-editor's TextMate module:
         // it uses java.time APIs that do not exist below API 33, and this app
@@ -164,3 +172,18 @@ dependencies {
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+
+/**
+ * The commit this build was made from.
+ *
+ * `providers.exec` rather than a bare `ProcessBuilder`: the configuration
+ * cache records the command as an input, so this is a tracked, cached
+ * lookup rather than an untracked process at configuration time. Anything
+ * that goes wrong — no git, a shallow checkout — answers "unknown"; a build
+ * that cannot say where it came from is still a build.
+ */
+val gitShortSha: String = providers.exec {
+    commandLine("git", "rev-parse", "--short", "HEAD")
+    workingDir = rootDir
+}.standardOutput.asText.map { it.trim() }.getOrElse("unknown")

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -774,19 +775,24 @@ fun LanguageCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
 fun AboutCategory(
     onBack: () -> Unit,
     viewModel: SettingsViewModel,
-    deviceIdentityViewModel: DeviceIdentityViewModel,
+    versionName: String,
+    versionCode: Int,
+    gitSha: String,
 ) {
     val activity = LocalDroshActivity.current
     val scope = rememberCoroutineScope()
     val aboutInfo by viewModel.aboutInfo.collectAsStateWithLifecycle(null)
-    val settings by viewModel.snapshot.collectAsStateWithLifecycle()
-    val deviceIdentity by deviceIdentityViewModel.identity.collectAsStateWithLifecycle()
+    // The star count is fetched once and remembered across opens: the API
+    // is unauthenticated and sixty an hour, which is not a number to spend
+    // every time someone looks at an About screen.
+    val stars = remember { StarsState() }
+    LaunchedEffect(Unit) { stars.load() }
 
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_category_about),
         onBack = onBack,
     ) {
-        // ── the app ───────────────────────────────────────────────────────────
+        // ── Drosh ───────────────────────────────────────────────────────────
         SettingsGroupColumn(label = stringResource(R.string.about_section_app), items = 4) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -812,11 +818,48 @@ fun AboutCategory(
                     },
                 )
 
+                // The person, not the team: the repo is one person's and the
+                // About screen is where a user looks for who to talk to.
                 1 -> SettingsTile(
                     cap = cap,
-                    title = stringResource(R.string.settings_version),
+                    title = stringResource(R.string.about_developer),
+                    icon = DroshIcons.CircleUser,
+                    supporting = DEVELOPER_URL,
+                    onClick = { openUrl(activity, DEVELOPER_URL) },
+                ) { SettingsChevron() }
+
+                2 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.about_repo),
+                    icon = DroshIcons.Globe,
+                    supporting = REPO_URL.removePrefix("https://"),
+                    onClick = { openUrl(activity, REPO_URL) },
+                ) { SettingsChevron() }
+
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.about_stars),
+                    icon = DroshIcons.Check,
+                    supporting = when {
+                        stars.count == null && stars.failed -> "—"
+                        stars.count != null -> stringResource(R.string.about_stars_value, stars.count!!)
+                        else -> "…"
+                    },
+                    onClick = { openUrl(activity, REPO_URL) },
+                ) { SettingsChevron() }
+            }
+        }
+
+        Spacer(Modifier.height(GROUP_GAP))
+
+        // ── Sürüm ──────────────────────────────────────────────────────────
+        SettingsGroupColumn(label = stringResource(R.string.about_section_version), items = 3) { index, cap ->
+            when (index) {
+                0 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.about_version),
                     icon = DroshIcons.Info,
-                    supporting = aboutInfo?.version ?: "—",
+                    supporting = aboutInfo?.version ?: versionName,
                     onClick = {
                         (activity as? Activity)?.let { host ->
                             host.copyToClipboard("Version", aboutInfo?.version ?: "")
@@ -825,122 +868,38 @@ fun AboutCategory(
                     },
                 ) { SettingsChevron() }
 
-                2 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_build),
-                    icon = DroshIcons.Terminal,
-                    supporting = aboutInfo?.build ?: "dev",
-                    onClick = {
-                        (activity as? Activity)?.let { host ->
-                            host.copyToClipboard("Build", aboutInfo?.build ?: "dev")
-                            host.toast(host.getString(R.string.settings_build_copied))
-                        }
-                    },
-                ) { SettingsChevron() }
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_license),
-                    icon = DroshIcons.ShieldCheck,
-                    supporting = aboutInfo?.license ?: "GPL-3.0",
-                    onClick = { openUrl(activity, LICENSE_URL) },
-                ) { SettingsChevron() }
-            }
-        }
-
-        Spacer(Modifier.height(GROUP_GAP))
-
-        // ── the theme ─────────────────────────────────────────────────────────
-        val activeTheme = settings.terminal.themeId
-        SettingsGroupColumn(label = stringResource(R.string.about_section_theme), items = 1) { _, cap ->
-            SettingsTile(
-                cap = cap,
-                title = stringResource(R.string.about_theme),
-                icon = DroshIcons.Palette,
-                supporting = if (activeTheme.isBlank()) {
-                    stringResource(R.string.settings_theme_active_none)
-                } else {
-                    activeTheme
-                },
-                onClick = { openUrl(activity, THEME_STORE_URL) },
-            ) { SettingsChevron() }
-        }
-
-        Spacer(Modifier.height(GROUP_GAP))
-
-        // ── the environment ───────────────────────────────────────────────────
-        SettingsGroupColumn(label = stringResource(R.string.about_section_env), items = 3) { index, cap ->
-            when (index) {
-                0 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.about_settings_file),
-                    icon = DroshIcons.Code,
-                    // The file is the point: this is the one screen that says
-                    // where it is, in the form a shell user can use.
-                    supporting = "~/.drosh/settings.toml",
-                    onClick = {
-                        (activity as? Activity)?.let { host ->
-                            host.copyToClipboard("Path", "~/.drosh/settings.toml")
-                            host.toast(host.getString(R.string.settings_build_copied))
-                        }
-                    },
-                ) { SettingsChevron() }
-
                 1 -> SettingsTile(
                     cap = cap,
-                    title = stringResource(R.string.about_shell),
+                    title = stringResource(R.string.about_version_code),
                     icon = DroshIcons.Terminal,
-                    supporting = ShellLocaleCatalog.displayName(settings.shell.locale)
-                        .ifBlank { stringResource(R.string.settings_language_system) },
-                )
-
-                else -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.about_system),
-                    icon = DroshIcons.Smartphone,
-                    supporting = stringResource(
-                        R.string.about_system_value,
-                        Build.VERSION.RELEASE ?: "?",
-                    ),
-                )
-            }
-        }
-
-        Spacer(Modifier.height(GROUP_GAP))
-
-        // ── this device ───────────────────────────────────────────────────────
-        SettingsGroupColumn(label = stringResource(R.string.about_section_device), items = 2) { index, cap ->
-            when (index) {
-                0 -> SettingsTile(
-                    cap = cap,
-                    title = deviceIdentity?.marketingName ?: stringResource(R.string.this_device),
-                    icon = DroshIcons.Smartphone,
-                    supporting = deviceIdentity?.model ?: Build.MODEL ?: "",
-                    leading = {
-                        DeviceBadge(
-                            imageUrl = deviceIdentity?.visualUrl,
-                            fallbackLetter = (deviceIdentity?.marketingName ?: "?")
-                                .firstOrNull()?.uppercase() ?: "?",
-                            size = 40.dp,
-                        )
+                    supporting = versionCode.toString(),
+                    onClick = {
+                        (activity as? Activity)?.let { host ->
+                            host.copyToClipboard("Version code", versionCode.toString())
+                            host.toast(host.getString(R.string.settings_build_copied))
+                        }
                     },
-                )
+                ) { SettingsChevron() }
 
                 else -> SettingsTile(
                     cap = cap,
-                    title = stringResource(R.string.about_links),
-                    icon = DroshIcons.Globe,
-                    supporting = GITHUB_URL,
-                    onClick = { openUrl(activity, GITHUB_URL) },
+                    title = stringResource(R.string.about_build_hash),
+                    icon = DroshIcons.Code,
+                    supporting = gitSha.ifBlank { "—" },
+                    onClick = {
+                        (activity as? Activity)?.let { host ->
+                            host.copyToClipboard("Commit", gitSha)
+                            host.toast(host.getString(R.string.settings_build_copied))
+                        }
+                    },
                 ) { SettingsChevron() }
             }
         }
     }
 }
 
-private const val GITHUB_URL = "https://github.com/mmuhofy/Drosh"
-private const val THEME_STORE_URL = "https://github.com/mmuhofy/drosh-themes"
-private const val LICENSE_URL = "https://www.gnu.org/licenses/gpl-3.0.html"
+private const val DEVELOPER_URL = "https://github.com/mmuhofy"
+private const val REPO_URL = "https://github.com/mmuhofy/Drosh"
 
 /** Opens [url] in the browser, quietly doing nothing if nothing can. */
 private fun openUrl(activity: Activity?, url: String) {
@@ -951,3 +910,40 @@ private fun openUrl(activity: Activity?, url: String) {
         )
     }
 }
+
+/**
+ * The repository's star count, fetched once.
+ *
+ * A plain `HttpURLConnection` rather than the app's HTTP stack: this module
+ * has no HTTP client of its own, and one GET of a few hundred bytes does
+ * not justify inventing a seam for it. A failure is remembered too, so a
+ * phone with no network asks once rather than on every composition.
+ */
+private class StarsState {
+    var count by mutableStateOf<Int?>(null)
+    var failed by mutableStateOf(false)
+
+    fun load() {
+        if (count != null || failed) return
+        Thread {
+            try {
+                val url = java.net.URL("https://api.github.com/repos/mmuhofy/Drosh")
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                connection.disconnect()
+                val match = Regex("\"stargazers_count\"\\s*:\\s*(\\d+)").find(body)
+                val value = match?.groupValues?.get(1)?.toIntOrNull()
+                if (value != null) {
+                    count = value
+                } else {
+                    failed = true
+                }
+            } catch (e: Exception) {
+                failed = true
+            }
+        }.start()
+    }
+}
+
