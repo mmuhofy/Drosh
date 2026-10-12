@@ -1,3 +1,5 @@
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
 // app/ — Android entry point.
 // Per AGENT.md §109: Hilt, Navigation, MainActivity live here.
 // Per AGENT.md §112-135: app may depend on ui, data, agent, terminal, ssh,
@@ -59,7 +61,7 @@ android {
         // the exact code rather than a version that covers many commits. A
         // shallow checkout or a missing git answers "unknown" — a build that
         // cannot say where it came from is still a build.
-        buildConfigField("String", "GIT_SHA", "\"${gitShortSha()}\"")
+        buildConfigField("String", "GIT_SHA", "\"${providers.of(GitShaValueSource::class) {}.get()}\"")
     }
 
     compileOptions {
@@ -175,22 +177,25 @@ dependencies {
 
 
 /**
- * `git rev-parse --short HEAD`, or "unknown".
+ * The commit this build was made from.
  *
- * Read once, at configuration time: the hash is a property of the build, not
- * of the runtime, and a process launch here is the cheapest honest way to
- * get it. Anything that goes wrong — no git, a shallow checkout, a detached
- * archive — answers "unknown" rather than failing the build over a string
- * the About screen shows.
+ * A [ValueSource] rather than `ProcessBuilder` here: the configuration
+ * cache forbids an external process at configuration time, and this is
+ * the one place the build genuinely needs to ask git something. The
+ * provider runs once per build, is cached across tasks, and answers
+ * "unknown" when there is no git or a shallow checkout — a build that
+ * cannot say where it came from is still a build.
  */
-fun gitShortSha(): String = try {
-    val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
-        .directory(rootDir)
-        .redirectErrorStream(true)
-        .start()
-    val output = process.inputStream.bufferedReader().readText().trim()
-    process.waitFor()
-    output.takeIf { it.matches(Regex("[0-9a-f]{7,40}")) } ?: "unknown"
-} catch (e: Exception) {
-    "unknown"
+abstract class GitShaValueSource : ValueSource<String, ValueSourceParameters.None> {
+    override fun obtain(): String = try {
+        val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        process.waitFor()
+        output.takeIf { it.matches(Regex("[0-9a-f]{7,40}")) } ?: "unknown"
+    } catch (e: Exception) {
+        "unknown"
+    }
 }
