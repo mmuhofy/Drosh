@@ -32,7 +32,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.util.onDispose
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Box
@@ -60,6 +59,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -91,6 +91,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -115,6 +116,7 @@ import dev.drosh.domain.session.SessionState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.agent.components.IconAction
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 
 /**
  * Slide-in session drawer — a push/translate layout, so the terminal behind
@@ -794,6 +796,13 @@ private fun SessionRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
+    // The row's rectangle is dropped when it leaves the list: a stale one
+    // under the held row's centre would aim the drop at a row that is not
+    // there any more.
+    DisposableEffect(snapshot.id) {
+        onDispose { dragState?.onRowDisposed(snapshot.id) }
+    }
+
     /** True while this row is the one being carried. */
     val dragging = dragEnabled && dragState?.isHeld(snapshot.id) == true
     /** True while this row is the one being aimed at. */
@@ -863,7 +872,6 @@ private fun SessionRow(
                         dragState.onRowPositioned(snapshot.id, coords.boundsInRoot())
                     }
                 }
-                .onDispose { dragState?.onRowDisposed(snapshot.id) }
                 .then(
                     if (dragging) {
                         // Two layers, deliberately: `offset` moves the row in
@@ -902,11 +910,6 @@ private fun SessionRow(
                  *  - still down at [dragAfter]     → drag: shrink and pick up
                  *  - released between the two      → the menu, as it always was
                  *
-                 * The middle window is what the request asked for and what
-                 * `combinedClickable` cannot express: one gesture, two long-press
-                 * thresholds, and the *short* one still belongs to the menu.
-                 */
-                                /**
                  * One gesture recogniser, because two would race.
                  *
                  * The row needs three outcomes from one press — open it,
