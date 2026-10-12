@@ -661,6 +661,7 @@ private fun SidebarContent(
                                 onHoldChange = onHoldChange,
                                 isSplitOpen = isSplit,
                                 onCycleSplit = onCycleSplit,
+                                onCloseSplit = onCloseSplit,
                                 onDrop = { target ->
                                     if (target != snapshot.id) {
                                         onDragSplit?.invoke(snapshot.id, target)
@@ -1026,6 +1027,8 @@ private fun SessionRow(
     isSplitOpen: Boolean = false,
     /** Cycles the divider between the three stops. */
     onCycleSplit: (() -> Unit)? = null,
+    /** Closes the split entirely, leaving one pane. */
+    onCloseSplit: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
