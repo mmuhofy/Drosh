@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,6 +82,16 @@ fun AgentSelectableText(
     onCopy: ((String) -> Unit)? = null,
     onSelectAll: (() -> Unit)? = null,
     onShare: ((String) -> Unit)? = null,
+    /**
+     * Selects the whole text when it turns true.
+     *
+     * How a bubble's long-press menu answers "select text": the recogniser that
+     * makes a selection lives inside this composable, so the request has to
+     * arrive here rather than be answered from outside. Cleared by
+     * [onSelectAllConsumed], so the next long press does not re-run it.
+     */
+    selectAllRequested: Boolean = false,
+    onSelectAllConsumed: () -> Unit = {},
 ) {
     var range by remember(text) { mutableStateOf<IntRange?>(null) }
     var layout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
@@ -90,6 +101,20 @@ fun AgentSelectableText(
     var held by remember { mutableStateOf<Grabber?>(null) }
 
     val clipboard = LocalClipboardManager.current
+
+    // "Select text" from a bubble's menu: the whole message, with the end
+    // grabber held so the finger can narrow it. A selection made by a menu
+    // rather than by a long press still has to behave like the one a long
+    // press makes, or the user has learned two different gestures for one
+    // thing.
+    LaunchedEffect(selectAllRequested, text) {
+        if (!selectAllRequested) return@LaunchedEffect
+        if (text.isNotEmpty()) {
+            range = text.indices
+            held = Grabber.END
+        }
+        onSelectAllConsumed()
+    }
 
     // The menu lives here rather than in the screen, so its position comes from the
     // text's own coordinates. Hoisting it would mean tracking this item through a

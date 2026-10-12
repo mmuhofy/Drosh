@@ -418,4 +418,8 @@ no terminal session needed.</string>
     <string name="agent_no_commands_running">running…</string>
     <string name="agent_no_commands_yet">The agent has not run any commands yet</string>
     <string name="agent_no_commands_output_soon">output appears here</string>
+    <string name="action_share">Share</string>
+    <string name="agent_retry">Retry</string>
+    <string name="agent_edit_message">Edit</string>
+    <string name="agent_select_text">Select text</string>
 </resources>

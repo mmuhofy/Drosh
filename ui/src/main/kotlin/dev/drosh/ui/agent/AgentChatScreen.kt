@@ -36,16 +36,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -60,6 +64,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
@@ -72,7 +77,6 @@ import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSuccess
@@ -98,12 +102,10 @@ import dev.drosh.ui.agent.components.DiffBlock
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.IconAction
 import dev.drosh.ui.agent.components.StatusPill
-import dev.drosh.ui.agent.components.TOUCH_TARGET
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.rememberCoroutineScope
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -122,7 +124,6 @@ import dev.drosh.ui.agent.components.LocalAgentGlass
 import dev.drosh.ui.agent.components.glassRow
 import dev.drosh.ui.agent.components.glassSurface
 import dev.drosh.ui.agent.components.ProvideAgentGlass
-import dev.drosh.ui.agent.components.agentGlassStyle
 import dev.drosh.ui.agent.components.rememberAgentClipboard
 import dev.drosh.ui.agent.components.rememberAgentGlass
 import kotlinx.coroutines.launch
@@ -189,6 +190,12 @@ fun AgentChatScreen(
     val glass = rememberAgentGlass()
 
     var sheetOpen by rememberSaveable(chatId) { mutableStateOf(false) }
+    // The composer's text, held here so a bubble's "Edit" can put a message
+    // the user already sent back into it. The composer used to own its own
+    // draft, which meant nothing outside it could hand it anything.
+    var composerDraft by rememberSaveable(chatId) { mutableStateOf("") }
+    // Bumped when the keyboard should come up after the draft is filled.
+    var composerFocusRequest by remember { mutableIntStateOf(0) }
     var modelPickerOpen by rememberSaveable(chatId) { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
@@ -290,6 +297,11 @@ fun AgentChatScreen(
                                 onShare = { picked ->
                                     scope.launch { shareText(context, picked) }
                                 },
+                                onRetry = viewModel::retry,
+                                onEdit = { draft ->
+                                    composerDraft = draft
+                                    composerFocusRequest += 1
+                                },
                             )
 
                             is TranscriptRow.ToolGroup -> Column(
@@ -313,8 +325,14 @@ fun AgentChatScreen(
 
                 AgentComposer(
                     running = running,
-                    onSend = viewModel::send,
+                    draft = composerDraft,
+                    onDraftChange = { composerDraft = it },
+                    onSend = { text ->
+                        composerDraft = ""
+                        viewModel.send(text)
+                    },
                     onStop = viewModel::stop,
+                    focusRequest = composerFocusRequest,
                 )
             }
 
@@ -670,14 +688,33 @@ private fun modelInitials(model: LlmModel): String {
 @Composable
 private fun AgentComposer(
     running: Boolean,
+    draft: String,
+    onDraftChange: (String) -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    /** Incremented by whoever wants the keyboard raised after filling the draft. */
+    focusRequest: Int = 0,
 ) {
     val sendCd = stringResource(R.string.agent_send)
     val stopCd = stringResource(R.string.agent_stop)
-    var text by rememberSaveable { mutableStateOf("") }
+    // The draft is the screen's, not the composer's: a bubble's "Edit" puts a
+    // message the user already sent back into the box, and a composer that owns
+    // its own text cannot be handed anything.
+    val text = draft
     val enabled = !running
     val canSend = text.isNotBlank() && enabled
+
+    // A focus requester the screen drives. Editing a sent message means the
+    // keyboard should come up — the user is mid-thought, and a filled box with
+    // the keyboard down is a box they have to tap before they can type in.
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(focusRequest) {
+        if (focusRequest > 0) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -724,13 +761,15 @@ private fun AgentComposer(
                     }
                     BasicTextField(
                         value = text,
-                        onValueChange = { text = it },
+                        onValueChange = onDraftChange,
                         enabled = enabled,
                         singleLine = false,
                         maxLines = 6,
                         textStyle = TextStyle(fontSize = 14.5.sp, color = DroshText),
                         cursorBrush = SolidColor(DroshPrimary),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
                     )
                 }
 
@@ -832,11 +871,24 @@ private fun MessageRow(
     onAnswer: (String, ApprovalDecision) -> Unit,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
+    onRetry: () -> Unit,
+    /** Edits what the user sent: the draft comes back for another go. */
+    onEdit: (String) -> Unit,
 ) {
     when (message) {
-        is ChatMessage.User -> UserBubble(message, onCopy = onCopy, onShare = onShare)
+        is ChatMessage.User -> UserBubble(
+            message,
+            onCopy = onCopy,
+            onShare = onShare,
+            onEdit = onEdit,
+        )
 
-        is ChatMessage.Assistant -> AssistantText(message, onCopy = onCopy)
+        is ChatMessage.Assistant -> AssistantText(
+            message,
+            onCopy = onCopy,
+            onShare = onShare,
+            onRetry = onRetry,
+        )
 
         is ChatMessage.Reasoning -> ReasoningBlock(message)
 
@@ -863,7 +915,16 @@ private fun UserBubble(
     message: ChatMessage.User,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
+    onEdit: (String) -> Unit,
 ) {
+    // A long press opens the menu; a drag inside the text still makes a
+    // selection, because the text's own recogniser owns that gesture. The menu
+    // is the row of options — edit, copy, select — and the selection is what
+    // you do *after* choosing "select".
+    var menuOpen by remember { mutableStateOf(false) }
+    // The menu's answer, handed down to the text's own recogniser.
+    var selectAllRequested by remember { mutableStateOf(false) }
+
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Box(
             modifier = Modifier
@@ -881,6 +942,17 @@ private fun UserBubble(
                     ),
                     raised = true,
                 )
+                // The press is the bubble's, not the text's: the text's own
+                // recogniser makes a selection, and this one asks what to do
+                // with the whole message. Two recognisers on one gesture would
+                // race, so the bubble takes the press and hands the selection
+                // to the text only once the menu has been answered.
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                    onLongClick = { menuOpen = true },
+                )
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             AgentSelectableText(
@@ -890,8 +962,46 @@ private fun UserBubble(
                 color = DroshText,
                 onCopy = onCopy,
                 onShare = onShare,
+                selectAllRequested = selectAllRequested,
+                onSelectAllConsumed = { selectAllRequested = false },
             )
         }
+
+        // The menu is anchored to the bubble, which is the only position the
+        // user has any reason to expect: the menu appears over the thing that
+        // was pressed, not over the screen and not over the list.
+        DroshDropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            items = listOf(
+                DroshMenuItem(
+                    label = stringResource(R.string.agent_edit_message),
+                    id = "edit",
+                    icon = DroshIcons.Pencil,
+                ),
+                DroshMenuItem(
+                    label = stringResource(R.string.action_copy),
+                    id = "copy",
+                    icon = DroshIcons.Copy,
+                ),
+                DroshMenuItem(
+                    label = stringResource(R.string.agent_select_text),
+                    id = "select",
+                    icon = DroshIcons.Type,
+                ),
+            ),
+            onItemClick = { item ->
+                menuOpen = false
+                when (item.id) {
+                    "edit" -> onEdit(message.text)
+                    "copy" -> onCopy(message.text)
+                    // The text's own selection: the bubble hands the request to
+                    // the text it wraps, which is the only place a selection
+                    // can be made.
+                    "select" -> selectAllRequested = true
+                }
+            },
+        )
     }
 }
 
@@ -899,6 +1009,8 @@ private fun UserBubble(
 private fun AssistantText(
     message: ChatMessage.Assistant,
     onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
+    onRetry: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         MarkdownText(
@@ -908,10 +1020,62 @@ private fun AssistantText(
             // rather than having to poll.
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
+
+        // Three acts on the answer, in three small icons under it.
+        //
+        // They were behind a long press, inside one text selection model, and
+        // the answer they act on is the thing the user just read — so they sit
+        // where the reading finished rather than where a menu has to be fished
+        // out of the text. Share and copy are the two that only make sense on a
+        // finished message, so a streaming answer shows neither.
+        if (!message.streaming && message.text.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                AssistantAction(DroshIcons.Copy, R.string.action_copy, onClick = { onCopy(message.text) })
+                AssistantAction(DroshIcons.Share, R.string.action_share, onClick = { onShare(message.text) })
+                AssistantAction(DroshIcons.RotateCcw, R.string.agent_retry, onClick = onRetry)
+            }
+        }
+
         if (message.streaming) {
             Spacer(Modifier.height(4.dp))
             ThinkingDots()
         }
+    }
+}
+
+/**
+ * One of the three acts under an answer.
+ *
+ * Quiet by design: 16dp glyph, no fill, no border. The row is an afterthought
+ * to the message above it, and a set of button-shaped buttons there would
+ * compete with the text for the eye.
+ */
+@Composable
+private fun AssistantAction(
+    icon: ImageVector,
+    contentDescriptionRes: Int,
+    onClick: () -> Unit,
+) {
+    val cd = stringResource(contentDescriptionRes)
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = cd },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = DroshTextMuted,
+            modifier = Modifier.size(15.dp),
+        )
     }
 }
 
