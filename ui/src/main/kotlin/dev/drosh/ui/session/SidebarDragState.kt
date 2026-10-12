@@ -102,6 +102,22 @@ class SidebarDragState {
             ?.key
     }
 
+    /**
+     * The held row's centre in root coordinates, or null when nothing is held.
+     *
+     * Read at release: a drop that lands on no row is either a drop on the
+     * terminal beside the drawer, or a drop on nothing at all, and the only way
+     * to tell those two apart is where the finger was.
+     */
+    fun heldCentre(): Offset? {
+        val held = heldId ?: return null
+        val origin = bounds[held] ?: return null
+        return Offset(
+            origin.left + origin.width / 2f + offset.x,
+            origin.top + origin.height / 2f + offset.y,
+        )
+    }
+
     /** True while [id] is the row being carried. */
     fun isHeld(id: String): Boolean = heldId == id
 

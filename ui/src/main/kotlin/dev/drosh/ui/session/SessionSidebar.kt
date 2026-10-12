@@ -199,6 +199,25 @@ fun SessionSidebar(
      * a drawer opened somewhere without a terminal should do.
      */
     onToggleKeyboard: (() -> Unit)? = null,
+    /**
+     * Called when a held row is released over the terminal beside the drawer,
+     * past its right edge.
+     *
+     * The drawer covers the terminal's left side and nothing else, so "past the
+     * drawer" and "over the terminal" are the same place. A card carried there
+     * and dropped means "split this with the session already on screen", and the
+     * terminal is the only thing that can answer it — which is why this is a
+     * callback and not state the drawer reaches into.
+     */
+    onDropOnTerminal: ((String) -> Unit)? = null,
+    /**
+     * Called with the session being carried, or null when none is.
+     *
+     * So the terminal can light itself up as the place a card dropped outside
+     * the drawer will land. The drawer knows this and the terminal does not;
+     * one callback says so once instead of both guessing.
+     */
+    onHoldChange: ((String?) -> Unit)? = null,
     /** True while a second pane is open, so the rows can show it. */
     isSplit: Boolean = false,
     /**
@@ -275,6 +294,8 @@ fun SessionSidebar(
             onDock = onDock,
             onDragSplit = onDragSplit,
             onToggleKeyboard = onToggleKeyboard,
+            onDropOnTerminal = onDropOnTerminal,
+            onHoldChange = onHoldChange,
         )
     }
 }
@@ -300,12 +321,15 @@ private fun SidebarContent(
     isOpen: Boolean,
     isSplit: Boolean,
     isFloatingPane: Boolean,
+    pushState: SidebarPushState? = null,
     splitSessions: Pair<String, String>?,
     onCloseSplit: (() -> Unit)?,
     onSwapPanes: (() -> Unit)?,
     onDock: (() -> Unit)?,
     onToggleKeyboard: (() -> Unit)? = null,
     onDragSplit: ((String, String) -> Unit)?,
+    onDropOnTerminal: ((String) -> Unit)? = null,
+    onHoldChange: ((String?) -> Unit)? = null,
 ) {
     val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
     val activeId by viewModel.activeId.collectAsStateWithLifecycle()
@@ -347,7 +371,10 @@ private fun SidebarContent(
     // passes through every value on the way out, so clearing on it would also
     // cancel the hold the moment the drawer started to move.
     LaunchedEffect(isOpen) {
-        if (!isOpen) dragState.cancel()
+        if (!isOpen) {
+            dragState.cancel()
+            onHoldChange?.invoke(null)
+        }
     }
 
     /**
@@ -617,6 +644,11 @@ private fun SidebarContent(
                                 isSecondaryPane = snapshot.id in pairOfSessions,
                                 floatingPane = isFloatingPane,
                                 onDock = onDock,
+                                onDropOnTerminal = onDropOnTerminal?.let { drop ->
+                                    { drop(snapshot.id) }
+                                },
+                                drawerWidthPx = pushState?.widthPx ?: 0f,
+                                onHoldChange = onHoldChange,
                                 onDrop = { target ->
                                     if (target != snapshot.id) {
                                         onDragSplit?.invoke(snapshot.id, target)
@@ -932,6 +964,35 @@ private fun SessionRow(
     /** Called with the session a held row was released over. */
     onDrop: (String) -> Unit = {},
     /**
+     * Called when a held row is released outside the drawer entirely, over
+     * the terminal beside it.
+     *
+     * A drop that lands on no row is not necessarily a drop on nothing: the
+     * card can be carried out of the drawer, and out there the only thing
+     * under it is the terminal. That drop means "split this with what is
+     * already on screen", and the row is where the decision is made because
+     * the row is what has the finger.
+     */
+    onDropOnTerminal: (() -> Unit)? = null,
+    /**
+     * The drawer's right edge in root pixels, or 0 to disable the outside drop.
+     *
+     * The test is "is the card past the drawer": the drawer starts at the
+     * window's left edge, so anything to the right of its width is over the
+     * terminal and nothing else.
+     */
+    drawerWidthPx: Float = 0f,
+    /**
+     * Called with this row's session when it is picked up, and with null when it
+     * is put down.
+     *
+     * The terminal shows a drop target while a card is in the air, and it is
+     * told from here because the row is what has the finger. Without it the
+     * target would have to be a guess at whether the user is holding something,
+     * which is the one thing the drawer already knows.
+     */
+    onHoldChange: ((String?) -> Unit)? = null,
+    /**
      * True when this row's session is the one in the second pane.
      *
      * The menu's wording depends on it. "Split below" on the session that is
@@ -1107,13 +1168,29 @@ private fun SessionRow(
                                 change.consume()
                                 when {
                                     dragging -> {
-                                        // `end` clears the held id, so the
-                                        // dragged one is read first — the
+                                        // `end` clears the held id and the
+                                        // offset, so where the finger was is
+                                        // read before it is answered — the
                                         // callback is told which session to
                                         // split and which to split it with.
                                         val dragged = snapshot.id
+                                        val centre = dragState.heldCentre()
                                         val target = dragState.end()
-                                        if (target != null) onDrop(target)
+                                        when (target) {
+                                            null -> {
+                                                // Over no row. Past the drawer's
+                                                // edge that is over the terminal,
+                                                // and a drop there is a split with
+                                                // the session already on screen.
+                                                if (onDropOnTerminal != null &&
+                                                    centre != null &&
+                                                    centre.x > drawerWidthPx
+                                                ) {
+                                                    onDropOnTerminal()
+                                                }
+                                            }
+                                            else -> onDrop(target)
+                                        }
                                     }
                                     moved -> Unit
                                     menuOpen -> menuOpen = false
@@ -1245,12 +1322,28 @@ private fun SessionRow(
             if (onSplit != null && !ended && !isSecondaryPane) {
                 SplitDragHandle(
                     onTap = { menuOpen = true },
-                    onPickUp = { dragState?.begin(snapshot.id) },
+                    onPickUp = {
+                        dragState?.begin(snapshot.id)
+                        onHoldChange?.invoke(snapshot.id)
+                    },
                     onDragBy = { delta -> dragState?.drag(delta) },
                     onRelease = {
-                        val dragged = snapshot.id
+                        onHoldChange?.invoke(null)
+                        // Where the finger was is read before `end` answers:
+                        // the drag state resets the offset and the held id, and
+                        // "over no row" then has to be told apart from "over the
+                        // terminal" while the answer is still there to read.
+                        val centre = dragState?.heldCentre()
                         val target = dragState?.end()
-                        if (target != null) onDrop(target)
+                        if (target != null) {
+                            onDrop(target)
+                        } else if (
+                            onDropOnTerminal != null &&
+                            centre != null &&
+                            centre.x > drawerWidthPx
+                        ) {
+                            onDropOnTerminal()
+                        }
                     },
                     enabled = dragEnabled,
                 )
