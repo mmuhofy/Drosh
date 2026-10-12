@@ -322,6 +322,11 @@ private fun ReadyScreen(
     // `hasScrolled` is what tells "just opened" from "sitting at the prompt" --
     // position alone cannot, because both sit at the same row.
     //
+    // Read before the chrome's own state, because the immersive decision is the
+    // two of them multiplied together: the scroll says the chrome may go, and
+    // the setting says whether it is allowed to.
+    val appearance by terminalViewModel.appearance.collectAsState()
+
     // The direction is the point: you are not looking for the clock while you are
     // typing, and you are definitely looking for it while reading something that
     // scrolled off. The bar disappears exactly when it is not needed.
@@ -333,7 +338,15 @@ private fun ReadyScreen(
 
     // Named `immersive` rather than `chromeCollapsed` so the call reads as a
     // call: a local of the same name would shadow the function it is calling.
-    val immersive = chromeCollapsed(topRow, atLiveEdge, tuiActive, hasScrolled)
+    //
+    // The setting gates the whole behaviour: with immersive off the chrome is
+    // told to leave and never told anything else, so the status bar and the
+    // pill row stay put whatever the terminal is doing. This is the one
+    // appearance setting the chrome reads, and it reads it here because the
+    // chrome's own state — scroll position, alt buffer — is computed in this
+    // scope where the two can be married.
+    val immersive = appearance.terminal.immersive &&
+        chromeCollapsed(topRow, atLiveEdge, tuiActive, hasScrolled)
 
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.
@@ -400,7 +413,6 @@ private fun ReadyScreen(
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
-    val appearance by terminalViewModel.appearance.collectAsState()
     val backgroundFile by terminalViewModel.backgroundFile.collectAsStateWithLifecycle()
     val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
@@ -730,7 +742,14 @@ private fun ReadyScreen(
     val appearAlpha = 1f
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        // The root is painted with the drawer's own surface. Without it, the
+        // terminal's card — inset by the drawer's progress and rounded to match
+        // it — showed its corners straight through to whatever was behind the
+        // window, which on a device with a dark wallpaper reads as the app
+        // having emptied itself out.
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DroshSurface),
     ) {
     Box(
         modifier = Modifier
@@ -962,19 +981,6 @@ private fun ReadyScreen(
                 },
                 onOpenSettings = onOpenSettings,
                 onOpenAgent = onOpenAgent,
-                isSplit = paneLayout.isSplit,
-                isFloating = paneLayout.isFloating,
-                onToggleFloat = paneLayoutViewModel::togglePresentation,
-                onCloseSplit = paneLayoutViewModel::closeSplit,
-                onCycleSplit = paneLayoutViewModel::cycleSplitFraction,
-                onSwapPanes = paneLayoutViewModel::swapPanes,
-                isSystemOverlay = paneLayout.isSystemOverlay,
-                // Re-read on every recomposition rather than remembered once: the
-                // user can grant or revoke this in the settings app while this
-                // screen is alive, and a remembered value would keep offering a
-                // menu entry that cannot work.
-                canDrawOverlays = paneLayoutViewModel.canDrawOverlays(),
-                onToggleSystemOverlay = { toggleSystemOverlay() },
         )
 
         // Slider overlay trigger — BackHandler kalıyor, SessionSidebar
@@ -1215,6 +1221,7 @@ private fun ReadyScreen(
          * own grip uses.
          */
         onHoldChange = { id -> heldSessionId = id },
+        onCycleSplit = paneLayoutViewModel::cycleSplitFraction,
         onDropOnTerminal = if (liveSessionIds.size >= 2) {
             { id -> paneLayoutViewModel.openSplit(id, activeId) }
         } else {

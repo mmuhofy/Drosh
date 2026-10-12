@@ -565,15 +565,6 @@ fun TerminalTopBar(
                 onDismiss = { moreExpanded = false },
                 onFindInOutput = onFindInOutput,
                 onRefresh = onRefresh,
-                isSplit = isSplit,
-                isFloating = isFloating,
-                onToggleFloat = onToggleFloat,
-                onCloseSplit = onCloseSplit,
-                onCycleSplit = onCycleSplit,
-                onSwapPanes = onSwapPanes,
-                isSystemOverlay = isSystemOverlay,
-                canDrawOverlays = canDrawOverlays,
-                onToggleSystemOverlay = onToggleSystemOverlay,
             )
         }
     }
@@ -582,11 +573,9 @@ fun TerminalTopBar(
 /**
  * The overflow menu.
  *
- * The split entries only appear once a second pane exists. Offering "Float
- * window" before that would be an action on a pane that is not there, and the
- * labels have to swap — "Float" and "Dock" describe the same gesture from
- * opposite ends, and a menu that says "Float" while the pane is already
- * floating is worse than no menu.
+ * Two entries, and both are about the output rather than about the app's
+ * arrangement: refresh it, or find in it. Everything that acts on a second
+ * pane moved to the drawer, where the pane it acts on is on screen.
  */
 @Composable
 private fun MoreActionsDropdown(
@@ -594,77 +583,16 @@ private fun MoreActionsDropdown(
     onDismiss: () -> Unit,
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
-    isSplit: Boolean,
-    isFloating: Boolean,
-    onToggleFloat: () -> Unit,
-    onCloseSplit: () -> Unit,
-    onCycleSplit: () -> Unit,
-    onSwapPanes: () -> Unit,
-    isSystemOverlay: Boolean,
-    canDrawOverlays: Boolean,
-    onToggleSystemOverlay: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
         items = buildList {
-            if (isSplit) {
-                // While the pane is in the overlay, the only entry that makes sense
-                // is the one that brings it back. Float and dock describe geometry
-                // inside this app's window, and neither means anything for a window
-                // this activity does not own — so offering them would describe a
-                // gesture that does nothing.
-                if (isSystemOverlay) {
-                    add(
-                        DroshMenuItem(
-                            label = stringResource(dev.drosh.ui.R.string.action_system_bring_back),
-                            id = "system_bring_back",
-                            icon = DroshIcons.Square,
-                        ),
-                    )
-                } else {
-                    add(
-                        DroshMenuItem(
-                            label = stringResource(if (isFloating) dev.drosh.ui.R.string.action_dock_pane else dev.drosh.ui.R.string.action_float_window),
-                            id = if (isFloating) "dock" else "float",
-                            icon = DroshIcons.Square,
-                        ),
-                    )
-                    // Hidden without the permission rather than disabled: a greyed
-                    // entry would still be a tap, and the reason it cannot work is a
-                    // settings screen the user has to be sent to anyway.
-                    if (canDrawOverlays) {
-                        add(
-                            DroshMenuItem(
-                                label = stringResource(dev.drosh.ui.R.string.action_system_float),
-                            id = "system_float",
-                                icon = DroshIcons.PanelBottom,
-                            ),
-                        )
-                    }
-                }
-                add(
-                    DroshMenuItem(
-                        label = stringResource(dev.drosh.ui.R.string.action_move_divider),
-                            id = "move_divider",
-                        icon = DroshIcons.RotateCcw,
-                    ),
-                )
-                add(
-                    DroshMenuItem(
-                        label = stringResource(dev.drosh.ui.R.string.action_swap_panes),
-                            id = "swap_panes",
-                        icon = DroshIcons.ArrowUpDown,
-                    ),
-                )
-                add(
-                    DroshMenuItem(
-                        label = stringResource(dev.drosh.ui.R.string.action_close_pane),
-                            id = "close_pane",
-                        icon = DroshIcons.X,
-                    ),
-                )
-            }
+            // The split actions are gone from here. They live in the drawer,
+            // beside the pair they act on — a control for a second pane that
+            // sits in a menu for the first one is a control the user has to
+            // reason their way to, and it was two screens' worth of entries
+            // in one four-item list.
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = "refresh"))
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_find), icon = DroshIcons.Search, id = "find"))
             // Settings is gone from here. It is reachable from the drawer, and
@@ -676,11 +604,6 @@ private fun MoreActionsDropdown(
             when (item.id) {
                 "refresh" -> onRefresh()
                 "find" -> onFindInOutput()
-                "float", "dock" -> onToggleFloat()
-                "system_float", "system_bring_back" -> onToggleSystemOverlay()
-                "move_divider" -> onCycleSplit()
-                "swap_panes" -> onSwapPanes()
-                "close_pane" -> onCloseSplit()
             }
         },
     )

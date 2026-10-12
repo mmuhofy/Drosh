@@ -50,6 +50,7 @@ internal object DroshSettingsToml {
             putBoolean("terminal", "bold_brightens", boldBrightens)
             putBoolean("terminal", "ligatures", ligatures)
             putBoolean("terminal", "dim_inactive_panes", dimInactivePanes)
+            putBoolean("terminal", "immersive", immersive)
             putString("terminal", "theme_id", themeId)
         }
         with(settings.background) {
@@ -135,6 +136,7 @@ internal object DroshSettingsToml {
                 boldBrightens = document.getBoolean("terminal", "bold_brightens", base.terminal.boldBrightens),
                 ligatures = document.getBoolean("terminal", "ligatures", base.terminal.ligatures),
                 dimInactivePanes = document.getBoolean("terminal", "dim_inactive_panes", base.terminal.dimInactivePanes),
+                immersive = document.getBoolean("terminal", "immersive", base.terminal.immersive),
                 themeId = document.getString("terminal", "theme_id", base.terminal.themeId),
                 palette = readPalette(document, base.terminal.palette),
             ),

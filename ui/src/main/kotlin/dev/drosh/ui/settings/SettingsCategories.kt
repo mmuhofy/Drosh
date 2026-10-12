@@ -218,7 +218,7 @@ fun AppearanceCategory(
 
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_terminal),
-            items = 3,
+            items = 4,
         ) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -249,7 +249,7 @@ fun AppearanceCategory(
                     )
                 }
 
-                else -> SettingsTile(
+                2 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_dim_inactive_panes),
                     icon = DroshIcons.Monitor,
@@ -259,6 +259,20 @@ fun AppearanceCategory(
                         checked = settings.terminal.dimInactivePanes,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(terminal = it.terminal.copy(dimInactivePanes = on)) }
+                        },
+                    )
+                }
+
+                else -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_immersive),
+                    icon = DroshIcons.Maximize,
+                    supporting = stringResource(R.string.settings_immersive_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.immersive,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(terminal = it.terminal.copy(immersive = on)) }
                         },
                     )
                 }

@@ -410,4 +410,6 @@ no terminal session needed.</string>
     <string name="settings_theme_remove_confirm">Remove</string>
     <string name="sidebar_menu">Session menu</string>
     <string name="sidebar_drop_to_split">Drop to split</string>
+    <string name="settings_immersive">Immersive mode</string>
+    <string name="settings_immersive_desc">Hide the status bar and pill row while you scroll the terminal</string>
 </resources>
