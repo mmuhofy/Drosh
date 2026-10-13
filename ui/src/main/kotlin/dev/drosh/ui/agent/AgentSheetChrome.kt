@@ -102,7 +102,6 @@ private val SheetDismissDrag: Dp = 160.dp
  * @param visible drives the rise. Callers that compose this only while it is open
  *   can leave it at the default.
  * @param heightFraction how much of the screen the panel takes.
- * @param leading a glyph beside the title, when the sheet is worth one.
  * @param trailing an action beside the close button — a copy, a share.
  * @param onBack a back arrow in the title row, for a sheet with a stage under it.
  */
@@ -115,7 +114,6 @@ fun AgentSheet(
     icon: ImageVector? = null,
     visible: Boolean = true,
     heightFraction: Float = 0.72f,
-    leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -186,7 +184,6 @@ fun AgentSheet(
                 title = title,
                 subtitle = subtitle,
                 icon = icon,
-                leading = leading,
                 trailing = trailing,
                 onBack = onBack,
                 onDismiss = onDismiss,
@@ -238,7 +235,6 @@ private fun SheetHeader(
     onDismiss: () -> Unit,
     subtitle: String? = null,
     icon: ImageVector? = null,
-    leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     onBack: (() -> Unit)? = null,
 ) {
@@ -248,10 +244,6 @@ private fun SheetHeader(
             .padding(start = SheetGutter, end = 10.dp, top = 10.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        leading?.let {
-            it()
-            Spacer(Modifier.width(6.dp))
-        }
         onBack?.let {
             SheetIconButton(
                 icon = DroshIcons.ArrowLeft,
@@ -445,25 +437,6 @@ fun SheetOptionRow(
     }
 }
 
-/** A capsule behind a glyph, for a row that leads with one. */
-@Composable
-fun SheetGlyphTile(icon: ImageVector, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .background(DroshTilePressed),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = DroshTextSecondary,
-            modifier = Modifier.size(17.dp),
-        )
-    }
-}
-
 /** A sentence in the middle of an empty sheet. */
 @Composable
 fun SheetEmptyNote(text: String, modifier: Modifier = Modifier) {
@@ -479,25 +452,6 @@ fun SheetEmptyNote(text: String, modifier: Modifier = Modifier) {
             fontSize = 14.sp,
         )
     }
-}
-
-/**
- * A sheet body: the scrollable column between the header and the foot.
- *
- * Every sheet's content sits in this, so the gutter and the scroll are one number
- * rather than one per sheet.
- */
-@Composable
-fun SheetBody(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp),
-        content = content,
-    )
 }
 
 /**
