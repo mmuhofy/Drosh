@@ -107,6 +107,8 @@ import dev.drosh.ui.agent.components.AgentToolPill
 import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.glassRow
 import dev.drosh.ui.agent.components.ProvideAgentGlass
+import dev.drosh.ui.session.SessionLogSource
+import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.agent.components.rememberAgentClipboard
 import dev.drosh.ui.agent.components.rememberAgentGlass
 import kotlinx.coroutines.launch
@@ -140,6 +142,13 @@ fun AgentChatScreen(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onChatCreated: (String) -> Unit = {},
+    // Which terminals the picker can read from, and how it reads them. The
+    // chat screen cannot ask either question itself — `:ui` does not see
+    // `:agent`, so the source arrives from `:app` that can see both, and the
+    // list is plain [SessionLogTarget]s for the same reason.
+    sessionLogSource: SessionLogSource? = null,
+    sessionLogTargets: List<SessionLogTarget> = emptyList(),
+    activeSessionId: String? = null,
     modifier: Modifier = Modifier,
     viewModel: AgentChatViewModel = hiltViewModel(),
 ) {
@@ -511,6 +520,13 @@ fun AgentChatScreen(
                         attachSettings.setEffort(level)
                     },
                     sessionLog = sessionLog,
+                    // The picker is the same feature the terminal used to host,
+                    // and the terminal no longer does: reading a session is the
+                    // agent's business, and its + sheet is where the user is
+                    // looking for it.
+                    logSource = sessionLogSource,
+                    logSessions = sessionLogTargets,
+                    activeSessionId = activeSessionId,
                     onAttach = { picked -> attachments = attachments + picked },
                     onDismiss = { attachSheetOpen = false },
                 )
