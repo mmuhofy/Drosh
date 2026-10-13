@@ -666,29 +666,17 @@ class TerminalManager(
         _altBufferByPane.value = next
     }
 
-    private val _scrollTopRow = MutableStateFlow(0)
-
     /**
-     * The terminal's first visible transcript row. 0 is the live edge, where the
-     * prompt is; negative means the viewport has been scrolled back into the
-     * scrollback.
+     * True while the viewport is at the live edge. This is what the UI
+     * collects — there is deliberately no flow of the raw scroll row.
      *
-     * Fed by [TerminalView.onScrollPositionChanged], which fires on touch,
-     * fling, wheel and keyboard scrolling, and again when new output snaps the
-     * viewport back to the live edge.
-     */
-    val scrollTopRow: StateFlow<Int> = _scrollTopRow.asStateFlow()
-
-    /**
-     * True while the viewport is at the live edge. This, not [scrollTopRow], is
-     * what the UI collects.
-     *
-     * scrollTopRow changes once per row, and a fling through 30 rows emitted 30
+     * A row changes once per row, and a fling through 30 rows emitted 30
      * updates, each one recomposing the whole terminal screen on the frame it
-     * landed. The only thing the UI actually needs is which side of the live
-     * edge it is on, so this flips at a threshold and is silent the rest of the
-     * time. That is the difference between the bar gliding and the bar
-     * stuttering along with your thumb.
+     * landed: the screen collected the row to re-derive, with the same rule,
+     * the boolean already published here. The only thing the UI needs is which
+     * side of the live edge it is on, so this flips at a threshold and is
+     * silent the rest of the time. That is the difference between the bar
+     * gliding and the bar stuttering along with your thumb.
      *
      * The threshold is not the edge itself. It is two, and the gap between them
      * is the dead zone — see [chromeIsAtLiveEdge].
@@ -726,7 +714,6 @@ class TerminalManager(
      * chrome before the next scroll event corrects it.
      */
     private fun resetViewportState() {
-        _scrollTopRow.value = 0
         _isAtLiveEdge.value = true
         _hasScrolled.value = false
     }
@@ -1046,7 +1033,6 @@ class TerminalManager(
         publishScroll(view)
         view.onScrollPositionChanged = { topRow ->
             if (slot == focusedPane.value) {
-                _scrollTopRow.value = topRow
                 val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
                 if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
                 // "Has been touched" means **has left the first screen**, not
@@ -1069,12 +1055,11 @@ class TerminalManager(
         bindSelectionMenu(view, slot)
     }
 
-    /** Reports a view's current scroll position immediately. */
+    /** Republishes a view's live-edge state immediately. */
     private fun publishScroll(view: TerminalView) {
         // A session restored straight into the middle of its scrollback would
-        // otherwise start with a stale zero and only correct itself on the next
-        // scroll.
-        _scrollTopRow.value = view.mTopRow
+        // otherwise start with a stale "at the edge" and only correct itself on
+        // the next scroll.
         val atEdge = chromeIsAtLiveEdge(view.mTopRow, _isAtLiveEdge.value)
         if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
     }
@@ -1176,6 +1161,24 @@ class TerminalManager(
      */
     fun getIndexForId(persistentId: String): Int =
         idToIndex[persistentId] ?: -1
+
+    /**
+     * The live session behind a persistent id, or null when there is none.
+     *
+     * The reverse of [sessionIdForSlot], and the only way to reach a session that
+     * is not currently in a pane: the positional index is what identifies a tab
+     * here, and translating it back needs the same private list the other
+     * direction starts from.
+     *
+     * Added for the session-log attachment, which is offered for any live session
+     * rather than the one on screen — the whole point of it is reaching the output
+     * of a session the user is not currently looking at.
+     */
+    fun sessionForId(persistentId: String): TerminalSession? {
+        val index = getIndexForId(persistentId)
+        if (index < 0) return null
+        return irisSessions.getOrNull(index)?.terminalSession
+    }
 
     /**
      * Reverse lookup: positional index → persistent id.
@@ -1775,6 +1778,25 @@ fun chromeCollapsed(
     tuiActive: Boolean,
     hasScrolled: Boolean,
 ): Boolean = tuiActive || !hasScrolled || !chromeIsAtLiveEdge(topRow, wasAtLiveEdge)
+
+/**
+ * Whether the top chrome is collapsed, from the answer the manager already has.
+ *
+ * The overload above needs the raw row because that row is what applies the
+ * dead zone. The manager applies [chromeIsAtLiveEdge] itself on every scroll and
+ * publishes the outcome as `isAtLiveEdge`, which is the same value by
+ * construction: the function is idempotent, so re-deriving it from the row it
+ * was derived from cannot disagree.
+ *
+ * Reading that row in the UI is what this exists to avoid. It changes once per
+ * row of a fling, and a screen that reads it recomposes per row — both panes,
+ * the key bar, the top bar — to arrive at a boolean it already had.
+ */
+fun chromeCollapsed(
+    atLiveEdge: Boolean,
+    tuiActive: Boolean,
+    hasScrolled: Boolean,
+): Boolean = tuiActive || !hasScrolled || !atLiveEdge
 
 
 /** "#RRGGBB" as a colour, or null when it is not one. */

@@ -107,6 +107,8 @@ import dev.drosh.ui.pane.PaneLayoutViewModel
 import dev.drosh.ui.pane.SplitPaneHost
 import dev.drosh.ui.search.DraggableSearchBar
 import dev.drosh.ui.search.SearchScope
+import dev.drosh.ui.session.SessionLogAttachSheet
+import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.session.SessionSidebar
 import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.session.rememberSidebarPushState
@@ -330,7 +332,6 @@ private fun ReadyScreen(
     // The direction is the point: you are not looking for the clock while you are
     // typing, and you are definitely looking for it while reading something that
     // scrolled off. The bar disappears exactly when it is not needed.
-    val topRow by terminalManager.scrollTopRow.collectAsStateWithLifecycle()
     val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
     val hasScrolled by terminalManager.hasScrolled.collectAsStateWithLifecycle()
     val tuiActive by terminalManager.focusedPaneAltBuffer
@@ -345,8 +346,13 @@ private fun ReadyScreen(
     // appearance setting the chrome reads, and it reads it here because the
     // chrome's own state — scroll position, alt buffer — is computed in this
     // scope where the two can be married.
+    //
+    // `atLiveEdge`, not the scroll row: the manager applies the dead-zone rule
+    // to every scroll and publishes the outcome, so reading the row here would
+    // recompose the whole screen once per row of a fling to arrive at the same
+    // boolean.
     val immersive = appearance.terminal.immersive &&
-        chromeCollapsed(topRow, atLiveEdge, tuiActive, hasScrolled)
+        chromeCollapsed(atLiveEdge, tuiActive, hasScrolled)
 
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.
@@ -381,6 +387,15 @@ private fun ReadyScreen(
      */
     var heldSessionId by remember { mutableStateOf<String?>(null) }
     var browserUrl by remember { mutableStateOf<String?>(null) }
+
+    /**
+     * Whether the session-log sheet is open.
+     *
+     * Owned here rather than by the sheet because two things reach it from
+     * outside: the drawer footer opens it, and the sheet's own confirmation asks
+     * for the agent screen afterwards.
+     */
+    var sessionLogOpen by remember { mutableStateOf(false) }
 
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -419,6 +434,29 @@ private fun ReadyScreen(
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
     val noSessionsLeft by terminalManager.noSessionsLeft.collectAsState()
     val sessions by sessionSwitcherViewModel.allSessions.collectAsStateWithLifecycle()
+
+    /**
+     * The sessions a log can be taken from, most recently used first.
+     *
+     * Live ones only, and live is what the terminal manager says rather than
+     * what the database says: a row can exist for a process that has exited, and
+     * offering it would open a sheet with nothing in it.
+     */
+    val logTargets = remember(sessions, liveSessionIds) {
+        sessions
+            .filter { it.id in liveSessionIds }
+            .sortedByDescending { it.lastUsedAtMs }
+            .map { SessionLogTarget(id = it.id, name = it.name) }
+    }
+
+    /**
+     * Where the sheet reads a log from.
+     *
+     * Remembered against the manager rather than built per call: it is stateless
+     * and the sheet asks for a transcript on every opening, so there is nothing
+     * to recompute.
+     */
+    val logSource = remember(terminalManager) { TerminalSessionLogSource(terminalManager) }
 
     /**
      * The active input method can change while the app is in the background
@@ -1274,6 +1312,34 @@ private fun ReadyScreen(
         onDragSplit = { draggedId, targetId ->
             paneLayoutViewModel.splitWithPrimary(draggedId, targetId)
         },
+        /**
+         * Take a session's output to the agent.
+         *
+         * The drawer closes first: the sheet covers the screen, and a drawer
+         * left open behind it is a drawer the user has to dismiss a second time
+         * before they are back in the terminal.
+         */
+        onAttachLog = {
+            sidebarOpen = false
+            sessionLogOpen = true
+        },
+    )
+
+    /**
+     * The session-log hand-off, above everything else.
+     *
+     * Last in the composition rather than inside the terminal Box, because it is
+     * a sheet: it has to be drawn over the drawer as well as over the terminal,
+     * and a sibling later in the tree is what that costs.
+     */
+    SessionLogAttachSheet(
+        visible = sessionLogOpen,
+        sessions = logTargets,
+        source = logSource,
+        activeSessionId = activeId,
+        canGoBack = logTargets.size > 1,
+        onDismiss = { sessionLogOpen = false },
+        onOpenAgent = onOpenAgent,
     )
     }
 }
