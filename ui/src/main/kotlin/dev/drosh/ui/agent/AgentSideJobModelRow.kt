@@ -146,7 +146,7 @@ class AgentSideJobModelViewModel @Inject constructor(
                         }
                         .distinctBy { it.id }
 
-                    CatalogState.Loading -> emptyList()
+                    is CatalogState.Loading -> emptyList()
 
                     is CatalogState.Failed -> emptyList()
                 }
