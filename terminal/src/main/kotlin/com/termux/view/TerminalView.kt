@@ -1762,6 +1762,38 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         }
     }
 
+    /**
+     * Brings the row holding an external row index into view, centred where
+     * the scrollback allows it.
+     *
+     * find's navigation, and the reason it lives here rather than in the
+     * caller: [setTopRow] writes the state and nothing else, so a caller that
+     * used it directly would move the viewport without repainting — the
+     * terminal would keep drawing the rows it was on until the next chunk of
+     * output happened to arrive.
+     *
+     * Centred rather than top-aligned because a match at the very top row is
+     * one scroll away from being hidden by whatever chrome sits above the
+     * terminal, and the middle of the screen is the one place a match is
+     * always legible.
+     *
+     * A no-op when the row is already on screen: re-centring a visible match
+     * moves the terminal for nothing and the user loses the line they were
+     * reading.
+     */
+    fun revealRow(externalRow: Int) {
+        val emu = mEmulator ?: return
+        val rows = emu.mRows
+        if (externalRow in mTopRow until (mTopRow + rows)) return
+        val transcriptRows = emu.getScreen().activeTranscriptRows
+        val centred = externalRow - rows / 2
+        setTopRow(centred.coerceIn(-transcriptRows, 0))
+        mScrollSettle?.let { removeCallbacks(it); mScrollSettle = null }
+        mScrollOffsetPx = 0f
+        onScrollPositionChanged?.invoke(mTopRow)
+        if (!awakenScrollBars()) invalidate()
+    }
+
 
 
     /**
