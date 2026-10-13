@@ -200,6 +200,20 @@ fun SessionSidebar(
      */
     onToggleKeyboard: (() -> Unit)? = null,
     /**
+     * Opens the sheet that takes a session's output to the agent.
+     *
+     * In the footer rather than on a session row because it is not about one
+     * session: the user says "let the agent see what the terminal said" and then
+     * picks which session, which is a question the log sheet answers better than
+     * a long-press menu can — it has room for the list, and a menu item that
+     * silently does nothing for a session with no output is worse than a button
+     * that always opens something.
+     *
+     * A callback, like the keyboard beside it: the drawer is in `:ui` and the
+     * terminal buffer is not.
+     */
+    onAttachLog: (() -> Unit)? = null,
+    /**
      * Called when a held row is released over the terminal beside the drawer,
      * past its right edge.
      *
@@ -301,6 +315,7 @@ fun SessionSidebar(
             onDock = onDock,
             onDragSplit = onDragSplit,
             onToggleKeyboard = onToggleKeyboard,
+            onAttachLog = onAttachLog,
             onDropOnTerminal = onDropOnTerminal,
             onHoldChange = onHoldChange,
             onCycleSplit = onCycleSplit,
@@ -335,6 +350,11 @@ private fun SidebarContent(
     onSwapPanes: (() -> Unit)?,
     onDock: (() -> Unit)?,
     onToggleKeyboard: (() -> Unit)? = null,
+    /**
+     * Opens the sheet that hands a session's output to the agent. See the
+     * parameter of the same name on [SessionSidebar].
+     */
+    onAttachLog: (() -> Unit)? = null,
     onDragSplit: ((String, String) -> Unit)?,
     onDropOnTerminal: ((String) -> Unit)? = null,
     onHoldChange: ((String?) -> Unit)? = null,
@@ -715,6 +735,7 @@ private fun SidebarContent(
                                     onCloseSearch = ::closeSearch,
                                     onOpenSettings = onOpenSettings,
                                     onToggleKeyboard = onToggleKeyboard,
+                                    onAttachLog = onAttachLog,
                                     )
                                     }
                                     }
@@ -1857,6 +1878,7 @@ private fun SidebarFooter(
     onCloseSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     onToggleKeyboard: (() -> Unit)?,
+    onAttachLog: (() -> Unit)?,
 ) {
     val focusManager = LocalFocusManager.current
 
@@ -1951,6 +1973,34 @@ private fun SidebarFooter(
                 Icon(
                     imageVector = DroshIcons.Keyboard,
                     contentDescription = "Keyboard",
+                    tint = DroshTextSecondary,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        }
+
+        // The log hand-off, between the keyboard and the settings button. It is
+        // the only footer control that leaves the drawer for a whole screen, so
+        // it is worth its own slot rather than a row item or a long press.
+        if (onAttachLog != null) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(DroshSurfaceVariant.copy(alpha = 0.75f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = {
+                            focusManager.clearFocus()
+                            onAttachLog()
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = DroshIcons.ClipboardPaste,
+                    contentDescription = stringResource(R.string.session_log_attach),
                     tint = DroshTextSecondary,
                     modifier = Modifier.size(19.dp),
                 )

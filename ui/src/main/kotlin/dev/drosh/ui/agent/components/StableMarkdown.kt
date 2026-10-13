@@ -86,8 +86,14 @@ internal object StableMarkdown {
      * Up to three leading spaces are allowed, which is what CommonMark specifies and
      * what a model indenting a nested fence actually produces. Anything deeper is
      * content inside a block, not a fence.
+     *
+     * Internal rather than private because [MarkdownTables] has to walk the same
+     * fence state to know that a pipe it found is inside code and not a cell
+     * separator. Two copies of this would drift, and a table recognised inside a
+     * fence is a bug that only shows up on the one answer that had a table in a
+     * code block.
      */
-    private fun fenceMarkerOf(line: String): String? {
+    internal fun fenceMarkerOf(line: String): String? {
         var i = 0
         while (i < line.length && i < 3 && line[i] == ' ') i++
         if (i >= line.length) return null

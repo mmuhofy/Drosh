@@ -1163,6 +1163,24 @@ class TerminalManager(
         idToIndex[persistentId] ?: -1
 
     /**
+     * The live session behind a persistent id, or null when there is none.
+     *
+     * The reverse of [sessionIdForSlot], and the only way to reach a session that
+     * is not currently in a pane: the positional index is what identifies a tab
+     * here, and translating it back needs the same private list the other
+     * direction starts from.
+     *
+     * Added for the session-log attachment, which is offered for any live session
+     * rather than the one on screen — the whole point of it is reaching the output
+     * of a session the user is not currently looking at.
+     */
+    fun sessionForId(persistentId: String): TerminalSession? {
+        val index = getIndexForId(persistentId)
+        if (index < 0) return null
+        return irisSessions.getOrNull(index)?.terminalSession
+    }
+
+    /**
      * Reverse lookup: positional index → persistent id.
      */
     fun getIdForIndex(index: Int): String? =
