@@ -330,7 +330,6 @@ private fun ReadyScreen(
     // The direction is the point: you are not looking for the clock while you are
     // typing, and you are definitely looking for it while reading something that
     // scrolled off. The bar disappears exactly when it is not needed.
-    val topRow by terminalManager.scrollTopRow.collectAsStateWithLifecycle()
     val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
     val hasScrolled by terminalManager.hasScrolled.collectAsStateWithLifecycle()
     val tuiActive by terminalManager.focusedPaneAltBuffer
@@ -345,8 +344,13 @@ private fun ReadyScreen(
     // appearance setting the chrome reads, and it reads it here because the
     // chrome's own state — scroll position, alt buffer — is computed in this
     // scope where the two can be married.
+    //
+    // `atLiveEdge`, not the scroll row: the manager applies the dead-zone rule
+    // to every scroll and publishes the outcome, so reading the row here would
+    // recompose the whole screen once per row of a fling to arrive at the same
+    // boolean.
     val immersive = appearance.terminal.immersive &&
-        chromeCollapsed(topRow, atLiveEdge, tuiActive, hasScrolled)
+        chromeCollapsed(atLiveEdge, tuiActive, hasScrolled)
 
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.
