@@ -51,7 +51,17 @@ class ProviderCatalogRepository @Inject constructor(
      * agent button and the button doing anything.
      */
     fun loadInBackground() {
-        scope.launch { load() }
+        scope.launch {
+            // A first launch downloads 5.3 MB and parses the whole document.
+            // Started while the first frames are still being produced, that
+            // parse competes with them for the same Default pool the emulator
+            // and the UI both draw from, and the cost lands on the first
+            // frames rather than on the wait nobody can see anyway. The catalog
+            // is not read until the agent is opened, which cannot happen before
+            // those frames exist, so a short head start costs nothing.
+            delay(CATALOG_LOAD_DELAY_MS)
+            load()
+        }
     }
 
     /** Providers currently loaded, or empty before the first [load] completes. */
@@ -97,4 +107,14 @@ class ProviderCatalogRepository @Inject constructor(
     /** Look up one provider, or null when it is not in the loaded catalog. */
     fun provider(providerId: String): CatalogProvider? =
         providers.firstOrNull { it.id == providerId }
+
+    private companion object {
+        /**
+         * How long after startup the catalog fetch may start.
+         *
+         * Long enough for the first frames to be on screen, short enough that
+         * the agent screen never has to wait on it in practice.
+         */
+        const val CATALOG_LOAD_DELAY_MS = 1500L
+    }
 }
