@@ -571,16 +571,6 @@ private fun ReadyScreen(
     val currentMatch = ((searchResults?.activeIndex ?: -1) + 1).coerceAtLeast(1)
 
     /**
-     * The terminal the find bar is searching and drawing its highlights over.
-     *
-     * Whichever pane has focus — the terminal the user is looking at is the
-     * terminal they mean — read through the same reference the keyboard and
-     * the selection menu reach.
-     */
-    val searchView: TerminalView?
-        get() = terminalViewRef.value
-
-    /**
      * Bumped by every chunk of output the focused terminal draws, so an open
      * find bar re-scans while the transcript grows under it.
      *
@@ -588,6 +578,11 @@ private fun ReadyScreen(
      * since printed twelve more matches is a count the user cannot trust, and
      * the active match drifting up out of view is the same detachment the
      * absolute-row anchoring fixes for the highlight.
+     *
+     * The terminal itself is read straight off [terminalViewRef], because that
+     * is the one that has focus — the terminal the user is looking at is the
+     * terminal they mean — and a snapshot of it in a val would be the view as
+     * it was when this composable first ran, before it had been measured.
      */
     var searchContentTick by remember { mutableStateOf(0) }
 
@@ -606,8 +601,8 @@ private fun ReadyScreen(
      * answers, and a find bar stuck on "no matches" under heavy output is worse
      * than one that is a fifth of a second behind it.
      */
-    LaunchedEffect(focusedPaneSlot, searchView) {
-        val view = searchView ?: return@LaunchedEffect
+    LaunchedEffect(focusedPaneSlot, terminalViewRef.value) {
+        val view = terminalViewRef.value ?: return@LaunchedEffect
         var lastBumpAt = 0L
         view.contentTicks.collect { generation ->
             val now = android.os.SystemClock.uptimeMillis()
@@ -627,12 +622,12 @@ private fun ReadyScreen(
      * Dispatchers.Default and the bar keeps its previous answer until the new
      * one lands rather than flashing a count of zero.
      */
-    LaunchedEffect(searchActive, searchQuery, searchView, searchContentTick, activeId) {
+    LaunchedEffect(searchActive, searchQuery, terminalViewRef.value, searchContentTick, activeId) {
         if (!searchActive || searchQuery.isBlank()) {
             searchResults = null
             return@LaunchedEffect
         }
-        val view = searchView ?: return@LaunchedEffect
+        val view = terminalViewRef.value ?: return@LaunchedEffect
 
         val query = searchQuery
         // Where the user was, carried across a rescan. The row a match sits on
@@ -692,7 +687,7 @@ private fun ReadyScreen(
         searchResults = results.copy(activeIndex = next)
         // Reveal after the state write, so the viewport follows the match the
         // user is now on rather than the one they were.
-        results.matches.getOrNull(next)?.let { searchView?.revealRow(it.row) }
+        results.matches.getOrNull(next)?.let { terminalViewRef.value?.revealRow(it.row) }
     }
 
     // Text selection menu. The platform ActionMode is switched off when the
