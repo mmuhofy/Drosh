@@ -55,8 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathData
-import androidx.compose.ui.graphics.vector.PathData
-import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -912,9 +911,12 @@ private fun Context.hasCameraApp(): Boolean =
  * `DroshIcons` is the whole app's vocabulary, and this sheet is the only place
  * these three appear: adding them there would put three glyphs no other screen
  * can use into the shared set. Lucide's 24x24 grid, stroked the same way
- * `CursorVector` in that file is.
+ * `CursorVector` in that file is, and written in the same dialect it is
+ * written in — `moveTo` and `lineTo` rather than a path string, because the
+ * only parser that takes a path string is internal to the file that declares
+ * it.
  */
-private fun glyph(name: String, vararg paths: String): ImageVector =
+private fun glyph(name: String, build: PathBuilder.() -> Unit): ImageVector =
     ImageVector.Builder(
         name = name,
         defaultWidth = 24.dp,
@@ -922,35 +924,69 @@ private fun glyph(name: String, vararg paths: String): ImageVector =
         viewportWidth = 24f,
         viewportHeight = 24f,
     ).addPath(
-        pathData = PathData {
-            paths.forEach { addPathNodes(PathParser().addPathNodes(it)) }
-        },
+        pathData = PathData { build() },
         stroke = SolidColor(Color.Black),
         strokeLineWidth = 2f,
         strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
         strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
     ).build()
 
-private val ImageGlyph: ImageVector = glyph(
-    "attachImage",
-    "M3 3 L21 3 L21 21 L3 21 Z",
-    "M8.5 10 A1.5 1.5 0 1 0 8.5 13 A1.5 1.5 0 1 0 8.5 10 Z",
-    "M21 15 L16 10 L5 21",
-)
+private val ImageGlyph: ImageVector = glyph("attachImage") {
+    // The frame.
+    moveTo(3f, 3f)
+    lineTo(21f, 3f)
+    lineTo(21f, 21f)
+    lineTo(3f, 21f)
+    close()
+    // The hill inside it.
+    moveTo(21f, 15f)
+    lineTo(16f, 10f)
+    lineTo(5f, 21f)
+    // The sun, as a square: an arc is what needed the parser in the first
+    // place, and at 24dp a stroked square and a stroked circle are the same
+    // mark to the eye.
+    moveTo(8f, 8f)
+    lineTo(10f, 8f)
+    lineTo(10f, 10f)
+    lineTo(8f, 10f)
+    close()
+}
 
-private val FileGlyph: ImageVector = glyph(
-    "attachFile",
-    "M14 3 L14 9 L20 9",
-    "M20 9 L20 21 L4 21 L4 3 L14 3",
-    "M8 13 L16 13",
-    "M8 17 L16 17",
-)
+private val FileGlyph: ImageVector = glyph("attachFile") {
+    // The fold, then the page it folds.
+    moveTo(14f, 3f)
+    lineTo(14f, 9f)
+    lineTo(20f, 9f)
+    moveTo(20f, 9f)
+    lineTo(20f, 21f)
+    lineTo(4f, 21f)
+    lineTo(4f, 3f)
+    lineTo(14f, 3f)
+    // Two lines of text.
+    moveTo(8f, 13f)
+    lineTo(16f, 13f)
+    moveTo(8f, 17f)
+    lineTo(16f, 17f)
+}
 
-private val CameraGlyph: ImageVector = glyph(
-    "attachCamera",
-    "M3 8 L8 8 L9.5 5 L14.5 5 L16 8 L21 8 L21 19 L3 19 Z",
-    "M12 10 A3.5 3.5 0 1 0 12 17 A3.5 3.5 0 1 0 12 10 Z",
-)
+private val CameraGlyph: ImageVector = glyph("attachCamera") {
+    // The body, with the bump on top that says which way it faces.
+    moveTo(3f, 8f)
+    lineTo(8f, 8f)
+    lineTo(9.5f, 5f)
+    lineTo(14.5f, 5f)
+    lineTo(16f, 8f)
+    lineTo(21f, 8f)
+    lineTo(21f, 19f)
+    lineTo(3f, 19f)
+    close()
+    // The lens, square for the same reason the sun is.
+    moveTo(9.5f, 10.5f)
+    lineTo(14.5f, 10.5f)
+    lineTo(14.5f, 16.5f)
+    lineTo(9.5f, 16.5f)
+    close()
+}
 
 // ── the session log as an attachment ───────────────────────────────────────
 
