@@ -70,6 +70,7 @@ import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 import dev.drosh.ui.agent.AgentLogAttach
 import dev.drosh.ui.agent.components.rememberAgentClipboard
+import kotlin.math.roundToInt
 
 /**
  * Pick a session, pick a piece of its output, and hand that piece to the agent.

@@ -147,9 +147,9 @@ internal fun DroshMarkdownTable(
                         .height(1.dp)
                         .background(DroshOutline),
                 )
-                table.rows.forEach { row ->
+                bodyCells.forEach { cells ->
                     TableRow(
-                        cells = row,
+                        cells = cells,
                         widths = columnWidths,
                         alignments = table.alignments,
                         style = bodyStyle,
