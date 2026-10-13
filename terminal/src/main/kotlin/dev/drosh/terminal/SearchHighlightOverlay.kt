@@ -93,6 +93,21 @@ class SearchHighlightOverlay(
             invalidate()
         }
 
+    /**
+     * The session [matches] were found in, so a new one is noticed.
+     *
+     * A pane does not get a new View when its session changes — the same View
+     * is handed a different emulator — so nothing else would say that every
+     * row on file belongs to a buffer that no longer exists. Checked on the
+     * draw pass, which is the one place that runs after every change: a
+     * highlight left over from the previous session would paint itself on
+     * whatever now lives at that row.
+     *
+     * The query is kept, because the bar is still showing it and the user has
+     * not taken it back; only what it found is dropped.
+     */
+    private var matchesSession: com.termux.terminal.TerminalSession? = null
+
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         color = SEARCH_HIGHLIGHT_COLOR
@@ -121,6 +136,7 @@ class SearchHighlightOverlay(
     /** Sets the matches, and which of them the user is on. */
     fun updateMatches(results: TerminalSearchResults) {
         searchQuery = results.query
+        matchesSession = terminalView?.mTermSession
         matches = results.matches
         activeIndex = results.activeIndex
     }
@@ -134,6 +150,15 @@ class SearchHighlightOverlay(
         val view = terminalView ?: return
         val emulator = view.mEmulator ?: return
         val renderer = view.mRenderer ?: return
+
+        // A new session in the same view: what is on file belongs to a buffer
+        // that is gone, so it goes. The scan that re-runs for the new session
+        // puts the real answer here a moment later.
+        if (view.mTermSession !== matchesSession) {
+            matchesSession = view.mTermSession
+            matches = emptyList()
+            activeIndex = -1
+        }
 
         val rows = emulator.mRows
         val topRow = view.mTopRow

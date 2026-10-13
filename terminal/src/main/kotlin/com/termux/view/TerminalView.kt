@@ -50,6 +50,9 @@ import dev.drosh.domain.terminal.TerminalZoom
 
 import java.util.Properties
 import kotlin.math.abs
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * How long after a resize new output is taken to be the shell's reaction to that
@@ -333,6 +336,21 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
      */
     @Volatile var contentGeneration: Int = 0
         private set
+
+    /**
+     * The same bump, as a flow.
+     *
+     * [contentGeneration] is a counter a poller reads, which is what the top
+     * bar's backdrop does — it samples on its own schedule. Find needs the
+     * opposite: it wants to be told the moment the transcript moves, because a
+     * match count that lags the output is a count the user cannot trust, and
+     * the question "is this still in the output" has just changed.
+     *
+     * Conflated, so a firehose does not queue a wake-up per chunk: the
+     * collector sees the latest tick and one collector is all there is.
+     */
+    private val _contentTicks = MutableStateFlow(0)
+    val contentTicks: StateFlow<Int> = _contentTicks.asStateFlow()
 
     init {
         mGestureRecognizer = GestureAndScaleRecognizer(context, object : GestureAndScaleRecognizer.Listener {
@@ -880,6 +898,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         mEmulator!!.clearScrollCounter()
 
         contentGeneration++
+        _contentTicks.value = contentGeneration
         invalidate()
         searchHighlightOverlay?.invalidate()
         urlOverlay?.invalidate()

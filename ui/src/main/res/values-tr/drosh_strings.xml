@@ -235,6 +235,12 @@
     <string name="terminal_cleaning">Temizleniyor…</string>
     <string name="terminal_setting_up">Terminal kuruluyor</string>
     <string name="terminal_setup_failed">Terminal kurulumu başarısız</string>
+    <string name="terminal_find_hint">Çıktıda ara</string>
+    <string name="terminal_find_previous">Önceki eşleşme</string>
+    <string name="terminal_find_next">Sonraki eşleşme</string>
+    <string name="terminal_find_close">Aramayı kapat</string>
+    <string name="terminal_find_counter">%2$d eşleşmeden %1$d.</string>
+    <string name="terminal_find_no_matches">Eşleşme yok</string>
     <string name="settings_font_decrease_cd">Yazı boyutunu küçült</string>
     <string name="settings_font_increase_cd">Yazı boyutunu büyüt</string>
     <string name="settings_speed_slow">Yavaş</string>

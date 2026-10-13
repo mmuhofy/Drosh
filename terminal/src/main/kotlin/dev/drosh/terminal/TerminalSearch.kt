@@ -1,7 +1,6 @@
 package dev.drosh.terminal
 
 import com.termux.terminal.TerminalBuffer
-import com.termux.terminal.TerminalEmulator
 import com.termux.view.TerminalView
 
 /**
@@ -75,37 +74,20 @@ class TerminalTranscriptSearch {
         val screen = emulator.getScreen()
         val columns = emulator.mColumns
         val transcriptRows = screen.activeTranscriptRows
-
-        val lowerQuery = query.lowercase()
-        val matches = ArrayList<TerminalSearchMatch>()
+        if (columns <= 0) return emptyList()
 
         // The whole buffer, transcript and screen both: the transcript alone
-        // cannot answer "is there a match on the line I am typing at".
-        val firstExternal = -transcriptRows
-        val lastExternal = emulator.mRows - 1
-        for (externalRow in firstExternal..lastExternal) {
-            val text = rowText(screen, externalRow) ?: continue
-            if (text.isEmpty()) continue
-            val lowerText = text.lowercase()
-            var from = 0
-            while (true) {
-                val at = lowerText.indexOf(lowerQuery, from)
-                if (at < 0) break
-                val colStart = at.coerceAtMost(columns - 1)
-                val colEnd = (at + lowerQuery.length).coerceAtMost(columns)
-                // A match clipped to nothing by a short row is not a match.
-                if (colStart < colEnd) {
-                    matches += TerminalSearchMatch(
-                        row = externalRow,
-                        colStart = colStart,
-                        colEnd = colEnd,
-                    )
-                }
-                from = at + lowerQuery.length
-            }
+        // cannot answer "is there a match on the line I am typing at". Read
+        // once into a list rather than streamed, so the matching below is one
+        // pure function over plain text — and so it can be tested without an
+        // emulator, which is the only way a rule like "oldest row first" ever
+        // gets pinned.
+        val rows = ArrayList<String?>(transcriptRows + emulator.mRows)
+        for (externalRow in -transcriptRows until emulator.mRows) {
+            rows += rowText(screen, externalRow)
         }
 
-        return matches
+        return matchTranscript(rows, query, baseRow = -transcriptRows, columns = columns)
     }
 
     /**
@@ -123,6 +105,60 @@ class TerminalTranscriptSearch {
         }
         return String(lineObject.mText, 0, lineObject.spaceUsed)
     }
+}
+
+/**
+ * Every match of [query] across [rows], oldest first.
+ *
+ * Pure, and deliberately so: this is where the answer to "where is my match"
+ * is decided, and the rules in it — row order, column clamping, one match per
+ * run of cells — are the ones a terminal's grid makes non-obvious. Keeping it
+ * free of the emulator is what lets those rules be tested at all.
+ *
+ * [baseRow] is the external row [rows]`[0]` answers for, which is
+ * `-activeTranscriptRows` for a whole-buffer scan: a match reported against
+ * row 0 when it lives a scrollback back is a highlight drawn on somebody
+ * else's text.
+ *
+ * A row that answers null is skipped, and that is not the same as a row with
+ * no match in it: a null row is one the buffer could not resolve, so its text
+ * is unknown, while an empty one is a blank line.
+ */
+internal fun matchTranscript(
+    rows: List<String?>,
+    query: String,
+    baseRow: Int,
+    columns: Int,
+): List<TerminalSearchMatch> {
+    if (query.isEmpty() || columns <= 0) return emptyList()
+    val lowerQuery = query.lowercase()
+    val matches = ArrayList<TerminalSearchMatch>()
+
+    rows.forEachIndexed { index, text ->
+        if (text.isNullOrEmpty()) return@forEachIndexed
+        val lowerText = text.lowercase()
+        var from = 0
+        while (true) {
+            val at = lowerText.indexOf(lowerQuery, from)
+            if (at < 0) break
+            val colStart = at.coerceAtMost(columns - 1)
+            val colEnd = (at + lowerQuery.length).coerceAtMost(columns)
+            // A match clipped to nothing by a short row is not a match: the
+            // rectangle would be zero wide, and a zero-wide rectangle is not
+            // a highlight, it is a rounding error.
+            if (colStart < colEnd) {
+                matches += TerminalSearchMatch(
+                    row = baseRow + index,
+                    colStart = colStart,
+                    colEnd = colEnd,
+                )
+            }
+            // Past the match just found, so the two halves of "aa" in "aaa"
+            // are one match and not two overlapping ones.
+            from = at + lowerQuery.length
+        }
+    }
+    return matches
 }
 
 /**

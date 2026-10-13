@@ -90,6 +90,8 @@ import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.LocalFontSet
 import dev.drosh.terminal.SearchHighlightOverlay
+import dev.drosh.terminal.TerminalSearchResults
+import dev.drosh.terminal.TerminalTranscriptSearch
 import dev.drosh.terminal.TerminalUrlOverlay
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.terminal.TerminalViewClientImpl
@@ -105,8 +107,6 @@ import dev.drosh.ui.input.FlatKeyBar
 import dev.drosh.ui.input.InputBarViewModel
 import dev.drosh.ui.pane.PaneLayoutViewModel
 import dev.drosh.ui.pane.SplitPaneHost
-import dev.drosh.ui.search.DraggableSearchBar
-import dev.drosh.ui.search.SearchScope
 import dev.drosh.ui.session.SessionLogAttachSheet
 import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.session.SessionSidebar
@@ -133,9 +133,11 @@ import dev.drosh.domain.settings.SettingsRepository
 import com.termux.view.TerminalView
 import kotlinx.coroutines.delay
 import java.util.Properties
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.draw.clipToBounds
@@ -399,9 +401,7 @@ private fun ReadyScreen(
 
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var currentMatch by remember { mutableStateOf(1) }
-    var searchScope by remember { mutableStateOf(SearchScope.GLOBAL) }
-    var terminalLines by remember { mutableStateOf<List<Pair<String, String?>>>(emptyList()) }
+
 
     val scope = rememberCoroutineScope()
 
@@ -528,60 +528,6 @@ private fun ReadyScreen(
 
     val sessionCount by terminalManager.sessionCountFlow.collectAsState()
 
-    LaunchedEffect(searchActive, searchScope) {
-        if (searchActive) {
-            terminalLines = if (useBlockEngine) {
-                val allBlocks = blockEngineViewModel.blocks.value
-                if (searchScope == SearchScope.BLOCK) {
-                    val currentBlock = blockEngineViewModel.runningBlock.value
-                        ?: allBlocks.lastOrNull()
-                    if (currentBlock != null) {
-                        buildList {
-                            if (currentBlock.prompt.isNotBlank()) add(currentBlock.prompt to currentBlock.id)
-                            if (currentBlock.command.isNotBlank()) add(currentBlock.command to currentBlock.id)
-                            currentBlock.outputLines.forEach { line ->
-                                add(line to currentBlock.id)
-                            }
-                        }
-            } else {
-                        emptyList()
-                    }
-                } else {
-                    buildList {
-                        for (block in allBlocks) {
-                            if (block.prompt.isNotBlank()) add(block.prompt to block.id)
-                            if (block.command.isNotBlank()) add(block.command to block.id)
-                            block.outputLines.forEach { line ->
-                                add(line to block.id)
-                            }
-                        }
-                    }
-                }
-            } else {
-                val text = terminalManager.currentSession?.emulator?.getScreen()
-                    ?.getTranscriptText() ?: ""
-                text.lines().map { it to null }
-            }
-        }
-    }
-
-    val matchIndices = remember(searchQuery, terminalLines) {
-        if (searchQuery.isBlank()) {
-            emptyList()
-        } else {
-            terminalLines.mapIndexedNotNull { index, (lineText, _) ->
-                if (lineText.contains(searchQuery, ignoreCase = true)) index else null
-            }
-        }
-    }
-    val matchCount = matchIndices.size
-
-    val currentMatchBlockId = if (matchIndices.isNotEmpty() && currentMatch <= matchIndices.size) {
-        terminalLines[matchIndices[currentMatch - 1]].second
-    } else {
-        null
-    }
-
     var keyboardFocused by remember { mutableStateOf(true) }
 
     /**
@@ -593,6 +539,160 @@ private fun ReadyScreen(
      */
     val terminalViewRef = remember {
         mutableStateOf<TerminalView?>(null)
+    }
+
+    // ── Find in the output ──────────────────────────────────────────────────
+    //
+    // Everything below is about one question the find bar asks: what does this
+    // query find in the terminal the user is looking at. Three things hang off
+    // it — the results, the counter the bar prints, and the terminal they came
+    // from — and the order matters, because the results are computed against
+    // the terminal and not the other way round.
+
+    /**
+     * What the find query found, and where the user is in it.
+     *
+     * Null until a query has actually been scanned. That is a different state
+     * from "nothing matched", and conflating them is how a user comes to
+     * believe a terminal with a thousand matches has none.
+     */
+    var searchResults by remember { mutableStateOf<TerminalSearchResults?>(null) }
+
+    /** How many matches the query found. Zero before it has been scanned. */
+    val matchCount = searchResults?.count ?: 0
+
+    /**
+     * The match the user is on, one-based, so it prints as "3/41".
+     *
+     * Reads as 1 with nothing scanned: the bar has no counter at all until a
+     * query has been typed, so the only number it can ever show alongside
+     * zero matches is the one the arrows are already disabled for.
+     */
+    val currentMatch = ((searchResults?.activeIndex ?: -1) + 1).coerceAtLeast(1)
+
+    /**
+     * The terminal the find bar is searching and drawing its highlights over.
+     *
+     * Whichever pane has focus — the terminal the user is looking at is the
+     * terminal they mean — read through the same reference the keyboard and
+     * the selection menu reach.
+     */
+    val searchView: TerminalView?
+        get() = terminalViewRef.value
+
+    /**
+     * Bumped by every chunk of output the focused terminal draws, so an open
+     * find bar re-scans while the transcript grows under it.
+     *
+     * The counter is the reason. A count that says 41 while the terminal has
+     * since printed twelve more matches is a count the user cannot trust, and
+     * the active match drifting up out of view is the same detachment the
+     * absolute-row anchoring fixes for the highlight.
+     */
+    var searchContentTick by remember { mutableStateOf(0) }
+
+    val focusedPaneSlot by terminalManager.focusedPane.collectAsStateWithLifecycle()
+
+    /**
+     * Follows the focused terminal's screen, which is where new output lands.
+     *
+     * A flow on the view rather than a listener: the view is replaced when a
+     * pane re-opens, and a callback left on the old one would keep counting
+     * for a terminal that is no longer on screen.
+     *
+     * Gated on time as well, and that gate is the whole point of it. A firehose
+     * would otherwise restart the scan once per chunk, forever — the effect
+     * restarts on every key, so a scan that never finishes is a scan that never
+     * answers, and a find bar stuck on "no matches" under heavy output is worse
+     * than one that is a fifth of a second behind it.
+     */
+    LaunchedEffect(focusedPaneSlot, searchView) {
+        val view = searchView ?: return@LaunchedEffect
+        var lastBumpAt = 0L
+        view.contentTicks.collect { generation ->
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastBumpAt >= FIND_RESCAN_GATE_MS) {
+                lastBumpAt = now
+                searchContentTick = generation
+            }
+        }
+    }
+
+    /**
+     * Scans the focused terminal's whole scrollback for the current query.
+     *
+     * Re-run by the query changing, the terminal changing under the bar — the
+     * pane taking focus, a session opening in it — and every gated tick of new
+     * output. A scan reads a few thousand rows, so it runs on
+     * Dispatchers.Default and the bar keeps its previous answer until the new
+     * one lands rather than flashing a count of zero.
+     */
+    LaunchedEffect(searchActive, searchQuery, searchView, searchContentTick, activeId) {
+        if (!searchActive || searchQuery.isBlank()) {
+            searchResults = null
+            return@LaunchedEffect
+        }
+        val view = searchView ?: return@LaunchedEffect
+
+        val query = searchQuery
+        // Where the user was, carried across a rescan. The row a match sits on
+        // moves as output arrives; the text they navigated to does not. Held
+        // as an index rather than a row, so a list that has grown stays
+        // navigable instead of pointing at a line that is now somewhere else.
+        //
+        // Kept for the *same* query and dropped for a new one: a rescan of what
+        // is already on screen should not move the user, and the answers to a
+        // different question are not answers to this one.
+        val previous = searchResults
+        if (previous != null && previous.query != query) searchResults = null
+        val rememberedIndex = previous
+            ?.takeIf { it.query == query }
+            ?.activeIndex
+            ?: -1
+
+        val matches = withContext(Dispatchers.Default) {
+            TerminalTranscriptSearch().search(view, query)
+        }
+        // The first match is active from the moment the query resolves, so the
+        // bar reads "1/41" and the first hit is the one drawn stronger. No
+        // reveal here on purpose: a scan runs on every keystroke, and jumping
+        // the viewport to the oldest match each time would throw the user out
+        // of the output they are typing in. The viewport moves when they ask
+        // it to, with the arrows.
+        searchResults = TerminalSearchResults(
+            query = query,
+            matches = matches,
+            activeIndex = when {
+                matches.isEmpty() -> -1
+                rememberedIndex >= 0 -> rememberedIndex.coerceIn(0, matches.lastIndex)
+                else -> 0
+            },
+        )
+    }
+
+    /**
+     * Walks the matches, wrapping at both ends, and puts the new one on screen.
+     *
+     * Wrapping rather than stopping: a bar whose next arrow dies at the last
+     * match makes the user reach for the other arrow to get back to the first,
+     * which is a longer way of saying "start again".
+     */
+    fun stepMatch(forward: Boolean) {
+        val results = searchResults ?: return
+        if (results.matches.isEmpty()) return
+        // Nothing active yet is the position *before* the first match, so
+        // previous from there wraps to the last one. Reading -1 as a modular
+        // index would land one short of it, which is the kind of off-by-one
+        // that looks like a skipped match.
+        val next = when {
+            forward -> (results.activeIndex + 1) % results.matches.size
+            results.activeIndex < 0 -> results.matches.lastIndex
+            else -> (results.activeIndex - 1 + results.matches.size) % results.matches.size
+        }
+        searchResults = results.copy(activeIndex = next)
+        // Reveal after the state write, so the viewport follows the match the
+        // user is now on rather than the one they were.
+        results.matches.getOrNull(next)?.let { searchView?.revealRow(it.row) }
     }
 
     // Text selection menu. The platform ActionMode is switched off when the
@@ -876,6 +976,7 @@ private fun ReadyScreen(
                     awaitingShellInput = awaitingShellInput,
                     searchActive = searchActive,
                     searchQuery = searchQuery,
+                    searchResults = searchResults,
                     searchOverlayRef = searchOverlayRef,
                     terminalViewRef = terminalViewRef,
                     onBoundsChanged = { terminalBounds = it },
@@ -921,6 +1022,7 @@ private fun ReadyScreen(
                     awaitingShellInput = awaitingShellInput,
                     searchActive = searchActive,
                     searchQuery = searchQuery,
+                    searchResults = searchResults,
                     searchOverlayRef = remember { mutableStateOf<SearchHighlightOverlay?>(null) },
                     terminalViewRef = terminalViewRef,
                     // Bounds are the top bar's backdrop sample, and the top bar
@@ -1020,6 +1122,9 @@ private fun ReadyScreen(
                     }
                 },
                 onFindInOutput = {
+                    // The terminal's own keyboard goes first: the find bar is
+                    // about to raise its own, and two keyboards in one row is
+                    // one keyboard too many.
                     hideKeyboard()
                     searchActive = true
                 },
@@ -1050,39 +1155,30 @@ private fun ReadyScreen(
             )
         }
 
-        // Search overlay — draggable, top-center.
+        // Find bar — fixed, just under the chrome row.
+        //
+        // Top-centre and below the pill row rather than anywhere else, because
+        // it is a control over the terminal and a control that can be left
+        // adrift is one the user has to look for. The chrome row is 44dp tall
+        // under a status bar, so 64dp clears it in both chrome states.
         if (searchActive) {
             BackHandler {
                 searchActive = false
                 searchQuery = ""
-                currentMatch = 1
+                searchResults = null
             }
 
-            DraggableSearchBar(
-                searchText = searchQuery,
-                onSearchTextChange = { searchQuery = it },
+            TerminalFindBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
                 matchCount = matchCount,
                 currentMatch = currentMatch,
-                onNext = {
-                    if (matchCount > 1) {
-                        currentMatch = if (currentMatch < matchCount) currentMatch + 1 else 1
-                    }
-                },
-                onPrev = {
-                    if (matchCount > 1) {
-                        currentMatch = if (currentMatch > 1) currentMatch - 1 else matchCount
-                    }
-                },
+                onNext = { stepMatch(forward = true) },
+                onPrevious = { stepMatch(forward = false) },
                 onClose = {
                     searchActive = false
                     searchQuery = ""
-                    currentMatch = 1
-                    searchScope = SearchScope.GLOBAL
-                },
-                searchScope = searchScope,
-                onToggleScope = {
-                    searchScope = if (searchScope == SearchScope.GLOBAL) SearchScope.BLOCK else SearchScope.GLOBAL
-                    currentMatch = 1
+                    searchResults = null
                 },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
             )
@@ -1510,6 +1606,13 @@ private fun TerminalPaneBody(
     awaitingShellInput: Boolean,
     searchActive: Boolean,
     searchQuery: String,
+    /**
+     * What the query found, or null before it has been scanned.
+     *
+     * Only the pane the search ran against gets these: they are rows of one
+     * particular terminal, and another pane's rows are a different buffer.
+     */
+    searchResults: TerminalSearchResults?,
     searchOverlayRef: MutableState<SearchHighlightOverlay?>,
     terminalViewRef: MutableState<TerminalView?>,
     onBoundsChanged: (Rect) -> Unit,
@@ -1627,6 +1730,7 @@ private fun TerminalPaneBody(
                     extraKeyState = extraKeyState,
                     onUrlClick = onUrlClick,
                     searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
+                    searchResults = searchResults,
                     searchOverlayRef = searchOverlayRef,
                     onBoundsChanged = onBoundsChanged,
                     modifier = Modifier.fillMaxSize(),
@@ -1663,6 +1767,11 @@ private fun TerminalViewHost(
     terminalViewRef: MutableState<TerminalView?>,
     onUrlClick: (String) -> Unit,
     searchQuery: String?,
+    /**
+     * The matches to draw, or null when the find bar is closed or the scan has
+     * not run. Already resolved against **this** terminal by the caller.
+     */
+    searchResults: TerminalSearchResults?,
     searchOverlayRef: MutableState<SearchHighlightOverlay?>,
     modifier: Modifier = Modifier,
     extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
@@ -1878,11 +1987,11 @@ private fun TerminalViewHost(
                 viewTreeObserver.addOnGlobalLayoutListener(listener)
             }
 
-            // Two overlays, two jobs. Search is a row-local text scan; links
-            // need logical-line grouping across soft-wrapped rows and a press
-            // state. They were one View until that combination crashed the
-            // draw pass, so the link half now lives in TerminalUrlOverlay and
-            // this one stays search-only.
+            // Two overlays, two jobs. Search paints the matches a find query
+            // resolved elsewhere; links need logical-line grouping across
+            // soft-wrapped rows and a press state. They were one View until
+            // that combination crashed the draw pass, so the link half now
+            // lives in TerminalUrlOverlay and this one stays search-only.
             val searchOverlay = SearchHighlightOverlay(ctx).apply {
                 terminalView = tv
                 updateQuery(searchQuery)
@@ -1934,7 +2043,14 @@ private fun TerminalViewHost(
                 }
             }
 
+            // The query goes in first and the matches follow it, because the
+            // overlay clears what it had when the query changes: a stale
+            // highlight under a query that no longer asked for it is worse
+            // than a missing one for the frame the scan takes.
             overlay?.updateQuery(searchQuery)
+            if (searchResults != null && searchResults.query == searchQuery) {
+                overlay?.updateMatches(searchResults)
+            }
         },
     )
 
@@ -2023,6 +2139,17 @@ private fun loadBackgroundDrawable(context: Context, file: File): android.graphi
 
 private const val ZOOM_CHIP_LINGER_MS = 900L
 
+/**
+ * How long output must be quiet before a find rescan is worth another one.
+ *
+ * Only the output path waits this long; typing a query scans at once, because
+ * the query is the user typing and they are waiting for the answer. Under a
+ * firehose the terminal would otherwise restart the scan once per chunk, and a
+ * scan that keeps restarting is a scan that never finishes — which is how a
+ * find bar ends up claiming there are no matches while there are fifty.
+ */
+private const val FIND_RESCAN_GATE_MS = 150L
+
 /** How far the unfocused pane of a split is dimmed. */
 private val DimInactivePane = Color.Black.copy(alpha = 0.4f)
 
@@ -2038,7 +2165,6 @@ private val ZOOM_CHIP_ESTIMATED_HEIGHT = 40.dp
 
 /** How far above the fingers the chip sits. */
 private val ZOOM_CHIP_OFFSET = 48.dp
-
 private fun humanReadableBytes(bytes: Long): String {
     val unit = 1024L
     if (bytes < unit) return "$bytes B"
