@@ -673,7 +673,6 @@ class MainActivity : ComponentActivity() {
 
 
             composable("agent_home") {
-                val sessionSwitcherViewModel: SessionSwitcherViewModel = hiltViewModel()
                 AgentHomeScreen(
                     onOpenChat = { id -> navController.navigate("agent_chat/$id") },
                     onNewChat = { navController.navigate("agent_chat/new") },
@@ -684,6 +683,7 @@ class MainActivity : ComponentActivity() {
 
             composable("agent_chat/{chatId}") { entry ->
                 val chatId = entry.arguments?.getString("chatId")
+                val sessionSwitcherViewModel: SessionSwitcherViewModel = hiltViewModel()
                 // The sessions the log picker can read, and the reader itself.
                 //
                 // Live ones only, and live is what the terminal manager says
