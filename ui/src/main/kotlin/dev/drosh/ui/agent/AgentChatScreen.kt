@@ -106,6 +106,7 @@ import dev.drosh.ui.agent.components.AgentSelectableText
 import dev.drosh.ui.agent.components.AgentToolPill
 import dev.drosh.ui.agent.components.DroshStatusBarVisible
 import dev.drosh.ui.agent.components.glassRow
+import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.session.SessionLogSource
 import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.agent.components.rememberAgentClipboard
