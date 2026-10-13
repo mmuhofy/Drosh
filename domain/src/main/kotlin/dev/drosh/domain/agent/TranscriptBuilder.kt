@@ -145,7 +145,11 @@ class TranscriptBuilder(
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         closeStreaming()
-        if (messages.lastOrNull() is ChatMessage.Notice && messages.last().text == trimmed) return
+        // Bound to a name, because last() is a second call: the smart cast from
+        // lastOrNull() does not reach it, so messages.last().text would be a
+        // property of the sealed base type rather than of the Notice.
+        val last = messages.lastOrNull()
+        if (last is ChatMessage.Notice && last.text == trimmed) return
         messages += ChatMessage.Notice(nextId(), trimmed)
     }
 
