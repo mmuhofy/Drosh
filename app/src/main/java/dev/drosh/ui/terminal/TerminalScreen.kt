@@ -860,11 +860,13 @@ private fun ReadyScreen(
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
                     useBlockEngine = useBlockEngine,
-                    // Nothing sits above this pane but the first one, so it
-                    // clears nothing: the 52dp of chrome clearance belongs to
-                    // the pills over the primary pane, and a pane that starts
-                    // half a bar lower than its content reads as broken.
-                    topPadding = 0.dp,
+                    // The pane the chrome actually floats over. The pill row
+                    // and the status bar are both above it, so it is the one
+                    // pane that has to clear them: without this the first
+                    // line of output sat under the pills, and the clearance
+                    // had to move with the chrome rather than being a
+                    // constant — see rememberTerminalTopPadding.
+                    topPadding = terminalTopPadding,
                     inputBarState = inputBarState,
                     motdMode = motdMode,
                     motdText = motdText,
@@ -899,7 +901,14 @@ private fun ReadyScreen(
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
                     useBlockEngine = useBlockEngine,
-                    topPadding = terminalTopPadding,
+                    // The pane below the seam, and it clears nothing: what
+                    // sits above it is the divider line, and the pane's grid
+                    // starts directly on that line. Giving it the chrome
+                    // clearance instead — which is what it had — pushed the
+                    // lower session's whole grid down by the height of a bar
+                    // that was never over it, a band of nothing between the
+                    // seam and the first row.
+                    topPadding = 0.dp,
                     inputBarState = inputBarState,
                     motdMode = motdMode,
                     motdText = motdText,
