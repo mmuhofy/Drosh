@@ -117,8 +117,26 @@ class TerminalSearchTest {
         assertEquals(listOf(-1, 0), matches.map { it.row })
     }
 
-    @Test fun `a grid short enough to clip both ends of a match drops it`() {
+    @Test fun `no match ever paints past the last column`() {
+        // The invariant, over widths rather than one case: a rectangle past
+        // the last column draws over the next pane, or off the view. The
+        // clamp is the only thing standing between a long query and that.
+        val text = "averylongqueryhereandmore"
+        for (columns in 1..text.length) {
+            val matches = scan(text, query = "verylongquery", columns = columns)
+            assertTrue(
+                "columns=$columns produced a match past the grid",
+                matches.all { it.colStart in 0 until columns && it.colEnd in 1..columns },
+            )
+        }
+    }
+
+    @Test fun `a row longer than the grid still reports its match, clamped`() {
+        // A row is never longer than the grid in a real terminal — it wraps —
+        // but the clamp is what makes a mismatch harmless rather than a
+        // rectangle in the next pane.
         val matches = scan("averylongqueryhere", query = "averylongquery", columns = 5)
-        assertEquals(emptyList<TerminalSearchMatch>(), matches)
+        assertEquals(1, matches.size)
+        assertEquals(TerminalSearchMatch(row = 0, colStart = 0, colEnd = 5), matches.first())
     }
 }
