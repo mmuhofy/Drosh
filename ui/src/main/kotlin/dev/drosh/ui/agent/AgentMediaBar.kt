@@ -25,7 +25,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
@@ -138,7 +138,6 @@ private fun AgentMediaChip(
     attachment: MessageAttachment,
     onRemove: () -> Unit,
 ) {
-    val removeCd = stringResource(R.string.agent_media_remove_cd, name)
     val name = attachment.fileName.ifBlank {
         when (InputModality.of(attachment.mediaType)) {
             InputModality.IMAGE -> stringResource(R.string.agent_media_kind_image_title)
@@ -147,6 +146,9 @@ private fun AgentMediaChip(
             InputModality.TEXT -> stringResource(R.string.agent_media_kind_text)
         }
     }
+    // After the name, not before it: the label the remove button announces is
+    // the file's name, and a name that has not been computed cannot be read.
+    val removeCd = stringResource(R.string.agent_media_remove_cd, name)
     val label = stringResource(R.string.agent_attachment_chip, name, formatBytes(attachment.byteSize))
     val preview = attachment.previewDataUrl
 

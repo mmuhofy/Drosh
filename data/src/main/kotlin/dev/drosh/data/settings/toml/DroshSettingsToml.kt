@@ -169,6 +169,11 @@ internal object DroshSettingsToml {
             agent = base.agent.copy(
                 webSearch = document.getBoolean("agent", "web_search", base.agent.webSearch),
                 effort = AgentEffort.fromName(document.getStringOrNull("agent", "effort")),
+                autonomy = AutonomyLevel.entries.firstOrNull {
+                    it.key == document.getStringOrNull("agent", "autonomy")
+                } ?: base.agent.autonomy,
+                alwaysAllow = document.getStringList("agent", "always_allow", emptyList())
+                    .map { ApprovalRule(it) },
             ),
             security = base.security.copy(
                 autoLock = AutoLockTimeout.fromString(document.getString("security", "auto_lock", "")),
@@ -176,13 +181,6 @@ internal object DroshSettingsToml {
                 blockScreenshots = document.getBoolean(
                     "security", "block_screenshots", base.security.blockScreenshots,
                 ),
-            ),
-            agent = base.agent.copy(
-                autonomy = AutonomyLevel.entries.firstOrNull {
-                    it.key == document.getStringOrNull("agent", "autonomy")
-                } ?: base.agent.autonomy,
-                alwaysAllow = document.getStringList("agent", "always_allow", emptyList())
-                    .map { ApprovalRule(it) },
             ),
             session = base.session.copy(
                 secondarySessionId = document.getString(
