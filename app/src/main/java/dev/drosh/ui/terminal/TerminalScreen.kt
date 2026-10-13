@@ -1720,11 +1720,10 @@ private fun TerminalViewHost(
                 zoomChip = ZoomChipState(sizeSp, focus.focusX, focus.focusY, visible = false)
                 terminalViewModel.onZoomCommitted(sizeSp)
             },
-            // A double-tap resets to the *stored default*, not to the current
-            // size: after a pinch the current size is what the pinch produced,
-            // so resetting to it would do nothing. The default is asked for
-            // once, here, because the live value the client could otherwise
-            // read is the pinched one by the time the double-tap lands.
+            // A double-tap no longer resets anything. It is not a zoom
+            // gesture — the pinch is — and a second tap on the terminal
+            // means nothing twice over, so the size a session was left at
+            // is the size it keeps.
             defaultFontSizeSp = defaultFontSizeSp,
             extraKeyState = extraKeyState,
             context = context,
