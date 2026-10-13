@@ -70,6 +70,8 @@ android {
     }
 
     buildTypes {
+        // Debug stays unshrunk: readable stack traces, fast iteration, and the
+        // compose tooling, which reaches for classes by name.
         getByName("debug") {
             if (keystoreProperties.isNotEmpty()) {
                 signingConfig = signingConfigs.getByName("debug-keystore")
@@ -81,8 +83,19 @@ android {
             if (keystoreProperties.isNotEmpty()) {
                 signingConfig = signingConfigs.getByName("debug-keystore")
             }
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // Release ships what ships: shrinking on. This is a real change in
+            // what reaches the device — R8 rewrites, so anything reached by
+            // name at runtime has to survive the rules in proguard-rules.pro.
+            // Debug stays unshrunk on purpose, which is why the release
+            // workflow is dispatched against this branch before it merges:
+            // a shrinking break shows up as a failed release build, not as a
+            // crash nobody can reproduce on a debug build.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 

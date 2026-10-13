@@ -37,6 +37,48 @@ class TranscriptBuilder(
     private var streamingReasoningId: String? = null
 
     /**
+     * Deltas received for the streaming assistant message since the last flush.
+     *
+     * Appending to the message itself meant rebuilding its whole text on every
+     * delta: `text + delta` copies everything printed so far, so a response
+     * arriving token by token copied its own length over and over. The buffer
+     * holds only what has not been folded in yet, and [flushPendingText] pays
+     * the copy once per publish instead of once per token.
+     */
+    private val pendingAssistantText = StringBuilder()
+
+    /** The same, for the reasoning message. */
+    private val pendingReasoningText = StringBuilder()
+
+    /** Folds buffered deltas into their messages. Cheap when there are none. */
+    private fun flushPendingText() {
+        if (pendingAssistantText.isNotEmpty()) {
+            val id = streamingAssistantId
+            if (id != null) {
+                val buffered = pendingAssistantText.toString()
+                pendingAssistantText.setLength(0)
+                update(id) { m ->
+                    if (m is ChatMessage.Assistant) m.copy(text = m.text + buffered) else m
+                }
+            } else {
+                pendingAssistantText.setLength(0)
+            }
+        }
+        if (pendingReasoningText.isNotEmpty()) {
+            val id = streamingReasoningId
+            if (id != null) {
+                val buffered = pendingReasoningText.toString()
+                pendingReasoningText.setLength(0)
+                update(id) { m ->
+                    if (m is ChatMessage.Reasoning) m.copy(text = m.text + buffered) else m
+                }
+            } else {
+                pendingReasoningText.setLength(0)
+            }
+        }
+    }
+
+    /**
      * Begin a new run.
      *
      * Closes any message left streaming by a previous run so a new answer cannot
@@ -72,6 +114,8 @@ class TranscriptBuilder(
         streamingAssistantId = null
         streamingReasoningId = null
         seq = 0
+        pendingAssistantText.setLength(0)
+        pendingReasoningText.setLength(0)
         advanceSeqPast(messages)
     }
 
@@ -125,8 +169,11 @@ class TranscriptBuilder(
         }
     }
 
-    /** Immutable copy for rendering. */
-    fun snapshot(): List<ChatMessage> = messages.toList()
+    /** Immutable copy for rendering, with any buffered deltas folded in. */
+    fun snapshot(): List<ChatMessage> {
+        flushPendingText()
+        return messages.toList()
+    }
 
     /**
      * Put a warning in the transcript.
@@ -158,6 +205,7 @@ class TranscriptBuilder(
     private fun nextId(): String = "m${seq++}"
 
     private fun closeStreaming() {
+        flushPendingText()
         val assistantId = streamingAssistantId
         if (assistantId != null) {
             update(assistantId) { m ->
@@ -172,9 +220,8 @@ class TranscriptBuilder(
         if (text.isEmpty()) return
         val id = streamingAssistantId
         if (id != null && messages.any { it.id == id }) {
-            update(id) { m ->
-                if (m is ChatMessage.Assistant) m.copy(text = m.text + text) else m
-            }
+            // Buffered, not concatenated: the copy happens at publish time.
+            pendingAssistantText.append(text)
             return
         }
         val newId = nextId()
@@ -186,9 +233,7 @@ class TranscriptBuilder(
         if (text.isEmpty()) return
         val id = streamingReasoningId
         if (id != null && messages.any { it.id == id }) {
-            update(id) { m ->
-                if (m is ChatMessage.Reasoning) m.copy(text = m.text + text) else m
-            }
+            pendingReasoningText.append(text)
             return
         }
         val newId = nextId()
@@ -202,6 +247,9 @@ class TranscriptBuilder(
      * bubble in the transcript.
      */
     private fun finishReasoning(text: String) {
+        // The provider's completed text replaces whatever streamed, so the
+        // buffered deltas have nothing left to contribute.
+        pendingReasoningText.setLength(0)
         val id = streamingReasoningId
         streamingReasoningId = null
         if (id == null) {

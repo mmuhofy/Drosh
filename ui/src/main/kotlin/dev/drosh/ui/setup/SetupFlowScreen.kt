@@ -25,6 +25,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.design.system.DroshBackground
 import dev.drosh.ui.setup.onboarding.scenes.AboutScene
+import dev.drosh.ui.setup.onboarding.scenes.ThemeScene
 import dev.drosh.ui.setup.onboarding.scenes.WelcomeScene
 import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 import dev.drosh.ui.setup.stages.BootstrapStage
@@ -81,12 +82,27 @@ fun SetupFlowScreen(
                 1 -> AboutScene(
                     onNext = { currentPage = 2 },
                 )
-                2 -> PackageSelectionStage(
+                2 -> ThemeScene(
+                    // The bootstrap has not started yet, and it is the point
+                    // after which the palette can be written to the rootfs copy
+                    // of settings.toml. Nothing to do on this page — the write
+                    // is the wizard's, triggered by bootstrap reaching ready.
                     onNext = { currentPage = 3 },
                     viewModel = viewModel,
                 )
-                3 -> BootstrapStage(
-                    onReady = onReady,
+                3 -> PackageSelectionStage(
+                    onNext = { currentPage = 4 },
+                    viewModel = viewModel,
+                )
+                4 -> BootstrapStage(
+                    // Applying the theme is the last thing before the terminal
+                    // opens, and the callback is what orders them: the session
+                    // that appears is already drawn in the palette that was
+                    // picked, rather than the default for a moment and then the
+                    // right one.
+                    onReady = {
+                        viewModel.applySelectedTheme(onApplied = onReady)
+                    },
                     onSetupFailed = onSetupFailed,
                     viewModel = viewModel,
                 )
@@ -94,7 +110,7 @@ fun SetupFlowScreen(
         }
 
         WormPageIndicator(
-            pageCount = 4,
+            pageCount = 5,
             currentPage = currentPage,
             modifier = Modifier
                 .align(Alignment.TopCenter)

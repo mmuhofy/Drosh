@@ -3,7 +3,6 @@ package dev.drosh.data.settings.toml
 import dev.drosh.core.toml.TomlDocument
 import dev.drosh.domain.agent.ApprovalRule
 import dev.drosh.domain.agent.AutonomyLevel
-import dev.drosh.domain.settings.AgentEffort
 import dev.drosh.domain.settings.AgentSettings
 import dev.drosh.domain.settings.AppearanceSettings
 import dev.drosh.domain.settings.AutoLockTimeout
@@ -100,6 +99,14 @@ internal object DroshSettingsToml {
         with(settings.agent) {
             putString("agent", "autonomy", autonomy.key)
             putStringList("agent", "always_allow", alwaysAllow.map { it.pattern })
+        }
+        with(settings.agentTools) {
+            // Same `[agent]` section, not a section of its own: the trust keys
+            // above and these two are all read by the same thing — a shell, a
+            // script, the agent — and splitting them would mean two places to
+            // look for "what can this agent do". TomlDocument keeps one table per
+            // section name, so two `with` blocks writing `agent` merge rather
+            // than overwrite.
             putBoolean("agent", "web_search", webSearch)
             putString("agent", "effort", effort)
         }
@@ -166,14 +173,9 @@ internal object DroshSettingsToml {
                 startupCommand = document.getString("shell", "startup_command", base.shell.startupCommand),
                 locale = document.getString("shell", "locale", base.shell.locale),
             ),
-            agent = base.agent.copy(
-                webSearch = document.getBoolean("agent", "web_search", base.agent.webSearch),
-                effort = AgentEffort.fromName(document.getStringOrNull("agent", "effort")),
-                autonomy = AutonomyLevel.entries.firstOrNull {
-                    it.key == document.getStringOrNull("agent", "autonomy")
-                } ?: base.agent.autonomy,
-                alwaysAllow = document.getStringList("agent", "always_allow", emptyList())
-                    .map { ApprovalRule(it) },
+            agentTools = base.agentTools.copy(
+                webSearch = document.getBoolean("agent", "web_search", base.agentTools.webSearch),
+                effort = document.getString("agent", "effort", base.agentTools.effort),
             ),
             security = base.security.copy(
                 autoLock = AutoLockTimeout.fromString(document.getString("security", "auto_lock", "")),
@@ -181,6 +183,13 @@ internal object DroshSettingsToml {
                 blockScreenshots = document.getBoolean(
                     "security", "block_screenshots", base.security.blockScreenshots,
                 ),
+            ),
+            agent = base.agent.copy(
+                autonomy = AutonomyLevel.entries.firstOrNull {
+                    it.key == document.getStringOrNull("agent", "autonomy")
+                } ?: base.agent.autonomy,
+                alwaysAllow = document.getStringList("agent", "always_allow", emptyList())
+                    .map { ApprovalRule(it) },
             ),
             session = base.session.copy(
                 secondarySessionId = document.getString(

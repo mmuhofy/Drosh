@@ -33,6 +33,7 @@ import dev.drosh.domain.agent.TranscriptBuilder
 import dev.drosh.domain.agent.attachmentWarning
 import dev.drosh.domain.settings.SettingsStore
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -407,6 +408,32 @@ class AgentChatViewModel @Inject constructor(
         loadProvider()
     }
 
+    /** The windowed publish, when one is not already waiting. */
+    private var transcriptPublishJob: Job? = null
+
+    /**
+     * Publishes the transcript once, after a short pause.
+     *
+     * The pause is what makes it a window: every token that arrives while it is
+     * pending is folded into one publish when it fires, so the work scales with
+     * how fast anyone can read rather than with how fast tokens arrive.
+     */
+    private fun scheduleTranscriptPublish() {
+        if (transcriptPublishJob?.isActive == true) return
+        transcriptPublishJob = viewModelScope.launch {
+            delay(TRANSCRIPT_PUBLISH_INTERVAL_MS)
+            transcriptPublishJob = null
+            _messages.value = builder.snapshot()
+        }
+    }
+
+    /** Publishes straight away, for the events a person should see at once. */
+    private fun publishTranscriptNow() {
+        transcriptPublishJob?.cancel()
+        transcriptPublishJob = null
+        _messages.value = builder.snapshot()
+    }
+
     /**
      * Cancel the run in flight, if any, and clear the running flag.
      *
@@ -613,7 +640,18 @@ class AgentChatViewModel @Inject constructor(
                 ),
             ).collect { event ->
                 builder.accept(event)
-                _messages.value = builder.snapshot()
+                // Text arrives a token at a time, far faster than a frame. Each
+                // publish rebuilt the message text and re-ran the transcript
+                // projection over every row, so a long answer paid for its own
+                // length dozens of times per second. One publish per window is
+                // all a reader can use; everything structural — a tool call
+                // opening, an approval, the run ending — publishes at once, so
+                // rows appear with the event that caused them.
+                if (event is AgentEvent.TextDelta || event is AgentEvent.ReasoningDelta) {
+                    scheduleTranscriptPublish()
+                } else {
+                    publishTranscriptNow()
+                }
 
                 when (event) {
                     is AgentEvent.ApprovalRequired -> _pendingApproval.value =
@@ -893,6 +931,17 @@ class AgentChatViewModel @Inject constructor(
          * retry.
          */
         private const val CHAT_LOAD_TIMEOUT_MS = 2_000L
+
+        /**
+         * How long streamed text is allowed to wait for the next token.
+         *
+         * A window, not a debounce that resets: a steady stream keeps
+         * republishing every window, and a stream that pauses publishes when it
+         * pauses. Twenty times a second is past the point where anyone can read
+         * a growing paragraph, and it is where the per-token work stops being
+         * visible.
+         */
+        private const val TRANSCRIPT_PUBLISH_INTERVAL_MS = 50L
 
         /**
          * The name a chat carries before its first prompt.

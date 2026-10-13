@@ -27,6 +27,16 @@ data class DroshSettings(
     val shell: ShellSettings = ShellSettings(),
     /** The agent's own trust settings. */
     val agent: AgentSettings = AgentSettings(),
+    /**
+     * What the composer's `+` sheet turns.
+     *
+     * A section of its own rather than two more fields on [AgentSettings],
+     * because these are settings about the *tools* rather than about how much
+     * the agent is trusted: turning web search off is not a permission, and
+     * reading it as one makes the trust level look like the thing that decides
+     * whether the agent can reach the network.
+     */
+    val agentTools: AgentToolSettings = AgentToolSettings(),
     val security: SecuritySettings = SecuritySettings(),
     val session: SessionSettings = SessionSettings(),
     val meta: MetaSettings = MetaSettings(),
@@ -161,6 +171,49 @@ data class ShellSettings(
     }
 }
 
+/**
+ * What the composer can hand to a run.
+ *
+ * ## Why these two and not one
+ *
+ * Web search and reasoning effort are the two things the `+` sheet toggles, and
+ * they are settings about *the tools* rather than about trust or appearance —
+ * which is what `[agent]` in the file holds. They are their own section so a
+ * later addition to the trust settings does not have to grow a data class that
+ * this one already answers for.
+ *
+ * ## Why they are in the file at all
+ *
+ * Both survive a process restart by being in `settings.toml`, which is also
+ * where a shell or a script reads them. A web-search preference that lived only
+ * in a `StateFlow` would quietly turn itself back on at the next launch.
+ */
+data class AgentToolSettings(
+    /**
+     * Whether `web_search` is offered to the model at all.
+     *
+     * Off means the tool is not declared to the model, rather than declared and
+     * refused: a tool the model can see but cannot use is one it keeps trying,
+     * and each refusal costs a turn of the run's budget.
+     *
+     * On by default. An agent that cannot look something up guesses instead,
+     * and guessing is the more expensive failure.
+     */
+    val webSearch: Boolean = true,
+    /**
+     * Reasoning effort, spelled the way the model names it.
+     *
+     * Empty means the model's own default, which is what a user who has never
+     * thought about it wants. See `dev.drosh.agent.provider.EffortMapper` for
+     * how each protocol spells the same value.
+     */
+    val effort: String = "",
+) {
+    companion object {
+        val DEFAULT = AgentToolSettings()
+    }
+}
+
 /** Locking and privacy. */
 data class SecuritySettings(
     /** The PIN itself lives in encrypted prefs; this is only the timeout. */
@@ -174,7 +227,7 @@ data class SecuritySettings(
 }
 
 /**
- * How the agent behaves, and how much it may do on its own.
+ * How much the agent may do before it has to ask.
  *
  * The level and the rules live in the file because the file is what survives
  * an app restart, and a permission that evaporates when the process dies is
@@ -198,63 +251,12 @@ data class AgentSettings(
      * statuses a session runs and not the hundred git commands there are.
      */
     val alwaysAllow: List<ApprovalRule> = emptyList(),
-    /**
-     * Whether the agent may reach the web on its own.
-     *
-     * On by default because a terminal agent that cannot look something up is
-     * an agent that guesses; a user who does not want that can say so here
-     * rather than by removing the tool and finding out later.
-     */
-    val webSearch: Boolean = true,
-    /**
-     * The reasoning effort a run uses when the user has not picked one for the
-     * model in hand.
-     *
-     * A default rather than a per-model choice because a model that does no
-     * reasoning has no effort to pick and a user should not have to know that
-     * before typing their first prompt. Kept as the catalog's own spelling;
-     * `dev.drosh.agent.provider.EffortMapper` translates it per protocol, and a
-     * value the model does not declare falls back to the model's own default.
-     */
-    val effort: String = AgentEffort.MEDIUM,
 ) {
     companion object {
         val DEFAULT = AgentSettings()
     }
 }
 
-/**
- * The effort levels a run may be started at.
- *
- * Not an enum, because the catalog names them as strings and a closed set here
- * would have to be edited every time a provider invents one. The values below
- * are the ones every current protocol accepts.
- */
-object AgentEffort {
-
-    const val MINIMAL: String = "minimal"
-    const val LOW: String = "low"
-    const val MEDIUM: String = "medium"
-    const val HIGH: String = "high"
-
-    /** Default when the file says nothing, or says something unreadable. */
-    const val DEFAULT: String = MEDIUM
-
-    /** In ascending order, which is the order a picker renders them in. */
-    val VALUES: List<String> = listOf(MINIMAL, LOW, MEDIUM, HIGH)
-
-    /**
-     * A value from the file, or [DEFAULT].
-     *
-     * Case-insensitive so `Medium` in a hand-edited file is the same setting,
-     * matching every other string in the settings file.
-     */
-    fun fromName(value: String?): String = value
-        ?.trim()
-        ?.lowercase()
-        ?.takeIf { it in VALUES }
-        ?: DEFAULT
-}
 /** Pane arrangement — runtime state, but state the user leaves behind. */
 data class SessionSettings(
     val secondarySessionId: String = "",
