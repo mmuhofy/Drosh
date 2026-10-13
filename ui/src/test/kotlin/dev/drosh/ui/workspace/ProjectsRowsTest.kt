@@ -252,7 +252,9 @@ class ProjectsRowsTest {
         val rows = buildProjectRows(
             board,
             archived = listOf(workspace("old", name = "old", archived = true)),
-            expandedIds = emptySet(),
+            // The api project is open, so all four sessions are on the list
+            // somewhere: one under its project, three in the ungrouped section.
+            expandedIds = setOf("api"),
             filter = "",
         )
 
