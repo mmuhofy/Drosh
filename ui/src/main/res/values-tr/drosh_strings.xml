@@ -298,6 +298,11 @@ terminal session açmana gerek yok.</string>
     <string name="agent_send">Gönder</string>
     <string name="agent_send_reply_cd">Yanıtı gönder</string>
     <string name="agent_session_header">OTURUM</string>
+    <string name="agent_side_job_model">Yardımcı model</string>
+    <string name="agent_side_job_model_default">Sohbet modeliyle aynı</string>
+    <string name="agent_side_job_model_empty">Katalogda henüz model yok</string>
+    <string name="agent_side_job_model_search">Model ara</string>
+    <string name="agent_side_job_model_unavailable">Artık katalogda yok</string>
     <string name="agent_skip_question_cd">Soruyu atla</string>
     <string name="agent_status_done">tamamlandı</string>
     <string name="agent_status_failed">hata</string>
