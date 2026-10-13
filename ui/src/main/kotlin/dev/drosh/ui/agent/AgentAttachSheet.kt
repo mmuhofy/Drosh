@@ -416,7 +416,10 @@ fun AgentAttachSheet(
                     title = stringResource(R.string.agent_attach_log),
                     subtitle = stringResource(R.string.agent_attach_log_pick),
                     icon = DroshIcons.Terminal,
-                    enabled = logSessions.isNotEmpty() && !preparing,
+                    // Left enabled when there is nothing to pick between: a
+                    // disabled row reads as a row that has not loaded, and the
+                    // picker has an empty state that says exactly what is wrong.
+                    enabled = !preparing,
                     onClick = { logPickerOpen = true },
                 )
 
