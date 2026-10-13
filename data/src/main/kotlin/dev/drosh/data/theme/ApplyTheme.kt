@@ -33,13 +33,16 @@ class ApplyTheme @Inject constructor(
     @ApplicationScope private val scope: CoroutineScope,
 ) : ApplyThemeUseCase {
 
-    private val _choices = MutableStateFlow(DroshTheme.choices(emptyList()))
+    // Seeded from what is already installed, not from nothing. The collector
+    // below keeps this current, but a collector has not run yet at the moment
+    // this object is constructed, and a picker that reads `choices` on its first
+    // frame must not be shown a list that is missing themes already on disk.
+    private val _choices = MutableStateFlow(DroshTheme.choices(themes.installed.value))
     override val choices: StateFlow<List<DroshTheme>> = _choices.asStateFlow()
 
     init {
-        // The built-ins are already in the seed above; this is what puts the
-        // themes on disk into the same list, and keeps them there as the store
-        // installs and removes things.
+        // What is on disk joins the built-ins in the same list, and leaves it
+        // again when the store removes something.
         themes.installed
             .onEach { installed -> _choices.value = DroshTheme.choices(installed) }
             .launchIn(scope)

@@ -69,6 +69,10 @@ class ApplyThemeTest {
         val store = FakeSettingsStore(
             CallRecorder(),
             DroshSettings.DEFAULT.copy(
+                // meta comes along deliberately: the assertion below is that
+                // applying a theme does not clear it, which cannot be shown by
+                // a starting state that never had it set.
+                meta = DroshSettings.DEFAULT.meta.copy(firstLaunchCompleted = true),
                 appearance = DroshSettings.DEFAULT.appearance.copy(language = "tr"),
                 shell = DroshSettings.DEFAULT.shell.copy(locale = "tr_TR.UTF-8"),
             ),
@@ -89,7 +93,11 @@ class ApplyThemeTest {
     fun `the palette is not written when the theme file cannot be`() = runTest {
         val writes = CallRecorder()
         val applyTheme = ApplyTheme(
-            FakeThemeRepository(failSave = true),
+            // The recorder is shared with the store on purpose: this test is
+            // about what the failed save did and did not leave behind, and a
+            // repository counting into a recorder of its own would let the
+            // store's half of the story go unwitnessed.
+            FakeThemeRepository(failSave = true, recorder = writes),
             FakeSettingsStore(writes),
             backgroundScope,
         )
