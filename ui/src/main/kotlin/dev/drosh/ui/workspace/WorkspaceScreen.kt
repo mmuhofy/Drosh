@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -82,7 +85,6 @@ import dev.drosh.ui.keyboard.droshImePadding
 import dev.drosh.ui.settings.GROUP_GAP
 import dev.drosh.ui.settings.SettingsTopBar
 import dev.drosh.ui.settings.TileCap
-import dev.drosh.ui.settings.statusBarInset
 import dev.drosh.ui.settings.tileCapFor
 import dev.drosh.ui.settings.tileShape
 import dev.drosh.ui.workspace.components.WorkspaceAssignSheet
@@ -203,10 +205,16 @@ fun WorkspaceScreen(
             // title, same agent back pill — because this screen is reached from
             // Settings and the control that leaves it should be the control that
             // was pressed to arrive.
+            // The same clearance the settings screens take: the background runs
+            // under the system bar and the content is pushed clear of it, so the
+            // screen does not read as having a strip of its own.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = statusBarInset()),
+                    .padding(
+                        top = WindowInsets.statusBars.asPaddingValues()
+                            .calculateTopPadding(),
+                    ),
             ) {
                 SettingsTopBar(
                     title = stringResource(R.string.projects_title),
@@ -472,11 +480,14 @@ private fun buildProjectRows(
     if (groups.isNotEmpty()) {
         addLabel(R.string.projects_section_projects, Section.Projects)
         groups.forEach { (group, sessions) ->
-            // A filter opens every project it can. Outside a filter the user's
-            // own expansion decides, and it is remembered across the trip to the
-            // terminal and back.
-            val expanded = filtering || group.workspace.id in expandedIds
-            val showsSessions = expanded && sessions.isNotEmpty()
+            // A filter opens a project only when it has something to show in
+            // it. Outside a filter the user's own expansion decides, and it is
+            // remembered across the trip to the terminal and back — an
+            // expansion the filter would force on and then take away is an
+            // expansion you cannot trust.
+            val open = (filtering && sessions.isNotEmpty()) ||
+                group.workspace.id in expandedIds
+            val showsSessions = open && sessions.isNotEmpty()
             add(
                 ProjectsRow.ProjectHead(
                     workspace = group.workspace,
@@ -484,7 +495,7 @@ private fun buildProjectRows(
                     // under a search that kept one of them is a fact about the
                     // project, and the row below shows what matched.
                     sessionCount = group.sessions.size,
-                    expanded = expanded,
+                    expanded = open,
                     cap = if (showsSessions) TileCap.First else TileCap.Only,
                     gapAbove = gapFor(Section.Projects, isLabel = false).also {
                         section = Section.Projects
@@ -803,7 +814,7 @@ private fun FiledSessionRow(
             if (active || ended) {
                 Text(
                     text = if (active) activeLabel else endedLabel,
-                    fontSize = 9.5.sp,
+                    fontSize = 10.sp,
                     color = if (active) DroshPrimary else DroshTextMuted,
                     modifier = Modifier
                         .padding(end = 4.dp)

@@ -31,15 +31,9 @@ import dev.drosh.ui.R
 import dev.drosh.ui.session.DeviceBadge
 import dev.drosh.ui.session.DeviceIdentityViewModel
 
-/**
- * Content clearance for the system bar, without insetting the background.
- *
- * Internal because the projects screen is built in the same language — same
- * top bar, same large title, same page padding — and a second copy of the inset
- * is a second value to keep in step with the first.
- */
+/** Content clearance for the system bar, without insetting the background. */
 @Composable
-internal fun statusBarInset(): Dp =
+private fun statusBarInset(): Dp =
     WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
 /**
