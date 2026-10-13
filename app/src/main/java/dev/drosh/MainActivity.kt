@@ -17,7 +17,6 @@ import androidx.core.view.WindowCompat
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.compose.setContent
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.AnimatedVisibility
