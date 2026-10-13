@@ -562,6 +562,27 @@ private fun ReadyScreen(
     val currentMatch = ((searchResults?.activeIndex ?: -1) + 1).coerceAtLeast(1)
 
     /**
+     * Which pane has focus, and therefore which pane the find bar is reading.
+     *
+     * Declared here, above everything that asks: the scan targets this pane's
+     * terminal, the matches belong to it, and the bar's own navigation scrolls
+     * it.
+     */
+    val focusedPaneSlot by terminalManager.focusedPane.collectAsStateWithLifecycle()
+
+    /**
+     * The find matches, for whichever pane they were scanned against.
+     *
+     * Rows are rows of one particular buffer. A split carries two of those,
+     * and the scan ran against the focused pane's — so the other one gets
+     * nothing, rather than highlights marking text in *its* transcript that
+     * nobody asked about. The counter and the arrows stay global; they are
+     * about the terminal the user is working in.
+     */
+    fun findResultsFor(slot: PaneSlot): TerminalSearchResults? =
+        searchResults.takeIf { slot == focusedPaneSlot }
+
+    /**
      * Bumped by every chunk of output the focused terminal draws, so an open
      * find bar re-scans while the transcript grows under it.
      *
@@ -576,8 +597,6 @@ private fun ReadyScreen(
      * it was when this composable first ran, before it had been measured.
      */
     var searchContentTick by remember { mutableStateOf(0) }
-
-    val focusedPaneSlot by terminalManager.focusedPane.collectAsStateWithLifecycle()
 
     /**
      * Follows the focused terminal's screen, which is where new output lands.
@@ -962,7 +981,7 @@ private fun ReadyScreen(
                     awaitingShellInput = awaitingShellInput,
                     searchActive = searchActive,
                     searchQuery = searchQuery,
-                    searchResults = searchResults,
+                    searchResults = findResultsFor(PaneSlot.PRIMARY),
                     searchOverlayRef = searchOverlayRef,
                     terminalViewRef = terminalViewRef,
                     onBoundsChanged = { terminalBounds = it },
@@ -1008,7 +1027,7 @@ private fun ReadyScreen(
                     awaitingShellInput = awaitingShellInput,
                     searchActive = searchActive,
                     searchQuery = searchQuery,
-                    searchResults = searchResults,
+                    searchResults = findResultsFor(PaneSlot.SECONDARY),
                     searchOverlayRef = remember { mutableStateOf<SearchHighlightOverlay?>(null) },
                     terminalViewRef = terminalViewRef,
                     // Bounds are the top bar's backdrop sample, and the top bar

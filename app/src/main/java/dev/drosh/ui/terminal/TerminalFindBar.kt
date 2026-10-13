@@ -14,9 +14,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -192,11 +192,10 @@ fun TerminalFindBar(
 /**
  * One small icon with a full [TOUCH_TARGET] around it.
  *
- * A plain IconButton was what the old bar used and it was 24dp — a target
- * smaller than the finger that had to hit it, on the row where the user is
- * already typing. This is the same icon at the same size with the touch area
- * the platform asks for, drawn transparent so nothing else about the row
- * changes.
+ * The icon stays 16dp — a row of four full-size icons would be a row of
+ * four buttons and no room for the query — and the touch area around it is
+ * what the platform asks for. An icon smaller than the finger that has to
+ * hit it is how the old bar's arrows missed.
  */
 @Composable
 private fun FindIconButton(
@@ -206,7 +205,7 @@ private fun FindIconButton(
     enabled: Boolean,
 ) {
     val tint = if (enabled) DroshTextSecondary else DroshTextMuted.copy(alpha = 0.4f)
-    TextButton(
+    IconButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.size(TOUCH_TARGET),

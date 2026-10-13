@@ -107,6 +107,7 @@ class TerminalTranscriptSearch {
     }
 }
 
+
 /**
  * Every match of [query] across [rows], oldest first.
  *
@@ -159,15 +160,4 @@ internal fun matchTranscript(
         }
     }
     return matches
-}
-
-/**
- * True when [row] is inside the viewport [view] is currently showing.
- *
- * The view read in absolute terms, so a caller can ask about a match without
- * knowing where the viewport happens to be.
- */
-fun TerminalView.isRowVisible(row: Int): Boolean {
-    val emulator = mEmulator ?: return false
-    return row in mTopRow until (mTopRow + emulator.mRows)
 }
