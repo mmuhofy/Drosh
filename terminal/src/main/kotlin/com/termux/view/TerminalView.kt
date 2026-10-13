@@ -50,6 +50,9 @@ import dev.drosh.domain.terminal.TerminalZoom
 
 import java.util.Properties
 import kotlin.math.abs
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * How long after a resize new output is taken to be the shell's reaction to that
@@ -334,6 +337,21 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     @Volatile var contentGeneration: Int = 0
         private set
 
+    /**
+     * The same bump, as a flow.
+     *
+     * [contentGeneration] is a counter a poller reads, which is what the top
+     * bar's backdrop does — it samples on its own schedule. Find needs the
+     * opposite: it wants to be told the moment the transcript moves, because a
+     * match count that lags the output is a count the user cannot trust, and
+     * the question "is this still in the output" has just changed.
+     *
+     * Conflated, so a firehose does not queue a wake-up per chunk: the
+     * collector sees the latest tick and one collector is all there is.
+     */
+    private val _contentTicks = MutableStateFlow(0)
+    val contentTicks: StateFlow<Int> = _contentTicks.asStateFlow()
+
     init {
         mGestureRecognizer = GestureAndScaleRecognizer(context, object : GestureAndScaleRecognizer.Listener {
             var scrolledWithFinger = false
@@ -481,24 +499,18 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             }
 
             override fun onDoubleTap(event: MotionEvent): Boolean {
-                // Do not treat is as a single confirmed tap - it may be followed by zoom.
+                // Nothing. A double-tap used to return the terminal to the
+                // configured default size, which is not what two taps on a
+                // terminal mean: the first is "I am working here" and the
+                // second is nothing at all, and the pair resetting the font
+                // size read as the terminal losing its place mid-read.
                 //
-                // A second finger means a pinch, so a double-tap that grows
-                // into a pinch must not have already moved the font: the
-                // ScaleGestureDetector claims the gesture once the second
-                // finger lands, but the first tap has been delivered by then.
-                if (mGestureRecognizer.isInProgress()) return false
-                if (mEmulator == null || isSelectingText) return false
-
-                // Deferred to the next frame rather than applied here. This
-                // callback arrives before the second tap has been
-                // disambiguated — the gesture detector calls this on the
-                // second ACTION_DOWN, and whether that tap is the start of a
-                // double-tap or the end of a pinch is only known on the
-                // following frame. Zooming now and un-zooming a moment later
-                // is exactly the flicker this is avoiding, so the work waits
-                // until the gesture has settled.
-                post { if (!mGestureRecognizer.isInProgress()) resetToDefaultSize(event.x, event.y) }
+                // The pinch is the zoom gesture and it is unchanged — see
+                // onScale, which still measures from the gesture's own origin.
+                // Staying out of the way is also what keeps the two from
+                // colliding: this detector and the scale detector see the same
+                // stream, and a double-tap that grew into a pinch used to
+                // resize the font a frame before the pinch claimed it.
                 return false
             }
 
@@ -886,6 +898,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         mEmulator!!.clearScrollCounter()
 
         contentGeneration++
+        _contentTicks.value = contentGeneration
         invalidate()
         searchHighlightOverlay?.invalidate()
         urlOverlay?.invalidate()
@@ -1000,31 +1013,6 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
                 .coerceIn(-mEmulator!!.getScreen().activeTranscriptRows, 0)
         }
         invalidate()
-    }
-
-/**
-     * Return to the configured default size, if we are not already there.
-     *
-     * The one zoom value a pinch cannot reach on purpose: no amount of pinching
-     * gets a user back to the size they started the app with, and making them
-     * remember a number to undo a zoom is not a control.
-     *
-     * The target is the app's default, not the persisted size. After a pinch the
-     * persisted size *is* the pinched one, so resetting to it would do nothing
-     * the moment anyone pinched — which is exactly when a reset is wanted.
-     *
-     * Reports the result as a gesture so the chip appears and the size is
-     * persisted: a double-tap that changed nothing has nothing to persist, and
-     * one that did must not be lost on the next launch.
-     */
-    private fun resetToDefaultSize(focusX: Float, focusY: Float) {
-        if (mEmulator == null) return
-        val target = mClient?.defaultFontSizeSp() ?: TerminalZoom.DEFAULT_SP
-        if (target <= 0f) return
-        if (quantiseTextSize(target) == textSizeSp) return
-        zoomTo(target, focusX, focusY)
-        mClient?.onZoom(textSizeSp, focusX, focusY)
-        mClient?.onZoomEnd(textSizeSp)
     }
 
     /**
@@ -1791,6 +1779,38 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             mScrollOffsetPx = legalScrollOffset(topRow, 0f)
             if (!awakenScrollBars()) invalidate()
         }
+    }
+
+    /**
+     * Brings the row holding an external row index into view, centred where
+     * the scrollback allows it.
+     *
+     * find's navigation, and the reason it lives here rather than in the
+     * caller: [setTopRow] writes the state and nothing else, so a caller that
+     * used it directly would move the viewport without repainting — the
+     * terminal would keep drawing the rows it was on until the next chunk of
+     * output happened to arrive.
+     *
+     * Centred rather than top-aligned because a match at the very top row is
+     * one scroll away from being hidden by whatever chrome sits above the
+     * terminal, and the middle of the screen is the one place a match is
+     * always legible.
+     *
+     * A no-op when the row is already on screen: re-centring a visible match
+     * moves the terminal for nothing and the user loses the line they were
+     * reading.
+     */
+    fun revealRow(externalRow: Int) {
+        val emu = mEmulator ?: return
+        val rows = emu.mRows
+        if (externalRow in mTopRow until (mTopRow + rows)) return
+        val transcriptRows = emu.getScreen().activeTranscriptRows
+        val centred = externalRow - rows / 2
+        setTopRow(centred.coerceIn(-transcriptRows, 0))
+        mScrollSettle?.let { removeCallbacks(it); mScrollSettle = null }
+        mScrollOffsetPx = 0f
+        onScrollPositionChanged?.invoke(mTopRow)
+        if (!awakenScrollBars()) invalidate()
     }
 
 

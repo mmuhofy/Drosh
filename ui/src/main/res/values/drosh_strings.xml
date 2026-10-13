@@ -235,6 +235,12 @@
     <string name="terminal_cleaning">Cleaning up…</string>
     <string name="terminal_setting_up">Setting up terminal</string>
     <string name="terminal_setup_failed">Failed to set up terminal</string>
+    <string name="terminal_find_hint">Find in output</string>
+    <string name="terminal_find_previous">Previous match</string>
+    <string name="terminal_find_next">Next match</string>
+    <string name="terminal_find_close">Close search</string>
+    <string name="terminal_find_counter">Match %1$d of %2$d</string>
+    <string name="terminal_find_no_matches">No matches</string>
     <string name="settings_font_decrease_cd">Decrease font size</string>
     <string name="settings_font_increase_cd">Increase font size</string>
     <string name="settings_speed_slow">Slow</string>
