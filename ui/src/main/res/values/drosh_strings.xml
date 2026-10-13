@@ -1,20 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <!-- ── Settings: groups ─────────────────────────────────────────────── -->
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_terminal">Terminal</string>
     <string name="settings_section_projects">Projects</string>
     <string name="settings_projects">Projects</string>
     <string name="settings_projects_desc">Group sessions by project</string>
-
     <string name="settings_section_startup">Startup</string>
     <string name="settings_section_motd">Message of the day</string>
     <string name="settings_section_language">Language</string>
     <string name="settings_section_security">Security</string>
     <string name="settings_section_about">About</string>
-
-    <!-- ── Settings: appearance ────────────────────────────────────────── -->
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Light</string>
@@ -22,18 +16,11 @@
     <string name="settings_theme_system_desc">Follows the system setting</string>
     <string name="settings_theme_light_desc">Always light</string>
     <string name="settings_theme_dark_desc">Always dark</string>
-
-    <!-- Font packs. Each label names the sans; the _desc names the pairing,
-         because the monospace half comes with it and is not chosen separately. -->
     <string name="settings_font">Font</string>
     <string name="settings_font_geist">Geist</string>
     <string name="settings_font_inter">Inter</string>
     <string name="settings_font_geist_desc">Geist Sans with Geist Mono</string>
     <string name="settings_font_inter_desc">Inter with JetBrains Mono</string>
-
-    <!-- ── Settings: terminal ──────────────────────────────────────────── -->
-    <!-- %1$s, not %1$d: the size is fractional (a pinch lands on 0.1sp
-         steps), and the caller formats it. Passing a float to %1$d throws. -->
     <string name="settings_font_size_value">%1$ssp</string>
     <string name="settings_cursor_blink">Cursor blink</string>
     <string name="settings_cursor_blink_off">Off</string>
@@ -43,8 +30,6 @@
     <string name="settings_cursor_style_beam_desc">A thin vertical bar</string>
     <string name="settings_startup_command">Startup command</string>
     <string name="settings_startup_default">$shell --login</string>
-
-    <!-- ── Settings: motd ──────────────────────────────────────────────── -->
     <string name="settings_motd_show_as">Show as</string>
     <string name="settings_motd_off">Off</string>
     <string name="settings_motd_card">Card</string>
@@ -54,28 +39,18 @@
     <string name="settings_motd_message">Message</string>
     <string name="settings_motd_empty">Tap to edit</string>
     <string name="settings_motd_default">Welcome to Drosh</string>
-
-    <!-- ── Settings: language ──────────────────────────────────────────── -->
     <string name="settings_language">Language</string>
     <string name="settings_language_search">Search languages</string>
-
-    <!-- ── Settings: security ──────────────────────────────────────────── -->
     <string name="settings_pin_lock">PIN lock</string>
     <string name="settings_pin_lock_desc">Ask for a PIN before opening a session</string>
     <string name="settings_pin_title">Set a PIN</string>
     <string name="settings_pin_subtitle">You will be asked for it before a session opens.</string>
-
-    <!-- ── Settings: about ─────────────────────────────────────────────── -->
     <string name="settings_build">Build</string>
     <string name="settings_build_copied">Build copied</string>
-
-    <!-- ── Common ──────────────────────────────────────────────────────── -->
     <string name="this_device">This device</string>
     <string name="action_save">Save</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_back">Back</string>
-
-    <!-- ── Terminal top bar ────────────────────────────────────────────── -->
     <string name="topbar_show_keyboard">Show keyboard</string>
     <string name="topbar_hide_keyboard">Hide keyboard</string>
     <string name="topbar_open_agent">AI Agent</string>
@@ -86,7 +61,6 @@
     <string name="topbar_find">Find in output</string>
     <string name="topbar_new_session">New session</string>
     <string name="topbar_close_session">Close session</string>
-
     <string name="settings_cursor_style_thin">Thin block</string>
     <string name="settings_terminal_mode">Terminal mode</string>
     <string name="settings_terminal_mode_desc">How a command and its output are laid out</string>
@@ -95,8 +69,6 @@
     <string name="settings_section_ai">AI</string>
     <string name="settings_agent">Agent</string>
     <string name="settings_agent_desc">OpenRouter key, Exa search key and model</string>
-
-    <!-- ── Settings: categories ───────────────────────────────────────── -->
     <string name="settings_category_appearance">Appearance</string>
     <string name="settings_category_terminal">Terminal</string>
     <string name="settings_category_keyboard">Keyboard &amp; Input</string>
@@ -105,14 +77,10 @@
     <string name="settings_category_security">Security</string>
     <string name="settings_category_language">Language</string>
     <string name="settings_category_about">About</string>
-
-    <!-- ── Settings: sections for the new categories ──────────────────── -->
     <string name="settings_section_keyboard">Input</string>
     <string name="settings_section_shell">Shell</string>
     <string name="settings_section_rootfs">Rootfs</string>
     <string name="settings_section_editor">Editor</string>
-
-    <!-- ── Settings: terminal behaviour ───────────────────────────────── -->
     <string name="settings_terminal_scrollback">Scrollback</string>
     <string name="settings_terminal_scrollback_value">%1$d rows</string>
     <string name="settings_terminal_bell">Bell</string>
@@ -127,16 +95,12 @@
     <string name="settings_terminal_link_detection_desc">Underline URLs as they scroll past</string>
     <string name="settings_terminal_glass_effects">Glass effects</string>
     <string name="settings_terminal_glass_effects_desc">Blur and translucency in the top bar</string>
-
-    <!-- ── Settings: input ────────────────────────────────────────────── -->
     <string name="settings_input_extra_keys">Extra-keys bar</string>
     <string name="settings_input_extra_keys_desc">Show the key row above the keyboard</string>
     <string name="settings_input_hardware_keyboard">Hide bar on hardware keyboard</string>
     <string name="settings_input_hardware_keyboard_desc">A physical keyboard brings its own keys</string>
     <string name="settings_input_drosh_ime">Hide bar on Drosh Keyboard</string>
     <string name="settings_input_drosh_ime_desc">Drosh Keyboard has its own key row</string>
-
-    <!-- ── Settings: shell ────────────────────────────────────────────── -->
     <string name="settings_shell_choice">Shell</string>
     <string name="settings_shell_zsh">zsh</string>
     <string name="settings_shell_bash">bash</string>
@@ -148,8 +112,6 @@
     <string name="settings_shell_history_value">%1$d lines</string>
     <string name="settings_shell_integration">Shell integration</string>
     <string name="settings_shell_integration_desc">OSC 133/1337 marks and the editor command</string>
-
-    <!-- ── Settings: rootfs ───────────────────────────────────────────── -->
     <string name="settings_rootfs_profile">Package profile</string>
     <string name="settings_rootfs_profile_minimal">Minimal</string>
     <string name="settings_rootfs_profile_standard">Standard</string>
@@ -163,16 +125,12 @@
     <string name="settings_rootfs_optimize_desc">Clean apt caches after install</string>
     <string name="settings_rootfs_max_edit">Max edit size</string>
     <string name="settings_rootfs_max_edit_value">%1$d KB</string>
-
-    <!-- ── Settings: editor ───────────────────────────────────────────── -->
     <string name="settings_editor_font">Font size</string>
     <string name="settings_editor_word_wrap">Word wrap</string>
     <string name="settings_editor_word_wrap_desc">Wrap long lines instead of scrolling</string>
     <string name="settings_editor_tab_width">Tab width</string>
     <string name="settings_editor_line_numbers">Line numbers</string>
     <string name="settings_editor_line_numbers_desc">Show them down the left edge</string>
-
-    <!-- ── Settings: security ─────────────────────────────────────────── -->
     <string name="settings_security_auto_lock">Auto-lock</string>
     <string name="settings_security_auto_lock_immediately">Immediately</string>
     <string name="settings_security_auto_lock_one_minute">After 1 minute</string>
@@ -187,19 +145,13 @@
     <string name="settings_security_screenshots_desc">Hide the app from the recents switcher too</string>
     <string name="settings_security_clipboard">Mark clipboard sensitive</string>
     <string name="settings_security_clipboard_desc">Hide copied text from the clipboard preview</string>
-
-    <!-- ── Settings: dialogs and lists ────────────────────────────────── -->
     <string name="settings_dialog_save">Save</string>
     <string name="settings_dialog_cancel">Cancel</string>
     <string name="settings_list_empty">None</string>
     <string name="settings_list_count">%1$d items</string>
-
-    <!-- ── Settings: home summaries ───────────────────────────────────── -->
     <string name="settings_summary_terminal">%1$s · %2$ssp</string>
     <string name="settings_summary_on">On</string>
     <string name="settings_summary_off">Off</string>
-
-    <!-- ── Settings: theme store ───────────────────────────────────────── -->
     <string name="settings_theme_store">Theme Store</string>
     <string name="settings_theme_active">Active theme</string>
     <string name="settings_theme_active_none">Drosh default</string>
@@ -219,16 +171,12 @@
     <string name="settings_theme_author">Author</string>
     <string name="settings_theme_description">Description</string>
     <string name="settings_theme_base">Start from</string>
-
-    <!-- ── Settings: type behaviour ────────────────────────────────────── -->
     <string name="settings_bold_brightens">Bold brightens</string>
     <string name="settings_bold_brightens_desc">Bold text in the first eight colours uses the bright half</string>
     <string name="settings_ligatures">Ligatures</string>
     <string name="settings_ligatures_desc">Programming ligatures where the typeface carries them</string>
     <string name="settings_dim_inactive_panes">Dim inactive pane</string>
     <string name="settings_dim_inactive_panes_desc">The unfocused pane of a split is drawn dimmer</string>
-
-    <!-- ── Settings: background ────────────────────────────────────────── -->
     <string name="settings_section_background">Background</string>
     <string name="settings_background_image">Background image</string>
     <string name="settings_background_none">None — the theme colour shows</string>
@@ -437,8 +385,6 @@ no terminal session needed.</string>
     <string name="agent_tool_pending">Pending</string>
     <string name="agent_tool_no_output">This tool produced no output.</string>
     <string name="agent_always_allow">Always allow</string>
-
-    <!-- ── Agent settings screen ────────────────────────────────────────── -->
     <string name="agent_settings_section_provider">Provider</string>
     <string name="agent_settings_section_api_key">API key</string>
     <string name="agent_settings_section_search">Web search</string>
@@ -493,9 +439,25 @@ no terminal session needed.</string>
     <string name="agent_trust_rules_title">Always allowed</string>
     <string name="agent_trust_rules_note">Tap to revoke</string>
     <string name="agent_trust_rules_revoke">Revoke</string>
-
-
-    <!-- ── composer: the + sheet ──────────────────────────────────────────── -->
+    <string name="agent_media_model_lacks">%1$s does not accept %2$s input.</string>
+    <string name="agent_media_model_lacks_named">%1$s does not accept %2$s input, so %3$s was not attached.</string>
+    <string name="agent_media_model_unknown">this model</string>
+    <string name="agent_media_kind_text">text</string>
+    <string name="agent_media_kind_image">image</string>
+    <string name="agent_media_kind_video">video</string>
+    <string name="agent_media_kind_audio">audio</string>
+    <string name="agent_media_kind_image_title">Image</string>
+    <string name="agent_media_unsupported_type">%1$s is not a file the agent can send.</string>
+    <string name="agent_media_too_large_named">%1$s is too large. The limit is %2$s.</string>
+    <string name="agent_media_anonymous_file">that file</string>
+    <string name="agent_media_too_many">Up to %1$d files can be attached to one message.</string>
+    <string name="agent_media_unreadable">That file could not be read.</string>
+    <string name="agent_media_nothing_to_send">Type something or attach a file.</string>
+    <string name="agent_media_attach_cd">Attach a file</string>
+    <string name="agent_media_attach_label">Attach</string>
+    <string name="agent_media_remove_cd">Remove %1$s from the prompt</string>
+    <string name="agent_attachment_chip">%1$s · %2$s</string>
+    <string name="agent_attachment_badge_video">Video</string>
     <string name="agent_attach_cd">Add to the prompt</string>
     <string name="agent_attach_title">Add to the prompt</string>
     <string name="agent_attach_group_attach">Attach</string>
@@ -526,8 +488,6 @@ no terminal session needed.</string>
     <string name="agent_attach_chip_cd">%1$s attached</string>
     <string name="agent_attach_binary_kb">%1$d KB — attached as binary</string>
     <string name="agent_attach_saved">%1$s — attached</string>
-
-    <!-- ── web search results ─────────────────────────────────────────────── -->
     <string name="agent_search_title">Web results</string>
     <string name="agent_search_query">%1$s</string>
     <string name="agent_search_count">%1$d results</string>
@@ -535,8 +495,6 @@ no terminal session needed.</string>
     <string name="agent_search_empty">Nothing came back for this search.</string>
     <string name="agent_search_error">This search did not return anything readable.</string>
     <string name="agent_search_raw">Read the raw output</string>
-
-    <!-- ── sources ────────────────────────────────────────────────────────── -->
     <string name="agent_sources_title">Sources</string>
     <string name="agent_sources_share_cd">Share this link</string>
     <string name="agent_sources_open_cd">Open this link in the browser</string>

@@ -122,6 +122,12 @@ data class CatalogProvider(
  *        reads this rather than inventing a number.
  * @param reasoningEfforts the effort values this model declares, in catalog
  *        order. Empty when it does no reasoning.
+ * @param inputModalities what the model accepts as input, in the catalog's own
+ *        spelling — `text`, `image`, `video`, `audio`. Kept as the raw strings
+ *        rather than [InputModality] values so a catalog that grows a modality
+ *        Drosh has never heard of round-trips through the cache instead of
+ *        failing to decode. Read it through [ModelInputCapabilities], which is
+ *        where the "nobody said" default lives.
  */
 @Serializable
 data class CatalogModel(
@@ -129,6 +135,7 @@ data class CatalogModel(
     val label: String,
     val outputTokenLimit: Int? = null,
     val reasoningEfforts: List<String> = emptyList(),
+    val inputModalities: List<String> = emptyList(),
     val toolCall: Boolean = false,
     val attachment: Boolean = false,
     val temperature: Boolean = false,

@@ -3,29 +3,43 @@ package dev.drosh.ui.agent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import android.content.Context
+import android.net.Uri
 import dev.drosh.domain.agent.AgentChat
 import dev.drosh.domain.agent.AgentChatRepository
 import dev.drosh.domain.agent.AgentEvent
 import dev.drosh.domain.agent.AgentRequest
 import dev.drosh.domain.agent.AgentRunState
 import dev.drosh.domain.agent.AgentSession
-import dev.drosh.domain.settings.SettingsStore
+import dev.drosh.domain.agent.AgentWarning
 import dev.drosh.domain.agent.ApprovalDecision
+import dev.drosh.domain.agent.AttachmentLimits
+import dev.drosh.domain.agent.CatalogState
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.ChatStatus
+import dev.drosh.domain.agent.ChatTitle
+import dev.drosh.domain.agent.ChatTitleRequest
+import dev.drosh.domain.agent.ChatTitleSuggester
 import dev.drosh.domain.agent.LlmModel
 import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.domain.agent.LlmProviderRepository
+import dev.drosh.domain.agent.MessageAttachment
+import dev.drosh.domain.agent.ModelInputCapabilities
 import dev.drosh.domain.agent.TokenUsage
 import dev.drosh.domain.agent.TranscriptStore
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.TranscriptBuilder
+import dev.drosh.domain.agent.attachmentWarning
+import dev.drosh.domain.settings.SettingsStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 /**
@@ -49,10 +63,30 @@ import javax.inject.Inject
 @HiltViewModel
 class AgentChatViewModel @Inject constructor(
     private val agentSession: AgentSession,
+    /**
+     * Also read for the language the user picked.
+     *
+     * A refusal is written into a transcript row from here rather than from a
+     * composable, and the application context answers in the system language —
+     * so a user who chose Turkish on an English phone would read their refusal
+     * in English. The store is the only thing in `:ui` that knows which
+     * language that is.
+     */
     private val settingsStore: SettingsStore,
     private val chats: AgentChatRepository,
     private val providers: LlmProviderRepository,
     private val transcripts: TranscriptStore,
+    private val titles: ChatTitleSuggester,
+    private val pendingPrompts: AgentPendingPrompt,
+    /**
+     * Only for reading a picked document and for the one string a refusal
+     * needs.
+     *
+     * Injected rather than taken from `LocalContext` because both happen with
+     * no composition in scope: the picker hands a `Uri` to a ViewModel method,
+     * and a refusal is written into a transcript row rather than a composable.
+     */
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     private val builder = TranscriptBuilder()
@@ -102,6 +136,15 @@ class AgentChatViewModel @Inject constructor(
      */
     private var lastPrompt: String = ""
 
+    /**
+     * The media that went with [lastPrompt].
+     *
+     * Kept beside it because a retry has to re-send the turn, not half of it:
+     * re-sending the words of a question about a screenshot produces an answer
+     * to a question that was never asked.
+     */
+    private var lastAttachments: List<MessageAttachment> = emptyList()
+
     data class ProviderState(
         val provider: LlmProvider? = null,
         val selectedModelId: String = "",
@@ -145,6 +188,152 @@ class AgentChatViewModel @Inject constructor(
 
     data class RetryNotice(val attempt: Int, val maxAttempts: Int, val reason: String)
 
+    // ── media ─────────────────────────────────────────────────────────────
+
+    /**
+     * Media waiting on the composer, oldest first.
+     *
+     * Held here rather than in the draft text on purpose: a photo is a few
+     * hundred kilobytes of base64, and a `BasicTextField` whose value carries
+     * that re-lays out and recomposes on every keystroke. So the draft stays the
+     * words and the files are values beside it.
+     */
+    private val _attachments = MutableStateFlow<List<MessageAttachment>>(emptyList())
+    val attachments: StateFlow<List<MessageAttachment>> = _attachments.asStateFlow()
+
+    /** True while a picked document is being read and shrunk. */
+    private val _attaching = MutableStateFlow(false)
+    val attaching: StateFlow<Boolean> = _attaching.asStateFlow()
+
+    /**
+     * Why the last attachment or send was refused, if one was.
+     *
+     * A value rather than a sentence: the composer needs to know *which*
+     * refusal this is to render it, and the sentence itself is built here from
+     * a string so a translator sees it.
+     */
+    private val _mediaWarning = MutableStateFlow<AgentWarning?>(null)
+    val mediaWarning: StateFlow<AgentWarning?> = _mediaWarning.asStateFlow()
+
+    /**
+     * The draft text of a send that was refused.
+     *
+     * Non-null only when the prompt was not sent. The composer owns its text,
+     * so this is how the text survives a refusal: the screen restores it rather
+     * than the ViewModel holding a second copy of a draft nobody is editing.
+     */
+    private val _blockedDraft = MutableStateFlow<String?>(null)
+    val blockedDraft: StateFlow<String?> = _blockedDraft.asStateFlow()
+
+    /** What the selected model takes, as far as the catalog says. */
+    fun capabilities(): ModelInputCapabilities {
+        val state = _providerState.value
+        val providerId = state.provider?.id ?: return ModelInputCapabilities.UNKNOWN
+        val modelId = state.selectedModelId.ifEmpty { state.models.firstOrNull()?.id.orEmpty() }
+        if (modelId.isEmpty()) return ModelInputCapabilities.UNKNOWN
+        return ModelInputCapabilities.fromCatalog(catalogState, providerId, modelId)
+    }
+
+    /** The latest catalog, kept so [capabilities] can answer without a second collector. */
+    private var catalogState: CatalogState = CatalogState.Loading
+
+    /** The name Drosh chose for this chat; null once the user has renamed it. */
+    private var autoName: String? = null
+
+    /**
+     * The first prompt of a chat created moments ago, waiting for the provider.
+     *
+     * Taken from [AgentPendingPrompt] in [attach] and sent from
+     * [resolveProvider], because the navigation that follows the creation
+     * destroys the ViewModel that was asked to send — see that class for the
+     * whole story.
+     */
+    private var queuedFirstPrompt: AgentPendingPrompt.Pending? = null
+
+    /** Ids minted for composer attachments; a counter rather than a UUID. */
+    private var attachmentSeq = 0
+
+    /**
+     * Attach a picked document to the next prompt.
+     *
+     * Reads it off the main thread, shrinks it into
+     * [dev.drosh.domain.agent.AttachmentLimits] and refuses it — with a reason
+     * — when the selected model cannot take it. The refusal happens here, at
+     * the gesture, rather than at submit: the user who attached a screenshot to
+     * a text-only model is told before they have written the question.
+     */
+    fun attach(uri: Uri) {
+        if (_attaching.value) return
+        val current = _attachments.value
+        if (current.size >= AttachmentLimits.MAX_ATTACHMENTS_PER_MESSAGE) {
+            refuse(AgentWarning.TooManyAttachments(AttachmentLimits.MAX_ATTACHMENTS_PER_MESSAGE))
+            return
+        }
+
+        viewModelScope.launch {
+            _attaching.value = true
+            _mediaWarning.value = null
+            val id = "att${attachmentSeq++}"
+            when (val outcome = AgentAttachmentReader.read(appContext, uri, id)) {
+                is AgentAttachmentReader.Outcome.Loaded -> {
+                    val next = current + outcome.attachment
+                    val refusal = attachmentWarning(
+                        attachments = next,
+                        capabilities = capabilities(),
+                        modelId = _providerState.value.selectedModelId,
+                    )
+                    if (refusal == null) {
+                        _attachments.value = next
+                    } else {
+                        // Refused after being read, so the file name is known
+                        // and the sentence can name it.
+                        refuse(refusal)
+                    }
+                }
+
+                is AgentAttachmentReader.Outcome.Refused -> refuse(outcome.warning)
+            }
+            _attaching.value = false
+        }
+    }
+
+    /** Take one attachment off the composer. */
+    fun removeAttachment(id: String) {
+        _attachments.value = _attachments.value.filterNot { it.id == id }
+    }
+
+    /** Take every attachment off the composer. */
+    fun clearAttachments() {
+        _attachments.value = emptyList()
+    }
+
+    /**
+     * Put a refusal where the user will see it twice.
+     *
+     * Once in the transcript, which is where they will look after the fact, and
+     * once as [mediaWarning], which is what a composer can render inline. The
+     * text is resolved here rather than in the screen because the transcript row
+     * is written from this class and there is no composition at that point.
+     */
+    private fun refuse(warning: AgentWarning, draft: String? = null) {
+        _mediaWarning.value = warning
+        _blockedDraft.value = draft
+        viewModelScope.launch {
+            builder.warn(
+                warning.describe(
+                    context = appContext,
+                    languageTag = settingsStore.settings.value.appearance.language,
+                ),
+            )
+            _messages.value = builder.snapshot()
+        }
+    }
+
+    /** Dismiss the inline composer warning. */
+    fun dismissMediaWarning() {
+        _mediaWarning.value = null
+    }
+
     /**
      * Bind to an existing chat.
      *
@@ -166,7 +355,13 @@ class AgentChatViewModel @Inject constructor(
         if (!watchingCatalog) {
             watchingCatalog = true
             viewModelScope.launch {
-                providers.observeCatalogState().collect { resolveProvider() }
+                providers.observeCatalogState().collect { state ->
+                    // Kept, not just consumed: what a model accepts is a
+                    // catalog question, and the composer asks it on every
+                    // attach and every send.
+                    catalogState = state
+                    resolveProvider()
+                }
             }
         }
 
@@ -176,11 +371,26 @@ class AgentChatViewModel @Inject constructor(
             // empty row behind.
             chatId = null
             onChatCreatedCallback = onCreated
+            queuedFirstPrompt = null
             loadProvider()
             return
         }
 
         chatId = id
+        // The prompt that created this chat, if this ViewModel is the one that
+        // was navigated to right after it was created. Taken here and sent from
+        // [resolveProvider] once a provider and a key are known.
+        queuedFirstPrompt = pendingPrompts.take(id)
+        // The chat already carries the name `createFrom` gave it, and it is
+        // Drosh's name — so a title that arrives later is allowed to replace
+        // it, which is the whole point of asking. [renameFromModel] still
+        // refuses once the user has renamed it themselves.
+        if (queuedFirstPrompt != null) {
+            autoName = ChatTitle.derivedFrom(queuedFirstPrompt!!.prompt)
+        }
+        _attachments.value = emptyList()
+        _mediaWarning.value = null
+        _blockedDraft.value = null
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             // The transcript first, so the first frame shows the conversation
@@ -239,24 +449,65 @@ class AgentChatViewModel @Inject constructor(
         job?.cancel()
     }
 
-    /** Create a chat from the first prompt and report its id back to the caller. */
-    fun createFrom(firstPrompt: String, directory: String, onCreated: (String) -> Unit) {
+    /**
+     * Create a chat from the first prompt and report its id back to the caller.
+     *
+     * The prompt is handed to [AgentPendingPrompt] rather than run from here:
+     * the caller's next move is a navigation that pops this destination, and the
+     * ViewModel this coroutine lives in goes with it. The ViewModel on the far
+     * side picks the prompt up in [attach].
+     *
+     * The chat is named after the prompt first, exactly as before, so the Agent
+     * Home list is readable during the run that is about to start — and so a
+     * naming call that never answers leaves a name rather than nothing.
+     */
+    fun createFrom(
+        firstPrompt: String,
+        directory: String,
+        onCreated: (String) -> Unit,
+        attachments: List<MessageAttachment> = emptyList(),
+    ) {
         viewModelScope.launch {
-            val created = chats.create(
-                name = firstPrompt.take(NAME_LIMIT),
-                workingDirectory = directory,
-            )
+            val derived = ChatTitle.derivedFrom(firstPrompt)
+            val created = chats.create(name = derived, workingDirectory = directory)
             chatId = created.id
+            autoName = derived
             _chat.value = created
+            pendingPrompts.offer(created.id, firstPrompt, attachments)
             loadProvider()
             onCreated(created.id)
         }
     }
 
+    /**
+     * Rename this chat from what the user typed.
+     *
+     * Clears [autoName]: from here on the name is the user's, and a model
+     * answer arriving late must not overwrite it.
+     */
     fun rename(name: String) {
         val id = chatId ?: return
         if (name.isBlank()) return
+        autoName = null
         viewModelScope.launch { chats.rename(id, name) }
+    }
+
+    /**
+     * Rename this chat from what the model called it.
+     *
+     * Applied only over the name Drosh picked itself. A chat the user renamed
+     * while the naming call was still in flight keeps the name the user gave
+     * it — an answer that arrives late is not an instruction, and a title that
+     * overwrites a deliberate rename is worse than no title.
+     */
+    fun renameFromModel(title: String) {
+        val id = chatId ?: return
+        val trimmed = title.trim()
+        if (trimmed.isBlank()) return
+        val own = autoName ?: return
+        if (_chat.value?.name != own) return
+        autoName = trimmed
+        viewModelScope.launch { chats.rename(id, trimmed) }
     }
 
     /**
@@ -276,19 +527,55 @@ class AgentChatViewModel @Inject constructor(
         }
     }
 
-    fun send(prompt: String) {
+    /**
+     * Send what the composer holds.
+     *
+     * Returns whether the run started. `false` means the prompt is still worth
+     * sending and [blockedDraft] carries it — which is what a caller needs in
+     * order to leave the text in the box rather than clearing it on a refusal
+     * the user has to read.
+     */
+    fun send(prompt: String): Boolean = send(prompt, _attachments.value)
+
+    /**
+     * Send a prompt with the media that goes with it.
+     *
+     * The prompt is sent as typed. Nothing here summarises it, trims its
+     * meaning, or rewrites it for the model's benefit — the attachments ride in
+     * the same turn, which is the only shape any of the four protocols accepts
+     * for a picture and the sentence about it.
+     */
+    fun send(prompt: String, attachments: List<MessageAttachment>): Boolean {
         val text = prompt.trim()
-        if (text.isEmpty() || isRunning) return
+        // A screenshot with nothing written under it is a question, so media
+        // alone is a sendable turn. Only an entirely empty composer is not.
+        if ((text.isEmpty() && attachments.isEmpty()) || isRunning) return false
+
+        // Checked before anything is created or written, so a refused turn
+        // leaves no chat row, no name and no transcript entry behind.
+        val providerState = _providerState.value
+        val capabilities = capabilities()
+        val modelIdForCheck = providerState.selectedModelId
+            .ifEmpty { providerState.models.firstOrNull()?.id.orEmpty() }
+        val refusal = attachmentWarning(
+            attachments = attachments,
+            capabilities = capabilities,
+            modelId = modelIdForCheck,
+        )
+        if (refusal != null) {
+            refuse(refusal, draft = text)
+            return false
+        }
 
         if (chatId == null) {
             // First prompt of a new chat: persist it now, then run. Named after the
             // prompt so the Agent Home list is readable without opening anything.
-            createFrom(text, DEFAULT_DIRECTORY) { createdId ->
+            createFrom(text, DEFAULT_DIRECTORY, { createdId ->
                 onChatCreatedCallback(createdId)
-            }
-            return
+            }, attachments)
+            return true
         }
-        val id = chatId ?: return
+        val id = chatId ?: return false
 
         // First prompt of a chat the user opened empty from Home: it is still
         // carrying the placeholder name, so name it after what was asked. Later
@@ -296,32 +583,40 @@ class AgentChatViewModel @Inject constructor(
         // overwriting that with a follow-up question would be worse.
         val currentName = _chat.value?.name.orEmpty()
         if (currentName.isBlank() || currentName == PLACEHOLDER_NAME) {
-            viewModelScope.launch { chats.rename(id, text.take(NAME_LIMIT)) }
+            val derived = ChatTitle.derivedFrom(text)
+            autoName = derived
+            viewModelScope.launch { chats.rename(id, derived) }
         }
 
-        val providerState = _providerState.value
         val provider = providerState.provider
         if (provider == null) {
             _providerState.value = providerState.copy(error = "No provider configured")
-            return
+            return false
         }
         if (!providerState.hasKey) {
             _providerState.value = providerState.copy(
                 error = "Add your ${provider.label} API key before running the agent",
             )
-            return
+            return false
         }
-        val model = providerState.selectedModelId
-            .ifEmpty { providerState.models.firstOrNull()?.id.orEmpty() }
+        val model = modelIdForCheck
         if (model.isEmpty()) {
             _providerState.value = providerState.copy(error = "Pick a model first")
-            return
+            return false
         }
         // Read here rather than inside the loop so a change made in Settings
         // mid-run applies to the next prompt instead of the one in flight.
         val effort = providerState.selectedEffort
 
+        // A conversation that has not answered anything yet is a conversation
+        // worth naming. Recorded before the run starts, because the first
+        // assistant row is what the check is really asking about.
+        val firstTurn = _messages.value.none { it is ChatMessage.Assistant }
+
         lastPrompt = text
+        lastAttachments = attachments
+        _blockedDraft.value = null
+        _mediaWarning.value = null
         builder.startRun()
         _messages.value = builder.snapshot()
         _providerState.value = providerState.copy(error = null)
@@ -341,6 +636,7 @@ class AgentChatViewModel @Inject constructor(
                     prompt = text,
                     workingDirectory = _chat.value?.workingDirectory ?: DEFAULT_DIRECTORY,
                     reasoningEffort = effort,
+                    attachments = attachments,
                 ),
             ).collect { event ->
                 builder.accept(event)
@@ -388,12 +684,37 @@ class AgentChatViewModel @Inject constructor(
             runJob = null
             _running.value = false
         }
+
+        // Fire and forget, and deliberately not awaited: the answer is already
+        // streaming, the chat already has a name, and a naming call that failed
+        // costs nothing. The first message itself went out unchanged above.
+        if (firstTurn) requestTitle(id, provider.id, model, text)
+        return true
+    }
+
+    /**
+     * Ask the model what to call this conversation.
+     *
+     * Null from the suggester means "keep the name you have" — a first message
+     * too short to describe, no key, or a model that answered with prose. All
+     * three are normal and none of them is an error to show.
+     */
+    private fun requestTitle(id: String, providerId: String, modelId: String, prompt: String) {
+        if (!ChatTitle.isWorthNaming(prompt)) return
+        viewModelScope.launch {
+            val suggested = titles.suggest(
+                ChatTitleRequest(providerId = providerId, modelId = modelId, prompt = prompt),
+            ) ?: return@launch
+            // The chat may have been switched while the model was thinking.
+            if (chatId != id) return@launch
+            renameFromModel(suggested)
+        }
     }
 
     /** Re-send the prompt of the run that just failed. */
     fun retry() {
         if (isRunning || lastPrompt.isBlank()) return
-        send(lastPrompt)
+        send(lastPrompt, lastAttachments)
     }
 
     fun dismissFailure() {
@@ -460,7 +781,10 @@ class AgentChatViewModel @Inject constructor(
         // settings.
         val providerId = providers.selectedProvider() ?: DEFAULT_PROVIDER_ID
         val provider = providers.provider(providerId) ?: return
-        if (_providerState.value.provider?.id == provider.id) return
+        if (_providerState.value.provider?.id == provider.id) {
+            flushQueuedPrompt()
+            return
+        }
 
         val hasKey = providers.credential(provider.id) != null
         val selected = providers.selectedModel(provider.id).orEmpty()
@@ -478,6 +802,39 @@ class AgentChatViewModel @Inject constructor(
         // back to its "first model or model seç" placeholder with nothing behind
         // it. The catalogue has to be loaded wherever the id is read.
         if (hasKey) fetchModels()
+        flushQueuedPrompt()
+    }
+
+    /**
+     * Run the first prompt of a chat that was created one navigation ago.
+     *
+     * Called from [resolveProvider] rather than from [attach] because a send
+     * needs a provider, a key and a model, and none of them are known at the
+     * moment a screen binds to a freshly created chat — the catalog fetch that
+     * supplies them usually finishes later.
+     *
+     * Kept queued until a send actually starts, so a chat opened before the
+     * user's key was readable waits for the key rather than dropping the
+     * prompt.
+     */
+    private suspend fun flushQueuedPrompt() {
+        val queued = queuedFirstPrompt ?: return
+        val id = queued.chatId
+        if (chatId != id) return
+
+        // The working directory comes off the chat record, and the record is
+        // read by a collector that has not necessarily emitted yet on a screen
+        // that has just bound. Waiting for it here is cheaper than running the
+        // agent in the wrong directory.
+        if (_chat.value == null) {
+            val loaded = withTimeoutOrNull(CHAT_LOAD_TIMEOUT_MS) {
+                chats.observe(id).firstOrNull { it != null }
+            }
+            if (loaded == null) return
+            _chat.value = loaded
+        }
+
+        if (send(queued.prompt, queued.attachments)) queuedFirstPrompt = null
     }
 
     /**
@@ -565,7 +922,15 @@ class AgentChatViewModel @Inject constructor(
 
         /** Route placeholder for a chat that does not exist yet. */
         const val NEW_CHAT_ID = "new"
-        private const val NAME_LIMIT = 48
+
+        /**
+         * How long the first prompt of a new chat waits for its chat record.
+         *
+         * Room answers this in microseconds; the bound exists so a database that
+         * is genuinely stuck does not hold the prompt forever with no way to
+         * retry.
+         */
+        private const val CHAT_LOAD_TIMEOUT_MS = 2_000L
 
         /**
          * How long streamed text is allowed to wait for the next token.

@@ -764,7 +764,10 @@ private fun JsonObject.stringOf(key: String): String? =
  * fake is the same shape with the value a test sets and the write a no-op.
  */
 
-private class FakeSettingsStore(
+// Internal rather than private: another test in this source set builds an
+// AgentLoop too, and a second fake store is a second place for the settings
+// contract to be quietly wrong in.
+internal class FakeSettingsStore(
     initial: DroshSettings = DroshSettings.DEFAULT,
 ) : SettingsStore {
 

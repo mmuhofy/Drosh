@@ -76,7 +76,7 @@ object ConversationCompactor {
 
         compacted.take(MAX_SUMMARY_LINES).forEach { message ->
             when (message) {
-                is LlmMessage.User -> lines += "- user asked: ${message.text.firstLine()}"
+                is LlmMessage.User -> lines += "- user asked: ${message.describeForSummary()}"
 
                 is LlmMessage.Assistant ->
                     if (message.text.isNotBlank()) {
@@ -114,10 +114,28 @@ object ConversationCompactor {
      * budget.
      */
     private fun LlmMessage.approximateChars(): Int = when (this) {
-        is LlmMessage.User -> text.length
+        // The attachment's own size, not its absence: an image is the most
+        // expensive thing in most conversations, and a budget that counted only
+        // the words around it would keep a conversation open long past the point
+        // where the next request is refused.
+        is LlmMessage.User -> text.length + attachments.sumOf { it.base64ByteCount }
         is LlmMessage.Assistant -> text.length + toolCalls.size * TOOL_CALL_CHARS
         is LlmMessage.ToolResultMessage -> content.length
     } + PER_MESSAGE_OVERHEAD
+
+    /**
+     * How a user turn reads in a compacted summary.
+     *
+     * A turn that was only a picture has no first line, and "- user asked: "
+     * followed by nothing is a summary that quietly drops the most important
+     * thing that happened. The file names go in instead.
+     */
+    private fun LlmMessage.User.describeForSummary(): String {
+        if (text.isNotBlank()) return text.firstLine()
+        if (attachments.isEmpty()) return ""
+        return "about ${attachments.size} attachment(s): " +
+            attachments.take(MAX_FILES_LISTED).joinToString(", ") { it.fileName.ifBlank { it.kind.name } }
+    }
 
     private fun String.firstLine(): String {
         val line = lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()

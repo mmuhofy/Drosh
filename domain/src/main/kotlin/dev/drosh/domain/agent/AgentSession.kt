@@ -71,6 +71,10 @@ interface AgentSession {
  *                         is scoped to for this run
  * @param reasoningEffort the user's stored effort choice for this model, or
  *        null for the model's own default. See `LlmRequest.reasoningEffort`.
+ * @param attachments media the user sent with the prompt, in the order they
+ *        were added. The prompt is sent unchanged alongside them; a message with
+ *        attachments and a blank prompt is valid, which is what lets a
+ *        screenshot be a question on its own.
  */
 data class AgentRequest(
     val chatId: String,
@@ -79,6 +83,7 @@ data class AgentRequest(
     val prompt: String,
     val workingDirectory: String,
     val reasoningEffort: String? = null,
+    val attachments: List<MessageAttachment> = emptyList(),
 )
 
 /** Aggregate run state across all chats. */

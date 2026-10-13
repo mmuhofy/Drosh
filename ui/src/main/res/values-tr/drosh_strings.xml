@@ -1,18 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-
     <string name="settings_section_appearance">Görünüm</string>
     <string name="settings_section_terminal">Terminal</string>
     <string name="settings_section_projects">Projeler</string>
     <string name="settings_projects">Projeler</string>
     <string name="settings_projects_desc">Session\'ları projeye göre grupla</string>
-
     <string name="settings_section_startup">Başlangıç</string>
     <string name="settings_section_motd">Karşılama mesajı</string>
     <string name="settings_section_language">Dil</string>
     <string name="settings_section_security">Güvenlik</string>
     <string name="settings_section_about">Hakkında</string>
-
     <string name="settings_theme">Tema</string>
     <string name="settings_theme_auto">Otomatik</string>
     <string name="settings_theme_light">Açık</string>
@@ -20,13 +16,11 @@
     <string name="settings_theme_system_desc">Sistem ayarını izler</string>
     <string name="settings_theme_light_desc">Her zaman açık</string>
     <string name="settings_theme_dark_desc">Her zaman koyu</string>
-
     <string name="settings_font">Yazı tipi</string>
     <string name="settings_font_geist">Geist</string>
     <string name="settings_font_inter">Inter</string>
     <string name="settings_font_geist_desc">Geist Mono ile Geist Sans</string>
     <string name="settings_font_inter_desc">JetBrains Mono ile Inter</string>
-
     <string name="settings_font_size_value">%1$ssp</string>
     <string name="settings_cursor_blink">İmleç yanıp sönmesi</string>
     <string name="settings_cursor_blink_off">Kapalı</string>
@@ -36,7 +30,6 @@
     <string name="settings_cursor_style_beam_desc">İnce dikey çubuk</string>
     <string name="settings_startup_command">Başlangıç komutu</string>
     <string name="settings_startup_default">$shell --login</string>
-
     <string name="settings_motd_show_as">Gösterim</string>
     <string name="settings_motd_off">Kapalı</string>
     <string name="settings_motd_card">Kart</string>
@@ -46,23 +39,18 @@
     <string name="settings_motd_message">Mesaj</string>
     <string name="settings_motd_empty">Düzenlemek için dokun</string>
     <string name="settings_motd_default">Drosh\'a hoş geldin</string>
-
     <string name="settings_language">Dil</string>
     <string name="settings_language_search">Dillerde ara</string>
-
     <string name="settings_pin_lock">PIN kilidi</string>
     <string name="settings_pin_lock_desc">Bir oturum açmadan önce PIN istesin</string>
     <string name="settings_pin_title">PIN belirle</string>
     <string name="settings_pin_subtitle">Bir oturum açmadan önce sorulacak.</string>
-
     <string name="settings_build">Derleme</string>
     <string name="settings_build_copied">Derleme kopyalandı</string>
-
     <string name="this_device">Bu cihaz</string>
     <string name="action_save">Kaydet</string>
     <string name="action_cancel">İptal</string>
     <string name="action_back">Geri</string>
-
     <string name="topbar_show_keyboard">Klavyeyi göster</string>
     <string name="topbar_hide_keyboard">Klavyeyi gizle</string>
     <string name="topbar_open_agent">Yapay zekâ ajanı</string>
@@ -73,7 +61,6 @@
     <string name="topbar_find">Çıktıda ara</string>
     <string name="topbar_new_session">Yeni oturum</string>
     <string name="topbar_close_session">Oturumu kapat</string>
-
     <string name="settings_cursor_style_thin">İnce blok</string>
     <string name="settings_terminal_mode">Terminal modu</string>
     <string name="settings_terminal_mode_desc">Bir komut ve çıktısının nasıl yerleştiği</string>
@@ -82,7 +69,6 @@
     <string name="settings_section_ai">Yapay zekâ</string>
     <string name="settings_agent">Agent</string>
     <string name="settings_agent_desc">OpenRouter anahtarı, Exa arama anahtarı ve model</string>
-
     <string name="settings_category_appearance">Görünüm</string>
     <string name="settings_category_terminal">Terminal</string>
     <string name="settings_category_keyboard">Klavye ve Girdi</string>
@@ -91,12 +77,10 @@
     <string name="settings_category_security">Güvenlik</string>
     <string name="settings_category_language">Dil</string>
     <string name="settings_category_about">Hakkında</string>
-
     <string name="settings_section_keyboard">Girdi</string>
     <string name="settings_section_shell">Kabuk</string>
     <string name="settings_section_rootfs">Rootfs</string>
     <string name="settings_section_editor">Editör</string>
-
     <string name="settings_terminal_scrollback">Geçmiş satırları</string>
     <string name="settings_terminal_scrollback_value">%1$d satır</string>
     <string name="settings_terminal_bell">Zil</string>
@@ -111,14 +95,12 @@
     <string name="settings_terminal_link_detection_desc">Geçen URL\'lerin altını çiz</string>
     <string name="settings_terminal_glass_effects">Cam efekti</string>
     <string name="settings_terminal_glass_effects_desc">Üst çubukta blur ve yarı saydamlık</string>
-
     <string name="settings_input_extra_keys">Ek tuşlar çubuğu</string>
     <string name="settings_input_extra_keys_desc">Klavyenin üstünde tuş satırı göster</string>
     <string name="settings_input_hardware_keyboard">Donanım klavyesinde gizle</string>
     <string name="settings_input_hardware_keyboard_desc">Fiziksel klavye kendi tuşlarını getirir</string>
     <string name="settings_input_drosh_ime">Drosh Keyboard\'da gizle</string>
     <string name="settings_input_drosh_ime_desc">Drosh Keyboard\'un kendi tuş satırı var</string>
-
     <string name="settings_shell_choice">Kabuk</string>
     <string name="settings_shell_zsh">zsh</string>
     <string name="settings_shell_bash">bash</string>
@@ -130,7 +112,6 @@
     <string name="settings_shell_history_value">%1$d satır</string>
     <string name="settings_shell_integration">Kabuk entegrasyonu</string>
     <string name="settings_shell_integration_desc">OSC 133/1337 işaretleri ve editor komutu</string>
-
     <string name="settings_rootfs_profile">Paket profili</string>
     <string name="settings_rootfs_profile_minimal">Minimal</string>
     <string name="settings_rootfs_profile_standard">Standart</string>
@@ -144,14 +125,12 @@
     <string name="settings_rootfs_optimize_desc">Kurulum sonrası apt önbelleğini temizle</string>
     <string name="settings_rootfs_max_edit">Maksimum düzenleme boyutu</string>
     <string name="settings_rootfs_max_edit_value">%1$d KB</string>
-
     <string name="settings_editor_font">Yazı boyutu</string>
     <string name="settings_editor_word_wrap">Satır kaydırma</string>
     <string name="settings_editor_word_wrap_desc">Uzun satırları kaydır, kaydırma yapma</string>
     <string name="settings_editor_tab_width">Sekme genişliği</string>
     <string name="settings_editor_line_numbers">Satır numaraları</string>
     <string name="settings_editor_line_numbers_desc">Sol kenarda göster</string>
-
     <string name="settings_security_auto_lock">Otomatik kilit</string>
     <string name="settings_security_auto_lock_immediately">Hemen</string>
     <string name="settings_security_auto_lock_one_minute">1 dakika sonra</string>
@@ -166,16 +145,13 @@
     <string name="settings_security_screenshots_desc">Son kullanılanlar listesinde de gizle</string>
     <string name="settings_security_clipboard">Panoyu hassas işaretle</string>
     <string name="settings_security_clipboard_desc">Kopyalanan metni pano önizlemesinde gizle</string>
-
     <string name="settings_dialog_save">Kaydet</string>
     <string name="settings_dialog_cancel">İptal</string>
     <string name="settings_list_empty">Yok</string>
     <string name="settings_list_count">%1$d öğe</string>
-
     <string name="settings_summary_terminal">%1$s · %2$ssp</string>
     <string name="settings_summary_on">Açık</string>
     <string name="settings_summary_off">Kapalı</string>
-
     <string name="settings_theme_store">Tema Mağazası</string>
     <string name="settings_theme_active">Etkin tema</string>
     <string name="settings_theme_active_none">Drosh varsayılanı</string>
@@ -195,14 +171,12 @@
     <string name="settings_theme_author">Yazar</string>
     <string name="settings_theme_description">Açıklama</string>
     <string name="settings_theme_base">Şundan başla</string>
-
     <string name="settings_bold_brightens">Kalın renklendirir</string>
     <string name="settings_bold_brightens_desc">Kalın metin ilk sekiz renkte parlak yarıyı kullanır</string>
     <string name="settings_ligatures">Ligatürler</string>
     <string name="settings_ligatures_desc">Yazı tipi taşıyorsa programlama ligatürleri</string>
     <string name="settings_dim_inactive_panes">Etkin olmayan pane\'i karart</string>
     <string name="settings_dim_inactive_panes_desc">Bölünmüş ekranda odakta olmayan pane koyu çizilir</string>
-
     <string name="settings_section_background">Arka plan</string>
     <string name="settings_background_image">Arka plan resmi</string>
     <string name="settings_background_none">Yok — tema rengi görünür</string>
@@ -411,8 +385,6 @@ terminal session açmana gerek yok.</string>
     <string name="agent_tool_pending">Siraniyor</string>
     <string name="agent_tool_no_output">Bu tool cikti uretmedi.</string>
     <string name="agent_always_allow">Her zaman izin ver</string>
-
-    <!-- ── Agent ayarlar ekranı ─────────────────────────────────────────── -->
     <string name="agent_settings_section_provider">Provider</string>
     <string name="agent_settings_section_api_key">API anahtarı</string>
     <string name="agent_settings_section_search">Web arama</string>
@@ -467,9 +439,25 @@ terminal session açmana gerek yok.</string>
     <string name="agent_trust_rules_title">Her zaman izin verilenler</string>
     <string name="agent_trust_rules_note">Iptal etmek icin dokun</string>
     <string name="agent_trust_rules_revoke">Iptal</string>
-
-
-    <!-- ── composer: + sheeti ──────────────────────────────────────────────── -->
+    <string name="agent_media_model_lacks">%1$s, %2$s girdisi kabul etmiyor.</string>
+    <string name="agent_media_model_lacks_named">%1$s, %2$s girdisi kabul etmiyor, bu yüzden %3$s eklenmedi.</string>
+    <string name="agent_media_model_unknown">bu model</string>
+    <string name="agent_media_kind_text">metin</string>
+    <string name="agent_media_kind_image">görsel</string>
+    <string name="agent_media_kind_video">video</string>
+    <string name="agent_media_kind_audio">ses</string>
+    <string name="agent_media_kind_image_title">Görsel</string>
+    <string name="agent_media_unsupported_type">%1$s, ajanın gönderebileceği bir dosya değil.</string>
+    <string name="agent_media_too_large_named">%1$s çok büyük. Sınır %2$s.</string>
+    <string name="agent_media_anonymous_file">bu dosya</string>
+    <string name="agent_media_too_many">Bir mesaja en fazla %1$d dosya eklenebilir.</string>
+    <string name="agent_media_unreadable">Bu dosya okunamadı.</string>
+    <string name="agent_media_nothing_to_send">Bir şeyler yaz ya da bir dosya ekle.</string>
+    <string name="agent_media_attach_cd">Dosya ekle</string>
+    <string name="agent_media_attach_label">Ekle</string>
+    <string name="agent_media_remove_cd">%1$s ekini prompttan kaldır</string>
+    <string name="agent_attachment_chip">%1$s · %2$s</string>
+    <string name="agent_attachment_badge_video">Video</string>
     <string name="agent_attach_cd">Prompta ekle</string>
     <string name="agent_attach_title">Prompta ekle</string>
     <string name="agent_attach_group_attach">Ekle</string>
@@ -500,8 +488,6 @@ terminal session açmana gerek yok.</string>
     <string name="agent_attach_chip_cd">%1$s eklendi</string>
     <string name="agent_attach_binary_kb">%1$d KB — ikili olarak eklendi</string>
     <string name="agent_attach_saved">%1$s — eklendi</string>
-
-    <!-- ── web arama sonuçları ─────────────────────────────────────────────── -->
     <string name="agent_search_title">Web sonuçları</string>
     <string name="agent_search_query">%1$s</string>
     <string name="agent_search_count">%1$d sonuç</string>
@@ -509,8 +495,6 @@ terminal session açmana gerek yok.</string>
     <string name="agent_search_empty">Bu arama için bir şey dönmedi.</string>
     <string name="agent_search_error">Bu arama okunabilir bir şey döndürmedi.</string>
     <string name="agent_search_raw">Ham çıktıyı oku</string>
-
-    <!-- ── kaynaklar ──────────────────────────────────────────────────────── -->
     <string name="agent_sources_title">Kaynaklar</string>
     <string name="agent_sources_share_cd">Bu bağlantıyı paylaş</string>
     <string name="agent_sources_open_cd">Bu bağlantıyı tarayıcıda aç</string>
