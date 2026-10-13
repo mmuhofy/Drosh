@@ -46,9 +46,11 @@ release when it ships.
 
 **Workspace**
 
-- Projects group sessions under a name, colour and root-path label; archiving
-  moves sessions out of the way without losing them
+- Projects group sessions under a name, colour and note; archiving moves
+  sessions out of the way without losing them
 - Create, assign, archive and restore from the sidebar or Settings
+- The Projects screen filters projects and the sessions inside them, and a
+  failed write is reported with the action that failed rather than swallowed
 
 **Split panes**
 
@@ -98,6 +100,10 @@ release when it ships.
 
 ### Changed
 
+- The Projects screen is one flat list in the settings language — projects,
+  their sessions, the sessions in no project and the archive as rows of the
+  same run — with loading, first-run, unfiled and no-results states, and the
+  working directory moved to the agent sheet where the session is made
 - Split panes run top-to-bottom, not side by side — two 180dp columns were
   about ten characters wide
 - Zoom limits are shared between the pinch gesture and the Settings slider, so

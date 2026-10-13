@@ -47,7 +47,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -60,14 +59,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
+import dev.drosh.ui.agent.components.AgentIconPill
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshTile
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshTilePressed
 import dev.drosh.design.system.DroshTileSelected
 import dev.drosh.design.system.DroshTrack
@@ -109,6 +108,22 @@ internal fun tileShape(cap: TileCap) = when (cap) {
     TileCap.Only -> RoundedCornerShape(CAP_RADIUS)
 }
 
+/**
+ * The corner a tile takes, from its position in a run of [count].
+ *
+ * Internal and shared because the run rule is the language, not one screen's:
+ * the projects screen builds its rows through a `LazyColumn` rather than
+ * through [SettingsGroupColumn], and it has to land the same 24dp/4dp rhythm
+ * the settings groups do instead of a second copy of the arithmetic that
+ * drifts from this one.
+ */
+internal fun tileCapFor(index: Int, count: Int): TileCap = when {
+    count <= 1 -> TileCap.Only
+    index == 0 -> TileCap.First
+    index == count - 1 -> TileCap.Last
+    else -> TileCap.Middle
+}
+
 /** A labelled run of tiles with no fill behind it. */
 @Composable
 fun SettingsGroupColumn(
@@ -132,18 +147,23 @@ fun SettingsGroupColumn(
             )
         }
         for (index in 0 until items) {
-            val cap = when {
-                items == 1 -> TileCap.Only
-                index == 0 -> TileCap.First
-                index == items - 1 -> TileCap.Last
-                else -> TileCap.Middle
-            }
-            content(index, cap)
+            content(index, tileCapFor(index, items))
         }
     }
 }
 
-/** Large top bar. The back control is a filled pill, not a bare chevron. */
+/**
+ * Large top bar.
+ *
+ * The back control is the agent's [AgentIconPill], not a second variant of it.
+ * The agent home and the agent chat both lead with that pill — 44dp capsule, one
+ * flat fill, one hairline glass edge, a fill change and nothing else under the
+ * finger — and this screen had its own: a 44dp circle with a 1dp outline and a
+ * 0.92 scale spring on press. Same size, three different chrome. A user who has
+ * learned what the back control feels like on one screen should not have to
+ * learn a second one here, so the reference is used rather than copied, and the
+ * two now cannot drift apart again.
+ */
 @Composable
 fun SettingsTopBar(
     title: String,
@@ -156,45 +176,13 @@ fun SettingsTopBar(
             .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val interaction = remember { MutableInteractionSource() }
-        val pressed by interaction.collectIsPressedAsState()
-        val scale by animateFloatAsState(
-            targetValue = if (pressed) 0.92f else 1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium,
-            ),
-            label = "backScale",
+        AgentIconPill(
+            icon = DroshIcons.ArrowLeft,
+            contentDescription = stringResource(R.string.action_back),
+            onClick = onBack,
+            tint = DroshTextSecondary,
         )
-        Box(
-            // A glass pill, not a filled circle. It is the same control the
-            // terminal's pill row draws: 44dp of touch target, the same
-            // translucent surface and the same hairline edge — so a screen the
-            // user arrives at from the terminal carries the terminal's own
-            // chrome rather than a second, heavier-looking variant of it.
-            modifier = Modifier
-                .size(44.dp)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                }
-                .clip(CircleShape)
-                .background(if (pressed) DroshSurfaceHigh else DroshSurfaceHigh.copy(alpha = 0.6f))
-                .border(1.dp, DroshOutline, CircleShape)
-                .clickable(
-                    interactionSource = interaction,
-                    indication = null,
-                    onClick = onBack,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = dev.drosh.ui.DroshIcons.ArrowLeft,
-                contentDescription = "Back",
-                tint = DroshText,
-                modifier = Modifier.size(20.dp),
-            )
-        }
+
         Spacer(Modifier.width(10.dp))
         Text(
             text = title,
