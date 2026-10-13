@@ -49,6 +49,7 @@ class AgentMediaTest {
         registry = ProviderRegistry(setOf(adapter)),
         toolRegistry = ToolRegistry(setOf(FakeTool("shell"))),
         transcripts = transcripts,
+        settings = FakeSettingsStore(),
     )
 
     private fun openRouter() = LlmProvider(
