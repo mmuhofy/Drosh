@@ -39,6 +39,15 @@ class TerminalUrlOverlay(
         const val URL_UNDERLINE_ALPHA = 0x99
 
         /**
+         * The shortest gap between two URL scans.
+         *
+         * Long enough that a firehose costs one scan per interval instead of
+         * one per chunk, short enough that a link scrolling into view is
+         * underlined almost immediately.
+         */
+        private const val URL_SCAN_INTERVAL_MS = 120L
+
+        /**
          * Groups visible rows [0, rowCount) into logical lines, each as the
          * inclusive range of rows it covers.
          *
@@ -88,6 +97,14 @@ class TerminalUrlOverlay(
         )
 
     var terminalView: TerminalView? = null
+        set(value) {
+            if (field === value) return
+            field = value
+            // Spans are rows of one particular screen; a new view is a new
+            // screen, so nothing cached applies to it.
+            cachedSpans = emptyList()
+            cachedGeneration = -1
+        }
 
     /**
      * Whether this layer does its job. The platform's own enabled flag —
@@ -148,8 +165,35 @@ class TerminalUrlOverlay(
         val continues: BooleanArray,
     )
 
-    private fun readRows(): RowSnapshot? {
-        val view = terminalView ?: return null
+    /** One painted run: the cells of one row that one URL covers. */
+    private class UrlSpan(
+        val row: Int,
+        val startCol: Int,
+        val endCol: Int,
+        val url: String,
+        val rounded: Boolean,
+    )
+
+    /**
+     * The spans the last scan found, and what they were found against.
+     *
+     * A scan reads every visible row out of the emulator as a string, joins
+     * the soft-wrapped runs and runs two regex passes over the result — per
+     * frame, that was the price of underlines nobody was looking at. The
+     * screen rarely changes between frames, so the result is kept and
+     * replayed until the screen actually changes, and even then at most once
+     * per [URL_SCAN_INTERVAL_MS]: under a firehose the underline trails the
+     * text by a fraction of a second, which an eye does not catch, while the
+     * scan cost drops by an order of magnitude.
+     */
+    private var cachedSpans: List<UrlSpan> = emptyList()
+    private var cachedGeneration: Int = -1
+    private var cachedTopRow: Int = Int.MIN_VALUE
+    private var cachedColumns: Int = -1
+    private var cachedRows: Int = -1
+    private var lastScanUptime: Long = 0L
+
+    private fun readRows(view: TerminalView): RowSnapshot? {
         val emulator = view.mEmulator ?: return null
         val screen = emulator.getScreen()
         val rows = emulator.mRows
@@ -183,8 +227,8 @@ class TerminalUrlOverlay(
      * instead of the fragment the terminal happened to break it at.
      */
     fun urlAtCell(externalRow: Int, col: Int): String? {
-        val snapshot = readRows() ?: return null
         val view = terminalView ?: return null
+        val snapshot = readRows(view) ?: return null
         val topRow = view.mTopRow
         val texts = snapshot.texts
         if (texts.isEmpty()) return null
@@ -239,85 +283,119 @@ class TerminalUrlOverlay(
         val emulator = view.mEmulator ?: return
         val renderer = view.mRenderer ?: return
 
-        val snapshot = readRows() ?: return
-        val rowTexts = snapshot.texts
         val columns = emulator.mColumns
+        val rows = emulator.mRows
+        val now = android.os.SystemClock.uptimeMillis()
+        if (scanIsDue(view, columns, rows, now)) rescan(view, columns, rows, now)
+
+        val spans = cachedSpans
+        if (spans.isEmpty()) return
 
         val fontWidth = renderer.mFontWidth
         val fontLineSpacing = renderer.mFontLineSpacing
         val fontAscent = renderer.mFontLineSpacingAndAscent - renderer.mFontLineSpacing
 
-        for (group in logicalLineGroups(rowTexts.size, snapshot.continues)) {
-            drawLogicalLineUrls(canvas, rowTexts, group, columns, fontWidth, fontLineSpacing, fontAscent)
+        for (span in spans) {
+            val x1 = span.startCol * fontWidth
+            val x2 = span.endCol * fontWidth
+            val baselineY = (span.row + 1) * fontLineSpacing
+            // The cell already has leading above the glyphs, so the surface
+            // looked padded at the top and flush at the bottom. One physical
+            // pixel (the canvas is in pixels) on each side evens that out.
+            val topY = (baselineY + fontAscent - urlHighlightPadding).toFloat()
+            val bottomY = baselineY + urlHighlightPadding
+
+            // Underline marks the link at rest, on every row it covers.
+            canvas.drawLine(x1, bottomY, x2, bottomY, urlUnderlinePaint)
+
+            // The surface is only for a link being held, so resting output
+            // stays unmarked apart from the underline.
+            if (span.url == pressedUrl) {
+                if (span.rounded) {
+                    canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint)
+                } else {
+                    canvas.drawRect(x1, topY, x2, bottomY, urlBackgroundPaint)
+                }
+            }
         }
     }
 
     /**
-     * Joins the rows of [group] — one logical line, every index inside the row
-     * array by construction — detects URLs in it, and paints the cells of every
-     * row the match covers. A link that stays on one row keeps its rounded
-     * chip; one the terminal split across rows is painted square per row.
+     * True when the screen moved on since the last scan and enough time has
+     * passed to look again.
+     *
+     * Both halves matter. Without the time part a firehose would rescan on
+     * every chunk, which is what the cache is for; without the change part an
+     * idle terminal would keep scanning a screen that has not moved.
      */
-    private fun drawLogicalLineUrls(
-        canvas: Canvas,
-        rowTexts: Array<String?>,
-        group: IntRange,
-        columns: Int,
-        fontWidth: Float,
-        fontLineSpacing: Int,
-        fontAscent: Int,
-    ) {
-        val builder = StringBuilder()
-        // One slot per row for its start offset, plus a trailing slot holding
-        // the end of the last row, so segmentEnd can be read for any row.
-        val rowOffsets = IntArray(group.last - group.first + 2)
-        for (visRow in group) {
-            rowOffsets[visRow - group.first] = builder.length
-            builder.append(rowTexts[visRow] ?: "")
-        }
-        rowOffsets[group.last - group.first + 1] = builder.length
+    private fun scanIsDue(view: TerminalView, columns: Int, rows: Int, now: Long): Boolean {
+        val screenMoved = view.contentGeneration != cachedGeneration ||
+            view.mTopRow != cachedTopRow ||
+            columns != cachedColumns ||
+            rows != cachedRows
+        return screenMoved && now - lastScanUptime >= URL_SCAN_INTERVAL_MS
+    }
 
-        val logicalText = builder.toString()
-        if (logicalText.isEmpty()) return
+    /** Re-reads the screen and remembers the spans found in it. */
+    private fun rescan(view: TerminalView, columns: Int, rows: Int, now: Long) {
+        cachedGeneration = view.contentGeneration
+        cachedTopRow = view.mTopRow
+        cachedColumns = columns
+        cachedRows = rows
+        lastScanUptime = now
 
-        for (match in UrlDetector.findUrls(logicalText)) {
-            val isPressed = match.url == pressedUrl
-            for (index in group) {
-                val rowStart = rowOffsets[index - group.first]
-                val rowEnd = rowOffsets[index - group.first + 1]
-                val segmentStart = maxOf(match.start, rowStart)
-                val segmentEnd = minOf(match.end, rowEnd)
-                if (segmentStart >= segmentEnd) continue
+        val snapshot = readRows(view)
+        cachedSpans = if (snapshot == null) emptyList() else scanSpans(snapshot, columns)
+    }
 
-                val colStart = (segmentStart - rowStart).coerceIn(0, columns)
-                val colEnd = (segmentEnd - rowStart).coerceIn(0, columns)
-                if (colStart >= colEnd) continue
+    /**
+     * Finds every URL on the visible rows, as spans: the cells of each row one
+     * match covers. Rows are joined per logical line first, so a URL the
+     * terminal wrapped across rows is found whole and painted on each row it
+     * covers. One row on its own keeps its rounded chip; a wrapped one is
+     * painted square per row.
+     */
+    private fun scanSpans(snapshot: RowSnapshot, columns: Int): List<UrlSpan> {
+        val rowTexts = snapshot.texts
+        val spans = ArrayList<UrlSpan>()
 
-                val x1 = colStart * fontWidth
-                val x2 = colEnd * fontWidth
-                val baselineY = (index + 1) * fontLineSpacing
-                // The cell already has leading above the glyphs, so the surface
-                // looked padded at the top and flush at the bottom. One physical
-                // pixel (the canvas is in pixels) on each side evens that out.
-                val topY = (baselineY + fontAscent - urlHighlightPadding).toFloat()
-                val bottomY = baselineY + urlHighlightPadding
+        for (group in logicalLineGroups(rowTexts.size, snapshot.continues)) {
+            val builder = StringBuilder()
+            // One slot per row for its start offset, plus a trailing slot
+            // holding the end of the last row, so segmentEnd can be read for
+            // any row.
+            val rowOffsets = IntArray(group.last - group.first + 2)
+            for (visRow in group) {
+                rowOffsets[visRow - group.first] = builder.length
+                builder.append(rowTexts[visRow] ?: "")
+            }
+            rowOffsets[group.last - group.first + 1] = builder.length
 
-                val isFirstRow = segmentStart == match.start
-                val isLastRow = segmentEnd == match.end
+            val logicalText = builder.toString()
+            if (logicalText.isEmpty()) continue
 
-                // Underline marks the link at rest, on every row it covers.
-                canvas.drawLine(x1, bottomY, x2, bottomY, urlUnderlinePaint)
+            for (match in UrlDetector.findUrls(logicalText)) {
+                for (index in group) {
+                    val rowStart = rowOffsets[index - group.first]
+                    val rowEnd = rowOffsets[index - group.first + 1]
+                    val segmentStart = maxOf(match.start, rowStart)
+                    val segmentEnd = minOf(match.end, rowEnd)
+                    if (segmentStart >= segmentEnd) continue
 
-                // The surface is only for a link being held, so resting output
-                // stays unmarked apart from the underline.
-                if (isPressed) {
-                    if (isFirstRow && isLastRow) {
-                        canvas.drawRoundRect(x1, topY, x2, bottomY, 4f, 4f, urlBackgroundPaint)
-                    } else {
-                        canvas.drawRect(x1, topY, x2, bottomY, urlBackgroundPaint)
-                    }
+                    val colStart = (segmentStart - rowStart).coerceIn(0, columns)
+                    val colEnd = (segmentEnd - rowStart).coerceIn(0, columns)
+                    if (colStart >= colEnd) continue
+
+                    spans += UrlSpan(
+                        row = index,
+                        startCol = colStart,
+                        endCol = colEnd,
+                        url = match.url,
+                        rounded = segmentStart == match.start && segmentEnd == match.end,
+                    )
                 }
             }
         }
+        return spans
     }
 }

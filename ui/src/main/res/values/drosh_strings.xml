@@ -476,4 +476,16 @@ no terminal session needed.</string>
     <string name="session_log_added_body">%1$s output is waiting in the agent composer.</string>
     <string name="session_log_added_clipboard">The selected lines are also on the clipboard.</string>
     <string name="session_log_continue">Continue in chat</string>
+    <string name="agent_settings_section_trust">Trust</string>
+    <string name="agent_trust_autonomy">How much it may do alone</string>
+    <string name="agent_trust_level_ask">Ask every time</string>
+    <string name="agent_trust_level_auto">Ask before it writes</string>
+    <string name="agent_trust_level_yolo">Do not ask</string>
+    <string name="agent_trust_desc_ask">Every shell command is put to you before it runs.</string>
+    <string name="agent_trust_desc_auto">Commands that read run on their own; anything that writes, deletes, installs or reaches the network is asked.</string>
+    <string name="agent_trust_desc_yolo">Nothing is asked except the commands below.</string>
+    <string name="agent_trust_floor_note">A few command shapes are refused at every level: they do not damage a machine by being wrong, they damage it by running. No setting turns them on.</string>
+    <string name="agent_trust_rules_title">Always allowed</string>
+    <string name="agent_trust_rules_note">Tap to revoke</string>
+    <string name="agent_trust_rules_revoke">Revoke</string>
 </resources>
