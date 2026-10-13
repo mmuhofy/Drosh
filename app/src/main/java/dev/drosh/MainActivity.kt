@@ -70,6 +70,7 @@ import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.editor.EditorScreen
 import dev.drosh.terminal.ExtraKeyState
 import dev.drosh.terminal.TerminalManager
+import dev.drosh.ui.terminal.TerminalSessionLogSource
 import dev.drosh.terminal.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
@@ -99,6 +100,8 @@ import dev.drosh.ui.settings.SettingsCategoryRoute
 import dev.drosh.ui.settings.OnSettingsUpdate
 import dev.drosh.ui.settings.SettingsHomeScreen
 import dev.drosh.ui.session.DeviceIdentityViewModel
+import dev.drosh.ui.session.SessionLogTarget
+import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
@@ -670,6 +673,7 @@ class MainActivity : ComponentActivity() {
 
 
             composable("agent_home") {
+                val sessionSwitcherViewModel: SessionSwitcherViewModel = hiltViewModel()
                 AgentHomeScreen(
                     onOpenChat = { id -> navController.navigate("agent_chat/$id") },
                     onNewChat = { navController.navigate("agent_chat/new") },
@@ -680,6 +684,26 @@ class MainActivity : ComponentActivity() {
 
             composable("agent_chat/{chatId}") { entry ->
                 val chatId = entry.arguments?.getString("chatId")
+                // The sessions the log picker can read, and the reader itself.
+                //
+                // Live ones only, and live is what the terminal manager says
+                // rather than what the database says: a row can exist for a
+                // process that has exited, and offering it would open a sheet
+                // with nothing in it.
+                val logSource = remember(terminalManager) {
+                    TerminalSessionLogSource(terminalManager)
+                }
+                val logSessions by sessionSwitcherViewModel.allSessions
+                    .collectAsStateWithLifecycle()
+                val liveSessionIds by terminalManager.liveSessionIdsFlow
+                    .collectAsStateWithLifecycle()
+                val logTargets = remember(logSessions, liveSessionIds) {
+                    logSessions
+                        .filter { it.id in liveSessionIds }
+                        .sortedByDescending { it.lastUsedAtMs }
+                        .map { SessionLogTarget(id = it.id, name = it.name) }
+                }
+
                 AgentChatScreen(
                     chatId = chatId,
                     onBack = { navController.popBackStack() },
@@ -692,6 +716,12 @@ class MainActivity : ComponentActivity() {
                             popUpTo("agent_chat/$chatId") { inclusive = true }
                         }
                     },
+                    sessionLogSource = logSource,
+                    sessionLogTargets = logTargets,
+                    // No "the session the user is in" here: the agent chat
+                    // is not a terminal, and the picker falls back to the only
+                    // live session rather than claiming a current one.
+                    activeSessionId = null,
                 )
             }
 

@@ -107,7 +107,6 @@ import dev.drosh.ui.input.FlatKeyBar
 import dev.drosh.ui.input.InputBarViewModel
 import dev.drosh.ui.pane.PaneLayoutViewModel
 import dev.drosh.ui.pane.SplitPaneHost
-import dev.drosh.ui.session.SessionLogAttachSheet
 import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.session.SessionSidebar
 import dev.drosh.ui.session.SessionSwitcherViewModel
@@ -397,7 +396,6 @@ private fun ReadyScreen(
      * outside: the drawer footer opens it, and the sheet's own confirmation asks
      * for the agent screen afterwards.
      */
-    var sessionLogOpen by remember { mutableStateOf(false) }
 
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -442,12 +440,6 @@ private fun ReadyScreen(
      * what the database says: a row can exist for a process that has exited, and
      * offering it would open a sheet with nothing in it.
      */
-    val logTargets = remember(sessions, liveSessionIds) {
-        sessions
-            .filter { it.id in liveSessionIds }
-            .sortedByDescending { it.lastUsedAtMs }
-            .map { SessionLogTarget(id = it.id, name = it.name) }
-    }
 
     /**
      * Where the sheet reads a log from.
@@ -456,7 +448,6 @@ private fun ReadyScreen(
      * and the sheet asks for a transcript on every opening, so there is nothing
      * to recompute.
      */
-    val logSource = remember(terminalManager) { TerminalSessionLogSource(terminalManager) }
 
     /**
      * The active input method can change while the app is in the background
@@ -1412,36 +1403,8 @@ private fun ReadyScreen(
         onDragSplit = { draggedId, targetId ->
             paneLayoutViewModel.splitWithPrimary(draggedId, targetId)
         },
-        /**
-         * Take a session's output to the agent.
-         *
-         * The drawer closes first: the sheet covers the screen, and a drawer
-         * left open behind it is a drawer the user has to dismiss a second time
-         * before they are back in the terminal.
-         */
-        onAttachLog = {
-            sidebarOpen = false
-            sessionLogOpen = true
-        },
     )
 
-    /**
-     * The session-log hand-off, above everything else.
-     *
-     * Last in the composition rather than inside the terminal Box, because it is
-     * a sheet: it has to be drawn over the drawer as well as over the terminal,
-     * and a sibling later in the tree is what that costs.
-     */
-    SessionLogAttachSheet(
-        visible = sessionLogOpen,
-        sessions = logTargets,
-        source = logSource,
-        activeSessionId = activeId,
-        canGoBack = logTargets.size > 1,
-        onDismiss = { sessionLogOpen = false },
-        onOpenAgent = onOpenAgent,
-    )
-    }
 }
 
 
