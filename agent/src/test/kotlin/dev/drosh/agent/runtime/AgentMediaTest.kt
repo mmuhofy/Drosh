@@ -25,7 +25,9 @@ import org.junit.Test
  */
 class AgentMediaTest {
 
-    private val adapter = ScriptedAdapter()
+    // Replaced per turn: the registry resolves a provider by kind, so the
+    // scripted adapter has to speak whichever kind the test is about.
+    private var adapter = ScriptedAdapter()
     private val transcripts = FakeTranscriptStore()
 
     private val png = MessageAttachment.fromBase64(
@@ -44,13 +46,16 @@ class AgentMediaTest {
         byteSize = 3,
     )
 
-    private fun loop(provider: LlmProvider = openRouter()) = AgentLoop(
-        providers = FakeProviderRepository().apply { providers = listOf(provider) },
-        registry = ProviderRegistry(setOf(adapter)),
-        toolRegistry = ToolRegistry(setOf(FakeTool("shell"))),
-        transcripts = transcripts,
-        settings = FakeSettingsStore(),
-    )
+    private fun loop(provider: LlmProvider = openRouter()): AgentLoop {
+        adapter = ScriptedAdapter(provider.kind)
+        return AgentLoop(
+            providers = FakeProviderRepository().apply { providers = listOf(provider) },
+            registry = ProviderRegistry(setOf(adapter)),
+            toolRegistry = ToolRegistry(setOf(FakeTool("shell"))),
+            transcripts = transcripts,
+            settings = FakeSettingsStore(),
+        )
+    }
 
     private fun openRouter() = LlmProvider(
         id = "openrouter",
