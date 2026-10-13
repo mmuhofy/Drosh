@@ -629,15 +629,7 @@ fun AgentToolPill(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            // A dot rather than a second glyph: the capsule already names the
-            // tool in its label, and the dot is what carries the state at a
-            // glance without a spinner ticking next to it.
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(tint),
-            )
+            ToolIcon(message.name)
             Spacer(Modifier.width(8.dp))
             Text(
                 text = label,
@@ -646,6 +638,16 @@ fun AgentToolPill(
                 color = tint,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.width(4.dp))
+            // The dot is the outcome at a glance, so the row is readable without
+            // parsing the verb or the colour: a failure is red and full, a success
+            // is a small filled bead, a call that was cancelled is a ring.
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(if (tint == DroshTextMuted) Color.Transparent else tint),
             )
         }
     }
@@ -731,7 +733,13 @@ fun toolRowDescription(message: ChatMessage.ToolCall): String = buildString {
     )
 }
 
-/** The four state words of [toolRowDescription], read from resources. */
+/**
+ * The state words [toolRowDescription] reads.
+ *
+ * A `@ReadOnlyComposable` getter each, so they can be read from inside
+ * `buildString` — a block that is not itself a composition slot. An ordinary
+ * `@Composable` call from there would be a call outside a composable scope.
+ */
 private val runningCd: String
     @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_running)
 
@@ -750,7 +758,9 @@ private val cancelledCd: String
  * Zero spacing, deliberately: each pill already carries 7dp of slack inside its
  * own touch box, so the visual gap is already 14dp and adding more would make the
  * row drift away from the mockup's rhythm.
- */@Composable
+ */
+
+@Composable
 fun AgentPillRow(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit,

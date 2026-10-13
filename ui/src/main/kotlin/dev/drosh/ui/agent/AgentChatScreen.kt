@@ -2,7 +2,6 @@ package dev.drosh.ui.agent
 
 import android.content.Intent
 
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -40,18 +38,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
@@ -61,7 +51,6 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +63,6 @@ import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshOutline
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSuccess
 import dev.drosh.design.system.DroshText
@@ -95,11 +83,9 @@ import dev.drosh.design.system.DroshMenuItem
 import dev.drosh.design.system.DroshDropdownMenu
 import dev.drosh.ui.settings.SettingsCheck
 import dev.drosh.ui.agent.components.ActionButton
-import dev.drosh.ui.agent.components.CollapsibleRow
 import dev.drosh.ui.agent.components.DiffBlock
 import dev.drosh.ui.agent.components.FlatButton
 import dev.drosh.ui.agent.components.IconAction
-import dev.drosh.ui.agent.components.StatusPill
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -117,10 +103,9 @@ import dev.drosh.domain.agent.LlmModel
 import dev.drosh.ui.agent.components.AgentIconPill
 import dev.drosh.ui.agent.components.AgentPill
 import dev.drosh.ui.agent.components.AgentSelectableText
+import dev.drosh.ui.agent.components.AgentToolPill
 import dev.drosh.ui.agent.components.DroshStatusBarVisible
-import dev.drosh.ui.agent.components.LocalAgentGlass
 import dev.drosh.ui.agent.components.glassRow
-import dev.drosh.ui.agent.components.glassSurface
 import dev.drosh.ui.agent.components.ProvideAgentGlass
 import dev.drosh.ui.agent.components.rememberAgentClipboard
 import dev.drosh.ui.agent.components.rememberAgentGlass
@@ -230,6 +215,11 @@ fun AgentChatScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    // The chat screen is the one place the composer floats at the bottom of the
+    // display with nothing under it, so it is the one place that asks the window
+    // for a navigation-bar-free bottom edge.
+    ChatNavBarHidden()
+
     // The two toggles the sheet owns. A separate ViewModel because they are
     // settings about the tools rather than about this conversation.
     //
@@ -273,10 +263,16 @@ fun AgentChatScreen(
     // Follow the stream, but only when the user is already near the bottom.
     // Yanking the viewport while they are reading earlier output is worse than
     // missing a few tokens.
+    //
+    // Indexed on the *rows*, not the messages: a turn is one row that holds a
+    // prompt and everything the model did about it, so the two counts are
+    // different numbers and the old one could ask for an index past the end.
     LaunchedEffect(messages.size, waiting) {
         val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-        val atBottom = lastVisible >= messages.size - 3
-        if (atBottom) listState.animateScrollToItem(messages.size.coerceAtLeast(0))
+        val atBottom = lastVisible >= groupedTranscript.size - 3
+        if (atBottom) {
+            listState.animateScrollToItem(groupedTranscript.lastIndex.coerceAtLeast(0))
+        }
     }
 
     ProvideAgentGlass(glass) {
@@ -352,8 +348,9 @@ fun AgentChatScreen(
                 ) {
                     items(groupedTranscript, key = { rowKey(it) }) { row ->
                         when (row) {
-                            is TranscriptRow.Single -> MessageRow(
-                                message = row.message,
+                            is TranscriptRow.Turn -> TurnBlock(
+                                prompt = row.prompt,
+                                steps = row.steps,
                                 onAnswer = viewModel::answer,
                                 onCopy = clipboard,
                                 onShare = { picked ->
@@ -375,16 +372,23 @@ fun AgentChatScreen(
                                 },
                             )
 
-                            is TranscriptRow.ToolGroup -> Column(
-                                verticalArrangement = Arrangement.spacedBy(2.dp),
-                            ) {
-                                row.tools.forEach { tool ->
-                                    ToolCallRow(tool, onInspect = {
-                                        val search = searchOutcomeOf(tool)
-                                        if (search != null) inspectingSearch = search else inspecting = tool
-                                    })
-                                }
-                            }
+                            is TranscriptRow.Single -> MessageRow(
+                                message = row.message,
+                                onAnswer = viewModel::answer,
+                                onCopy = clipboard,
+                                onShare = { picked ->
+                                    scope.launch { shareText(context, picked) }
+                                },
+                                onRetry = viewModel::retry,
+                                onEdit = { draft ->
+                                    composerDraft = draft
+                                    composerFocusRequest += 1
+                                },
+                                onInspectTool = { tool ->
+                                    val search = searchOutcomeOf(tool)
+                                    if (search != null) inspectingSearch = search else inspecting = tool
+                                },
+                            )
                         }
                     }
 
@@ -419,7 +423,7 @@ fun AgentChatScreen(
                     onRemove = { gone -> attachments = attachments - gone },
                 )
 
-                AgentComposer(
+                AgentInputBar(
                     running = running,
                     draft = composerDraft,
                     onDraftChange = { composerDraft = it },
@@ -853,187 +857,6 @@ private fun modelInitials(model: LlmModel): String {
 }
 
 @Composable
-private fun AgentComposer(
-    running: Boolean,
-    draft: String,
-    onDraftChange: (String) -> Unit,
-    onSend: (String) -> Unit,
-    onStop: () -> Unit,
-    /** Incremented by whoever wants the keyboard raised after filling the draft. */
-    focusRequest: Int = 0,
-    /** Opens the `+` sheet. */
-    onAttachClick: () -> Unit = {},
-    /** Whether a prompt with nothing typed in is still worth sending. */
-    canSendWithNothingTyped: Boolean = false,
-) {
-    val sendCd = stringResource(R.string.agent_send)
-    val stopCd = stringResource(R.string.agent_stop)
-    val attachCd = stringResource(R.string.agent_attach_cd)
-    // The draft is the screen's, not the composer's: a bubble's "Edit" puts a
-    // message the user already sent back into the box, and a composer that owns
-    // its own text cannot be handed anything.
-    val text = draft
-    val enabled = !running
-    val canSend = (text.isNotBlank() || canSendWithNothingTyped) && enabled
-
-    // A focus requester the screen drives. Editing a sent message means the
-    // keyboard should come up — the user is mid-thought, and a filled box with
-    // the keyboard down is a box they have to tap before they can type in.
-    val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    LaunchedEffect(focusRequest) {
-        if (focusRequest > 0) {
-            focusRequester.requestFocus()
-            keyboardController?.show()
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .imePadding()
-            .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-    ) {
-        // The same liquid glass as the pills, at a larger radius. One surface for
-        // the whole app's controls, so the composer and the pill row read as the
-        // same material rather than as two things that happen to be on the same
-        // screen.
-        //
-        // It floats, and it is the one surface on this screen that does: a real
-        // shadow beneath it, so it reads as sitting over the transcript rather
-        // than as a bar the transcript stops at. The border is drawn here and
-        // nowhere else outside the pills — an outline is what says "this is a
-        // control", and the composer is the one card-sized control on screen.
-        val glass = LocalAgentGlass.current
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(10.dp, RoundedCornerShape(20.dp), clip = false)
-                .glassSurface(
-                    glass,
-                    pressed = false,
-                    shape = RoundedCornerShape(20.dp),
-                    edged = true,
-                )
-                .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
-        ) {
-            Column {
-                Box {
-                    if (text.isEmpty()) {
-                        Text(
-                            text = if (enabled) {
-                                stringResource(R.string.agent_composer_hint)
-                            } else {
-                                stringResource(R.string.agent_composer_busy)
-                            },
-                            fontSize = 14.5.sp,
-                            color = DroshTextMuted,
-                        )
-                    }
-                    BasicTextField(
-                        value = text,
-                        onValueChange = onDraftChange,
-                        enabled = enabled,
-                        singleLine = false,
-                        maxLines = 6,
-                        textStyle = TextStyle(fontSize = 14.5.sp, color = DroshText),
-                        cursorBrush = SolidColor(DroshPrimary),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focusRequester),
-                    )
-                }
-
-                Spacer(Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    // The `+`, at the far end of the row from send. 48dp of touch
-                    // target around a 36dp circle, the same box the pills above
-                    // use, so the two ends of the composer are the same size to a
-                    // finger.
-                    //
-                    // Left rather than next to send because attaching and sending
-                    // are different acts — one adds to the prompt, the other
-                    // commits it — and putting them shoulder to shoulder is how a
-                    // mis-tap sends a half-written prompt.
-                    Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(DroshSurfaceHigh)
-                                .clickable(enabled = enabled, onClick = onAttachClick)
-                                .semantics { contentDescription = attachCd },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = DroshIcons.Plus,
-                                contentDescription = null,
-                                tint = DroshTextMuted,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.weight(1f))
-
-                    // 36dp drawn inside a 48dp box, to sit with the 40dp pills above.
-                    // At 30dp the primary action on the screen was smaller than the
-                    // icons in the row above it, which read as a deliberate demotion.
-                    Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                        // Stop replaces send, here rather than in the top row: it acts
-                        // on the thing happening right now, so it belongs beside the
-                        // text that is generating.
-                        if (running) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(DroshError)
-                                    .clickable(onClick = onStop)
-                                    .semantics { contentDescription = stopCd },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = DroshIcons.Square,
-                                    contentDescription = null,
-                                    tint = DroshOnPrimary,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            }
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(if (canSend) DroshPrimary else DroshSurfaceHigh)
-                                    .clickable(enabled = canSend) {
-                                        onSend(text)
-                                    }
-                                    .semantics { contentDescription = sendCd },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = DroshIcons.Send,
-                                    contentDescription = null,
-                                    tint = if (canSend) DroshOnPrimary else DroshTextMuted,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ErrorBanner(message: String, onDismiss: () -> Unit, onFix: () -> Unit) {
     Row(
         modifier = Modifier
@@ -1431,224 +1254,32 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
 }
 
 /**
- * One tool call: a line, not a card.
+ * A tool call, as one pill.
  *
- * ## Why there is no box
+ * There is no tool text in the transcript. The pill says the verb, the colour of
+ * the verb says how that went, and tapping it opens the detail sheet — the same
+ * sheet for every tool, since the sheet is where the output lives and the output
+ * is the part that must not be on screen.
  *
- * These were `DroshSurfaceLow` rounded containers, one per call, stacked down the
- * transcript. On a turn that ran five tools that is five grey slabs between the user
- * and the answer, and the conversation stopped reading as a conversation — it read
- * as a log with prose in it.
- *
- * A card says "this is a separate thing". A tool call is not a separate thing; it is
- * a sentence the agent did, sitting in the middle of its reply. So it is a line: a
- * status glyph, the tool name, the command or path, and the outcome, on the same
- * baseline as the text around it. Nothing is boxed.
- *
- * ## What replaces the card as an anchor
- *
- * The expanded body hangs off a 2dp vertical rule at 20dp, indented from the glyph.
- * That rule is what groups the output with the line that produced it — the job the
- * card's background was doing, without the second surface.
- *
- * ## A running call opens itself
- *
- * Whether a command is working is the most common reason to watch this screen, so a
- * running call expands without a tap. Waiting to see whether `npm install` is alive
- * is the thing people are actually here for.
- */
-/**
- * One tool call: a single line.
- *
- * ## The verb is the status
- *
- * The tool name is replaced by a verb, and the verb's tense is the status. While
- * running it is present tense — `Running`, `Reading`, `Writing` — and when the call
- * finishes it becomes past tense: `Ran`, `Read`, `Wrote`. The user does not have to
- * look for a separate indicator to learn whether something is still going; the word
- * itself says so, the way "is running" and "ran" do in a sentence.
- *
- * Colour carries the outcome on top of that: a failure is red whether or not the
- * reader parses the verb.
- *
- * ## One line, no card
- *
- * Icon, verb, the command or path, the elapsed time while running, and a chevron.
- * Nothing is boxed. The output, when the row is opened, hangs off a 1dp hairline —
- * the grouping cue a card's background used to provide, at a weight that reads as a
- * rule rather than as a container.
- *
- * ## The sweep
- *
- * While running, a highlight travels left to right across the verb. Same reasoning
- * as the thinking label: a pulse says "happening", a sweep says "happening and
- * moving". It stops the instant the call finishes, which is the signal that the
- * result has arrived.
+ * What the tool actually produced — the raw output, the diff, the copy action —
+ * goes on the sheet with it. What stays here is the checklist, because a
+ * checklist is the agent's plan rather than a transcript of what a command
+ * printed.
  */
 @Composable
 private fun ToolCallRow(
     message: ChatMessage.ToolCall,
     onInspect: () -> Unit,
 ) {
-    val copyCd = stringResource(R.string.agent_copy_output_cd)
-    val running = message.state == ToolCallState.Running
-
-    // A search row says how much it found, because "Searched kotlin coroutines"
-    // tells the user nothing about whether the answer is in there. Every other
-    // tool's summary is its own output, so for a search the query is the summary
-    // and the count is the addition.
-    val searchHits = remember(message.id, message.state, message.finalOutput) {
-        (parseSearchOutcome(message) as? SearchOutcome.Results)?.results?.size
-    }
-    val searchSummary = searchHits?.let { hits ->
-        val counted = stringResource(
-            if (hits == 1) R.string.agent_search_count_one else R.string.agent_search_count,
-            hits,
-        )
-        if (message.summary.isBlank()) counted else message.summary.trim() + " · " + counted
-    }
-
-    // The row is a summary and nothing more: tapping it opens the detail sheet
-    // rather than expanding a wall of output into the middle of the transcript.
-    // An expanded `git diff` on a large change pushes the conversation off the
-    // screen and moves the row the user was reading out from under their thumb.
-
-    // Elapsed seconds and the sweep both come from the screen's one [AgentMotion]
-    // rather than from a timer and an animation per row. Both used to be per row,
-    // and both were paid for by rows that had finished: the `while (true)` kept
-    // waking long after the call ended, and the infinite transition kept
-    // invalidating the row on the frame clock — sixty recompositions a second for
-    // a row that shows a past-tense verb and nothing that moves. A long
-    // conversation is hundreds of those, and it is most of the scroll jank.
-    val startedAt = rememberRunningStart(running)
-    val elapsed = if (running) elapsedSince(startedAt) else 0
-
-    val clipboard = rememberAgentClipboard()
-    val (present, past) = toolVerbs(message.name)
-    val verb = if (running) present else past
-
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onInspect)
-                .padding(vertical = 1.dp)
-                .semantics { contentDescription = toolRowDescription(message) },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ToolIcon(message.name)
-            Spacer(Modifier.width(7.dp))
+        AgentToolPill(message = message, onClick = onInspect)
 
-            // Verb and summary are one string, not two Texts.
-            //
-            // Two Texts cannot be selected together: a long press lands on whichever
-            // one is under the finger and the selection stops at its edge, so
-            // selecting "npm test" out of "Ran npm test" means dragging off the verb
-            // and into the summary. One Text is one selectable run, and the styled
-            // span is what keeps the two halves looking different.
-            SelectionContainer {
-                Text(
-                    text = toolRowText(
-                        verb = verb,
-                        summary = searchSummary ?: message.summary,
-                        verbColor = verbColor(message.state),
-                        summaryColor = DroshTextSecondary,
-                        // While running, the gradient sweep paints the verb rather
-                        // than the whole row: the summary is already the dim half and
-                        // sweeping it too would make the command harder to read than
-                        // the word saying it is running.
-                        //
-                        // The position is only *read* while running. Reading it
-                        // unconditionally is what used to keep every finished row on
-                        // the animation's frame clock.
-                        sweeping = running,
-                        progress = if (running) sweepPosition() else 0f,
-                    ),
-                    fontSize = 12.sp,
-                    fontFamily = LocalFontSet.current.mono,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            // Only while running. Once the call is done the duration is a fact about
-            // the past and belongs with the output, not in the row.
-            if (running) {
-                Text(
-                    text = "${elapsed}s",
-                    fontSize = 11.sp,
-                    fontFamily = LocalFontSet.current.mono,
-                    color = DroshPrimary,
-                )
-            }
-
-            Icon(
-                imageVector = DroshIcons.ChevronRight,
-                contentDescription = null,
-                tint = DroshTextMuted,
-                modifier = Modifier
-                    .size(12.dp),
-            )
-        }
-
-        // The checklist is the tool's *result* rather than its output text, so it
-        // stays on the transcript: it is the one thing a tool produces that is
-        // itself a thing to look at. Everything else - the raw output, the copy
-        // action, the clipped marker - is on the detail sheet now.
         if (message.todos.isNotEmpty()) {
             TodoCard(
                 todos = message.todos,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-    }
-}
-
-/** Spoken form of a row, for a screen reader rather than the eye. */
-private fun toolRowDescription(message: ChatMessage.ToolCall): String = buildString {
-    append(message.name)
-    if (message.summary.isNotEmpty()) append(", ${message.summary}")
-    append(
-        when (message.state) {
-            ToolCallState.Running -> ", çalışıyor"
-            ToolCallState.Succeeded -> ", başarılı"
-            ToolCallState.Failed -> ", başarısız"
-            ToolCallState.Cancelled -> ", iptal edildi"
-            else -> ""
-        }
-    )
-}
-
-@Composable
-private fun ToolIcon(name: String) {
-    val icon = when (name) {
-        "shell" -> DroshIcons.Terminal
-        "read_file" -> DroshIcons.Code
-        "write_file" -> DroshIcons.Pencil
-        "ask_user" -> DroshIcons.Info
-        "update_todo" -> DroshIcons.ListChecks
-        else -> DroshIcons.SquareTerminal
-    }
-    Icon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = DroshTextMuted,
-        modifier = Modifier.size(15.dp),
-    )
-}
-
-@Composable
-private fun ToolStatus(message: ChatMessage.ToolCall) {
-    when (message.state) {
-        ToolCallState.Running -> StatusPill("çalışıyor", DroshPrimary)
-        ToolCallState.AwaitingApproval -> StatusPill("onay", DroshWarning)
-        ToolCallState.Succeeded -> StatusPill("✓", DroshSuccess)
-        ToolCallState.Failed -> StatusPill("hata", DroshError)
-        ToolCallState.Cancelled -> StatusPill("iptal", DroshTextMuted)
-        ToolCallState.Pending -> StatusPill("bekliyor", DroshTextMuted)
     }
 }
 
@@ -1823,11 +1454,14 @@ private fun TodoCard(
     modifier: Modifier = Modifier,
 ) {
     val done = todos.count { it.status == AgentTodoStatus.COMPLETED }
+    val completedCd = stringResource(R.string.agent_todo_completed)
+    val inProgressCd = stringResource(R.string.agent_todo_in_progress)
+    val pendingCd = stringResource(R.string.agent_todo_pending)
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "$done/${todos.size}",
+                text = stringResource(R.string.agent_todo_count, done, todos.size),
                 fontSize = 11.sp,
                 fontFamily = LocalFontSet.current.mono,
                 fontWeight = FontWeight.Medium,
@@ -1852,16 +1486,19 @@ private fun TodoCard(
 private fun TodoRow(todo: AgentTodo) {
     val completed = todo.status == AgentTodoStatus.COMPLETED
     val active = todo.status == AgentTodoStatus.IN_PROGRESS
+    val completedCd = stringResource(R.string.agent_todo_completed)
+    val inProgressCd = stringResource(R.string.agent_todo_in_progress)
+    val pendingCd = stringResource(R.string.agent_todo_pending)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .semantics {
-                contentDescription = todo.title + when (todo.status) {
-                    AgentTodoStatus.COMPLETED -> ", tamamlandı"
-                    AgentTodoStatus.IN_PROGRESS -> ", sürüyor"
-                    AgentTodoStatus.PENDING -> ", bekliyor"
+                contentDescription = todo.title + ", " + when (todo.status) {
+                    AgentTodoStatus.COMPLETED -> completedCd
+                    AgentTodoStatus.IN_PROGRESS -> inProgressCd
+                    AgentTodoStatus.PENDING -> pendingCd
                 }
             },
         verticalAlignment = Alignment.Top,
@@ -1990,11 +1627,15 @@ private fun QuestionControls(
             )
             Spacer(Modifier.weight(1f))
             AgentPill(
-                label = "Yanıtla",
+                label = stringResource(R.string.agent_reply),
                 onClick = { onAnswer(ApprovalDecision.Answer(reply.trim())) },
                 primary = true,
                 enabled = canSend,
                 contentDescription = stringResource(R.string.agent_send_reply_cd),
+                // In the transcript, so it is a flat fill: the glass and its edge
+                // belong to the two surfaces that float over content, and a
+                // borderless chip inside somebody's answer would read as chrome.
+                edged = false,
             )
         }
     }
@@ -2030,26 +1671,36 @@ private fun ChoiceRow(option: String, onClick: () -> Unit) {
 
 @Composable
 private fun DismissRow(onClick: () -> Unit) {
+    val skipQuestionCd = stringResource(R.string.action_skip)
     Text(
-        text = "Atla",
+        text = stringResource(R.string.action_skip),
         fontSize = 13.sp,
         color = DroshTextMuted,
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp)
-            .semantics { contentDescription = "Soruyu atla" },
+            .semantics { contentDescription = skipQuestionCd },
     )
 }
 
 /** What the user chose, once they have. */
 @Composable
 private fun DecisionRow(decision: ApprovalDecision) {
+    val approvedCd = stringResource(R.string.agent_decision_approved)
+    val rejectedCd = stringResource(R.string.agent_decision_rejected)
+    val answeredCd = stringResource(R.string.agent_decision_answered)
+    val alwaysAllowedCd = stringResource(R.string.agent_decision_always_allow)
     val (label, tint) = when (decision) {
-        is ApprovalDecision.Approve -> "onaylandı" to DroshSuccess
-        is ApprovalDecision.Reject -> "reddedildi" to DroshError
-        is ApprovalDecision.Answer -> "yanıtlandı" to DroshSuccess
-        is ApprovalDecision.AlwaysAllow -> "her zaman izin verildi" to DroshSuccess
+        is ApprovalDecision.Approve -> approvedCd
+        is ApprovalDecision.Reject -> rejectedCd
+        is ApprovalDecision.Answer -> answeredCd
+        is ApprovalDecision.AlwaysAllow -> alwaysAllowedCd
+    } to when (decision) {
+        is ApprovalDecision.Approve -> DroshSuccess
+        is ApprovalDecision.Reject -> DroshError
+        is ApprovalDecision.Answer -> DroshSuccess
+        is ApprovalDecision.AlwaysAllow -> DroshSuccess
     }
 
     Row(
@@ -2288,7 +1939,11 @@ private fun UsageStrip(usage: TokenUsage) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "${usage.output ?: 0} çıktı · ${usage.input ?: 0} girdi token",
+            text = stringResource(
+                R.string.agent_usage_tokens,
+                usage.output ?: 0,
+                usage.input ?: 0,
+            ),
             fontSize = 10.sp,
             fontFamily = LocalFontSet.current.mono,
             color = DroshTextMuted,
@@ -2323,163 +1978,129 @@ private fun Modifier.sweepHighlight(progress: Float): Modifier = this.drawWithCo
 }
 
 /**
- * The verb for a tool, in present and past tense.
+ * A stable key for a row.
  *
- * Present while the call runs, past once it finishes — the tense is the status, so
- * the row does not need a separate indicator to say whether something is still going.
- *
- * `write_file` is `Wrote` rather than `Edited` because the model creates as often as
- * it modifies, and a verb that only fits one of the two would be wrong half the time.
- */
-private fun toolVerbs(name: String): Pair<String, String> = when (name) {
-    "shell" -> "Running" to "Ran"
-    "read_file" -> "Reading" to "Read"
-    "write_file" -> "Writing" to "Wrote"
-    "grep" -> "Searching" to "Searched"
-    "move_file" -> "Moving" to "Moved"
-    "ask_user" -> "Asking" to "Asked"
-    "update_todo" -> "Updating" to "Updated"
-    "web_search" -> "Searching" to "Searched"
-    else -> "Working" to "Done"
-}
-
-/**
- * The verb's colour, which carries the outcome the tense does not.
- *
- * A failure is red whether or not the reader parses "Ran" — the verb says it
- * finished, the colour says how.
- */
-@Composable
-private fun verbColor(state: ToolCallState): Color = when (state) {
-    ToolCallState.Running -> DroshPrimary
-    ToolCallState.Succeeded -> DroshText
-    ToolCallState.Failed -> DroshError
-    ToolCallState.Cancelled -> DroshTextMuted
-    ToolCallState.AwaitingApproval -> DroshWarning
-    ToolCallState.Pending -> DroshTextMuted
-}
-
-/**
- * Consecutive tool calls, grouped for layout.
- *
- * A turn that runs five tools is not five things the user reads between; it is one
- * block. With 18dp between every message those five rows were as tall as five
- * paragraphs of prose, and the list stopped reading as a list.
- *
- * So runs of tool calls collapse into one list item with 2dp between rows, and
- * everything else keeps the 18dp that separates one thought from the next. The
- * grouping is computed here rather than in the transcript because it is a property
- * of *what is on screen*, not of what the agent did.
- */
-/**
- * A stable key for a grouped row.
- *
- * A group is keyed by its first member rather than its size: two adjacent runs
- * that happen to hold the same number of tools are still different rows, and a
- * key built from the count alone would make Compose reuse the wrong one.
+ * A turn is keyed by its prompt: the steps under it change on every token, and a
+ * key built from a turn's contents would make Compose tear the row down and
+ * rebuild it while the answer streams.
  */
 private fun rowKey(row: TranscriptRow): String = when (row) {
+    is TranscriptRow.Turn -> "t_${row.prompt.id}"
     is TranscriptRow.Single -> "m_${row.message.id}"
-    is TranscriptRow.ToolGroup -> "g_${row.tools.first().id}"
 }
 
+/**
+ * One row of the transcript.
+ *
+ * A turn is a prompt and everything the model did about it: the tool pills, the
+ * reasoning, the answer. Grouping on the prompt rather than on the tool calls
+ * keeps the conversation reading as a conversation — the user asked, the agent
+ * worked, the agent answered — and it is what makes the prompt bubble
+ * inescapable: it is the first thing in its row, and nothing is drawn above it.
+ *
+ * [Single] is anything outside a turn: the reasoning that arrived before a prompt
+ * was ever sent, or a notice raised by something that was not the model
+ * answering a question.
+ */
 private sealed interface TranscriptRow {
-    /** One or more adjacent tool calls, rendered as a tight group. */
-    data class ToolGroup(val tools: List<ChatMessage.ToolCall>) : TranscriptRow
 
-    /** Anything else: user, assistant, reasoning, approval, notice. */
+    data class Turn(
+        val prompt: ChatMessage.User,
+        val steps: List<ChatMessage>,
+    ) : TranscriptRow
+
     data class Single(val message: ChatMessage) : TranscriptRow
 }
 
+/**
+ * Walks the transcript into turns.
+ *
+ * Computed here rather than in the transcript because it is a property of what is
+ * on screen: the grouping is what the user reads, so it has to agree with what
+ * the list is about to draw.
+ *
+ * Every prompt starts a turn, including one with no answer under it yet — a turn
+ * that is still running shows its prompt and whatever has arrived so far, which
+ * is the one moment the prompt most needs to be on screen.
+ */
 private fun groupTranscript(messages: List<ChatMessage>): List<TranscriptRow> {
     val rows = mutableListOf<TranscriptRow>()
-    var pendingTools = mutableListOf<ChatMessage.ToolCall>()
-
-    fun flushTools() {
-        if (pendingTools.isEmpty()) return
-        rows += TranscriptRow.ToolGroup(pendingTools.toList())
-        pendingTools = mutableListOf()
-    }
-
-    messages.forEach { message ->
-        if (message is ChatMessage.ToolCall) {
-            pendingTools += message
-        } else {
-            flushTools()
+    var index = 0
+    while (index < messages.size) {
+        val message = messages[index]
+        if (message !is ChatMessage.User) {
             rows += TranscriptRow.Single(message)
+            index += 1
+            continue
         }
+        var cursor = index + 1
+        while (cursor < messages.size && messages[cursor] !is ChatMessage.User) {
+            cursor += 1
+        }
+        rows += TranscriptRow.Turn(
+            prompt = message,
+            steps = messages.subList(index + 1, cursor).toList(),
+        )
+        index = cursor
     }
-    flushTools()
     return rows
 }
 
 /**
- * The verb and the summary as one selectable string.
+ * A turn: the prompt, and everything the agent did about it.
  *
- * One `Text` rather than two, so a long press selects across both halves instead of
- * stopping at whichever one the finger landed in. The visual difference between
- * "Ran" and the command is carried by colour and weight on spans, so nothing is lost
- * by merging them.
+ * ## The prompt is always drawn
  *
- * The gap is a non-breaking space rather than layout padding because padding is not
- * part of the selected text — a selection that ended at the verb would exclude the
- * space and paste "Ran" where "Ran npm test" was meant.
+ * It used to be one row among the rest, which meant a turn that ran fifteen tools
+ * pushed the question it was answering off the top of the screen, and the user
+ * had to scroll back to remember what they had asked. Now the prompt is the row's
+ * own header, so it cannot be separated from its answer: the answer lands
+ * directly under the question that earned it, and the answer's quick actions land
+ * directly under that.
+ *
+ * ## The flow this buys
+ *
+ * Message, then the model's work, then the answer, then the answer's quick
+ * actions — in one row, in that order, for every turn on the screen.
+ *
+ * The steps are tighter than the gap between turns, 8dp rather than the list's
+ * 18, so what one prompt caused reads as one thing while a new prompt is what
+ * starts a new thought.
  */
 @Composable
-private fun toolRowText(
-    verb: String,
-    summary: String,
-    verbColor: Color,
-    summaryColor: Color,
-    sweeping: Boolean,
-    progress: Float,
-): AnnotatedString = buildAnnotatedString {
-    // The sweep is a gradient across the verb's own width, so it needs the verb's
-    // length in characters to place its band — which is why this cannot stay a
-    // plain colour while running. A `SpanStyle` takes a brush *or* a colour, not
-    // both, so the two states are separate rather than one style with a null field.
-    if (sweeping) {
-        withStyle(
-            SpanStyle(
-                brush = sweepingBrush(progress, verb.length),
-                fontWeight = FontWeight.Medium,
-            ),
-        ) {
-            append(verb)
-        }
-    } else {
-        withStyle(
-            SpanStyle(color = verbColor, fontWeight = FontWeight.Medium),
-        ) {
-            append(verb)
-        }
-    }
-    if (summary.isNotEmpty()) {
-        append(" ")
-        withStyle(SpanStyle(color = summaryColor)) { append(summary) }
-    }
-}
+private fun TurnBlock(
+    prompt: ChatMessage.User,
+    steps: List<ChatMessage>,
+    onAnswer: (String, ApprovalDecision) -> Unit,
+    onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
+    onRetry: () -> Unit,
+    /** Edits what the user sent: the draft comes back for another go. */
+    onEdit: (String) -> Unit,
+    onInspectTool: (ChatMessage.ToolCall) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        UserBubble(prompt, onCopy = onCopy, onShare = onShare, onEdit = onEdit)
 
-/**
- * A band of [DroshPrimary] travelling across the verb, as a gradient brush.
- *
- * The span's own colour is the destination and the band's edges fade to the verb's
- * resting colour, so the sweep arrives and leaves without a hard edge. Laid out in
- * character counts rather than pixels because a `SpanStyle` gradient is measured
- * against the annotated string's text — which is why the summary is not swept: it
- * would have to share the same coordinate space, and the band is sized to the verb.
- */
-@Composable
-private fun sweepingBrush(progress: Float, length: Int): Brush {
-    val band = (length * 0.4f).coerceAtLeast(1f)
-    val x = (length + band) * progress - band
-    return Brush.linearGradient(
-        colorStops = arrayOf(
-            0f to Color.Transparent,
-            (x / length).coerceIn(0f, 1f) to Color.Transparent,
-            ((x + band) / length).coerceIn(0f, 1f) to DroshPrimary,
-            ((x + band * 2) / length).coerceIn(0f, 1f) to Color.Transparent,
-            1f to Color.Transparent,
-        ),
-    )
+        if (steps.isEmpty()) return@Column
+
+        Spacer(Modifier.height(8.dp))
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            steps.forEach { step ->
+                MessageRow(
+                    message = step,
+                    onAnswer = onAnswer,
+                    onCopy = onCopy,
+                    onShare = onShare,
+                    onRetry = onRetry,
+                    onEdit = onEdit,
+                    onInspectTool = onInspectTool,
+                )
+            }
+        }
+    }
 }
