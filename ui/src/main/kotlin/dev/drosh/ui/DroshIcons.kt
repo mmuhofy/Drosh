@@ -14,6 +14,10 @@ import compose.icons.lucideicons.Languages
 import compose.icons.lucideicons.Palette
 import compose.icons.lucideicons.Clock
 import compose.icons.lucideicons.ShieldCheck
+import compose.icons.lucideicons.Brain
+import compose.icons.lucideicons.Camera
+import compose.icons.lucideicons.File
+import compose.icons.lucideicons.Image
 import compose.icons.LucideIcons
 import compose.icons.lucideicons.ALargeSmall
 import compose.icons.lucideicons.ArrowBigDown
@@ -93,6 +97,10 @@ object DroshIcons {
     val Palette: ImageVector get() = LucideIcons.Palette
     val Resize: ImageVector get() = LucideIcons.Type
     val Clock: ImageVector get() = LucideIcons.Clock
+    val Brain: ImageVector get() = LucideIcons.Brain
+    val Camera: ImageVector get() = LucideIcons.Camera
+    val File: ImageVector get() = LucideIcons.File
+    val Image: ImageVector get() = LucideIcons.Image
     val Cursor: ImageVector get() = CursorVector
     val ShieldCheck: ImageVector get() = LucideIcons.ShieldCheck
     val Check: ImageVector get() = LucideIcons.Check
