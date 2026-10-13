@@ -146,7 +146,7 @@ class ProjectsRowsTest {
         assertEquals(2, closed.filterIsInstance<ProjectsRow.ProjectHead>().size)
         assertTrue(closed.none { it is ProjectsRow.Session })
 
-        val open = buildProjectRows(board, archived = emptySet(), expandedIds = setOf("web"), filter = "")
+        val open = buildProjectRows(board, archived = emptyList(), expandedIds = setOf("web"), filter = "")
         val sessions = open.filterIsInstance<ProjectsRow.Session>()
         assertEquals(listOf("serve"), sessions.map { it.session.name })
     }
@@ -181,7 +181,7 @@ class ProjectsRowsTest {
     }
 
     @Test
-    fun `gaps: nothing inside a run, four between runs, a section break between sections`() {
+    fun `gaps - nothing inside a run, four between runs, a section break between sections`() {
         val board = board(
             groups = listOf(
                 group(workspace("api"), listOf(session("shell", workspaceId = "api"))),
