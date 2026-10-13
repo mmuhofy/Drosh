@@ -488,4 +488,56 @@ no terminal session needed.</string>
     <string name="agent_trust_rules_title">Always allowed</string>
     <string name="agent_trust_rules_note">Tap to revoke</string>
     <string name="agent_trust_rules_revoke">Revoke</string>
+
+
+    <!-- ── composer: the + sheet ──────────────────────────────────────────── -->
+    <string name="agent_attach_cd">Add to the prompt</string>
+    <string name="agent_attach_title">Add to the prompt</string>
+    <string name="agent_attach_group_attach">Attach</string>
+    <string name="agent_attach_group_settings">This chat</string>
+    <string name="agent_attach_image">Image</string>
+    <string name="agent_attach_image_desc">Pick an image from the gallery</string>
+    <string name="agent_attach_file">File</string>
+    <string name="agent_attach_file_desc">Attach a file from this device</string>
+    <string name="agent_attach_camera">Camera</string>
+    <string name="agent_attach_camera_desc">Take a photo and attach it</string>
+    <string name="agent_attach_camera_unavailable">This device has no camera app</string>
+    <string name="agent_attach_log">From the session log</string>
+    <string name="agent_attach_log_desc">Insert the last command and its output</string>
+    <string name="agent_attach_log_empty">No command has run in this chat yet</string>
+    <string name="agent_attach_web_search">Web search</string>
+    <string name="agent_attach_web_search_desc">Let the agent look things up while it works</string>
+    <string name="agent_attach_web_search_on">On — the agent can search the web</string>
+    <string name="agent_attach_web_search_off">Off — the web search tool is not offered</string>
+    <string name="agent_attach_effort">Reasoning effort</string>
+    <string name="agent_attach_effort_low">Low</string>
+    <string name="agent_attach_effort_medium">Medium</string>
+    <string name="agent_attach_effort_high">High</string>
+    <string name="agent_attach_effort_none">This model has no reasoning level to pick</string>
+    <string name="agent_attach_preparing">Preparing the attachment…</string>
+    <string name="agent_attach_too_large">That is over 5 MB. Pick something smaller.</string>
+    <string name="agent_attach_unreadable">That file could not be read.</string>
+    <string name="agent_attach_remove_cd">Remove from the prompt</string>
+    <string name="agent_attach_chip_cd">%1$s attached</string>
+    <string name="agent_attach_binary_kb">%1$d KB — attached as binary</string>
+    <string name="agent_attach_saved">%1$s — attached</string>
+
+    <!-- ── web search results ─────────────────────────────────────────────── -->
+    <string name="agent_search_title">Web results</string>
+    <string name="agent_search_query">%1$s</string>
+    <string name="agent_search_count">%1$d results</string>
+    <string name="agent_search_count_one">1 result</string>
+    <string name="agent_search_empty">Nothing came back for this search.</string>
+    <string name="agent_search_error">This search did not return anything readable.</string>
+    <string name="agent_search_raw">Read the raw output</string>
+
+    <!-- ── sources ────────────────────────────────────────────────────────── -->
+    <string name="agent_sources_title">Sources</string>
+    <string name="agent_sources_share_cd">Share this link</string>
+    <string name="agent_sources_open_cd">Open this link in the browser</string>
+    <string name="agent_sources_leave_title">Leave Drosh?</string>
+    <string name="agent_sources_leave_body">Opening this link leaves Drosh and hands it to the browser.</string>
+    <string name="agent_sources_leave_yes">Open</string>
+    <string name="agent_sources_no_browser">No app on this device can open that link.</string>
+    <string name="agent_sources_share_failed">Nothing on this device can share a link.</string>
 </resources>

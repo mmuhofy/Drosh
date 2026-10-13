@@ -2,10 +2,7 @@ package dev.drosh.ui.agent
 
 import android.content.Intent
 
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -141,7 +138,6 @@ import dev.drosh.ui.R
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import kotlinx.coroutines.delay
 
 /**
  * One agent chat.
@@ -206,14 +202,73 @@ fun AgentChatScreen(
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
 
+    // The composer's `+` sheet, and the attachments it produced. Held here rather
+    // than in the sheet because the chips have to outlive it: the sheet closes on
+    // the pick, and what it picked is still on the prompt afterwards.
+    var attachSheetOpen by remember { mutableStateOf(false) }
+    var attachments by remember { mutableStateOf<List<ChatAttachment>>(emptyList()) }
+
+    // The search whose results are on the sheet, or null when none is open.
+    var inspectingSearch by remember { mutableStateOf<SearchOutcome?>(null) }
+
+    // The URL waiting on the leave-app confirmation. One dialog for both the
+    // sources section and the search sheet, so the question is asked once, in one
+    // wording, by the same code.
+    var linkToOpen by remember { mutableStateOf<String?>(null) }
+
     val terminalLines = remember(messages) { TerminalProjection.project(messages) }
     val listState = rememberLazyListState()
 
     // Recomputed only when the transcript changes; grouping walks the whole list.
     val groupedTranscript = remember(messages) { groupTranscript(messages) }
+
+    // The same walk for the same reason: collecting sources re-reads every
+    // search output in the conversation, which is not a per-frame operation.
+    val sources = remember(messages) { collectSources(messages) }
+
     val clipboard = rememberAgentClipboard()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // The two toggles the sheet owns. A separate ViewModel because they are
+    // settings about the tools rather than about this conversation.
+    //
+    // Keyed on the chat: `hiltViewModel()` defaults to the nearest ViewModelStore,
+    // which on this screen belongs to the navigation entry rather than to the
+    // chat. Without the key, opening a second chat would reuse the first chat's
+    // store — and its Compose-backed saved state — which is the exact bug the
+    // composer's `rememberSaveable(chatId)` calls above exist to avoid.
+    val attachSettings: AgentAttachSettingsViewModel = hiltViewModel(key = chatId ?: "new")
+    val webSearchOn by attachSettings.webSearch.collectAsStateWithLifecycle()
+    val savedEffort by attachSettings.effort.collectAsStateWithLifecycle()
+    val effortLevels by attachSettings.efforts.collectAsStateWithLifecycle()
+
+    // Which effort values exist depends on the model in hand, so the list is
+    // reloaded when the model changes rather than held for the screen's life.
+    LaunchedEffect(providerState.provider?.id, providerState.selectedModelId) {
+        attachSettings.loadEfforts(
+            providerState.provider?.id,
+            providerState.selectedModelId.ifEmpty {
+                providerState.models.firstOrNull()?.id.orEmpty()
+            },
+        )
+    }
+
+    // The last command this chat ran, for the sheet's session-log row. Hoisted
+    // out of the sheet's own branch so the slot exists whether it is open or not.
+    val sessionLog = remember(messages) { lastSessionLog(messages) }
+
+    /**
+     * Whether anything on screen is counting seconds.
+     *
+     * The screen's clock only runs while this is true. A transcript nobody is
+     * waiting on has no elapsed time to show, and a ticker that keeps waking to
+     * update a number nothing reads is the scroll jank in a quieter form.
+     */
+    val somethingRunning = running ||
+        messages.any { it is ChatMessage.ToolCall && it.state == ToolCallState.Running } ||
+        messages.any { it is ChatMessage.Reasoning && it.text.isEmpty() }
+    val motion = rememberAgentMotion(ticking = somethingRunning)
 
     // Follow the stream, but only when the user is already near the bottom.
     // Yanking the viewport while they are reading earlier output is worse than
@@ -225,6 +280,7 @@ fun AgentChatScreen(
     }
 
     ProvideAgentGlass(glass) {
+      ProvideAgentMotion(motion) {
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -308,16 +364,44 @@ fun AgentChatScreen(
                                     composerDraft = draft
                                     composerFocusRequest += 1
                                 },
-                                onInspectTool = { tool -> inspecting = tool },
+                                onInspectTool = { tool ->
+                                    // A search row opens the results sheet rather
+                                    // than its raw output: the tool's text is
+                                    // written for a model, and the user asked a
+                                    // question rather than for a transcript of the
+                                    // request that answered it.
+                                    val search = searchOutcomeOf(tool)
+                                    if (search != null) inspectingSearch = search else inspecting = tool
+                                },
                             )
 
                             is TranscriptRow.ToolGroup -> Column(
                                 verticalArrangement = Arrangement.spacedBy(2.dp),
                             ) {
                                 row.tools.forEach { tool ->
-                                    ToolCallRow(tool, onInspect = { inspecting = tool })
+                                    ToolCallRow(tool, onInspect = {
+                                        val search = searchOutcomeOf(tool)
+                                        if (search != null) inspectingSearch = search else inspecting = tool
+                                    })
                                 }
                             }
+                        }
+                    }
+
+                    // The sources go at the end of the transcript rather than in
+                    // a panel pinned under it: a pinned panel would take the
+                    // bottom of the screen for the whole conversation whether or
+                    // not anything was searched, and would hold the answer itself
+                    // out of view.
+                    if (sources.isNotEmpty()) {
+                        item(key = "sources") {
+                            AgentSourcesSection(
+                                sources = sources,
+                                onOpen = { url -> linkToOpen = url },
+                                onShare = { picked ->
+                                    scope.launch { shareSource(context, picked) }
+                                },
+                            )
                         }
                     }
 
@@ -330,16 +414,39 @@ fun AgentChatScreen(
                     UsageStrip(usage = usage)
                 }
 
+                AgentAttachmentChips(
+                    attachments = attachments,
+                    onRemove = { gone -> attachments = attachments - gone },
+                )
+
                 AgentComposer(
                     running = running,
                     draft = composerDraft,
                     onDraftChange = { composerDraft = it },
                     onSend = { text ->
                         composerDraft = ""
-                        viewModel.send(text)
+                        // Rendered in here rather than held in the draft: a photo
+                        // is a few hundred kilobytes of base64, and a text field
+                        // carrying that re-lays-out on every keystroke.
+                        val body = buildString {
+                            append(text)
+                            if (attachments.isNotEmpty()) {
+                                if (text.isNotBlank()) append("\n\n")
+                                attachments.forEach { attachment ->
+                                    append(attachment.renderIntoPrompt())
+                                    append("\n\n")
+                                }
+                            }
+                        }.trim()
+                        attachments = emptyList()
+                        viewModel.send(body)
                     },
                     onStop = viewModel::stop,
                     focusRequest = composerFocusRequest,
+                    onAttachClick = { attachSheetOpen = true },
+                    // A prompt with nothing typed in is still sendable when a
+                    // picture is attached: that is a screenshot on its own.
+                    canSendWithNothingTyped = attachments.isNotEmpty(),
                 )
             }
 
@@ -373,6 +480,38 @@ fun AgentChatScreen(
                 )
             }
 
+            inspectingSearch?.let { outcome ->
+                AgentSearchSheet(
+                    outcome = outcome,
+                    onOpen = { url -> linkToOpen = url },
+                    onDismiss = { inspectingSearch = null },
+                )
+            }
+
+            if (attachSheetOpen) {
+                AgentAttachSheet(
+                    webSearchEnabled = webSearchOn,
+                    onWebSearchChange = attachSettings::setWebSearch,
+                    // The per-model choice wins because that is the one the loop
+                    // actually sends; the file's copy is the shell-readable
+                    // mirror of it and the fallback when no model has been picked
+                    // yet.
+                    effort = providerState.selectedEffort
+                        ?: savedEffort.takeIf { it.isNotBlank() },
+                    // The catalog's own list is the source of truth: it is what
+                    // the protocol can actually send for this model, so offering
+                    // a level the endpoint rejects would be offering a lie.
+                    efforts = effortLevels,
+                    onEffortChange = { level ->
+                        viewModel.selectEffort(level)
+                        attachSettings.setEffort(level)
+                    },
+                    sessionLog = sessionLog,
+                    onAttach = { picked -> attachments = attachments + picked },
+                    onDismiss = { attachSheetOpen = false },
+                )
+            }
+
             if (sheetOpen) {
                 TerminalHistorySheet(
                     lines = terminalLines,
@@ -402,7 +541,16 @@ fun AgentChatScreen(
                     },
                 )
             }
+
+            // One confirmation for every link on the screen. Held here rather
+            // than inside the sources section or the search sheet, so both ask
+            // the same question in the same words: two wordings for one decision
+            // is how a user learns which of them to trust.
+            linkToOpen?.let { url ->
+                LeaveAppDialog(url = url, onDismiss = { linkToOpen = null })
+            }
         }
+      }
     }
 }
 
@@ -713,15 +861,20 @@ private fun AgentComposer(
     onStop: () -> Unit,
     /** Incremented by whoever wants the keyboard raised after filling the draft. */
     focusRequest: Int = 0,
+    /** Opens the `+` sheet. */
+    onAttachClick: () -> Unit = {},
+    /** Whether a prompt with nothing typed in is still worth sending. */
+    canSendWithNothingTyped: Boolean = false,
 ) {
     val sendCd = stringResource(R.string.agent_send)
     val stopCd = stringResource(R.string.agent_stop)
+    val attachCd = stringResource(R.string.agent_attach_cd)
     // The draft is the screen's, not the composer's: a bubble's "Edit" puts a
     // message the user already sent back into the box, and a composer that owns
     // its own text cannot be handed anything.
     val text = draft
     val enabled = !running
-    val canSend = text.isNotBlank() && enabled
+    val canSend = (text.isNotBlank() || canSendWithNothingTyped) && enabled
 
     // A focus requester the screen drives. Editing a sent message means the
     // keyboard should come up — the user is mid-thought, and a filled box with
@@ -799,6 +952,36 @@ private fun AgentComposer(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
+                    // The `+`, at the far end of the row from send. 48dp of touch
+                    // target around a 36dp circle, the same box the pills above
+                    // use, so the two ends of the composer are the same size to a
+                    // finger.
+                    //
+                    // Left rather than next to send because attaching and sending
+                    // are different acts — one adds to the prompt, the other
+                    // commits it — and putting them shoulder to shoulder is how a
+                    // mis-tap sends a half-written prompt.
+                    Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(DroshSurfaceHigh)
+                                .clickable(enabled = enabled, onClick = onAttachClick)
+                                .semantics { contentDescription = attachCd },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = DroshIcons.Plus,
+                                contentDescription = null,
+                                tint = DroshTextMuted,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.weight(1f))
+
                     // 36dp drawn inside a 48dp box, to sit with the 40dp pills above.
                     // At 30dp the primary action on the screen was smaller than the
                     // icons in the row above it, which read as a deliberate demotion.
@@ -1126,24 +1309,8 @@ private fun AssistantAction(
 @Composable
 private fun ThinkingDots(modifier: Modifier = Modifier) {
     val thinkingCd = stringResource(R.string.agent_thinking_cd)
-    var elapsed by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1000)
-            elapsed++
-        }
-    }
-
-    val transition = rememberInfiniteTransition(label = "thinkingSweep")
-    val progress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "thinkingSweepProgress",
-    )
+    val startedAt = rememberRunningStart(true)
+    val elapsed = elapsedSince(startedAt)
 
     Text(
         text = stringResource(R.string.agent_thinking_secs, elapsed),
@@ -1152,7 +1319,7 @@ private fun ThinkingDots(modifier: Modifier = Modifier) {
         color = DroshPrimary,
         modifier = modifier
             .semantics { contentDescription = thinkingCd }
-            .sweepHighlight(progress),
+            .sweepHighlight(sweepPosition()),
     )
 }
 
@@ -1178,29 +1345,12 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
     val stopThinkingCd = stringResource(R.string.agent_stop_thinking)
     var open by rememberSaveable(message.id) { mutableStateOf(false) }
 
-    // Elapsed, counted rather than measured, for the same reason as the tool rows.
-    var elapsed by remember(message.id) { mutableStateOf(0) }
+    // Elapsed and sweep from the screen's shared motion, for the same reason as
+    // the tool rows and with the same payoff: a reasoning block that has finished
+    // no longer wakes once a second and no longer recomposes at frame rate.
     val running = message.text.isEmpty() || message.text.endsWith("…")
-    LaunchedEffect(message.id, running) {
-        if (running) {
-            elapsed = 0
-            while (true) {
-                delay(1000)
-                elapsed++
-            }
-        }
-    }
-
-    val transition = rememberInfiniteTransition(label = "reasoningSweep")
-    val progress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "reasoningSweepProgress",
-    )
+    val startedAt = rememberRunningStart(running)
+    val elapsed = if (running) elapsedSince(startedAt) else 0
 
     val chevronRotation by animateFloatAsState(
         targetValue = if (open) 90f else 0f,
@@ -1230,7 +1380,11 @@ private fun ReasoningBlock(message: ChatMessage.Reasoning) {
                 fontSize = 11.5.sp,
                 fontFamily = LocalFontSet.current.mono,
                 color = if (running) DroshPrimary else DroshTextMuted,
-                modifier = if (running) Modifier.sweepHighlight(progress) else Modifier,
+                modifier = if (running) {
+                    Modifier.sweepHighlight(sweepPosition())
+                } else {
+                    Modifier
+                },
             )
 
             Spacer(Modifier.weight(1f))
@@ -1339,36 +1493,35 @@ private fun ToolCallRow(
     val copyCd = stringResource(R.string.agent_copy_output_cd)
     val running = message.state == ToolCallState.Running
 
+    // A search row says how much it found, because "Searched kotlin coroutines"
+    // tells the user nothing about whether the answer is in there. Every other
+    // tool's summary is its own output, so for a search the query is the summary
+    // and the count is the addition.
+    val searchHits = remember(message.id, message.state, message.finalOutput) {
+        (parseSearchOutcome(message) as? SearchOutcome.Results)?.results?.size
+    }
+    val searchSummary = searchHits?.let { hits ->
+        val counted = stringResource(
+            if (hits == 1) R.string.agent_search_count_one else R.string.agent_search_count,
+            hits,
+        )
+        if (message.summary.isBlank()) counted else message.summary.trim() + " · " + counted
+    }
+
     // The row is a summary and nothing more: tapping it opens the detail sheet
     // rather than expanding a wall of output into the middle of the transcript.
     // An expanded `git diff` on a large change pushes the conversation off the
     // screen and moves the row the user was reading out from under their thumb.
 
-    // Elapsed seconds, counted rather than measured. A timer that reads a start
-    // timestamp drifts with frame timing; incrementing once a second is exact to the
-    // second, which is the only resolution this is shown at.
-    var elapsed by remember(message.id) { mutableStateOf(0) }
-    LaunchedEffect(message.id, running) {
-        if (running) {
-            elapsed = 0
-            while (true) {
-                delay(1000)
-                elapsed++
-            }
-        }
-    }
-
-    val transition = rememberInfiniteTransition(label = "toolSweep")
-    val progress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "toolSweepProgress",
-    )
-
+    // Elapsed seconds and the sweep both come from the screen's one [AgentMotion]
+    // rather than from a timer and an animation per row. Both used to be per row,
+    // and both were paid for by rows that had finished: the `while (true)` kept
+    // waking long after the call ended, and the infinite transition kept
+    // invalidating the row on the frame clock — sixty recompositions a second for
+    // a row that shows a past-tense verb and nothing that moves. A long
+    // conversation is hundreds of those, and it is most of the scroll jank.
+    val startedAt = rememberRunningStart(running)
+    val elapsed = if (running) elapsedSince(startedAt) else 0
 
     val clipboard = rememberAgentClipboard()
     val (present, past) = toolVerbs(message.name)
@@ -1397,15 +1550,19 @@ private fun ToolCallRow(
                 Text(
                     text = toolRowText(
                         verb = verb,
-                        summary = message.summary,
+                        summary = searchSummary ?: message.summary,
                         verbColor = verbColor(message.state),
                         summaryColor = DroshTextSecondary,
                         // While running, the gradient sweep paints the verb rather
                         // than the whole row: the summary is already the dim half and
                         // sweeping it too would make the command harder to read than
                         // the word saying it is running.
+                        //
+                        // The position is only *read* while running. Reading it
+                        // unconditionally is what used to keep every finished row on
+                        // the animation's frame clock.
                         sweeping = running,
-                        progress = progress,
+                        progress = if (running) sweepPosition() else 0f,
                     ),
                     fontSize = 12.sp,
                     fontFamily = LocalFontSet.current.mono,
