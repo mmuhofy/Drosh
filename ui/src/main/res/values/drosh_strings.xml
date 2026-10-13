@@ -274,6 +274,11 @@
     <string name="setup_report_label">Report issue on GitHub</string>
     <string name="setup_report_sublabel">Copies a diagnostic bundle to your clipboard.</string>
     <string name="setup_diagnostic_copied">Diagnostic copied to clipboard</string>
+    <string name="setup_theme_title">Theme</string>
+    <string name="setup_theme_subtitle">Pick a colour palette. You can change it later in Settings.</string>
+    <string name="setup_theme_continue">Continue</string>
+    <string name="setup_theme_applied">Palette saved. Your terminal will open in it.</string>
+    <string name="setup_theme_builtin">Built in</string>
     <string name="terminal_delete_last_session_title">Delete the last session?</string>
     <string name="terminal_delete_last_session_ended_body">It ended with exit code %1$d. Deleting it closes the app; a new session starts from scratch.</string>
     <string name="terminal_delete_last_session_body">Deleting it closes the app; a new session starts from scratch.</string>

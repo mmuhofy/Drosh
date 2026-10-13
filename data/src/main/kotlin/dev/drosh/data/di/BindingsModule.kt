@@ -18,6 +18,7 @@ import dev.drosh.data.settings.FirstLaunchRepositoryImpl
 import dev.drosh.data.settings.BackgroundImageStoreImpl
 import dev.drosh.data.settings.SettingsRepositoryImpl
 import dev.drosh.data.settings.toml.TomlSettingsStore
+import dev.drosh.data.theme.ApplyTheme
 import dev.drosh.data.theme.ThemeRepositoryImpl
 import dev.drosh.data.terminal.BootstrapObserver
 import dev.drosh.data.terminal.PaneLayoutRepositoryImpl
@@ -47,6 +48,7 @@ import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.ThemeRepository
+import dev.drosh.domain.settings.ApplyThemeUseCase
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.PaneLayoutRepository
@@ -158,6 +160,17 @@ abstract class BindingsModule {
     abstract fun bindThemeRepository(
         impl: ThemeRepositoryImpl,
     ): ThemeRepository
+
+    /**
+     * Putting a theme into force: writes the theme file, then the palette into
+     * the settings file. Used by onboarding, where the pick is made before the
+     * rootfs exists and the write has to wait for the bootstrap.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindApplyTheme(
+        impl: ApplyTheme,
+    ): ApplyThemeUseCase
 
     @Binds
     @Singleton
