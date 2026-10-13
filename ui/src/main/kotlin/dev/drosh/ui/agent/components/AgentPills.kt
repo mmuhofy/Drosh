@@ -53,6 +53,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.rememberHazeState
+import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurfaceHigh
@@ -60,6 +61,7 @@ import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.design.system.DroshWarning
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
@@ -613,6 +615,11 @@ fun AgentToolPill(
     val (present, past) = toolVerbs(message.name)
     val label = if (message.state == ToolCallState.Running) present else past
     val tint = toolVerbColor(message.state)
+    // Resolved outside the modifiers' lambdas: `semantics` and `glassSurface` are
+    // ordinary lambdas, and a composable call from inside one is a call outside a
+    // composition scope. Hoisting it also means the description is built once per
+    // recomposition rather than once per re-lay-out.
+    val description = toolRowDescription(message)
 
     Box(
         modifier = modifier
@@ -620,7 +627,7 @@ fun AgentToolPill(
             // edged = false, always: this is a transcript surface, not floating
             // chrome. See the class note.
             .glassSurface(glass, pressed, shape = AgentPillDefaults.Shape, edged = false)
-            .semantics { contentDescription = toolRowDescription(message) }
+            .semantics { contentDescription = description }
             .pressable(interaction, enabled, onClick)
             .padding(horizontal = 11.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center,
@@ -719,38 +726,30 @@ fun toolVerbColor(state: ToolCallState): Color = when (state) {
  * screen-reader user with no way to learn what ran.
  */
 @Composable
-fun toolRowDescription(message: ChatMessage.ToolCall): String = buildString {
-    append(message.name)
-    if (message.summary.isNotEmpty()) append(", ${message.summary}")
-    append(
-        ", " + when (message.state) {
-            ToolCallState.Running -> runningCd
-            ToolCallState.Succeeded -> succeededCd
-            ToolCallState.Failed -> failedCd
-            ToolCallState.Cancelled -> cancelledCd
-            else -> ""
-        },
-    )
+fun toolRowDescription(message: ChatMessage.ToolCall): String {
+    // The four state words, resolved before the block rather than read from a
+    // composable getter inside it. A `@ReadOnlyComposable` getter is legal from an
+    // inline lambda, but only from one the compiler can prove has captured
+    // nothing; a plain local makes that a fact rather than a hope.
+    val running = stringResource(R.string.agent_tool_running)
+    val succeeded = stringResource(R.string.agent_tool_succeeded)
+    val failed = stringResource(R.string.agent_tool_failed)
+    val cancelled = stringResource(R.string.agent_tool_cancelled)
+
+    return buildString {
+        append(message.name)
+        if (message.summary.isNotEmpty()) append(", ${message.summary}")
+        append(
+            ", " + when (message.state) {
+                ToolCallState.Running -> running
+                ToolCallState.Succeeded -> succeeded
+                ToolCallState.Failed -> failed
+                ToolCallState.Cancelled -> cancelled
+                else -> ""
+            },
+        )
+    }
 }
-
-/**
- * The state words [toolRowDescription] reads.
- *
- * A `@ReadOnlyComposable` getter each, so they can be read from inside
- * `buildString` — a block that is not itself a composition slot. An ordinary
- * `@Composable` call from there would be a call outside a composable scope.
- */
-private val runningCd: String
-    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_running)
-
-private val succeededCd: String
-    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_succeeded)
-
-private val failedCd: String
-    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_failed)
-
-private val cancelledCd: String
-    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_cancelled)
 
 /**
  * A row of pills.
