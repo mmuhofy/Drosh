@@ -1,19 +1,13 @@
 package dev.drosh.ui.agent
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,35 +18,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.agent.components.glassRow
-import kotlin.math.roundToInt
 
 // ── parsing what the search tool printed ───────────────────────────────────
 
@@ -222,11 +204,13 @@ private const val WEB_SEARCH = "web_search"
  * the conversation off the screen and moves the row the user tapped out from
  * under their thumb.
  *
- * ## Why it drags
+ * ## One chrome
  *
- * `detectVerticalDragGestures` on the sheet itself, the pattern
- * [TerminalHistorySheet] and [AgentToolDetailSheet] both use. A grabber drawn
- * over a sheet that cannot be dragged is a lie about the affordance.
+ * The header used to be this sheet's own — its own icon, its own corner, its
+ * own grabber, and a "Close" spelled out in the corner. It is now
+ * `AgentSheet`, which is the same set of numbers the model picker already used
+ * and the only place they are written down. The close is an icon with a 44dp
+ * target, like every other close in the agent.
  */
 @Composable
 fun AgentSearchSheet(
@@ -235,167 +219,49 @@ fun AgentSearchSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val closeCd = stringResource(R.string.action_close)
+    val count = (outcome as? SearchOutcome.Results)?.results?.size
+    val query = (outcome as? SearchOutcome.Results)?.query.orEmpty()
 
-    Box(modifier = modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(DroshSurfaceHigh.copy(alpha = 0.5f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                )
-                .semantics { contentDescription = closeCd },
-        )
+    AgentSheet(
+        modifier = modifier,
+        title = stringResource(R.string.agent_search_title),
+        // The query and how many came back, because a list of results with no
+        // words above it is a list the user cannot check against what they
+        // asked. One line, ellipsised, the way the model picker keeps one.
+        subtitle = when {
+            count != null && count > 0 -> stringResource(
+                if (count == 1) R.string.agent_search_count_one else R.string.agent_search_count,
+                count,
+            ) + " · " + query.ifBlank { stringResource(R.string.agent_search_title) }
 
-        val shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
-        var dragDown by remember { mutableFloatStateOf(0f) }
-        val dismissAt = with(LocalDensity.current) { 160.dp.toPx() }
-
+            outcome is SearchOutcome.Empty -> query
+            else -> null
+        },
+        icon = DroshIcons.Globe,
+        onDismiss = onDismiss,
+    ) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .offset { IntOffset(0, dragDown.roundToInt()) }
+                .weight(1f)
                 .fillMaxWidth()
-                .fillMaxHeight(0.72f)
-                .clip(shape)
-                .background(DroshSurfaceHigh)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragEnd = {
-                            if (dragDown > dismissAt) onDismiss() else dragDown = 0f
-                        },
-                        onDragCancel = { dragDown = 0f },
-                    ) { _, delta ->
-                        if (delta > 0f) dragDown += delta
-                        else if (dragDown > 0f) dragDown = (dragDown + delta).coerceAtLeast(0f)
-                    }
-                }
-                .navigationBarsPadding(),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            Spacer(Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(DroshText.copy(alpha = 0.2f)),
-            )
+            when (outcome) {
+                is SearchOutcome.Results -> outcome.results.forEach { result ->
+                    SearchResultRow(result = result, onClick = { onOpen(result.url) })
+                }
 
-            SearchSheetHeader(outcome = outcome, onDismiss = onDismiss)
+                is SearchOutcome.Empty -> SheetEmptyNote(stringResource(R.string.agent_search_empty))
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(DroshBackground)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 14.dp)
-                    .padding(bottom = 20.dp),
-            ) {
-                when (outcome) {
-                    is SearchOutcome.Results -> outcome.results.forEach { result ->
-                        SearchResultRow(result = result, onClick = { onOpen(result.url) })
-                    }
-
-                    is SearchOutcome.Empty -> {
-                        Text(
-                            text = stringResource(R.string.agent_search_empty),
-                            fontSize = 13.sp,
-                            color = DroshTextMuted,
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    }
-
-                    is SearchOutcome.Failed -> {
-                        Text(
-                            text = stringResource(R.string.agent_search_error),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = DroshTextSecondary,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                        )
-                        Text(
-                            text = outcome.reason,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp,
-                            fontFamily = LocalFontSet.current.mono,
-                            color = DroshTextMuted,
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    }
+                is SearchOutcome.Failed -> {
+                    SheetEmptyNote(stringResource(R.string.agent_search_error))
+                    SheetMonoBlock(text = outcome.reason, mutedWhenBlank = true)
                 }
             }
+            Spacer(Modifier.height(20.dp))
         }
-    }
-}
-
-@Composable
-private fun SearchSheetHeader(outcome: SearchOutcome, onDismiss: () -> Unit) {
-    val title = when (outcome) {
-        is SearchOutcome.Results -> outcome.domain.ifBlank {
-            stringResource(R.string.agent_search_title)
-        }
-
-        is SearchOutcome.Empty -> stringResource(R.string.agent_search_title)
-        is SearchOutcome.Failed -> stringResource(R.string.agent_search_title)
-    }
-    val subtitle = when (outcome) {
-        is SearchOutcome.Results -> outcome.query.ifBlank { stringResource(R.string.agent_search_title) }
-        is SearchOutcome.Empty -> outcome.query
-        is SearchOutcome.Failed -> ""
-    }
-    val count = (outcome as? SearchOutcome.Results)?.results?.size
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = DroshIcons.Globe,
-            contentDescription = null,
-            tint = DroshTextSecondary,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(Modifier.width(9.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontSize = 15.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DroshText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (subtitle.isNotBlank()) {
-                Text(
-                    text = count?.let {
-                        stringResource(
-                            if (it == 1) R.string.agent_search_count_one else R.string.agent_search_count,
-                            it,
-                        ) + " · " + subtitle
-                    } ?: subtitle,
-                    fontSize = 12.sp,
-                    color = DroshTextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        Text(
-            text = stringResource(R.string.action_close),
-            fontSize = 13.sp,
-            color = DroshTextSecondary,
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .clickable(onClick = onDismiss)
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-        )
     }
 }
 

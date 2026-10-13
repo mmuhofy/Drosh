@@ -65,7 +65,7 @@ fun AgentShellToolSheet(
         modifier = modifier,
         visible = visible,
         title = stringResource(R.string.agent_sheet_shell_title),
-        subtitle = state?.let { stringResource(it.shellLabelRes()) },
+        subtitle = state?.let { stringResource(it.labelRes()) },
         icon = DroshIcons.SquareTerminal,
         trailing = {
             SheetIconButton(
@@ -194,7 +194,7 @@ fun SheetMonoBlock(
  * A sealed interface, so the branches are its six members and there is no `else`
  * to leave a new state silently unlabelled the day one is added.
  */
-private fun ToolCallState.shellLabelRes(): Int = when (this) {
+internal fun ToolCallState.labelRes(): Int = when (this) {
     ToolCallState.Running -> R.string.agent_tool_running
     ToolCallState.Succeeded -> R.string.agent_tool_succeeded
     ToolCallState.Failed -> R.string.agent_tool_failed
