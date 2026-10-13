@@ -143,7 +143,10 @@ internal fun DroshMarkdownTable(
         val floor = with(density) { MIN_COLUMN_WIDTH.roundToPx() }
         // coerceAtLeast, not max: both sides are in px by this point, and a column
         // wider than the minimum must be left exactly as measured.
-        widest.map { with(density) { (it + gutter).coerceAtLeast(floor) }.toDp() }
+        // The conversion is inside the density block because that is the only
+        // scope `toDp()` exists in: the px values measured above are useless to
+        // anyone reading them out here, and Compose has no global density.
+        widest.map { with(density) { (it + gutter).coerceAtLeast(floor).toDp() } }
     }
     val tableWidth = columnWidths.fold(0.dp) { acc, width -> acc + width }
 
