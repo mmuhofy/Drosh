@@ -76,7 +76,10 @@ class ModelInputCapabilitiesTest {
 
     @Test
     fun `firstUnsupported names the file, not just the kind`() {
-        val capabilities = ModelInputCapabilities.of(model(attachment = false))
+        // Images yes, video no: otherwise the first thing refused would be the
+        // png and this would be asserting the order of the list, not the fact
+        // that the requirement carries a file name.
+        val capabilities = ModelInputCapabilities.of(model(inputModalities = listOf("image")))
         val attachments = listOf(
             attachment("a.png", "image/png"),
             attachment("clip.mp4", "video/mp4"),

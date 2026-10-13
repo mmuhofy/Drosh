@@ -58,7 +58,13 @@ object ChatTitle {
 
     /** Whether the first message carries enough to be worth a naming call. */
     fun isWorthNaming(userText: String): Boolean =
-        userText.trim().split(WHITESPACE).count { it.isNotBlank() } >= MIN_WORDS
+        userText.trim().split(WHITESPACE)
+            .filter { it.isNotBlank() }
+            // Distinct, not counted: forty repetitions of `ok` is still `ok`.
+            // Asking a model for a title costs a call, and there is nothing in
+            // that message to describe.
+            .distinct()
+            .count() >= MIN_WORDS
 
     /** The part of the first message the naming request is about. */
     fun sourceFor(userText: String): String =
