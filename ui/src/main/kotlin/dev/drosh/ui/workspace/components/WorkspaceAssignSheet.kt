@@ -2,8 +2,8 @@ package dev.drosh.ui.workspace.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -38,9 +39,9 @@ import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.workspace.Workspace
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 
 /**
  * Move a session into a project, or out of one.
@@ -72,7 +73,7 @@ fun WorkspaceAssignSheet(
                 .padding(horizontal = 16.dp, vertical = 18.dp),
         ) {
             Text(
-                text = "Projeye taşı",
+                text = stringResource(R.string.projects_move_title),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = DroshText,
@@ -81,7 +82,6 @@ fun WorkspaceAssignSheet(
             Text(
                 text = sessionName,
                 fontSize = 12.sp,
-                fontFamily = LocalFontSet.current.mono,
                 color = DroshTextMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -95,18 +95,20 @@ fun WorkspaceAssignSheet(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 AssignRow(
-                    label = "Projesiz bırak",
+                    label = stringResource(R.string.projects_move_unfiled),
                     accent = null,
                     selected = currentWorkspaceId == null,
+                    selectedLabel = stringResource(R.string.projects_move_selected),
                     onClick = { onSelect(null) },
                 )
 
                 workspaces.forEach { workspace ->
                     AssignRow(
                         label = workspace.name,
-                        sublabel = workspace.rootPath,
+                        sublabel = workspace.description.takeIf { it.isNotEmpty() },
                         accent = workspaceSeedColor(workspace.colorSeed),
                         selected = workspace.id == currentWorkspaceId,
+                        selectedLabel = stringResource(R.string.projects_move_selected),
                         onClick = { onSelect(workspace.id) },
                     )
                 }
@@ -118,16 +120,17 @@ fun WorkspaceAssignSheet(
                     // a project first" and the session they were filing stays
                     // unfiled until they find another way in.
                     Text(
-                        text = "Henüz proje yok.",
+                        text = stringResource(R.string.projects_move_empty),
                         fontSize = 12.sp,
                         color = DroshTextSecondary,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
                     )
                     AssignRow(
-                        label = "Yeni proje oluştur",
-                        sublabel = "ve bu session'ı içine koy",
+                        label = stringResource(R.string.projects_move_create),
+                        sublabel = stringResource(R.string.projects_move_create_sub),
                         accent = DroshPrimary,
                         selected = false,
+                        selectedLabel = stringResource(R.string.projects_move_selected),
                         showCheck = false,
                         onClick = onCreateProject,
                     )
@@ -144,6 +147,7 @@ private fun AssignRow(
     onClick: () -> Unit,
     sublabel: String? = null,
     accent: Color?,
+    selectedLabel: String,
     showCheck: Boolean = true,
 ) {
     Row(
@@ -158,7 +162,7 @@ private fun AssignRow(
                 contentDescription = buildString {
                     append(label)
                     if (sublabel != null) append(", ").append(sublabel)
-                    if (selected) append(", seçili")
+                    if (selected) append(", ").append(selectedLabel)
                 }
             },
         verticalAlignment = Alignment.CenterVertically,
@@ -184,7 +188,6 @@ private fun AssignRow(
                 Text(
                     text = sublabel,
                     fontSize = 10.sp,
-                    fontFamily = LocalFontSet.current.mono,
                     color = DroshTextMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
