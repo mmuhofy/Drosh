@@ -403,15 +403,19 @@ private enum class Section { Projects, Unfiled, Archive }
 /**
  * Flatten the board into the rows of one list.
  *
- * Pure, so the rules that decide what appears — which rows a filter keeps, when
- * a project opens itself, what a corner is — can be read in one place rather
- * than spread across four renderers that each re-derive them.
+ * Internal rather than private because the rules that decide what appears —
+ * which rows a filter keeps, when a project opens itself, what a corner and a
+ * gap are — are the part of this screen most worth testing, and a pure function
+ * is a testable one. `ProjectsRowsTest` covers them without a device.
+ *
+ * Pure, so the rules can be read in one place rather than spread across four
+ * renderers that each re-derive them.
  *
  * A session appears exactly once: under its project, or in the ungrouped
  * section. That is what keeps the keys unique, and it is also the truth — a
  * session filed under a project is not simultaneously ungrouped.
  */
-private fun buildProjectRows(
+internal fun buildProjectRows(
     board: WorkspaceBoard,
     archived: List<Workspace>,
     expandedIds: Set<String>,
