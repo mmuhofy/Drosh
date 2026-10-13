@@ -108,36 +108,25 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     fun dismissSelection() = stopTextSelectionMode()
 
     fun pasteFromClipboard() {
-        // Pasted text is input like any other: it goes after the held space,
-        // never before it.
-        flushPendingSpace()
+        // Pasted text is input like any other: it closes the space gesture.
+        endSpaceDrag()
         mTermSession?.onPasteTextFromClipboard()
     }
 
     /**
-     * Delivers a space that is still waiting out its drag window, right now.
+     * Ends the space-drag state, because something else was typed.
      *
-     * A lone space from the soft keyboard is held so a drag starting on the
-     * terminal can turn it into cursor movement instead of a space. Nothing
-     * about that needs the space to stay held once the user sends something
-     * else: the next key or character is the user saying "that was a space",
-     * and it must not overtake it. Before this existed the held space was
-     * only written by its 500 ms timer or by releasing the space key, so
-     * typing "ls -la" sent "ls-la " — the character after the space reached
-     * the PTY first and the space arrived last, up to half a second behind.
-     *
-     * This is the timer body, run early. The gesture that needs the window is
-     * a touch sequence, and touches do not come through here, so a drag can
-     * still claim the space while it is pending.
+     * The space itself is already at the PTY — it is written the moment it is
+     * committed — so there is nothing here to deliver. All this does is close
+     * the gesture: the next character is the user saying "that was a space",
+     * so a finger landing on the terminal afterwards is a tap on the screen,
+     * not the start of a drag.
      */
-    private fun flushPendingSpace() {
-        val pending = pendingSpaceRunnable ?: return
-        pendingSpaceRunnable = null
-        removeCallbacks(pending)
-        if (spaceKeyDown && !spaceDragMoved) mTermSession?.write(" ")
+    private fun endSpaceDrag() {
         spaceKeyDown = false
         spaceDragActive = false
         spaceDragMoved = false
+        spaceSentToPty = false
         horizontalDragAccumulator = 0f
         lastDragX = 0f
     }
@@ -274,9 +263,14 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
     private var spaceDragActive: Boolean = false
     private var spaceDragMoved: Boolean = false
+
+    /**
+     * True while the space that started the current drag is still sitting at
+     * the PTY. A drag retracts it once with a DEL; a tap leaves it alone.
+     */
+    private var spaceSentToPty: Boolean = false
     private var horizontalDragAccumulator: Float = 0f
     private var lastDragX: Float = 0f
-    private var pendingSpaceRunnable: Runnable? = null
 
     /** If non-zero, this is the last unicode code point received if that was a combining character. */
     @JvmField
@@ -762,21 +756,23 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
                     spaceDragMoved = false
                     horizontalDragAccumulator = 0f
                     lastDragX = 0f
-                    pendingSpaceRunnable = Runnable {
-                        if (spaceKeyDown && !spaceDragMoved) {
-                            mTermSession?.write(" ")
-                        }
-                        spaceKeyDown = false
-                        spaceDragActive = false
-                        spaceDragMoved = false
-                        horizontalDragAccumulator = 0f
-                        lastDragX = 0f
-                    }
-                    postDelayed(pendingSpaceRunnable, SPACE_DRAG_TIMEOUT_MS)
+                    // Straight to the PTY. The space used to wait 500 ms for a
+                    // drag that may never come, so a command line could sit
+                    // missing the character the user had already typed; and if
+                    // anything else was typed inside that window it overtook
+                    // the space, turning "ls -la" into "ls-la ". A drag takes
+                    // the space back with one DEL — see handleSpaceDrag — so
+                    // the window is no longer what the gesture depends on.
+                    spaceSentToPty = true
+                    mTermSession?.write(" ")
                     return
                 }
 
                 val textLengthInChars = text.length
+                // New text ends the space gesture: whatever comes next was
+                // typed after a space, so a finger on the terminal now means a
+                // tap or a scroll, not the start of a drag.
+                endSpaceDrag()
                 var i = 0
                 while (i < textLengthInChars) {
                     val firstChar = text[i]
@@ -1317,8 +1313,6 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
                 if (!spaceDragActive) {
                     spaceDragActive = true
                     spaceDragMoved = false
-                    pendingSpaceRunnable?.let { removeCallbacks(it) }
-                    pendingSpaceRunnable = null
                     horizontalDragAccumulator = 0f
                     lastDragX = event.x
                 }
@@ -1334,6 +1328,15 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
                         val colsToMove = (horizontalDragAccumulator / fontWidth).toInt()
                         if (colsToMove != 0) {
                             horizontalDragAccumulator -= colsToMove * fontWidth
+                            // The space already reached the PTY when it was
+                            // typed. Take it back once, so the drag lands the
+                            // cursor where a space that had never been sent
+                            // would have left it. Without this the cursor
+                            // would end up one cell right of the intent.
+                            if (spaceSentToPty) {
+                                spaceSentToPty = false
+                                inputCodePoint(KEY_EVENT_SOURCE_SOFT_KEYBOARD, 0x7F, false, false)
+                            }
                             spaceDragMoved = true
                             val keyCode = if (colsToMove > 0) {
                                 KeyEvent.KEYCODE_DPAD_LEFT
@@ -1352,12 +1355,13 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
                 if (spaceDragActive) {
-                    if (!spaceDragMoved) {
-                        inputCodePoint(KEY_EVENT_SOURCE_SOFT_KEYBOARD, ' '.code, false, false)
-                    }
+                    // Nothing to commit on release: a space that was not
+                    // retracted is already at the PTY, and one that was
+                    // retracted must stay retracted.
                     spaceKeyDown = false
                     spaceDragActive = false
                     spaceDragMoved = false
+                    spaceSentToPty = false
                     horizontalDragAccumulator = 0f
                     lastDragX = 0f
                 }
@@ -1448,11 +1452,13 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
         if (mEmulator == null) return true
 
         if (keyCode == KeyEvent.KEYCODE_SPACE) {
-            pendingSpaceRunnable?.let { removeCallbacks(it) }
-            pendingSpaceRunnable = null
+            // A hardware space is written on key *up*, as before — the key can
+            // be held while a drag starts. Nothing has reached the PTY yet, so
+            // there is nothing for a drag to retract.
             spaceKeyDown = true
             spaceDragActive = false
             spaceDragMoved = false
+            spaceSentToPty = false
             horizontalDragAccumulator = 0f
             lastDragX = 0f
             return true
@@ -1460,6 +1466,10 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
         if (isSelectingText) {
             stopTextSelectionMode()
         }
+        // Any other key means the space was a space. (Keys typed while the
+        // gesture is running do not come through here — handleSpaceDrag
+        // consumes the touch sequence itself.)
+        endSpaceDrag()
 
         if (mClient!!.onKeyDown(keyCode, event, mTermSession!!)) {
             invalidate()
@@ -1532,11 +1542,9 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
 
     fun inputCodePoint(eventSource: Int, codePoint: Int, controlDownFromEvent: Boolean, leftAltDownFromEvent: Boolean) {
         var cp = codePoint
-        // A code point on its way to the PTY is the user's next input after a
-        // held space; the space goes first so the line reads in the order it
-        // was typed. Harmless for the paths that write a space themselves —
-        // by then the pending one has already been taken.
-        flushPendingSpace()
+        // Not here: handleSpaceDrag calls this to retract the space and to send
+        // the cursor moves, and closing the gesture from inside would kill the
+        // drag on its first cell. Real input closes it at the entry points.
         if (TERMINAL_VIEW_KEY_LOGGING_ENABLED) {
             mClient!!.logInfo(LOG_TAG, "inputCodePoint(eventSource=$eventSource, codePoint=$cp, controlDownFromEvent=$controlDownFromEvent, leftAltDownFromEvent=$leftAltDownFromEvent)")
         }
@@ -1586,9 +1594,8 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
 
     /** Input the specified keyCode if applicable and return if the input was consumed. */
     fun handleKeyCode(keyCode: Int, keyMod: Int): Boolean {
-        // Same reasoning as inputCodePoint: a key is input, so a space still
-        // waiting for its drag window is written before this one.
-        flushPendingSpace()
+        // handleSpaceDrag sends the cursor moves through here, so the gesture
+        // is not closed in this function — see inputCodePoint.
 
         // Ensure cursor is shown when a key is pressed down like long hold on (arrow) keys
         mEmulator?.setCursorBlinkState(true)
@@ -1635,14 +1642,15 @@ fun zoomTo(textSizeSp: Float, focusX: Float, focusY: Float) {
             mClient!!.logInfo(LOG_TAG, "onKeyUp(keyCode=$keyCode, event=$event)")
 
         if (keyCode == KeyEvent.KEYCODE_SPACE) {
-            pendingSpaceRunnable?.let { removeCallbacks(it) }
-            pendingSpaceRunnable = null
+            // Hardware space: written here, on release, unless a drag claimed
+            // it — the drag case never sent anything, so there is no retraction.
             if (spaceKeyDown && !spaceDragMoved) {
                 inputCodePoint(event.deviceId, ' '.code, false, false)
             }
             spaceKeyDown = false
             spaceDragActive = false
             spaceDragMoved = false
+            spaceSentToPty = false
             horizontalDragAccumulator = 0f
             lastDragX = 0f
             return true
@@ -2196,8 +2204,6 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         const val KEY_EVENT_SOURCE_SOFT_KEYBOARD = 0
 
          private const val LOG_TAG = "TerminalView"
-
-        private const val SPACE_DRAG_TIMEOUT_MS: Long = 500
 
         /** Upper bound on text read back by getTextBeforeCursor. */
         private const val TYPED_MIRROR_MAX = 256
