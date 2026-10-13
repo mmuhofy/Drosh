@@ -1,15 +1,8 @@
 package dev.drosh.ui.agent.components
 
+import androidx.compose.foundation.background
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -38,11 +31,20 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -58,7 +60,10 @@ import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.domain.agent.ChatMessage
+import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 
 /**
  * The agent screens' control surfaces.
@@ -135,6 +140,18 @@ object AgentPillDefaults {
 
     /** Fully rounded, as the terminal's pills are. */
     val Shape: Shape = RoundedCornerShape(percent = 50)
+
+    /**
+     * The drawn tool pill, inside its own touch box.
+     *
+     * Smaller than [Height] on purpose: a tool call is one line among a
+     * paragraph of prose, and a 44dp capsule in the middle of an answer is a
+     * slab. 40dp is still a comfortable target, and the transcript row keeps the
+     * whole pill as its hit area.
+     */
+    val ToolHeight: Dp = 40.dp
+    val ToolIconSize: Dp = 15.dp
+    val ToolLabelSize = 12.5.sp
 
     /**
      * The resting fill.
@@ -555,13 +572,185 @@ fun AgentIconPill(
 }
 
 /**
+ * A tool call, as a pill.
+ *
+ * ## There is no tool text in the transcript
+ *
+ * A tool call used to be a line of prose — a verb, the command that ran, the
+ * elapsed time — sitting in the middle of somebody's answer. On a turn that ran
+ * five tools that was five rows of monospace between the user and the model, and
+ * the conversation stopped reading as a conversation: it read as a log the model
+ * happened to be narrating.
+ *
+ * So the call is a pill. It is one capsule, it says the verb, and the colour of
+ * the verb says how it went. Everything the tool actually produced — the output,
+ * the diff, the copy action — is on the detail sheet the pill opens. The pill is
+ * the door, not the room.
+ *
+ * ## Not glass
+ *
+ * It sits inside the transcript, so it is a flat [DroshSurfaceHigh] capsule with
+ * no edge and no blur. Glass in the middle of a conversation is what turned the
+ * transcript into a gallery of surfaces; see [Modifier.glassSurface].
+ *
+ * ## The verb is the status
+ *
+ * Present tense while the call runs, past tense once it finishes, so the pill
+ * says whether something is still going without a separate indicator to look
+ * for. Colour carries the outcome on top: a failure is red whatever the tense.
+ */
+@Composable
+fun AgentToolPill(
+    message: ChatMessage.ToolCall,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val glass = LocalAgentGlass.current
+
+    val (present, past) = toolVerbs(message.name)
+    val label = if (message.state == ToolCallState.Running) present else past
+    val tint = toolVerbColor(message.state)
+
+    Box(
+        modifier = modifier
+            .defaultMinSize(minHeight = AgentPillDefaults.ToolHeight)
+            // edged = false, always: this is a transcript surface, not floating
+            // chrome. See the class note.
+            .glassSurface(glass, pressed, shape = AgentPillDefaults.Shape, edged = false)
+            .semantics { contentDescription = toolRowDescription(message) }
+            .pressable(interaction, enabled, onClick)
+            .padding(horizontal = 11.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            // A dot rather than a second glyph: the capsule already names the
+            // tool in its label, and the dot is what carries the state at a
+            // glance without a spinner ticking next to it.
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(tint),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = label,
+                fontSize = AgentPillDefaults.ToolLabelSize,
+                fontWeight = FontWeight.Medium,
+                color = tint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** The glyph for a tool's name. See the transcript's own [toolVerbs]. */
+@Composable
+fun ToolIcon(name: String) {
+    val icon = when (name) {
+        "shell" -> DroshIcons.Terminal
+        "read_file" -> DroshIcons.Code
+        "write_file" -> DroshIcons.Pencil
+        "ask_user" -> DroshIcons.Info
+        "update_todo" -> DroshIcons.ListChecks
+        else -> DroshIcons.SquareTerminal
+    }
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = DroshTextMuted,
+        modifier = Modifier.size(AgentPillDefaults.ToolIconSize),
+    )
+}
+
+/**
+ * The verb for a tool, in present and past tense.
+ *
+ * Present while the call runs, past once it finishes — the tense is the status, so
+ * the pill does not need a separate indicator to say whether something is still
+ * going.
+ *
+ * `write_file` is `Wrote` rather than `Edited` because the model creates as often
+ * as it modifies, and a verb that only fits one of the two would be wrong half the
+ * time.
+ */
+fun toolVerbs(name: String): Pair<String, String> = when (name) {
+    "shell" -> "Running" to "Ran"
+    "read_file" -> "Reading" to "Read"
+    "write_file" -> "Writing" to "Wrote"
+    "grep" -> "Searching" to "Searched"
+    "move_file" -> "Moving" to "Moved"
+    "ask_user" -> "Asking" to "Asked"
+    "update_todo" -> "Updating" to "Updated"
+    "web_search" -> "Searching" to "Searched"
+    else -> "Working" to "Done"
+}
+
+/**
+ * The verb's colour, which carries the outcome the tense does not.
+ *
+ * A failure is red whether or not the reader parses "Ran" — the verb says it
+ * finished, the colour says how.
+ */
+@Composable
+fun toolVerbColor(state: ToolCallState): Color = when (state) {
+    ToolCallState.Running -> DroshPrimary
+    ToolCallState.Succeeded -> DroshText
+    ToolCallState.Failed -> DroshError
+    ToolCallState.Cancelled -> DroshTextMuted
+    ToolCallState.AwaitingApproval -> DroshWarning
+    ToolCallState.Pending -> DroshTextMuted
+}
+
+/**
+ * The spoken form of a tool pill, for a screen reader rather than the eye.
+ *
+ * Everything a sighted user loses by not having the row's text: the tool's name,
+ * its summary, and the outcome. A pill that only said "Ran" would leave a
+ * screen-reader user with no way to learn what ran.
+ */
+@Composable
+fun toolRowDescription(message: ChatMessage.ToolCall): String = buildString {
+    append(message.name)
+    if (message.summary.isNotEmpty()) append(", ${message.summary}")
+    append(
+        ", " + when (message.state) {
+            ToolCallState.Running -> runningCd
+            ToolCallState.Succeeded -> succeededCd
+            ToolCallState.Failed -> failedCd
+            ToolCallState.Cancelled -> cancelledCd
+            else -> ""
+        },
+    )
+}
+
+/** The four state words of [toolRowDescription], read from resources. */
+private val runningCd: String
+    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_state_running)
+
+private val succeededCd: String
+    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_state_done)
+
+private val failedCd: String
+    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_state_failed)
+
+private val cancelledCd: String
+    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_state_cancelled)
+
+/**
  * A row of pills.
  *
  * Zero spacing, deliberately: each pill already carries 7dp of slack inside its
  * own touch box, so the visual gap is already 14dp and adding more would make the
  * row drift away from the mockup's rhythm.
- */
-@Composable
+ */@Composable
 fun AgentPillRow(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit,
