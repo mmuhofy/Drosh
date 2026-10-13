@@ -1156,7 +1156,7 @@ private fun ProjectsFilterField(
                     onValueChange("")
                     focusManager.clearFocus()
                 },
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(44.dp),
                 tint = DroshTextMuted,
             )
         }
