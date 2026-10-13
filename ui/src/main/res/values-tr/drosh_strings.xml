@@ -470,6 +470,7 @@ terminal session açmana gerek yok.</string>
     <string name="agent_attach_camera_desc">Fotoğraf çek ve ekle</string>
     <string name="agent_attach_camera_unavailable">Bu cihazda kamera uygulaması yok</string>
     <string name="agent_attach_log">Session logundan</string>
+    <string name="agent_attach_log_pick">Bir session seç, sonra agentın okuması gereken satırları seç</string>
     <string name="agent_attach_log_desc">Son komutu ve çıktısını ekle</string>
     <string name="agent_attach_log_empty">Bu sohbette henüz komut çalışmadı</string>
     <string name="agent_attach_web_search">Web arama</string>

@@ -470,6 +470,7 @@ no terminal session needed.</string>
     <string name="agent_attach_camera_desc">Take a photo and attach it</string>
     <string name="agent_attach_camera_unavailable">This device has no camera app</string>
     <string name="agent_attach_log">From the session log</string>
+    <string name="agent_attach_log_pick">Pick a session, then the lines the agent should read</string>
     <string name="agent_attach_log_desc">Insert the last command and its output</string>
     <string name="agent_attach_log_empty">No command has run in this chat yet</string>
     <string name="agent_attach_web_search">Web search</string>

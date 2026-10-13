@@ -17,14 +17,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 import dev.drosh.ui.settings.SettingsSwitch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
 /**
  * One tool the agent can be allowed to run without asking.
  *
@@ -314,22 +312,4 @@ fun AgentSessionScopeSheet(
             Spacer(Modifier.height(20.dp))
         }
     }
-}
-
-/**
- * A sentence under a section label, on the sheet's own surface.
- *
- * Smaller and quieter than the rows it explains, because it is read once and
- * then looked past — but present, because a list of eight switches with no
- * sentence above it is eight switches the user has to guess about.
- */
-@Composable
-private fun SheetCaption(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        color = DroshTextMuted,
-        fontSize = 11.5.sp,
-        lineHeight = 16.sp,
-        modifier = modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
-    )
 }

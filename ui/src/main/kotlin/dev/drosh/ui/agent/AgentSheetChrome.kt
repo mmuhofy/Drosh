@@ -499,3 +499,21 @@ fun SheetBody(
         content = content,
     )
 }
+
+/**
+ * A sentence under a section label, on the sheet's own surface.
+ *
+ * Smaller and quieter than the rows it explains, because it is read once and
+ * then looked past — but present, because a list of switches with no sentence
+ * above it is a list of switches the user has to guess about.
+ */
+@Composable
+fun SheetCaption(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        color = DroshTextMuted,
+        fontSize = 11.5.sp,
+        lineHeight = 16.sp,
+        modifier = modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+    )
+}

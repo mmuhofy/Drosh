@@ -12,25 +12,16 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,41 +42,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.PathData
-import androidx.compose.ui.graphics.vector.PathBuilder
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshBackground
 import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurfaceHigh
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
 import dev.drosh.design.system.DroshTextSecondary
 import dev.drosh.design.system.DroshTile
 import dev.drosh.design.system.DroshTilePressed
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.agent.components.glassRow
+import dev.drosh.ui.session.SessionLogSource
+import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.settings.SettingsSwitch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
-import kotlin.math.roundToInt
 
 // ── what an attachment is ──────────────────────────────────────────────────
 
@@ -187,6 +170,40 @@ sealed interface ChatAttachment {
         }
     }
 
+    /**
+     * A range of lines taken from one of the terminal sessions.
+     *
+     * ## Why it is an attachment and not a paste
+     *
+     * The same reason every other thing behind the `+` is: a few hundred lines
+     * of build output in the value of a `BasicTextField` is a few hundred lines
+     * carried by every keystroke, every re-layout and every recomposition of
+     * the composer. Held beside the draft, it is rendered into the prompt at
+     * the moment it is sent and costs nothing before that.
+     *
+     * ## Why it goes through [AgentLogAttach.format]
+     *
+     * The wrapper is not decoration. An agent handed forty lines of build
+     * output has no way to know they are the tail of a build rather than
+     * something it was asked to write, and the difference decides whether it
+     * summarises the failure or starts editing the file. Naming the session and
+     * the line range is what makes the paste answerable.
+     */
+    data class LogLines(
+        val sessionName: String,
+        val firstLine: Int,
+        val lastLine: Int,
+        val text: String,
+    ) : ChatAttachment {
+        override val label: String get() = sessionName
+
+        /** How many lines were chosen, one more than the gap between them. */
+        val lineCount: Int get() = lastLine - firstLine + 1
+
+        override fun renderIntoPrompt(): String =
+            AgentLogAttach.format(sessionName, firstLine, lastLine, text)
+    }
+
     companion object {
         /** Past this the prompt stops being a prompt. */
         const val MAX_BINARY_BYTES = 5 * 1024 * 1024
@@ -219,13 +236,18 @@ sealed interface ChatAttachment {
  * has no app for. A sheet costs nothing until it is opened, and it has room for
  * the sentence each option needs to explain itself.
  *
- * ## Why it really drags
+ * ## One sheet, in the model picker's language
  *
- * The grabber under this sheet is not decoration: `detectVerticalDragGestures`
- * on the sheet itself, the same pattern [TerminalHistorySheet] and
- * [AgentToolDetailSheet] use, and the sheet follows the finger before it
- * leaves. A grabber over a sheet that ignores the gesture teaches the user that
- * this app's affordances are decorative.
+ * 28dp corner, 38x4 grabber, 17sp bold title, and a drag that follows the
+ * finger before it leaves — the same numbers `AgentSheet` writes down once for
+ * the whole agent, which is what keeps this sheet and the tool detail sheet and
+ * the search sheet from reading as three apps.
+ *
+ * ## Two things open on top of it, and neither is a second design
+ *
+ * The session-log picker and the session scope sheet are both `AgentSheet`s
+ * with the same header, so stepping into one from here is stepping into the
+ * same surface rather than into another app's dialog.
  *
  * ## The two switches are not decoration either
  *
@@ -244,19 +266,48 @@ fun AgentAttachSheet(
     /** The values this model accepts. Empty means it has no effort choice. */
     efforts: List<String>,
     onEffortChange: (String?) -> Unit,
-    /** The last shell command in this chat, or null when none has run. */
+    /**
+     * The chat's own last shell call.
+     *
+     * Nothing here reads it any more: "from the session log" now picks a real
+     * session and a real range of its lines, and the agent's terminal output is
+     * the transcript's business, not this sheet's. The parameter stays because
+     * the chat screen's call site is not this file's to change, and dropping a
+     * named argument the caller passes is a break for no gain.
+     */
     sessionLog: ChatAttachment.SessionLog?,
     onAttach: (ChatAttachment) -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Every session a log can be taken from, live ones only. */
+    logSessions: List<SessionLogTarget> = emptyList(),
+    /** Where a session's output is read from; `:ui` cannot ask the terminal. */
+    logSource: SessionLogSource? = null,
+    /** The session the user is currently in, marked in the list. */
+    activeSessionId: String? = null,
+    /**
+     * Where this session's working directory and permissions live.
+     *
+     * Null until the domain type for it lands, and then the sheet still works:
+     * an in-memory store is used instead, which is the honest placeholder
+     * rather than a permission that silently does nothing.
+     */
+    scopeStore: AgentSessionScopeStore? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val closeCd = stringResource(R.string.action_close)
 
     // Read and shrink off the main thread: a multi-megabyte decode on the UI
     // thread is a dropped frame on the very screen that just opened this sheet.
     var preparing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
+
+    // The two panels that open above this one. Both are keyed on nothing but
+    // their own flag, so closing and reopening either starts it from the top.
+    var logPickerOpen by remember { mutableStateOf(false) }
+    var scopeOpen by remember { mutableStateOf(false) }
+    val fallbackScope = remember { InMemoryAgentSessionScopeStore() }
+    val sessionScope = scopeStore ?: fallbackScope
 
     fun attach(block: suspend () -> ChatAttachment?) {
         scope.launch {
@@ -296,102 +347,41 @@ fun AgentAttachSheet(
     // picker that cannot return.
     val cameraAvailable = remember(context) { context.hasCameraApp() }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(DroshSurfaceHigh.copy(alpha = 0.5f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                )
-                .semantics { contentDescription = closeCd },
+    if (logPickerOpen) {
+        AgentSessionLogPicker(
+            sessions = logSessions,
+            source = logSource,
+            activeSessionId = activeSessionId,
+            onAdd = { picked -> onAttach(picked) },
+            onDismiss = { logPickerOpen = false },
         )
-
-        val shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
-        val rise by animateFloatAsState(
-            targetValue = 1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessLow,
-            ),
-            label = "attachSheetRise",
+    } else if (scopeOpen) {
+        AgentSessionScopeSheet(
+            store = sessionScope,
+            onDismiss = { scopeOpen = false },
         )
-
-        var dragDown by remember { mutableFloatStateOf(0f) }
-        val dismissAt = 160f
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .offset { IntOffset(0, (((1f - rise) * 420) + dragDown).roundToInt()) }
-                .fillMaxWidth()
-                .fillMaxHeight(0.86f)
-                .clip(shape)
-                .background(DroshSurfaceHigh)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragEnd = {
-                            if (dragDown > dismissAt) onDismiss() else dragDown = 0f
-                        },
-                        onDragCancel = { dragDown = 0f },
-                    ) { _, delta ->
-                        if (delta > 0f) dragDown += delta
-                        else if (dragDown > 0f) dragDown = (dragDown + delta).coerceAtLeast(0f)
-                    }
-                }
-                .navigationBarsPadding(),
+    } else {
+        AgentSheet(
+            modifier = modifier,
+            title = stringResource(R.string.agent_attach_title),
+            icon = DroshIcons.Plus,
+            heightFraction = 0.86f,
+            onDismiss = onDismiss,
         ) {
-            Spacer(Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(DroshText.copy(alpha = 0.2f)),
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.agent_attach_title),
-                    fontSize = 15.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = DroshText,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = stringResource(R.string.action_close),
-                    fontSize = 13.sp,
-                    color = DroshTextSecondary,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                )
-            }
-
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .background(DroshBackground)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 14.dp)
-                    .padding(bottom = 20.dp),
+                    .padding(top = 4.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                SheetLabel(stringResource(R.string.agent_attach_group_attach))
+                SheetSectionLabel(stringResource(R.string.agent_attach_group_attach))
 
-                AttachRow(
-                    icon = ImageGlyph,
+                SheetOptionRow(
                     title = stringResource(R.string.agent_attach_image),
                     subtitle = stringResource(R.string.agent_attach_image_desc),
+                    icon = DroshIcons.Image,
                     enabled = !preparing,
                     onClick = {
                         galleryLauncher.launch(
@@ -402,41 +392,40 @@ fun AgentAttachSheet(
                     },
                 )
 
-                AttachRow(
-                    icon = FileGlyph,
+                SheetOptionRow(
                     title = stringResource(R.string.agent_attach_file),
                     subtitle = stringResource(R.string.agent_attach_file_desc),
+                    icon = DroshIcons.File,
                     enabled = !preparing,
                     onClick = { fileLauncher.launch(ANY_MIME) },
                 )
 
-                AttachRow(
-                    icon = CameraGlyph,
+                SheetOptionRow(
                     title = stringResource(R.string.agent_attach_camera),
                     subtitle = if (cameraAvailable) {
                         stringResource(R.string.agent_attach_camera_desc)
                     } else {
                         stringResource(R.string.agent_attach_camera_unavailable)
                     },
+                    icon = DroshIcons.Camera,
                     enabled = cameraAvailable && !preparing,
                     onClick = { cameraLauncher.launch(null) },
                 )
 
-                val log = sessionLog
-                AttachRow(
-                    icon = DroshIcons.Terminal,
+                SheetOptionRow(
                     title = stringResource(R.string.agent_attach_log),
-                    subtitle = if (log == null) {
-                        stringResource(R.string.agent_attach_log_empty)
-                    } else {
-                        stringResource(R.string.agent_attach_log_desc)
-                    },
-                    enabled = log != null && !preparing,
-                    onClick = {
-                        val taken = log ?: return@AttachRow
-                        onAttach(ChatAttachment.SessionLog(taken.command, taken.output))
-                        onDismiss()
-                    },
+                    subtitle = stringResource(R.string.agent_attach_log_pick),
+                    icon = DroshIcons.Terminal,
+                    enabled = logSessions.isNotEmpty() && !preparing,
+                    onClick = { logPickerOpen = true },
+                )
+
+                SheetOptionRow(
+                    title = stringResource(R.string.agent_scope_title),
+                    subtitle = stringResource(R.string.agent_scope_row_desc),
+                    icon = DroshIcons.ShieldCheck,
+                    enabled = !preparing,
+                    onClick = { scopeOpen = true },
                 )
 
                 if (preparing) {
@@ -447,7 +436,7 @@ fun AgentAttachSheet(
                 }
 
                 Spacer(Modifier.height(14.dp))
-                SheetLabel(stringResource(R.string.agent_attach_group_settings))
+                SheetSectionLabel(stringResource(R.string.agent_attach_group_settings))
 
                 // One row, one switch, and a sentence that says what turning it
                 // off does. That sentence is the point: with the switch alone, a
@@ -476,18 +465,7 @@ fun AgentAttachSheet(
 
 // ── pieces ─────────────────────────────────────────────────────────────────
 
-@Composable
-private fun SheetLabel(text: String) {
-    Text(
-        text = text.uppercase(),
-        fontSize = 10.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.9.sp,
-        color = DroshTextMuted,
-        modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
-    )
-}
-
+/** A one-line note under the sheet's body: preparing, or a file that failed. */
 @Composable
 private fun SheetNote(text: String, color: Color) {
     Text(
@@ -497,56 +475,6 @@ private fun SheetNote(text: String, color: Color) {
         color = color,
         modifier = Modifier.padding(start = 12.dp, top = 8.dp),
     )
-}
-
-@Composable
-private fun AttachRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .glassRow(RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(DroshTilePressed),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = if (enabled) DroshTextSecondary else DroshTextMuted,
-                modifier = Modifier.size(17.dp),
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (enabled) DroshText else DroshTextMuted,
-            )
-            Text(
-                text = subtitle,
-                fontSize = 11.5.sp,
-                lineHeight = 15.sp,
-                color = DroshTextMuted,
-            )
-        }
-    }
 }
 
 @Composable
@@ -706,7 +634,7 @@ fun AgentAttachmentChips(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = attachment.label,
+                    text = chipLabel(attachment),
                     fontSize = 11.5.sp,
                     fontFamily = LocalFontSet.current.mono,
                     color = DroshTextSecondary,
@@ -732,6 +660,28 @@ fun AgentAttachmentChips(
             }
         }
     }
+}
+
+/**
+ * What a chip says, in the user's language.
+ *
+ * `ChatAttachment.label` is a name — a filename, a command — and a name is the
+ * right thing for most attachments. A range of session lines is not a name:
+ * "build" says nothing about which forty lines were taken, and two of them in
+ * a row would be two chips with the same word on them. So this one carries the
+ * count, and it carries it through a string resource rather than a
+ * concatenation, because "lines" is a word in two of the languages this app
+ * ships.
+ */
+@Composable
+private fun chipLabel(attachment: ChatAttachment): String = when (attachment) {
+    is ChatAttachment.LogLines -> stringResource(
+        R.string.agent_logpick_chip,
+        attachment.sessionName,
+        attachment.lineCount,
+    )
+
+    else -> attachment.label
 }
 
 // ── reading a URI ──────────────────────────────────────────────────────────
@@ -902,92 +852,6 @@ private fun Context.hasCameraApp(): Boolean =
     packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) &&
         Intent(MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(packageManager) != null
 
-// ── the three glyphs this sheet needs ──────────────────────────────────────
-
-/**
- * The picture, the document and the camera, drawn here rather than taken from
- * `DroshIcons`.
- *
- * `DroshIcons` is the whole app's vocabulary, and this sheet is the only place
- * these three appear: adding them there would put three glyphs no other screen
- * can use into the shared set. Lucide's 24x24 grid, stroked the same way
- * `CursorVector` in that file is, and written in the same dialect it is
- * written in — `moveTo` and `lineTo` rather than a path string, because the
- * only parser that takes a path string is internal to the file that declares
- * it.
- */
-private fun glyph(name: String, build: PathBuilder.() -> Unit): ImageVector =
-    ImageVector.Builder(
-        name = name,
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f,
-    ).addPath(
-        pathData = PathData { build() },
-        stroke = SolidColor(Color.Black),
-        strokeLineWidth = 2f,
-        strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
-        strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
-    ).build()
-
-private val ImageGlyph: ImageVector = glyph("attachImage") {
-    // The frame.
-    moveTo(3f, 3f)
-    lineTo(21f, 3f)
-    lineTo(21f, 21f)
-    lineTo(3f, 21f)
-    close()
-    // The hill inside it.
-    moveTo(21f, 15f)
-    lineTo(16f, 10f)
-    lineTo(5f, 21f)
-    // The sun, as a square: an arc is what needed the parser in the first
-    // place, and at 24dp a stroked square and a stroked circle are the same
-    // mark to the eye.
-    moveTo(8f, 8f)
-    lineTo(10f, 8f)
-    lineTo(10f, 10f)
-    lineTo(8f, 10f)
-    close()
-}
-
-private val FileGlyph: ImageVector = glyph("attachFile") {
-    // The fold, then the page it folds.
-    moveTo(14f, 3f)
-    lineTo(14f, 9f)
-    lineTo(20f, 9f)
-    moveTo(20f, 9f)
-    lineTo(20f, 21f)
-    lineTo(4f, 21f)
-    lineTo(4f, 3f)
-    lineTo(14f, 3f)
-    // Two lines of text.
-    moveTo(8f, 13f)
-    lineTo(16f, 13f)
-    moveTo(8f, 17f)
-    lineTo(16f, 17f)
-}
-
-private val CameraGlyph: ImageVector = glyph("attachCamera") {
-    // The body, with the bump on top that says which way it faces.
-    moveTo(3f, 8f)
-    lineTo(8f, 8f)
-    lineTo(9.5f, 5f)
-    lineTo(14.5f, 5f)
-    lineTo(16f, 8f)
-    lineTo(21f, 8f)
-    lineTo(21f, 19f)
-    lineTo(3f, 19f)
-    close()
-    // The lens, square for the same reason the sun is.
-    moveTo(9.5f, 10.5f)
-    lineTo(14.5f, 10.5f)
-    lineTo(14.5f, 16.5f)
-    lineTo(9.5f, 16.5f)
-    close()
-}
-
 // ── the session log as an attachment ───────────────────────────────────────
 
 /**
@@ -1001,6 +865,15 @@ private val CameraGlyph: ImageVector = glyph("attachCamera") {
  * The newest finished call only. An older one is a command the agent has
  * already moved past, and attaching it would be answering a question the user
  * did not ask.
+ *
+ * ## What reads it now
+ *
+ * Nothing on this branch. "From the session log" behind the composer's `+`
+ * picks a real session and a real range of its lines instead, because the
+ * agent's own terminal output is the transcript's business and this sheet's job
+ * is the other terminal — the one the user is running commands in. The function
+ * and the [ChatAttachment.SessionLog] it builds stay because the chat screen
+ * still passes one in, and they are the honest way back if that ever changes.
  */
 fun lastSessionLog(messages: List<ChatMessage>): ChatAttachment.SessionLog? {
     val shell = messages.filterIsInstance<ChatMessage.ToolCall>().lastOrNull { call ->
