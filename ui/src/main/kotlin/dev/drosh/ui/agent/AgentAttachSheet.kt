@@ -54,9 +54,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.PathData
-import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.graphics.vector.PathData
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -80,7 +80,7 @@ import dev.drosh.domain.agent.ChatMessage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import dev.drosh.ui.agent.components.LocalFontSet
+import dev.drosh.design.system.LocalFontSet
 import dev.drosh.ui.agent.components.glassRow
 import dev.drosh.ui.settings.SettingsSwitch
 import kotlinx.coroutines.Dispatchers
@@ -914,7 +914,7 @@ private fun Context.hasCameraApp(): Boolean =
  * can use into the shared set. Lucide's 24x24 grid, stroked the same way
  * `CursorVector` in that file is.
  */
-private fun glyph(name: String, build: PathBuilder.() -> Unit): ImageVector =
+private fun glyph(name: String, vararg paths: String): ImageVector =
     ImageVector.Builder(
         name = name,
         defaultWidth = 24.dp,
@@ -922,36 +922,36 @@ private fun glyph(name: String, build: PathBuilder.() -> Unit): ImageVector =
         viewportWidth = 24f,
         viewportHeight = 24f,
     ).addPath(
-        pathData = PathData { build() },
+        pathData = PathData {
+            paths.forEach { addPathNodes(PathParser().addPathNodes(it)) }
+        },
         stroke = SolidColor(Color.Black),
         strokeLineWidth = 2f,
         strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
-        strokeLineJoin = androidx.compose.ui.graphics.StrokeLineJoin.Round,
+        strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
     ).build()
 
-private val ImageGlyph: ImageVector = glyph("attachImage") {
-    addPathNodes(
-        "M3 3 L21 3 L21 21 L3 21 Z",
-        "M8.5 10 A1.5 1.5 0 1 0 8.5 13 A1.5 1.5 0 1 0 8.5 10 Z",
-        "M21 15 L16 10 L5 21",
-    )
-}
+private val ImageGlyph: ImageVector = glyph(
+    "attachImage",
+    "M3 3 L21 3 L21 21 L3 21 Z",
+    "M8.5 10 A1.5 1.5 0 1 0 8.5 13 A1.5 1.5 0 1 0 8.5 10 Z",
+    "M21 15 L16 10 L5 21",
+)
 
-private val FileGlyph: ImageVector = glyph("attachFile") {
-    addPathNodes(
-        "M14 3 L14 9 L20 9",
-        "M20 9 L20 21 L4 21 L4 3 L14 3",
-        "M8 13 L16 13",
-        "M8 17 L16 17",
-    )
-}
+private val FileGlyph: ImageVector = glyph(
+    "attachFile",
+    "M14 3 L14 9 L20 9",
+    "M20 9 L20 21 L4 21 L4 3 L14 3",
+    "M8 13 L16 13",
+    "M8 17 L16 17",
+)
 
-private val CameraGlyph: ImageVector = glyph("attachCamera") {
-    addPathNodes(
-        "M3 8 L8 8 L9.5 5 L14.5 5 L16 8 L21 8 L21 19 L3 19 Z",
-        "M12 10 A3.5 3.5 0 1 0 12 17 A3.5 3.5 0 1 0 12 10 Z",
-    )
-}
+private val CameraGlyph: ImageVector = glyph(
+    "attachCamera",
+    "M3 8 L8 8 L9.5 5 L14.5 5 L16 8 L21 8 L21 19 L3 19 Z",
+    "M12 10 A3.5 3.5 0 1 0 12 17 A3.5 3.5 0 1 0 12 10 Z",
+)
+
 // ── the session log as an attachment ───────────────────────────────────────
 
 /**
