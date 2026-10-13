@@ -571,6 +571,15 @@ private fun ReadyScreen(
     val currentMatch = ((searchResults?.activeIndex ?: -1) + 1).coerceAtLeast(1)
 
     /**
+     * Which pane has focus, and therefore which pane the find bar is reading.
+     *
+     * Declared here, above everything that asks: the scan targets this pane's
+     * terminal, the matches belong to it, and the bar's own navigation scrolls
+     * it.
+     */
+    val focusedPaneSlot by terminalManager.focusedPane.collectAsStateWithLifecycle()
+
+    /**
      * The find matches, for whichever pane they were scanned against.
      *
      * Rows are rows of one particular buffer. A split carries two of those,
@@ -597,8 +606,6 @@ private fun ReadyScreen(
      * it was when this composable first ran, before it had been measured.
      */
     var searchContentTick by remember { mutableStateOf(0) }
-
-    val focusedPaneSlot by terminalManager.focusedPane.collectAsStateWithLifecycle()
 
     /**
      * Follows the focused terminal's screen, which is where new output lands.
