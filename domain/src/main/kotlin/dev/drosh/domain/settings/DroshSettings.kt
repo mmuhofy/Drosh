@@ -182,6 +182,14 @@ data class ShellSettings(
  * later addition to the trust settings does not have to grow a data class that
  * this one already answers for.
  *
+ * ## Why the side-job model is here and not in [AgentSettings]
+ *
+ * It is a question about *how the agent works*, not about how much of it is
+ * trusted: naming a conversation is not a permission, and reading it as one
+ * would put a model choice next to "always allow `git status`" and imply the
+ * two are the same kind of decision. It sits beside `effort`, which is the other
+ * capability knob the `+` sheet turns.
+ *
  * ## Why they are in the file at all
  *
  * Both survive a process restart by being in `settings.toml`, which is also
@@ -208,6 +216,23 @@ data class AgentToolSettings(
      * how each protocol spells the same value.
      */
     val effort: String = "",
+    /**
+     * The model that answers the jobs the user did not ask for.
+     *
+     * Naming a conversation is the one today: a second request, made beside the
+     * answer, whose only input is the first prompt. It is also a request nobody
+     * is waiting on, which makes it the obvious thing to hand to a small model —
+     * and a session on a frontier model that pays frontier prices for a title is
+     * the obvious way to make that session feel expensive.
+     *
+     * A bare model id, resolved against the catalog rather than against the
+     * provider in use: the cheap model is usually on some other provider. Empty
+     * means the conversation's own model handles it, which is what a user who
+     * never opened this setting gets. See `SideJobModel.resolve` for how an id
+     * becomes a provider and a model, and for the fallback when it resolves to
+     * nothing.
+     */
+    val sideJobModel: String = "",
 ) {
     companion object {
         val DEFAULT = AgentToolSettings()

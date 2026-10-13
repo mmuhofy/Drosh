@@ -17,6 +17,7 @@ import dev.drosh.domain.agent.ApprovalDecision
 import dev.drosh.domain.agent.AttachmentLimits
 import dev.drosh.domain.agent.CatalogState
 import dev.drosh.domain.agent.ChatMessage
+import dev.drosh.domain.agent.ChatNaming
 import dev.drosh.domain.agent.ChatStatus
 import dev.drosh.domain.agent.ChatTitle
 import dev.drosh.domain.agent.ChatTitleRequest
@@ -26,18 +27,26 @@ import dev.drosh.domain.agent.LlmProvider
 import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.agent.MessageAttachment
 import dev.drosh.domain.agent.ModelInputCapabilities
+import dev.drosh.domain.agent.AgentSessionScope
 import dev.drosh.domain.agent.TokenUsage
+import dev.drosh.domain.agent.Tool
+import dev.drosh.domain.agent.ToolPermission
+import dev.drosh.domain.agent.ToolPermissions
 import dev.drosh.domain.agent.TranscriptStore
 import dev.drosh.domain.agent.RunOutcome
 import dev.drosh.domain.agent.TranscriptBuilder
 import dev.drosh.domain.agent.attachmentWarning
 import dev.drosh.domain.settings.SettingsStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
@@ -87,6 +96,17 @@ class AgentChatViewModel @Inject constructor(
      * and a refusal is written into a transcript row rather than a composable.
      */
     @ApplicationContext private val appContext: Context,
+    /**
+     * Every tool a run may call, from the same multibinding set the registry
+     * reads.
+     *
+     * Injected rather than listed: the permission surface is derived from these
+     * values, so the registry, the loop and the sheet that switches tools off all
+     * see the same list and a tool added next month switches itself in. It also
+     * keeps `:ui` out of `:agent` — the set is bound in the app-wide component,
+     * and the interface it is declared with lives in `:domain`.
+     */
+    private val tools: Set<@JvmSuppressWildcards Tool>,
 ) : ViewModel() {
 
     private val builder = TranscriptBuilder()
@@ -187,6 +207,98 @@ class AgentChatViewModel @Inject constructor(
     val failure: StateFlow<String?> = _failure.asStateFlow()
 
     data class RetryNotice(val attempt: Int, val maxAttempts: Int, val reason: String)
+
+    // ── session scope ─────────────────────────────────────────────────────
+
+    /**
+     * The tools, sorted once.
+     *
+     * Hilt hands over a `Set` whose iteration order depends on its binding graph
+     * and changes between launches, and the permission surface is read as a
+     * list — so the order is fixed here rather than at every derive. The schema
+     * sorts again, which is the point: it does not have to trust this.
+     */
+    private val toolList: List<Tool> = tools.sortedBy { it.name }
+
+    /**
+     * What this session may reach, and from where.
+     *
+     * Two things travel in one value because they answer one question from the
+     * user's side, and because the sheet that edits one is the sheet that edits
+     * the other. Everything starts granted — see [AgentSessionScope] on why a
+     * default-off switch would make a fresh session useless.
+     */
+    private val _sessionScope = MutableStateFlow(AgentSessionScope.DEFAULT)
+    val sessionScope: StateFlow<AgentSessionScope> = _sessionScope.asStateFlow()
+
+    /** The directory the next run works in. */
+    val workingDirectory: StateFlow<String> = _sessionScope
+        .map { it.workingDirectory }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            _sessionScope.value.workingDirectory,
+        )
+
+    /**
+     * One switch per registered tool, name-ordered.
+     *
+     * Derived from the tools that exist rather than from a list of names here,
+     * so a tool added later appears in the surface with no edit to this file.
+     * The revocation list is pruned against the same set, so a name taken out of
+     * the registry does not leave a hole in the scope forever.
+     */
+    val toolPermissions: StateFlow<List<ToolPermission>> = _sessionScope
+        .map { scope ->
+            ToolPermissions.schema(toolList, ToolPermissions.prune(scope, toolList))
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            ToolPermissions.schema(toolList, _sessionScope.value),
+        )
+
+    /**
+     * Whether the working directory has been taken off the chat record yet.
+     *
+     * A move made in the sheet is this session's, and the record is only read to
+     * answer "where does this chat live" the first time. Without the flag a
+     * chat collector that emits again after a move would drag the session back
+     * to the directory the user just left.
+     */
+    private var directorySeeded = false
+
+    /**
+     * Move the session to another working directory.
+     *
+     * Absolute paths only. A relative one is resolved by the guest against a cwd
+     * the app cannot see, and a tool pointed at the wrong directory writes in the
+     * wrong place — so an unusable path is dropped rather than half-accepted.
+     * Blank means the guest home, which is where a session starts.
+     */
+    fun setWorkingDirectory(path: String) {
+        val trimmed = path.trim()
+        if (trimmed.isNotEmpty() && !trimmed.startsWith("/")) return
+        directorySeeded = true
+        _sessionScope.value = _sessionScope.value.moveTo(
+            trimmed.ifEmpty { AgentSessionScope.DEFAULT_WORKING_DIRECTORY },
+        )
+    }
+
+    /**
+     * Turn one tool on or off for this session.
+     *
+     * A switch in a sheet, one key at a time: the surface says which key governs
+     * which tool, and the approval layer is what still stands between a writing
+     * tool and the filesystem whether it is granted here or not.
+     */
+    fun setToolPermission(key: String, granted: Boolean) {
+        _sessionScope.value = if (granted) {
+            _sessionScope.value.grant(key)
+        } else {
+            _sessionScope.value.revoke(key)
+        }
+    }
 
     // ── media ─────────────────────────────────────────────────────────────
 
@@ -350,6 +462,12 @@ class AgentChatViewModel @Inject constructor(
             stopRun()
         }
 
+        // A different chat is a different session: neither its directory nor its
+        // revocations carry over, and the seed below fills the working directory
+        // back in from the record as soon as the collector emits.
+        _sessionScope.value = AgentSessionScope.DEFAULT
+        directorySeeded = false
+
         // One collector for the screen's lifetime, so a catalog that lands after
         // the screen is already up still resolves the provider.
         if (!watchingCatalog) {
@@ -403,7 +521,16 @@ class AgentChatViewModel @Inject constructor(
                 builder.restore(emptyList())
             }
             _messages.value = builder.snapshot()
-            chats.observe(id).collect { _chat.value = it }
+            chats.observe(id).collect { chat ->
+                _chat.value = chat
+                // The record is where the directory lives. Seeded once, because a
+                // move made in the sheet is the session's own from then on and a
+                // second emission must not drag it back.
+                if (!directorySeeded && chat != null && chat.workingDirectory.isNotBlank()) {
+                    directorySeeded = true
+                    _sessionScope.value = _sessionScope.value.moveTo(chat.workingDirectory)
+                }
+            }
         }
         loadProvider()
     }
@@ -473,6 +600,10 @@ class AgentChatViewModel @Inject constructor(
             chatId = created.id
             autoName = derived
             _chat.value = created
+            // The chat exists from here on, so its directory is the session's and
+            // the record no longer has anything to say that this scope would not.
+            directorySeeded = true
+            _sessionScope.value = _sessionScope.value.moveTo(created.workingDirectory)
             pendingPrompts.offer(created.id, firstPrompt, attachments)
             loadProvider()
             onCreated(created.id)
@@ -622,6 +753,29 @@ class AgentChatViewModel @Inject constructor(
         _providerState.value = providerState.copy(error = null)
 
         _running.value = true
+
+        // The answer and the name go out together, and neither waits for the
+        // other. The naming call is launched first because it is the one nobody
+        // is waiting on: it suspends on its own request, and only then does the
+        // run's flow start collecting — so the title request is in flight before
+        // the first answer token can arrive, not after the last one.
+        //
+        // They are siblings in this scope rather than parent and child: a naming
+        // call that fails cannot touch the run, and cancelling the run does not
+        // take the name with it. The name itself lands in place later — the chat
+        // already carries a usable one, and a title that never arrives leaves it.
+        val naming = ChatNaming.request(
+            firstMessage = firstTurn,
+            prompt = text,
+            sideJobModel = settingsStore.settings.value.agentTools.sideJobModel,
+            catalog = catalogState,
+            mainProviderId = provider.id,
+            mainModelId = model,
+        )
+        if (naming != null) {
+            viewModelScope.launch { requestTitle(id, naming) }
+        }
+
         runJob = viewModelScope.launch {
             chats.touch(id)
             _retrying.value = null
@@ -634,7 +788,7 @@ class AgentChatViewModel @Inject constructor(
                     providerId = provider.id,
                     modelId = model,
                     prompt = text,
-                    workingDirectory = _chat.value?.workingDirectory ?: DEFAULT_DIRECTORY,
+                    workingDirectory = runDirectory(),
                     reasoningEffort = effort,
                     attachments = attachments,
                 ),
@@ -685,26 +839,52 @@ class AgentChatViewModel @Inject constructor(
             _running.value = false
         }
 
-        // Fire and forget, and deliberately not awaited: the answer is already
-        // streaming, the chat already has a name, and a naming call that failed
-        // costs nothing. The first message itself went out unchanged above.
-        if (firstTurn) requestTitle(id, provider.id, model, text)
         return true
     }
 
     /**
-     * Ask the model what to call this conversation.
+     * The directory the next run works in.
+     *
+     * The session scope's, except before the chat record has been read: the
+     * scope starts at the guest home, and a chat that lives somewhere else has
+     * to run where it lives — so the record answers until the scope has been
+     * seeded from it. Both are absolute guest paths; see
+     * [setWorkingDirectory] on why a relative one is not accepted.
+     */
+    private fun runDirectory(): String {
+        if (!directorySeeded) {
+            val fromChat = _chat.value?.workingDirectory?.takeIf { it.isNotBlank() }
+            if (fromChat != null) return fromChat
+        }
+        return _sessionScope.value.workingDirectory
+    }
+
+    /**
+     * Ask the side job what to call this conversation.
+     *
+     * Fire and forget beside the run that is already streaming: nothing in the
+     * chat waits on it, and a title that never arrives leaves the name the chat
+     * already has — which is the name derived from the prompt.
      *
      * Null from the suggester means "keep the name you have" — a first message
      * too short to describe, no key, or a model that answered with prose. All
      * three are normal and none of them is an error to show.
      */
-    private fun requestTitle(id: String, providerId: String, modelId: String, prompt: String) {
-        if (!ChatTitle.isWorthNaming(prompt)) return
+    private fun requestTitle(id: String, request: ChatTitleRequest) {
         viewModelScope.launch {
-            val suggested = titles.suggest(
-                ChatTitleRequest(providerId = providerId, modelId = modelId, prompt = prompt),
-            ) ?: return@launch
+            val suggested = try {
+                titles.suggest(request)
+            } catch (cancelled: CancellationException) {
+                // A cancelled scope is not a failure of any kind: the naming call
+                // dies with the ViewModel, which is exactly what it is for.
+                throw cancelled
+            } catch (_: Throwable) {
+                // Never the answer's problem. The suggester's contract is null
+                // for every way this can go wrong; this is the belt for the case
+                // the contract does not cover, and the cost of wearing it is the
+                // derived name the chat already had.
+                null
+            } ?: return@launch
             // The chat may have been switched while the model was thinking.
             if (chatId != id) return@launch
             renameFromModel(suggested)
@@ -832,6 +1012,19 @@ class AgentChatViewModel @Inject constructor(
             }
             if (loaded == null) return
             _chat.value = loaded
+        }
+
+        // Seeded here as well as from the collector: this is the one prompt
+        // whose chat record was read a moment ago, and the collector that owns
+        // the seeding may not have emitted yet when [send] is called straight
+        // after. Without it the first run of a new chat would go to the guest
+        // home instead of wherever the chat was created.
+        if (!directorySeeded && _chat.value != null) {
+            val directory = _chat.value?.workingDirectory.orEmpty()
+            if (directory.isNotBlank()) {
+                directorySeeded = true
+                _sessionScope.value = _sessionScope.value.moveTo(directory)
+            }
         }
 
         if (send(queued.prompt, queued.attachments)) queuedFirstPrompt = null
