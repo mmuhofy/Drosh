@@ -162,6 +162,10 @@ fun WorkspaceScreen(
     // one outcome worse than an error message.
     LaunchedEffect(notice) {
         val current = notice ?: return@LaunchedEffect
+        // While the sheet is up, the message goes in the sheet instead: a modal
+        // sheet is a window of its own, and a snackbar on this screen would be
+        // behind it, where nobody who pressed the button can see it.
+        if (editing != null) return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(
             message = context.getString(current.messageRes),
             actionLabel = context.getString(R.string.action_retry),
@@ -310,7 +314,16 @@ fun WorkspaceScreen(
             onSave = viewModel::saveEditor,
             onDelete = viewModel::deleteEditorTarget,
             onToggleArchive = viewModel::toggleArchiveEditorTarget,
-            onDismiss = viewModel::dismissEditor,
+            onDismiss = {
+                viewModel.dismissEditor()
+                // Leaving the sheet takes its error with it: a message about a
+                // write the user has walked away from is a message about nothing,
+                // and it would otherwise greet them the next time they open one.
+                viewModel.dismissNotice()
+            },
+            // A failure while the sheet is open is the sheet's to report, and
+            // it clears when the sheet does.
+            errorMessage = notice?.messageRes,
         )
     }
 
@@ -338,12 +351,15 @@ fun WorkspaceScreen(
 /**
  * One line of the list.
  *
+ * Internal rather than private because the row builder it feeds is internal and
+ * tested: a type a test inspects cannot be a type the file keeps to itself.
+ *
  * A sealed set rather than a nested composable per section: the whole screen is
  * one lazy list, and what a row is decides its key, its corner and the gap
  * above it. All three are decided when the list is built, so the renderers have
  * nothing to work out and no two of them can disagree about the spacing.
  */
-private sealed interface ProjectsRow {
+internal sealed interface ProjectsRow {
     val key: String
 
     /** Space above this row: 0 inside a run, 4dp between runs, 22dp between sections. */
@@ -396,7 +412,7 @@ private sealed interface ProjectsRow {
     }
 }
 
-private enum class ProjectsState { Loading, FirstRun, UnfiledNudge, NoResults }
+internal enum class ProjectsState { Loading, FirstRun, UnfiledNudge, NoResults }
 
 private enum class Section { Projects, Unfiled, Archive }
 

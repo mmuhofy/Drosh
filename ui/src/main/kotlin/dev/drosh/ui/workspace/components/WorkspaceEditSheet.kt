@@ -128,6 +128,16 @@ fun WorkspaceEditSheet(
     onDelete: () -> Unit,
     onToggleArchive: () -> Unit,
     onDismiss: () -> Unit,
+    /**
+     * The write that failed, as a string resource, shown in the sheet.
+     *
+     * A modal sheet is a window of its own, so the screen's snackbar would sit
+     * behind it: the sheet is where the user is looking and where the button
+     * they pressed is, so that is where the failure goes. The sheet stays open —
+     * a sheet that closed on a write that did not happen claimed a change the
+     * app did not make — and the Save button below the message is the retry.
+     */
+    errorMessage: Int? = null,
 ) {
     val draft = state.draft
     val nameValid = draft.name.isNotBlank()
@@ -239,6 +249,17 @@ fun WorkspaceEditSheet(
             }
 
             Spacer(Modifier.height(22.dp))
+
+            if (errorMessage != null) {
+                Text(
+                    text = stringResource(errorMessage),
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = DroshError,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(10.dp))
+            }
 
             ActionButton(
                 text = stringResource(
