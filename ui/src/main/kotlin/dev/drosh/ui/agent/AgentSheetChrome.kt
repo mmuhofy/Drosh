@@ -205,15 +205,24 @@ fun AgentSheet(
  */
 @Composable
 private fun SheetGrabber() {
+    // A full-width box with the handle centred inside it, rather than the
+    // handle reaching for `ColumnScope.align`: the grabber is its own
+    // composable and the column it sits in is not in scope where it is
+    // declared.
     Box(
         modifier = Modifier
-            .padding(top = 12.dp)
-            .align(Alignment.CenterHorizontally)
-            .width(38.dp)
-            .height(4.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(DroshTrack),
-    )
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(38.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(DroshTrack),
+        )
+    }
 }
 
 /**
