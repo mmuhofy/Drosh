@@ -378,6 +378,8 @@ fun SheetOptionRow(
     selected: Boolean = false,
     enabled: Boolean = true,
     monospaceSubtitle: Boolean = false,
+    /** The tick. Off for a row that already says what is selected another way. */
+    showTick: Boolean = true,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
@@ -425,7 +427,7 @@ fun SheetOptionRow(
             }
         }
         trailing?.invoke()
-        if (selected) {
+        if (selected && showTick) {
             Spacer(Modifier.width(8.dp))
             Icon(
                 imageVector = DroshIcons.Check,

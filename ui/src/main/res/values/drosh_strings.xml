@@ -539,4 +539,13 @@ no terminal session needed.</string>
     <string name="agent_scope_perm_grep">Search files</string>
     <string name="agent_scope_perm_web">Web search</string>
     <string name="agent_scope_perm_ask">Ask a question</string>
+    <string name="agent_scope_perm_shell_desc">Run commands in the session shell.</string>
+    <string name="agent_scope_perm_todo_desc">Keep the task list the agent works from.</string>
+    <string name="agent_scope_perm_write_desc">Create files and overwrite them.</string>
+    <string name="agent_scope_perm_read_desc">Read files inside the working directory.</string>
+    <string name="agent_scope_perm_move_desc">Rename and move files.</string>
+    <string name="agent_scope_perm_grep_desc">Search the files for text.</string>
+    <string name="agent_scope_perm_web_desc">Look things up on the internet.</string>
+    <string name="agent_scope_perm_ask_desc">Ask you a question instead of guessing.</string>
+    <string name="agent_scope_row_desc">Working directory and tool permissions for this chat.</string>
 </resources>

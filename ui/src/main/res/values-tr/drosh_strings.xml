@@ -539,4 +539,13 @@ terminal session açmana gerek yok.</string>
     <string name="agent_scope_perm_grep">Dosyalarda ara</string>
     <string name="agent_scope_perm_web">Web araması</string>
     <string name="agent_scope_perm_ask">Soru sor</string>
+    <string name="agent_scope_perm_shell_desc">Session shellinde komut çalıştır.</string>
+    <string name="agent_scope_perm_todo_desc">Agentın çalıştığı görev listesini güncelle.</string>
+    <string name="agent_scope_perm_write_desc">Dosya oluştur ve üzerine yaz.</string>
+    <string name="agent_scope_perm_read_desc">Çalışma dizinindeki dosyaları oku.</string>
+    <string name="agent_scope_perm_move_desc">Dosyaları yeniden adlandır ve taşı.</string>
+    <string name="agent_scope_perm_grep_desc">Dosyalarda metin ara.</string>
+    <string name="agent_scope_perm_web_desc">İnternette araştırma yap.</string>
+    <string name="agent_scope_perm_ask_desc">Tahmin etmek yerine sana soru sor.</string>
+    <string name="agent_scope_row_desc">Bu sohbetin çalışma dizini ve araç izinleri.</string>
 </resources>
