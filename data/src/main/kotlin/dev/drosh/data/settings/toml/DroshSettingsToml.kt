@@ -102,13 +102,18 @@ internal object DroshSettingsToml {
         }
         with(settings.agentTools) {
             // Same `[agent]` section, not a section of its own: the trust keys
-            // above and these two are all read by the same thing — a shell, a
+            // above and these three are all read by the same thing — a shell, a
             // script, the agent — and splitting them would mean two places to
             // look for "what can this agent do". TomlDocument keeps one table per
             // section name, so two `with` blocks writing `agent` merge rather
             // than overwrite.
             putBoolean("agent", "web_search", webSearch)
             putString("agent", "effort", effort)
+            // Written even when blank. A key that appears with an empty value
+            // reads as "the user has not chosen", which is what it means; a key
+            // that is absent reads as "this build does not know about it", and a
+            // file a user opened to find out would answer the wrong question.
+            putString("agent", "side_job_model", sideJobModel)
         }
         with(settings.security) {
             putString("security", "auto_lock", autoLock.tomlName())
@@ -176,6 +181,11 @@ internal object DroshSettingsToml {
             agentTools = base.agentTools.copy(
                 webSearch = document.getBoolean("agent", "web_search", base.agentTools.webSearch),
                 effort = document.getString("agent", "effort", base.agentTools.effort),
+                // Trimmed on the way in: a hand-edited file with a stray newline
+                // in the value would otherwise resolve to a model id no provider
+                // declares, and a side job that silently runs on the expensive
+                // model is the failure this setting exists to prevent.
+                sideJobModel = document.getString("agent", "side_job_model", base.agentTools.sideJobModel).trim(),
             ),
             security = base.security.copy(
                 autoLock = AutoLockTimeout.fromString(document.getString("security", "auto_lock", "")),
