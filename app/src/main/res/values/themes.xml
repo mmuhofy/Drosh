@@ -12,7 +12,7 @@
   gives the system bar a visible edge without adding visual noise.
 -->
 <resources>
-    <style name="Theme.Drosh" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Drosh.Base" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">#FF0A0A0A</item>
         <item name="android:navigationBarColor">#FF0A0A0A</item>
         <item name="android:windowLightStatusBar">false</item>
@@ -38,4 +38,10 @@
         -->
         <item name="android:windowLayoutInDisplayCutoutMode">always</item>
     </style>
+
+    <!--
+      The name the manifest points at, split from the theme's own body so a
+      newer platform can add to it rather than repeat it.
+    -->
+    <style name="Theme.Drosh" parent="Theme.Drosh.Base" />
 </resources>
