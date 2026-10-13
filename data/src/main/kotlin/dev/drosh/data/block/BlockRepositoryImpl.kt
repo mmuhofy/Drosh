@@ -1,5 +1,7 @@
 package dev.drosh.data.block
 
+import android.os.Handler
+import android.os.Looper
 import dev.drosh.domain.block.Block
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.BlockState
@@ -40,6 +42,16 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
         val blocks: List<Block> = emptyList(),
         val running: Block? = null,
         val partialLine: StringBuilder = StringBuilder(),
+        /**
+         * The running block's output, appended to in place.
+         *
+         * A running block's [Block.outputLines] is left empty here and filled
+         * from this list when the block is published — see [publishActive].
+         * The list is append-only for the life of the command, so a thousand
+         * chunks cost a thousand `add`s instead of a thousand copies of
+         * everything written so far.
+         */
+        val liveLines: MutableList<String> = mutableListOf(),
     )
 
     private val _blocks = MutableStateFlow<List<Block>>(emptyList())
@@ -59,19 +71,61 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
         publishActive()
     }
 
-    /** Applies [transform] to the active session's state and republishes it. */
-    private inline fun mutate(transform: (SessionBlocks) -> SessionBlocks) {
+    /**
+     * Applies [transform] to the active session's state and republishes it.
+     *
+     * [publishImmediately] is for the changes a person caused — a command
+     * submitted, a block collapsed — where the UI should not wait a frame.
+     * Everything else takes the scheduled publish: output chunks arrive faster
+     * than anything can be read, and one publish per frame is what the display
+     * can show anyway.
+     */
+    private inline fun mutate(
+        publishImmediately: Boolean = false,
+        transform: (SessionBlocks) -> SessionBlocks,
+    ) {
         val key = activeSessionId
         val updated = store.value.toMutableMap()
         updated[key] = transform(updated[key] ?: SessionBlocks())
         store.value = updated
-        publishActive()
+        if (publishImmediately) publishActive() else schedulePublish()
+    }
+
+    /** The frame's publish, when one is not already waiting. */
+    @Volatile
+    private var publishScheduled: Boolean = false
+
+    private val publishHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * Publishes on the next frame, coalescing whatever arrived since.
+     *
+     * A `yes` in block mode produces chunks far faster than frames. Publishing
+     * each one meant copying every line written so far, once per chunk — a
+     * command printing 10,000 lines copied 50 million list entries, and the
+     * garbage collector paid for it in pauses the user could see.
+     */
+    private fun schedulePublish() {
+        if (publishScheduled) return
+        publishScheduled = true
+        publishHandler.postDelayed({
+            publishScheduled = false
+            publishActive()
+        }, PUBLISH_FRAME_MS)
     }
 
     private fun publishActive() {
-        val current = store.value[activeSessionId] ?: SessionBlocks()
-        _blocks.value = current.blocks
-        _runningBlock.value = current.running
+        val stored = store.value[activeSessionId] ?: SessionBlocks()
+        val running = stored.running
+        // A running block's lines live in liveLines until they are published,
+        // so the block the UI sees is the buffer frozen into a list.
+        val snapshot = if (running != null && stored.liveLines.isNotEmpty()) {
+            running.copy(outputLines = stored.liveLines.toList())
+        } else {
+            null
+        }
+        _blocks.value = if (snapshot != null) replaceIn(stored.blocks, snapshot) else stored.blocks
+        _runningBlock.value = snapshot ?: running
     }
 
     override fun onCommandSubmitted(
@@ -92,11 +146,12 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
             startRxBytes = startRxBytes,
             startTxBytes = startTxBytes,
         )
-        mutate { current ->
+        mutate(publishImmediately = true) { current ->
             current.copy(
                 blocks = capped(current.blocks + newBlock),
                 running = newBlock,
                 partialLine = StringBuilder(),
+                liveLines = mutableListOf(),
             )
         }
     }
@@ -105,7 +160,8 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
         if (chunk.isEmpty()) return
 
         mutate { current ->
-            val running = current.running ?: return@mutate current
+            // No command running: there is nothing for output to belong to.
+            if (current.running == null) return@mutate current
             current.partialLine.append(chunk)
             val parts = current.partialLine.toString().split('\n')
             // All but the last part are complete lines; the last is the
@@ -113,11 +169,8 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
             val completeLines = parts.dropLast(1)
             if (completeLines.isEmpty()) return@mutate current
 
-            current.copy(
-                blocks = replaceIn(current.blocks, running.copy(outputLines = running.outputLines + completeLines)),
-                running = running.copy(outputLines = running.outputLines + completeLines),
-                partialLine = StringBuilder(parts.last()),
-            )
+            current.liveLines.addAll(completeLines)
+            current.copy(partialLine = StringBuilder(parts.last()))
         }
     }
 
@@ -147,24 +200,24 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
                 val parts = current.partialLine.toString().split('\n')
                 val completeLines = parts.dropLast(1)
                 if (completeLines.isEmpty()) return@mutate current
-                val updated = existing.copy(outputLines = existing.outputLines + completeLines)
-                current.copy(
-                    blocks = replaceIn(current.blocks, updated),
-                    running = updated,
-                    partialLine = StringBuilder(parts.last()),
-                )
+                current.liveLines.addAll(completeLines)
+                current.copy(partialLine = StringBuilder(parts.last()))
             }
         }
     }
 
     override fun onCommandCompleted(exitCode: Int) {
-        mutate { current ->
+        mutate(publishImmediately = true) { current ->
             val running = current.running ?: return@mutate current
-            // Flush any trailing partial line into the output.
+            // Flush any trailing partial line into the output. The lines
+            // accumulated during the command are the buffer's, not the
+            // running block's — see SessionBlocks.liveLines.
             val trailing = current.partialLine.toString()
             val finalLines = if (trailing.isNotEmpty()) {
-                running.outputLines + trailing
-            } else running.outputLines
+                current.liveLines + trailing
+            } else {
+                current.liveLines.toList()
+            }
 
             val finalState =
                 if (exitCode == 0) BlockState.Success(exitCode) else BlockState.Error(exitCode)
@@ -177,14 +230,17 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
                 blocks = replaceIn(current.blocks, completed),
                 running = null,
                 partialLine = StringBuilder(),
+                liveLines = mutableListOf(),
             )
         }
     }
 
     override fun onCommandCancelled() {
-        mutate { current ->
+        mutate(publishImmediately = true) { current ->
             val running = current.running ?: return@mutate current
+            val trailing = current.partialLine.toString()
             val cancelled = running.copy(
+                outputLines = if (trailing.isNotEmpty()) current.liveLines + trailing else current.liveLines.toList(),
                 state = BlockState.Cancelled,
                 completedAtMs = System.currentTimeMillis(),
             )
@@ -192,12 +248,13 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
                 blocks = replaceIn(current.blocks, cancelled),
                 running = null,
                 partialLine = StringBuilder(),
+                liveLines = mutableListOf(),
             )
         }
     }
 
     override fun setCollapsed(blockId: String, collapsed: Boolean) {
-        mutate { current ->
+        mutate(publishImmediately = true) { current ->
             val idx = current.blocks.indexOfFirst { it.id == blockId }
             if (idx < 0) return@mutate current
             val target = current.blocks[idx]
@@ -245,7 +302,7 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
 
     /** Clears only the active session. Other sessions keep their blocks. */
     override fun clear() {
-        mutate { SessionBlocks() }
+        mutate(publishImmediately = true) { SessionBlocks() }
     }
 
     /** Drops every session's blocks, e.g. when the block mode is reset. */
@@ -274,5 +331,8 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
 
     private companion object {
         const val MAX_BLOCKS = 200
+
+        /** One frame. Output chunks land faster than this; the display does not. */
+        const val PUBLISH_FRAME_MS = 16L
     }
 }
