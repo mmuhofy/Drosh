@@ -17,6 +17,8 @@ import androidx.core.view.WindowCompat
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -86,6 +88,7 @@ import dev.drosh.ui.theme.DroshTheme
 import dev.drosh.ui.agent.AgentChatScreen
 import dev.drosh.ui.agent.AgentHomeScreen
 import dev.drosh.ui.agent.AgentSettingsScreen
+import dev.drosh.ui.agent.AgentWindowChrome
 import dev.drosh.ui.settings.AboutCategory
 import dev.drosh.ui.settings.AppearanceCategory
 import dev.drosh.domain.settings.DroshSettings
@@ -232,6 +235,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             color = DroshBackground,
                         ) {
+                            SystemBarsFollowChat()
                             DroshNavHost()
                         }
                     }
@@ -245,6 +249,47 @@ class MainActivity : ComponentActivity() {
      * Registered per onStart so it cannot outlive a visible window.
      */
     private var keyboardModeReceiver: BroadcastReceiver? = null
+
+    /**
+     * Applies a screen's window preference for the system navigation bar.
+     *
+     * The agent chat screen asks for a barless bottom edge: the composer is
+     * floating and there is nothing below it, and a system bar sitting under a
+     * shadow is a seam where there should be none. It is the screen that says
+     * so — see `AgentChatChrome` — and this is the one place that can act on it,
+     * because the bar belongs to the activity window and the navigation graph
+     * lives inside it.
+     *
+     * Deliberately a small composable of its own rather than code in the nav
+     * graph: the flag is read here and nowhere else, so the flag turning over
+     * recomposes this and nothing above it. A read inside `DroshNavGraph` would
+     * recompose the whole host on every navigation-transition of the bar.
+     *
+     * Leaving it as the terminal found it: the terminal asks for its own
+     * preference as soon as it composes, so restoring here is a default and not
+     * a decision.
+     */
+    @Composable
+    private fun SystemBarsFollowChat() {
+        val hideNavigationBar by AgentWindowChrome.navigationBarHidden
+        // Captured outside the LaunchedEffect for the same reason the activity is
+        // captured in the setContent block above: this runs on the window that
+        // exists right now, not on whatever a recomposition happens to see.
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        LaunchedEffect(hideNavigationBar) {
+            // Transient by swipe, so hiding the bar is never a lock-out. The
+            // terminal sets the default behaviour for its own reason and takes it
+            // back when it composes; this is the chat screen's, and it lasts as
+            // long as the chat screen does.
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            if (hideNavigationBar) {
+                controller.hide(WindowInsetsCompat.Type.navigationBars())
+            } else {
+                controller.show(WindowInsetsCompat.Type.navigationBars())
+            }
+        }
+    }
 
     override fun onStart() {
         super.onStart()

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  API 29+ additions to the app theme.
+
+  The activity window already runs barless: MainActivity sets
+  navigationBarColor to transparent and clears the contrast enforcement the moment
+  it composes, and the terminal hides the bars outright while it is immersed.
+
+  A window the activity does not own does not inherit either. Every bottom sheet
+  the agent screens open is a dialog window of its own, and a dialog window
+  inherits this theme - so without the two attributes below it painted an opaque
+  navigation bar strip along the bottom of every sheet, which is the band that
+  showed up the moment one was opened over the chat.
+
+  Below 29 there is nothing to override: the attributes do not exist, the app is
+  targetSdk 28, and the bars keep the colour the base theme gives them.
+
+  Only in values-v29 because both attributes were added in API 29 and a
+  reference to one from the default folder is a NewApi error, not a warning.
+-->
+<resources>
+    <style name="Theme.Drosh" parent="Theme.Drosh.Base">
+        <!--
+          A transparent bar with the scrim suppressed is nothing at all: no band,
+          no seam, and the sheet runs to the bottom of the display the way the
+          screen underneath it does.
+        -->
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
+</resources>

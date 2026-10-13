@@ -1,15 +1,8 @@
 package dev.drosh.ui.agent.components
 
+import androidx.compose.foundation.background
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -38,11 +31,20 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,6 +53,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.rememberHazeState
+import dev.drosh.design.system.DroshError
 import dev.drosh.design.system.DroshOnPrimary
 import dev.drosh.design.system.DroshPrimary
 import dev.drosh.design.system.DroshSurfaceHigh
@@ -58,7 +61,11 @@ import dev.drosh.design.system.DroshSurfaceLow
 import dev.drosh.design.system.DroshSurfaceVariant
 import dev.drosh.design.system.DroshText
 import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.design.system.DroshWarning
+import dev.drosh.domain.agent.ChatMessage
+import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 
 /**
  * The agent screens' control surfaces.
@@ -137,6 +144,18 @@ object AgentPillDefaults {
     val Shape: Shape = RoundedCornerShape(percent = 50)
 
     /**
+     * The drawn tool pill, inside its own touch box.
+     *
+     * Smaller than [Height] on purpose: a tool call is one line among a
+     * paragraph of prose, and a 44dp capsule in the middle of an answer is a
+     * slab. 40dp is still a comfortable target, and the transcript row keeps the
+     * whole pill as its hit area.
+     */
+    val ToolHeight: Dp = 40.dp
+    val ToolIconSize: Dp = 15.dp
+    val ToolLabelSize = 12.5.sp
+
+    /**
      * The resting fill.
      *
      * Derived from [DroshSurfaceHigh] rather than a literal white at 8%, so it
@@ -207,24 +226,33 @@ fun ProvideAgentGlass(glass: AgentGlass, content: @Composable () -> Unit) {
 }
 
 /**
- * The agent's surface: one flat fill, one border, and a real blur of whatever
- * is behind it.
+ * The agent's surface.
  *
- * ## Why it is a flat fill
+ * ## Two surfaces, not one
  *
- * It used to be two surfaces — a gradient fill with a second, lighter layer
- * painted over its top half — which read as a stack of plastic rather than as
- * one thing. The terminal's own pills draw a single colour at a single alpha
- * and they are the reference: one fill, one border, done. The border below is
- * that same border.
+ * There are exactly two glass surfaces in the whole agent UI: the pill row at
+ * the top of a chat and the composer under it. They are the two things that
+ * float over content rather than sitting inside it, and they are the two a user
+ * reaches for.
+ *
+ * Everything else — a tool pill in a transcript, a reply box, an approval card —
+ * is a plain opaque fill. Glass in the middle of a conversation turns the
+ * conversation into a gallery: every row has an edge of its own, the eye has to
+ * re-decide what is a control on each line, and the thing the user is reading
+ * sits behind four layers of translucency. A transcript should read as text.
+ *
+ * So [edged] is the whole switch. It is true in two places and nowhere else:
+ *
+ *  - **true** — blur, translucent fill, gradient hairline. Floating chrome.
+ *  - **false** — one flat [DroshSurfaceHigh], no blur, no edge. Flow content.
  *
  * ## The blur is the depth
  *
  * A flat translucent colour over a blur is what a surface over a surface looks
- * like, and the blur is the part that does the work — the gradient it replaced
- * was doing the blur's job badly. The blur is Haze because the alternative —
- * sampling the backdrop into a bitmap — is what the terminal's selection menu
- * does, and it cannot keep up with a scrolling transcript.
+ * like, and the blur is the part that does the work. The blur is Haze because
+ * the alternative — sampling the backdrop into a bitmap — is what the
+ * terminal's selection menu does, and it cannot keep up with a scrolling
+ * transcript.
  */
 @Composable
 fun Modifier.glassSurface(
@@ -233,34 +261,44 @@ fun Modifier.glassSurface(
     primary: Boolean = false,
     shape: Shape = AgentPillDefaults.Shape,
     /**
-     * Whether the hairline edge is drawn.
+     * Whether this is one of the two floating glass surfaces.
      *
-     * Off everywhere but the pills and the composer: an outline on every
+     * Off everywhere but the top pill row and the composer: an outline on every
      * surface is a surface that looks like a form field — a card with a border
      * reads as something to fill in, and the whole screen becomes a stack of
      * boxes. The edge is a control's feature; a pill is a control, a card is
      * a card.
      */
     edged: Boolean = false,
+    /**
+     * Replaces the fill outright.
+     *
+     * The composer passes [Color.Transparent]: it is glass-edged but unfilled,
+     * so the transcript runs under it and the shadow alone carries the box.
+     * A filled composer is the thing that made the input look welded to the
+     * bottom of the screen instead of floating over it.
+     */
+    fill: Color? = null,
 ): Modifier {
-    val state = glass?.state
+    // Only an *edged* surface reads its backdrop. Everywhere else there is no
+    // blur to sit on, so asking for one would cost an offscreen render of the
+    // transcript per frame for something nobody can see.
+    val state = if (edged) glass?.state else null
 
-    // The same two alphas the terminal's own pills use: a lighter fill when
-    // there is a blur behind it to do the separating, a heavier one when there
-    // is not and the fill has to hold the surface on its own.
-    val fill = when {
+    val base = fill ?: when {
         // Accent-filled, not a second glass surface: "Yeni" is the one filled
         // control on the agent's list screen, and the accent is what makes it
         // the one filled control. A surface-filled pill here reads as chrome
         // rather than as the primary action.
         primary -> DroshPrimary
-        state != null -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_BLURRED)
-        else -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_PLAIN)
+        state != null -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_GLASS)
+        pressed -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_PRESSED)
+        else -> DroshSurfaceHigh
     }
 
     return this
         .clip(shape)
-        // The blur alone, with no tint of its own: the flat fill below is the
+        // The blur alone, with no tint of its own: the fill below is the
         // surface, and a tint in the haze style would be a second one.
         .then(
             if (state == null) {
@@ -269,7 +307,7 @@ fun Modifier.glassSurface(
                 Modifier.hazeEffect(state, agentGlassStyle())
             },
         )
-        .background(fill)
+        .background(base)
         .then(
             if (edged) {
                 Modifier.glassEdge(
@@ -286,11 +324,11 @@ fun Modifier.glassSurface(
         )
 }
 
-/** The fill the terminal's pills use when there is a real blur behind them. */
-private const val AGENT_FILL_BLURRED = 0.28f
+/** The fill a floating surface uses: light, because the blur is separating. */
+private const val AGENT_FILL_GLASS = 0.28f
 
-/** The fill when there is not, and the surface has to hold itself. */
-private const val AGENT_FILL_PLAIN = 0.88f
+/** The press on a flat fill. A shade down, never a new colour. */
+private const val AGENT_FILL_PRESSED = 0.72f
 
 /**
  * The light on the glass edge, as (position, alpha) along the top-left -> bottom-right
@@ -408,6 +446,14 @@ fun AgentPill(
      * of the row as the text changes length.
      */
     contentAlignment: Alignment = Alignment.Center,
+    /**
+     * Whether this pill is one of the two floating glass surfaces.
+     *
+     * True for a control row that floats over content. False for anything drawn
+     * inside a transcript: a glass chip halfway down a conversation reads as
+     * chrome sitting in the middle of somebody's prose.
+     */
+    edged: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -433,7 +479,7 @@ fun AgentPill(
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = AgentPillDefaults.Height)
-            .glassSurface(glass, pressed, primary, edged = true)
+            .glassSurface(glass, pressed, primary, edged = edged)
             .semantics { this.contentDescription = contentDescription }
             .pressable(interaction, enabled, onClick)
             .padding(horizontal = AgentPillDefaults.LabelPadding, vertical = 9.dp),
@@ -487,6 +533,8 @@ fun AgentIconPill(
     modifier: Modifier = Modifier,
     tint: Color = DroshText,
     enabled: Boolean = true,
+    /** See [AgentPill]. True for a floating control row, false inside a transcript. */
+    edged: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -512,7 +560,7 @@ fun AgentIconPill(
         Box(
             modifier = Modifier
                 .size(AgentPillDefaults.Height)
-                .glassSurface(glass, pressed, shape = CircleShape, edged = true),
+                .glassSurface(glass, pressed, shape = CircleShape, edged = edged),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -526,12 +574,191 @@ fun AgentIconPill(
 }
 
 /**
+ * A tool call, as a pill.
+ *
+ * ## There is no tool text in the transcript
+ *
+ * A tool call used to be a line of prose — a verb, the command that ran, the
+ * elapsed time — sitting in the middle of somebody's answer. On a turn that ran
+ * five tools that was five rows of monospace between the user and the model, and
+ * the conversation stopped reading as a conversation: it read as a log the model
+ * happened to be narrating.
+ *
+ * So the call is a pill. It is one capsule, it says the verb, and the colour of
+ * the verb says how it went. Everything the tool actually produced — the output,
+ * the diff, the copy action — is on the detail sheet the pill opens. The pill is
+ * the door, not the room.
+ *
+ * ## Not glass
+ *
+ * It sits inside the transcript, so it is a flat [DroshSurfaceHigh] capsule with
+ * no edge and no blur. Glass in the middle of a conversation is what turned the
+ * transcript into a gallery of surfaces; see [Modifier.glassSurface].
+ *
+ * ## The verb is the status
+ *
+ * Present tense while the call runs, past tense once it finishes, so the pill
+ * says whether something is still going without a separate indicator to look
+ * for. Colour carries the outcome on top: a failure is red whatever the tense.
+ */
+@Composable
+fun AgentToolPill(
+    message: ChatMessage.ToolCall,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val glass = LocalAgentGlass.current
+
+    val (present, past) = toolVerbs(message.name)
+    val label = if (message.state == ToolCallState.Running) present else past
+    val tint = toolVerbColor(message.state)
+    // Resolved outside the modifiers' lambdas: `semantics` and `glassSurface` are
+    // ordinary lambdas, and a composable call from inside one is a call outside a
+    // composition scope. Hoisting it also means the description is built once per
+    // recomposition rather than once per re-lay-out.
+    val description = toolRowDescription(message)
+
+    Box(
+        modifier = modifier
+            .defaultMinSize(minHeight = AgentPillDefaults.ToolHeight)
+            // edged = false, always: this is a transcript surface, not floating
+            // chrome. See the class note.
+            .glassSurface(glass, pressed, shape = AgentPillDefaults.Shape, edged = false)
+            .semantics { contentDescription = description }
+            .pressable(interaction, enabled, onClick)
+            .padding(horizontal = 11.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            ToolIcon(message.name)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = label,
+                fontSize = AgentPillDefaults.ToolLabelSize,
+                fontWeight = FontWeight.Medium,
+                color = tint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.width(4.dp))
+            // The dot is the outcome at a glance, so the row is readable without
+            // parsing the verb or the colour: a failure is red and full, a success
+            // is a small filled bead, a call that was cancelled is a ring.
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(if (tint == DroshTextMuted) Color.Transparent else tint),
+            )
+        }
+    }
+}
+
+/** The glyph for a tool's name. See the transcript's own [toolVerbs]. */
+@Composable
+fun ToolIcon(name: String) {
+    val icon = when (name) {
+        "shell" -> DroshIcons.Terminal
+        "read_file" -> DroshIcons.Code
+        "write_file" -> DroshIcons.Pencil
+        "ask_user" -> DroshIcons.Info
+        "update_todo" -> DroshIcons.ListChecks
+        else -> DroshIcons.SquareTerminal
+    }
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = DroshTextMuted,
+        modifier = Modifier.size(AgentPillDefaults.ToolIconSize),
+    )
+}
+
+/**
+ * The verb for a tool, in present and past tense.
+ *
+ * Present while the call runs, past once it finishes — the tense is the status, so
+ * the pill does not need a separate indicator to say whether something is still
+ * going.
+ *
+ * `write_file` is `Wrote` rather than `Edited` because the model creates as often
+ * as it modifies, and a verb that only fits one of the two would be wrong half the
+ * time.
+ */
+fun toolVerbs(name: String): Pair<String, String> = when (name) {
+    "shell" -> "Running" to "Ran"
+    "read_file" -> "Reading" to "Read"
+    "write_file" -> "Writing" to "Wrote"
+    "grep" -> "Searching" to "Searched"
+    "move_file" -> "Moving" to "Moved"
+    "ask_user" -> "Asking" to "Asked"
+    "update_todo" -> "Updating" to "Updated"
+    "web_search" -> "Searching" to "Searched"
+    else -> "Working" to "Done"
+}
+
+/**
+ * The verb's colour, which carries the outcome the tense does not.
+ *
+ * A failure is red whether or not the reader parses "Ran" — the verb says it
+ * finished, the colour says how.
+ */
+@Composable
+fun toolVerbColor(state: ToolCallState): Color = when (state) {
+    ToolCallState.Running -> DroshPrimary
+    ToolCallState.Succeeded -> DroshText
+    ToolCallState.Failed -> DroshError
+    ToolCallState.Cancelled -> DroshTextMuted
+    ToolCallState.AwaitingApproval -> DroshWarning
+    ToolCallState.Pending -> DroshTextMuted
+}
+
+/**
+ * The spoken form of a tool pill, for a screen reader rather than the eye.
+ *
+ * Everything a sighted user loses by not having the row's text: the tool's name,
+ * its summary, and the outcome. A pill that only said "Ran" would leave a
+ * screen-reader user with no way to learn what ran.
+ */
+@Composable
+fun toolRowDescription(message: ChatMessage.ToolCall): String {
+    // The four state words, resolved before the block rather than read from a
+    // composable getter inside it. A `@ReadOnlyComposable` getter is legal from an
+    // inline lambda, but only from one the compiler can prove has captured
+    // nothing; a plain local makes that a fact rather than a hope.
+    val running = stringResource(R.string.agent_tool_running)
+    val succeeded = stringResource(R.string.agent_tool_succeeded)
+    val failed = stringResource(R.string.agent_tool_failed)
+    val cancelled = stringResource(R.string.agent_tool_cancelled)
+
+    return buildString {
+        append(message.name)
+        if (message.summary.isNotEmpty()) append(", ${message.summary}")
+        append(
+            ", " + when (message.state) {
+                ToolCallState.Running -> running
+                ToolCallState.Succeeded -> succeeded
+                ToolCallState.Failed -> failed
+                ToolCallState.Cancelled -> cancelled
+                else -> ""
+            },
+        )
+    }
+}
+
+/**
  * A row of pills.
  *
  * Zero spacing, deliberately: each pill already carries 7dp of slack inside its
  * own touch box, so the visual gap is already 14dp and adding more would make the
  * row drift away from the mockup's rhythm.
  */
+
 @Composable
 fun AgentPillRow(
     modifier: Modifier = Modifier,
