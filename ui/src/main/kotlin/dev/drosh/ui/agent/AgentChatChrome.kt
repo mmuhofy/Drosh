@@ -3,9 +3,8 @@ package dev.drosh.ui.agent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
 /**
  * The window preferences the agent chat screen asks of the activity.
@@ -40,12 +39,19 @@ object AgentWindowChrome {
      * False everywhere else, which is what `MainActivity` restores on the way
      * out: a screen that shows a bar the user had hidden everywhere else is
      * making a decision on their behalf.
+     *
+     * A `State`, not a delegate: the flag is read from another module, and a
+     * delegated property hands its reader the value rather than the state that
+     * carries it — which leaves the reader unable to use `by` over it and back to
+     * a `.value` they then have to turn into state themselves.
      */
-    var navigationBarHidden by mutableStateOf(false)
-        private set
+    val navigationBarHidden: State<Boolean>
+        get() = hidden
+
+    private val hidden = mutableStateOf(false)
 
     internal fun requestNavigationBar(hidden: Boolean) {
-        navigationBarHidden = hidden
+        this.hidden.value = hidden
     }
 }
 
