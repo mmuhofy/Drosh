@@ -255,7 +255,7 @@ private fun SheetHeader(
         onBack?.let {
             SheetIconButton(
                 icon = DroshIcons.ArrowLeft,
-                contentDescription = stringResource(R.string.action_back),
+                description = stringResource(R.string.action_back),
                 onClick = it,
             )
             Spacer(Modifier.width(6.dp))
@@ -307,7 +307,7 @@ private fun SheetHeader(
 fun SheetCloseButton(onDismiss: () -> Unit, modifier: Modifier = Modifier) =
     SheetIconButton(
         icon = DroshIcons.X,
-        contentDescription = stringResource(R.string.action_close),
+        description = stringResource(R.string.action_close),
         onClick = onDismiss,
         modifier = modifier,
     )
@@ -316,7 +316,13 @@ fun SheetCloseButton(onDismiss: () -> Unit, modifier: Modifier = Modifier) =
 @Composable
 fun SheetIconButton(
     icon: ImageVector,
-    contentDescription: String,
+    /**
+     * What TalkBack says. Named `description` rather than `contentDescription`
+     * because the semantics property has the same name, and a parameter of the
+     * same name shadows it inside the `semantics {}` lambda — the assignment
+     * then tries to write to the parameter.
+     */
+    description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tint: androidx.compose.ui.graphics.Color = DroshTextSecondary,
@@ -331,7 +337,7 @@ fun SheetIconButton(
                 indication = null,
                 onClick = onClick,
             )
-            .semantics { contentDescription = contentDescription },
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
         Icon(

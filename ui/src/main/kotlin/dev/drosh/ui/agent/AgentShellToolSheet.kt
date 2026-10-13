@@ -70,7 +70,7 @@ fun AgentShellToolSheet(
         trailing = {
             SheetIconButton(
                 icon = DroshIcons.Copy,
-                contentDescription = copyCd,
+                description = copyCd,
                 onClick = { onCopy(command + "\n\n" + output) },
             )
         },
@@ -133,7 +133,7 @@ fun AgentReasoningSheet(
         trailing = {
             SheetIconButton(
                 icon = DroshIcons.Copy,
-                contentDescription = copyCd,
+                description = copyCd,
                 onClick = { onCopy(text) },
             )
         },
