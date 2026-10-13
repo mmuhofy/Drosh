@@ -38,7 +38,7 @@ class TerminalSessionLogSource(
             // A tab has no width here and the grid it came from is gone, so it
             // becomes four spaces. Emulators expand tabs at write time, so this
             // is a guard rather than a case that occurs.
-            line.trimEnd().replace('\t', "    ")
+            line.trimEnd().replace("\t", "    ")
         }
         return if (lines.size <= MAX_LINES) {
             lines
