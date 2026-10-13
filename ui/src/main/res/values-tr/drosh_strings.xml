@@ -518,6 +518,8 @@ terminal session açmana gerek yok.</string>
     <string name="agent_logpick_lines">%1$d satır</string>
     <string name="agent_logpick_selected">%1$d satır seçildi</string>
     <string name="agent_logpick_hint">Bir satıra dokun, aralık için bir başkasına dokun.</string>
+    <string name="agent_logpick_active">İçinde bulunduğun session</string>
+    <string name="agent_logpick_chip">%1$s · %2$d satır</string>
     <string name="agent_logpick_select_all">Tümünü seç</string>
     <string name="agent_logpick_clear">Temizle</string>
     <string name="agent_logpick_add">Ekle</string>

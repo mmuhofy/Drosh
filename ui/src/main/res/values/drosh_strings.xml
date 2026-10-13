@@ -518,6 +518,8 @@ no terminal session needed.</string>
     <string name="agent_logpick_lines">%1$d lines</string>
     <string name="agent_logpick_selected">%1$d lines selected</string>
     <string name="agent_logpick_hint">Tap a line, then tap another to choose a range.</string>
+    <string name="agent_logpick_active">The session you are in</string>
+    <string name="agent_logpick_chip">%1$s · %2$d lines</string>
     <string name="agent_logpick_select_all">Select all</string>
     <string name="agent_logpick_clear">Clear</string>
     <string name="agent_logpick_add">Add</string>
