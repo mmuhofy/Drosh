@@ -600,6 +600,8 @@ private fun ChatPillRow(
             contentDescription = stringResource(R.string.action_back),
             onClick = onBack,
             tint = DroshTextSecondary,
+            // One of the two glass surfaces on this screen. See [ChatPillRow].
+            edged = true,
         )
 
         // Fills the space between the back arrow and the overflow button, label held
@@ -618,6 +620,13 @@ private fun ChatPillRow(
             contentDescription = stringResource(R.string.agent_model_cd, modelLabel),
             trailingChevron = true,
             contentAlignment = Alignment.CenterStart,
+            // The other glass surface. This row and the composer are the only two
+            // things on this screen that float over content rather than sitting in
+            // it, so they are the only two that read the backdrop. Everything in
+            // between — a reply button, a choice row, a tool pill — is a flat fill,
+            // because a bordered surface in the middle of an answer reads as a form
+            // field and the whole screen becomes a stack of boxes.
+            edged = true,
         )
 
         // Always the overflow button. It used to become a stop button while a run was
@@ -637,6 +646,8 @@ private fun ChatPillRow(
                 contentDescription = stringResource(R.string.agent_chat_menu_cd),
                 onClick = { menuOpen = true },
                 tint = DroshTextSecondary,
+                // The row's own glass, like the two beside it.
+                edged = true,
             )
             DroshDropdownMenu(
                 expanded = menuOpen,
