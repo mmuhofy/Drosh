@@ -207,24 +207,33 @@ fun ProvideAgentGlass(glass: AgentGlass, content: @Composable () -> Unit) {
 }
 
 /**
- * The agent's surface: one flat fill, one border, and a real blur of whatever
- * is behind it.
+ * The agent's surface.
  *
- * ## Why it is a flat fill
+ * ## Two surfaces, not one
  *
- * It used to be two surfaces — a gradient fill with a second, lighter layer
- * painted over its top half — which read as a stack of plastic rather than as
- * one thing. The terminal's own pills draw a single colour at a single alpha
- * and they are the reference: one fill, one border, done. The border below is
- * that same border.
+ * There are exactly two glass surfaces in the whole agent UI: the pill row at
+ * the top of a chat and the composer under it. They are the two things that
+ * float over content rather than sitting inside it, and they are the two a user
+ * reaches for.
+ *
+ * Everything else — a tool pill in a transcript, a reply box, an approval card —
+ * is a plain opaque fill. Glass in the middle of a conversation turns the
+ * conversation into a gallery: every row has an edge of its own, the eye has to
+ * re-decide what is a control on each line, and the thing the user is reading
+ * sits behind four layers of translucency. A transcript should read as text.
+ *
+ * So [edged] is the whole switch. It is true in two places and nowhere else:
+ *
+ *  - **true** — blur, translucent fill, gradient hairline. Floating chrome.
+ *  - **false** — one flat [DroshSurfaceHigh], no blur, no edge. Flow content.
  *
  * ## The blur is the depth
  *
  * A flat translucent colour over a blur is what a surface over a surface looks
- * like, and the blur is the part that does the work — the gradient it replaced
- * was doing the blur's job badly. The blur is Haze because the alternative —
- * sampling the backdrop into a bitmap — is what the terminal's selection menu
- * does, and it cannot keep up with a scrolling transcript.
+ * like, and the blur is the part that does the work. The blur is Haze because
+ * the alternative — sampling the backdrop into a bitmap — is what the
+ * terminal's selection menu does, and it cannot keep up with a scrolling
+ * transcript.
  */
 @Composable
 fun Modifier.glassSurface(
@@ -233,34 +242,44 @@ fun Modifier.glassSurface(
     primary: Boolean = false,
     shape: Shape = AgentPillDefaults.Shape,
     /**
-     * Whether the hairline edge is drawn.
+     * Whether this is one of the two floating glass surfaces.
      *
-     * Off everywhere but the pills and the composer: an outline on every
+     * Off everywhere but the top pill row and the composer: an outline on every
      * surface is a surface that looks like a form field — a card with a border
      * reads as something to fill in, and the whole screen becomes a stack of
      * boxes. The edge is a control's feature; a pill is a control, a card is
      * a card.
      */
     edged: Boolean = false,
+    /**
+     * Replaces the fill outright.
+     *
+     * The composer passes [Color.Transparent]: it is glass-edged but unfilled,
+     * so the transcript runs under it and the shadow alone carries the box.
+     * A filled composer is the thing that made the input look welded to the
+     * bottom of the screen instead of floating over it.
+     */
+    fill: Color? = null,
 ): Modifier {
-    val state = glass?.state
+    // Only an *edged* surface reads its backdrop. Everywhere else there is no
+    // blur to sit on, so asking for one would cost an offscreen render of the
+    // transcript per frame for something nobody can see.
+    val state = if (edged) glass?.state else null
 
-    // The same two alphas the terminal's own pills use: a lighter fill when
-    // there is a blur behind it to do the separating, a heavier one when there
-    // is not and the fill has to hold the surface on its own.
-    val fill = when {
+    val base = fill ?: when {
         // Accent-filled, not a second glass surface: "Yeni" is the one filled
         // control on the agent's list screen, and the accent is what makes it
         // the one filled control. A surface-filled pill here reads as chrome
         // rather than as the primary action.
         primary -> DroshPrimary
-        state != null -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_BLURRED)
-        else -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_PLAIN)
+        state != null -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_GLASS)
+        pressed -> DroshSurfaceHigh.copy(alpha = AGENT_FILL_PRESSED)
+        else -> DroshSurfaceHigh
     }
 
     return this
         .clip(shape)
-        // The blur alone, with no tint of its own: the flat fill below is the
+        // The blur alone, with no tint of its own: the fill below is the
         // surface, and a tint in the haze style would be a second one.
         .then(
             if (state == null) {
@@ -269,7 +288,7 @@ fun Modifier.glassSurface(
                 Modifier.hazeEffect(state, agentGlassStyle())
             },
         )
-        .background(fill)
+        .background(base)
         .then(
             if (edged) {
                 Modifier.glassEdge(
@@ -286,11 +305,11 @@ fun Modifier.glassSurface(
         )
 }
 
-/** The fill the terminal's pills use when there is a real blur behind them. */
-private const val AGENT_FILL_BLURRED = 0.28f
+/** The fill a floating surface uses: light, because the blur is separating. */
+private const val AGENT_FILL_GLASS = 0.28f
 
-/** The fill when there is not, and the surface has to hold itself. */
-private const val AGENT_FILL_PLAIN = 0.88f
+/** The press on a flat fill. A shade down, never a new colour. */
+private const val AGENT_FILL_PRESSED = 0.72f
 
 /**
  * The light on the glass edge, as (position, alpha) along the top-left -> bottom-right
@@ -408,6 +427,14 @@ fun AgentPill(
      * of the row as the text changes length.
      */
     contentAlignment: Alignment = Alignment.Center,
+    /**
+     * Whether this pill is one of the two floating glass surfaces.
+     *
+     * True for a control row that floats over content. False for anything drawn
+     * inside a transcript: a glass chip halfway down a conversation reads as
+     * chrome sitting in the middle of somebody's prose.
+     */
+    edged: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -433,7 +460,7 @@ fun AgentPill(
     Box(
         modifier = modifier
             .defaultMinSize(minHeight = AgentPillDefaults.Height)
-            .glassSurface(glass, pressed, primary, edged = true)
+            .glassSurface(glass, pressed, primary, edged = edged)
             .semantics { this.contentDescription = contentDescription }
             .pressable(interaction, enabled, onClick)
             .padding(horizontal = AgentPillDefaults.LabelPadding, vertical = 9.dp),
@@ -487,6 +514,8 @@ fun AgentIconPill(
     modifier: Modifier = Modifier,
     tint: Color = DroshText,
     enabled: Boolean = true,
+    /** See [AgentPill]. True for a floating control row, false inside a transcript. */
+    edged: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -512,7 +541,7 @@ fun AgentIconPill(
         Box(
             modifier = Modifier
                 .size(AgentPillDefaults.Height)
-                .glassSurface(glass, pressed, shape = CircleShape, edged = true),
+                .glassSurface(glass, pressed, shape = CircleShape, edged = edged),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
