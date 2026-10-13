@@ -83,17 +83,32 @@ private class DroshMarkdownTypography(
     // Headings step down from h1 in a ratio that stays legible at reading size on a
     // phone — and stops there. A library default of 2x for h1 would be a headline in
     // the transcript, and a transcript where a sub-heading is twice the body size
-    // reads as a page someone shout into, not an answer. h1 lands at 1.15x the body
-    // text and the rest fall away inside a point of it: a heading is a *break* in the
-    // text, and its weight and spacing say that already.
+    // reads as a page someone shout into, not an answer.
+    //
+    // Even so 1.15x was still too much. In a chat the body is the thing being read
+    // and a heading is a *break* in it: weight, colour and the block spacing around
+    // it already say "new section", and size spent on saying it twice is size taken
+    // from the paragraph the user came for. So h1 sits at 1.07x the body and the
+    // scale closes from there — three half-steps and one full one, which is the most
+    // room six levels can have without the top one shouting.
+    //
+    // The two deepest levels fall just below the body size on purpose. h5 and h6 are
+    // meta-labels in practice (a trailing note, a caption), and letting them drop
+    // under the text they annotate is what buys the headroom at the top: without
+    // them the range above body is 15, 14.5 and 14 — one visible step for h1. Kept
+    // above 12sp so the deepest of them stays readable at the smallest font scale
+    // that is still usable.
+    //
+    // lineHeight tracks the size down with it: a heading left at a heading's old
+    // line height stops being a heading and becomes a paragraph with padding.
     override val text: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 21.sp)
     override val paragraph: TextStyle get() = text
-    override val h1: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
-    override val h2: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
+    override val h1: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
+    override val h2: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
     override val h3: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
-    override val h4: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
-    override val h5: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
-    override val h6: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, color = secondary)
+    override val h4: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 13.5.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium)
+    override val h5: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 13.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium)
+    override val h6: TextStyle get() = TextStyle(fontFamily = sans, fontSize = 13.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium, color = secondary)
     override val quote: TextStyle get() = text.copy(color = secondary)
     override val code: TextStyle get() = TextStyle(fontFamily = mono, fontSize = 12.sp, lineHeight = 17.sp)
     override val inlineCode: TextStyle get() = code.copy(fontSize = 13.sp)
