@@ -59,6 +59,11 @@ import kotlin.math.max
  * Measured rather than counted also because the font is the app's, not a grid: a
  * proportional face has no character width to count in the first place.
  *
+ * Measured is a floor, not the whole answer: a column narrower than
+ * [MIN_COLUMN_WIDTH] is widened to it however short its content is. A one-word
+ * column measured exactly is a strip of text with the table's fill pressing on both
+ * sides of it, and the row next to it looking like a different table.
+ *
  * ## Horizontal scroll, one line, no border
  *
  * A table is data with a shape, and a shape has a minimum width. Squeezing it into
@@ -68,7 +73,23 @@ import kotlin.math.max
  *
  * Under the header there is one line and nothing else. A full grid of borders would
  * be a second, heavier visual language in the middle of a transcript that has none;
- * the header rule says "this is the top of the data" and stops.
+ * the header rule says "this is the top of the data" and stops. For the same reason
+ * there is no border around the table either: the flat fill is what separates it
+ * from the message, and a rule drawn round it would only say the same thing twice.
+ *
+ * ## Space, not lines
+ *
+ * A dense grid is easy to draw and hard to read: every cell sits against its
+ * neighbours and against the fill, so the eye has nothing to track and the table
+ * arrives as a grey slab with words in it. What separates cells here is air instead
+ * — [CELL_PADDING] across, [ROW_PADDING] down — which costs no stroke weight and no
+ * second visual language, and which keeps working when the user scales the font up
+ * to the size they actually read at.
+ *
+ * The corner is nearly square for the same reason the code block's is round: at a
+ * glance the two must not be mistaken for each other, and 10dp on a flat fill read
+ * as the same box twice. [TABLE_CORNER] is small enough to stay a rectangle and
+ * large enough that the fill does not look like a stray band of colour.
  *
  * Cells carry their inline markdown — `**bold**`, `` `code` ``, a link reduced to
  * its label — because a table of raw asterisks is a table nobody has to read twice.
@@ -119,18 +140,28 @@ internal fun DroshMarkdownTable(
             }
         }
         val gutter = with(density) { (CELL_PADDING * 2).roundToPx() }
-        widest.map { with(density) { (it + gutter).toDp() } }
+        val floor = with(density) { MIN_COLUMN_WIDTH.roundToPx() }
+        // coerceAtLeast, not max: both sides are in px by this point, and a column
+        // wider than the minimum must be left exactly as measured.
+        // The conversion is inside the density block because that is the only
+        // scope `toDp()` exists in: the px values measured above are useless to
+        // anyone reading them out here, and Compose has no global density.
+        widest.map { with(density) { (it + gutter).coerceAtLeast(floor).toDp() } }
     }
     val tableWidth = columnWidths.fold(0.dp) { acc, width -> acc + width }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(TABLE_CORNER))
             // Flat fill, no border: the table is a block of content, and the code
             // block beside it already owns the "boxed" reading.
             .background(DroshSurfaceVariant.copy(alpha = 0.5f))
-            .padding(vertical = 6.dp),
+            // Horizontal padding as well as vertical, so the first column's text
+            // starts off the edge of the fill rather than on it. It is deliberately
+            // small: this padding is not what makes the cells breathe, CELL_PADDING
+            // is, and the table should not look inset inside its own surface.
+            .padding(vertical = TABLE_PADDING, horizontal = 2.dp),
     ) {
         Box(modifier = Modifier.horizontalScroll(rememberScrollState())) {
             Column(modifier = Modifier.width(tableWidth)) {
@@ -140,13 +171,16 @@ internal fun DroshMarkdownTable(
                     alignments = table.alignments,
                     style = headerStyle,
                 )
-                Spacer(Modifier.height(5.dp))
+                // Air above and below the rule, so it reads as the line under the
+                // header rather than as one more row divider in a stack of them.
+                Spacer(Modifier.height(HEADER_RULE_GAP))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
                         .background(DroshOutline),
                 )
+                Spacer(Modifier.height(HEADER_RULE_GAP))
                 bodyCells.forEach { cells ->
                     TableRow(
                         cells = cells,
@@ -170,7 +204,14 @@ private fun TableRow(
 ) {
     // heightIn rather than height: the row grows with the user's font scale, and
     // every row in the table shares one text style, so they all grow together.
-    Row(modifier = Modifier.heightIn(min = MIN_ROW_HEIGHT)) {
+    Row(
+        modifier = Modifier
+            .heightIn(min = MIN_ROW_HEIGHT)
+            // Vertical air inside the row, which is what puts ROW_PADDING of space
+            // between two rows rather than only inside them — the gap between rows
+            // has to exist on both sides or the table closes back up to a grid.
+            .padding(vertical = ROW_PADDING),
+    ) {
         widths.forEachIndexed { column, width ->
             val alignment = alignments.getOrElse(column) { GfmAlignment.START }
             Box(
@@ -196,9 +237,10 @@ private fun TableRow(
                     },
                     maxLines = 1,
                     softWrap = false,
-                    // The column is sized to fit, so this should never be
-                    // reached. Ellipsis rather than clip because a clipped cell
-                    // loses its last character with no sign it did.
+                    // Every column is at least as wide as the widest text in it,
+                    // so this should never be reached. Ellipsis rather than clip
+                    // because a clipped cell loses its last character with no sign
+                    // it did.
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -334,8 +376,43 @@ private fun linkEndAt(raw: String, start: Int): Int {
     return if (targetEnd < 0) start + 1 else targetEnd + 1
 }
 
-/** Air either side of a cell's text, inside its column. */
-private val CELL_PADDING = 7.dp
+// The table's own measurements. They live together because they only mean anything
+// as a set: the padding is what makes the table readable, and the corner and the
+// minimum width are what stop the padding from being mistaken for slack layout.
+//
+// Air either side of a cell's text, inside its column. Twelve, not seven: the cell
+// is the widest thing in the row and the table is read by scanning down a column,
+// so the space beside a cell is the gutter the eye travels in. At seven there was
+// none, and adjacent columns read as one string with a gap in it.
+private val CELL_PADDING = 12.dp
 
-/** A row is one line of text tall, whatever the tallest cell in it needs. */
-private val MIN_ROW_HEIGHT = 19.dp
+// Air above and below a row's text, so two rows sit ROW_PADDING * 2 apart. Five
+// puts ten between rows against nineteen of line height: enough to see where one
+// record ends without turning a short table into a list of loose lines.
+private val ROW_PADDING = 5.dp
+
+// The floor for one row, not its height: heightIn is a minimum, and the line height
+// is in sp, so a row still grows with the user's font scale. Thirty is the row at
+// scale 1.0 — the 19sp line plus the ten the row pads itself with, rounded up — so
+// below that scale the floor holds the air instead of the text eating it, and above
+// it the text has the row to itself.
+private val MIN_ROW_HEIGHT = 30.dp
+
+// The narrowest a column may be, content or no content. Two characters in a column
+// measured exactly would be a word with the fill touching it; 56dp is roughly three
+// characters plus the gutter, so a short column reads as a column.
+private val MIN_COLUMN_WIDTH = 56.dp
+
+// Air inside the table's own edge. Vertical, so the header and the last row are not
+// pressed against the fill; small, because the horizontal air belongs to
+// CELL_PADDING and doubling it here would only inset the table inside itself.
+private val TABLE_PADDING = 10.dp
+
+// The header rule's separation from the rows it divides. Applied on both sides, so
+// the rule stays a rule instead of becoming the tightest line in the block.
+private val HEADER_RULE_GAP = 6.dp
+
+// Nearly square, and deliberately not the code block's [CODE_BLOCK_CORNER]: the two
+// blocks can sit in the same message, and at one radius they read as the same
+// object twice.
+private val TABLE_CORNER = 4.dp
