@@ -733,16 +733,16 @@ fun toolRowDescription(message: ChatMessage.ToolCall): String = buildString {
 
 /** The four state words of [toolRowDescription], read from resources. */
 private val runningCd: String
-    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_state_running)
+    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_running)
 
 private val succeededCd: String
-    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_state_done)
+    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_succeeded)
 
 private val failedCd: String
-    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_state_failed)
+    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_failed)
 
 private val cancelledCd: String
-    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_state_cancelled)
+    @Composable @ReadOnlyComposable get() = stringResource(R.string.agent_tool_cancelled)
 
 /**
  * A row of pills.
