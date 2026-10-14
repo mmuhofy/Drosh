@@ -49,6 +49,16 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
 
                 testOptions {
                     unitTests.isReturnDefaultValues = true
+                    unitTests.all {
+                        // A failed test that prints only "FAILED" and a line
+                        // number is a test you debug by guessing. CI is the
+                        // only place these run, so the exceptions have to be
+                        // in the log.
+                        it.testLogging {
+                            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                            showStandardStreams = false
+                        }
+                    }
                 }
             }
         }
