@@ -1026,7 +1026,7 @@ class AppDataBackup @Inject constructor(
      * `app_settings` that carried only backgrounds has no settings file to put
      * back.
      */
-    suspend fun apply(section: AppSection, swap: FileSwap, staging: File) {
+    internal suspend fun apply(section: AppSection, swap: FileSwap, staging: File) {
         when (section) {
             AppSection.SETTINGS -> applySettings(swap, staging)
             AppSection.DATASTORE -> applyDataStore(swap, staging)
@@ -1048,7 +1048,7 @@ class AppDataBackup @Inject constructor(
      * environment, and half-restoring it would leave the two copies
      * disagreeing about which one is being read.
      */
-    suspend fun rewriteSettingsIntoRootfs(swap: FileSwap, staging: File) {
+    internal suspend fun rewriteSettingsIntoRootfs(swap: FileSwap, staging: File) {
         val staged = File(File(staging, ArchiveLayout.SETTINGS_DIR), "settings.toml")
         if (!staged.isFile) return
         swap.replace(paths.guestSettingsFile, staged)
