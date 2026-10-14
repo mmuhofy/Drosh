@@ -8,12 +8,14 @@ import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import timber.log.Timber
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import timber.log.Timber
 import java.nio.file.attribute.PosixFilePermission
 import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
@@ -55,10 +57,15 @@ class RootfsArchiveTest {
         rootfs = folder.newFolder("rootfs")
         outside = folder.newFolder("outside")
         staging = folder.newFolder("staging", "a", "b")
+        // The engine logs every skip through Timber, which is silent without a
+        // tree — and a skipped directory with no message is a test you debug by
+        // guessing. Plant one for the duration of each test.
+        Timber.plant(Timber.DebugTree())
     }
 
     @After
     fun releaseModes() {
+        Timber.uprootAll()
         // The writer is required to leave a mode-000 file mode-000 after a
         // successful write, and TemporaryFolder cannot delete such a tree. Every
         // assertion has already run, so relax the whole fixture now.
