@@ -646,8 +646,23 @@ private class FakeRootfsArchivePort : RootfsArchivePort {
 
     override suspend fun extractToStaging(input: InputStream, memberPrefix: String, stagingDir: File) {
         if (failExtract) throw IOException("the archive is damaged")
-        GZIPInputStream(input.buffered()).use { gzip ->
-            ArchiveTarReader(gzip).use { reader ->
+        // The real reader in :terminal takes either shape — a gzip tar or a
+        // stream whose gzip layer is already unwrapped — and the repository
+        // unwraps before calling. A fake that always wrapped would fail on
+        // exactly the call the repository makes, which is how this test
+        // failed: GZIPInputStream over decompressed bytes.
+        val buffered = input.buffered()
+        buffered.mark(2)
+        val first = buffered.read()
+        val second = buffered.read()
+        buffered.reset()
+        val tar = if (first == 0x1f && second == 0x8b.toByte()) {
+            GZIPInputStream(buffered)
+        } else {
+            buffered
+        }
+        tar.use { stream ->
+            ArchiveTarReader(stream).use { reader ->
                 while (true) {
                     val name = reader.nextFileEntry() ?: break
                     if (!name.startsWith("$memberPrefix/")) continue
