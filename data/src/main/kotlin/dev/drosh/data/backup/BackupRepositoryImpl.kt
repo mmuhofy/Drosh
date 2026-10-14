@@ -624,12 +624,6 @@ class BackupRepositoryImpl @Inject constructor(
     @InstallIn(SingletonComponent::class)
     object BackupModule {
 
-        /** Where archives are written, under the cache the caller owns. */
-        const val BACKUP_DIR_NAME = "drosh-backups"
-
-        private const val ARCHIVE_SUFFIX = ".tar.gz"
-        private const val FILE_STAMP = "yyyyMMdd-HHmmss"
-
         @Provides
         @Singleton
         fun provideBackupPaths(
@@ -675,11 +669,20 @@ class BackupRepositoryImpl @Inject constructor(
     }
 }
 
+/** Archives land in the app cache, under this directory. */
+private const val BACKUP_DIR_NAME = "drosh-backups"
+
+/** The archive container: gzip tar, until zstd earns its dependency. */
+private const val ARCHIVE_SUFFIX = ".tar.gz"
+
+/** File-name stamp: one archive per second, which is one per real run. */
+private const val FILE_STAMP = "yyyyMMdd-HHmmss"
+
 /** The production [BackupLocation]: app cache, timestamped file name. */
-private class DefaultBackupLocation(context: Context) : BackupLocation {
+class DefaultBackupLocation(context: Context) : BackupLocation {
     private val cacheDir: File = context.cacheDir
 
-    override fun archiveDir(): File = File(cacheDir, BackupModule.BACKUP_DIR_NAME)
+    override fun archiveDir(): File = File(cacheDir, BACKUP_DIR_NAME)
 
     override fun archiveFileName(): String =
         "drosh-backup-" + SimpleDateFormat(FILE_STAMP, Locale.US).format(Date()) + ARCHIVE_SUFFIX
