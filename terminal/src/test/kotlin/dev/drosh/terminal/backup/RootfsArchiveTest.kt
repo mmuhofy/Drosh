@@ -51,6 +51,9 @@ class RootfsArchiveTest {
 
     private val reader = RootfsArchiveReader()
 
+    /** What the engine said through Timber, so a failure can quote it. */
+    private val timberLog = mutableListOf<String>()
+
     @Before
     fun setUp() {
         rootfs = folder.newFolder("rootfs")
@@ -58,13 +61,18 @@ class RootfsArchiveTest {
         staging = folder.newFolder("staging", "a", "b")
         // The engine logs every skip through Timber, which is silent without a
         // tree — and a skipped directory with no message is a test you debug by
-        // guessing. Plant one for the duration of each test.
-        Timber.plant(Timber.DebugTree())
+        // guessing. Collect what it says so a failure can quote it.
+        Timber.plant(object : Timber.Tree() {
+            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+                timberLog += "${tag ?: "Timber"}: $message"
+            }
+        })
     }
 
     @After
     fun releaseModes() {
         Timber.uprootAll()
+        timberLog.clear()
         // The writer is required to leave a mode-000 file mode-000 after a
         // successful write, and TemporaryFolder cannot delete such a tree. Every
         // assertion has already run, so relax the whole fixture now.
@@ -189,7 +197,8 @@ class RootfsArchiveTest {
             ?.joinToString(", ") { "${it.type}:${it.name}" }
             ?: "unparseable"
         assertEquals(
-            "writer archived ${written.fileCount} [$members], reader extracted ${result.filesExtracted}",
+            "writer archived ${written.fileCount} [$members], reader extracted ${result.filesExtracted}; " +
+                "engine said: ${timberLog.joinToString(" | ")}",
             2,
             result.filesExtracted,
         )
