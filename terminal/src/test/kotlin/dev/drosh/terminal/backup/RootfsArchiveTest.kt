@@ -120,7 +120,7 @@ class RootfsArchiveTest {
             staging,
         )
 
-        assertEquals(files.size, result.fileCount)
+        assertEquals(files.size, result.filesExtracted)
         // bytesWritten counts file bytes, so it is exactly the payload.
         assertEquals(files.values.sumOf { it.length.toLong() }, result.bytesWritten)
 
@@ -176,7 +176,7 @@ class RootfsArchiveTest {
         )
 
         // Both unreadable entries were archived, not silently skipped.
-        assertEquals(2, result.fileCount)
+        assertEquals(2, result.filesExtracted)
         // The directory's 000 mode made it back, so its content is unreachable
         // until the mode is relaxed — assert the modes before touching anything.
         assertMode(File(staging, "home/dark"), MODE_000)
@@ -219,7 +219,7 @@ class RootfsArchiveTest {
         assertTrue(RootfsArchiveWriter.DEFAULT_EXCLUDED_TOP_LEVEL.contains("tmp"))
         assertTrue(RootfsArchiveWriter.DEFAULT_EXCLUDED_TOP_LEVEL.contains("dev"))
         assertTrue(RootfsArchiveWriter.DEFAULT_EXCLUDED_TOP_LEVEL.contains("run"))
-        assertEquals("no file was archived", 0, result.fileCount)
+        assertEquals("no file was archived", 0, result.filesExtracted)
         // Whole subtrees pruned: nothing at all under them.
         assertFalse(File(staging, "proc").exists())
         assertFalse(File(staging, "tmp").exists())
@@ -249,7 +249,7 @@ class RootfsArchiveTest {
             writer.writeSubtree(rootfs, MEMBER_PREFIX, relativeSubtree = null, out = gzip)
         }
 
-        assertEquals(1, result.fileCount)
+        assertEquals(1, result.filesExtracted)
         val extracted = reader.extractToStaging(
             GZIPInputStream(ByteArrayInputStream(archive.toByteArray())),
             MEMBER_PREFIX,
@@ -305,7 +305,7 @@ class RootfsArchiveTest {
         val raw = ByteArrayOutputStream()
         val result = writer.writeSubtree(rootfs, MEMBER_PREFIX, relativeSubtree = "emptydir", out = raw)
 
-        assertEquals(0, result.fileCount)
+        assertEquals(0, result.filesExtracted)
         assertEquals(0L, result.bytesWritten)
         // The digest of nothing, and a well-formed tar with no members in it.
         assertEquals(EMPTY_SHA256, result.sha256)
@@ -468,8 +468,8 @@ class RootfsArchiveTest {
     @Test
     fun `setuid setgid and sticky bits do not survive extraction`() {
         val raw = tarOf(
-            FakeEntry(name = "$MEMBER_PREFIX/bin/tool", type = '0', content = "binary\n", mode = MODE_4755),
-            FakeEntry(name = "$MEMBER_PREFIX/bin/dir", type = '5', mode = MODE_1777),
+            FakeEntry(name = "$MEMBER_PREFIX/bin/tool", type = '0', content = "binary\n", mode = MODE_4755.toLong()),
+            FakeEntry(name = "$MEMBER_PREFIX/bin/dir", type = '5', mode = MODE_1777.toLong()),
         )
         reader.extractToStaging(ByteArrayInputStream(gzip(raw)), MEMBER_PREFIX, staging)
         assertEquals(MODE_755, unixMode(File(staging, "bin/tool")) and MODE_7777)
@@ -519,7 +519,7 @@ class RootfsArchiveTest {
             MEMBER_PREFIX,
             staging,
         )
-        assertEquals(1, result.fileCount)
+        assertEquals(1, result.filesExtracted)
         assertEquals("home\n", File(staging, "user/.zshrc").readText())
         assertFalse(File(staging, "etc").exists())
     }
@@ -569,7 +569,7 @@ class RootfsArchiveTest {
         val type: Char,
         val content: String = "",
         val linkName: String = "",
-        val mode: Long = MODE_644,
+        val mode: Long = MODE_644.toLong(),
         val prefix: String = "",
     )
 
@@ -641,7 +641,7 @@ class RootfsArchiveTest {
             val type = header[156].toInt().toChar()
             val prefix = field(header, 345, 155)
             val data = raw.copyOfRange(offset, offset + size.toInt())
-            offset += ((512 - (size % 512)) % 512)
+            offset += ((512 - (size % 512)) % 512).toInt()
             add(RawMember(type, prefix, name, size, data))
         }
     }
