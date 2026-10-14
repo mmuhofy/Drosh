@@ -42,8 +42,8 @@ private fun statusBarInset(): Dp =
  * One row per category, each carrying a one-line summary of what is in it —
  * the same reason the terminal rows carry their current value: a settings
  * screen you have to open to read is a settings screen you open twice. The
- * agent and the projects rows leave for their own screens; everything else
- * edits the file in place behind [SettingsCategoryRoute].
+ * agent, the projects and the backup rows leave for their own screens;
+ * everything else edits the file in place behind [SettingsCategoryRoute].
  */
 enum class SettingsCategoryRoute(val id: String) {
     Appearance("appearance"),
@@ -68,6 +68,7 @@ fun SettingsHomeScreen(
     onOpenCategory: (SettingsCategoryRoute) -> Unit,
     onOpenProjects: () -> Unit,
     onOpenAgentSettings: () -> Unit,
+    onOpenBackupRestore: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
     deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel(),
@@ -105,7 +106,7 @@ fun SettingsHomeScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = null, items = 7) { index, cap ->
+            SettingsGroupColumn(label = null, items = 8) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
@@ -153,6 +154,18 @@ fun SettingsHomeScreen(
                         icon = DroshIcons.Code,
                         supporting = stringResource(R.string.settings_agent_desc),
                         onClick = onOpenAgentSettings,
+                    ) { SettingsChevron() }
+
+                    // Between the agent and security, where the two rows that
+                    // also leave for somewhere else sit. Backup is the answer
+                    // to "what happens when this phone dies" — a question the
+                    // security rows below it raise and cannot answer.
+                    6 -> SettingsTile(
+                        cap = cap,
+                        title = "Yedekle ve geri yükle",
+                        icon = DroshIcons.Archive,
+                        supporting = "Uygulama verisi ve Linux dizini yedeği",
+                        onClick = { onOpenBackupRestore() },
                     ) { SettingsChevron() }
 
                     else -> SettingsTile(

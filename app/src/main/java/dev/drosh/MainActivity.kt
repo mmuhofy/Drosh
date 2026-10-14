@@ -106,6 +106,7 @@ import dev.drosh.ui.settings.SettingsViewModel
 import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
 import dev.drosh.ui.settings.ThemeStoreScreen
+import dev.drosh.ui.backup.BackupRestoreRoute
 import dev.drosh.ui.workspace.WorkspaceScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -743,6 +744,7 @@ class MainActivity : ComponentActivity() {
                     // Reached from Settings rather than from a gear on the agent
                     // screens: an OpenRouter key is the user's, not a chat's.
                     onOpenAgentSettings = { navController.navigate("agent_settings") },
+                    onOpenBackupRestore = { navController.navigate("backup_restore") },
                 )
             }
 
@@ -752,6 +754,14 @@ class MainActivity : ComponentActivity() {
                     onBack = { navController.popBackStack() },
                     onOpenThemeStore = { navController.navigate("settings/theme_store") },
                 )
+            }
+
+            // Backup and restore — one archive of the app's data and the rootfs,
+            // and the screen that puts it back. A destination of its own rather
+            // than a category: it runs a job, and a job outlives the row that
+            // started it.
+            composable("backup_restore") {
+                BackupRestoreRoute(onBack = { navController.popBackStack() })
             }
 
             // Projects — workspaces and the sessions filed under them. Reached
