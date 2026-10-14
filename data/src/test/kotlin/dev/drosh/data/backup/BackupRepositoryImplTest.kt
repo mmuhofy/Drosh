@@ -454,6 +454,39 @@ class BackupRepositoryImplTest {
         assertNoLeftovers()
     }
 
+    @Test
+    fun `diagnostic: dump the archive block layout`() = runTest {
+        writeFakeAppFiles()
+        val archive = backupFile()
+        val events = repository.createBackup(BackupOptions()).toList()
+        fail("createBackup ended with ${events.last()}")
+
+        val raw = GZIPInputStream(FileInputStream(archive)).readBytes()
+        val report = mutableListOf<String>()
+        var i = 0
+        while (i + TarFormat.BLOCK_SIZE <= raw.size) {
+            val block = raw.copyOfRange(i, i + TarFormat.BLOCK_SIZE)
+            when {
+                block.all { it == 0.toByte() } -> {
+                    report += "[$i]ZERO"
+                    i += TarFormat.BLOCK_SIZE
+                }
+                String(block, TarFormat.MAGIC, 5, Charsets.US_ASCII) == "ustar" -> {
+                    val size = TarFormat.readNumeric(block, TarFormat.SIZE, TarFormat.SIZE_LENGTH)
+                    val name = String(block, TarFormat.NAME, TarFormat.NAME_LENGTH, Charsets.US_ASCII)
+                        .trimEnd('\u0000')
+                    report += "[$i]HEADER($size)$name"
+                    i += TarFormat.BLOCK_SIZE + size.toInt() + TarFormat.paddingOf(size).toInt()
+                }
+                else -> {
+                    report += "[$i]DATA"
+                    i += TarFormat.BLOCK_SIZE
+                }
+            }
+        }
+        fail("total=${raw.size} blocks: ${report.joinToString(" | ")}")
+    }
+
     // ── the fake tree ────────────────────────────────────────────────────────
 
     private fun writeFakeAppFiles() {
