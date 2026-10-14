@@ -461,29 +461,24 @@ class BackupRepositoryImplTest {
         val events = repository.createBackup(BackupOptions()).toList()
 
         val raw = GZIPInputStream(FileInputStream(archive)).readBytes()
-        val report = mutableListOf<String>()
-        var i = 0
-        while (i + TarFormat.BLOCK_SIZE <= raw.size) {
-            val block = raw.copyOfRange(i, i + TarFormat.BLOCK_SIZE)
-            when {
-                block.all { it == 0.toByte() } -> {
-                    report += "[$i]ZERO"
-                    i += TarFormat.BLOCK_SIZE
-                }
-                String(block, TarFormat.MAGIC, 5, Charsets.US_ASCII) == "ustar" -> {
-                    val size = TarFormat.readNumeric(block, TarFormat.SIZE, TarFormat.SIZE_LENGTH)
-                    val name = String(block, TarFormat.NAME, TarFormat.NAME_LENGTH, Charsets.US_ASCII)
-                        .trimEnd('\u0000')
-                    report += "[$i]HEADER($size)$name"
-                    i += TarFormat.BLOCK_SIZE + size.toInt() + TarFormat.paddingOf(size).toInt()
-                }
-                else -> {
-                    report += "[$i]DATA"
-                    i += TarFormat.BLOCK_SIZE
-                }
-            }
+        // Every "ustar" occurrence, wherever it actually sits: the true header
+        // offsets, whether or not they are 512-aligned.
+        val headers = mutableListOf<String>()
+        var at = -1
+        while (true) {
+            at = indexOfBytes(raw, "ustar".toByteArray(), at + 1)
+            if (at < 0) break
+            val magicOffset = at - TarFormat.MAGIC
+            if (magicOffset < 0) continue
+            val name = String(raw, magicOffset + TarFormat.NAME, minOf(60, TarFormat.NAME_LENGTH), Charsets.US_ASCII)
+                .trimEnd('\u0000')
+            val size = TarFormat.readNumeric(raw, magicOffset + TarFormat.SIZE, TarFormat.SIZE_LENGTH)
+            headers += "@$magicOffset($size)$name"
         }
-        throw AssertionError("ended=${events.last()} total=${raw.size} blocks: ${report.joinToString(" | ")}")
+        throw AssertionError(
+            "ended=${events.last()} total=${raw.size} aligned=${raw.size % TarFormat.BLOCK_SIZE} " +
+                "headers=${headers.joinToString(" | ")}",
+        )
     }
 
     // ── the fake tree ────────────────────────────────────────────────────────
@@ -568,8 +563,8 @@ class BackupRepositoryImplTest {
         return corrupted
     }
 
-    private fun indexOfBytes(haystack: ByteArray, needle: ByteArray): Int {
-        outer@ for (start in 0..haystack.size - needle.size) {
+    private fun indexOfBytes(haystack: ByteArray, needle: ByteArray, from: Int = 0): Int {
+        outer@ for (start in from..haystack.size - needle.size) {
             for (offset in needle.indices) {
                 if (haystack[start + offset] != needle[offset]) continue@outer
             }
