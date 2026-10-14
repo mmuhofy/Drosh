@@ -500,13 +500,20 @@ class BackupRepositoryImplTest {
     /** Every member name in the archive, in the order they appear. */
     private fun memberNames(archive: File): List<String> {
         val names = mutableListOf<String>()
-        GZIPInputStream(FileInputStream(archive)).use { gzip ->
-            ArchiveTarReader(gzip).use { reader ->
-                while (true) {
-                    val name = reader.nextFileEntry() ?: break
-                    names += name
+        try {
+            GZIPInputStream(FileInputStream(archive)).use { gzip ->
+                ArchiveTarReader(gzip).use { reader ->
+                    while (true) {
+                        val name = reader.nextFileEntry() ?: break
+                        names += name
+                    }
                 }
             }
+        } catch (e: IOException) {
+            // A misaligned stream fails on the header that follows the damage;
+            // naming every member that read cleanly is the difference between
+            // "the archive is corrupt" and knowing which member broke it.
+            throw IOException("reading ${archive.name} stopped after $names", e)
         }
         return names
     }
