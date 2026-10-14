@@ -273,6 +273,7 @@ internal class TarMemberStream(
 ) : OutputStream() {
 
     private var written = 0L
+    private var closed = false
 
     override fun write(b: Int) {
         checkCapacity(1)
@@ -286,7 +287,19 @@ internal class TarMemberStream(
         written += len
     }
 
+    /**
+     * Writes the padding, once.
+     *
+     * Idempotent because the member stream is closed twice on the way out:
+     * the digest wrapper that wraps it is a FilterOutputStream, so *its* close
+     * closes this one, and the writer's own `use` closes it again. A second
+     * close that padded again wrote the padding twice, every member was
+     * 512-aligned-plus-one-padding long, and every header after the first sat
+     * at an offset no reader could find.
+     */
     override fun close() {
+        if (closed) return
+        closed = true
         if (written != size) {
             throw IOException("member body wrote $written of $size bytes")
         }
@@ -614,8 +627,17 @@ internal class TarSectionSink(private val writer: TarMemberWriter) : SectionSink
         body: (OutputStream) -> Unit,
     ): SectionMember {
         val digest = MessageDigest.getInstance("SHA-256")
-        writer.beginMember(name, size, modifiedAtMs, executable).use { member ->
-            DigestOutputStream(member, digest).use { digesting -> body(digesting) }
+        // One close, on purpose. DigestOutputStream is a FilterOutputStream,
+        // so wrapping the member in a nested `use` closes it twice — once by
+        // the digest's close and once by this one — and TarMemberStream pads
+        // on close. The padding is now idempotent, but the shape was wrong:
+        // the member is opened once, filled once, and closed once.
+        val member = writer.beginMember(name, size, modifiedAtMs, executable)
+        try {
+            body(DigestOutputStream(member, digest))
+            member.flush()
+        } finally {
+            member.close()
         }
         return SectionMember(name, size, digest.digest().toHexLower())
     }

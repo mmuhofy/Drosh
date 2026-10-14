@@ -243,7 +243,15 @@ object TermuxPackageMap {
                 else -> if (seenMapped.add(name)) mapped += name
             }
         }
-        return PackageClassification(mapped, dropped, unmapped)
+        // Named arguments on purpose: the data class declares its fields
+        // mapped, unmapped, dropped, and a positional return here hands the
+        // dropped list to the unmapped field — which is exactly the bug this
+        // comment exists to prevent coming back.
+        return PackageClassification(
+            mapped = mapped,
+            dropped = dropped,
+            unmapped = unmapped,
+        )
     }
 
     /**

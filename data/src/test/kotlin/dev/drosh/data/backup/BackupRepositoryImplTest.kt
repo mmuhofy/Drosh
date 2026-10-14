@@ -454,33 +454,6 @@ class BackupRepositoryImplTest {
         assertNoLeftovers()
     }
 
-    @Test
-    fun `diagnostic dump of the archive block layout`() = runTest {
-        writeFakeAppFiles()
-        val archive = backupFile()
-        val events = repository.createBackup(BackupOptions()).toList()
-
-        val raw = GZIPInputStream(FileInputStream(archive)).readBytes()
-        // Every "ustar" occurrence, wherever it actually sits: the true header
-        // offsets, whether or not they are 512-aligned.
-        val headers = mutableListOf<String>()
-        var at = -1
-        while (true) {
-            at = indexOfBytes(raw, "ustar".toByteArray(), at + 1)
-            if (at < 0) break
-            val magicOffset = at - TarFormat.MAGIC
-            if (magicOffset < 0) continue
-            val name = String(raw, magicOffset + TarFormat.NAME, minOf(60, TarFormat.NAME_LENGTH), Charsets.US_ASCII)
-                .trimEnd('\u0000')
-            val size = TarFormat.readNumeric(raw, magicOffset + TarFormat.SIZE, TarFormat.SIZE_LENGTH)
-            headers += "@$magicOffset($size)$name"
-        }
-        throw AssertionError(
-            "ended=${events.last()} total=${raw.size} aligned=${raw.size % TarFormat.BLOCK_SIZE} " +
-                "headers=${headers.joinToString(" | ")}",
-        )
-    }
-
     // ── the fake tree ────────────────────────────────────────────────────────
 
     private fun writeFakeAppFiles() {
