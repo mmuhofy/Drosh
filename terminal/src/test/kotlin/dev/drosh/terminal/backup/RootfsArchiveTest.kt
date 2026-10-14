@@ -249,7 +249,7 @@ class RootfsArchiveTest {
             writer.writeSubtree(rootfs, MEMBER_PREFIX, relativeSubtree = null, out = gzip)
         }
 
-        assertEquals(1, result.filesExtracted)
+        assertEquals(1, result.fileCount)
         val extracted = reader.extractToStaging(
             GZIPInputStream(ByteArrayInputStream(archive.toByteArray())),
             MEMBER_PREFIX,
@@ -305,7 +305,7 @@ class RootfsArchiveTest {
         val raw = ByteArrayOutputStream()
         val result = writer.writeSubtree(rootfs, MEMBER_PREFIX, relativeSubtree = "emptydir", out = raw)
 
-        assertEquals(0, result.filesExtracted)
+        assertEquals(0, result.fileCount)
         assertEquals(0L, result.bytesWritten)
         // The digest of nothing, and a well-formed tar with no members in it.
         assertEquals(EMPTY_SHA256, result.sha256)
