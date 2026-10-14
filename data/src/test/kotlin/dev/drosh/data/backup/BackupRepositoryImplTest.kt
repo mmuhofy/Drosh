@@ -459,7 +459,6 @@ class BackupRepositoryImplTest {
         writeFakeAppFiles()
         val archive = backupFile()
         val events = repository.createBackup(BackupOptions()).toList()
-        fail("createBackup ended with ${events.last()}")
 
         val raw = GZIPInputStream(FileInputStream(archive)).readBytes()
         val report = mutableListOf<String>()
@@ -484,7 +483,7 @@ class BackupRepositoryImplTest {
                 }
             }
         }
-        fail("total=${raw.size} blocks: ${report.joinToString(" | ")}")
+        fail("ended=${events.last()} total=${raw.size} blocks: ${report.joinToString(" | ")}")
     }
 
     // ── the fake tree ────────────────────────────────────────────────────────
