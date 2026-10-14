@@ -11,6 +11,7 @@ import dev.drosh.data.agent.AgentChatRepositoryImpl
 import dev.drosh.data.agent.LlmProviderRepositoryImpl
 import dev.drosh.data.agent.ToolCredentialRepositoryImpl
 import dev.drosh.data.agent.TranscriptStoreImpl
+import dev.drosh.data.backup.BackupRepositoryImpl
 import dev.drosh.data.block.BlockRepositoryImpl
 import dev.drosh.data.block.TrafficStatsCollector
 import dev.drosh.data.settings.PinLockRepositoryImpl
@@ -34,6 +35,7 @@ import dev.drosh.domain.agent.AgentSession
 import dev.drosh.domain.agent.LlmProviderRepository
 import dev.drosh.domain.agent.ToolCredentialRepository
 import dev.drosh.domain.agent.TranscriptStore
+import dev.drosh.domain.backup.BackupRepository
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.NetworkMetricsCollector
 import dev.drosh.domain.input.HardwareKeyboardPresence
@@ -262,4 +264,18 @@ abstract class BindingsModule {
     abstract fun bindAgentSession(
         impl: dev.drosh.agent.runtime.AgentLoop,
     ): AgentSession
+
+    /**
+     * Backup and restore.
+     *
+     * Singleton because one archive at a time is the honest concurrency story:
+     * two backups running against the same cache directory would race over
+     * the staging files, and the restore path moves the rootfs aside — a
+     * second one mid-flight would find it missing.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindBackupRepository(
+        impl: BackupRepositoryImpl,
+    ): BackupRepository
 }
