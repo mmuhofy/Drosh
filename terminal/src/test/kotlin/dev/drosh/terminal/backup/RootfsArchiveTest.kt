@@ -91,23 +91,23 @@ class RootfsArchiveTest {
         // home/dark is mode 000 on purpose (see the relax-pass test) and
         // home/locked is unreadable by group/other.
         val directories = mapOf(
-            "etc" to 0o755,
-            "etc/apt" to 0o755,
-            "home" to 0o755,
-            "home/user" to 0o755,
-            "home/user/.local" to 0o700,
-            "home/user/.local/share" to 0o700,
-            "usr/local/bin" to 0o755,
-            "var/lib/dpkg" to 0o755,
-            "long/${"a".repeat(100)}" to 0o755,
-            "home/dark" to 0o000,
-            "home/locked" to 0o500,
+            "etc" to MODE_755,
+            "etc/apt" to MODE_755,
+            "home" to MODE_755,
+            "home/user" to MODE_755,
+            "home/user/.local" to MODE_700,
+            "home/user/.local/share" to MODE_700,
+            "usr/local/bin" to MODE_755,
+            "var/lib/dpkg" to MODE_755,
+            "long/${"a".repeat(100)}" to MODE_755,
+            "home/dark" to MODE_000,
+            "home/locked" to MODE_500,
         )
-        files.forEach { (relative, content) -> writeToRootfs(relative, content, 0o644) }
+        files.forEach { (relative, content) -> writeToRootfs(relative, content, MODE_644) }
         directories.forEach { (relative, mode) ->
             if (relative.isNotEmpty()) Files.setPosixFilePermissions(File(rootfs, relative).toPath(), permissionsFor(mode))
         }
-        Files.setPosixFilePermissions(File(rootfs, "usr/local/bin/tool.sh").toPath(), permissionsFor(0o755))
+        Files.setPosixFilePermissions(File(rootfs, "usr/local/bin/tool.sh").toPath(), permissionsFor(MODE_755))
 
         val archive = ByteArrayOutputStream()
         GZIPOutputStream(archive).use { gzip ->
@@ -126,14 +126,14 @@ class RootfsArchiveTest {
 
         // Modes first: home/dark comes back mode 000, and reading through a
         // directory with no permissions at all is not something to rely on.
-        assertMode(File(staging, "etc/hostname"), 0o644)
-        assertMode(File(staging, "usr/local/bin/tool.sh"), 0o755)
-        assertMode(File(staging, "home/user/.local"), 0o700)
-        assertMode(File(staging, "home/dark"), 0o000)
-        assertMode(File(staging, "home/locked"), 0o500)
+        assertMode(File(staging, "etc/hostname"), MODE_644)
+        assertMode(File(staging, "usr/local/bin/tool.sh"), MODE_755)
+        assertMode(File(staging, "home/user/.local"), MODE_700)
+        assertMode(File(staging, "home/dark"), MODE_000)
+        assertMode(File(staging, "home/locked"), MODE_500)
 
         // Now the contents, one directory relaxed for the purpose.
-        Files.setPosixFilePermissions(File(staging, "home/dark").toPath(), permissionsFor(0o700))
+        Files.setPosixFilePermissions(File(staging, "home/dark").toPath(), permissionsFor(MODE_700))
         files.forEach { (relative, text) ->
             val extracted = File(staging, relative)
             assertTrue("missing $relative", extracted.isFile)
@@ -147,12 +147,12 @@ class RootfsArchiveTest {
 
     @Test
     fun `the relax pass archives unreadable entries and restores their modes`() {
-        writeToRootfs("home/dark/hidden.txt", "secret\n", 0o644)
+        writeToRootfs("home/dark/hidden.txt", "secret\n", MODE_644)
         Files.setPosixFilePermissions(
             File(rootfs, "home/dark").toPath(),
             PosixFilePermissions.fromString("---------"),
         )
-        writeToRootfs("home/locked/secret.txt", "locked\n", 0o000)
+        writeToRootfs("home/locked/secret.txt", "locked\n", MODE_000)
 
         val archive = ByteArrayOutputStream()
         GZIPOutputStream(archive).use { gzip ->
@@ -179,12 +179,12 @@ class RootfsArchiveTest {
         assertEquals(2, result.fileCount)
         // The directory's 000 mode made it back, so its content is unreachable
         // until the mode is relaxed — assert the modes before touching anything.
-        assertMode(File(staging, "home/dark"), 0o000)
-        assertMode(File(staging, "home/locked/secret.txt"), 0o000)
-        Files.setPosixFilePermissions(File(staging, "home/dark").toPath(), permissionsFor(0o700))
+        assertMode(File(staging, "home/dark"), MODE_000)
+        assertMode(File(staging, "home/locked/secret.txt"), MODE_000)
+        Files.setPosixFilePermissions(File(staging, "home/dark").toPath(), permissionsFor(MODE_700))
         Files.setPosixFilePermissions(
             File(staging, "home/locked/secret.txt").toPath(),
-            permissionsFor(0o600),
+            permissionsFor(MODE_600),
         )
         assertEquals("secret\n", File(staging, "home/dark/hidden.txt").readText())
         assertEquals("locked\n", File(staging, "home/locked/secret.txt").readText())
@@ -192,9 +192,9 @@ class RootfsArchiveTest {
 
     @Test
     fun `excluded top level directories and excluded relative paths are not archived`() {
-        writeToRootfs("proc/self/cmdline", "rootfs\n", 0o644)
-        writeToRootfs("tmp/junk.txt", "junk\n", 0o644)
-        writeToRootfs("home/.drosh/settings-cache.tmp", "cache\n", 0o644)
+        writeToRootfs("proc/self/cmdline", "rootfs\n", MODE_644)
+        writeToRootfs("tmp/junk.txt", "junk\n", MODE_644)
+        writeToRootfs("home/.drosh/settings-cache.tmp", "cache\n", MODE_644)
 
         val archive = ByteArrayOutputStream()
         GZIPOutputStream(archive).use { gzip ->
@@ -239,7 +239,7 @@ class RootfsArchiveTest {
 
     @Test
     fun `a symlink in the tree is skipped by the writer`() {
-        writeToRootfs("home/user/.zshrc", "the real file\n", 0o644)
+        writeToRootfs("home/user/.zshrc", "the real file\n", MODE_644)
         val target = File(outside, "settings.toml")
         target.writeText("outside\n")
         Files.createSymbolicLink(File(rootfs, "home/user/alias").toPath(), target.toPath())
@@ -268,8 +268,8 @@ class RootfsArchiveTest {
 
     @Test
     fun `sha256 is non empty stable across identical writes and covers exactly the member bytes`() {
-        writeToRootfs("etc/hostname", "drosh\n", 0o644)
-        writeToRootfs("home/user/.zshrc", "export ZSH_THEME=agnoster\n", 0o644)
+        writeToRootfs("etc/hostname", "drosh\n", MODE_644)
+        writeToRootfs("home/user/.zshrc", "export ZSH_THEME=agnoster\n", MODE_644)
 
         val firstRaw = ByteArrayOutputStream().also {
             writer.writeSubtree(rootfs, MEMBER_PREFIX, relativeSubtree = null, out = it)
@@ -330,7 +330,7 @@ class RootfsArchiveTest {
     fun `names between 101 and 256 bytes are split across the ustar prefix field`() {
         val medium = "long/${"a".repeat(100)}/${"b".repeat(60)}.txt"
         assertTrue("fixture must need the prefix field", medium.length in 101..256)
-        writeToRootfs(medium, "prefix field\n", 0o644)
+        writeToRootfs(medium, "prefix field\n", MODE_644)
 
         val raw = ByteArrayOutputStream().also {
             writer.writeSubtree(rootfs, MEMBER_PREFIX, null, it)
@@ -351,7 +351,7 @@ class RootfsArchiveTest {
     fun `names over 256 bytes use a gnu long name entry`() {
         val deep = "deeper/${List(6) { "c".repeat(60) }.joinToString("/")}/file.txt"
         assertTrue("fixture must exceed the ustar prefix", deep.length > 256)
-        writeToRootfs(deep, "long name\n", 0o644)
+        writeToRootfs(deep, "long name\n", MODE_644)
 
         val raw = ByteArrayOutputStream().also {
             writer.writeSubtree(rootfs, MEMBER_PREFIX, null, it)
@@ -376,7 +376,7 @@ class RootfsArchiveTest {
 
     @Test
     fun `headers are ustar with the checksum the reader expects`() {
-        writeToRootfs("etc/hostname", "drosh\n", 0o644)
+        writeToRootfs("etc/hostname", "drosh\n", MODE_644)
         val raw = ByteArrayOutputStream().also {
             writer.writeSubtree(rootfs, MEMBER_PREFIX, null, it)
         }.toByteArray()
@@ -468,17 +468,17 @@ class RootfsArchiveTest {
     @Test
     fun `setuid setgid and sticky bits do not survive extraction`() {
         val raw = tarOf(
-            FakeEntry(name = "$MEMBER_PREFIX/bin/tool", type = '0', content = "binary\n", mode = 0o4755),
-            FakeEntry(name = "$MEMBER_PREFIX/bin/dir", type = '5', mode = 0o1777),
+            FakeEntry(name = "$MEMBER_PREFIX/bin/tool", type = '0', content = "binary\n", mode = MODE_4755),
+            FakeEntry(name = "$MEMBER_PREFIX/bin/dir", type = '5', mode = MODE_1777),
         )
         reader.extractToStaging(ByteArrayInputStream(gzip(raw)), MEMBER_PREFIX, staging)
-        assertEquals(0o755, unixMode(File(staging, "bin/tool")) and 0o7777)
-        assertEquals(0o777, unixMode(File(staging, "bin/dir")) and 0o7777)
+        assertEquals(MODE_755, unixMode(File(staging, "bin/tool")) and MODE_7777)
+        assertEquals(MODE_777, unixMode(File(staging, "bin/dir")) and MODE_7777)
     }
 
     @Test
     fun `a corrupt header checksum is a hard error`() {
-        writeToRootfs("etc/hostname", "drosh\n", 0o644)
+        writeToRootfs("etc/hostname", "drosh\n", MODE_644)
         val corrupt = ByteArrayOutputStream().also {
             writer.writeSubtree(rootfs, MEMBER_PREFIX, null, it)
         }.toByteArray().copyOf()
@@ -507,8 +507,8 @@ class RootfsArchiveTest {
 
     @Test
     fun `a subtree selection archives only that subtree`() {
-        writeToRootfs("home/user/.zshrc", "home\n", 0o644)
-        writeToRootfs("etc/hostname", "etc\n", 0o644)
+        writeToRootfs("home/user/.zshrc", "home\n", MODE_644)
+        writeToRootfs("etc/hostname", "etc\n", MODE_644)
 
         val archive = ByteArrayOutputStream()
         GZIPOutputStream(archive).use { gzip ->
@@ -534,7 +534,7 @@ class RootfsArchiveTest {
     }
 
     private fun assertMode(file: File, expected: Int) {
-        assertEquals("mode of ${file.name}", expected, unixMode(file) and 0o7777)
+        assertEquals("mode of ${file.name}", expected, unixMode(file) and MODE_7777)
     }
 
     /** The raw `unix:mode`, file-type bits included, so setuid can be asserted. */
@@ -543,15 +543,15 @@ class RootfsArchiveTest {
 
     private fun permissionsFor(mode: Int): Set<PosixFilePermission> {
         val text = buildString(9) {
-            append(if (mode and 0o400 != 0) 'r' else '-')
-            append(if (mode and 0o200 != 0) 'w' else '-')
-            append(if (mode and 0o100 != 0) 'x' else '-')
-            append(if (mode and 0o040 != 0) 'r' else '-')
-            append(if (mode and 0o020 != 0) 'w' else '-')
-            append(if (mode and 0o010 != 0) 'x' else '-')
-            append(if (mode and 0o004 != 0) 'r' else '-')
-            append(if (mode and 0o002 != 0) 'w' else '-')
-            append(if (mode and 0o001 != 0) 'x' else '-')
+            append(if (mode and MODE_400 != 0) 'r' else '-')
+            append(if (mode and MODE_200 != 0) 'w' else '-')
+            append(if (mode and MODE_100 != 0) 'x' else '-')
+            append(if (mode and MODE_040 != 0) 'r' else '-')
+            append(if (mode and MODE_020 != 0) 'w' else '-')
+            append(if (mode and MODE_010 != 0) 'x' else '-')
+            append(if (mode and MODE_004 != 0) 'r' else '-')
+            append(if (mode and MODE_002 != 0) 'w' else '-')
+            append(if (mode and MODE_001 != 0) 'x' else '-')
         }
         return PosixFilePermissions.fromString(text)
     }
@@ -569,7 +569,7 @@ class RootfsArchiveTest {
         val type: Char,
         val content: String = "",
         val linkName: String = "",
-        val mode: Long = 0o644,
+        val mode: Long = MODE_644,
         val prefix: String = "",
     )
 
@@ -676,6 +676,28 @@ class RootfsArchiveTest {
 
     private companion object {
         const val MEMBER_PREFIX = "drosh/rootfs"
+
+        // Kotlin has no octal literal, so the modes are spelled in
+        // binary with the octal they stand for beside them.
+        const val MODE_000 = 0b000 // 0o000
+        const val MODE_001 = 0b001 // 0o001
+        const val MODE_002 = 0b010 // 0o002
+        const val MODE_004 = 0b100 // 0o004
+        const val MODE_010 = 0b001_000 // 0o010
+        const val MODE_020 = 0b010_000 // 0o020
+        const val MODE_040 = 0b100_000 // 0o040
+        const val MODE_100 = 0b001_000_000 // 0o100
+        const val MODE_200 = 0b010_000_000 // 0o200
+        const val MODE_400 = 0b100_000_000 // 0o400
+        const val MODE_500 = 0b101_000_000 // 0o500
+        const val MODE_600 = 0b110_000_000 // 0o600
+        const val MODE_644 = 0b110_100_100 // 0o644
+        const val MODE_700 = 0b111_000_000 // 0o700
+        const val MODE_755 = 0b111_101_101 // 0o755
+        const val MODE_777 = 0b111_111_111 // 0o777
+        const val MODE_1777 = 0b001_111_111_111 // 0o1777
+        const val MODE_4755 = 0b100_111_101_101 // 0o4755
+        const val MODE_7777 = 0b111_111_111_111 // 0o7777
 
         /** SHA-256 of zero bytes. */
         const val EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
