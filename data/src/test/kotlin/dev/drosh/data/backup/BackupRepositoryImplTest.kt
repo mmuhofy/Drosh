@@ -455,7 +455,7 @@ class BackupRepositoryImplTest {
     }
 
     @Test
-    fun `diagnostic: dump the archive block layout`() = runTest {
+    fun `diagnostic dump of the archive block layout`() = runTest {
         writeFakeAppFiles()
         val archive = backupFile()
         val events = repository.createBackup(BackupOptions()).toList()
@@ -483,7 +483,7 @@ class BackupRepositoryImplTest {
                 }
             }
         }
-        fail("ended=${events.last()} total=${raw.size} blocks: ${report.joinToString(" | ")}")
+        throw AssertionError("ended=${events.last()} total=${raw.size} blocks: ${report.joinToString(" | ")}")
     }
 
     // ── the fake tree ────────────────────────────────────────────────────────
