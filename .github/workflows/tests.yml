@@ -50,3 +50,15 @@ jobs:
       # next module with tests would otherwise be missed the same way.
       - name: Run remaining module tests
         run: ./gradlew test -x :domain:test -x :agent:test --no-daemon --stacktrace
+
+      # The console says FAILED and a test name; the XML says which
+      # assertion, with both sides. Failed or not, upload the reports so the
+      # evidence survives the runner.
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/build/test-results/**/*.xml
+          if-no-files-found: ignore
