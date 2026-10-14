@@ -182,6 +182,27 @@ class TermuxMigrationTest {
     }
 
     @Test
+    fun `diagnostic dump of what the map and classify produce`() {
+        val sb = StringBuilder()
+        sb.append("DROP=[${TermuxPackageMap.DROP.replace("\u0000", "NUL")}] ")
+        sb.append("ov_pkg=[${TermuxPackageMap.OVERRIDES["pkg"]}] ")
+        sb.append("ov_tools=[${TermuxPackageMap.OVERRIDES["termux-tools"]}] ")
+        sb.append("ov_api=[${TermuxPackageMap.OVERRIDES["termux-api"]}] ")
+        sb.append("ov_repo=[${TermuxPackageMap.OVERRIDES["science-repo"]}] ")
+        sb.append("ov_ponytail=[${TermuxPackageMap.OVERRIDES["termux-ponytail"]}] ")
+        val c = TermuxPackageMap.classify(
+            listOf(
+                "python", "git", "python2", "termux-tools", "pkg",
+                "termux-ponytail", "science-repo", "ripgrep",
+            ),
+        )
+        sb.append("mapped=${c.mapped} ")
+        sb.append("dropped=${c.dropped} ")
+        sb.append("unmapped=${c.unmapped}")
+        throw AssertionError(sb.toString())
+    }
+
+    @Test
     fun `classify sorts a list into mapped, dropped and unmapped`() {
         val classification = TermuxPackageMap.classify(
             listOf(
