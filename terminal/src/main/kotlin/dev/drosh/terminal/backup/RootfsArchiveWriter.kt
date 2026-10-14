@@ -193,14 +193,24 @@ class RootfsArchiveWriter(
                         dir: Path,
                         attrs: BasicFileAttributes,
                     ): FileVisitResult {
+                        // Two relatives, because they answer different
+                        // questions: `relative` is where the entry sits in the
+                        // rootfs — what exclusions and the containment check
+                        // are about — and `memberRelative` is where it sits
+                        // under the subtree the caller named, which is the
+                        // member path and what restore unstages into. Using
+                        // one for both kept the subtree's own name in every
+                        // member path, and a restore of "home" extracted
+                        // staging/home/... instead of staging/....
                         val relative = relativeTo(root, dir)
+                        val memberRelative = relativeTo(start, dir)
                         // The walk root — of the whole tree or of the subtree
                         // the caller named — maps to the staging directory on
                         // restore; archiving it as a member would ask the
                         // reader to chmod the staging root, which is not ours.
                         // Also the one place there is no exclusion to apply,
                         // since it is what the caller asked for.
-                        if (relative.isEmpty() || dir == start) return FileVisitResult.CONTINUE
+                        if (memberRelative.isEmpty()) return FileVisitResult.CONTINUE
                         if (isExcluded(relative)) return FileVisitResult.SKIP_SUBTREE
                         // A directory swapped for a symlink (or moved out from
                         // under us) must not be archived.
@@ -210,7 +220,7 @@ class RootfsArchiveWriter(
                         }
                         writeMemberHeader(
                             counting,
-                            memberPath(prefix, relative),
+                            memberPath(prefix, memberRelative),
                             TypeFlag.DIRECTORY,
                             originalModes[dir] ?: permissionsOrNeutral(dir),
                             size = 0L,
@@ -237,13 +247,14 @@ class RootfsArchiveWriter(
                             return FileVisitResult.CONTINUE
                         }
                         val relative = relativeTo(root, file)
+                        val memberRelative = relativeTo(start, file)
                         if (isExcluded(relative)) return FileVisitResult.CONTINUE
                         if (!isInside(canonicalRoot, file)) {
                             Timber.w("rootfs: $file resolves outside $canonicalRoot — skipped")
                             return FileVisitResult.CONTINUE
                         }
                         val permissions = originalModes[file] ?: permissionsOrNeutral(file)
-                        if (writeFileMember(counting, file, memberPath(prefix, relative), permissions)) {
+                        if (writeFileMember(counting, file, memberPath(prefix, memberRelative), permissions)) {
                             fileCount++
                         }
                         return FileVisitResult.CONTINUE
