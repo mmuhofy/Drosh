@@ -226,16 +226,21 @@ object TermuxPackageMap {
         val mapped = mutableListOf<String>()
         val dropped = mutableListOf<String>()
         val unmapped = mutableListOf<String>()
-        val seen = mutableSetOf<String>()
+        val seenInput = mutableSetOf<String>()
+        val seenMapped = mutableSetOf<String>()
 
         for (name in names) {
-            if (!seen.add(name)) continue
+            // The input can repeat (dpkg status files list the same package
+            // for several architectures), and two names can map to the same
+            // Ubuntu package (nodejs and nodejs-lts both → nodejs). Either
+            // way apt must be handed the name once.
+            if (!seenInput.add(name)) continue
             val override = OVERRIDES[name]
             when {
                 override == DROP -> dropped += name
-                override != null -> mapped += override
+                override != null -> if (seenMapped.add(override)) mapped += override
                 isTermuxOwned(name) -> unmapped += name
-                else -> mapped += name
+                else -> if (seenMapped.add(name)) mapped += name
             }
         }
         return PackageClassification(mapped, dropped, unmapped)

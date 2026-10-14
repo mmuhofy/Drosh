@@ -104,7 +104,10 @@ class BackupRepositoryImplTest {
 
         val events = repository.createBackup(BackupOptions(includeRootfs = false)).toList()
 
-        val completed = events.last() as BackupProgress.Completed
+        val last = events.last()
+        // A cast here would hide the reason; the reason is the diagnosis.
+        assertTrue("createBackup ended with $last", last is BackupProgress.Completed)
+        val completed = last as BackupProgress.Completed
         assertEquals(archive.absolutePath, completed.outputPath)
         assertTrue(archive.isFile)
 
@@ -114,9 +117,11 @@ class BackupRepositoryImplTest {
 
         val restored = repository.restore(archive).toList()
 
+        val restoreLast = restored.last()
+        assertTrue("restore ended with $restoreLast", restoreLast is BackupProgress.Completed)
         assertEquals(
             completed.manifest,
-            (restored.last() as BackupProgress.Completed).manifest,
+            (restoreLast as BackupProgress.Completed).manifest,
         )
         assertEquals(SETTINGS_TEXT, paths.appSettingsFile.readText())
         assertEquals(THEME_TEXT, File(paths.appThemesDir, "nord.toml").readText())
@@ -138,7 +143,12 @@ class BackupRepositoryImplTest {
 
         val manifest = repository.inspectArchive(archive)
 
-        assertNotNull(manifest)
+        // If the manifest did not survive, say what the archive actually
+        // holds — the member list is the whole diagnosis.
+        assertNotNull(
+            "inspect returned null; members=${runCatching { memberNames(archive) }.getOrElse { it.toString() }}",
+            manifest,
+        )
         requireNotNull(manifest)
         assertEquals(1, manifest.formatVersion)
         assertEquals("1.2.3", manifest.appVersionName)
@@ -213,8 +223,10 @@ class BackupRepositoryImplTest {
                     }
                 }
             }
-            // Started, one Step per unit of work, then Completed
-            assertEquals(7, steps)
+            // Started, one Step per unit of work, then Completed: six app
+            // sections, the rootfs and the manifest — the same eight units
+            // Started counted.
+            assertEquals(8, steps)
             awaitComplete()
         }
     }
@@ -327,7 +339,8 @@ class BackupRepositoryImplTest {
             RestoreSelection(sectionIds = setOf(BackupManifest.ID_SETTINGS)),
         ).toList()
 
-        assertTrue(events.last() is BackupProgress.Completed)
+        val last = events.last()
+        assertTrue("partial restore ended with $last", last is BackupProgress.Completed)
         assertEquals(SETTINGS_TEXT, paths.appSettingsFile.readText())
         // The rest of the app was left holding what it had.
         assertEquals(TAMPERED_DATASTORE, File(paths.dataStoreDir, "drosh_shell_prefs.preferences_pb").readText())
@@ -375,7 +388,8 @@ class BackupRepositoryImplTest {
             RestoreSelection(sectionIds = setOf(BackupManifest.ID_ROOTFS)),
         ).toList()
 
-        assertTrue(events.last() is BackupProgress.Completed)
+        val last = events.last()
+        assertTrue("rootfs restore ended with $last", last is BackupProgress.Completed)
         // The archived tree is back, whole: the file that changed and the one
         // the user added are both gone, because the tree was replaced.
         assertEquals("ubuntu\n", File(paths.rootfsDir, "etc/hostname").readText())
