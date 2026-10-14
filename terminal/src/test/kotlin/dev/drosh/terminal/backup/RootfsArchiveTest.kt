@@ -383,8 +383,14 @@ class RootfsArchiveTest {
         }.toByteArray()
 
         val members = parseTar(raw)
-        val index = members.indexOfFirst { it.type == 'L' }
-        assertTrue("no GNU long name entry written", index >= 0)
+        // Deep directories produce a long-name entry of their own, so the entry
+        // for the *file* is the one whose data ends with the file's name — not
+        // the first 'L' in the stream, which belongs to a directory.
+        val index = members.indexOfFirst {
+            it.type == 'L' &&
+                it.data.decodeToString().trimEnd('\u0000') == MEMBER_PREFIX + "/" + deep
+        }
+        assertTrue("no GNU long name entry for the deep file", index >= 0)
         assertEquals(
             MEMBER_PREFIX + "/" + deep,
             members[index].data.decodeToString().trimEnd('\u0000'),

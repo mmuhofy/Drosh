@@ -287,60 +287,46 @@ class RootfsArchiveWriter(
      * Records current permissions and relaxes them so the archive pass can read
      * everything.
      *
-     * Returns the originals keyed by path — including the walk root, which is
-     * relaxed so `walkFileTree` can list it. Only entries whose mode actually
+     * A stack, not `walkFileTree`: the tree walker opens a directory's stream
+     * *before* it calls `preVisitDirectory`, so relaxing inside the visitor is
+     * always one open too late — a mode-000 directory fails to open and its
+     * whole subtree goes missing with nothing said. Here each directory is
+     * relaxed before it is ever opened, which is the only order that works.
+     *
+     * Returns the originals keyed by path. Only entries whose mode actually
      * changed are stored, so the return value is normally tiny (the handful of
      * `chmod 000` files a user or a package script left behind) rather than one
      * map entry per file in the rootfs.
-     *
-     * The relax happens in [preVisitDirectory], before the walker opens the
-     * directory stream: `newDirectoryStream` needs `r` and `x` on the directory
-     * and is what would otherwise fail first.
      */
     private fun relaxPermissions(root: Path, start: Path): Map<Path, Set<PosixFilePermission>> {
         val touched = LinkedHashMap<Path, Set<PosixFilePermission>>()
-        Files.walkFileTree(
-            start,
-            EnumSet.noneOf(FileVisitOption::class.java),
-            Int.MAX_VALUE,
-            object : SimpleFileVisitor<Path>() {
-
-                override fun preVisitDirectory(
-                    dir: Path,
-                    attrs: BasicFileAttributes,
-                ): FileVisitResult {
-                    // Excluded subtrees are never read, so there is no reason to
-                    // touch their modes and risk leaving one relaxed.
-                    val relative = relativeTo(root, dir)
-                    if (relative.isNotEmpty() && isExcluded(relative)) {
-                        return FileVisitResult.SKIP_SUBTREE
-                    }
-                    relax(dir, isDirectory = true, touched)
-                    return FileVisitResult.CONTINUE
+        val pending = ArrayDeque<Path>()
+        pending.addLast(start)
+        while (true) {
+            val dir = pending.removeLastOrNull() ?: break
+            val relative = relativeTo(root, dir)
+            if (relative.isNotEmpty() && isExcluded(relative)) continue
+            relax(dir, isDirectory = true, touched)
+            val children = try {
+                Files.newDirectoryStream(dir).use { stream -> stream.toList() }
+            } catch (e: IOException) {
+                // Relaxed a moment ago and still unreadable: not ours to fix,
+                // and the archive pass will report the same path. Never a
+                // reason to lose the backup over.
+                Timber.w(e, "rootfs: cannot list $dir — skipped")
+                continue
+            }
+            children.forEach { child ->
+                if (Files.isSymbolicLink(child)) return@forEach
+                val childRelative = relativeTo(root, child)
+                if (isExcluded(childRelative)) return@forEach
+                if (Files.isDirectory(child, LinkOption.NOFOLLOW_LINKS)) {
+                    pending.addLast(child)
+                } else {
+                    relax(child, isDirectory = false, touched)
                 }
-
-                override fun visitFile(
-                    file: Path,
-                    attrs: BasicFileAttributes,
-                ): FileVisitResult {
-                    if (!attrs.isSymbolicLink && !isExcluded(relativeTo(root, file))) {
-                        relax(file, isDirectory = false, touched)
-                    }
-                    return FileVisitResult.CONTINUE
-                }
-
-                override fun visitFileFailed(
-                    file: Path,
-                    exc: IOException,
-                ): FileVisitResult {
-                    // Same policy as the archive pass: a file we cannot read is
-                    // not a reason to lose the backup. Nothing was recorded for
-                    // it, so there is nothing to restore.
-                    Timber.w(exc, "rootfs: cannot relax $file — skipped")
-                    return FileVisitResult.CONTINUE
-                }
-            },
-        )
+            }
+        }
         return touched
     }
 
