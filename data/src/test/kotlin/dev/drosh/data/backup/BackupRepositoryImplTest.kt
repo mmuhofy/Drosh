@@ -656,7 +656,7 @@ private class FakeRootfsArchivePort : RootfsArchivePort {
         val first = buffered.read()
         val second = buffered.read()
         buffered.reset()
-        val tar = if (first == 0x1f && second == 0x8b.toByte()) {
+        val tar = if (first == 0x1f && second == 0x8b) {
             GZIPInputStream(buffered)
         } else {
             buffered
