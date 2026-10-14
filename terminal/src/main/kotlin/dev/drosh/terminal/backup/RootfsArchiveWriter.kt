@@ -26,11 +26,11 @@ import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.OpenOption
 import java.nio.file.Path
-import java.nio.file.PosixFilePermission
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
+import java.nio.file.attribute.PosixFilePermission
 import java.security.MessageDigest
 import java.util.EnumSet
 
@@ -95,10 +95,10 @@ data class ArchiveWriteResult(
  * - **Special files.** Sockets, FIFOs and device nodes cannot be regular files
  *   in a tar, and an unprivileged restore could not recreate them anyway.
  * - **Generated proot artifacts.** `ubuntu/local/{stat,vmstat}`,
- *   `ubuntu/tmp`, `ubuntu/bin/proot` and `ubuntu/lib/*.so` all live *beside*
- *   the rootfs, not inside it, so a walk rooted at `rootfsDir` never sees them.
- *   See [DEFAULT_EXCLUDED_TOP_LEVEL] for the names that live inside and still
- *   do not belong in an archive.
+ *   `ubuntu/tmp`, `ubuntu/bin/proot` and the loader `.so` files all live
+ *   *beside* the rootfs, not inside it, so a walk rooted at `rootfsDir` never
+ *   sees them. See [DEFAULT_EXCLUDED_TOP_LEVEL] for the names that live inside
+ *   and still do not belong in an archive.
  *
  * ### The relax pass
  *
