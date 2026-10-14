@@ -194,12 +194,13 @@ class RootfsArchiveWriter(
                         attrs: BasicFileAttributes,
                     ): FileVisitResult {
                         val relative = relativeTo(root, dir)
-                        // The walk root itself maps to the staging directory on
-                        // restore; archiving it as a member would ask the reader
-                        // to chmod the staging root, which is not ours. Also the
-                        // one place there is no exclusion to apply, since it is
-                        // what the caller asked for.
-                        if (relative.isEmpty()) return FileVisitResult.CONTINUE
+                        // The walk root — of the whole tree or of the subtree
+                        // the caller named — maps to the staging directory on
+                        // restore; archiving it as a member would ask the
+                        // reader to chmod the staging root, which is not ours.
+                        // Also the one place there is no exclusion to apply,
+                        // since it is what the caller asked for.
+                        if (relative.isEmpty() || dir == start) return FileVisitResult.CONTINUE
                         if (isExcluded(relative)) return FileVisitResult.SKIP_SUBTREE
                         // A directory swapped for a symlink (or moved out from
                         // under us) must not be archived.
@@ -265,10 +266,13 @@ class RootfsArchiveWriter(
             counting.flush()
         }
 
-        // End-of-archive marker, written after the digest is frozen so the
-        // checksum covers the members and nothing else.
-        counting.write(ByteArray(END_OF_ARCHIVE_BYTES))
-        counting.flush()
+        // End-of-archive marker, written past the digest and the count: the
+        // checksum covers the members, and bytesWritten is the payload a
+        // manifest checksum can be verified against. Two zero blocks are the
+        // tar grammar's ending; counting them made every result one marker
+        // too big and every digest unverifiable against its own member bytes.
+        out.write(ByteArray(END_OF_ARCHIVE_BYTES))
+        out.flush()
 
         return ArchiveWriteResult(
             bytesWritten = counting.bytesWritten,

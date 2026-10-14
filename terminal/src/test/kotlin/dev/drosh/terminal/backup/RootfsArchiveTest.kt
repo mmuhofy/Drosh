@@ -155,7 +155,7 @@ class RootfsArchiveTest {
         writeToRootfs("home/locked/secret.txt", "locked\n", MODE_000)
 
         val archive = ByteArrayOutputStream()
-        GZIPOutputStream(archive).use { gzip ->
+        val written = GZIPOutputStream(archive).use { gzip ->
             writer.writeSubtree(rootfs, MEMBER_PREFIX, relativeSubtree = null, out = gzip)
         }
 
@@ -175,8 +175,18 @@ class RootfsArchiveTest {
             staging,
         )
 
-        // Both unreadable entries were archived, not silently skipped.
-        assertEquals(2, result.filesExtracted)
+        // Both unreadable entries were archived, not silently skipped. The
+        // writer's own count and the member list are in the message, so a
+        // failure says which side dropped one.
+        val members = runCatching { parseTar(GZIPInputStream(ByteArrayInputStream(archive.toByteArray())).readBytes()) }
+            .getOrNull()
+            ?.joinToString(", ") { "${it.type}:${it.name}" }
+            ?: "unparseable"
+        assertEquals(
+            "writer archived ${written.fileCount} [$members], reader extracted ${result.filesExtracted}",
+            2,
+            result.filesExtracted,
+        )
         // The directory's 000 mode made it back, so its content is unreachable
         // until the mode is relaxed — assert the modes before touching anything.
         assertMode(File(staging, "home/dark"), MODE_000)
@@ -641,7 +651,10 @@ class RootfsArchiveTest {
             val type = header[156].toInt().toChar()
             val prefix = field(header, 345, 155)
             val data = raw.copyOfRange(offset, offset + size.toInt())
-            offset += ((512 - (size % 512)) % 512).toInt()
+            // The data *and* its padding: advancing by the padding alone left
+            // the parser one payload short, so the next header it read was
+            // file content.
+            offset += size.toInt() + ((512 - (size % 512)) % 512).toInt()
             add(RawMember(type, prefix, name, size, data))
         }
     }
