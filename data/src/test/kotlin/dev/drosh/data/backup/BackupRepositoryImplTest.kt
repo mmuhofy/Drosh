@@ -85,7 +85,7 @@ class BackupRepositoryImplTest {
             rootfsArchive = rootfsPort,
             deviceIdentity = FakeDeviceIdentityRepository(),
             appVersion = AppVersionInfo(code = 123, name = "1.2.3"),
-            location = FakeBackupLocation(File(root, "cache/backups").apply { mkdirs() }, ARCHIVE_NAME),
+            backupLocation = FakeBackupLocation(File(root, "cache/backups").apply { mkdirs() }, ARCHIVE_NAME),
         )
     }
 
