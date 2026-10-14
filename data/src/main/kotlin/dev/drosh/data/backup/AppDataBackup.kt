@@ -1060,20 +1060,20 @@ class AppDataBackup @Inject constructor(
     }
 
     /**
-     * Writes the restored settings file into the *guest* copy as well.
+     * Writes the **live** app mirror over the guest copy.
      *
-     * Called only when a rootfs restore just happened. The primary path is the
-     * one a shell reads, and a freshly restored rootfs carries whatever
-     * settings its own copy of `settings.toml` had; the app's mirror is the
-     * newer truth here, so it is written over. When no rootfs restore happened
-     * the guest file is left alone on purpose — its owner is the running
-     * environment, and half-restoring it would leave the two copies
-     * disagreeing about which one is being read.
+     * The primary path is the one a shell reads, and a freshly restored
+     * rootfs carries whatever settings its own copy of `settings.toml` had;
+     * the app's mirror is the newer truth here, so it goes over. The live
+     * file, not the staged one: a settings section the restore did not
+     * select was never staged, and even when it was, the file on disk is
+     * what the app has been reading since — restoring a rootfs must not
+     * roll settings back to the archived copy.
      */
-    internal suspend fun rewriteSettingsIntoRootfs(swap: FileSwap, staging: File) {
-        val staged = File(File(staging, ArchiveLayout.SETTINGS_DIR), "settings.toml")
-        if (!staged.isFile) return
-        swap.replace(paths.guestSettingsFile, staged)
+    internal suspend fun rewriteSettingsIntoRootfs(swap: FileSwap) {
+        val live = paths.appSettingsFile
+        if (!live.isFile) return
+        swap.replace(paths.guestSettingsFile, live)
     }
 
     private suspend fun applySettings(swap: FileSwap, staging: File) = withContext(Dispatchers.IO) {

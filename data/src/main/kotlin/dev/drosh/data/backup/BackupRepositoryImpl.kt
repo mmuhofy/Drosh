@@ -427,7 +427,7 @@ class BackupRepositoryImpl @Inject constructor(
                     // first, and it is created by the restore that just ran.
                     step++
                     emit(BackupProgress.Step(AppDataBackup.AppSection.SETTINGS.stepName, fraction(step, totalSteps)))
-                    appData.rewriteSettingsIntoRootfs(fileSwap, staging)
+                    appData.rewriteSettingsIntoRootfs(fileSwap)
                 }
             }
 
