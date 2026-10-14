@@ -143,6 +143,24 @@ internal class TerminalRootfsArchivePort : RootfsArchivePort {
 data class AppVersionInfo(val code: Int, val name: String)
 
 /**
+ * Where an archive is written and what it is called.
+ *
+ * An interface rather than the function-typed providers this started as:
+ * Hilt cannot resolve `() -> File` as a binding key — the constructor asks
+ * for `Function0<? extends File>` and no `@Provides` in Kotlin matches it,
+ * which is a build failure in the app module and a confusing one. A named
+ * collaborator is also the honest shape: a run names its own file, and the
+ * test needs both pointed at a temp directory.
+ */
+interface BackupLocation {
+    /** The directory archives are written into; created if missing. */
+    fun archiveDir(): File
+
+    /** A fresh archive file name, distinct per run. */
+    fun archiveFileName(): String
+}
+
+/**
  * The one door the UI walks through, on the data side.
  *
  * Three jobs, and the order inside each one is the whole design:
@@ -172,15 +190,14 @@ class BackupRepositoryImpl @Inject constructor(
     private val rootfsArchive: RootfsArchivePort,
     private val deviceIdentity: DeviceIdentityRepository,
     private val appVersion: AppVersionInfo,
-    private val backupDirProvider: () -> File,
-    private val fileNameProvider: () -> String,
+    private val backupLocation: BackupLocation,
 ) : BackupRepository {
 
     // ── creating ─────────────────────────────────────────────────────────────
 
     override fun createBackup(options: BackupOptions): Flow<BackupProgress> = flow {
-        val directory = backupDirProvider().apply { mkdirs() }
-        val output = File(directory, fileNameProvider())
+        val directory = backupLocation.archiveDir().apply { mkdirs() }
+        val output = File(directory, backupLocation.archiveFileName())
         val staging = File(directory, "${output.name}.staging-${System.nanoTime()}")
         val startedAt = System.currentTimeMillis()
         val sections = mutableListOf<BackupSection>()
@@ -367,7 +384,7 @@ class BackupRepositoryImpl @Inject constructor(
         // pass announces itself at zero and is counted once it is done.
         val totalSteps = 1 + appSections.size + (if (rootfsSection != null) 2 else 0)
         var step = 0
-        val backupDir = backupDirProvider().apply { mkdirs() }
+        val backupDir = backupLocation.archiveDir().apply { mkdirs() }
         val staging = Files.createTempDirectory(backupDir.toPath(), "drosh-restore-").toFile()
         var swap: FileSwap? = null
         var committed = false
@@ -598,9 +615,10 @@ class BackupRepositoryImpl @Inject constructor(
      * — which is the one place `dev.drosh.data.local.DroshDataStore` declares
      * it.
      *
-     * The function-typed bindings exist so a backup run names its own file:
-     * `fileNameProvider` is read inside [createBackup], after the caller has
-     * decided, rather than once per process.
+     * The [BackupLocation] binding exists so a backup run names its own file:
+     * `archiveFileName` is read inside [createBackup], after the caller has
+     * decided, rather than once per process. An interface, not a `() -> File`
+     * provider — Hilt does not resolve function types as binding keys.
      */
     @Module
     @InstallIn(SingletonComponent::class)
@@ -639,12 +657,9 @@ class BackupRepositoryImpl @Inject constructor(
             RoomDatabaseSnapshot(database)
 
         @Provides
-        fun provideBackupDir(@ApplicationContext context: Context): () -> File =
-            { File(context.cacheDir, BACKUP_DIR_NAME).apply { mkdirs() } }
-
-        @Provides
-        fun provideBackupFileName(): () -> String =
-            { "drosh-backup-" + SimpleDateFormat(FILE_STAMP, Locale.US).format(Date()) + ARCHIVE_SUFFIX }
+        @Singleton
+        fun provideBackupLocation(@ApplicationContext context: Context): BackupLocation =
+            DefaultBackupLocation(context)
 
         @Provides
         @Singleton
@@ -658,4 +673,14 @@ class BackupRepositoryImpl @Inject constructor(
             return AppVersionInfo(code = code, name = info.versionName.orEmpty())
         }
     }
+}
+
+/** The production [BackupLocation]: app cache, timestamped file name. */
+private class DefaultBackupLocation(context: Context) : BackupLocation {
+    private val cacheDir: File = context.cacheDir
+
+    override fun archiveDir(): File = File(cacheDir, BackupModule.BACKUP_DIR_NAME)
+
+    override fun archiveFileName(): String =
+        "drosh-backup-" + SimpleDateFormat(FILE_STAMP, Locale.US).format(Date()) + ARCHIVE_SUFFIX
 }

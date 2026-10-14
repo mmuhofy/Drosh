@@ -85,8 +85,7 @@ class BackupRepositoryImplTest {
             rootfsArchive = rootfsPort,
             deviceIdentity = FakeDeviceIdentityRepository(),
             appVersion = AppVersionInfo(code = 123, name = "1.2.3"),
-            backupDirProvider = { File(root, "cache/backups").apply { mkdirs() } },
-            fileNameProvider = { ARCHIVE_NAME },
+            location = FakeBackupLocation(File(root, "cache/backups").apply { mkdirs() }, ARCHIVE_NAME),
         )
     }
 
@@ -385,8 +384,9 @@ class BackupRepositoryImplTest {
         // the rootfs copy that arrived with the tree.
         assertEquals(SETTINGS_TEXT, paths.guestSettingsFile.readText())
         // No staging tree and no pre-restore copy is left behind either.
-        assertFalse(File(paths.rootfsDir.parentFile, "rootfs.pre-restore").exists())
-        assertTrue(File(paths.rootfsDir.parentFile!!).listFiles()!!.none {
+        val rootfsParent = paths.rootfsDir.parentFile!!
+        assertFalse(File(rootfsParent, "rootfs.pre-restore").exists())
+        assertTrue(rootfsParent.listFiles()!!.none {
             it.name.startsWith("rootfs.restore-staging")
         })
     }
@@ -426,9 +426,10 @@ class BackupRepositoryImplTest {
 
         assertTrue(events.last() is BackupProgress.Failed)
         // The tree is exactly as it was.
+        val rootfsParent = paths.rootfsDir.parentFile!!
         assertEquals("keep-me\n", File(paths.rootfsDir, "etc/hostname").readText())
-        assertFalse(File(paths.rootfsDir.parentFile, "rootfs.pre-restore").exists())
-        assertTrue(File(paths.rootfsDir.parentFile!!).listFiles()!!.none {
+        assertFalse(File(rootfsParent, "rootfs.pre-restore").exists())
+        assertTrue(rootfsParent.listFiles()!!.none {
             it.name.startsWith("rootfs.restore-staging")
         })
         // And so are the app files the restore had already swapped into place
@@ -542,6 +543,16 @@ class BackupRepositoryImplTest {
 }
 
 // ── fakes ────────────────────────────────────────────────────────────────────
+
+/** Where archives go in a test: a temp directory and a fixed name. */
+private class FakeBackupLocation(dir: File, name: String) : BackupLocation {
+    private val dir = dir.apply { mkdirs() }
+    private val name = name
+
+    override fun archiveDir(): File = dir
+
+    override fun archiveFileName(): String = name
+}
 
 /** The database, as a file copy. */
 private class FakeDatabaseSnapshotter : DatabaseSnapshotter {
