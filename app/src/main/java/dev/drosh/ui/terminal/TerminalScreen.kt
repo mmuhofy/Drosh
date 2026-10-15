@@ -2038,6 +2038,11 @@ private fun TerminalViewHost(
             }
             pointerOverlay.value = pointer
 
+            // The terminal itself, first: the overlays draw on top of it and
+            // the pointer above them. Without it the pane is two overlays
+            // floating over nothing — which is exactly what the mouse-pad
+            // replay shipped when its conflict resolution dropped this line.
+            frameLayout.addView(tv)
             frameLayout.addView(searchOverlay)
             frameLayout.addView(urlOverlay)
             frameLayout.addView(pointer)
