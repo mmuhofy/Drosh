@@ -36,7 +36,7 @@ object KeyboardWindowModeState {
      * so only builds signed with the shared Drosh key can tell Drosh where
      * the keyboard sits.
      */
-    const val PERMISSION_SEND_KEYBOARD_MODE = "dev.drosh.permission.SEND_KEYBOARD_MODE"
+    const val PERMISSION_SEND_KEYBOARD_MODE = "dev.drosh.my.permission.SEND_KEYBOARD_MODE"
 
     private val _mode = MutableStateFlow(KeyboardWindowMode.UNKNOWN)
     val mode: StateFlow<KeyboardWindowMode> = _mode.asStateFlow()

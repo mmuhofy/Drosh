@@ -28,9 +28,19 @@ android {
     namespace = "dev.drosh"
 
     defaultConfig {
-        applicationId = "dev.drosh"
+        // The side-by-side development identity. The application this is
+        // installed next to is `dev.drosh`; a different applicationId is what
+        // makes the two installable at once, and every hardcoded authority and
+        // permission below follows it so the installs do not collide
+        // (INSTALL_FAILED_DUPLICATE_PERMISSION is the failure if they do).
+        applicationId = "dev.drosh.my"
         // Version code / name sourced from build config injected by convention plugin.
         targetSdk = 28
+
+        // The launcher reads its label from the resource, and two apps called
+        // "Drosh" in the drawer is a coin toss; the generated value wins over
+        // values/strings.xml.
+        resValue("string", "app_name", "Drosh Dev")
 
         // AndroidJUnitRunner is configured by the convention plugin.
     }
