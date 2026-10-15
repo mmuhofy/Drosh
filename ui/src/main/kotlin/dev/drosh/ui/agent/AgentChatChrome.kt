@@ -32,7 +32,6 @@ import androidx.compose.runtime.mutableStateOf
  * nothing else to go to.
  */
 object AgentWindowChrome {
-
     /**
      * True while a screen wants the system navigation bar hidden.
      *
@@ -67,6 +66,9 @@ object AgentWindowChrome {
  * The behaviour the window uses is the transient one, so a swipe from an edge
  * still brings the bars back: a screen that hides them is hiding them while it
  * is being looked at, not taking them away.
+ *
+ * Two flags, not one, because the two bars are different decisions. See
+ * [AgentWindowChrome].
  */
 @Composable
 fun ChatNavBarHidden() {
