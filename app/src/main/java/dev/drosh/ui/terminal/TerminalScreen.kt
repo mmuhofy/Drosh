@@ -1771,6 +1771,17 @@ private fun TerminalViewHost(
     val ownView = remember { mutableStateOf<TerminalView?>(null) }
 
     /**
+     * The mouse pointer overlay for this pane.
+     *
+     * Created once in the AndroidView factory and handed to
+     * [MouseInputHandler] whenever this pane is the focused one — the mouse
+     * pad writes through the focused input connection, so only the focused
+     * pane can ever receive its events.
+     */
+    val pointerOverlay = remember { mutableStateOf<android.widget.ImageView?>(null) }
+    var mouseAttached by remember { mutableStateOf(false) }
+
+    /**
      * The size chip, shown only while the terminal is being pinched.
      *
      * Local rather than in the ViewModel: this changes 60 times a second, and
@@ -1861,11 +1872,30 @@ private fun TerminalViewHost(
     // looking at". Republishing it on focus is what keeps them pointing at the
     // right one after a tap into the other pane.
     LaunchedEffect(focusedPane, ownView.value) {
-        if (paneSlot == focusedPane) terminalViewRef.value = ownView.value
+        if (paneSlot == focusedPane) {
+            terminalViewRef.value = ownView.value
+            val view = ownView.value
+            val pointer = pointerOverlay.value
+            if (view != null && pointer != null) {
+                dev.drosh.terminal.mouse.MouseInputHandler.attach(view, pointer)
+                mouseAttached = true
+            }
+        } else if (mouseAttached) {
+            // the pad's events go through the focused input connection, so a
+            // pane that lost focus must stop being the mouse screen
+            dev.drosh.terminal.mouse.MouseInputHandler.detach()
+            mouseAttached = false
+        }
     }
 
     DisposableEffect(paneSlot) {
-        onDispose { terminalManager.unregisterPaneView(paneSlot) }
+        onDispose {
+            if (mouseAttached) {
+                dev.drosh.terminal.mouse.MouseInputHandler.detach()
+                mouseAttached = false
+            }
+            terminalManager.unregisterPaneView(paneSlot)
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -1996,9 +2026,26 @@ private fun TerminalViewHost(
                 false
             }
 
+            // On-screen mouse pointer, driven by the Drosh Keyboard mouse pad.
+            val pointerSize = (22f * ctx.resources.displayMetrics.density).toInt()
+            val pointer = android.widget.ImageView(ctx).apply {
+                setImageResource(dev.drosh.R.drawable.ic_mouse_pointer)
+                visibility = android.view.View.GONE
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    pointerSize,
+                    pointerSize,
+                )
+            }
+            pointerOverlay.value = pointer
+
+            // The terminal itself, first: the overlays draw on top of it and
+            // the pointer above them. Without it the pane is two overlays
+            // floating over nothing — which is exactly what the mouse-pad
+            // replay shipped when its conflict resolution dropped this line.
             frameLayout.addView(tv)
             frameLayout.addView(searchOverlay)
             frameLayout.addView(urlOverlay)
+            frameLayout.addView(pointer)
             searchOverlayRef.value = searchOverlay
 
             frameLayout
