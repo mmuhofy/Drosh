@@ -21,7 +21,6 @@ import dev.drosh.ui.settings.SettingsSwitch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
 /**
  * One tool the agent can be allowed to run without asking.
  *
