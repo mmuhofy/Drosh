@@ -351,6 +351,7 @@ class TerminalEmulator(
 
     fun getCursorRow(): Int = mCursorRow
     fun getCursorCol(): Int = mCursorCol
+
     fun getCursorStyle(): Int = mCursorStyle
 
     fun setCursorStyle() {
