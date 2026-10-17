@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The engine module has no components of its own: it is a library of GL
+     views, sessions and native calls. Permissions (INTERNET for the rootfs
+     download) are declared by the app that hosts it. -->
+<manifest />

@@ -1,0 +1,40 @@
+[package]
+name = "drosh-core"
+description = "Drosh terminal core prototype (VT engine + PTY + snapshot bridge)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+# cdylib: the artifact the Android app loads over JNI.
+# rlib: lets the `tests/` integration tests link the crate.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# VT engine — decision D2. 0.x crate: hard pin, upgrades are deliberate work.
+alacritty_terminal = "=0.26.0"
+# OSC 52 transport: clipboard text crosses to Kotlin base64-encoded because
+# event records are newline-separated. 0.22.0 is the version
+# alacritty_terminal 0.26.0 already resolves, so the tree keeps one copy.
+base64 = "=0.22.0"
+# JNI boundary — the version Termi runs on Android.
+jni = "=0.21"
+# PTY path (D8): portable-pty does not compile for Android, so we talk to the
+# kernel's PTY syscalls through libc directly.
+libc = "0.2"
+log = "0.4"
+# PTY readiness and the SIGCHLD self-pipe. Both are the versions
+# alacritty_terminal 0.26.0 already pulls in, so the tree keeps one copy.
+polling = "3.8"
+signal-hook = "0.4.3"
+# Font stack — decision D4: shaping and rasterisation in Rust. Versions read
+# from the crates themselves (2026-10-16): rustybuzz 0.20 keeps the
+# harfbuzz-style API we call (`Face::from_slice`, `shape`), and swash 0.2's
+# default features already include `scale` and `render`, i.e. the rasteriser.
+rustybuzz = "0.20"
+swash = "0.2"
+
+[dev-dependencies]
+# Integration tests drive a Term directly (engine behaviour without a PTY).
+alacritty_terminal = "=0.26.0"

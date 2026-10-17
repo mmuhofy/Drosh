@@ -1,0 +1,9 @@
+# Only stable options: CI runs stable rustfmt, which ignores (and warns about)
+# nightly-only options such as `imports_granularity`.
+#
+# `use_small_heuristics = "Max"` is the same choice alacritty makes: a call,
+# chain or literal stays on one line as long as it fits in `max_width`, which
+# keeps the code dense and the diffs small.
+max_width = 100
+use_small_heuristics = "Max"
+use_field_init_shorthand = true

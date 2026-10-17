@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["core"]
+
+# Workspace-level package metadata shared by all crates.
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0"
+repository = "https://github.com/mmuhofy/Drosh"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

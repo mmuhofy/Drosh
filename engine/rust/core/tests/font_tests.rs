@@ -1,0 +1,166 @@
+//! Gate 2 — the Rust font stack, against the font that actually ships.
+//!
+//! The font is read from `android/app/src/main/assets/fonts/`, i.e. the very
+//! file the APK carries, so these tests also fail if the asset goes missing or
+//! is replaced by something that is not the font we think it is.
+
+use std::path::{Path, PathBuf};
+
+use drosh_core::font::fallback::Resolution;
+use drosh_core::font::shape;
+use drosh_core::font::{FontStack, Weight};
+
+const REGULAR: &str = "JetBrainsMonoNL-Regular.ttf";
+const BOLD: &str = "JetBrainsMonoNL-Bold.ttf";
+
+fn asset_path(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../android/app/src/main/assets/fonts").join(name)
+}
+
+fn read_asset(name: &str) -> Vec<u8> {
+    let path = asset_path(name);
+    std::fs::read(&path).unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()))
+}
+
+fn stack() -> FontStack {
+    FontStack::from_bytes(read_asset(REGULAR), Some(read_asset(BOLD)))
+        .expect("the bundled font must parse")
+}
+
+/// Advance of one glyph in pixels at `px`.
+fn advance_px(units: i32, units_per_em: f32, px: f32) -> f32 {
+    units as f32 / units_per_em * px
+}
+
+#[test]
+fn the_bundled_font_parses_and_has_sane_cell_metrics() {
+    let stack = stack();
+    let metrics = stack.metrics(24.).expect("metrics at 24px");
+
+    assert!(metrics.cell_width > 0., "cell width must be positive: {}", metrics.cell_width);
+    assert!(metrics.cell_height > 0., "cell height must be positive: {}", metrics.cell_height);
+    // A monospace cell is taller than it is wide; if this flips, the grid math
+    // is being fed nonsense.
+    assert!(
+        metrics.cell_height > metrics.cell_width,
+        "cell {}x{}",
+        metrics.cell_width,
+        metrics.cell_height
+    );
+    assert!(metrics.ascent > 0. && metrics.descent > 0., "ascent/descent: {metrics:?}");
+}
+
+#[test]
+fn metrics_scale_linearly_with_the_pixel_size() {
+    let stack = stack();
+    let small = stack.metrics(12.).expect("metrics at 12px");
+    let large = stack.metrics(24.).expect("metrics at 24px");
+
+    assert!(
+        (large.cell_width - 2. * small.cell_width).abs() < 0.01,
+        "12px {} vs 24px {}",
+        small.cell_width,
+        large.cell_width
+    );
+    assert!((large.cell_height - 2. * small.cell_height).abs() < 0.01);
+}
+
+#[test]
+fn every_ascii_codepoint_shapes_to_one_glyph_with_the_same_advance() {
+    let stack = stack();
+    let regular = read_asset(REGULAR);
+    let units_per_em = shape::units_per_em(&regular).expect("units per em");
+    let metrics = stack.metrics(24.).expect("metrics");
+
+    // Includes the pairs that a standard font would ligate (`->`, `==`, `!=`).
+    let text = "MWi1_~|->==!=";
+    let glyphs = stack.shape(text, Weight::Regular).expect("shaping");
+
+    assert_eq!(glyphs.len(), text.chars().count(), "one glyph per character, no ligatures");
+
+    for glyph in &glyphs {
+        let advance = advance_px(glyph.x_advance, units_per_em, 24.);
+        assert!(
+            (advance - metrics.cell_width).abs() < 0.01,
+            "glyph {} advances {advance}px, cell is {}px",
+            glyph.glyph_id,
+            metrics.cell_width
+        );
+    }
+}
+
+#[test]
+fn rasterizing_a_glyph_produces_a_single_channel_mask() {
+    let mut stack = stack();
+    let glyph_id = match stack.resolve('M', Weight::Regular) {
+        Resolution::Direct(id) | Resolution::Substituted(id) => id,
+        Resolution::Missing => panic!("'M' must be in a monospace font"),
+    };
+
+    let bitmap = stack.rasterize(glyph_id, 24., Weight::Regular).expect("'M' has an outline");
+
+    assert!(bitmap.width > 0 && bitmap.height > 0, "empty bitmap: {bitmap:?}");
+    assert_eq!(
+        bitmap.coverage.len(),
+        (bitmap.width * bitmap.height) as usize,
+        "an alpha mask is one byte per pixel; a subpixel or colour image would not be"
+    );
+    assert!(bitmap.coverage.iter().any(|value| *value > 0), "the glyph has no ink");
+    assert!(bitmap.coverage.iter().max().copied().unwrap_or(0) > 32, "the glyph is almost blank");
+}
+
+#[test]
+fn a_space_has_no_ink() {
+    let mut stack = stack();
+    let glyph_id = match stack.resolve(' ', Weight::Regular) {
+        Resolution::Direct(id) | Resolution::Substituted(id) => id,
+        Resolution::Missing => panic!("' ' must be in a monospace font"),
+    };
+
+    match stack.rasterize(glyph_id, 24., Weight::Regular) {
+        None => {}
+        Some(bitmap) => assert!(
+            bitmap.coverage.iter().all(|value| *value == 0),
+            "a space must not draw anything"
+        ),
+    }
+}
+
+#[test]
+fn bold_is_a_different_face() {
+    let mut stack = stack();
+    let regular_id = match stack.resolve('M', Weight::Regular) {
+        Resolution::Direct(id) => id,
+        other => panic!("unexpected resolution: {other:?}"),
+    };
+    let bold_id = match stack.resolve('M', Weight::Bold) {
+        Resolution::Direct(id) => id,
+        other => panic!("unexpected resolution: {other:?}"),
+    };
+
+    let regular = stack.rasterize(regular_id, 24., Weight::Regular).expect("regular 'M'");
+    let bold = stack.rasterize(bold_id, 24., Weight::Bold).expect("bold 'M'");
+
+    assert_ne!(
+        regular.coverage, bold.coverage,
+        "the bold face must not be the regular raster: is the second face really loaded?"
+    );
+}
+
+#[test]
+fn codepoints_outside_the_font_are_substituted_and_reported() {
+    let stack = stack();
+    let regular = read_asset(REGULAR);
+
+    // The bundled font has no CJK; the cell must still draw something and the
+    // caller has to be able to tell that it is a substitute.
+    assert!(matches!(stack.resolve('中', Weight::Regular), Resolution::Substituted(_)));
+    assert!(matches!(stack.resolve('🔥', Weight::Regular), Resolution::Substituted(_)));
+    assert!(matches!(stack.resolve('M', Weight::Regular), Resolution::Direct(_)));
+
+    // The raw helper says the same thing without a FontStack.
+    assert!(matches!(
+        drosh_core::font::fallback::resolve(&regular, '中'),
+        Resolution::Substituted(_)
+    ));
+}
