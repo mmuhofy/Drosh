@@ -1,6 +1,6 @@
 //! Gate 2 — the Rust font stack, against the font that actually ships.
 //!
-//! The font is read from `android/app/src/main/assets/fonts/`, i.e. the very
+//! The font is read from `engine/src/main/assets/fonts/`, i.e. the very
 //! file the APK carries, so these tests also fail if the asset goes missing or
 //! is replaced by something that is not the font we think it is.
 
@@ -14,7 +14,7 @@ const REGULAR: &str = "JetBrainsMonoNL-Regular.ttf";
 const BOLD: &str = "JetBrainsMonoNL-Bold.ttf";
 
 fn asset_path(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../android/app/src/main/assets/fonts").join(name)
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../src/main/assets/fonts").join(name)
 }
 
 fn read_asset(name: &str) -> Vec<u8> {
