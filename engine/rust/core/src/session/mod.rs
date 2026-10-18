@@ -5,10 +5,17 @@
 //! `damage`. Taking them in any other order would deadlock against a concurrent
 //! snapshot.
 
+pub mod block;
+pub mod grid;
 pub mod manager;
 pub mod pty_factory;
+pub mod search;
+pub mod selection;
 pub mod shell_mark;
 pub mod tap;
+pub mod text;
+pub mod tint;
+pub mod url;
 
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
@@ -397,6 +404,56 @@ impl Session {
             let _ = sender.send(Msg::Shutdown);
         }
         drop(lock(&self.worker).take());
+    }
+
+    // ── Capabilities (P1) ─────────────────────────────────────────────────────
+    //
+    // Each delegates to `session/{text,url,search,tint,selection}` so the FFI
+    // layer (and Kotlin) only ever touches `Session` — never the engine grid.
+
+    /// Strip ANSI escape sequences from `input`.
+    pub fn strip_ansi(&self, input: &[u8]) -> String {
+        crate::session::text::strip_ansi(input)
+    }
+
+    /// URLs on the visible grid, up to `limit`.
+    pub fn find_urls(&self, limit: usize) -> Vec<crate::session::url::UrlHit> {
+        self.with_term(|term| crate::session::url::find_urls(term, limit))
+    }
+
+    /// The URL covering visible (row, col), if any.
+    pub fn url_at(&self, row: usize, col: usize) -> Option<String> {
+        self.with_term(|term| crate::session::url::url_at(term, row, col))
+    }
+
+    /// Substring search over the visible grid, up to `limit` matches.
+    pub fn search(&self, query: &str, limit: usize) -> Vec<crate::session::search::SearchHit> {
+        self.with_term(|term| crate::session::search::search(term, query, limit))
+    }
+
+    /// Average background colour of the visible grid, if any cell sets one.
+    pub fn ambient_tint(&self) -> Option<[u8; 3]> {
+        self.with_term(|term| crate::session::tint::ambient_tint(term))
+    }
+
+    /// Currently selected text, if a selection is active.
+    pub fn selection_text(&self) -> Option<String> {
+        self.with_term(|term| crate::session::selection::selection_text(term))
+    }
+
+    /// Select the word under (row, col); returns the selected text.
+    pub fn select_word(&self, row: usize, col: usize) -> Option<String> {
+        self.with_term(|mut term| crate::session::selection::select_word(&mut term, row, col))
+    }
+
+    /// Select the whole line under (row, col); returns the selected text.
+    pub fn select_line(&self, row: usize, col: usize) -> Option<String> {
+        self.with_term(|mut term| crate::session::selection::select_line(&mut term, row, col))
+    }
+
+    /// Clear any active selection.
+    pub fn clear_selection(&self) {
+        self.with_term(|mut term| crate::session::selection::clear(&mut term));
     }
 }
 
