@@ -60,5 +60,9 @@ gradlePlugin {
             id = "dev.drosh.kotlin.serialization"
             implementationClass = "dev.drosh.KotlinSerializationConventionPlugin"
         }
+        register("moduleBoundary") {
+            id = "dev.drosh.module.boundary"
+            implementationClass = "dev.drosh.ModuleBoundaryPlugin"
+        }
     }
 }

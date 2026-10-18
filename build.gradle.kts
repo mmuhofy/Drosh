@@ -20,6 +20,9 @@ plugins {
     alias(libs.plugins.room) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.spotless) apply true
+    // Layer rules from docs/ARCHITECTURE.md §3 — `checkModuleBoundaries` runs
+    // as part of every module's `check`.
+    id("dev.drosh.module.boundary")
 }
 
 // Spotless — repository-wide code formatting checks.

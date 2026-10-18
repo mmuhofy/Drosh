@@ -11,6 +11,15 @@ release when it ships.
 
 ### Added
 
+**Build — architecture guardrails**
+
+- `docs/ARCHITECTURE.md`: the module graph, the enforced layer rules, the
+  naming contract, the Rust/Kotlin boundary and the migration phases, in one
+  normative place
+- `checkModuleBoundaries` fails `check` when a module imports a package its
+  layer forbids; the two known inversions (`data → terminal`, `ssh → terminal`)
+  carry a ratcheted baseline so the count can only go down
+
 **Agent — the shell that talks back**
 
 - Four provider protocols: OpenAI-compatible (OpenRouter and friends),
