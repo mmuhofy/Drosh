@@ -9,6 +9,7 @@ import org.gradle.api.Project
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
+import org.gradle.kotlin.dsl.register
 
 /**
  * `dev.drosh.module-boundary` — enforces the layer rules written down in
@@ -25,10 +26,10 @@ import org.gradle.api.tasks.TaskAction
 class ModuleBoundaryPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         val root = target.layout.projectDirectory
-        val check = target.tasks.register("checkModuleBoundaries", ModuleBoundaryTask::class.java) { task ->
-            task.group = "verification"
-            task.description = "Fails when a module imports a package its layer forbids."
-            task.projectRoot.set(root)
+        val check = target.tasks.register<ModuleBoundaryTask>("checkModuleBoundaries") {
+            group = "verification"
+            description = "Fails when a module imports a package its layer forbids."
+            projectRoot.set(root)
         }
 
         // `check` exists on every module that applies the Kotlin or Android
