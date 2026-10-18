@@ -88,6 +88,9 @@ class DroshTerminalView(context: Context) : FrameLayout(context) {
     /** Pixel size the glyphs are rasterised at. */
     private var fontPx = 0f
 
+    /** False when the bundled font failed to load; the view is dead without it. */
+    private var fontLoaded = false
+
     private var scrollAccumulator = 0f
     private var exited = false
 
@@ -128,10 +131,15 @@ class DroshTerminalView(context: Context) : FrameLayout(context) {
     val imeTarget: View get() = input
 
     init {
-        if (!loadFont()) {
+        if (loadFont()) {
+            buildContent()
+        } else {
             Log.e(TAG, "the bundled font failed to load; the terminal cannot start")
-            return
         }
+    }
+
+    /** Everything that needs the font's metrics; skipped when [fontLoaded] is false. */
+    private fun buildContent() {
 
         renderer = TerminalRenderer(session, GlyphAtlas(), metrics, fontPx, selection, stats)
         renderer.onGridChanged = { columns, rows ->
@@ -220,7 +228,7 @@ class DroshTerminalView(context: Context) : FrameLayout(context) {
      * keeps the grid in step with the actual surface size afterwards.
      */
     fun start(
-        program: String,
+        program: String = "/system/bin/sh",
         args: List<String> = emptyList(),
         env: Map<String, String> = emptyMap(),
         cwd: String? = null,
@@ -231,6 +239,7 @@ class DroshTerminalView(context: Context) : FrameLayout(context) {
 
     /** (Re)start the session with the current configuration. */
     fun restart(): Boolean {
+        check(fontLoaded) { "the bundled font failed to load; the terminal cannot start" }
         exited = false
         selection.clear()
         listener?.onSelectionChanged(false)
@@ -274,7 +283,7 @@ class DroshTerminalView(context: Context) : FrameLayout(context) {
     fun mouseMode(): Boolean = Mouse.active(modes())
 
     /** Send a named key from an external extra-keys row. */
-    fun sendNamedKey(named: String, ctrl: Boolean) {
+    fun sendNamedKey(named: Encoder.Named, ctrl: Boolean) {
         Encoder.sequence(named, Encoder.Mods(ctrl = ctrl), appCursor())?.let(session::write)
     }
 
@@ -357,6 +366,7 @@ class DroshTerminalView(context: Context) : FrameLayout(context) {
                 return false
             }
             metrics = loaded
+            fontLoaded = true
 
             Log.i(
                 TAG,

@@ -15,7 +15,7 @@ import java.nio.ByteOrder
  * same session description.
  */
 class EngineSession(
-    program: String,
+    program: String = "/system/bin/sh",
     args: List<String> = emptyList(),
     env: Map<String, String> = emptyMap(),
     cwd: String? = null,
