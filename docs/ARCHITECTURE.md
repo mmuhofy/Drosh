@@ -1,8 +1,8 @@
 # Drosh Architecture
 
 The layer rules every module obeys, the naming contract every file follows, and
-where the Rust/Kotlin boundary sits. This document is normative: `checkModuleBoundaries`
-(`dev.drosh.module.boundary`) fails the build when §3 is broken, so a rule here
+where the Rust/Kotlin boundary sits. This document is normative: the
+`checkModuleBoundaries` task fails the build when §3 is broken, so a rule here
 that nobody enforces is a bug in this file.
 
 ---
@@ -101,9 +101,14 @@ Run `./gradlew checkModuleBoundaries` (it is also part of every `check`).
 
 ### 3.1 Debt baseline
 
-`ModuleBoundaryPlugin.RULES` records the exact number of known violations, so
+The rule table lives in `build.gradle.kts` as `boundaryRules`
+(`module|prefix|allowed`) and records the exact number of known violations, so
 debt can only go down. Lowering a number is part of the phase that removes the
 imports; raising one is a review failure.
+
+It is a task in the root build script, not a build-logic plugin: applying one to
+the root project puts its jar on the build classpath with an unknown version,
+which then collides with the versioned aliases the modules use.
 
 | Rule | Baseline | Cleared by |
 |---|---:|---|

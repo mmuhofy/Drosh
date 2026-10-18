@@ -371,8 +371,8 @@ never red; no phase closes without the device checklist.
 ### P0 — Guardrails (shipped)
 - [x] `docs/ARCHITECTURE.md` — module graph, layer rules, naming contract,
       Rust/Kotlin boundary, size budget
-- [x] `checkModuleBoundaries` Gradle task (`dev.drosh.module.boundary`), wired
-      into every module's `check`; debt baseline is a ratchet
+- [x] `checkModuleBoundaries` task in the root build script, wired into every
+      module's `check`; the debt baseline is a ratchet
 - [ ] Baseline numbers (`docs/BASELINE.md`): APK size, cold start, p95 frame
       time — needs a CI-built APK, not yet measured
 
