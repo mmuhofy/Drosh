@@ -464,9 +464,7 @@ impl Session {
 #[cfg(test)]
 pub(crate) fn test_session() -> std::sync::Arc<Session> {
     let mut mgr = crate::session::manager::Manager::new();
-    let id = mgr
-        .spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20)
-        .unwrap();
+    let id = mgr.spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
     mgr.get(id).unwrap()
 }
 
