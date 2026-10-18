@@ -443,17 +443,17 @@ impl Session {
 
     /// Select the word under (row, col); returns the selected text.
     pub fn select_word(&self, row: usize, col: usize) -> Option<String> {
-        self.with_term(|mut term| crate::session::selection::select_word(&mut term, row, col))
+        self.with_term(|mut term| crate::session::selection::select_word(term, row, col))
     }
 
     /// Select the whole line under (row, col); returns the selected text.
     pub fn select_line(&self, row: usize, col: usize) -> Option<String> {
-        self.with_term(|mut term| crate::session::selection::select_line(&mut term, row, col))
+        self.with_term(|mut term| crate::session::selection::select_line(term, row, col))
     }
 
     /// Clear any active selection.
     pub fn clear_selection(&self) {
-        self.with_term(|mut term| crate::session::selection::clear(&mut term));
+        self.with_term(|mut term| crate::session::selection::clear(term));
     }
 }
 

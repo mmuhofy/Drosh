@@ -49,7 +49,7 @@ pub fn strip_ansi(input: &[u8]) -> String {
                         }
                     }
                 }
-                0x28 | 0x29 | 0x2a | 0x2b => {
+                0x28..=0x2b => {
                     // charset designation: ESC ( final-byte.
                     i += 3;
                 }
@@ -58,10 +58,7 @@ pub fn strip_ansi(input: &[u8]) -> String {
                     i += 2;
                 }
             }
-        } else if b == b'\n' || b == b'\t' || b == b'\r' {
-            out.push(b as char);
-            i += 1;
-        } else if b >= 0x20 {
+        } else if b >= 0x20 || b == b'\n' || b == b'\t' || b == b'\r' {
             out.push(b as char);
             i += 1;
         } else {

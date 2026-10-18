@@ -30,11 +30,10 @@ pub fn ambient_tint(term: &Term<EventProxy>) -> Option<[u8; 3]> {
         }
     }
 
-    if count == 0 {
-        None
-    } else {
-        Some([(red / count) as u8, (green / count) as u8, (blue / count) as u8])
-    }
+    let red = red.checked_div(count)?;
+    let green = green.checked_div(count)?;
+    let blue = blue.checked_div(count)?;
+    Some([red as u8, green as u8, blue as u8])
 }
 
 /// Like [`ambient_tint`], but always returns a value: the default palette

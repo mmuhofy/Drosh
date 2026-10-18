@@ -26,10 +26,7 @@ pub struct UrlHit {
 const URL_PREFIXES: &[&str] = &["http://", "https://", "ftp://", "file://"];
 
 /// Characters that can terminate a URL inside terminal text.
-const URL_BREAKERS: &[u8] = &[
-    b' ', b'\t', b'\r', b'\n', b'"', b'\'', b'<', b'>', b'`', b'(', b')', b'[', b']', b'{', b'}',
-    b'\\',
-];
+const URL_BREAKERS: &[u8] = b" \t\r\n\"'<>`()[]{}\\";
 
 /// Scan the visible grid for URLs, returning at most `limit` of them.
 pub fn find_urls(term: &Term<EventProxy>, limit: usize) -> Vec<UrlHit> {
