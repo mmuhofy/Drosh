@@ -21,7 +21,8 @@ use polling::{Event as PollEvent, PollMode, Poller};
 
 use crate::bridge::events::EventQueue;
 use crate::session::pty_factory::LocalPty;
-use crate::session::shell_mark::{ShellMark, ShellMarkScanner};
+use crate::bridge::events::ShellMark;
+use crate::session::shell_mark::ShellMarkScanner;
 
 pub struct TapPty {
     inner: LocalPty,
