@@ -54,19 +54,11 @@ pub fn clear(term: &mut Term<EventProxy>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::manager;
-
-    fn bridged(text: &str) -> u64 {
-        let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
-        let session = manager::get(id).unwrap();
-        session.feed(text.as_bytes());
-        id
-    }
 
     #[test]
     fn word_selection_captures_the_token() {
-        let id = bridged("hello world");
-        let session = manager::get(id).unwrap();
+        let session = crate::session::test_session();
+        session.feed(b"hello world");
         let mut term = session.term.lock();
         let text = select_word(&mut term, 0, 1).expect("selection produced text");
         assert_eq!(text, "hello");
@@ -75,17 +67,19 @@ mod tests {
 
     #[test]
     fn line_selection_captures_the_whole_line() {
-        let id = bridged("hello world");
-        let session = manager::get(id).unwrap();
+        let session = crate::session::test_session();
+        session.feed(b"hello world");
         let mut term = session.term.lock();
         let text = select_line(&mut term, 0, 3).expect("selection produced text");
-        assert_eq!(text, "hello world");
+        // alacritty's line selection includes the trailing line break, so a
+        // pasted line selection is a complete line.
+        assert_eq!(text, "hello world\n");
     }
 
     #[test]
     fn clear_removes_selection() {
-        let id = bridged("hello world");
-        let session = manager::get(id).unwrap();
+        let session = crate::session::test_session();
+        session.feed(b"hello world");
         let mut term = session.term.lock();
         select_word(&mut term, 0, 1);
         assert!(selection_text(&term).is_some());

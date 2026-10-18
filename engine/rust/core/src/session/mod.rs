@@ -457,6 +457,19 @@ impl Session {
     }
 }
 
+/// Spawn a bridged session for unit tests without touching the global handle
+/// table, so tests never exhaust `MAX_SESSIONS` and never bleed state into one
+/// another. Each call gets its own throwaway `Manager`, so the only thing that
+/// survives the call is the returned `Arc<Session>` (kept alive by the caller).
+#[cfg(test)]
+pub(crate) fn test_session() -> std::sync::Arc<Session> {
+    let mut mgr = crate::session::manager::Manager::new();
+    let id = mgr
+        .spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20)
+        .unwrap();
+    mgr.get(id).unwrap()
+}
+
 impl Drop for Session {
     fn drop(&mut self) {
         // Sessions never outlive their handle: losing the last reference must

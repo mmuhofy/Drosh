@@ -45,19 +45,11 @@ pub fn ambient_tint_defaulting(term: &Term<EventProxy>, default: Rgb) -> [u8; 3]
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::manager;
-
-    fn bridged(text: &str) -> u64 {
-        let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
-        let session = manager::get(id).unwrap();
-        session.feed(text.as_bytes());
-        id
-    }
 
     #[test]
     fn none_when_no_custom_background() {
-        let id = bridged("plain text");
-        let session = manager::get(id).unwrap();
+        let session = crate::session::test_session();
+        session.feed(b"plain text");
         let term = session.term.lock();
         assert!(ambient_tint(&term).is_none());
     }
@@ -68,8 +60,7 @@ mod tests {
         // plain text so the cells carry that background. A palette code like
         // `[41m` would be `Color::Indexed`, which ambient_tint intentionally
         // skips.
-        let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
-        let session = manager::get(id).unwrap();
+        let session = crate::session::test_session();
         session.feed(b"\x1b[48;2;192;0;0m");
         session.feed(b"red");
 
