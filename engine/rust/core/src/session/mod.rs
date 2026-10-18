@@ -453,7 +453,7 @@ impl Session {
 
     /// Clear any active selection.
     pub fn clear_selection(&self) {
-        self.with_term(|term| crate::session::selection::clear(term));
+        self.with_term(crate::session::selection::clear);
     }
 }
 
