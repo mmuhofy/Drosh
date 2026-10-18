@@ -373,6 +373,8 @@ never red; no phase closes without the device checklist.
       Rust/Kotlin boundary, size budget
 - [x] `checkModuleBoundaries` task in the root build script, wired into every
       module's `check`; the debt baseline is a ratchet
+- [x] Negative test: a deliberate `import android.util.Log` in `:domain` fails
+      the gate with `file:line` (run 39127952871)
 - [ ] Baseline numbers (`docs/BASELINE.md`): APK size, cold start, p95 frame
       time — needs a CI-built APK, not yet measured
 
