@@ -150,10 +150,7 @@ mod tests {
         use crate::bridge::events::ShellMark;
 
         assert_eq!(encode_event(&SessionEvent::ShellMark(ShellMark::PromptStart)), "shell_mark:a");
-        assert_eq!(
-            encode_event(&SessionEvent::ShellMark(ShellMark::CommandExec)),
-            "shell_mark:c"
-        );
+        assert_eq!(encode_event(&SessionEvent::ShellMark(ShellMark::CommandExec)), "shell_mark:c");
         assert_eq!(
             encode_event(&SessionEvent::ShellMark(ShellMark::CommandFinished { status: Some(2) })),
             "shell_mark:d:2"

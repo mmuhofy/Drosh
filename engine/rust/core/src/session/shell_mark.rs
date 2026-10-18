@@ -28,7 +28,10 @@ enum State {
     /// `ESC` seen; waiting to learn whether an OSC starts.
     Escape,
     /// Inside `ESC ]`; collecting the body until `BEL` or `ESC \`.
-    Osc { body: Vec<u8>, escaped: bool },
+    Osc {
+        body: Vec<u8>,
+        escaped: bool,
+    },
 }
 
 /// Incremental scanner: feed it arbitrary chunks, collect the marks found.
@@ -161,10 +164,7 @@ mod tests {
             marks(b"\x1b]133;D;127\x07"),
             vec![ShellMark::CommandFinished { status: Some(127) }]
         );
-        assert_eq!(
-            marks(b"\x1b]133;D\x07"),
-            vec![ShellMark::CommandFinished { status: None }]
-        );
+        assert_eq!(marks(b"\x1b]133;D\x07"), vec![ShellMark::CommandFinished { status: None }]);
     }
 
     #[test]
@@ -189,10 +189,7 @@ mod tests {
         let mut scanner = ShellMarkScanner::new();
         assert!(scanner.scan(b"\x1b]13").is_empty());
         assert!(scanner.scan(b"3;D;").is_empty());
-        assert_eq!(
-            scanner.scan(b"2\x07"),
-            vec![ShellMark::CommandFinished { status: Some(2) }]
-        );
+        assert_eq!(scanner.scan(b"2\x07"), vec![ShellMark::CommandFinished { status: Some(2) }]);
     }
 
     #[test]
