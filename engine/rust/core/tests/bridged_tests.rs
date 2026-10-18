@@ -1,31 +1,24 @@
-//! Bridged sessions: an engine with no PTY, fed by the host (SSH, …).
+//! Bridged sessions: an engine with no PTY, fed by the host (SSH, …), plus the
+//! PTY mark tap that feeds them.
 
+use std::io::{ErrorKind, Read};
+use std::time::{Duration, Instant};
+
+use alacritty_terminal::tty::EventedReadWrite;
 use drosh_core::bridge::cell::CELL_BYTES;
-use drosh_core::bridge::events::{SessionEvent, ShellMark};
+use drosh_core::bridge::events::{EventQueue, SessionEvent, ShellMark};
 use drosh_core::bridge::snapshot::state_index;
 use drosh_core::bridge::snapshot::STATE_LEN;
+use drosh_core::session::pty_factory::{LocalPty, PtyConfig};
+use drosh_core::session::tap::TapPty;
 use drosh_core::session::{manager, GridSize, SessionError};
+use std::sync::Arc;
 
 const COLUMNS: usize = 20;
 const ROWS: usize = 4;
 
 fn spawn_bridged() -> u64 {
     manager::spawn_bridged(GridSize::new(COLUMNS as u16, ROWS as u16), 8, 16).expect("bridged")
-}
-
-#[test]
-fn fed_marks_reach_the_event_queue() {
-    let id = spawn_bridged();
-    let session = manager::get(id).expect("session");
-
-    session.feed(b"\x1b]133;A\x07prompt \x1b]7;file:///tmp\x07");
-    let events = session.drain_events();
-    assert!(events.contains(&SessionEvent::ShellMark(ShellMark::PromptStart)));
-    assert!(events.contains(&SessionEvent::ShellMark(ShellMark::WorkingDirectory {
-        url: "file:///tmp".to_owned(),
-    })));
-
-    manager::close(id).expect("close");
 }
 
 #[test]
@@ -40,8 +33,9 @@ fn fed_text_reaches_the_grid_and_the_state() {
 
     let mut buffer = vec![0u8; COLUMNS * ROWS * CELL_BYTES];
     session.take_snapshot(&mut buffer).expect("snapshot");
+    // The cell record starts with a little-endian u32 codepoint.
     assert_eq!(buffer[0], u32::from(b'h') as u8);
-    assert_eq!(buffer[4], u32::from(b'i') as u8);
+    assert_eq!(buffer[CELL_BYTES], u32::from(b'i') as u8);
 
     manager::close(id).expect("close");
 }
@@ -90,4 +84,51 @@ fn resize_and_snapshot_agree_after_a_feed() {
     assert_eq!(state[state_index::ROWS], 5);
 
     manager::close(id).expect("close");
+}
+
+#[test]
+fn the_pty_tap_turns_marks_into_events() {
+    let queue = Arc::new(EventQueue::new(64));
+    let pty = LocalPty::spawn(&PtyConfig {
+        program: "/bin/sh".to_owned(),
+        args: vec![
+            "-c".to_owned(),
+            "printf '\\033]133;A\\007after\\033]7;file:///tmp\\007'".to_owned(),
+        ],
+        env: Vec::new(),
+        cwd: None,
+        columns: COLUMNS as u16,
+        rows: ROWS as u16,
+        cell_width: 8,
+        cell_height: 16,
+    })
+    .expect("pty");
+
+    let mut tap = TapPty::new(pty, queue.clone()).expect("tap");
+    let reader = EventedReadWrite::reader(&mut tap);
+
+    // Drain the master until the child is gone (EOF, then EIO on Linux); the
+    // tap scans every chunk on the way through. The master is non-blocking, so
+    // `WouldBlock` means "child has not written yet" — the deadline bounds it.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut buffer = [0u8; 512];
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(_) => continue,
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                if Instant::now() > deadline {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(_) => break,
+        }
+    }
+
+    let events = queue.drain();
+    assert!(events.contains(&SessionEvent::ShellMark(ShellMark::PromptStart)));
+    assert!(events.contains(&SessionEvent::ShellMark(ShellMark::WorkingDirectory {
+        url: "file:///tmp".to_owned(),
+    })));
 }
