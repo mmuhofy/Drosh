@@ -49,12 +49,7 @@ mod tests {
     use super::*;
     use crate::session::manager;
 
-    fn bridged(
-        lines: &[&str],
-    ) -> (
-        u64,
-        alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>,
-    ) {
+    fn bridged(lines: &[&str]) -> u64 {
         let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
         let session = manager::get(id).unwrap();
         let mut bytes = Vec::new();
@@ -64,12 +59,14 @@ mod tests {
             bytes.push(b'\n');
         }
         session.feed(&bytes);
-        (id, session.term.lock())
+        id
     }
 
     #[test]
     fn finds_all_occurrences() {
-        let (_id, term) = bridged(&["the cat sat on the cat mat"]);
+        let id = bridged(&["the cat sat on the cat mat"]);
+        let session = manager::get(id).unwrap();
+        let term = session.term.lock();
         let hits = search(&term, "cat", 10);
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0], SearchHit { row: 0, col: 4, len: 3 });
@@ -78,19 +75,25 @@ mod tests {
 
     #[test]
     fn empty_query_is_safe() {
-        let (_id, term) = bridged(&["anything"]);
+        let id = bridged(&["anything"]);
+        let session = manager::get(id).unwrap();
+        let term = session.term.lock();
         assert!(search(&term, "", 10).is_empty());
     }
 
     #[test]
     fn honours_limit() {
-        let (_id, term) = bridged(&["a a a a a"]);
+        let id = bridged(&["a a a a a"]);
+        let session = manager::get(id).unwrap();
+        let term = session.term.lock();
         assert_eq!(search(&term, "a", 2).len(), 2);
     }
 
     #[test]
     fn no_match_is_empty() {
-        let (_id, term) = bridged(&["hello"]);
+        let id = bridged(&["hello"]);
+        let session = manager::get(id).unwrap();
+        let term = session.term.lock();
         assert!(search(&term, "world", 10).is_empty());
     }
 }

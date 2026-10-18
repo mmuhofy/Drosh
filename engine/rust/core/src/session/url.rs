@@ -80,12 +80,7 @@ mod tests {
     use super::*;
     use crate::session::manager;
 
-    fn bridged(
-        lines: &[&str],
-    ) -> (
-        u64,
-        alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>,
-    ) {
+    fn bridged(lines: &[&str]) -> u64 {
         let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
         let session = manager::get(id).unwrap();
         let mut bytes = Vec::new();
@@ -95,12 +90,14 @@ mod tests {
             bytes.push(b'\n');
         }
         session.feed(&bytes);
-        (id, session.term.lock())
+        id
     }
 
     #[test]
     fn finds_http_and_https() {
-        let (_id, term) = bridged(&["visit https://example.com and http://a.b/c now"]);
+        let id = bridged(&["visit https://example.com and http://a.b/c now"]);
+        let session = manager::get(id).unwrap();
+        let term = session.term.lock();
         let hits = find_urls(&term, 10);
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0].text, "https://example.com");
@@ -111,14 +108,18 @@ mod tests {
 
     #[test]
     fn url_at_resolves_within_range() {
-        let (_id, term) = bridged(&["see https://x.io here"]);
+        let id = bridged(&["see https://x.io here"]);
+        let session = manager::get(id).unwrap();
+        let term = session.term.lock();
         assert_eq!(url_at(&term, 0, 8), Some("https://x.io".to_owned()));
         assert_eq!(url_at(&term, 0, 4), None);
     }
 
     #[test]
     fn respects_limit() {
-        let (_id, term) = bridged(&["http://a http://b http://c"]);
+        let id = bridged(&["http://a http://b http://c"]);
+        let session = manager::get(id).unwrap();
+        let term = session.term.lock();
         assert_eq!(find_urls(&term, 2).len(), 2);
     }
 }

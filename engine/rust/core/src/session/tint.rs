@@ -22,7 +22,7 @@ pub fn ambient_tint(term: &Term<EventProxy>) -> Option<[u8; 3]> {
     let mut count: u64 = 0;
 
     for indexed in term.grid().display_iter() {
-        if let Color::Rgb(rgb) = indexed.cell.bg {
+        if let Color::Spec(rgb) = indexed.cell.bg {
             red += rgb.r as u64;
             green += rgb.g as u64;
             blue += rgb.b as u64;
@@ -48,21 +48,18 @@ mod tests {
     use super::*;
     use crate::session::manager;
 
-    fn bridged(
-        text: &str,
-    ) -> (
-        u64,
-        alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>,
-    ) {
+    fn bridged(text: &str) -> u64 {
         let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
         let session = manager::get(id).unwrap();
         session.feed(text.as_bytes());
-        (id, session.term.lock())
+        id
     }
 
     #[test]
     fn none_when_no_custom_background() {
-        let (_id, term) = bridged("plain text");
+        let id = bridged("plain text");
+        let session = manager::get(id).unwrap();
+        let term = session.term.lock();
         assert!(ambient_tint(&term).is_none());
     }
 

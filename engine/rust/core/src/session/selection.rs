@@ -56,21 +56,18 @@ mod tests {
     use super::*;
     use crate::session::manager;
 
-    fn bridged(
-        text: &str,
-    ) -> (
-        u64,
-        alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>,
-    ) {
+    fn bridged(text: &str) -> u64 {
         let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
         let session = manager::get(id).unwrap();
         session.feed(text.as_bytes());
-        (id, session.term.lock())
+        id
     }
 
     #[test]
     fn word_selection_captures_the_token() {
-        let (_id, mut term) = bridged("hello world");
+        let id = bridged("hello world");
+        let session = manager::get(id).unwrap();
+        let mut term = session.term.lock();
         let text = select_word(&mut term, 0, 1).expect("selection produced text");
         assert_eq!(text, "hello");
         assert!(selection_text(&term).is_some());
@@ -78,14 +75,18 @@ mod tests {
 
     #[test]
     fn line_selection_captures_the_whole_line() {
-        let (_id, mut term) = bridged("hello world");
+        let id = bridged("hello world");
+        let session = manager::get(id).unwrap();
+        let mut term = session.term.lock();
         let text = select_line(&mut term, 0, 3).expect("selection produced text");
         assert_eq!(text, "hello world");
     }
 
     #[test]
     fn clear_removes_selection() {
-        let (_id, mut term) = bridged("hello world");
+        let id = bridged("hello world");
+        let session = manager::get(id).unwrap();
+        let mut term = session.term.lock();
         select_word(&mut term, 0, 1);
         assert!(selection_text(&term).is_some());
         clear(&mut term);
