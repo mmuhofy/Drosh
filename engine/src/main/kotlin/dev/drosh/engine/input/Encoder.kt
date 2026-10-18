@@ -19,7 +19,7 @@ package dev.drosh.engine.input
  * mapping of Ctrl+letter (`Ctrl+A` = SOH = 0x01). It is the ASCII definition
  * (`code & 0x1f`) and the device test exercises it through Ctrl+C.
  */
-internal object Encoder {
+object Encoder {
 
     /** Modifiers held for one key press. */
     data class Mods(
