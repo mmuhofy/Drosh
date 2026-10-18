@@ -14,7 +14,7 @@ import java.nio.ByteOrder
  * [cells] every frame), and `handle`/sizes are volatile so both threads see the
  * same session description.
  */
-internal class EngineSession(
+class EngineSession(
     program: String,
     args: List<String> = emptyList(),
     env: Map<String, String> = emptyMap(),
