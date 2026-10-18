@@ -7,6 +7,8 @@
 
 pub mod manager;
 pub mod pty_factory;
+pub mod shell_mark;
+pub mod tap;
 
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
@@ -17,7 +19,7 @@ use alacritty_terminal::grid::{Dimensions, Scroll};
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::color::COUNT as COLOR_COUNT;
 use alacritty_terminal::term::{Config, LineDamageBounds, Osc52, Term};
-use alacritty_terminal::vte::ansi::Rgb;
+use alacritty_terminal::vte::ansi::{Processor, Rgb, StdSyncHandler};
 
 use crate::bridge::events::{
     EventProxy, EventQueue, SessionEvent, Terminator, DEFAULT_QUEUE_CAPACITY,
@@ -116,10 +118,15 @@ pub struct Session {
     id: u64,
     term: Arc<FairMutex<Term<EventProxy>>>,
     events: Arc<EventQueue>,
-    sender: EventLoopSender,
+    /// Event-loop sender; `None` for a bridged session, which has no PTY and
+    /// no loop of its own.
+    sender: Mutex<Option<EventLoopSender>>,
     size: Arc<Mutex<WindowSize>>,
     damage: Mutex<Vec<i32>>,
     damage_scratch: Mutex<Vec<LineDamageBounds>>,
+    /// Escape-sequence parser for a bridged session; the PTY path is parsed by
+    /// alacritty's event loop instead.
+    parser: Mutex<Processor<StdSyncHandler>>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -160,6 +167,11 @@ impl Session {
         })
         .map_err(|err| SessionError::SpawnFailed(err.to_string()))?;
 
+        // Shell-integration marks are tapped where the bytes enter the
+        // engine; the parser itself never sees them disappear.
+        let pty = tap::TapPty::new(pty, events.clone())
+            .map_err(|err| SessionError::Io(err.to_string()))?;
+
         // `drain_on_exit`: the shell's last output must still reach the grid
         // after the child is gone. `ref_test` is alacritty's replay format —
         // not used by the prototype.
@@ -168,6 +180,7 @@ impl Session {
 
         let sender = event_loop.channel();
         *lock(&sender_slot) = Some(sender.clone());
+        let sender = Mutex::new(Some(sender));
 
         let worker = thread::Builder::new()
             .name(format!("drosh-session-{id}"))
@@ -189,7 +202,46 @@ impl Session {
             size: size_slot,
             damage: Mutex::new(vec![0i32; snapshot::damage_out_len(config.size.rows())]),
             damage_scratch: Mutex::new(Vec::new()),
+            parser: Mutex::new(Processor::new()),
             worker: Mutex::new(Some(worker)),
+        })
+    }
+
+    /// Start a session that has no PTY of its own: bytes arrive through
+    /// [`Session::feed`] (from SSH, or any other transport the host owns) and
+    /// escape-sequence replies surface as `SessionEvent::PtyWrite`.
+    pub fn spawn_bridged(
+        id: u64,
+        size: GridSize,
+        cell_width: u16,
+        cell_height: u16,
+    ) -> Result<Self, SessionError> {
+        if !size.is_valid() {
+            return Err(SessionError::InvalidArgument(format!("invalid grid size {size:?}")));
+        }
+
+        let window_size =
+            WindowSize { num_lines: size.rows, num_cols: size.columns, cell_width, cell_height };
+
+        let events = Arc::new(EventQueue::new(DEFAULT_QUEUE_CAPACITY));
+        let sender_slot = Arc::new(Mutex::new(None));
+        let size_slot = Arc::new(Mutex::new(window_size));
+
+        let proxy = EventProxy::new(events.clone(), sender_slot, size_slot.clone());
+        // Same paste policy as a PTY session; see `spawn`.
+        let term_config = Config { osc52: Osc52::CopyPaste, ..Config::default() };
+        let terminal = Term::new(term_config, &size, proxy);
+
+        Ok(Self {
+            id,
+            term: Arc::new(FairMutex::new(terminal)),
+            events,
+            sender: Mutex::new(None),
+            size: size_slot,
+            damage: Mutex::new(vec![0i32; snapshot::damage_out_len(size.rows())]),
+            damage_scratch: Mutex::new(Vec::new()),
+            parser: Mutex::new(Processor::new()),
+            worker: Mutex::new(None),
         })
     }
 
@@ -203,7 +255,23 @@ impl Session {
             return Ok(());
         }
 
-        self.sender.send(Msg::Input(data.to_vec().into())).map_err(io_error)
+        let sender = lock(&self.sender);
+        let sender = sender.as_ref().ok_or_else(|| {
+            SessionError::Internal("bridged session: the host routes input".to_owned())
+        })?;
+        sender.send(Msg::Input(data.to_vec().into())).map_err(io_error)
+    }
+
+    /// Feed output bytes into the engine (a bridged session; a PTY session's
+    /// bytes arrive through the event loop instead).
+    pub fn feed(&self, data: &[u8]) {
+        if data.is_empty() {
+            return;
+        }
+
+        let mut term = self.term.lock();
+        let mut parser = lock(&self.parser);
+        parser.advance(&mut *term, data);
     }
 
     /// Resize grid, PTY and renderer state.
@@ -229,7 +297,10 @@ impl Session {
         }
         lock(&self.damage).resize(snapshot::damage_out_len(size.rows()), 0);
 
-        self.sender.send(Msg::Resize(window_size)).map_err(io_error)
+        if let Some(sender) = lock(&self.sender).as_ref() {
+            sender.send(Msg::Resize(window_size)).map_err(io_error)?;
+        }
+        Ok(())
     }
 
     /// Scroll the viewport (positive = back into the scrollback history).
@@ -322,7 +393,9 @@ impl Session {
     /// Stop the event loop; the PTY and the child are torn down when the loop
     /// thread returns.
     pub fn shutdown(&self) {
-        let _ = self.sender.send(Msg::Shutdown);
+        if let Some(sender) = lock(&self.sender).take() {
+            let _ = sender.send(Msg::Shutdown);
+        }
         drop(lock(&self.worker).take());
     }
 }

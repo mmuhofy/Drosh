@@ -77,6 +77,17 @@ fn encode_event(event: &SessionEvent) -> String {
             format!("clipboard_load:{}:{}", clipboard_code(*selection), terminator.code())
         }
         SessionEvent::CursorBlinkingChange => "cursor_blink_change".to_owned(),
+        SessionEvent::ShellMark(mark) => {
+            let payload = mark.payload();
+            if payload.is_empty() {
+                format!("shell_mark:{}", mark.code())
+            } else {
+                format!("shell_mark:{}:{}", mark.code(), sanitize(&payload))
+            }
+        }
+        SessionEvent::PtyWrite { text } => {
+            format!("pty_write:{}", BASE64.encode(text.as_bytes()))
+        }
     }
 }
 
@@ -132,6 +143,42 @@ mod tests {
             "clipboard_load:p:st"
         );
         assert_eq!(encode_event(&SessionEvent::Title("a\nb".to_owned())), "title:a b");
+    }
+
+    #[test]
+    fn shell_marks_carry_their_payload() {
+        use crate::bridge::events::ShellMark;
+
+        assert_eq!(encode_event(&SessionEvent::ShellMark(ShellMark::PromptStart)), "shell_mark:a");
+        assert_eq!(encode_event(&SessionEvent::ShellMark(ShellMark::CommandExec)), "shell_mark:c");
+        assert_eq!(
+            encode_event(&SessionEvent::ShellMark(ShellMark::CommandFinished { status: Some(2) })),
+            "shell_mark:d:2"
+        );
+        assert_eq!(
+            encode_event(&SessionEvent::ShellMark(ShellMark::CommandFinished { status: None })),
+            "shell_mark:d"
+        );
+        assert_eq!(
+            encode_event(&SessionEvent::ShellMark(ShellMark::WorkingDirectory {
+                url: "file:///home/u".to_owned(),
+            })),
+            "shell_mark:cwd:file:///home/u"
+        );
+        assert_eq!(
+            encode_event(&SessionEvent::ShellMark(ShellMark::EditorTarget {
+                path: "/etc/hosts".to_owned(),
+            })),
+            "shell_mark:edt:/etc/hosts"
+        );
+    }
+
+    #[test]
+    fn a_pty_write_record_is_base64() {
+        assert_eq!(
+            encode_event(&SessionEvent::PtyWrite { text: "\x1b[?1;2c".to_owned() }),
+            format!("pty_write:{}", BASE64.encode("\x1b[?1;2c".as_bytes()))
+        );
     }
 
     #[test]

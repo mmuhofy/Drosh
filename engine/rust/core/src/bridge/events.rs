@@ -54,6 +54,50 @@ impl Terminator {
     }
 }
 
+/// A shell-integration mark extracted from the output stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShellMark {
+    /// `OSC 133 ; A` — the prompt starts.
+    PromptStart,
+    /// `OSC 133 ; B` — the prompt ends, command input begins.
+    CommandStart,
+    /// `OSC 133 ; C` — the command starts running.
+    CommandExec,
+    /// `OSC 133 ; D ; <status>` — the command finished. The status is absent
+    /// when the shell sends a bare `D`.
+    CommandFinished { status: Option<i32> },
+    /// `OSC 7 ; <file url>` — the working directory.
+    WorkingDirectory { url: String },
+    /// `OSC 1339 ; <path>` — the editor target.
+    EditorTarget { path: String },
+}
+
+impl ShellMark {
+    /// Short code used in the event record Kotlin reads (`shell_mark:<code>`).
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::PromptStart => "a",
+            Self::CommandStart => "b",
+            Self::CommandExec => "c",
+            Self::CommandFinished { .. } => "d",
+            Self::WorkingDirectory { .. } => "cwd",
+            Self::EditorTarget { .. } => "edt",
+        }
+    }
+
+    /// The payload part of the record; empty for the flag-like marks.
+    pub fn payload(&self) -> String {
+        match self {
+            Self::PromptStart | Self::CommandStart | Self::CommandExec => String::new(),
+            Self::CommandFinished { status } => {
+                status.map_or(String::new(), |code| code.to_string())
+            }
+            Self::WorkingDirectory { url } => url.clone(),
+            Self::EditorTarget { path } => path.clone(),
+        }
+    }
+}
+
 /// Low-frequency session events, in the order the engine produced them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionEvent {
@@ -78,6 +122,13 @@ pub enum SessionEvent {
     ClipboardLoad { selection: bool, terminator: Terminator },
     /// Cursor blink state changed.
     CursorBlinkingChange,
+    /// A shell-integration mark (`OSC 133/7/1339`) tapped off the PTY output
+    /// before the engine's parser — see `session/shell_mark.rs`.
+    ShellMark(ShellMark),
+    /// An escape-sequence reply the engine produced for a session that has no
+    /// PTY of its own (bridged, e.g. over SSH): device-attribute and mode
+    /// replies travel to the remote host through the host application.
+    PtyWrite { text: String },
 }
 
 /// Events plus the "something changed" flag the render loop polls.
@@ -177,7 +228,9 @@ impl EventProxy {
                     log::warn!("drosh-core: PTY reply failed: {err}");
                 }
             }
-            None => log::debug!("drosh-core: dropping PTY reply, event loop not ready yet"),
+            // No event loop means no PTY (a bridged session): the reply must
+            // still reach the remote side, so it goes out as an event.
+            None => self.queue.push(SessionEvent::PtyWrite { text }),
         }
     }
 
