@@ -14,7 +14,7 @@ use crate::ffi::{fail, finish, session_or, ErrorCode};
 /// The currently selected text, or an empty string when nothing is selected.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectionText<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
 ) -> JString<'local> {
@@ -31,7 +31,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectionText
 /// Select the word under (row, col) and return the selected text.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectWord<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
     row: jint,
@@ -52,7 +52,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectWord<'l
 /// Select the line under (row, col) and return the selected text.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectLine<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
     row: jint,

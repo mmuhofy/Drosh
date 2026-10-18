@@ -4,7 +4,7 @@ use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::jlong;
 use jni::JNIEnv;
 
-use crate::ffi::{fail, session_or, ErrorCode};
+use crate::ffi::{fail, session_or};
 
 /// Strip ANSI escape sequences from `data`.
 ///
@@ -13,7 +13,7 @@ use crate::ffi::{fail, session_or, ErrorCode};
 /// yields an empty string rather than a panic across JNI.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeStripAnsi<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
     data: JByteArray,

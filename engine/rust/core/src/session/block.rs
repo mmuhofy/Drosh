@@ -98,15 +98,24 @@ mod tests {
     #[test]
     fn carries_cwd_and_editor() {
         let mut tracker = BlockTracker::new();
-        assert_eq!(tracker.observe(&ShellMark::WorkingDirectory { url: "file:///a".into() }), Some(BlockEvent::WorkingDirectory("file:///a".into())));
+        assert_eq!(
+            tracker.observe(&ShellMark::WorkingDirectory { url: "file:///a".into() }),
+            Some(BlockEvent::WorkingDirectory("file:///a".into()))
+        );
         assert_eq!(tracker.cwd(), Some("file:///a"));
-        assert_eq!(tracker.observe(&ShellMark::EditorTarget { path: "/x/y.txt".into() }), Some(BlockEvent::EditorTarget("/x/y.txt".into())));
+        assert_eq!(
+            tracker.observe(&ShellMark::EditorTarget { path: "/x/y.txt".into() }),
+            Some(BlockEvent::EditorTarget("/x/y.txt".into()))
+        );
         assert_eq!(tracker.editor(), Some("/x/y.txt"));
     }
 
     #[test]
     fn absent_status_is_preserved() {
         let mut tracker = BlockTracker::new();
-        assert_eq!(tracker.observe(&ShellMark::CommandFinished { status: None }), Some(BlockEvent::CommandFinished(None)));
+        assert_eq!(
+            tracker.observe(&ShellMark::CommandFinished { status: None }),
+            Some(BlockEvent::CommandFinished(None))
+        );
     }
 }

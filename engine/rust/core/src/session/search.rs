@@ -8,8 +8,8 @@
 
 use alacritty_terminal::term::Term;
 
-use crate::session::EventProxy;
 use crate::session::grid::visible_lines;
+use crate::session::EventProxy;
 
 /// A match position on a visible row.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,7 +49,12 @@ mod tests {
     use super::*;
     use crate::session::manager;
 
-    fn bridged(lines: &[&str]) -> (u64, alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>) {
+    fn bridged(
+        lines: &[&str],
+    ) -> (
+        u64,
+        alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>,
+    ) {
         let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
         let session = manager::get(id).unwrap();
         let mut bytes = Vec::new();

@@ -35,6 +35,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSearch<'local
         }
     };
 
-    let records: Vec<String> = hits.iter().map(|hit| format!("{}:{}:{}", hit.row, hit.col, hit.len)).collect();
+    let records: Vec<String> =
+        hits.iter().map(|hit| format!("{}:{}:{}", hit.row, hit.col, hit.len)).collect();
     env.new_string(records.join("\n")).unwrap_or_default()
 }

@@ -56,7 +56,12 @@ mod tests {
     use super::*;
     use crate::session::manager;
 
-    fn bridged(text: &str) -> (u64, alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>) {
+    fn bridged(
+        text: &str,
+    ) -> (
+        u64,
+        alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>,
+    ) {
         let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
         let session = manager::get(id).unwrap();
         session.feed(text.as_bytes());

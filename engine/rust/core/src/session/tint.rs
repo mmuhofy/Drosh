@@ -5,9 +5,8 @@
 //! renderer already iterates, avoids copying the grid to Kotlin just to average
 //! a few colours.
 
-use alacritty_terminal::term::color::Rgb;
-use alacritty_terminal::term::Color;
 use alacritty_terminal::term::Term;
+use alacritty_terminal::vte::ansi::{Color, Rgb};
 
 use crate::session::EventProxy;
 
@@ -34,11 +33,7 @@ pub fn ambient_tint(term: &Term<EventProxy>) -> Option<[u8; 3]> {
     if count == 0 {
         None
     } else {
-        Some([
-            (red / count) as u8,
-            (green / count) as u8,
-            (blue / count) as u8,
-        ])
+        Some([(red / count) as u8, (green / count) as u8, (blue / count) as u8])
     }
 }
 
@@ -53,7 +48,12 @@ mod tests {
     use super::*;
     use crate::session::manager;
 
-    fn bridged(text: &str) -> (u64, alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>) {
+    fn bridged(
+        text: &str,
+    ) -> (
+        u64,
+        alacritty_terminal::sync::FairMutexGuard<'static, Term<crate::bridge::events::EventProxy>>,
+    ) {
         let id = manager::spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
         let session = manager::get(id).unwrap();
         session.feed(text.as_bytes());
