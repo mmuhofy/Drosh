@@ -90,6 +90,30 @@ internal class EngineSession(
     /** Version of the loaded core, for the log line. */
     val coreVersion: String get() = NativeCore.nativeVersion()
 
+    /**
+     * Where user input goes for a bridged session (the host's transport, e.g.
+     * an SSH channel). `null` for a PTY session: input goes to the core.
+     */
+    @Volatile
+    var inputSink: ((ByteArray) -> Unit)? = null
+
+    /** Returns [NativeCore.OK] or a negative error code. */
+    fun startBridged(columns: Int, rows: Int, cellWidth: Int, cellHeight: Int): Int {
+        close()
+        this.cellWidth = cellWidth
+        this.cellHeight = cellHeight
+
+        val created = NativeCore.nativeCreateBridgedSession(columns, rows, cellWidth, cellHeight)
+        if (created <= 0L) {
+            return created.toInt()
+        }
+
+        handle = created
+        colorsPulled = false
+        allocate(columns, rows)
+        return NativeCore.OK
+    }
+
     /** Returns [NativeCore.OK] or a negative error code. */
     fun start(columns: Int, rows: Int, cellWidth: Int, cellHeight: Int): Int {
         close()
@@ -190,9 +214,27 @@ internal class EngineSession(
     fun damageRight(index: Int): Int = damage[3 + index * NativeCore.DAMAGE_STRIDE]
 
     fun write(bytes: ByteArray) {
+        if (bytes.isEmpty()) {
+            return
+        }
+
+        // A bridged session's input belongs to the host's transport.
+        inputSink?.let { sink ->
+            sink(bytes)
+            return
+        }
+
+        val current = handle
+        if (current != NO_HANDLE) {
+            NativeCore.nativeWrite(current, bytes)
+        }
+    }
+
+    /** Output bytes from the host's transport (a bridged session). */
+    fun feed(bytes: ByteArray) {
         val current = handle
         if (current != NO_HANDLE && bytes.isNotEmpty()) {
-            NativeCore.nativeWrite(current, bytes)
+            NativeCore.nativeFeed(current, bytes)
         }
     }
 

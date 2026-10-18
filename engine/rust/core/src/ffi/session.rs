@@ -58,6 +58,51 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCreateSession
     }
 }
 
+/// Start a bridged session: an engine with no PTY, fed through `nativeFeed`.
+///
+/// The host owns the transport (SSH, a debug socket, …); it routes user input
+/// itself and hands the output here.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCreateBridgedSession(
+    _env: JNIEnv,
+    _class: JClass,
+    columns: jint,
+    rows: jint,
+    cell_width: jint,
+    cell_height: jint,
+) -> jlong {
+    let result = (|| -> FfiResult<u64> {
+        let size = grid_size(columns, rows)?;
+        let cell_width = u16::try_from(cell_width).map_err(|_| ErrorCode::InvalidArgument)?;
+        let cell_height = u16::try_from(cell_height).map_err(|_| ErrorCode::InvalidArgument)?;
+
+        manager::spawn_bridged(size, cell_width, cell_height).map_err(ErrorCode::from)
+    })();
+
+    match result {
+        Ok(handle) => handle as jlong,
+        Err(code) => fail(code).as_jint() as jlong,
+    }
+}
+
+/// Feed output bytes into a bridged session (no PTY on the other side).
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeFeed(
+    env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    data: JByteArray,
+) -> jint {
+    let result = (|| -> FfiResult<()> {
+        let session = session_or(id)?;
+        let bytes = env.convert_byte_array(&data).map_err(|_| ErrorCode::InvalidArgument)?;
+        session.feed(&bytes);
+        Ok(())
+    })();
+
+    finish(result)
+}
+
 /// Stop a session and tear down its child process.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCloseSession(

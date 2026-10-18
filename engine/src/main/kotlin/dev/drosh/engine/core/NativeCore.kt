@@ -144,7 +144,17 @@ internal object NativeCore {
         cwd: String?,
     ): Long
 
+    external fun nativeCreateBridgedSession(
+        columns: Int,
+        rows: Int,
+        cellWidth: Int,
+        cellHeight: Int,
+    ): Long
+
     external fun nativeCloseSession(id: Long): Int
+
+    /** Output bytes for a bridged session (no PTY; the host owns the transport). */
+    external fun nativeFeed(id: Long, data: ByteArray): Int
 
     external fun nativeWrite(id: Long, data: ByteArray): Int
 

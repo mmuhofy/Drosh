@@ -138,6 +138,12 @@ impl Drop for LocalPty {
     }
 }
 
+impl AsRawFd for LocalPty {
+    fn as_raw_fd(&self) -> RawFd {
+        self.master.as_raw_fd()
+    }
+}
+
 impl EventedReadWrite for LocalPty {
     type Reader = File;
     type Writer = File;

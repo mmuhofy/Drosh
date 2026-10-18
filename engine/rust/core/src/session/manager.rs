@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use crate::session::{Session, SessionConfig, SessionError};
+use crate::session::{GridSize, Session, SessionConfig, SessionError};
 
 /// Upper bound on live sessions. The prototype has no tab bar, so this is a
 /// safety net against a leaking caller rather than a real limit.
@@ -34,6 +34,25 @@ impl Manager {
 
         let id = self.next_id;
         let session = Session::spawn(id, config)?;
+
+        self.next_id = self.next_id.saturating_add(1);
+        self.sessions.insert(id, Arc::new(session));
+        Ok(id)
+    }
+
+    /// Start a bridged (PTY-less) session and assign it a handle.
+    pub fn spawn_bridged(
+        &mut self,
+        size: GridSize,
+        cell_width: u16,
+        cell_height: u16,
+    ) -> Result<u64, SessionError> {
+        if self.sessions.len() >= MAX_SESSIONS {
+            return Err(SessionError::LimitReached);
+        }
+
+        let id = self.next_id;
+        let session = Session::spawn_bridged(id, size, cell_width, cell_height)?;
 
         self.next_id = self.next_id.saturating_add(1);
         self.sessions.insert(id, Arc::new(session));
@@ -84,6 +103,15 @@ pub fn get(id: u64) -> Option<Arc<Session>> {
 /// Start a session and return its handle.
 pub fn spawn(config: &SessionConfig) -> Result<u64, SessionError> {
     lock().spawn(config)
+}
+
+/// Start a bridged (PTY-less) session and return its handle.
+pub fn spawn_bridged(
+    size: GridSize,
+    cell_width: u16,
+    cell_height: u16,
+) -> Result<u64, SessionError> {
+    lock().spawn_bridged(size, cell_width, cell_height)
 }
 
 /// Stop a session and forget its handle.
