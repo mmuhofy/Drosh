@@ -38,10 +38,10 @@ import dev.drosh.terminal.SnippetsStore
 class CommandStateProvider : ContentProvider() {
 
     companion object {
-        const val AUTHORITY = "dev.drosh.state"
+        const val AUTHORITY = "dev.drosh.my.state"
 
         /** Declared and required by both apps; see AndroidManifest. */
-        const val PERMISSION = "dev.drosh.permission.READ_COMMAND_STATE"
+        const val PERMISSION = "dev.drosh.my.permission.READ_COMMAND_STATE"
 
         const val PATH_COMMAND = "command"
         const val URI_COMMAND = "content://$AUTHORITY/$PATH_COMMAND"

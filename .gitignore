@@ -109,3 +109,8 @@ html/
 
 # i18n staging: prepared translations, already merged into values-XX/
 docs/tmp-translations-only-the-missing/
+
+# The Rust engine workspace (engine/rust) — built only in CI.
+engine/rust/target/
+# The cross-built core arrives from CI as an artifact, never from git.
+engine/src/main/jniLibs/

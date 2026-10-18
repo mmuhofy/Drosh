@@ -17,6 +17,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Minimal baseline permissions — Phase 1 only. -->
+    <!-- Side-by-side branch: these are spelled out rather than ${applicationId}
+         placeholders because the keyboard bridge (a separate app, its own repo)
+         requests them by name — see CommandStateProvider.AUTHORITY. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
@@ -25,7 +28,7 @@
       are — that shared identity is the whole reason this is possible.
     -->
     <permission
-        android:name="dev.drosh.permission.READ_COMMAND_STATE"
+        android:name="dev.drosh.my.permission.READ_COMMAND_STATE"
         android:protectionLevel="signature"
         android:label="@string/permission_read_command_state_label"
         android:description="@string/permission_read_command_state_description" />
@@ -34,7 +37,7 @@
          same reason as above: only the Drosh Keyboard build may tell Drosh
          where it is docked. -->
     <permission
-        android:name="dev.drosh.permission.SEND_KEYBOARD_MODE"
+        android:name="dev.drosh.my.permission.SEND_KEYBOARD_MODE"
         android:protectionLevel="signature"
         android:label="@string/permission_send_keyboard_mode_label"
         android:description="@string/permission_send_keyboard_mode_description" />
@@ -102,10 +105,10 @@
         -->
         <provider
             android:name="dev.drosh.data.state.CommandStateProvider"
-            android:authorities="dev.drosh.state"
+            android:authorities="dev.drosh.my.state"
             android:exported="true"
             android:grantUriPermissions="false"
-            android:permission="dev.drosh.permission.READ_COMMAND_STATE" />
+            android:permission="dev.drosh.my.permission.READ_COMMAND_STATE" />
     </application>
 
 </manifest>

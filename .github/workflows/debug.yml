@@ -11,9 +11,104 @@ concurrency:
   group: build-debug-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  # Pinned NDK (r28c): the Rust engine is linked with its clang.
+  NDK_VERSION: 28.2.13676358
+
 jobs:
+  rust-core:
+    # Host checks plus the Android cross-check for the engine workspace.
+    # No local Rust builds on dev boxes — this job is the only gate.
+    name: Rust engine (fmt, clippy, test, cross-check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: engine/rust
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          targets: aarch64-linux-android
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine/rust
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+      - name: Cross-check for Android target
+        run: cargo check --workspace --target aarch64-linux-android
+
+      - name: Clippy for Android target (deny warnings)
+        run: cargo clippy --workspace --target aarch64-linux-android -- -D warnings
+
+  rust-build:
+    # Cross-compiles the engine's cdylib for arm64-v8a and hands it to the
+    # debug job as an artifact — the .so is never committed to git.
+    name: libdrosh_core.so (aarch64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine/rust
+
+      - name: Install pinned NDK
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+
+      - name: Build the Rust engine for arm64-v8a
+        # The NDK toolchain is wired into cargo directly (linker/CC env vars)
+        # rather than through cargo-ndk, which aborts when the runner image's
+        # preset ANDROID_NDK* disagree with ours.
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+          cargo build --release --target aarch64-linux-android --manifest-path engine/rust/Cargo.toml
+          mkdir -p "$RUNNER_TEMP/engine-jni"
+          cp engine/rust/target/aarch64-linux-android/release/libdrosh_core.so \
+            "$RUNNER_TEMP/engine-jni/"
+          ls -l "$RUNNER_TEMP/engine-jni/"
+
+      - name: Upload the core
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-core-so
+          path: ${{ runner.temp }}/engine-jni/libdrosh_core.so
+          if-no-files-found: error
+
   debug:
     name: Debug APK
+    needs: rust-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -27,6 +122,12 @@ jobs:
           # and an equal versionCode is exactly what lets an older APK install
           # over a newer one and downgrade the database out from under Room.
           fetch-depth: 0
+
+      - name: Fetch the cross-built Rust core
+        uses: actions/download-artifact@v4
+        with:
+          name: engine-core-so
+          path: engine/src/main/jniLibs/arm64-v8a
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -45,10 +146,6 @@ jobs:
       # launch with "Room cannot verify the data integrity". Room writes the real
       # hash to data/schemas/ during the build, so exporting here and diffing
       # turns a device crash into a red build.
-      # The identity hash in the migration is a hand-copied constant, and a stale
-      # one is invisible to the compiler: the build passes and the app crashes on
-      # first launch. Room writes the authoritative schema during the KSP pass
-      # above, so diffing it here is what turns a device crash into a red build.
       - name: Check Room schema matches the committed snapshot
         run: |
           if ! git diff --quiet -- data/schemas ||              [ -n "$(git ls-files --others --exclude-standard -- data/schemas)" ]; then
@@ -69,6 +166,15 @@ jobs:
           name: room-schema-mismatch
           path: data/schemas
           if-no-files-found: warn
+
+      # An APK without the .so starts and dies on System.loadLibrary; fail
+      # here instead of on the device.
+      - name: Check the APK carries the engine core
+        run: |
+          set -euo pipefail
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libdrosh_core.so"
+          echo "$APK contains libdrosh_core.so"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
