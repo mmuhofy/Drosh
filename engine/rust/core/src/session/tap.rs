@@ -49,7 +49,7 @@ impl TapPty {
 }
 
 /// The master's read half, with the mark tap.
-struct TapReader {
+pub struct TapReader {
     /// A `dup` of the master; same open file description, same non-blocking
     /// flags.
     fd: RawFd,
