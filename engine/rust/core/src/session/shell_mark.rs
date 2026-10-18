@@ -27,10 +27,13 @@ enum State {
     Ground,
     /// `ESC` seen; waiting to learn whether an OSC starts.
     Escape,
-    /// Inside `ESC ]`; collecting the body until `BEL` or `ESC \`.
+    /// Inside `ESC ]`; collecting the body until `BEL` or `ESC \`. `runaway`
+    /// marks a body that grew past [`MAX_BODY`]: it is still consumed (so the
+    /// stream stays in sync) but never yields a mark.
     Osc {
         body: Vec<u8>,
         escaped: bool,
+        runaway: bool,
     },
 }
 
@@ -57,14 +60,15 @@ impl ShellMarkScanner {
                 }
                 State::Escape => {
                     if byte == b']' {
-                        self.state = State::Osc { body: Vec::new(), escaped: false };
+                        self.state =
+                            State::Osc { body: Vec::new(), escaped: false, runaway: false };
                     }
                     // Other introducers (CSI, DCS, …) belong to the engine's
                     // parser; the tap only watches for OSC.
                 }
-                State::Osc { body, escaped } => {
+                State::Osc { body, escaped, runaway } => {
                     if escaped {
-                        if byte == b'\\' {
+                        if byte == b'\\' && !runaway {
                             if let Some(mark) = parse_osc_body(&body) {
                                 marks.push(mark);
                             }
@@ -74,20 +78,25 @@ impl ShellMarkScanner {
                     } else {
                         match byte {
                             0x07 => {
-                                if let Some(mark) = parse_osc_body(&body) {
-                                    marks.push(mark);
+                                if !runaway {
+                                    if let Some(mark) = parse_osc_body(&body) {
+                                        marks.push(mark);
+                                    }
                                 }
                             }
                             0x1b => {
-                                self.state = State::Osc { body, escaped: true };
+                                self.state = State::Osc { body, escaped: true, runaway };
                                 continue;
                             }
                             _ => {
                                 let mut body = body;
-                                if body.len() < MAX_BODY {
+                                let mut runaway = runaway;
+                                if body.len() >= MAX_BODY {
+                                    runaway = true;
+                                } else {
                                     body.push(byte);
                                 }
-                                self.state = State::Osc { body, escaped: false };
+                                self.state = State::Osc { body, escaped: false, runaway };
                                 continue;
                             }
                         }
