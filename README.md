@@ -86,7 +86,7 @@ languages completely.
 
 ## Stack
 
-The values in `gradle/libs.versions.toml` are the source of truth; this table
+The values in [`android/gradle/libs.versions.toml`](android/gradle/libs.versions.toml) are the source of truth; this table
 is a summary of it.
 
 | Component | Technology |
@@ -105,26 +105,40 @@ is a summary of it.
 | ABI | arm64-v8a only |
 
 > `targetSdk` is deliberately 28 to keep broad OEM compatibility on Android 8+.
-> The lint suppression for it is in `app/build.gradle.kts`.
+> The lint suppression for it is in `android/app/build.gradle.kts`.
 
 ## Architecture
 
+The tree is split by build system: everything the APK ships is under `android/`,
+the Rust core under `rust/`.
+
 ```
-app/            → MainActivity + NavHost, DI seam, TerminalService
-ui/             → Compose screens, ViewModels (never imports data/agent/terminal/ssh)
-domain/         → Models, use cases, repository interfaces (pure Kotlin, no Android)
-data/           → Repository implementations, Room, DataStore, DI bindings
-agent/          → AgentRuntime, ToolRegistry, provider adapters, eight tools
-terminal/       → TerminalManager, UbuntuBootstrap, ProotRunner, vendored termux
-ssh/            → SSHJ session bridge
-editor/         → Sora editor wrapper, TextMate grammars
-core/           → Locale, constants, extensions
-design-system/  → DroshColors, typography, dropdown menu
-build-logic/    → Gradle convention plugins
+android/                → the Gradle build; `settings.gradle.kts` and `gradlew` live here
+  app/                  → MainActivity + NavHost, DI seam, TerminalService
+  ui/                   → Compose screens, ViewModels (never imports data/agent/terminal/ssh)
+  domain/               → Models, use cases, repository interfaces (pure Kotlin, no Android)
+  data/                 → Repository implementations, Room, DataStore, DI bindings
+  agent/                → AgentRuntime, ToolRegistry, provider adapters, eight tools
+  terminal/             → TerminalManager, UbuntuBootstrap, ProotRunner, vendored termux
+  engine/               → the Rust core's Kotlin side: JNI, GL renderer, input, view
+  ssh/                  → SSHJ session bridge
+  editor/               → Sora editor wrapper, TextMate grammars
+  core/                 → Locale, constants, extensions
+  design-system/        → DroshColors, typography, dropdown menu
+  build-logic/          → Gradle convention plugins
+
+rust/                   → the Cargo workspace; `cargo test` runs from here
+  crates/drosh-core/    → the engine crate (session, bridge, ffi, font) → `libdrosh_core.so`
+
+third_party/chroot-ng/  → vendored C guest runtime; it moves to its own repo next
 ```
 
+Project names are unchanged by the split — `:app`, `:data`, … — so a module is
+`android/data/` and is still depended on as `project(":data")`.
+
 Strict layering: `ui/` consumes only `domain/` types; `domain/` is pure
-Kotlin. The rules are in [`docs/AGENT.md`](docs/AGENT.md).
+Kotlin. The rules are in [`docs/AGENT.md`](docs/AGENT.md) and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ```
 PTY output → AnsiStripper → block boundary detection → BlockRepository → Compose BlockList
@@ -149,9 +163,18 @@ known issue, not a secret.
 ## Build
 
 ```bash
+cd android
 ./gradlew assembleDebug        # debug APK, arm64-v8a
 ./gradlew testDebugUnitTest    # the unit test suite
 ```
+
+```bash
+cd rust
+cargo test                     # the engine crate, on the host
+```
+
+The Rust core is built for arm64 only by CI, which drops `libdrosh_core.so`
+into `android/engine/src/main/jniLibs/arm64-v8a/` before Gradle runs.
 
 CI runs `Build Debug` and `Unit Tests` on every push and pull request, and
 `Build Release` on tags.
@@ -165,7 +188,7 @@ adapters, the zoom gesture maths, and the room migrations.
 
 ## Known issues
 
-- **Block mode always reports exit code 0.** `terminal/BlockEngineWire.kt`
+- **Block mode always reports exit code 0.** `android/terminal/BlockEngineWire.kt`
   hardcodes `onCommandCompleted(exitCode = 0)`, so a failing command renders
   as successful.
 - **`targetSdk` 28** on a compileSdk 36 project; AndroidX APIs gated behind

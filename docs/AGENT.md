@@ -9,7 +9,7 @@ These rules override everything else without exception.
 - **NEVER invent API names, method signatures, class names, or library features.**
   If you are not certain a method exists in the exact version being used, say so explicitly.
 - **NEVER assume a dependency version is compatible.**
-  Always reference the exact version from `gradle/libs.versions.toml`.
+  Always reference the exact version from `android/gradle/libs.versions.toml`.
 - **If you don't know something, say "I don't know" or "I need to verify this."**
   Do not fill gaps with plausible-sounding fabrications.
 - **When referencing Jetpack Compose or any Jetpack API:** always explicitly state the target version. If uncertain about a class or method existing in that version, flag it.
@@ -107,6 +107,11 @@ refactor(semantic): extract pattern matcher to separate class
 ## 🏗️ ARCHITECTURE RULES
 
 ### Layer Responsibilities
+
+The module directories below live under `android/` — the Gradle build root — and
+the Rust engine is the separate `rust/` workspace. `docs/ARCHITECTURE.md` §1 is
+the enforced module graph; where this table and that document disagree, the
+architecture document wins.
 
 ```
 ui/           → Compose screens, components, ViewModels.
@@ -310,7 +315,7 @@ When porting a module from Iris Code:
 - Artifact title must match the actual filename (e.g., `BlockEngine.kt`)
 - Always include the **full project path** in the artifact title:
   ```
-  app/src/main/java/dev/drosh/terminal/engine/BlockEngine.kt
+  android/app/src/main/java/dev/drosh/terminal/engine/BlockEngine.kt
   ```
 - Never refer to a file by name alone — always pair with full path
 - If a file is too long for one artifact, split by logical section and label clearly
@@ -382,7 +387,7 @@ Phase 6 — Agent Intelligence ← last
 | UI | Jetpack Compose BOM | `2026.04.01` |
 | Material | Material 3 | via BOM |
 | Min SDK | 26 | Android 8.0+ |
-| Target SDK | 36 | Android 16 |
+| Target SDK | 28 (deliberate — see README) | — |
 | Compile SDK | 36 | — |
 | Architecture | MVVM + Clean Architecture | — |
 | DI | Hilt | `2.57` |
@@ -405,8 +410,8 @@ Phase 6 — Agent Intelligence ← last
 | LLM (Phase 6 v1.0) | Gemini 3.5 Flash | Google GenAI SDK |
 | LLM (Phase 6 v1.1+) | + Anthropic, OpenAI, OpenRouter | — |
 | LLM (Phase 6 v2.0+) | + Ollama, llama.cpp | local optional |
-| License | MIT | — |
+| License | Split: GPL-3.0 for the APK and `android/terminal/`, Apache-2.0 for the Drosh modules — see `LICENSE.md` | — |
 
-> ⚠️ Always confirm versions against `gradle/libs.versions.toml` before referencing any API.
+> ⚠️ Always confirm versions against `android/gradle/libs.versions.toml` before referencing any API.
 > ⚠️ Gemini model strings change frequently — always verify before use.
 > ⚠️ Kotlin 2.2.0 + KSP must match — use KSP `2.2.0-2.0.2`.

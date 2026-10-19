@@ -12,7 +12,7 @@ edit, not a deletion.
 | `AGENT.md` | rules for working in this codebase |
 | `SESSION-SYSTEM.md` | session invariants — cited from `data` and `ui` |
 | `IMMERSIVE-STATUSBAR.md` | the immersive chrome feature, including why one direction was dropped |
-| `icon/` | launcher icon proposal (Open Decision #5) — not yet adopted; `app/src/main/res` still holds the placeholder |
+| `icon/` | launcher icon proposal (Open Decision #5) — not yet adopted; `android/app/src/main/res` still holds the placeholder |
 | `archive/` | superseded, kept for history: `PLAN.md` (DroshKeyboard fork — a separate repo), `PHASE-6-ARCHITECTURE.md` (agent design research — the code has since shipped) |
 
 HTML prototypes are not in this folder, and not in the repository at all —

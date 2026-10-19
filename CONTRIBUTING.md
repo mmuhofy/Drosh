@@ -6,9 +6,11 @@ and to an agent that just joined the session. Read `LICENSE.md` first: the
 project is split-licensed, and what you may do with a file depends on which
 directory it is in.
 
-- The APK and everything under `terminal/` are **GPL-3.0** (Termux-derived).
-- The Drosh-authored modules (`app/`, `ui/`, `data/`, `domain/`, `agent/`,
-  `ssh/`, `core/`, `design-system/`, `editor/`) are **Apache-2.0**.
+- The APK and everything under `android/terminal/` are **GPL-3.0**
+  (Termux-derived).
+- The Drosh-authored modules (`android/app/`, `android/ui/`, `android/data/`,
+  `android/domain/`, `android/agent/`, `android/ssh/`, `android/core/`,
+  `android/design-system/`, `android/editor/`) are **Apache-2.0**.
 - Contributions to the Apache-2.0 modules are accepted under Apache-2.0 (see
   §5 of that license).
 

@@ -9,6 +9,10 @@
 > the same problems, produced by cloning and reading their code (section 7
 > says how to reproduce it). Sections 2–6 turn that into an ordered plan for
 > Drosh.
+>
+> **Paths predate the `android/` + `rust/` split (2026-10-20).** Read `terminal/`
+> as `android/terminal/`, `app/` as `android/app/`, and so on — the line numbers
+> were true for commit `885ae39e` and have not been re-verified.
 
 ---
 

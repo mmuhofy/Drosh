@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["core"]
+members = ["crates/drosh-core"]
 
 # Workspace-level package metadata shared by all crates.
 [workspace.package]
