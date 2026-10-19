@@ -20,12 +20,12 @@ class ProotRunner(
     private val loader32Path: String get() = "$nativeLibDir/libproot-loader32.so"
 
     override fun build(
-        guestWorkDir: String? = null,
-        shell: String = "/bin/zsh",
-        ptyMode: Boolean = true,
-        startCommand: String = "",
-        environmentHooks: Map<String, String> = emptyMap(),
-        shellArgs: List<String> = emptyList(),
+        guestWorkDir: String?,
+        shell: String,
+        ptyMode: Boolean,
+        startCommand: String,
+        environmentHooks: Map<String, String>,
+        shellArgs: List<String>,
     ): GuestCommand {
         File(tmpPath).mkdirs()
 
@@ -69,8 +69,8 @@ class ProotRunner(
         )
     }
 
-    override fun buildBashCommand(command: String, guestWorkDir: String? = null, shell: String = "/bin/zsh"): GuestCommand {
-        val base = build(guestWorkDir, shell, ptyMode = false)
+    override fun buildBashCommand(command: String, guestWorkDir: String?, shell: String): GuestCommand {
+        val base = build(guestWorkDir, shell, false, "", emptyMap(), emptyList())
         val stdbufCmd = "stdbuf -oL $command"
         val argv = base.argv.dropLast(2) + listOf(shell, "-c", stdbufCmd)
         return base.copy(argv = argv)

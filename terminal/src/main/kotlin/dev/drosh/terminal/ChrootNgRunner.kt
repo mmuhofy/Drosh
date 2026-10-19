@@ -35,12 +35,12 @@ class ChrootNgRunner(
     private val rootfsPath: String get() = bootstrap.rootfsDir.absolutePath
 
     override fun build(
-        guestWorkDir: String? = null,
-        shell: String = "/bin/zsh",
-        ptyMode: Boolean = true,
-        startCommand: String = "",
-        environmentHooks: Map<String, String> = emptyMap(),
-        shellArgs: List<String> = emptyList(),
+        guestWorkDir: String?,
+        shell: String,
+        ptyMode: Boolean,
+        startCommand: String,
+        environmentHooks: Map<String, String>,
+        shellArgs: List<String>,
     ): GuestCommand {
         val wd = when {
             guestWorkDir != null -> guestWorkDir
@@ -85,8 +85,8 @@ class ChrootNgRunner(
 
     override fun buildBashCommand(
         command: String,
-        guestWorkDir: String? = null,
-        shell: String = "/bin/zsh",
+        guestWorkDir: String?,
+        shell: String,
     ): GuestCommand {
         val wd = guestWorkDir ?: if (File(rootfsPath, "home").exists()) "/home" else "/root"
         val argv = mutableListOf<String>().apply {
