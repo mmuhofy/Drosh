@@ -9,8 +9,14 @@
 ///
 /// Newlines, tabs and carriage returns are preserved (transcripts keep layout);
 /// other C0 controls are dropped.
+///
+/// Bytes are **copied**, never cast to `char`: every byte of a multi-byte UTF-8
+/// character is `>= 0x20`, so copying them verbatim keeps the text intact, while
+/// `byte as char` would turn `ü` into `Ã¼`. The result is decoded as UTF-8 once,
+/// at the end (lossily, because the emulator's output stream can be cut
+/// mid-character).
 pub fn strip_ansi(input: &[u8]) -> String {
-    let mut out = String::with_capacity(input.len());
+    let mut out: Vec<u8> = Vec::with_capacity(input.len());
     let mut i = 0;
     while i < input.len() {
         let b = input[i];
@@ -59,14 +65,14 @@ pub fn strip_ansi(input: &[u8]) -> String {
                 }
             }
         } else if b >= 0x20 || b == b'\n' || b == b'\t' || b == b'\r' {
-            out.push(b as char);
+            out.push(b);
             i += 1;
         } else {
             // Drop other C0 controls.
             i += 1;
         }
     }
-    out
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[cfg(test)]
@@ -105,5 +111,16 @@ mod tests {
     fn handles_split_like_input() {
         // A lone ESC at the very end must not panic or swallow following bytes.
         assert_eq!(strip_ansi(b"ok\x1b"), "ok");
+    }
+
+    #[test]
+    fn keeps_multibyte_text() {
+        // A byte cast would mojibake every non-ASCII character: `ü` (C3 BC)
+        // became `Ã¼`. The transcript must survive, escapes gone.
+        assert_eq!(strip_ansi("ü şok 🚀".as_bytes()), "ü şok 🚀");
+        assert_eq!(strip_ansi("ü\x1b[31mé\x1b[0m".as_bytes()), "üé");
+        // Box-drawing is three bytes per glyph — the same trap in a TUI row.
+        let framed = "│ aksanlı \x1b]0;t\x07 satır │";
+        assert_eq!(strip_ansi(framed.as_bytes()), "│ aksanlı  satır │");
     }
 }

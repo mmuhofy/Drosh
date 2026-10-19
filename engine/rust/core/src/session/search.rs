@@ -29,15 +29,25 @@ pub fn search(term: &Term<EventProxy>, query: &str, limit: usize) -> Vec<SearchH
         return hits;
     }
 
+    let query_chars = query.chars().count();
+
     for (row, line) in visible_lines(term).iter().enumerate() {
-        let mut start = 0;
-        while let Some(pos) = line[start..].find(query) {
-            let at = start + pos;
-            hits.push(SearchHit { row, col: at, len: query.len() });
+        // `find` answers a byte offset, but `col` has to be a character column:
+        // that is the unit the view highlights, and the unit `SearchHit`
+        // documents. Two cursors keep them in step — `at` slices `line` (always
+        // on a character boundary, so a multi-byte row cannot panic the scan),
+        // `col` counts characters.
+        let mut at = 0;
+        let mut col = 0;
+        while let Some(pos) = line[at..].find(query) {
+            let start = at + pos;
+            col += line[at..start].chars().count();
+            hits.push(SearchHit { row, col, len: query_chars });
             if hits.len() >= limit {
                 return hits;
             }
-            start = at + query.len();
+            at = start + query.len();
+            col += query_chars;
         }
     }
 
@@ -92,5 +102,29 @@ mod tests {
         feed(&session, &["hello"]);
         let term = session.term.lock();
         assert!(search(&term, "world", 10).is_empty());
+    }
+
+    #[test]
+    fn columns_are_characters_not_bytes() {
+        // "ü" and "ş" are two bytes each, so reporting the byte offset would put
+        // the highlight four columns right of the match by the second hit.
+        let session = crate::session::test_session();
+        feed(&session, &["üş cat üş cat"]);
+        let term = session.term.lock();
+        let hits = search(&term, "cat", 10);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0], SearchHit { row: 0, col: 3, len: 3 });
+        assert_eq!(hits[1], SearchHit { row: 0, col: 10, len: 3 });
+    }
+
+    #[test]
+    fn multibyte_query_measures_characters() {
+        let session = crate::session::test_session();
+        feed(&session, &["üş üş"]);
+        let term = session.term.lock();
+        let hits = search(&term, "üş", 10);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0], SearchHit { row: 0, col: 0, len: 2 });
+        assert_eq!(hits[1], SearchHit { row: 0, col: 3, len: 2 });
     }
 }
