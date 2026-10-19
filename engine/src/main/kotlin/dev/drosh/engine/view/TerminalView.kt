@@ -16,6 +16,7 @@ import dev.drosh.engine.input.SelectionText
 import dev.drosh.engine.render.CellMetrics
 import dev.drosh.engine.render.FrameLoop
 import dev.drosh.engine.render.GlyphAtlas
+import dev.drosh.engine.render.Palette
 import dev.drosh.engine.render.TerminalRenderer
 
 /**
