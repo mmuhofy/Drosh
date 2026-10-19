@@ -35,6 +35,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # Layer rules from docs/ARCHITECTURE.md §3. `test` does not pull this in
+      # (it is wired into `check`, which CI never runs wholesale), so the gate
+      # is invoked explicitly — an unenforced rule is a comment, not a rule.
+      - name: Check module boundaries
+        run: ./gradlew checkModuleBoundaries --no-daemon --stacktrace
+
       - name: Run :domain tests
         run: ./gradlew :domain:test --no-daemon --stacktrace
 

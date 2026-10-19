@@ -360,3 +360,54 @@ into `feature-ssh` as `feat(terminal): smooth pinch-to-zoom`.*
       anlatıyor, ama kodda hâlâ `Flow<Int>` + `intPreferencesKey` var ve
       `TerminalFontSizeRepositoryImpl` diye ikinci bir stored terminal font
       boyutu duruyor. Font paketi işinden ayrı, kendi konusu.
+
+---
+
+## Terminal Core Architecture (P0–P7)
+
+Normative spec: `docs/ARCHITECTURE.md`. One branch, one PR per phase; `main`
+never red; no phase closes without the device checklist.
+
+### P0 — Guardrails (shipped)
+- [x] `docs/ARCHITECTURE.md` — module graph, layer rules, naming contract,
+      Rust/Kotlin boundary, size budget
+- [x] `checkModuleBoundaries` task in the root build script, wired into every
+      module's `check`; the debt baseline is a ratchet
+- [x] Negative test: a deliberate `import android.util.Log` in `:domain` fails
+      the gate with `file:line` (run 39127952871)
+- [ ] Baseline numbers (`docs/BASELINE.md`): APK size, cold start, p95 frame
+      time — needs a CI-built APK, not yet measured
+
+### P1 — Rust capabilities
+- [ ] `session/selection.rs` — selection text, word/line boundaries
+- [ ] `session/search.rs` — scrollback search without a transcript copy
+- [ ] `session/url.rs` — per-cell URL detection
+- [ ] `session/block.rs` — block boundaries from the OSC 133 tap
+- [ ] `session/tint.rs` — ambient tint over visible cells
+- [ ] `session/text.rs` — ANSI stripping
+- [ ] `ffi/{selection,search,text,block}.rs` + unit tests
+
+### P2 — `:engine` view becomes the product view
+- [ ] Split `DroshTerminalView` into `TerminalView` / `TerminalGestures` /
+      `SelectionOverlay` / `TerminalIme`
+- [ ] `TerminalController` public surface; selection handles; find hooks; zoom
+- [ ] Background + ambient tint served by Rust
+
+### P3 — `:terminal` rewritten, Termux deleted
+- [ ] 14-file `:terminal` behind `useNativeCore`
+- [ ] Termux sources, `termux.c`, `libtermux.so`, setup scripts removed
+- [ ] `data → terminal` debt 22 → 0; `com.termux` rule added to the checker
+
+### P4 — `:guest` extracted, chroot-ng replaces PRoot
+- [ ] Move rootfs/bootstrap/archive into `:guest`
+- [ ] `ProotRunner` → chroot-ng `GuestLauncher`
+
+### P5 — `:ssh` over bridged sessions
+- [ ] `TransportPort` moves to `:domain`; `ssh → terminal` debt 1 → 0
+
+### P6 — `:app` terminal feature
+- [ ] `TerminalScreen.kt` 2238 → 7 files, largest ≤ 700
+- [ ] `com.termux.view.TerminalView` import count 0
+
+### P7 — Cleanup
+- [ ] `docs/AGENT.md` module table, CHANGELOG release entry, dead adapters
