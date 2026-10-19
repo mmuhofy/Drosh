@@ -379,25 +379,13 @@ never red; no phase closes without the device checklist.
       time — needs a CI-built APK, not yet measured
 
 ### P1 — Rust capabilities
-- [x] `session/selection.rs` — selection text, word/line boundaries
-- [x] `session/search.rs` — scrollback search without a transcript copy
-- [x] `session/url.rs` — per-cell URL detection
-- [x] `session/block.rs` — block boundaries from the OSC 133 tap
-- [x] `session/tint.rs` — ambient tint over visible cells
-- [x] `session/text.rs` — ANSI stripping
-- [x] `ffi/{selection,search,text,block}.rs` + unit tests
-      - `search.rs` and `url.rs` walk the visible grid **character-wise**: `col`
-        and `len` are character columns, so a multi-byte row (Turkish,
-        box-drawing, emoji) cannot put the scan inside a character and abort the
-        process across JNI. Regression tests live in both files.
-- [ ] **Search covers the viewport only.** The name says scrollback; the
-      implementation scans the visible grid. The scrollback path needs
-      `RegexSearch` from `alacritty_terminal`, which was deliberately left out of
-      P1 — decide whether the find bar should reach into history before wiring it.
-- [ ] **Wide glyphs count as one column.** `grid.rs`/`url.rs`/`search.rs` map a
-      character to a cell column 1:1, so a hit drawn after a CJK or emoji glyph is
-      reported left of where it is. Fixing it means carrying the cell column
-      alongside the row text; verify on a device with a CJK row first.
+- [ ] `session/selection.rs` — selection text, word/line boundaries
+- [ ] `session/search.rs` — scrollback search without a transcript copy
+- [ ] `session/url.rs` — per-cell URL detection
+- [ ] `session/block.rs` — block boundaries from the OSC 133 tap
+- [ ] `session/tint.rs` — ambient tint over visible cells
+- [ ] `session/text.rs` — ANSI stripping
+- [ ] `ffi/{selection,search,text,block}.rs` + unit tests
 
 ### P2 — `:engine` view becomes the product view
 - [ ] Split `DroshTerminalView` into `TerminalView` / `TerminalGestures` /
