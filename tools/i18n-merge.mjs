@@ -24,11 +24,11 @@ const SRC = join(ROOT, 'docs/tmp-translations-only-the-missing')
 const LOCALES = ['tr', 'de', 'es', 'pt', 'ru', 'zh', 'ja', 'ar', 'fil']
 
 const FILES = {
-  'app/strings.xml': l => `app/src/main/res/values-${l}/strings.xml`,
-  'ui/strings.xml': l => `ui/src/main/res/values-${l}/strings.xml`,
-  'ui/drosh_strings.xml': l => `ui/src/main/res/values-${l}/drosh_strings.xml`,
-  'terminal/strings.xml': l => `terminal/src/main/res/values-${l}/strings.xml`,
-  'editor/strings.xml': l => `editor/src/main/res/values-${l}/strings.xml`,
+  'app/strings.xml': l => `android/app/src/main/res/values-${l}/strings.xml`,
+  'ui/strings.xml': l => `android/ui/src/main/res/values-${l}/strings.xml`,
+  'ui/drosh_strings.xml': l => `android/ui/src/main/res/values-${l}/drosh_strings.xml`,
+  'terminal/strings.xml': l => `android/terminal/src/main/res/values-${l}/strings.xml`,
+  'editor/strings.xml': l => `android/editor/src/main/res/values-${l}/strings.xml`,
 }
 
 /** New keys: English base, Turkish base. The eight arrive from the staging files. */

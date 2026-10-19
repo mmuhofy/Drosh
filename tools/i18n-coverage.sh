@@ -13,7 +13,7 @@ cd "$(git rev-parse --show-toplevel)"
 # if it has a values/ directory with string resources.
 mods=()
 for dir in app ui terminal design-system core data domain agent ssh editor; do
-    res="$dir/src/main/res"
+    res="android/$dir/src/main/res"
     [ -d "$res/values" ] && mods+=("$dir:$res")
 done
 

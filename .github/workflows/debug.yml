@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 25
     defaults:
       run:
-        working-directory: engine/rust
+        working-directory: rust
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: engine/rust
+          workspaces: rust
 
       - name: Format check
         run: cargo fmt --all -- --check
@@ -74,7 +74,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: engine/rust
+          workspaces: rust
 
       - name: Install pinned NDK
         run: |
@@ -93,9 +93,9 @@ jobs:
           export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android26-clang"
           export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
           export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
-          cargo build --release --target aarch64-linux-android --manifest-path engine/rust/Cargo.toml
+          cargo build --release --target aarch64-linux-android --manifest-path rust/Cargo.toml
           mkdir -p "$RUNNER_TEMP/engine-jni"
-          cp engine/rust/target/aarch64-linux-android/release/libdrosh_core.so \
+          cp rust/target/aarch64-linux-android/release/libdrosh_core.so \
             "$RUNNER_TEMP/engine-jni/"
           ls -l "$RUNNER_TEMP/engine-jni/"
 
@@ -127,7 +127,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: engine-core-so
-          path: engine/src/main/jniLibs/arm64-v8a
+          path: android/engine/src/main/jniLibs/arm64-v8a
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -139,23 +139,25 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Assemble debug
+        working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace --max-workers=2
 
       # The identity hash in the migration is a hand-copied constant, and a stale
       # one is invisible here: the build passes and the app crashes on first
       # launch with "Room cannot verify the data integrity". Room writes the real
-      # hash to data/schemas/ during the build, so exporting here and diffing
-      # turns a device crash into a red build.
+      # hash to android/data/schemas/ during the build, so exporting here and
+      # diffing turns a device crash into a red build. This step runs from the
+      # repository root, so the pathspecs carry the `android/` prefix.
       - name: Check Room schema matches the committed snapshot
         run: |
-          if ! git diff --quiet -- data/schemas ||              [ -n "$(git ls-files --others --exclude-standard -- data/schemas)" ]; then
-            echo "::error::The Room schema in data/schemas does not match the committed"
+          if ! git diff --quiet -- android/data/schemas ||              [ -n "$(git ls-files --others --exclude-standard -- android/data/schemas)" ]; then
+            echo "::error::The Room schema in android/data/schemas does not match the committed"
             echo "::error::snapshot. If you changed a @Entity, also update"
             echo "::error::DroshDatabase.IDENTITY_HASH — a stale hash builds clean and"
             echo "::error::crashes on first launch with 'Room cannot verify data"
             echo "::error::integrity'."
-            git status --porcelain -- data/schemas
-            find data/schemas -name "*.json" -exec cat {} \;
+            git status --porcelain -- android/data/schemas
+            find android/data/schemas -name "*.json" -exec cat {} \;
             exit 1
           fi
 
@@ -164,7 +166,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: room-schema-mismatch
-          path: data/schemas
+          path: android/data/schemas
           if-no-files-found: warn
 
       # An APK without the .so starts and dies on System.loadLibrary; fail
@@ -172,7 +174,7 @@ jobs:
       - name: Check the APK carries the engine core
         run: |
           set -euo pipefail
-          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libdrosh_core.so"
           echo "$APK contains libdrosh_core.so"
 
@@ -180,6 +182,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: drosh-debug-arm64-v8a-apk
-          path: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+          path: android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
           if-no-files-found: warn
           retention-days: 14

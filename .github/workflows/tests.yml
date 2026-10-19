@@ -14,6 +14,11 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Every step in this job that runs a command is a Gradle invocation, and the
+    # Gradle root is android/. The action steps ignore this.
+    defaults:
+      run:
+        working-directory: android
 
     steps:
       - name: Checkout

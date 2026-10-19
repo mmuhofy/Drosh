@@ -72,9 +72,9 @@ fastlane/readme.md
 # IrisShell: commit the debug.keystore so every installer (CI + local) signs
 # with the same key. Otherwise CI-built APKs cannot be installed over locally-
 # built APKs without uninstalling first. Release keystores are NEVER tracked.
-!app/keystore/debug.keystore
-!keystore/debug.keystore
-!keystore.properties
+!android/app/keystore/debug.keystore
+!android/keystore/debug.keystore
+!android/keystore.properties
 
 
 # Misc
@@ -91,7 +91,7 @@ secrets.properties
 *.pem
 
 # Native libs decrypted at runtime
-!gradle/wrapper/gradle-wrapper.jar
+!android/gradle/wrapper/gradle-wrapper.jar
 
 # Local junk that does not belong in the repository
 .recycle/
@@ -110,7 +110,7 @@ html/
 # i18n staging: prepared translations, already merged into values-XX/
 docs/tmp-translations-only-the-missing/
 
-# The Rust engine workspace (engine/rust) — built only in CI.
-engine/rust/target/
+# The Rust workspace (rust/) — built only in CI.
+rust/target/
 # The cross-built core arrives from CI as an artifact, never from git.
-engine/src/main/jniLibs/
+android/engine/src/main/jniLibs/

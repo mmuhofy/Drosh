@@ -33,6 +33,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+/** The Gradle modules live under android/; `module` is only ever a module name. */
+const MODULES = join(ROOT, 'android')
 
 /** The resource files that carry UI text, per module. */
 const TARGETS = [
@@ -144,8 +146,8 @@ function parse(xml) {
 
 function readTarget(module, file, locale) {
   const dir = locale
-    ? join(ROOT, module, 'src/main/res', `values-${locale}`)
-    : join(ROOT, module, 'src/main/res', 'values')
+    ? join(MODULES, module, 'src/main/res', `values-${locale}`)
+    : join(MODULES, module, 'src/main/res', 'values')
   const path = join(dir, file)
   return existsSync(path) ? parse(readFileSync(path, 'utf8')) : null
 }
@@ -389,7 +391,7 @@ function writeTarget(r, entries) {
     lines.push('    </plurals>')
   }
   lines.push('</resources>', '')
-  const dir = join(ROOT, module, 'src/main/res', `values-${locale}`)
+  const dir = join(MODULES, module, 'src/main/res', `values-${locale}`)
   writeFileSync(join(dir, file), lines.join('\n'))
 }
 
@@ -449,7 +451,7 @@ async function translate(langs, dry) {
 
     if (!dry) {
       writeTarget(r, entries)
-      console.log(`✓ wrote ${r.module}/src/main/res/values-${r.locale}/${r.file}`)
+      console.log(`✓ wrote android/${r.module}/src/main/res/values-${r.locale}/${r.file}`)
     }
   }
   if (dry) {
