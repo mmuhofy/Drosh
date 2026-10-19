@@ -105,7 +105,9 @@ mod tests {
         feed(&session, &["see https://x.io here"]);
         let term = session.term.lock();
         assert_eq!(url_at(&term, 0, 8), Some("https://x.io".to_owned()));
-        assert_eq!(url_at(&term, 0, 4), None);
+        // Column 3 is the space before "https" (s,e,e,space); the URL begins at
+        // column 4, so a tap there must not resolve.
+        assert_eq!(url_at(&term, 0, 3), None);
     }
 
     #[test]
