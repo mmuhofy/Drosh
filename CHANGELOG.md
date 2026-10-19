@@ -109,6 +109,11 @@ release when it ships.
 
 ### Changed
 
+- The repository is split by build system: the Gradle build — modules, wrapper,
+  convention plugins, keystore — lives under `android/`, the Rust engine
+  workspace under `rust/`, and the vendored chroot-ng under `third_party/`.
+  Module names, Kotlin packages and the cdylib name are unchanged, so nothing
+  about the app itself moved with them
 - The Projects screen is one flat list in the settings language — projects,
   their sessions, the sessions in no project and the archive as rows of the
   same run — with loading, first-run, unfiled and no-results states, and the

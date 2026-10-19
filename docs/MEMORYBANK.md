@@ -66,6 +66,10 @@ _Last updated: 2026-10-08_
 
 ## 4. Architecture Layers
 
+Modules live under `android/`, the Gradle build root; the tree below lists the
+*packages* inside each module, not repository paths. The Rust engine is the
+separate `rust/` workspace.
+
 ```
 ui/
   setup/            → Onboarding + BootstrapStepper + SetupRecovery + LiveLogCard

@@ -9,6 +9,11 @@ that nobody enforces is a bug in this file.
 
 ## 1. Module graph
 
+Every module directory below lives under `android/`, the Gradle build root;
+`gradlew`, `settings.gradle.kts` and `build-logic/` live there too. The Rust
+engine is the separate `rust/` Cargo workspace (§2). Module *names* are unchanged
+by that split: `android/data/` is still `project(":data")`.
+
 ```
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
 
@@ -72,8 +77,12 @@ into the boundary.
 
 ### 2.1 JNI surface layout
 
+The target is one file per concern; today the surface is `core/NativeCore.kt`
+(the `external fun` declarations) plus `core/EngineSession.kt` (the session
+wrapper the view talks to).
+
 ```
-engine/src/main/kotlin/dev/drosh/engine/native/
+android/engine/src/main/kotlin/dev/drosh/engine/native/
   NativeCore.kt       library load, handle lifetime
   NativeTerminal.kt   create/feed/resize/snapshot/state/modes
   NativeSelection.kt  select, extend, selectedText, wordAt, lineAt
@@ -94,7 +103,7 @@ or panic may cross the boundary; the panic hook is installed at load.
 3. `:guest` imports no UI, no `:terminal`, no `:engine`.
 4. `:terminal` imports no Compose, no `:ui`, no `:app`.
 5. `:ui` imports neither `:terminal` nor `:engine`.
-6. Only `engine/.../native/` declares `external fun`.
+6. Only `android/engine/.../native/` (today `android/engine/.../core/`) declares `external fun`.
 7. No module imports `com.termux.*` once Termux is removed (P3).
 
 Run `./gradlew checkModuleBoundaries` (it is also part of every `check`).
@@ -147,6 +156,12 @@ responsibility is unclear: `TerminalManager` (1808 lines), `BlockEngineWire`,
 | `font/` | raster, shaping | |
 | `util/` | logging | |
 
+Today all five are modules of the single crate
+`rust/crates/drosh-core/src/`. The planned split makes each one a crate of its
+own (`drosh-session`, `drosh-bridge`, `drosh-pty`, `drosh-font`), so the rules
+above bind at compile time — a crate cannot import a dependency it does not
+declare.
+
 ---
 
 ## 5. Size budget
@@ -177,3 +192,9 @@ Current overruns, all scheduled: `TerminalScreen.kt` 2238 (P6), `TerminalManager
 
 Rules for every phase: one branch, one PR, CI green before merge, `main` never red,
 no force-push.
+
+The repository layout itself was split between P0 and P1 (2026-10-20): the Gradle
+build moved under `android/` and the Cargo workspace under `rust/`, with
+`third_party/chroot-ng` for the vendored C guest runtime. It was a pure move —
+module names, Kotlin packages and the cdylib name did not change — so no import,
+Hilt binding or `System.loadLibrary` call was affected.

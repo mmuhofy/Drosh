@@ -16,9 +16,9 @@ Aşağıdaki liste, **henüz kod yazılmamış, sadece planlanmış** maddeleri 
 *Şartname: Muhofy, 2026-10-05 — "sadece gruplama, kalıcı metadata olacak sessionlar processler kalıcı olmucak"*
 
 ### Shipped (2026-10-05) — `feat/workspace`, main'e #24 ile girdi
-- [x] `domain/workspace/` — `Workspace`, `WorkspaceEdit`, `WorkspaceRepository`,
+- [x] `android/domain/workspace/` — `Workspace`, `WorkspaceEdit`, `WorkspaceRepository`,
       `WorkspaceEdit.forStorage()`, `WorkspacePath`, `WorkspaceGrouping`
-- [x] `data/workspace/` — `WorkspaceEntity`, `WorkspaceDao`, `WorkspaceRepositoryImpl`
+- [x] `android/data/workspace/` — `WorkspaceEntity`, `WorkspaceDao`, `WorkspaceRepositoryImpl`
 - [x] `sessions.workspace_id` — nullable FK, `ON DELETE SET NULL`, indexed
 - [x] `DroshDatabase` 2 → 3 + `MIGRATION_2_3` (sessions tablosu rebuild: SQLite
       mevcut tabloya constraint ekleyemiyor)
@@ -83,8 +83,8 @@ Gruplama çalışıyordu; çevresi çalışmıyordu.
       çapraz referanslar (`SessionEntity.workspace_id`) FK tanımlıyor. v6 bump
       + tablo yeniden kurma gerektirir; şablon `MIGRATION_2_3`'teki `sessions`
       rebuild'i.
-- [x] ~~**`data/schemas/`'ı commit etmeye başla.**~~ — **çözüldü**, `8d8872b`.
-      `data/schemas/3.json`, `4.json`, `5.json` commit edildi ve
+- [x] ~~**`android/data/schemas/`'ı commit etmeye başla.**~~ — **çözüldü**, `8d8872b`.
+      `android/data/schemas/3.json`, `4.json`, `5.json` commit edildi ve
       `debug.yml`, `assembleDebug` sonrası şemayı diff'leyip uyuşmazlığı
       artifact olarak yüklüyor. Üç identity-hash çökmesi kırmızı build'e dönüştü.
 - [ ] **Arşiv ekranı.** ~~`archived` kolonu ve `observeArchived()` var ama kimse
@@ -131,7 +131,7 @@ Gruplama çalışıyordu; çevresi çalışmıyordu.
       Must be confirmed before any F-Droid submission.
 
 ### Known unrelated bugs found while working here
-- [ ] `ui/.../input/FlatKeyBar.kt:170` — the Backspace key emits
+- [ ] `android/ui/.../input/FlatKeyBar.kt:170` — the Backspace key emits
       `Navigation.HOME`. `ExtraKey.Navigation` has no `BACKSPACE` member at all.
 - [ ] `TerminalView`'s IME mirror (`imeCursor`/`typedMirror`, 144 lines) was
       reverted by `72efca9` as "a wrong guess, made by reading code instead of
@@ -375,19 +375,42 @@ never red; no phase closes without the device checklist.
       module's `check`; the debt baseline is a ratchet
 - [x] Negative test: a deliberate `import android.util.Log` in `:domain` fails
       the gate with `file:line` (run 39127952871)
+- [x] **Repository split** — the Gradle build moved under `android/`, the Cargo
+      workspace under `rust/crates/`, the vendored chroot-ng to
+      `third_party/chroot-ng`. A pure move: module names, packages and the
+      cdylib name are unchanged, so no import or `System.loadLibrary` call moved
+      with it.
 - [ ] Baseline numbers (`docs/BASELINE.md`): APK size, cold start, p95 frame
       time — needs a CI-built APK, not yet measured
 
-### P1 — Rust capabilities
-- [ ] `session/selection.rs` — selection text, word/line boundaries
-- [ ] `session/search.rs` — scrollback search without a transcript copy
-- [ ] `session/url.rs` — per-cell URL detection
-- [ ] `session/block.rs` — block boundaries from the OSC 133 tap
-- [ ] `session/tint.rs` — ambient tint over visible cells
-- [ ] `session/text.rs` — ANSI stripping
-- [ ] `ffi/{selection,search,text,block}.rs` + unit tests
+### P1 — Rust capabilities (shipped)
+- [x] `session/selection.rs` — selection text, word/line boundaries
+- [x] `session/search.rs` — visible-grid search without a transcript copy
+- [x] `session/url.rs` — per-cell URL detection
+- [x] `session/block.rs` — block boundaries from the OSC 133 tap
+- [x] `session/tint.rs` — ambient tint over visible cells
+- [x] `session/text.rs` — ANSI stripping
+- [x] `ffi/{selection,search,text,block}.rs` + unit tests
+      - `search.rs` and `url.rs` walk the visible grid **character-wise**: `col`
+        and `len` are character columns, so a multi-byte row (Turkish,
+        box-drawing, emoji) cannot put the scan inside a character and abort the
+        process across JNI. Regression tests live in both files.
+- [ ] **Search covers the viewport only.** The name says scrollback; the
+      implementation scans the visible grid. Reaching into history needs
+      `RegexSearch` from `alacritty_terminal`, which P1 deliberately left out —
+      decide whether the find bar should reach back before wiring it.
+- [ ] **Wide glyphs count as one column.** `grid.rs`/`url.rs`/`search.rs` map a
+      character to a cell column 1:1, so a hit drawn after a CJK or emoji glyph is
+      reported left of where it is. Fixing it means carrying the cell column
+      alongside the row text; verify on a device with a CJK row first.
 
 ### P2 — `:engine` view becomes the product view
+- [ ] **The engine's view is not wired into the app.** `android/app/build.gradle.kts`
+      depends on `:engine`, but nothing in `android/app/`, `android/ui/`,
+      `android/data/` or `android/terminal/` imports `dev.drosh.engine`; the
+      product still renders through `com.termux.view.TerminalView`
+      (verified 2026-10-20). The P2 title describes the engine's own shape, not
+      the product's view — the switch is P3 work.
 - [ ] Split `DroshTerminalView` into `TerminalView` / `TerminalGestures` /
       `SelectionOverlay` / `TerminalIme`
 - [ ] `TerminalController` public surface; selection handles; find hooks; zoom
