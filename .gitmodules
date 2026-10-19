@@ -1,0 +1,3 @@
+[submodule "engine/rust/chroot-ng"]
+	path = engine/rust/chroot-ng
+	url = https://github.com/mmuhofy/chroot-ng.git

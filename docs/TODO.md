@@ -406,6 +406,10 @@ never red; no phase closes without the device checklist.
 - [ ] `data → terminal` debt 22 → 0; `com.termux` rule added to the checker
 
 ### P4 — `:guest` extracted, chroot-ng replaces PRoot
+- [x] chroot-ng extracted to its own repo (`mmuhofy/chroot-ng`, a fork of the
+      upstream `sylirre/fake-chroot-ng`); Drosh consumes it as a git submodule at
+      `engine/rust/chroot-ng`, pinned at `12d07c1a` (builds `libchrootng.so` in
+      its own repo CI — see `mmuhofy/chroot-ng`)
 - [ ] Move rootfs/bootstrap/archive into `:guest`
 - [ ] `ProotRunner` → chroot-ng `GuestLauncher`
 

@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -65,6 +67,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -122,6 +126,9 @@ jobs:
           # and an equal versionCode is exactly what lets an older APK install
           # over a newer one and downgrade the database out from under Room.
           fetch-depth: 0
+          # chroot-ng lives in its own repo (mmuhofy/chroot-ng) and is pulled in
+          # as a submodule so its source is present for the P4 guest build.
+          submodules: true
 
       - name: Fetch the cross-built Rust core
         uses: actions/download-artifact@v4
