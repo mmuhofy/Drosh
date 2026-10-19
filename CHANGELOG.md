@@ -107,6 +107,16 @@ release when it ships.
 - The in-app browser gained navigation, a progress bar, a URL dropdown and a
   half-expanded default
 
+**Engine — P2 product view**
+
+- `DroshTerminalView` split into `TerminalView`, `TerminalGestures`,
+  `SelectionOverlay` and `TerminalIme`; `TerminalController` is now the public
+  surface (selection handles, find hook, zoom placeholder, ambient tint)
+- Ambient tint served from Rust: `ffi::tint` `nativeAmbientTint` feeds the
+  renderer's clear colour, matching the terminal chrome to the running program
+- `EngineSession.search` / `selectWord` / `selectLine` surfaced through the
+  controller's find and selection handles
+
 ### Changed
 
 - The Projects screen is one flat list in the settings language — projects,
