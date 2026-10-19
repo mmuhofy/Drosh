@@ -1,14 +1,16 @@
-//! A terminal session: the engine, its event loop thread, the PTY, and the
-//! buffers the JNI layer hands to Kotlin.
+//! A terminal session: the engine, its event loop thread, the PTY it drives,
+//! and the buffers the JNI layer hands to Kotlin.
 //!
-//! Lock order (never violated, here and in `ffi`): `term` → `damage_scratch` →
-//! `damage`. Taking them in any other order would deadlock against a concurrent
-//! snapshot.
+//! The PTY itself is [`drosh_pty`] and the wire formats are [`drosh_bridge`];
+//! this crate is the behaviour that ties them to `alacritty_terminal`.
+//!
+//! Lock order (never violated, here and in `drosh-core`'s `ffi`): `term` →
+//! `damage_scratch` → `damage`. Taking them in any other order would deadlock
+//! against a concurrent snapshot.
 
 pub mod block;
 pub mod grid;
 pub mod manager;
-pub mod pty_factory;
 pub mod search;
 pub mod selection;
 pub mod shell_mark;
@@ -28,11 +30,11 @@ use alacritty_terminal::term::color::COUNT as COLOR_COUNT;
 use alacritty_terminal::term::{Config, LineDamageBounds, Osc52, Term};
 use alacritty_terminal::vte::ansi::{Processor, Rgb, StdSyncHandler};
 
-use crate::bridge::events::{
+use drosh_bridge::events::{
     EventProxy, EventQueue, SessionEvent, Terminator, DEFAULT_QUEUE_CAPACITY,
 };
-use crate::bridge::snapshot;
-use crate::session::pty_factory::{LocalPty, PtyConfig};
+use drosh_bridge::snapshot;
+use drosh_pty::{LocalPty, PtyConfig};
 
 /// Grid dimensions of a session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -413,47 +415,47 @@ impl Session {
 
     /// Strip ANSI escape sequences from `input`.
     pub fn strip_ansi(&self, input: &[u8]) -> String {
-        crate::session::text::strip_ansi(input)
+        crate::text::strip_ansi(input)
     }
 
     /// URLs on the visible grid, up to `limit`.
-    pub fn find_urls(&self, limit: usize) -> Vec<crate::session::url::UrlHit> {
-        self.with_term(|term| crate::session::url::find_urls(term, limit))
+    pub fn find_urls(&self, limit: usize) -> Vec<crate::url::UrlHit> {
+        self.with_term(|term| crate::url::find_urls(term, limit))
     }
 
     /// The URL covering visible (row, col), if any.
     pub fn url_at(&self, row: usize, col: usize) -> Option<String> {
-        self.with_term(|term| crate::session::url::url_at(term, row, col))
+        self.with_term(|term| crate::url::url_at(term, row, col))
     }
 
     /// Substring search over the visible grid, up to `limit` matches.
-    pub fn search(&self, query: &str, limit: usize) -> Vec<crate::session::search::SearchHit> {
-        self.with_term(|term| crate::session::search::search(term, query, limit))
+    pub fn search(&self, query: &str, limit: usize) -> Vec<crate::search::SearchHit> {
+        self.with_term(|term| crate::search::search(term, query, limit))
     }
 
     /// Average background colour of the visible grid, if any cell sets one.
     pub fn ambient_tint(&self) -> Option<[u8; 3]> {
-        self.with_term(|term| crate::session::tint::ambient_tint(term))
+        self.with_term(|term| crate::tint::ambient_tint(term))
     }
 
     /// Currently selected text, if a selection is active.
     pub fn selection_text(&self) -> Option<String> {
-        self.with_term(|term| crate::session::selection::selection_text(term))
+        self.with_term(|term| crate::selection::selection_text(term))
     }
 
     /// Select the word under (row, col); returns the selected text.
     pub fn select_word(&self, row: usize, col: usize) -> Option<String> {
-        self.with_term(|term| crate::session::selection::select_word(term, row, col))
+        self.with_term(|term| crate::selection::select_word(term, row, col))
     }
 
     /// Select the whole line under (row, col); returns the selected text.
     pub fn select_line(&self, row: usize, col: usize) -> Option<String> {
-        self.with_term(|term| crate::session::selection::select_line(term, row, col))
+        self.with_term(|term| crate::selection::select_line(term, row, col))
     }
 
     /// Clear any active selection.
     pub fn clear_selection(&self) {
-        self.with_term(crate::session::selection::clear);
+        self.with_term(crate::selection::clear);
     }
 }
 
@@ -463,8 +465,8 @@ impl Session {
 /// survives the call is the returned `Arc<Session>` (kept alive by the caller).
 #[cfg(test)]
 pub(crate) fn test_session() -> std::sync::Arc<Session> {
-    let mut mgr = crate::session::manager::Manager::new();
-    let id = mgr.spawn_bridged(crate::session::GridSize::new(80, 24), 10, 20).unwrap();
+    let mut mgr = crate::manager::Manager::new();
+    let id = mgr.spawn_bridged(crate::GridSize::new(80, 24), 10, 20).unwrap();
     mgr.get(id).unwrap()
 }
 

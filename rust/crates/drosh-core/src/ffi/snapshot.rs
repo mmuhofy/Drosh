@@ -11,7 +11,7 @@ use jni::objects::{JByteBuffer, JClass, JIntArray};
 use jni::sys::{jint, jlong};
 use jni::JNIEnv;
 
-use crate::bridge::snapshot::STATE_LEN;
+use drosh_bridge::snapshot::STATE_LEN;
 use crate::ffi::{finish, int_array_len, session_or, write_int_array, ErrorCode, FfiResult};
 
 /// Copy the damaged cells into `cells` and the damage list into `damage_out`.
@@ -56,7 +56,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSnapshot<'loc
 
 /// Fill `state_out` with the renderer state that is not part of the cell
 /// buffer: size, cursor, display offset and mode bits (see
-/// [`crate::bridge::snapshot::state_index`]).
+/// [`drosh_bridge::snapshot::state_index`]).
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeState<'local>(
     env: JNIEnv<'local>,

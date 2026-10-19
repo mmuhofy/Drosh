@@ -10,7 +10,7 @@ use alacritty_terminal::index::{Column, Line, Point, Side};
 use alacritty_terminal::selection::{Selection, SelectionType};
 use alacritty_terminal::term::Term;
 
-use crate::session::EventProxy;
+use crate::EventProxy;
 
 /// The currently selected text, if any selection is active.
 pub fn selection_text(term: &Term<EventProxy>) -> Option<String> {
@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn word_selection_captures_the_token() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         session.feed(b"hello world");
         let mut term = session.term.lock();
         let text = select_word(&mut term, 0, 1).expect("selection produced text");
@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn line_selection_captures_the_whole_line() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         session.feed(b"hello world");
         let mut term = session.term.lock();
         let text = select_line(&mut term, 0, 3).expect("selection produced text");
@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn clear_removes_selection() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         session.feed(b"hello world");
         let mut term = session.term.lock();
         select_word(&mut term, 0, 1);

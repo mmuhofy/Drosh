@@ -8,8 +8,8 @@
 
 use alacritty_terminal::term::Term;
 
-use crate::session::grid::visible_lines;
-use crate::session::EventProxy;
+use crate::grid::visible_lines;
+use crate::EventProxy;
 
 /// A match position on a visible row.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,7 +57,7 @@ pub fn search(term: &Term<EventProxy>, query: &str, limit: usize) -> Vec<SearchH
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn feed(session: &crate::session::Session, lines: &[&str]) {
+    fn feed(session: &crate::Session, lines: &[&str]) {
         let mut bytes = Vec::new();
         for line in lines {
             bytes.extend_from_slice(line.as_bytes());
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn finds_all_occurrences() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["the cat sat on the cat mat"]);
         let term = session.term.lock();
         let hits = search(&term, "cat", 10);
@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn empty_query_is_safe() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["anything"]);
         let term = session.term.lock();
         assert!(search(&term, "", 10).is_empty());
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn honours_limit() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["a a a a a"]);
         let term = session.term.lock();
         assert_eq!(search(&term, "a", 2).len(), 2);
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn no_match_is_empty() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["hello"]);
         let term = session.term.lock();
         assert!(search(&term, "world", 10).is_empty());
@@ -108,7 +108,7 @@ mod tests {
     fn columns_are_characters_not_bytes() {
         // "ü" and "ş" are two bytes each, so reporting the byte offset would put
         // the highlight four columns right of the match by the second hit.
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["üş cat üş cat"]);
         let term = session.term.lock();
         let hits = search(&term, "cat", 10);
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn multibyte_query_measures_characters() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["üş üş"]);
         let term = session.term.lock();
         let hits = search(&term, "üş", 10);

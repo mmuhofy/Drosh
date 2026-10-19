@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/drosh-core"]
+members = ["crates/*"]
 
 # Workspace-level package metadata shared by all crates.
 [workspace.package]
@@ -8,6 +8,42 @@ version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0"
 repository = "https://github.com/mmuhofy/Drosh"
+
+# One version of every dependency for the whole workspace. The engine pins its
+# VT engine and its JNI version on purpose (decision D2, and the JNI version
+# Termi runs on Android), and the crates must agree or the tree quietly ends up
+# with two copies of alacritty_terminal.
+#
+# The internal crates are workspace dependencies too, so a crate asks for
+# `drosh-bridge.workspace = true` and never spells out a relative path twice.
+[workspace.dependencies]
+drosh-bridge = { path = "crates/drosh-bridge" }
+drosh-font = { path = "crates/drosh-font" }
+drosh-pty = { path = "crates/drosh-pty" }
+drosh-session = { path = "crates/drosh-session" }
+
+# VT engine — 0.x crate: hard pin, upgrades are deliberate work.
+alacritty_terminal = "=0.26.0"
+# OSC 52 transport: clipboard text crosses to Kotlin base64-encoded because
+# event records are newline-separated. 0.22.0 is the version
+# alacritty_terminal 0.26.0 already resolves, so the tree keeps one copy.
+base64 = "=0.22.0"
+# JNI boundary — the version Termi runs on Android.
+jni = "=0.21"
+# PTY path (D8): portable-pty does not compile for Android, so we talk to the
+# kernel's PTY syscalls through libc directly.
+libc = "0.2"
+log = "0.4"
+# PTY readiness and the SIGCHLD self-pipe. Both are the versions
+# alacritty_terminal 0.26.0 already pulls in, so the tree keeps one copy.
+polling = "3.8"
+signal-hook = "0.4.3"
+# Font stack — decision D4: shaping and rasterisation in Rust. Versions read
+# from the crates themselves (2026-10-16): rustybuzz 0.20 keeps the
+# harfbuzz-style API we call (`Face::from_slice`, `shape`), and swash 0.2's
+# default features already include `scale` and `render`, i.e. the rasteriser.
+rustybuzz = "0.20"
+swash = "0.2"
 
 [profile.release]
 lto = true

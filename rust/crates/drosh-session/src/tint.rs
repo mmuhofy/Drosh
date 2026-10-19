@@ -8,7 +8,7 @@
 use alacritty_terminal::term::Term;
 use alacritty_terminal::vte::ansi::{Color, Rgb};
 
-use crate::session::EventProxy;
+use crate::EventProxy;
 
 /// The average RGB of every visible cell whose background is an explicit colour.
 ///
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn none_when_no_custom_background() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         session.feed(b"plain text");
         let term = session.term.lock();
         assert!(ambient_tint(&term).is_none());
@@ -60,7 +60,7 @@ mod tests {
         // plain text so the cells carry that background. A palette code like
         // `[41m` would be `Color::Indexed`, which ambient_tint intentionally
         // skips.
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         session.feed(b"\x1b[48;2;192;0;0m");
         session.feed(b"red");
 

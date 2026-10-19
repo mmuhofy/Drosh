@@ -1,0 +1,18 @@
+[package]
+name = "drosh-session"
+description = "The terminal session: alacritty's Term, its event loop, and the capabilities over its grid"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+drosh-bridge.workspace = true
+drosh-pty.workspace = true
+
+alacritty_terminal.workspace = true
+# `tap.rs` duplicates and reads the PTY's descriptor to watch shell-integration
+# marks without taking bytes away from the engine.
+libc.workspace = true
+log.workspace = true
+polling.workspace = true

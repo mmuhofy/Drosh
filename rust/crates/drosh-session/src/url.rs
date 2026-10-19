@@ -15,8 +15,8 @@
 
 use alacritty_terminal::term::Term;
 
-use crate::session::grid::visible_lines;
-use crate::session::EventProxy;
+use crate::grid::visible_lines;
+use crate::EventProxy;
 
 /// A URL found on a visible row.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,7 +107,7 @@ pub fn url_at(term: &Term<EventProxy>, row: usize, col: usize) -> Option<String>
 mod tests {
     use super::*;
 
-    fn feed(session: &crate::session::Session, lines: &[&str]) {
+    fn feed(session: &crate::Session, lines: &[&str]) {
         let mut bytes = Vec::new();
         for line in lines {
             bytes.extend_from_slice(line.as_bytes());
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn finds_http_and_https() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["visit https://example.com and http://a.b/c now"]);
         let term = session.term.lock();
         let hits = find_urls(&term, 10);
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn url_at_resolves_within_range() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["see https://x.io here"]);
         let term = session.term.lock();
         assert_eq!(url_at(&term, 0, 8), Some("https://x.io".to_owned()));
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn respects_limit() {
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["http://a http://b http://c"]);
         let term = session.term.lock();
         assert_eq!(find_urls(&term, 2).len(), 2);
@@ -154,7 +154,7 @@ mod tests {
         // A byte-wise scan used to slice `"│ şu https://x.io"` inside `│` or `ş`
         // and panic; across JNI that is a process abort, so this test is the
         // difference between a link chip and a dead app.
-        let session = crate::session::test_session();
+        let session = crate::test_session();
         feed(&session, &["│ şu https://x.io bak │"]);
         let term = session.term.lock();
 

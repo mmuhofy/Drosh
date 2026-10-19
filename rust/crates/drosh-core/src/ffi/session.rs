@@ -7,8 +7,8 @@ use jni::JNIEnv;
 use crate::ffi::{
     fail, finish, optional_string, required_string, session_or, ErrorCode, FfiResult,
 };
-use crate::session::manager;
-use crate::session::{GridSize, SessionConfig};
+use drosh_session::manager;
+use drosh_session::{GridSize, SessionConfig};
 
 /// Start a session: PTY + engine + event loop.
 ///

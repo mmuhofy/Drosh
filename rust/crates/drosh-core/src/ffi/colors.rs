@@ -10,7 +10,7 @@ use jni::objects::{JClass, JIntArray};
 use jni::sys::{jint, jlong};
 use jni::JNIEnv;
 
-use crate::bridge::snapshot::color_at;
+use drosh_bridge::snapshot::color_at;
 use crate::ffi::{finish, int_array_len, session_or, write_int_array, ErrorCode, FfiResult};
 
 /// `-1`: the application did not override this colour; use the default palette.

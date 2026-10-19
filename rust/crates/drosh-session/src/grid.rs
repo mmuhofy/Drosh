@@ -6,7 +6,7 @@
 
 use alacritty_terminal::term::Term;
 
-use crate::session::EventProxy;
+use crate::EventProxy;
 
 /// Visible (viewport) rows as plain text, top row first.
 ///

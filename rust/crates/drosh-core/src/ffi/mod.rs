@@ -23,9 +23,9 @@ use jni::objects::{JIntArray, JString};
 use jni::sys::jint;
 use jni::JNIEnv;
 
-use crate::bridge::snapshot::SnapshotError;
-use crate::session::manager;
-use crate::session::{Session, SessionError};
+use drosh_bridge::snapshot::SnapshotError;
+use drosh_session::manager;
+use drosh_session::{Session, SessionError};
 
 /// Result type of a `native*` function.
 pub type FfiResult<T> = Result<T, ErrorCode>;

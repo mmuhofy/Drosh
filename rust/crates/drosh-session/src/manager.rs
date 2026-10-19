@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use crate::session::{GridSize, Session, SessionConfig, SessionError};
+use crate::{GridSize, Session, SessionConfig, SessionError};
 
 /// Upper bound on live sessions. The prototype has no tab bar, so this is a
 /// safety net against a leaking caller rather than a real limit.
