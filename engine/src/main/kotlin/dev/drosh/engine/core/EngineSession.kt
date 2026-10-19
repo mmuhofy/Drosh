@@ -262,6 +262,60 @@ class EngineSession(
         return if (raw.isEmpty()) emptyList() else raw.split('\n')
     }
 
+    // ── Capabilities (P1) ─────────────────────────────────────────────────────
+
+    /** Strip ANSI escape sequences from `data`. */
+    fun stripAnsi(data: ByteArray): String {
+        val current = handle
+        if (current == NO_HANDLE) return ""
+        return NativeCore.nativeStripAnsi(current, data)
+    }
+
+    /** Find `query` in the visible grid; each result is `row:col:len`. */
+    fun search(query: String, limit: Int = 200): List<Triple<Int, Int, Int>> {
+        val current = handle
+        if (current == NO_HANDLE) return emptyList()
+        return NativeCore.nativeSearch(current, query, limit)
+            .lineSequence()
+            .filter { it.isNotEmpty() && !it.startsWith("error:") }
+            .mapNotNull { record ->
+                val parts = record.split(':')
+                if (parts.size == 3) {
+                    Triple(parts[0].toIntOrNull() ?: 0, parts[1].toIntOrNull() ?: 0, parts[2].toIntOrNull() ?: 0)
+                } else null
+            }
+            .toList()
+    }
+
+    /** Currently selected text, or "" when nothing is selected. */
+    fun selectionText(): String {
+        val current = handle
+        if (current == NO_HANDLE) return ""
+        return NativeCore.nativeSelectionText(current)
+    }
+
+    /** Select the word under (row, col); returns the selected text. */
+    fun selectWord(row: Int, col: Int): String {
+        val current = handle
+        if (current == NO_HANDLE) return ""
+        return NativeCore.nativeSelectWord(current, row, col)
+    }
+
+    /** Select the line under (row, col); returns the selected text. */
+    fun selectLine(row: Int, col: Int): String {
+        val current = handle
+        if (current == NO_HANDLE) return ""
+        return NativeCore.nativeSelectLine(current, row, col)
+    }
+
+    /** Clear any active selection. */
+    fun clearSelection() {
+        val current = handle
+        if (current != NO_HANDLE) {
+            NativeCore.nativeClearSelection(current)
+        }
+    }
+
     fun close() {
         val current = handle
         if (current != NO_HANDLE) {

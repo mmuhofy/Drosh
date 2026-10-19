@@ -178,6 +178,26 @@ internal object NativeCore {
 
     external fun nativeDrainEvents(id: Long): String
 
+    // --- capabilities (ffi::text, ffi::search, ffi::selection) ---
+
+    /** Strip ANSI escape sequences from `data` (ffi::text). */
+    external fun nativeStripAnsi(id: Long, data: ByteArray): String
+
+    /** Find `query` in the visible grid; returns `row:col:len` records (ffi::search). */
+    external fun nativeSearch(id: Long, query: String, limit: Int): String
+
+    /** Currently selected text, or "" (ffi::selection). */
+    external fun nativeSelectionText(id: Long): String
+
+    /** Select the word under (row, col); returns the selected text (ffi::selection). */
+    external fun nativeSelectWord(id: Long, row: Int, col: Int): String
+
+    /** Select the line under (row, col); returns the selected text (ffi::selection). */
+    external fun nativeSelectLine(id: Long, row: Int, col: Int): String
+
+    /** Clear any active selection (ffi::selection). */
+    external fun nativeClearSelection(id: Long): Int
+
     // --- font (ffi::font) ---
 
     external fun nativeInitFont(regular: ByteArray, bold: ByteArray?): Int
