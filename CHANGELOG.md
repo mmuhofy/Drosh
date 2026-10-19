@@ -132,8 +132,14 @@ release when it ships.
 
 - chroot-ng is no longer a vendored subtree: it lives in `mmuhofy/chroot-ng`
   (a fork of `sylirre/fake-chroot-ng`) and is pulled into Drosh as a git
-  submodule at `engine/rust/chroot-ng`, pinned at `12d07c1a`; its `libchrootng.so`
-  is built in the fork's own CI rather than in Drosh's
+  submodule at `engine/rust/chroot-ng`, pinned at `12d07c1a`
+- Drosh CI cross-builds `libchrootng.so` from that submodule and packages it into
+  the APK as `lib/arm64-v8a/libchrootng.so`, so the guest isolation library is
+  produced from source and shipped with the app
+- `GuestLauncher` abstracts guest startup: `ProotRunner` and the new
+  `ChrootNgRunner` both implement it, and `TerminalManager.guestBackend` selects
+  between them. chroot-ng is wired but still defaults to proot until its runtime
+  launch path is verified on a device
 
 ### Fixed
 

@@ -6,7 +6,7 @@ import java.io.File
 class ProotRunner(
     private val bootstrap: UbuntuBootstrap,
     private val nativeLibDir: String
-) {
+) : GuestLauncher {
     val prootPath: String get() = bootstrap.prootFile.absolutePath
     val rootfsPath: String get() = bootstrap.rootfsDir.absolutePath
     private val baseDir: File get() = bootstrap.rootfsDir.parentFile!!
@@ -19,21 +19,14 @@ class ProotRunner(
     private val loaderPath: String get() = "$nativeLibDir/libproot-loader.so"
     private val loader32Path: String get() = "$nativeLibDir/libproot-loader32.so"
 
-    data class ProotCommand(
-        val executable: String,
-        val argv: List<String>,
-        val cwd: String,
-        val environment: List<String>
-    )
-
-    fun build(
+    override fun build(
         guestWorkDir: String? = null,
         shell: String = "/bin/zsh",
         ptyMode: Boolean = true,
         startCommand: String = "",
         environmentHooks: Map<String, String> = emptyMap(),
         shellArgs: List<String> = emptyList(),
-    ): ProotCommand {
+    ): GuestCommand {
         File(tmpPath).mkdirs()
 
         val wd = when {
@@ -68,7 +61,7 @@ class ProotRunner(
 
         val env = buildEnvironment(shell) + environmentHooks.map { "${it.key}=${it.value}" }
 
-        return ProotCommand(
+        return GuestCommand(
             executable = linkerPath,
             argv = argv,
             cwd = rootfsPath,
@@ -76,7 +69,7 @@ class ProotRunner(
         )
     }
 
-    fun buildBashCommand(command: String, guestWorkDir: String? = null, shell: String = "/bin/zsh"): ProotCommand {
+    override fun buildBashCommand(command: String, guestWorkDir: String? = null, shell: String = "/bin/zsh"): GuestCommand {
         val base = build(guestWorkDir, shell, ptyMode = false)
         val stdbufCmd = "stdbuf -oL $command"
         val argv = base.argv.dropLast(2) + listOf(shell, "-c", stdbufCmd)

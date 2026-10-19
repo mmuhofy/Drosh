@@ -114,3 +114,8 @@ docs/tmp-translations-only-the-missing/
 engine/rust/target/
 # The cross-built core arrives from CI as an artifact, never from git.
 engine/src/main/jniLibs/
+
+# libchrootng.so is cross-built from the chroot-ng submodule in CI and copied
+# into terminal's jniLibs; it is never committed (libtermux.so is a prebuilt
+# and stays tracked).
+terminal/src/main/jniLibs/arm64-v8a/libchrootng.so

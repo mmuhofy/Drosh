@@ -410,8 +410,16 @@ never red; no phase closes without the device checklist.
       upstream `sylirre/fake-chroot-ng`); Drosh consumes it as a git submodule at
       `engine/rust/chroot-ng`, pinned at `12d07c1a` (builds `libchrootng.so` in
       its own repo CI — see `mmuhofy/chroot-ng`)
+- [x] chroot-ng is cross-built in Drosh CI from the submodule and packaged into
+      the APK as `lib/arm64-v8a/libchrootng.so` (CI build + APK carry check)
+- [x] `GuestLauncher` abstraction: `ProotRunner` and `ChrootNgRunner` both
+      implement it; `TerminalManager.guestBackend` selects one, defaulting to
+      `PROOT`. chroot-ng's runtime launch path is **CI-built and APK-packaged
+      but still pending on-device verification** — flip `guestBackend` to
+      `CHROOT_NG` to exercise it (see §9 device list)
 - [ ] Move rootfs/bootstrap/archive into `:guest`
-- [ ] `ProotRunner` → chroot-ng `GuestLauncher`
+- [ ] Make chroot-ng the default guest backend once device-verified (remove
+      proot fallback)
 
 ### P5 — `:ssh` over bridged sessions
 - [ ] `TransportPort` moves to `:domain`; `ssh → terminal` debt 1 → 0
