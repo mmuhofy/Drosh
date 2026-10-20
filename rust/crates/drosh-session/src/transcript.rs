@@ -43,8 +43,11 @@ impl OutputLog {
         self.pending.push_str(&String::from_utf8_lossy(bytes));
 
         while let Some(index) = self.pending.find('\n') {
-            let line: String = self.pending.drain(..=index).collect();
-            self.push_line(line.trim_end_matches('\r').to_owned());
+            // `find` gives a byte index and `split_off` takes one, so the line
+            // is cut where it says it is; the newline itself goes with it.
+            let rest = self.pending.split_off(index + 1);
+            let line = std::mem::replace(&mut self.pending, rest);
+            self.push_line(line.trim_end_matches('\n').trim_end_matches('\r').to_owned());
         }
     }
 
