@@ -70,6 +70,7 @@ import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.editor.EditorScreen
 import dev.drosh.terminal.session.ExtraKeyState
 import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.ui.terminal.EngineSessions
 import dev.drosh.ui.terminal.TerminalSessionLogSource
 import dev.drosh.linux.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen
@@ -691,8 +692,14 @@ class MainActivity : ComponentActivity() {
                 // rather than what the database says: a row can exist for a
                 // process that has exited, and offering it would open a sheet
                 // with nothing in it.
+                //
+                // There are no engine-backed sessions yet: the app still runs
+                // the vendored Termux terminal, and the engine's own screen
+                // arrives with the migration (project P3). Saying so here
+                // keeps the log reader honest — it reads the emulator's
+                // scrollback, which is where the output is.
                 val logSource = remember(terminalManager) {
-                    TerminalSessionLogSource(terminalManager)
+                    TerminalSessionLogSource(terminalManager, EngineSessions.NONE)
                 }
                 val logSessions by sessionSwitcherViewModel.allSessions
                     .collectAsStateWithLifecycle()

@@ -1,59 +1,51 @@
 package dev.drosh.ui.terminal
 
-import dev.drosh.terminal.session.AnsiStripper
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.ui.session.SessionLogSource
 
 /**
- * A session's terminal output, read out of the emulator's buffer.
+ * A session's terminal output, read out of the terminal that owns it.
  *
- * ## Why the buffer and not a file
+ * ## Why a transcript and not an emulator
  *
- * There is no file. The scrollback lives in the emulator's circular
- * [com.termux.terminal.TerminalBuffer], which is the only record of what a
- * session has ever printed. So this reads that, which also means it can answer
- * for a session the user is not currently looking at: a session with no pane
- * still has its buffer, and that is the whole point of offering this from the
- * drawer rather than from the terminal's own overflow.
+ * The log sheet used to be handed an emulator and read its scrollback, which
+ * tied it to the vendored Termux terminal. The engine keeps its own copy of
+ * what a session printed, so the question "what did this session print?" now
+ * has two answers, and the sheet must not care which one it gets. It asks for
+ * a [SessionTranscript] instead, and the transcript says which terminal it
+ * came from.
  *
- * ## What comes back
+ * ## Where the Termux path went
  *
- * The transcript as plain text: escape sequences stripped by [AnsiStripper],
- * because a control character pasted into a prompt is a prompt the model cannot
- * read. Trailing spaces go, because a terminal pads every row to the column
- * width and the padding is not part of what the command said.
- *
- * Capped to the last [MAX_LINES] lines. A session that has been running for a
- * week has more scrollback than a sheet can hold, and the lines anyone wants are
- * the ones at the end — the failure they are about to paste.
+ * Nowhere. It is [SessionTranscript.Termux] now, with the same cap, the same
+ * stripping and the same trimming as before — the sheet still reads the
+ * emulator's scrollback for every session the app runs today.
  */
 class TerminalSessionLogSource(
     private val terminalManager: TerminalManager,
+    private val engineSessions: EngineSessions,
 ) : SessionLogSource {
 
-    override fun lines(sessionId: String): List<String> {
-        val emulator = terminalManager.sessionForId(sessionId)?.emulator ?: return emptyList()
-        val text = AnsiStripper.strip(emulator.getScreen().getTranscriptText())
-        val lines = text.lines().map { line ->
-            // A tab has no width here and the grid it came from is gone, so it
-            // becomes four spaces. Emulators expand tabs at write time, so this
-            // is a guard rather than a case that occurs.
-            line.trimEnd().replace("\t", "    ")
-        }
-        return if (lines.size <= MAX_LINES) {
-            lines
-        } else {
-            lines.subList(lines.size - MAX_LINES, lines.size)
-        }
-    }
+    override fun lines(sessionId: String): List<String> =
+        transcriptFor(sessionId)?.lines ?: emptyList()
 
-    private companion object {
-        /**
-         * How much of a session is offered.
-         *
-         * A sheet, not a file: past a few thousand lines nobody scrolls to the
-         * top of a log to paste it, and every extra line is a line laid out.
-         */
-        const val MAX_LINES = 4000
+    /**
+     * The transcript of [sessionId], from the terminal that owns it.
+     *
+     * The engine is asked first, because the engine is where the sessions are
+     * going: once a session has been migrated it answers from the engine's
+     * copy of its output, and only a session that is still a Termux session
+     * falls through to the emulator's scrollback.
+     *
+     * A session that is neither — one that has exited, or one that was never
+     * started — has no transcript at all, and the sheet shows its empty state.
+     */
+    private fun transcriptFor(sessionId: String): SessionTranscript? {
+        val engineSession = engineSessions.sessionFor(sessionId)
+        if (engineSession != null) {
+            return SessionTranscript.Engine.of(engineSession)
+        }
+        val emulator = terminalManager.sessionForId(sessionId)?.emulator ?: return null
+        return SessionTranscript.Termux.of(emulator)
     }
 }
