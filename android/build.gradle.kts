@@ -110,15 +110,19 @@ val boundaryRules = listOf(
     "ui|dev.drosh.terminal|0",
     "ui|dev.drosh.engine|0",
     // Known debt — must reach 0. `data -> terminal` clears in P3, `ssh` in P5.
+    // It was 22 before the guest moved to its own module: the nine imports of
+    // the rootfs, the bootstrap and the archive were part of it.
     "ssh|dev.drosh.terminal|1",
-    "data|dev.drosh.terminal|22",
+    "data|dev.drosh.terminal|13",
 )
 
 // Modules the plan expects but that are not in the tree yet. A rule may name
 // one of these: the checker then asserts that the module is *still* absent, so
 // a rule written for a module that has not been built cannot pass by accident,
 // and cannot be forgotten when the module arrives — the checker says so.
-val plannedModules = listOf("guest")
+//
+// :guest is not here any more: the module exists, so its rules are enforced.
+val plannedModules = emptyList<String>()
 
 tasks.register("checkModuleBoundaries") {
     group = "verification"

@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.guest
 
 /**
  * A guest isolation launcher: turns Drosh's session parameters into the argv

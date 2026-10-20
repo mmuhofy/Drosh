@@ -7,8 +7,8 @@ import dev.drosh.domain.terminal.BootstrapStep
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
 import dev.drosh.domain.terminal.RecoveryAction
 import dev.drosh.domain.terminal.StepState
-import dev.drosh.terminal.BootstrapStatePort
-import dev.drosh.terminal.UbuntuSetupState
+import dev.drosh.guest.BootstrapStatePort
+import dev.drosh.guest.UbuntuSetupState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.Flow

@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.guest
 
 import java.io.File
 

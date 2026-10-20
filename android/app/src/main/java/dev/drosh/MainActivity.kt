@@ -71,7 +71,7 @@ import dev.drosh.editor.EditorScreen
 import dev.drosh.terminal.ExtraKeyState
 import dev.drosh.terminal.TerminalManager
 import dev.drosh.ui.terminal.TerminalSessionLogSource
-import dev.drosh.terminal.UbuntuSetupState
+import dev.drosh.guest.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
 import dev.drosh.design.system.DroshBackground

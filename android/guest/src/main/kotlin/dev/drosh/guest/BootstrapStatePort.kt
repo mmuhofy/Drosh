@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.guest
 
 import dev.drosh.domain.terminal.SetupPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Internal bridge that lets `:data` observe bootstrap state + logs without
- * `ui/` ever importing `terminal/UbuntuSetupState` or `UbuntuBootstrap`.
+ * `ui/` ever importing `guest/UbuntuSetupState` or `UbuntuBootstrap`.
  *
  * The `:data` layer calls [runBootstrap] to drive the pipeline. The port
  * forwards each state transition and each emitted log line through typed

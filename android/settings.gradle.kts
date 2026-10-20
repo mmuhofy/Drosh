@@ -33,6 +33,9 @@ include(":domain")
 include(":data")
 include(":agent")
 include(":terminal")
+// The Linux guest: rootfs, bootstrap, archive, and the launcher that execs a
+// shell inside it. See docs/ARCHITECTURE.md §1.
+include(":guest")
 include(":engine")
 include(":ssh")
 include(":ui")

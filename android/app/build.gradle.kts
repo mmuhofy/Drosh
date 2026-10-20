@@ -153,6 +153,7 @@ dependencies {
     implementation(project(":data"))
     implementation(project(":agent"))
     implementation(project(":terminal"))
+    implementation(project(":guest"))
     implementation(project(":ssh"))
     implementation(project(":ui"))
     implementation(project(":design-system"))

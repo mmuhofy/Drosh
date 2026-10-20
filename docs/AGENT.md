@@ -132,6 +132,10 @@ terminal/     → PTY session management, terminal emulator bridge,
                 block engine, semantic parser, ghost text engine.
                 Isolated — only data/ and agent/ interact with it.
 
+guest/        → The Linux guest: rootfs, bootstrap, archive, and the
+                launcher that execs a shell inside it. Knows nothing
+                about sessions, panes or the UI.
+
 ssh/          → SSHJ manager, SSH key vault, host management,
                 multi-exec, constellation data.
 

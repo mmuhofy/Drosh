@@ -41,7 +41,7 @@ be compiled into stays GPLv3 because of `:terminal`.
 **Ubuntu userspace.** The rootfs is downloaded at runtime rather than shipped,
 so its packages (each under its own license — GPL, LGPL, Apache, MIT and
 others) never enter this repository. The download source is recorded in
-`android/terminal/.../UbuntuBootstrap`.
+`android/guest/.../UbuntuBootstrap`.
 
 **Fonts.** The OFL is not a software license and does not mix into the GPL
 question: fonts are data. What the OFL does require is that each copy carry the

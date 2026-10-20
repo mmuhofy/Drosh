@@ -16,7 +16,7 @@ import dev.drosh.agent.tool.impl.UpdateTodoTool
 import dev.drosh.agent.tool.impl.WebSearchTool
 import dev.drosh.agent.tool.impl.WriteFileTool
 import dev.drosh.domain.agent.Tool
-import dev.drosh.terminal.UbuntuBootstrap
+import dev.drosh.guest.UbuntuBootstrap
 import javax.inject.Singleton
 
 /**
