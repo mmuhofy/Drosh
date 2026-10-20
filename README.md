@@ -130,7 +130,7 @@ android/                → the Gradle build; `settings.gradle.kts` and `gradlew
   build-logic/          → Gradle convention plugins
 
 rust/                   → the Cargo workspace; `cargo test` runs from here
-  crates/drosh-core/    → the JNI boundary: `JNI_OnLoad`, `ffi/`, error codes → `libdrosh_core.so`
+  crates/drosh-jni/     → the JNI boundary: `JNI_OnLoad`, `ffi/`, error codes → `libdrosh_core.so`
   crates/drosh-session/ → the engine: alacritty's Term, its event loop, selection/search/url/tint
   crates/drosh-pty/     → raw libc PTY and the child process (D8)
   crates/drosh-bridge/  → the Rust → Kotlin wire formats; no JNI, by manifest

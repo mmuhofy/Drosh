@@ -139,7 +139,7 @@ release when it ships.
   workspace under `rust/`, and the vendored chroot-ng under `third_party/`.
   Module names, Kotlin packages and the cdylib name are unchanged, so nothing
   about the app itself moved with them
-- The Rust engine is five crates instead of one: `drosh-core` (the JNI
+- The Rust engine is five crates instead of one: `drosh-jni` (the JNI
   boundary), `drosh-session`, `drosh-pty`, `drosh-bridge` and `drosh-font`. The
   library the app loads is still `libdrosh_core.so` with the same symbols
 - The Projects screen is one flat list in the settings language — projects,
