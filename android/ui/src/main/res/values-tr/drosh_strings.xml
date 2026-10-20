@@ -247,6 +247,7 @@
     <string name="terminal_find_close">Aramayı kapat</string>
     <string name="terminal_find_counter">%2$d eşleşmeden %1$d.</string>
     <string name="terminal_find_no_matches">Eşleşme yok</string>
+    <string name="terminal_find_engine_note">Eşleşmeler çıktı günlüğünde sayılır — ekran onlara taşınmaz.</string>
     <string name="settings_font_decrease_cd">Yazı boyutunu küçült</string>
     <string name="settings_font_increase_cd">Yazı boyutunu büyüt</string>
     <string name="settings_speed_slow">Yavaş</string>

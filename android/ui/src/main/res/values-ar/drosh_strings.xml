@@ -244,6 +244,7 @@
     <string name="terminal_ready">جاهز</string>
     <string name="terminal_setting_up">جارٍ إعداد الطرفية</string>
     <string name="terminal_setup_failed">فشل إعداد الطرفية</string>
+    <string name="terminal_find_engine_note">تُعدّ المطابقات في سجل الإخراج، ولا تنتقل الشاشة إليها.</string>
     <string name="action_apply">تطبيق</string>
     <string name="action_close">إغلاق</string>
     <string name="action_close_pane">إغلاق الـ pane الثانية</string>

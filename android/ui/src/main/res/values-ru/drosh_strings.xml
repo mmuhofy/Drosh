@@ -244,6 +244,7 @@
     <string name="terminal_ready">Готово</string>
     <string name="terminal_setting_up">Настройка терминала</string>
     <string name="terminal_setup_failed">Не удалось настроить терминал</string>
+    <string name="terminal_find_engine_note">Совпадения считаются в журнале вывода, экран к ним не переходит.</string>
     <string name="action_apply">Применить</string>
     <string name="action_close">Закрыть</string>
     <string name="action_close_pane">Закрыть вторую панель</string>

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,6 +61,15 @@ import dev.drosh.ui.R
  * Every target is [TOUCH_TARGET] tall even when the row is not: the icons are
  * drawn small and the touch area around them is not, because a finger does
  * not shrink to fit an icon.
+ *
+ * ## The engine's lines under it
+ *
+ * The bar grows a second and a third line when the terminal it is searching
+ * is the Rust engine. The engine's matches are lines of its output log and
+ * not rows of a grid, so they cannot be drawn on the screen and cannot be
+ * scrolled to: the bar quotes the match it is on and says that the screen
+ * does not follow it. A match that is counted but not reachable has to read
+ * as such.
  */
 @Composable
 fun TerminalFindBar(
@@ -71,6 +81,22 @@ fun TerminalFindBar(
     onPrevious: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Which terminal the matches came from, or null when nothing has been
+     * scanned yet.
+     *
+     * The bar needs it because the two kinds cannot be shown the same way:
+     * the vendored terminal's matches are drawn on the screen, and the
+     * engine's are not.
+     */
+    kind: TerminalFindKind? = null,
+    /**
+     * The text of the match the user is on, when the bar can quote one.
+     *
+     * Null on the vendored path: there the match is a run of cells on the
+     * screen, and the screen shows it.
+     */
+    matchText: String? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -91,100 +117,136 @@ fun TerminalFindBar(
             .background(DroshSurfaceVariant)
             .border(1.dp, DroshBorderSubtle.copy(alpha = 0.3f), FIND_BAR_SHAPE),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(TOUCH_TARGET)
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                imageVector = DroshIcons.Search,
-                contentDescription = null,
-                tint = DroshTextSecondary,
-                modifier = Modifier.size(16.dp),
-            )
-
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .focusRequester(focusRequester),
-                textStyle = LocalTextStyle.current.merge(
-                    TextStyle(
-                        color = DroshText,
-                        fontSize = 13.sp,
-                    ),
-                ),
-                cursorBrush = SolidColor(DroshPrimary),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    // Enter walks to the next match, the way every other find
-                    // bar on every platform does. It also dismisses the
-                    // keyboard, which is what makes the next Enter a Search
-                    // again rather than a second one while typing.
-                    onSearch = {
-                        onNext()
-                        keyboard?.hide()
-                    },
-                ),
-                decorationBox = { inner ->
-                    if (query.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.terminal_find_hint),
-                            color = DroshTextMuted,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    inner()
-                },
-            )
+                    .fillMaxWidth()
+                    .height(TOUCH_TARGET)
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    imageVector = DroshIcons.Search,
+                    contentDescription = null,
+                    tint = DroshTextSecondary,
+                    modifier = Modifier.size(16.dp),
+                )
 
-            // The counter, and only once there is something to count. An empty
-            // query reads "0/0", which is a lie — it has found nothing because
-            // it has not been asked anything.
-            if (query.isNotEmpty()) {
-                val counter = if (matchCount > 0) {
-                    stringResource(R.string.terminal_find_counter, currentMatch, matchCount)
-                } else {
-                    stringResource(R.string.terminal_find_no_matches)
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester),
+                    textStyle = LocalTextStyle.current.merge(
+                        TextStyle(
+                            color = DroshText,
+                            fontSize = 13.sp,
+                        ),
+                    ),
+                    cursorBrush = SolidColor(DroshPrimary),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(
+                        // Enter walks to the next match, the way every other find
+                        // bar on every platform does. It also dismisses the
+                        // keyboard, which is what makes the next Enter a Search
+                        // again rather than a second one while typing.
+                        onSearch = {
+                            onNext()
+                            keyboard?.hide()
+                        },
+                    ),
+                    decorationBox = { inner ->
+                        if (query.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.terminal_find_hint),
+                                color = DroshTextMuted,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        inner()
+                    },
+                )
+
+                // The counter, and only once there is something to count. An empty
+                // query reads "0/0", which is a lie — it has found nothing because
+                // it has not been asked anything.
+                if (query.isNotEmpty()) {
+                    val counter = if (matchCount > 0) {
+                        stringResource(R.string.terminal_find_counter, currentMatch, matchCount)
+                    } else {
+                        stringResource(R.string.terminal_find_no_matches)
+                    }
+                    Text(
+                        text = counter,
+                        color = if (matchCount > 0) DroshTextSecondary else DroshTextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                    )
                 }
-                Text(
-                    text = counter,
-                    color = if (matchCount > 0) DroshTextSecondary else DroshTextMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
+
+                FindIconButton(
+                    icon = DroshIcons.ChevronUp,
+                    contentDescription = stringResource(R.string.terminal_find_previous),
+                    onClick = onPrevious,
+                    // With one match there is no previous to go to, and an arrow
+                    // that appears to do nothing is worse than one that is off.
+                    enabled = matchCount > 1,
+                )
+
+                FindIconButton(
+                    icon = DroshIcons.ChevronDown,
+                    contentDescription = stringResource(R.string.terminal_find_next),
+                    onClick = onNext,
+                    enabled = matchCount > 1,
+                )
+
+                FindIconButton(
+                    icon = DroshIcons.X,
+                    contentDescription = stringResource(R.string.terminal_find_close),
+                    onClick = onClose,
+                    enabled = true,
                 )
             }
 
-            FindIconButton(
-                icon = DroshIcons.ChevronUp,
-                contentDescription = stringResource(R.string.terminal_find_previous),
-                onClick = onPrevious,
-                // With one match there is no previous to go to, and an arrow
-                // that appears to do nothing is worse than one that is off.
-                enabled = matchCount > 1,
-            )
-
-            FindIconButton(
-                icon = DroshIcons.ChevronDown,
-                contentDescription = stringResource(R.string.terminal_find_next),
-                onClick = onNext,
-                enabled = matchCount > 1,
-            )
-
-            FindIconButton(
-                icon = DroshIcons.X,
-                contentDescription = stringResource(R.string.terminal_find_close),
-                onClick = onClose,
-                enabled = true,
-            )
+            // The engine's matches: the text of the one the user is on, and
+            // what the arrows do and do not do.
+            //
+            // The arrows still walk the matches — the counter moves and the
+            // quote moves with it — but the screen does not follow, because a
+            // line of the output log is not a row of the grid and there is
+            // nowhere on the screen to scroll to. Saying so is the honest
+            // thing: the alternative is a bar that counts matches the user
+            // can never reach.
+            if (kind == TerminalFindKind.ENGINE) {
+                matchText?.let { quote ->
+                    Text(
+                        text = quote,
+                        color = DroshTextSecondary,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 12.dp, end = 12.dp, bottom = 2.dp),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.terminal_find_engine_note),
+                    color = DroshTextMuted,
+                    fontSize = 11.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+                )
+            }
         }
     }
 }
