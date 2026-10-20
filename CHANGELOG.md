@@ -109,6 +109,11 @@ release when it ships.
 
 ### Changed
 
+- The engine and the sessions are one module now. `:terminal` holds the Rust
+  core's Kotlin side and the sessions that drive it, in two packages
+  (`dev.drosh.terminal.engine` and `dev.drosh.terminal.session`), and the rule
+  that kept them apart — the engine does not know about sessions — moved from a
+  module boundary to a package one, so the checker still enforces it
 - The product's optional surfaces moved into a `features` group: the agent, the
   SSH transport and the editor are now `:features:agent`, `:features:ssh` and
   `:features:editor`. They are things a user reaches, not steps in the dependency
