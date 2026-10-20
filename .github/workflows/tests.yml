@@ -54,6 +54,13 @@ jobs:
       - name: Check that every module import resolves
         run: python3 ../tools/check-module-imports.py
 
+      # A Kotlin `external fun` resolves by its fully qualified name, so a
+      # moved class or a renamed function is a link error on a device and
+      # nothing in the build. The engine's JNI surface was moved once without
+      # the Rust side following, and the build stayed green the whole time.
+      - name: Check that every JNI symbol lines up with its Kotlin declaration
+        run: python3 ../tools/check-jni-symbols.py
+
       - name: Run :domain tests
         run: ./gradlew :domain:test --no-daemon --stacktrace
 

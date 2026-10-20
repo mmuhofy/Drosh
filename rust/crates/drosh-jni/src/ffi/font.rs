@@ -45,7 +45,7 @@ impl From<FontError> for ErrorCode {
 
 /// Load the faces. Called once at startup; a second call replaces the stack.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeInitFont<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeInitFont<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     regular: JByteArray<'local>,
@@ -85,7 +85,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeInitFont<'loc
 
 /// Cell metrics at `px`, written into `out` as [`FONT_METRICS_LEN`] floats.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeFontMetrics<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeFontMetrics<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     px: jfloat,
@@ -134,7 +134,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeFontMetrics<'
 /// capacity, nothing was written** and the caller grows the buffer and calls
 /// again. Negative values are [`ErrorCode`]s.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeRasterize<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeRasterize<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     codepoint: jint,

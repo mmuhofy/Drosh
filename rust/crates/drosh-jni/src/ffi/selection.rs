@@ -13,7 +13,9 @@ use crate::ffi::{fail, finish, session_or, ErrorCode};
 
 /// The currently selected text, or an empty string when nothing is selected.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectionText<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSelectionText<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
@@ -30,7 +32,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectionText
 
 /// Select the word under (row, col) and return the selected text.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectWord<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSelectWord<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
@@ -51,7 +53,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectWord<'l
 
 /// Select the line under (row, col) and return the selected text.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectLine<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSelectLine<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
@@ -72,7 +74,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSelectLine<'l
 
 /// Clear any active selection.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeClearSelection(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeClearSelection(
     _env: JNIEnv,
     _class: JClass,
     id: jlong,
