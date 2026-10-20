@@ -30,6 +30,7 @@ use alacritty_terminal::term::color::COUNT as COLOR_COUNT;
 use alacritty_terminal::term::{Config, LineDamageBounds, Osc52, Term};
 use alacritty_terminal::vte::ansi::{Processor, Rgb, StdSyncHandler};
 
+use crate::block::{BlockPhase, BlockTracker};
 use drosh_bridge::events::{
     EventProxy, EventQueue, SessionEvent, Terminator, DEFAULT_QUEUE_CAPACITY,
 };
@@ -136,6 +137,8 @@ pub struct Session {
     /// Escape-sequence parser for a bridged session; the PTY path is parsed by
     /// alacritty's event loop instead.
     parser: Mutex<Processor<StdSyncHandler>>,
+    /// Where the shell is in its cycle, as the OSC 133 marks report it.
+    blocks: Mutex<BlockTracker>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -212,6 +215,7 @@ impl Session {
             damage: Mutex::new(vec![0i32; snapshot::damage_out_len(config.size.rows())]),
             damage_scratch: Mutex::new(Vec::new()),
             parser: Mutex::new(Processor::new()),
+            blocks: Mutex::new(BlockTracker::new()),
             worker: Mutex::new(Some(worker)),
         })
     }
@@ -250,6 +254,7 @@ impl Session {
             damage: Mutex::new(vec![0i32; snapshot::damage_out_len(size.rows())]),
             damage_scratch: Mutex::new(Vec::new()),
             parser: Mutex::new(Processor::new()),
+            blocks: Mutex::new(BlockTracker::new()),
             worker: Mutex::new(None),
         })
     }
@@ -386,11 +391,30 @@ impl Session {
                         }),
                     }
                 }
+                SessionEvent::ShellMark(mark) => {
+                    // The marks are the block engine's input: the tracker turns
+                    // them into "a prompt started", "a command finished" and the
+                    // working directory, so the engine does not have to diff the
+                    // transcript to find the boundaries.
+                    self.blocks.lock().unwrap_or_else(|e| e.into_inner()).observe(&mark);
+                    pending.push(SessionEvent::ShellMark(mark));
+                }
                 other => pending.push(other),
             }
         }
 
         pending
+    }
+
+    /// Where the shell is in its cycle, as the marks report it: the phase, the
+    /// working directory and the editor target.
+    pub fn block_state(&self) -> (BlockPhase, Option<String>, Option<String>) {
+        let tracker = self.blocks.lock().unwrap_or_else(|e| e.into_inner());
+        (
+            tracker.phase(),
+            tracker.cwd().map(str::to_owned),
+            tracker.editor().map(str::to_owned),
+        )
     }
 
     /// Run `f` with the engine's terminal, holding its lock.
