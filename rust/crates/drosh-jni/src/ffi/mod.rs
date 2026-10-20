@@ -9,6 +9,7 @@
 //! values are frozen and guarded by a test in this file.**
 
 pub mod block;
+pub mod cells;
 pub mod colors;
 pub mod events;
 pub mod font;

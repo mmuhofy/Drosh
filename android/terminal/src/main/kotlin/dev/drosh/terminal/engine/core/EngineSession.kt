@@ -358,6 +358,29 @@ class EngineSession(
         }
     }
 
+    /**
+     * The colours of the cells in a rectangle of the visible grid.
+     *
+     * The rectangle is clipped to the grid by the engine, so a region that
+     * hangs over the edge reports the cells that are there. The rows are
+     * viewport rows: row 0 is the top of the screen, whatever the viewport is
+     * scrolled to.
+     *
+     * An empty list comes back when the session is gone.
+     */
+    fun cellColors(
+        top: Int,
+        left: Int,
+        rows: Int,
+        columns: Int,
+    ): List<CellColor> {
+        val current = handle
+        if (current == NO_HANDLE) return emptyList()
+        return CellColor.parse(
+            NativeCore.nativeCellColors(current, top, left, rows, columns),
+        )
+    }
+
     fun close() {
         val current = handle
         if (current != NO_HANDLE) {

@@ -11,6 +11,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import dev.drosh.terminal.engine.core.Palette
 
 /**
  * The renderer, reshaped after reading alacritty's GLES2 path and Ghostty's cell

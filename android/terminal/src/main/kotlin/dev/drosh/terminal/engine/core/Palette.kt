@@ -1,6 +1,4 @@
-package dev.drosh.terminal.engine.render
-
-import dev.drosh.terminal.engine.core.NativeCore
+package dev.drosh.terminal.engine.core
 
 /**
  * The prototype's fixed palette (D12: no config system), plus the colours the

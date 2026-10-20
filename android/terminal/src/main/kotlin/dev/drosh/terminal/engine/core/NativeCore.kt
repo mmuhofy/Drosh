@@ -213,6 +213,21 @@ internal object NativeCore {
     /** Fill `out` (length 3) with the ambient tint `[r, g, b]` (ffi::tint). */
     external fun nativeAmbientTint(id: Long, out: IntArray): Int
 
+    /**
+     * The colours of the cells in a rectangle of the visible grid (ffi::cells).
+     *
+     * Newline-separated `row:column:foreground:background` records; the
+     * colours are the engine's own wire encoding (see `COLOR_TAG_*`), so they
+     * are resolved with the same palette table as the cell records.
+     */
+    external fun nativeCellColors(
+        id: Long,
+        top: Int,
+        left: Int,
+        rows: Int,
+        columns: Int,
+    ): String
+
     // --- font (ffi::font) ---
 
     external fun nativeInitFont(regular: ByteArray, bold: ByteArray?): Int

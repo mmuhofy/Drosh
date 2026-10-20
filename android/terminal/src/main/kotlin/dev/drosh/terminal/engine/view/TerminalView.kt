@@ -17,8 +17,8 @@ import dev.drosh.terminal.engine.render.CellMetrics
 import dev.drosh.terminal.engine.render.FontSize
 import dev.drosh.terminal.engine.render.FrameLoop
 import dev.drosh.terminal.engine.render.GlyphAtlas
-import dev.drosh.terminal.engine.render.Palette
 import dev.drosh.terminal.engine.render.TerminalRenderer
+import dev.drosh.terminal.engine.core.Palette
 
 /**
  * The terminal view: one [EngineSession] rendered through the GL renderer, with
