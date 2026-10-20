@@ -1922,9 +1922,14 @@ data class SshHost(
    chroot-ng at all and choosing it gave an ENOENT in a log with
    nothing in the UI to say what was missing. The app now checks the
    runtime before it opens a session and says which guest was missing.
-⏳ P3b-1 — the app's terminal pane hosts the engine's view. The app
-   still renders through `com.termux.view.TerminalView`; the switch is
-   the last seam, and where Termux's deletion finally happens.
+✅ The app's terminal screen can host the engine's terminal, behind a
+   setting (Settings → Terminal → "Terminal backend"). Termux stays
+   the default until the engine path has been through a device. One
+   guest command, two terminals: it is built in one place
+   (`TerminalManager.guestCommand()`) and both run the same image.
+⏳ P3b-2 — the app reads from the engine. The log sheet and the block
+   engine do; the find bar, the extra-keys row and the session list do
+   not yet. Termux's deletion waits for those.
 ```
 
 ### Boot / Setup UX (this milestone)
