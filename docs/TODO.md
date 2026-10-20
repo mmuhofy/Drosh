@@ -466,6 +466,14 @@ Three slices, in this order:
   - [x] **The engine finds the URLs on the screen**, with the app's own rules,
         over logical lines rather than screen rows.
   - [x] **The engine keeps the block state and the session log.**
+- [x] **The JNI symbols answer to the names Kotlin calls.** They did not: the
+      engine's `NativeCore` moved packages when the engine and the sessions
+      became one module, and the Rust side kept the old name, so all
+      twenty-seven entry points were answering to a name no Kotlin class had.
+      The first call would have been an `UnsatisfiedLinkError` on a device, with
+      a green build throughout — the two sides are wired together by a name no
+      compiler checks. `tools/check-jni-symbols.py` now compares both sides and
+      fails the build when they drift.
   - [ ] **The app reads its pixels from somewhere else.** The top bar's
         backdrop and the selection menu's colour sampling both call
         `view.draw(canvas)` on the Termux view, which is a software-rendered

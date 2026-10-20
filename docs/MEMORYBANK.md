@@ -1873,6 +1873,35 @@ data class SshHost(
 ✅ Settings / API Vault architecture
 ✅ Hilt module structure
 
+### P3 — the terminal moves to the engine (2026-10-20)
+
+```
+✅ The engine's block state, session log and URL scan are exposed over JNI.
+   The block engine used to infer the boundaries by diffing the whole
+   transcript on every keystroke; the engine taps the OSC 133 marks where
+   the bytes enter and knows them exactly. The URL scan runs over logical
+   lines with the app's own rules, so a link the shell soft-wrapped is
+   one link again.
+✅ The engine can start a guest session: `EngineLaunch` translates a
+   `GuestCommand` into what the engine runs. The one rule: the executable
+   is not repeated in the arguments — Termux's `execvp` took the whole
+   vector, the engine's PTY builds it the other way round.
+✅ The guest isolation engine is a setting the user picks (proot or
+   chroot-ng), in the setup wizard and in `[terminal] guest_isolation`.
+✅ FIXED — the JNI symbols were dead since the engine and the sessions
+   became one module. `NativeCore` moved from `dev.drosh.engine.core` to
+   `dev.drosh.terminal.engine.core` and the Rust side kept the old name,
+   so all 27 entry points answered to a name no Kotlin class had: the
+   first call would have been an `UnsatisfiedLinkError` on a device, with
+   a green build throughout. `tools/check-jni-symbols.py` compares both
+   sides now and fails the build when they drift.
+⏳ P3b-1 — the app's terminal pane hosts the engine's view. Two seams
+   are still missing: the app samples the terminal's pixels with
+   `view.draw(canvas)`, which draws nothing of a GLSurfaceView, and the
+   engine's cell size is fixed, so the app's font-size setting and its
+   pinch cannot reach it.
+```
+
 ### Boot / Setup UX (this milestone)
 ```
 ✅ First-launch pipeline refactored to MVVM:

@@ -107,6 +107,14 @@ release when it ships.
 - The in-app browser gained navigation, a progress bar, a URL dropdown and a
   half-expanded default
 
+### Fixed
+
+- The engine's JNI entry points answer to the names Kotlin calls again. The
+  engine's `NativeCore` moved packages when the engine and the sessions became
+  one module, and the Rust side kept the old name, so every call would have
+  failed to link on a device — with a green build throughout. A check now
+  compares both sides and fails the build when they drift
+
 ### Changed
 
 - The engine finds the URLs on the screen, with the same rules the app's own
