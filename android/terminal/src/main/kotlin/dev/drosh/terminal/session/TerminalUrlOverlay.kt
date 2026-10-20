@@ -29,6 +29,7 @@ import android.view.View
 import com.termux.view.TerminalView
 import dev.drosh.core.DroshPalette
 import dev.drosh.domain.UrlDetector
+import dev.drosh.terminal.engine.core.Palette
 
 class TerminalUrlOverlay(
     context: android.content.Context,

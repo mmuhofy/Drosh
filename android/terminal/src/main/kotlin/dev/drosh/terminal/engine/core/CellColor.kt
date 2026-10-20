@@ -1,6 +1,5 @@
 package dev.drosh.terminal.engine.core
 
-import dev.drosh.terminal.engine.render.Palette
 
 /**
  * The colours of one cell of the visible grid.

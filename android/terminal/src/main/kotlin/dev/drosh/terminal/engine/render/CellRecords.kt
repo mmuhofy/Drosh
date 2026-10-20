@@ -1,6 +1,7 @@
 package dev.drosh.terminal.engine.render
 
 import dev.drosh.terminal.engine.core.NativeCore
+import dev.drosh.terminal.engine.core.Palette
 import dev.drosh.terminal.engine.input.Selection
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
