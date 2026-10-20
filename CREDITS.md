@@ -11,18 +11,18 @@ this file says where the work came from.
 | **PRoot** — the userspace that lets Ubuntu run without root | `android/app/src/main/assets/proot` |
 | **Ubuntu 24.04** — the Linux environment itself | downloaded on first launch |
 | **sora-editor** (Rosemoe) — the native code editor | `:editor` dependency |
-| **TextMate grammars** — syntax highlighting for the editor | `android/editor/src/main/assets/textmate/` |
+| **TextMate grammars** — syntax highlighting for the editor | `android/features/editor/src/main/assets/textmate/` |
 | **Geist** (Vercel × basement.studio), **Inter** (Rasmus Andersson), **JetBrains Mono** (JetBrains) — the typefaces | `android/theme/src/main/res/font/` |
 
-Full licenses: `LICENSE.md`, `LICENSES/`, `android/editor/NOTICE.md`,
-`android/editor/src/main/assets/textmate/PROVENANCE.md`.
+Full licenses: `LICENSE.md`, `LICENSES/`, `android/features/editor/NOTICE.md`,
+`android/features/editor/src/main/assets/textmate/PROVENANCE.md`.
 
 ## The credit line
 
 The Drosh-authored modules are Apache-2.0, so nobody owes a visible credit in
 an app that ships them — the license is the whole deal. But Apache-2.0 has a
 hat on top of its requirements: the NOTICE file. If you redistribute a
-Derivative Work of this code, keep `android/editor/NOTICE.md` and the third-party
+Derivative Work of this code, keep `android/features/editor/NOTICE.md` and the third-party
 notices with it.
 
 And if you built something with Drosh's pieces — the design system, the block

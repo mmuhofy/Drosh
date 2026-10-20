@@ -124,7 +124,8 @@ domain/       → Use cases, business logic, repository interfaces,
 data/         → Repository implementations, Room DAOs, SSHJ client,
                 LLM provider adapters, DataStore, theme store client.
 
-agent/        → Agent loop, ToolRegistry, MultiStepStreamer,
+features/
+  agent/      → Agent loop, ToolRegistry, MultiStepStreamer,
                 streaming handler, tool implementations.
                 Depends on domain/ interfaces only.
 
@@ -136,7 +137,7 @@ guest/        → The Linux guest: rootfs, bootstrap, archive, and the
                 launcher that execs a shell inside it. Knows nothing
                 about sessions, panes or the UI.
 
-ssh/          → SSHJ manager, SSH key vault, host management,
+  ssh/        → SSHJ manager, SSH key vault, host management,
                 multi-exec, constellation data.
 
 di/           → Hilt modules only. No logic whatsoever.

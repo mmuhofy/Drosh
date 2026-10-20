@@ -17,15 +17,15 @@ by that split: `android/data/` is still `project(":data")`.
 ```
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
 
- ├── :ui ──────────► :domain, :theme
- ├── :terminal ────► :engine, :guest, :domain
- ├── :agent ───────► :terminal, :domain
- ├── :ssh ─────────► :domain, :engine       (implements TransportPort)
- ├── :engine ──────► :domain
- ├── :guest ───────► :domain
- ├── :data ────────► :domain
- ├── :editor ──────► :domain, :theme
- └── :domain ──────► (nothing — pure Kotlin)
+ ├── :ui --------------► :domain, :theme
+ ├── :terminal --------► :engine, :guest, :domain
+ ├── :features:agent --► :terminal, :domain
+ ├── :features:ssh ----► :domain, :engine  (implements TransportPort)
+ ├── :engine ----------► :domain
+ ├── :guest -----------► :domain
+ ├── :data ------------► :domain
+ ├── :features:editor -► :domain, :theme
+ └── :domain ----------► (nothing — pure Kotlin)
 ```
 
 | Module | Owns | Must not know about |
@@ -34,9 +34,9 @@ by that split: `android/data/` is still `project(":data")`.
 | `:engine` | Rust core, JNI surface, GL renderer, input encoder, terminal view | sessions, panes, blocks, UI chrome |
 | `:guest` | rootfs, bootstrap, archive, chroot exec | terminal sessions, UI |
 | `:terminal` | sessions, panes, tabs, blocks, shell launch | Compose, `:ui`, `:app` |
-| `:ssh` | SSH transport implementing the domain port | `:terminal` |
+| `:features:ssh` | SSH transport implementing the domain port | `:terminal` |
 | `:data` | Room, DataStore, TOML, vault | `:terminal`, Compose |
-| `:agent` | LLM providers, tools, chat | Compose (screen lives in `:ui`) |
+| `:features:agent` | LLM providers, tools, chat | Compose (screen lives in `:ui`) |
 | `:ui` | Screens and chrome over domain | `:terminal`, `:engine` |
 | `:theme` | Tokens, components | any feature module |
 
