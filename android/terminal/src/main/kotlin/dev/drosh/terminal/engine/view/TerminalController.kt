@@ -73,7 +73,14 @@ class TerminalController(context: android.content.Context) {
     fun clearSelection() = view.selectionOverlay.clear()
 
     /** The currently selected text, or "" when nothing is selected. */
-    fun selectionText(): String = view.session.selectionText()
+    /**
+     * The selected text, or "" when nothing is selected.
+     *
+     * The **drawn** selection, not the engine's: the engine's own selection is
+     * a separate thing that the view never sets, so asking the session for it
+     * answers "" for every selection the user can actually make.
+     */
+    fun selectionText(): String = view.selectionOverlay.copyText()
 
     // --- find hook ---------------------------------------------------------
 
