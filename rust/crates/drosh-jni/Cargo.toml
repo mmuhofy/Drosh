@@ -1,16 +1,19 @@
 [package]
-name = "drosh-core"
-description = "Drosh terminal core — the JNI boundary the Android app loads"
+name = "drosh-jni"
+description = "The JNI boundary the Android app loads: the extern entry points and the handle table"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [lib]
-# cdylib: the artifact the Android app loads over JNI. The library name must
-# stay `drosh_core`: Kotlin calls `System.loadLibrary("drosh_core")` and CI
-# checks the APK for `lib/arm64-v8a/libdrosh_core.so`.
+# cdylib: the artifact the Android app loads over JNI.
+# The library name stays `drosh_core` — it is the product's native library, and
+# Kotlin calls `System.loadLibrary("drosh_core")` while CI checks the APK for
+# `lib/arm64-v8a/libdrosh_core.so`. The crate is named for what it holds (the
+# boundary); the library keeps the name the product ships under.
 # rlib: lets the workspace's tests link the crate as a normal dependency.
+name = "drosh_core"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

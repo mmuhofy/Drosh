@@ -163,7 +163,7 @@ responsibility is unclear: `TerminalManager` (1808 lines), `BlockEngineWire`,
 | `drosh-pty` | PTY + the child process (D8) | must not know about the grid |
 | `drosh-bridge` | struct/byte marshalling | no JNI, plain Rust |
 | `drosh-font` | raster, shaping | must not pull the VT engine in |
-| `drosh-core` | `extern "C"` + handle validation, `JNI_OnLoad`, logging | no business logic; `ffi/*.rs` ≤ 120 lines |
+| `drosh-jni` | `extern "C"` + handle validation, `JNI_OnLoad`, logging | no business logic; `ffi/*.rs` ≤ 120 lines |
 
 The table is enforced by Cargo, not by review: a crate can only call what its
 manifest declares, so "the bridge must not see JNI" is a missing dependency
