@@ -65,6 +65,11 @@
     <string name="settings_cursor_style_thin">Block delgado</string>
     <string name="settings_terminal_mode">Modo de terminal</string>
     <string name="settings_terminal_mode_desc">Cómo se organizan un comando y su salida</string>
+    <string name="settings_terminal_backend">Backend del terminal</string>
+    <string name="settings_terminal_backend_termux">Termux</string>
+    <string name="settings_terminal_backend_termux_desc">La terminal que la app siempre ha usado</string>
+    <string name="settings_terminal_backend_engine">Engine</string>
+    <string name="settings_terminal_backend_engine_desc">El nuevo motor Rust — experimental</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">IA</string>

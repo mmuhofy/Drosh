@@ -65,6 +65,11 @@
     <string name="settings_cursor_style_thin">block رفيع</string>
     <string name="settings_terminal_mode">وضع الطرفية</string>
     <string name="settings_terminal_mode_desc">كيفية ترتيب الأمر ومخرجاته</string>
+    <string name="settings_terminal_backend">محرك الطرفية</string>
+    <string name="settings_terminal_backend_termux">Termux</string>
+    <string name="settings_terminal_backend_termux_desc">الطرفية التي استخدمها التطبيق دائماً</string>
+    <string name="settings_terminal_backend_engine">Engine</string>
+    <string name="settings_terminal_backend_engine_desc">محرك Rust الجديد — تجريبي</string>
     <string name="settings_mode_terminal">الطرفية</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">الذكاء الاصطناعي</string>

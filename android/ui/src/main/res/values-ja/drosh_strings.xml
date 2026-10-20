@@ -65,6 +65,11 @@
     <string name="settings_cursor_style_thin">細い block</string>
     <string name="settings_terminal_mode">ターミナルモード</string>
     <string name="settings_terminal_mode_desc">コマンドとその出力の配置方法</string>
+    <string name="settings_terminal_backend">ターミナルバックエンド</string>
+    <string name="settings_terminal_backend_termux">Termux</string>
+    <string name="settings_terminal_backend_termux_desc">アプリが今まで使ってきたターミナル</string>
+    <string name="settings_terminal_backend_engine">Engine</string>
+    <string name="settings_terminal_backend_engine_desc">新しい Rust エンジン — 実験的</string>
     <string name="settings_mode_terminal">ターミナル</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">AI</string>

@@ -11,6 +11,7 @@ import dev.drosh.domain.settings.ThemePalette
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.TerminalSettings
 import dev.drosh.domain.settings.SettingsRepository
+import dev.drosh.domain.settings.TerminalBackend
 import dev.drosh.domain.terminal.TerminalZoom
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Properties
@@ -72,6 +73,18 @@ class TerminalViewModel @Inject constructor(
 
     val useBlockEngine: StateFlow<Boolean> = settingsRepository.useBlockEngine
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * Which terminal implementation the app runs.
+     *
+     * Termux until the engine has been through a device. The terminal screen
+     * asks this to decide what it puts in a pane: the vendored view, or the
+     * engine's own pane.
+     */
+    val terminalBackend: StateFlow<TerminalBackend> = store.settings
+        .map { it.terminal.backend }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalBackend.DEFAULT)
 
     val prootStartCommand: StateFlow<String> = settingsRepository.prootStartCommand
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")

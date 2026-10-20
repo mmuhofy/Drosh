@@ -65,6 +65,11 @@
     <string name="settings_cursor_style_thin">细 block</string>
     <string name="settings_terminal_mode">终端模式</string>
     <string name="settings_terminal_mode_desc">命令及其输出的排列方式</string>
+    <string name="settings_terminal_backend">终端后端</string>
+    <string name="settings_terminal_backend_termux">Termux</string>
+    <string name="settings_terminal_backend_termux_desc">应用一直使用的终端</string>
+    <string name="settings_terminal_backend_engine">Engine</string>
+    <string name="settings_terminal_backend_engine_desc">新的 Rust 引擎 — 实验性</string>
     <string name="settings_mode_terminal">终端</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">AI</string>

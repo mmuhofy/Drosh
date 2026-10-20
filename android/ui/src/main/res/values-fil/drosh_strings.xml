@@ -65,6 +65,11 @@
     <string name="settings_cursor_style_thin">Manipis na block</string>
     <string name="settings_terminal_mode">Terminal mode</string>
     <string name="settings_terminal_mode_desc">Kung paano inaayos ang isang command at ang output nito</string>
+    <string name="settings_terminal_backend">Terminal backend</string>
+    <string name="settings_terminal_backend_termux">Termux</string>
+    <string name="settings_terminal_backend_termux_desc">Ang terminal na laging ginagamit ng app</string>
+    <string name="settings_terminal_backend_engine">Engine</string>
+    <string name="settings_terminal_backend_engine_desc">Ang bagoong Rust engine — experimental</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">AI</string>
