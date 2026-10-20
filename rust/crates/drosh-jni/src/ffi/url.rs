@@ -23,7 +23,7 @@ use drosh_session::url::UrlHit;
 /// instead of silent.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeFindUrls<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
     limit: jint,
