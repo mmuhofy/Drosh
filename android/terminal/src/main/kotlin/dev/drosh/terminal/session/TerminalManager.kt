@@ -1603,7 +1603,7 @@ class TerminalManager(
      */
     private fun reportMissingGuestRuntime() {
         val engine = when (guestIsolation) {
-            GuestIsolation.PROT -> "proot"
+            GuestIsolation.PROOT -> "proot"
             GuestIsolation.CHROOT_NG -> "chroot-ng"
         }
         Log.e(TAG, "$engine is not in this build: the guest runtime is missing from the app's native library directory")

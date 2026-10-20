@@ -228,7 +228,7 @@
     <string name="settings_speed_slow">Mabagal</string>
     <string name="settings_speed_fast">Mabilis</string>
     <string name="terminal_delete_last_session_title">I-delete ang huling session?</string>
-    <string name="terminal_guest_runtime_missing">Hindi nasa ang runtime ng bisita %1$s sa build na ito, kaya't hindi na mapatakbo ang bisita. Bukas ang isang simpleng shell.</string>
+    <string name="terminal_guest_runtime_missing">Hindi nasa ang runtime ng bisita %1$s sa build na ito, kaya\'t hindi na mapatakbo ang bisita. Bukas ang isang simpleng shell.</string>
     <string name="terminal_delete_last_session_ended_body">Natapos ito sa exit code na %1$d. Ang pag-delete dito ay magsasara ng app; magsisimula mula sa simula ang bagong session.</string>
     <string name="terminal_delete_last_session_body">Ang pag-delete dito ay magsasara ng app; magsisimula mula sa simula ang bagong session.</string>
     <string name="terminal_preparing">Naghahanda…</string>
