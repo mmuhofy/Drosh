@@ -46,6 +46,14 @@ jobs:
       - name: Check module boundaries
         run: ./gradlew checkModuleBoundaries --no-daemon --stacktrace
 
+      # An import that names a module the file's own module does not depend
+      # on cannot compile. The Kotlin compiler says so, in a stack trace, after
+      # a full round trip; this says it in one line, before that. It is the
+      # other half of the boundary check: the checker looks at what a module
+      # must not import, this looks at what it imports and cannot see.
+      - name: Check that every module import resolves
+        run: python3 ../tools/check-module-imports.py
+
       - name: Run :domain tests
         run: ./gradlew :domain:test --no-daemon --stacktrace
 
