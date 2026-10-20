@@ -1,3 +1,7 @@
+package dev.drosh.terminal
+
+import java.io.File
+
 // Inspired by: github.com/rk134/ReTerminal (MkSession.kt, init-host.sh)
 class ProotRunner(
     private val bootstrap: UbuntuBootstrap,
