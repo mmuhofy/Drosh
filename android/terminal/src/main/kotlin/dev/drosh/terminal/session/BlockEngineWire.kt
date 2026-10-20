@@ -2,6 +2,9 @@ package dev.drosh.terminal.session
 
 import dev.drosh.domain.block.BlockEngineState
 import dev.drosh.domain.block.BlockRepository
+import dev.drosh.domain.block.ShellPhase
+import dev.drosh.domain.block.ShellState
+import dev.drosh.domain.block.ShellStateSource
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 
@@ -24,6 +27,14 @@ import com.termux.terminal.TerminalSession
  * This is a **transcript polling** design — every UI frame, the wire
  * compares what the user can see now versus what we last saw, and
  * pushes the difference into the block repository. See PLAN.md §3.
+ *
+ * The *state* — the phase, the working directory and the editor target — is
+ * not inferred here when the terminal can report it. [ShellStateSource] is
+ * the seam: a vendored Termux session binds no source, so the wire keeps
+ * reading the screen exactly as it always has, while a session that runs on
+ * the engine binds the engine's own state, and the marks the engine taps —
+ * not the shape of a prompt — decide those facts. The text (the transcript,
+ * the prompt, the command) stays this class's work either way.
  */
 class BlockEngineWire(
     private val blockRepository: BlockRepository,
@@ -37,16 +48,74 @@ class BlockEngineWire(
 
     /** Last directory inferred from the prompt's path component. */
     @Volatile
-    override var lastDir: String = "~"
-        private set
+    private var inferredDir: String = "~"
+
+    /**
+     * The directory the session is in.
+     *
+     * The engine reports the working directory exactly (`OSC 7`), so an
+     * engine-backed session answers with that path's last segment — the same
+     * shape the prompt gives. A vendored Termux session has no such report
+     * the block engine can read, so the wire keeps the segment it inferred
+     * from the prompt.
+     */
+    override val lastDir: String
+        get() = reportedShellState()?.workingDirectory?.let { lastSegmentOf(it) } ?: inferredDir
 
     /**
      * False while an interactive program owns the terminal. See
      * [BlockEngineState.awaitingShellInput] for why the UI needs this.
      */
     @Volatile
-    override var awaitingShellInput: Boolean = true
-        private set
+    private var inferredAwaitingShellInput: Boolean = true
+
+    /**
+     * True when the shell itself is at a prompt and waiting for a command.
+     *
+     * The engine's marks answer this: the shell is at its prompt between the
+     * prompt mark and the command mark, and it is not there once the command
+     * runs. The marks cannot tell an interactive program from a plain command,
+     * so this answer is coarser than the screen's — the screen knows a REPL by
+     * its prompt, the marks only know that something is running.
+     *
+     * A vendored Termux session has no such report, so the wire keeps
+     * reading the last line of the screen.
+     */
+    override val awaitingShellInput: Boolean
+        get() = when (reportedShellState()?.phase) {
+            ShellPhase.PROMPT, ShellPhase.TYPING -> true
+            ShellPhase.RUNNING, ShellPhase.FINISHED -> false
+            null, ShellPhase.UNKNOWN -> inferredAwaitingShellInput
+        }
+
+    /**
+     * Where the shell is in its cycle, as the terminal reports it.
+     *
+     * [ShellPhase.UNKNOWN] when nothing reports it, which is the case for a
+     * vendored Termux session: the wire infers the phase from the screen and
+     * has no marks to read.
+     */
+    override val shellPhase: ShellPhase
+        get() = reportedShellState()?.phase ?: ShellPhase.UNKNOWN
+
+    /** The working directory the shell reported, when it reported one. */
+    override val workingDirectory: String?
+        get() = reportedShellState()?.workingDirectory
+
+    /** The file the shell last asked the editor to open, when it reported one. */
+    override val editorTarget: String?
+        get() = reportedShellState()?.editorTarget
+
+    /**
+     * The shell state of the active session, when the terminal knows it.
+     *
+     * Null for a vendored Termux session: the emulator's shell-integration
+     * state is not something the block engine reads, so the wire keeps
+     * inferring the phase, the directory and the editor target from the
+     * screen.
+     */
+    @Volatile
+    private var shellStateSource: ShellStateSource? = null
 
     private var pendingEcho: String? = null
 
@@ -64,8 +133,21 @@ class BlockEngineWire(
      * Rebinds to another session without discarding its history. The diff anchor
      * is re-seeded from the new session's own transcript so the first poll
      * cannot mistake its backlog for fresh output.
+     *
+     * [shellState] is the state source that goes with the session: null for a
+     * vendored Termux session, which has none the block engine can read. The
+     * engine's session is not a [TerminalSession] — it has no screen to diff —
+     * so it arrives with a source and no session.
      */
-    fun onSessionChanged(sessionId: String?, session: TerminalSession?) {
+    fun onSessionChanged(
+        sessionId: String?,
+        session: TerminalSession?,
+        shellState: ShellStateSource? = null,
+    ) {
+        // The source belongs to the session, so it is bound before the early
+        // return: the same session bound again may come with a source where it
+        // had none.
+        shellStateSource = shellState
         if (activeSessionId == sessionId) return
         activeSessionId = sessionId
         previousTranscript = session?.let { snapshotOf(it) } ?: ""
@@ -113,7 +195,7 @@ class BlockEngineWire(
         // marker of its own instead of a shell prompt. Decided before the
         // input-line handling below, because a line typed into a REPL is echoed
         // back and must not be swallowed as a shell echo.
-        awaitingShellInput = !isProgramPrompt(current.substringAfterLast('\n').trimEnd())
+        inferredAwaitingShellInput = !isProgramPrompt(current.substringAfterLast('\n').trimEnd())
 
         if (appended.isEmpty()) return
 
@@ -293,7 +375,21 @@ class BlockEngineWire(
         val match = PROMPT_DIR_REGEX.find(prompt) ?: return
         val path = match.groupValues[1]
         if (path.isBlank()) return
-        val tail = path.trimEnd('/').substringAfterLast('/').ifBlank { "~" }
-        lastDir = tail
+        inferredDir = lastSegmentOf(path)
     }
+
+    /**
+     * The last segment of a path, or `~` when the path has none.
+     *
+     * The prompt's path and the engine's working directory are the same kind
+     * of thing seen from two sides, so both end up as the short label the
+     * block header shows.
+     */
+    private fun lastSegmentOf(path: String): String =
+        path.trimEnd('/').substringAfterLast('/').ifBlank { "~" }
+
+    /**
+     * The shell state the terminal reports, or null when it reports none.
+     */
+    private fun reportedShellState(): ShellState? = shellStateSource?.currentState()
 }
