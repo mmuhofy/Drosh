@@ -15,7 +15,7 @@ use drosh_session::search::SearchHit;
 /// An unknown handle or empty buffer answers a single `error:CODE` record, so a
 /// bug is visible instead of silent.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSearch<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSearch<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

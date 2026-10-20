@@ -60,7 +60,7 @@ fn install_panic_hook() {
 /// stale `libdrosh_core.so` is visible immediately instead of showing up as a
 /// mysterious JNI error later.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeVersion<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeVersion<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
 ) -> JString<'local> {

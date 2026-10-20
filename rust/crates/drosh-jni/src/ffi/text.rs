@@ -12,7 +12,7 @@ use crate::ffi::{fail, session_or};
 /// transcript must have the control bytes gone. An unknown handle or bad buffer
 /// yields an empty string rather than a panic across JNI.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeStripAnsi<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeStripAnsi<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

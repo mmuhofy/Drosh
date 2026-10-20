@@ -22,7 +22,7 @@ use drosh_session::url::UrlHit;
 /// An unknown handle answers a single `error:CODE` record, so a bug is visible
 /// instead of silent.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeFindUrls<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeFindUrls<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
@@ -56,7 +56,7 @@ fn format_hit(hit: &UrlHit) -> String {
 /// The URL at a visible (row, col), or an empty string when the cell is not
 /// inside one.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeUrlAt<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeUrlAt<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

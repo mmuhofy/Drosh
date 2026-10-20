@@ -13,7 +13,7 @@ use crate::ffi::{fail, session_or, write_int_array, ErrorCode};
 /// Fill `out` (length 3) with the ambient tint `[r, g, b]` and return
 /// [`ErrorCode::Ok`], or a negative code when the session is unknown.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeAmbientTint<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeAmbientTint<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

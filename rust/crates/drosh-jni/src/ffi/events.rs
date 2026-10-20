@@ -17,7 +17,7 @@ use drosh_bridge::events::SessionEvent;
 /// An unknown handle answers `false`: a stale handle must not make the render
 /// loop spin.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativePollWakeup(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativePollWakeup(
     _env: JNIEnv,
     _class: JClass,
     id: jlong,
@@ -40,7 +40,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativePollWakeup(
 /// `clipboard_store` carries base64 because a record is one line and clipboard
 /// text is arbitrary: raw text would break the record format.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeDrainEvents<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeDrainEvents<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

@@ -20,7 +20,7 @@ use drosh_bridge::snapshot::STATE_LEN;
 /// number of damaged lines, each followed by `row`, `left`, `right`. The return
 /// value is an [`ErrorCode`].
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSnapshot<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSnapshot<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
@@ -58,7 +58,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeSnapshot<'loc
 /// buffer: size, cursor, display offset and mode bits (see
 /// [`drosh_bridge::snapshot::state_index`]).
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeState<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeState<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

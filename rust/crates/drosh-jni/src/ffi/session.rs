@@ -22,7 +22,7 @@ use drosh_session::{GridSize, SessionConfig};
 /// consequence of that, not of a design choice here.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCreateSession<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeCreateSession<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     columns: jint,
@@ -63,7 +63,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCreateSession
 /// The host owns the transport (SSH, a debug socket, …); it routes user input
 /// itself and hands the output here.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCreateBridgedSession(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeCreateBridgedSession(
     _env: JNIEnv,
     _class: JClass,
     columns: jint,
@@ -87,7 +87,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCreateBridged
 
 /// Feed output bytes into a bridged session (no PTY on the other side).
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeFeed(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeFeed(
     env: JNIEnv,
     _class: JClass,
     id: jlong,
@@ -105,7 +105,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeFeed(
 
 /// Stop a session and tear down its child process.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCloseSession(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeCloseSession(
     _env: JNIEnv,
     _class: JClass,
     id: jlong,
@@ -120,7 +120,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeCloseSession(
 
 /// Send input to the PTY.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeWrite<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeWrite<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
@@ -137,7 +137,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeWrite<'local>
 
 /// Resize grid, PTY and renderer state.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeResize(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeResize(
     _env: JNIEnv,
     _class: JClass,
     id: jlong,
@@ -160,7 +160,7 @@ pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeResize(
 
 /// Scroll the viewport (positive = into the scrollback history).
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeScroll(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeScroll(
     _env: JNIEnv,
     _class: JClass,
     id: jlong,
@@ -221,7 +221,7 @@ fn decode_env(text: &str) -> FfiResult<Vec<(String, String)>> {
 /// with the escape sequences stripped, so a session log is text a person — or a
 /// model — can read.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeTranscript<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeTranscript<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

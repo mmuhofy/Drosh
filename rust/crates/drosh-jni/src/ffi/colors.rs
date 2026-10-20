@@ -18,7 +18,7 @@ pub const UNSET: i32 = -1;
 
 /// Fill `out` with `COUNT` entries: `-1` or `0xRRGGBB`.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeColors<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeColors<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

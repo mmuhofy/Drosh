@@ -20,7 +20,7 @@ use crate::ffi::{fail, session_or};
 /// caller is asking about a session that may have just gone away, and "no
 /// state" is the honest answer for that.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeBlockState<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeBlockState<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,
