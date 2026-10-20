@@ -58,13 +58,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import kotlin.math.roundToInt
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.DroshDropdownMenu
-import dev.drosh.design.system.DroshMenuItem
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurface
+import dev.drosh.theme.DroshSurfaceHigh
+import dev.drosh.ui.DroshDropdownMenu
+import dev.drosh.ui.DroshMenuItem
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.session.SessionSwitcherViewModel
 
 /**

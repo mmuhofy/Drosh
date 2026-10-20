@@ -156,7 +156,7 @@ dependencies {
     implementation(project(":guest"))
     implementation(project(":ssh"))
     implementation(project(":ui"))
-    implementation(project(":design-system"))
+    implementation(project(":theme"))
     implementation(project(":editor"))
     implementation(libs.androidx.datastore.preferences)
 

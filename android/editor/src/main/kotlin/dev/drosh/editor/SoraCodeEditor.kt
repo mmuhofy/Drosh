@@ -13,7 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.LocalFontSet
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.EventReceiver
 import io.github.rosemoe.sora.lang.EmptyLanguage

@@ -59,12 +59,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import dev.drosh.core.copyToClipboard
 import dev.drosh.core.shareText
 import dev.drosh.core.toast
-import dev.drosh.design.system.DroshDropdownMenu
-import dev.drosh.design.system.DroshMenuItem
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.ui.DroshDropdownMenu
+import dev.drosh.ui.DroshMenuItem
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurface
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.ui.DroshIcons
 import kotlinx.coroutines.launch
 

@@ -47,14 +47,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurfaceVariant
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
 
 /**
  * PIN entry, on the screen's own keypad.

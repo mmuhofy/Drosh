@@ -21,8 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshTextMuted
 
 @Composable
 fun WormPageIndicator(

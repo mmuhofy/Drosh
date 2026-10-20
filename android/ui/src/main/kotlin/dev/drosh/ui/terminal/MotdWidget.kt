@@ -31,13 +31,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshSurfaceContainerLowest
-import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurface
+import dev.drosh.theme.DroshSurfaceContainerLowest
+import dev.drosh.theme.DroshSurfaceHigh
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 

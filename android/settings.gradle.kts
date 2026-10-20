@@ -39,7 +39,7 @@ include(":guest")
 include(":engine")
 include(":ssh")
 include(":ui")
-include(":design-system")
+include(":theme")
 // Native code editor (Rosemoe/sora-editor). Its own module so the LGPL-2.1
 // surface stays isolated and :ui keeps its "no :terminal" rule.
 include(":editor")

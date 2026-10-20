@@ -23,11 +23,11 @@ android {
 }
 
 dependencies {
-    // ui sees ONLY the domain interfaces + design-system — it does NOT see data/,
+    // ui sees ONLY the domain interfaces + theme — it does NOT see data/,
     // agent/, terminal/, or ssh/ per AGENT.md §139.
     api(project(":domain"))
     implementation(project(":core"))
-    implementation(project(":design-system"))
+    implementation(project(":theme"))
     // The system file picker the background-image row opens.
     implementation(libs.androidx.activity.compose)
 

@@ -17,14 +17,14 @@ by that split: `android/data/` is still `project(":data")`.
 ```
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
 
- ├── :ui ──────────► :domain, :design-system
+ ├── :ui ──────────► :domain, :theme
  ├── :terminal ────► :engine, :guest, :domain
  ├── :agent ───────► :terminal, :domain
  ├── :ssh ─────────► :domain, :engine       (implements TransportPort)
  ├── :engine ──────► :domain
  ├── :guest ───────► :domain
  ├── :data ────────► :domain
- ├── :editor ──────► :domain, :design-system
+ ├── :editor ──────► :domain, :theme
  └── :domain ──────► (nothing — pure Kotlin)
 ```
 
@@ -38,7 +38,7 @@ by that split: `android/data/` is still `project(":data")`.
 | `:data` | Room, DataStore, TOML, vault | `:terminal`, Compose |
 | `:agent` | LLM providers, tools, chat | Compose (screen lives in `:ui`) |
 | `:ui` | Screens and chrome over domain | `:terminal`, `:engine` |
-| `:design-system` | Tokens, components | any feature module |
+| `:theme` | Tokens, components | any feature module |
 
 `:app` is the only module allowed to know everything; it wires ports to
 implementations and nothing else.

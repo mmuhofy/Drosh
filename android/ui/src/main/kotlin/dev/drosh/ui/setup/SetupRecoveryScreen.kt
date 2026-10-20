@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.terminal.BootstrapError
 import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.domain.terminal.RecoveryAction

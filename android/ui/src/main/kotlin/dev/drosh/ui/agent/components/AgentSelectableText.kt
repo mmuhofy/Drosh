@@ -29,8 +29,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.zIndex
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshText
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshText
 import kotlin.math.abs
 import kotlin.math.roundToInt
 

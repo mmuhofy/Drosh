@@ -19,9 +19,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshOnPrimary
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshOnPrimary
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.LocalFontSet
 
 @Composable
 fun PillButton(

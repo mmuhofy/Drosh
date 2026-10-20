@@ -40,7 +40,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.setup.theme.SetupPalette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

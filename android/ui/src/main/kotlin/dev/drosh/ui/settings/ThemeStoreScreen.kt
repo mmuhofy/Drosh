@@ -55,14 +55,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.luminance
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurfaceVariant
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.DroshTile
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshTile
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 

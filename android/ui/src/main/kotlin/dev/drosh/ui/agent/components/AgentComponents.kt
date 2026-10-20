@@ -35,14 +35,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.ui.R
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshOnPrimary
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshOnPrimary
+import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurfaceHigh
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.components.GlassIconButton
 

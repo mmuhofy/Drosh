@@ -3,23 +3,23 @@ package dev.drosh.ui.setup.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshBorderSubtle
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshOnPrimary
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshSurfaceVariant
-import dev.drosh.design.system.DroshSuccess
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextDisabled
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.DroshWarning
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshBorderSubtle
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshOnPrimary
+import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurface
+import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshSuccess
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextDisabled
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshWarning
 
 /**
- * Setup-screen design tokens — now delegates to the shared `:design-system`
+ * Setup-screen design tokens — now delegates to the shared `:theme`
  * palette so the setup screens look identical to the terminal UI without
  * duplicating hex values.
  */

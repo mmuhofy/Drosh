@@ -40,11 +40,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshOnPrimary
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshOnPrimary
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.setup.onboarding.components.TypewriterText
 import dev.drosh.ui.setup.components.PillButton

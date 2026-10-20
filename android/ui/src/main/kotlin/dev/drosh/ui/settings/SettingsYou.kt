@@ -62,14 +62,14 @@ import androidx.compose.ui.unit.sp
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 import dev.drosh.ui.agent.components.AgentIconPill
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.DroshTile
-import dev.drosh.design.system.DroshTilePressed
-import dev.drosh.design.system.DroshTileSelected
-import dev.drosh.design.system.DroshTrack
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshTile
+import dev.drosh.theme.DroshTilePressed
+import dev.drosh.theme.DroshTileSelected
+import dev.drosh.theme.DroshTrack
 
 /**
  * Settings, built as a flat list of tiles on the page — no card behind them,

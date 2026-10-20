@@ -10,7 +10,7 @@ import org.gradle.kotlin.dsl.dependencies
 /**
  * Applies the Compose Compiler Kotlin plugin (`org.jetbrains.kotlin.plugin.compose`)
  * and wires Compose BOM-managed dependencies for any Android module that needs
- * Compose (app, ui, design-system, and any future widgets module).
+ * Compose (app, ui, theme, and any future widgets module).
  *
  * Other modules (data, agent, terminal, ssh, domain, core) MUST NOT apply this
  * plugin — see AGENT.md §143 ("terminal/ is isolated — never imported directly by ui/").
@@ -28,7 +28,7 @@ class AndroidComposeConventionPlugin : Plugin<Project> {
 
             // Enable Compose build feature on whichever Android extension is registered.
             // Order matters: library plugins are typically applied before this convention
-            // plugin in :ui / :design-system; :app's application plugin applies later.
+            // plugin in :ui / :theme; :app's application plugin applies later.
             extensions.findByType(LibraryExtension::class.java)?.apply {
                 buildFeatures {
                     compose = true

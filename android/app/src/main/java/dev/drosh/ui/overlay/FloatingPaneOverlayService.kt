@@ -19,7 +19,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.drosh.MainActivity
 import dev.drosh.R
 import dev.drosh.core.TerminalConstants
-import dev.drosh.design.system.DroshFonts
+import dev.drosh.theme.DroshFonts
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.terminal.TerminalManager

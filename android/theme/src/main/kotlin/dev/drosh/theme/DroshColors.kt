@@ -1,4 +1,4 @@
-package dev.drosh.design.system
+package dev.drosh.theme
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable

@@ -25,10 +25,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.DroshIcons
 
 /**

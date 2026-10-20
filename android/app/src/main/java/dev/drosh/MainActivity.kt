@@ -5,10 +5,10 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.drosh.core.LocaleHelper
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshSurfaceVariant
-import dev.drosh.design.system.DroshPrimary
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshPrimary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -74,8 +74,8 @@ import dev.drosh.ui.terminal.TerminalSessionLogSource
 import dev.drosh.guest.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen
 import dev.drosh.ui.setup.SetupRecoveryScreen
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshFonts
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshFonts
 import dev.drosh.domain.settings.ThemeMode
 import android.content.res.Configuration
 import androidx.compose.runtime.CompositionLocalProvider

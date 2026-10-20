@@ -109,6 +109,10 @@ release when it ships.
 
 ### Changed
 
+- The design system module is now `:theme` and holds what a theme is — colours
+  and typography. The dropdown component moved to `:ui`, where the screens that
+  use it live, and the package moved with it (`dev.drosh.design.system` →
+  `dev.drosh.theme`)
 - The Linux guest is its own module. The rootfs, the bootstrap, the rootfs
   archive, the guest launchers and the guest's own assets moved out of
   `:terminal` into `:guest`, which knows nothing about sessions, panes or the

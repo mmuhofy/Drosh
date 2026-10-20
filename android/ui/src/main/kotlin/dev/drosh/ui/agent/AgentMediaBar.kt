@@ -26,11 +26,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshSurfaceHigh
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.domain.agent.AgentWarning
 import dev.drosh.domain.agent.InputModality
 import dev.drosh.domain.agent.MessageAttachment

@@ -36,10 +36,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurfaceHigh
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
 
 /**
  * The glass pill, as a shared component.

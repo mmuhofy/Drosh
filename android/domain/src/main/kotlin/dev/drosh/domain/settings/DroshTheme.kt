@@ -28,7 +28,7 @@ data class ThemePalette(
      * The app tint this palette would give the interface.
      *
      * Carried, written to the file, and read back — but *not* wired into
-     * `:design-system`, which still picks its own accent per light/dark. That is
+     * `:theme`, which still picks its own accent per light/dark. That is
      * deliberate and is why this field is separate from the twenty-two terminal
      * colours: a palette is a statement about output, and repainting every
      * settings row and dialog the moment someone changes their terminal colours
