@@ -1,9 +1,6 @@
 package dev.drosh.ui.topbar
 
-import android.graphics.Bitmap
-import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Rect as AndroidRect
-import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +15,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -35,8 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
-import com.termux.view.TerminalView
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.terminal.TerminalAppearanceSource
+import dev.drosh.ui.terminal.clampRegion
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextSecondary
@@ -72,10 +69,15 @@ import kotlin.math.roundToInt
  * all. Asking Haze for a backdrop over the terminal produces an empty
  * rectangle, which is the same failure the top bar's pills had.
  *
- * So the pixels come from the view directly, the same way the top bar samples
+ * So the pixels come from the terminal itself, the same way the top bar samples
  * its backdrop. The terminal draws itself into a bitmap sized to the menu, and
  * Modifier.blur applies the real RenderEffect to it. The result is a genuine
  * blur of the actual output behind the menu — not a tint pretending to be one.
+ *
+ * Where the terminal is drawn by the engine there are no pixels to read, and
+ * what the menu gets instead is the region's average colour: the menu tints
+ * itself with the colour behind it, which is all a region of cells can be
+ * honestly reduced to.
  *
  * Sampling is on a timer rather than per frame: view.draw walks every visible
  * row, so doing it at frame rate would be a second full terminal render on top
@@ -83,57 +85,29 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun SelectionMenuBackdrop(
-    terminalView: TerminalView?,
+    source: TerminalAppearanceSource?,
     bounds: AndroidRect?,
     sizePx: IntSize,
     captureMillis: Long = 90L,
 ): State<ImageBitmap?> = produceState<ImageBitmap?>(
-    initialValue = null, terminalView, bounds, sizePx,
+    initialValue = null, source, bounds, sizePx,
 ) {
-    if (terminalView == null || bounds == null || sizePx.width <= 0 || sizePx.height <= 0) {
+    if (source == null || bounds == null || sizePx.width <= 0 || sizePx.height <= 0) {
         value = null
         return@produceState
     }
-    // Clamped to the view: sampling past its edge yields empty pixels, which the
+    // Clamped to the terminal: sampling past its edge yields empty pixels, which the
     // blur then smears into the menu.
-    val src = AndroidRect(
-        bounds.left,
-        bounds.top,
-        bounds.left + sizePx.width,
-        bounds.top + sizePx.height,
-    ).also {
-        it.left = it.left.coerceAtLeast(0)
-        it.top = it.top.coerceAtLeast(0)
-        it.right = it.right.coerceAtMost(terminalView.width)
-        it.bottom = it.bottom.coerceAtMost(terminalView.height)
-    }
-    if (src.width() <= 0 || src.height() <= 0) {
+    val src = source.clampRegion(bounds.left, bounds.top, sizePx.width, sizePx.height)
+    if (src == null) {
         value = null
         return@produceState
     }
     while (true) {
-        value = sampleRegion(terminalView, src, sizePx)
+        value = source.captureRegion(src.left, src.top, sizePx.width, sizePx.height)
+            ?.asImageBitmap()
         delay(captureMillis)
     }
-}
-
-private fun sampleRegion(view: View, src: AndroidRect, size: IntSize): ImageBitmap? {
-    if (view.width <= 0 || view.height <= 0) return null
-    val w = size.width
-    val h = size.height
-    if (w <= 0 || h <= 0) return null
-    val bitmap = runCatching { Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888) }
-        .getOrNull() ?: return null
-    // Clip to the region so view.draw only rasterises the part we need.
-    val canvas = AndroidCanvas(bitmap)
-    canvas.clipRect(0f, 0f, w.toFloat(), h.toFloat())
-    canvas.translate(-src.left.toFloat(), -src.top.toFloat())
-    val ok = runCatching { view.draw(canvas) }.isSuccess
-    if (!ok) {
-        bitmap.recycle()
-        return null
-    }
-    return bitmap.asImageBitmap()
 }
 
 /**
@@ -158,7 +132,16 @@ fun SelectionMenuSurface(
             androidx.compose.foundation.Canvas(
                 Modifier
                     .matchParentSize()
-                    .blur(radius = blurRadius)
+                    // No blur where there is none to do: the engine's picture of
+                    // the region is one flat colour, and blurring a flat colour
+                    // changes nothing but costs a RenderEffect on every frame.
+                    .then(
+                        if (blurRadius > 0.dp) {
+                            Modifier.blur(radius = blurRadius)
+                        } else {
+                            Modifier
+                        },
+                    )
             ) {
                 drawImage(
                     image = backdrop,

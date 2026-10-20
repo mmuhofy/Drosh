@@ -173,6 +173,17 @@ private val MENU_MIN_WIDTH = 210.dp
 /** Light blur, not an Apple-style frosted slab. */
 private val MENU_BLUR = 10.dp
 
+/**
+ * How hard the selection menu's backdrop is blurred.
+ *
+ * The Termux picture is a picture, and blurring it smears the output behind
+ * the menu — which is the whole point of the glass. The engine's picture of
+ * the region is one flat colour, the region's average, and blurring a flat
+ * colour changes nothing at all: so there the blur is not paid for.
+ */
+private fun menuBlurRadius(kind: TerminalAppearanceKind?): Dp =
+    if (kind == TerminalAppearanceKind.ENGINE) 0.dp else MENU_BLUR
+
 private val MENU_HEIGHT_PX = 64.dp
 
 @Composable
@@ -532,6 +543,22 @@ private fun ReadyScreen(
         mutableStateOf<TerminalView?>(null)
     }
 
+    /**
+     * Where the chrome reads the focused terminal's appearance from.
+     *
+     * The pane publishes it, because only the pane knows what draws its
+     * terminal: the Termux view today, the engine's session once the app
+     * hosts one. The chrome asks for colours and never for a renderer, so the
+     * two cannot be mixed up — a Termux-backed terminal is sampled from its
+     * pixels and an engine-backed one from its cells.
+     *
+     * Published like [terminalViewRef] and for the same reason: only the
+     * focused pane is the terminal the user is looking at.
+     */
+    val appearanceSource = remember {
+        mutableStateOf<TerminalAppearanceSource?>(null)
+    }
+
     // ── Find in the output ──────────────────────────────────────────────────
     //
     // Everything below is about one question the find bar asks: what does this
@@ -722,7 +749,7 @@ private fun ReadyScreen(
     // Only the classic path has a View to sample; the block engine is a
     // LazyColumn and the alt buffer is a TUI, neither of which needs this.
     val backdrop by rememberTerminalBackdrop(
-        terminalView = terminalViewRef.value,
+        source = appearanceSource.value,
         stripHeight = TOP_BAR_BACKDROP_STRIP,
         // Only while the pills float over output. Collapsed they sit in the band
         // the status bar vacated, above the grid, so there is nothing behind them
@@ -984,6 +1011,7 @@ private fun ReadyScreen(
                     searchResults = findResultsFor(PaneSlot.PRIMARY),
                     searchOverlayRef = searchOverlayRef,
                     terminalViewRef = terminalViewRef,
+                    appearanceSource = appearanceSource,
                     onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
                 )
@@ -1030,6 +1058,7 @@ private fun ReadyScreen(
                     searchResults = findResultsFor(PaneSlot.SECONDARY),
                     searchOverlayRef = remember { mutableStateOf<SearchHighlightOverlay?>(null) },
                     terminalViewRef = terminalViewRef,
+                    appearanceSource = appearanceSource,
                     // Bounds are the top bar's backdrop sample, and the top bar
                     // reads whichever pane has focus. Letting the unfocused pane
                     // report would leave the bar sampling a terminal the user is
@@ -1078,7 +1107,7 @@ private fun ReadyScreen(
             val menuHeightPx = with(density) { MENU_HEIGHT_PX.roundToPx() }
             var measured by remember { mutableStateOf(IntSize.Zero) }
             val backdrop by SelectionMenuBackdrop(
-                terminalView = terminalViewRef.value,
+                source = appearanceSource.value,
                 bounds = bounds,
                 sizePx = if (measured.width > 0) measured else IntSize(densityPx, menuHeightPx),
             )
@@ -1095,7 +1124,7 @@ private fun ReadyScreen(
                 selectedText = selectionText,
                 url = selectionUrl,
                 canPaste = hasClipboardText,
-                blurRadius = MENU_BLUR,
+                blurRadius = menuBlurRadius(appearanceSource.value?.kind),
                 onCopy = {
                     selectionText?.let { context.copyToClipboard("terminal", it) }
                     terminalViewRef.value?.dismissSelection()
@@ -1593,6 +1622,8 @@ private fun TerminalPaneBody(
     searchResults: TerminalSearchResults?,
     searchOverlayRef: MutableState<SearchHighlightOverlay?>,
     terminalViewRef: MutableState<TerminalView?>,
+    /** Where this pane's terminal is sampled for the chrome. */
+    appearanceSource: MutableState<TerminalAppearanceSource?>,
     onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
 ) {
@@ -1705,6 +1736,7 @@ private fun TerminalPaneBody(
                     keepAwake = keepAwake,
                     terminalViewModel = terminalViewModel,
                     terminalViewRef = terminalViewRef,
+                    appearanceSource = appearanceSource,
                     extraKeyState = extraKeyState,
                     onUrlClick = onUrlClick,
                     searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
@@ -1743,6 +1775,13 @@ private fun TerminalViewHost(
     keepAwake: Boolean,
     terminalViewModel: TerminalViewModel,
     terminalViewRef: MutableState<TerminalView?>,
+    /**
+     * Where this pane's terminal is sampled for the chrome.
+     *
+     * Published by the pane that has focus, because the chrome samples the
+     * terminal the user is looking at.
+     */
+    appearanceSource: MutableState<TerminalAppearanceSource?>,
     onUrlClick: (String) -> Unit,
     searchQuery: String?,
     /**
@@ -1769,6 +1808,16 @@ private fun TerminalViewHost(
      * and colours to the same view and leave the other one on the defaults.
      */
     val ownView = remember { mutableStateOf<TerminalView?>(null) }
+
+    /**
+     * This pane's own appearance source, paired with [ownView].
+     *
+     * The chrome samples the terminal through it rather than through the view
+     * itself, so a terminal drawn by another renderer can be sampled the same
+     * way. The Termux view is the one this pane holds, so the source is the
+     * one that reads its pixels.
+     */
+    val ownAppearance = remember { mutableStateOf<TerminalAppearanceSource?>(null) }
 
     /**
      * The mouse pointer overlay for this pane.
@@ -1871,9 +1920,14 @@ private fun TerminalViewHost(
     // backdrop all reach through, and all three mean "the terminal the user is
     // looking at". Republishing it on focus is what keeps them pointing at the
     // right one after a tap into the other pane.
-    LaunchedEffect(focusedPane, ownView.value) {
+    //
+    // The appearance source travels with it: the chrome samples the terminal
+    // through the source, and a source that pointed at the other pane's
+    // terminal would sample the wrong output.
+    LaunchedEffect(focusedPane, ownView.value, ownAppearance.value) {
         if (paneSlot == focusedPane) {
             terminalViewRef.value = ownView.value
+            appearanceSource.value = ownAppearance.value
             val view = ownView.value
             val pointer = pointerOverlay.value
             if (view != null && pointer != null) {
@@ -1985,8 +2039,13 @@ private fun TerminalViewHost(
                             if (width > 0 && height > 0 && isAttachedToWindow) {
                                 viewTreeObserver.removeOnGlobalLayoutListener(this)
                                 ownView.value = this@apply
+                                // The source that reads this view's pixels. Made
+                                // once, here, so the chrome's sampling loop is not
+                                // restarted by a new instance every time it asks.
+                                ownAppearance.value = TermuxAppearanceSource(this@apply)
                                 if (paneSlot == focusedPane) {
                                     terminalViewRef.value = this@apply
+                                    appearanceSource.value = ownAppearance.value
                                     this@apply.requestFocus()
                                 }
                             }
