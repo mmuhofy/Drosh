@@ -8,8 +8,8 @@ import dev.drosh.terminal.engine.input.Encoder
  * The public surface a host (activity, fragment, Compose view) talks to.
  *
  * It owns the internal [TerminalView] and exposes the stable operations:
- * lifecycle, session start, clipboard, selection handles, a find hook, a zoom
- * placeholder and the Rust-served ambient tint. Keeping it separate from the view
+ * lifecycle, session start, clipboard, selection handles, a find hook, the
+ * text size and the Rust-served ambient tint. Keeping it separate from the view
  * lets the view's internal structure change without breaking hosts — they only
  * ever see this class.
  *
@@ -80,15 +80,37 @@ class TerminalController(context: android.content.Context) {
     /** Find `query` in the visible grid; each result is `row, col, len`. */
     fun find(query: String, limit: Int = 200): List<Triple<Int, Int, Int>> = view.session.search(query, limit)
 
-    // --- zoom (placeholder) ------------------------------------------------
+    // --- text size ---------------------------------------------------------
 
     /**
-     * Pinch/drag zoom hook. The engine view does not scale the grid yet; the
-     * Termux-compatible `TerminalView.zoomTo` focal anchoring lands here once the
-     * renderer supports cell-size changes (tracked in TODO).
+     * The size the terminal is drawing at, in sp.
+     *
+     * The size the terminal opened at until the host sets another one, and
+     * the last size the host asked for after that.
      */
-    fun zoom(_scale: Float) {
-        // Not implemented in the prototype engine view.
+    val textSizeSp: Float get() = view.textSizeSp
+
+    /**
+     * Set the size of the terminal's text, in sp.
+     *
+     * The same unit the font-size setting stores; the engine converts it to
+     * pixels, re-measures the cell and lays the grid out again.
+     */
+    fun setTextSize(sp: Float) = view.setTextSize(sp)
+
+    /**
+     * Pinch/drag zoom hook: a factor on the size the terminal draws at.
+     *
+     * The engine lays the grid out from the top left, so there is no focal
+     * anchoring: the cell under the fingers moves with the grid. A host that
+     * zooms by a factor of the whole gesture should send that factor, not
+     * the factor of one step — the size compounds.
+     */
+    fun zoom(scale: Float) {
+        if (scale <= 0f) {
+            return
+        }
+        view.setTextSize(view.textSizeSp * scale)
     }
 
     // --- ambient tint from Rust -------------------------------------------

@@ -14,6 +14,7 @@ import dev.drosh.terminal.engine.core.NativeCore
 import dev.drosh.terminal.engine.input.Encoder
 import dev.drosh.terminal.engine.input.SelectionText
 import dev.drosh.terminal.engine.render.CellMetrics
+import dev.drosh.terminal.engine.render.FontSize
 import dev.drosh.terminal.engine.render.FrameLoop
 import dev.drosh.terminal.engine.render.GlyphAtlas
 import dev.drosh.terminal.engine.render.Palette
@@ -81,6 +82,14 @@ class TerminalView(context: Context) : FrameLayout(context) {
     /** Pixel size the glyphs are rasterised at. */
     private var fontPx = 0f
 
+    /**
+     * The size the host asked for, in sp; 0 until it asks for one.
+     *
+     * Held apart from [textSizeSp] so that the first request is never taken
+     * for a repeat of the size the terminal opened at.
+     */
+    private var requestedTextSizeSp = 0f
+
     /** False when the bundled font failed to load; the view is dead without it. */
     private var fontLoaded = false
 
@@ -133,12 +142,19 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
     /** Everything that needs the font's metrics; skipped when [fontLoaded] is false. */
     private fun buildContent() {
-        renderer = TerminalRenderer(session, GlyphAtlas(), metrics, fontPx, selectionOverlay.selection, stats)
-        renderer.onGridChanged = { columns, rows ->
+        renderer = TerminalRenderer(
+            session,
+            GlyphAtlas(),
+            FontSize(fontPx, metrics),
+            selectionOverlay.selection,
+            stats,
+        )
+        renderer.onGridChanged = { columns, rows, size ->
             // The renderer reports from the GL thread; the session is only ever
-            // touched from the UI thread.
+            // touched from the UI thread. The size travels with the grid: the
+            // session is resized with the cell the grid was laid out for.
             post {
-                session.resize(columns, rows, metrics.width.toInt(), metrics.height.toInt())
+                session.resize(columns, rows, size.metrics.width.toInt(), size.metrics.height.toInt())
                 surface.requestRender()
                 applyAmbientTint()
             }
@@ -360,6 +376,79 @@ class TerminalView(context: Context) : FrameLayout(context) {
     // --- font --------------------------------------------------------------
 
     /**
+     * The size the terminal is drawing at, in sp.
+     *
+     * The size the terminal opened at until the host sets another one, and
+     * the last size the host asked for after that.
+     */
+    val textSizeSp: Float
+        get() = if (requestedTextSizeSp > 0f) requestedTextSizeSp else DEFAULT_TEXT_SIZE_SP
+
+    /**
+     * Set the size of the terminal's text, in sp.
+     *
+     * `sp` is the app's unit — the one the font-size setting stores — and the
+     * conversion to pixels happens here, once: the font stack measures in
+     * pixels, and the engine draws in pixels.
+     *
+     * The cell is re-measured at the new size and the grid is laid out again
+     * — a bigger cell means fewer columns and fewer rows — and the session
+     * is resized to match, through the same path a surface change takes.
+     *
+     * The size is clamped to what a grid can hold; a host that asks for the
+     * impossible gets the nearest size that is possible, and a warning says
+     * so.
+     *
+     * The renderer owns the cell geometry while it draws, so the change is
+     * handed over to the GL thread; the renderer reports the grid it laid
+     * out, and the session follows on the UI thread.
+     */
+    fun setTextSize(sp: Float) {
+        if (!fontLoaded) {
+            Log.w(TAG, "the bundled font failed to load; the text size cannot change")
+            return
+        }
+        if (sp <= 0f) {
+            Log.w(TAG, "$sp sp is not a size; keeping ${textSizeSp} sp")
+            return
+        }
+
+        // The grid is as big as the surface divided by the cell, so a cell of
+        // a pixel would ask for a grid of millions of cells. The size is
+        // clamped rather than refused: a host that asks for the impossible
+        // gets the nearest size that is possible.
+        val size = sp.coerceIn(MIN_TEXT_SIZE_SP, MAX_TEXT_SIZE_SP)
+        if (size != sp) {
+            Log.w(TAG, "$sp sp is outside $MIN_TEXT_SIZE_SP..$MAX_TEXT_SIZE_SP sp; drawing at $size sp")
+        }
+        if (size == requestedTextSizeSp) {
+            // The same size again: nothing to measure and nothing to lay out.
+            return
+        }
+
+        val measured = FontSize.measure(spToPx(size))
+        if (measured == null) {
+            Log.e(TAG, "the font stack produced no metrics at $size sp; keeping ${textSizeSp} sp")
+            return
+        }
+
+        requestedTextSizeSp = size
+        metrics = measured.metrics
+        fontPx = measured.px
+
+        surface.queueEvent { renderer.setFontSize(measured) }
+    }
+
+    /**
+     * The scale from sp to pixels.
+     *
+     * `scaledDensity` is the display density with the user's font-size
+     * preference applied — the factor `sp` is defined by — so a size in sp
+     * means here what it means everywhere else in the app.
+     */
+    private fun spToPx(sp: Float): Float = sp * resources.displayMetrics.scaledDensity
+
+    /**
      * Load the bundled faces and ask the Rust stack for the cell metrics.
      *
      * The fonts travel inside the APK (`assets/fonts/`) so a cell is the same
@@ -367,8 +456,8 @@ class TerminalView(context: Context) : FrameLayout(context) {
      * one instead of starting a session that cannot be laid out.
      */
     private fun loadFont(): Boolean {
-        val density = resources.displayMetrics.density
-        fontPx = FONT_SIZE_DP * density
+        val scale = resources.displayMetrics.scaledDensity
+        fontPx = spToPx(DEFAULT_TEXT_SIZE_SP)
 
         return try {
             val regular = context.assets.open(REGULAR_FONT).use { it.readBytes() }
@@ -391,7 +480,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
             Log.i(
                 TAG,
                 "font: cell ${metrics.width}x${metrics.height}px at ${fontPx}px " +
-                    "(density $density, ascent ${metrics.ascent})",
+                    "(scale $scale, ascent ${metrics.ascent})",
             )
             true
         } catch (error: Throwable) {
@@ -498,8 +587,19 @@ class TerminalView(context: Context) : FrameLayout(context) {
     private companion object {
         const val TAG = "DroshEngine"
 
-        /** Font size in dp; the cell size and the whole grid follow from it. */
-        const val FONT_SIZE_DP = 12f
+        /** The size the terminal opens at, in sp, until the host sets another one. */
+        const val DEFAULT_TEXT_SIZE_SP = 12f
+
+        /**
+         * The smallest text the engine draws, in sp.
+         *
+         * The grid is the surface divided by the cell, so a cell of a pixel
+         * would ask for millions of cells and their buffers.
+         */
+        const val MIN_TEXT_SIZE_SP = 8f
+
+        /** The largest text the engine draws, in sp: a cell wider than a screen. */
+        const val MAX_TEXT_SIZE_SP = 96f
 
         /** The faces bundled in the engine module (one font, everywhere identical). */
         const val REGULAR_FONT = "fonts/JetBrainsMonoNL-Regular.ttf"

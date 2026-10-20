@@ -47,6 +47,15 @@ internal class CellRecords(columns: Int, rows: Int) {
     private var cellBold = BooleanArray(0)
     private var cellEntries = arrayOfNulls<GlyphEntry>(0)
 
+    /**
+     * The pixel size the cached glyphs were rasterised at; `null` until the
+     * first build.
+     *
+     * A mask of the wrong size is the wrong mask, so a change of size throws
+     * the whole cache away rather than mixing sizes in one grid.
+     */
+    private var cachedFontPx: Float? = null
+
     init {
         backgrounds = allocate(columns * rows * BACKGROUND_BYTES)
         foregrounds = allocate(columns * rows * OVERDRAW * RECORD_BYTES)
@@ -76,6 +85,11 @@ internal class CellRecords(columns: Int, rows: Int) {
         atlas: GlyphAtlas,
         fontPx: Float,
     ) {
+        if (cachedFontPx != fontPx) {
+            resetCellCache(columns, rows)
+            cachedFontPx = fontPx
+        }
+
         val cursorRow = state[NativeCore.STATE_CURSOR_ROW]
         val cursorColumn = state[NativeCore.STATE_CURSOR_COL]
         val cursorShape = state[NativeCore.STATE_CURSOR_SHAPE]

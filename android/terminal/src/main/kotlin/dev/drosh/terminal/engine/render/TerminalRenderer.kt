@@ -35,17 +35,21 @@ import javax.microedition.khronos.opengles.GL10
 internal class TerminalRenderer(
     private val session: EngineSession,
     private val atlas: GlyphAtlas,
-    private val metrics: CellMetrics,
-    /** Pixel size the glyphs are rasterised at. */
-    private val fontPx: Float,
+    initialFontSize: FontSize,
     /** The current selection, drawn inverted like alacritty's default. */
     private val selection: Selection,
     /** Frame timings for the acceptance numbers. */
     private val stats: FrameStats,
 ) : GLSurfaceView.Renderer {
 
-    /** Set by the activity; called when the surface needs a different grid. */
-    var onGridChanged: ((columns: Int, rows: Int) -> Unit)? = null
+    /**
+     * Set by the view; called when the surface needs a different grid.
+     *
+     * The size the grid was laid out with travels with the report: the grid
+     * and the cell size belong together, and the session is resized with
+     * both.
+     */
+    var onGridChanged: ((columns: Int, rows: Int, fontSize: FontSize) -> Unit)? = null
 
     /** Last GL failure, read and cleared by the activity. */
     @Volatile
@@ -63,6 +67,20 @@ internal class TerminalRenderer(
     private var rows = 0
     private var width = 0
     private var height = 0
+
+    /**
+     * The cell geometry the frame is drawn with.
+     *
+     * GL-thread state: the view hands a new size over with `queueEvent`, and
+     * the frame reads this field while it draws.
+     */
+    private var fontSize = initialFontSize
+
+    /** The cell geometry, at the size the glyphs are rasterised at. */
+    private val metrics: CellMetrics get() = fontSize.metrics
+
+    /** Pixel size the glyphs are rasterised at. */
+    private val fontPx: Float get() = fontSize.px
 
     /**
      * Ambient tint from Rust (0xRRGGBB), applied as the clear colour so the
@@ -108,7 +126,7 @@ internal class TerminalRenderer(
         foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
         foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
 
-        texture = buildTexture()
+        buildTexture()
 
         // Rasterise ASCII before the first frame: a burst should not pay for
         // glyphs one JNI call at a time (device run 2).
@@ -126,11 +144,53 @@ internal class TerminalRenderer(
         width = surfaceWidth
         height = surfaceHeight
         GLES20.glViewport(0, 0, width, height)
+        updateGrid()
+    }
+
+    /**
+     * Draw the terminal at another size.
+     *
+     * The cell is re-measured by the caller — the font stack is the only
+     * thing that knows how wide a cell is — and the grid is laid out again:
+     * a bigger cell means fewer columns and fewer rows.
+     *
+     * Called on the GL thread, because the frame reads this state; the view
+     * hands the request over with `queueEvent`.
+     */
+    fun setFontSize(size: FontSize) {
+        if (size.px <= 0f || size.metrics.width <= 0f || size.metrics.height <= 0f) {
+            return
+        }
+        if (size.px == fontSize.px) {
+            // The same size again: the grid is already laid out for it.
+            return
+        }
+
+        fontSize = size
+        // The atlas holds the masks of the size that was drawn last. They are
+        // never drawn again, and a pinch would fill the atlas with them.
+        atlas.reset()
+        updateGrid()
+    }
+
+    /**
+     * Lay the grid out for the current surface and cell size, and report it.
+     *
+     * The report is how a layout change reaches the session: the renderer
+     * knows the surface size, the session is only ever touched from the UI
+     * thread.
+     */
+    private fun updateGrid() {
+        if (width <= 0 || height <= 0) {
+            // No surface yet: `onSurfaceChanged` lays the grid out when there
+            // is one.
+            return
+        }
 
         columns = (width / metrics.width).toInt().coerceAtLeast(MIN_COLUMNS)
         rows = (height / metrics.height).toInt().coerceAtLeast(MIN_ROWS)
         records.resize(columns, rows)
-        onGridChanged?.invoke(columns, rows)
+        onGridChanged?.invoke(columns, rows, fontSize)
     }
 
     override fun onDrawFrame(gl: GL10?) {
@@ -163,10 +223,6 @@ internal class TerminalRenderer(
             Palette.setOverrides(session.colors)
         }
 
-        if (atlas.dirty) {
-            uploadAtlas()
-        }
-
         records.build(
             cells,
             session.stateArray,
@@ -177,6 +233,14 @@ internal class TerminalRenderer(
             fontPx,
         )
         val buildEndNanos = System.nanoTime()
+
+        // The atlas is uploaded after the build, not before it: a glyph the
+        // build had to rasterise is in the atlas by now, and the texture has
+        // to carry it before the frame draws it. Uploaded before the build,
+        // the frame after a size change would draw the previous size's masks.
+        if (atlas.dirty) {
+            uploadAtlas()
+        }
 
         uploadStreams()
         val uploadEndNanos = System.nanoTime()
@@ -345,11 +409,14 @@ internal class TerminalRenderer(
     }
 
     /** The atlas is a single-channel texture; the shader tints its coverage. */
-    private fun buildTexture(): Int {
+    private fun buildTexture() {
         val textures = IntArray(1)
         GLES20.glGenTextures(1, textures, 0)
-        val handle = textures[0]
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, handle)
+        // The field is filled before the first upload: the upload binds the
+        // texture itself, and a texture that has not been named yet is not
+        // the one the atlas belongs to.
+        texture = textures[0]
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
@@ -358,10 +425,13 @@ internal class TerminalRenderer(
         // read with padding and every glyph would shear.
         GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
         uploadAtlas()
-        return handle
     }
 
     private fun uploadAtlas() {
+        // The texture is bound here rather than left to the caller: the
+        // upload happens between two draw calls, and the binding is what
+        // tells `glTexImage2D` which texture it fills.
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         GLES30.glTexImage2D(
             GLES20.GL_TEXTURE_2D,
             0,
