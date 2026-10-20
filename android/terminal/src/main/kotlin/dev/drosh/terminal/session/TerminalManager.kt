@@ -750,12 +750,12 @@ class TerminalManager(
     private fun guestLauncher(): GuestLauncher =
         when (guestIsolation) {
             GuestIsolation.PROOT ->
-                ProotRunner(ubuntuBootstrap, application.applicationInfo.nativeLibraryDir)
+                ProotRunner(ubuntuBootstrap, appContext.applicationInfo.nativeLibraryDir)
 
             GuestIsolation.CHROOT_NG ->
                 ChrootNgRunner(
                     ubuntuBootstrap.rootfsDir,
-                    application.applicationInfo.nativeLibraryDir,
+                    appContext.applicationInfo.nativeLibraryDir,
                 )
         }
 
