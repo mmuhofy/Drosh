@@ -11,8 +11,9 @@ use drosh_bridge::snapshot::state_index;
 use drosh_bridge::snapshot::STATE_LEN;
 use drosh_pty::{LocalPty, PtyConfig};
 use drosh_session::tap::TapPty;
+use drosh_session::transcript::{OutputLog, DEFAULT_MAX_LINES};
 use drosh_session::{manager, GridSize, SessionError};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 const COLUMNS: usize = 20;
 const ROWS: usize = 4;
@@ -104,7 +105,8 @@ fn the_pty_tap_turns_marks_into_events() {
     })
     .expect("pty");
 
-    let mut tap = TapPty::new(pty, queue.clone()).expect("tap");
+    let output = Arc::new(Mutex::new(OutputLog::new(DEFAULT_MAX_LINES)));
+    let mut tap = TapPty::new(pty, queue.clone(), output.clone()).expect("tap");
     let reader = EventedReadWrite::reader(&mut tap);
 
     // Drain the master until the child is gone (EOF, then EIO on Linux); the

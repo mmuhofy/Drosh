@@ -214,6 +214,29 @@ fn decode_env(text: &str) -> FfiResult<Vec<(String, String)>> {
     Ok(entries)
 }
 
+/// The last lines the session printed, oldest first.
+///
+/// The engine keeps a bounded copy of the output as it arrives, because the
+/// scrollback inside the grid cannot be read out of it. The lines come back
+/// with the escape sequences stripped, so a session log is text a person — or a
+/// model — can read.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_engine_core_NativeCore_nativeTranscript<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    id: jlong,
+) -> JString<'local> {
+    let text = match session_or(id) {
+        Ok(session) => session.transcript().join("\n"),
+        Err(code) => {
+            fail(code);
+            String::new()
+        }
+    };
+
+    env.new_string(text).unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

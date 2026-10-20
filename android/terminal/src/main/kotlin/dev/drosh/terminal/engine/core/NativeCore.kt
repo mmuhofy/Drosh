@@ -189,6 +189,9 @@ internal object NativeCore {
     /** Where the shell is in its cycle; returns `key:value` lines (ffi::block). */
     external fun nativeBlockState(id: Long): String
 
+    /** The last lines the session printed; returns them newline-separated (ffi::session). */
+    external fun nativeTranscript(id: Long): String
+
     /** Currently selected text, or "" (ffi::selection). */
     external fun nativeSelectionText(id: Long): String
 

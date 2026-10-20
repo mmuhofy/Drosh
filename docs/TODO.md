@@ -429,6 +429,42 @@ never red; no phase closes without the device checklist.
         / `clearSelection()` are the host-facing handles.
 
 ### P3 — `:terminal` rewritten, Termux deleted
+
+The shape of the work, measured rather than guessed (2026-10-20):
+
+- **The app's terminal is Termux's.** `TerminalScreen.kt` (2238 lines) builds a
+  `com.termux.view.TerminalView` and hands it a `TerminalViewClientImpl`;
+  `SelectionMenu`, `TerminalBackdrop` and `FloatingPaneOverlayView` call that
+  view's methods. The engine's replacement already has the surface:
+  `TerminalController` (start, restart, copy/paste, find, selectWord/selectLine,
+  clearSelection, selectionText, zoom, ambientTint, modes, frameStats).
+- **The session model does not match.** `TerminalManager` (1829 lines) owns
+  Termux `TerminalSession`s and the views attach to one; the engine's view owns
+  its own `EngineSession`. The manager has to keep the *UI* model (panes, tabs,
+  focus) and let the engine own the PTY.
+- **The engine's capabilities are ready for it:** the block state
+  (`ffi::block`) and the session log (`ffi::session`'s transcript) are exposed
+  and tested; the app consumes neither yet, because it is still on Termux.
+- **The scrollback is not reachable.** alacritty keeps it inside the grid and
+  does not hand it out, so the engine keeps a bounded copy of the output
+  instead. A *search* over the scrollback therefore needs that copy, not the
+  grid.
+
+Three slices, in this order:
+
+- [ ] **P3b-1 — the app's terminal pane hosts the engine's view.** The manager
+      keeps the panes and the tabs; the engine's view owns the session. Termux
+      stays in the tree until this has run on a device, so the change can be
+      reverted with one commit.
+- [ ] **P3b-2 — the app reads from the engine.** The session log sheet takes
+      the engine's transcript, the block engine takes the engine's block
+      state, and the search takes the engine's copy. `AnsiStripper`,
+      `AmbientTintCalculator`, `EditorRequestPublisher` and the detection half
+      of `TerminalUrlOverlay` are then dead and go.
+- [ ] **P3b-3 — Termux deleted.** The `com.termux.*` sources (4267 lines),
+      `termux.c` and `libtermux.so` go; the checker gets a `com.termux` rule;
+      `data → terminal` debt 13 → 0.
+
 - [ ] 14-file `:terminal` behind `useNativeCore`
 - [ ] Termux sources, `termux.c`, `libtermux.so`, setup scripts removed
 - [ ] `data → terminal` debt 22 → 0; `com.termux` rule added to the checker

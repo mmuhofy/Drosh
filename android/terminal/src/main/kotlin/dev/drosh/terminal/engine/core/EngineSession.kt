@@ -272,6 +272,20 @@ class EngineSession(
     }
 
     /**
+     * The last lines the session printed, oldest first.
+     *
+     * The engine keeps a bounded copy of the output as it arrives, because the
+     * scrollback inside the grid cannot be read out of it. The lines come back
+     * with the escape sequences stripped.
+     */
+    fun transcript(): List<String> {
+        val current = handle
+        if (current == NO_HANDLE) return emptyList()
+        val text = NativeCore.nativeTranscript(current)
+        return if (text.isEmpty()) emptyList() else text.split('\n')
+    }
+
+    /**
      * Where the shell is in its cycle, as the engine's marks report it.
      *
      * The boundaries come from the OSC 133 marks the engine taps where the

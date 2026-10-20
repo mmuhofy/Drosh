@@ -13,13 +13,14 @@
 use std::fs::File;
 use std::io::{self, Read};
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use alacritty_terminal::event::{OnResize, WindowSize};
 use alacritty_terminal::tty::{ChildEvent, EventedPty, EventedReadWrite};
 use polling::{Event as PollEvent, PollMode, Poller};
 
 use crate::shell_mark::ShellMarkScanner;
+use crate::transcript::OutputLog;
 use drosh_bridge::events::{EventQueue, ShellMark};
 use drosh_pty::LocalPty;
 
@@ -29,8 +30,13 @@ pub struct TapPty {
 }
 
 impl TapPty {
-    /// Wrap `inner`; completed marks are pushed onto `events`.
-    pub fn new(inner: LocalPty, events: Arc<EventQueue>) -> io::Result<Self> {
+    /// Wrap `inner`; completed marks are pushed onto `events` and the output
+    /// is copied into `output`.
+    pub fn new(
+        inner: LocalPty,
+        events: Arc<EventQueue>,
+        output: Arc<Mutex<OutputLog>>,
+    ) -> io::Result<Self> {
         // A duplicate descriptor shares the master's open file description, so
         // reads through it consume the same stream — while staying independent
         // of the inner `File`, which the event loop also uses for writes.
@@ -42,7 +48,7 @@ impl TapPty {
         Ok(Self {
             inner,
             // SAFETY: `dup` handed us a fresh descriptor that we now own.
-            reader: TapReader { fd: duplicated, scanner: ShellMarkScanner::new(), events },
+            reader: TapReader { fd: duplicated, scanner: ShellMarkScanner::new(), events, output },
         })
     }
 }
@@ -54,6 +60,8 @@ pub struct TapReader {
     fd: RawFd,
     scanner: ShellMarkScanner,
     events: Arc<EventQueue>,
+    /// Where the output is copied, so a session log can be read out of it.
+    output: Arc<Mutex<OutputLog>>,
 }
 
 impl TapReader {
@@ -88,6 +96,12 @@ impl Read for TapReader {
         if n > 0 {
             for mark in self.scanner.scan(&buf[..n]) {
                 self.push(mark);
+            }
+            // The output is copied here, on its way to the parser: the
+            // scrollback inside the engine's grid cannot be read out, and this
+            // is the only place the bytes pass through.
+            if let Ok(mut output) = self.output.lock() {
+                output.push(&buf[..n]);
             }
         }
         Ok(n)

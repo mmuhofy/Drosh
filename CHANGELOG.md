@@ -109,6 +109,10 @@ release when it ships.
 
 ### Changed
 
+- The engine keeps a log of what each session printed, and hands it over. The
+  scrollback lives inside the terminal engine's grid, which does not give it
+  out, so the bytes are copied on their way to the parser instead — bounded to
+  the last few thousand lines
 - The guest module is now `:linux`. The app on Android is already Linux, so
   calling the rootfs a "guest" implied a host that is not one. The module is the
   Linux userland — rootfs, bootstrap, archive, and the way into it. The word
