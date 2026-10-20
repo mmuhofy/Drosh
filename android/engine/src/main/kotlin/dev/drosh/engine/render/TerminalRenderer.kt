@@ -64,6 +64,13 @@ internal class TerminalRenderer(
     private var width = 0
     private var height = 0
 
+    /**
+     * Ambient tint from Rust (0xRRGGBB), applied as the clear colour so the
+     * terminal and its chrome read as one surface. `null` falls back to the
+     * palette default (an `OSC 11` override still wins when set).
+     */
+    var ambientTint: Int? = null
+
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
 
@@ -131,7 +138,8 @@ internal class TerminalRenderer(
 
         // The background can be changed by the application (`OSC 11`), so the
         // clear colour is read every frame rather than fixed at surface setup.
-        val background = Palette.background
+        // The Rust-served ambient tint wins over the palette default when present.
+        val background = ambientTint ?: Palette.background
         GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 

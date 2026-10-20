@@ -198,6 +198,9 @@ internal object NativeCore {
     /** Clear any active selection (ffi::selection). */
     external fun nativeClearSelection(id: Long): Int
 
+    /** Fill `out` (length 3) with the ambient tint `[r, g, b]` (ffi::tint). */
+    external fun nativeAmbientTint(id: Long, out: IntArray): Int
+
     // --- font (ffi::font) ---
 
     external fun nativeInitFont(regular: ByteArray, bold: ByteArray?): Int

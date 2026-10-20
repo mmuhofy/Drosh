@@ -415,10 +415,17 @@ never red; no phase closes without the device checklist.
       product still renders through `com.termux.view.TerminalView`
       (verified 2026-10-20). The P2 title describes the engine's own shape, not
       the product's view — the switch is P3 work.
-- [ ] Split `DroshTerminalView` into `TerminalView` / `TerminalGestures` /
+- [x] Split `DroshTerminalView` into `TerminalView` / `TerminalGestures` /
       `SelectionOverlay` / `TerminalIme`
-- [ ] `TerminalController` public surface; selection handles; find hooks; zoom
-- [ ] Background + ambient tint served by Rust
+- [x] `TerminalController` public surface; selection handles; find hooks; zoom
+      (zoom is a placeholder — renderer cell-size scaling lands in P6)
+- [x] Background + ambient tint served by Rust (`ffi::tint` + `nativeAmbientTint`,
+      fed into `TerminalRenderer.ambientTint`)
+      - `DroshTerminalView` became `TerminalView`; hosts use `TerminalController`.
+      - `TerminalGestures` owns touch/mouse/wheel; `TerminalIme` owns the soft
+        keyboard + hardware keys; `SelectionOverlay` owns the `Selection`.
+      - `TerminalController.ambientTint()` / `find()` / `selectWord` / `selectLine`
+        / `clearSelection()` are the host-facing handles.
 
 ### P3 — `:terminal` rewritten, Termux deleted
 - [ ] 14-file `:terminal` behind `useNativeCore`
