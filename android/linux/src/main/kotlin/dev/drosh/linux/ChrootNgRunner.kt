@@ -48,6 +48,18 @@ class ChrootNgRunner(
     private val rootfsPath: String get() = rootfsDir.absolutePath
 
     /**
+     * Whether the packaged runtime is there.
+     *
+     * The binary is not in this repository: it is fetched by the build and
+     * carried in the APK's `lib/arm64-v8a/`, and the installer puts it in the
+     * one directory an app may exec from. A build that skipped the fetch has
+     * no chroot-ng at all, and the session then dies with an `ENOENT` that
+     * says nothing about the cause.
+     */
+    override val isAvailable: Boolean
+        get() = File(chrootNgPath).let { it.isFile && it.canExecute() }
+
+    /**
      * The binds, as `SRC:DST` pairs.
      *
      * chroot-ng refuses a bind whose source does not exist, so each one is

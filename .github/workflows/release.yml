@@ -36,6 +36,29 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # chroot-ng — the guest runtime — is not in this repository. It is built
+      # and published by its own project, and the APK carries the published
+      # asset. The tag pins the release; the hash pins the bytes, because the
+      # build is not byte-reproducible (the debug info differs between runs), so
+      # rebuilding it would not give the same file. The hash is the one in the
+      # release's notes.
+      #
+      # A release APK without it cannot run the chroot-ng guest at all: the
+      # binary is the program the guest is launched with, and a missing one is
+      # an ENOENT at the first session with nothing in the UI to say why.
+      - name: Fetch the chroot-ng guest runtime
+        env:
+          CHROOT_NG_TAG: v1.2.0
+          CHROOT_NG_SHA256: 29473e3609c9e7692a3b9ab3613129dbdb46f9a1fa393c52b49fc601d2c7a01e
+        run: |
+          set -euo pipefail
+          url="https://github.com/mmuhofy/chroot-ng/releases/download/${CHROOT_NG_TAG}/libchrootng.so"
+          curl -fsSL --retry 3 --retry-delay 2 -o /tmp/libchrootng.so "$url"
+          echo "${CHROOT_NG_SHA256}  /tmp/libchrootng.so" | sha256sum -c -
+          mkdir -p android/linux/src/main/jniLibs/arm64-v8a
+          cp /tmp/libchrootng.so android/linux/src/main/jniLibs/arm64-v8a/libchrootng.so
+          ls -l android/linux/src/main/jniLibs/arm64-v8a/
+
       - name: Decode secrets
         continue-on-error: true
         run: |
@@ -64,6 +87,19 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      # The guest runtimes travel inside the APK, and a missing one is an
+      # ENOENT at the first session with nothing in the UI to say why. So the
+      # release is checked for them the way the debug build is.
+      - name: Check that the release carries the guest runtimes
+        working-directory: android
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libdrosh_core.so"
+          echo "$APK contains libdrosh_core.so"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libchrootng.so"
+          echo "$APK contains libchrootng.so"
 
       - name: Generate release SHA-256
         working-directory: android

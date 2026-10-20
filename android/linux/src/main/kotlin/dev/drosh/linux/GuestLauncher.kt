@@ -18,6 +18,18 @@ package dev.drosh.linux
  * is what the method says.
  */
 interface GuestLauncher {
+    /**
+     * Whether this engine's runtime is where it is expected to be.
+     *
+     * A missing runtime is a packaging fact, not a user error: the guest
+     * binary is not in this repository, it is fetched by the build, and a build
+     * that skipped the fetch has no way to run the guest. The app checks this
+     * before it starts a session, so the answer is a sentence in the UI rather
+     * than an `ENOENT` in a log.
+     */
+    val isAvailable: Boolean
+        get() = true
+
     /** The exec image for an interactive session, which runs on a PTY. */
     fun build(spec: GuestSpec): GuestCommand
 

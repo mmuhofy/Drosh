@@ -139,7 +139,16 @@ rust/                   → the Cargo workspace; `cargo test` runs from here
 
 The guest runtime — [chroot-ng](https://github.com/mmuhofy/chroot-ng) — is not
 in this repository. It is fetched from its own release, pinned by tag and
-SHA-256, and packaged into the APK by CI.
+SHA-256, and packaged into the APK by CI. A local build has to fetch it too:
+
+```bash
+tools/fetch-chroot-ng.sh
+```
+
+Without it the APK has no chroot-ng, and choosing it in the setup wizard gives
+a session that dies with `exec(".../libchrootng.so"): No such file or
+directory` — the release build fetches it, so this only bites a local build
+that skipped the step.
 
 Project names are unchanged by the split — `:app`, `:data`, … — so a module is
 `android/data/` and is still depended on as `project(":data")`.

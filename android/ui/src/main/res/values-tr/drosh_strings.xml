@@ -228,6 +228,7 @@
     <string name="setup_theme_applied">Palet kaydedildi. Terminalin bu paletle açılacak.</string>
     <string name="setup_theme_builtin">Dahili</string>
     <string name="terminal_delete_last_session_title">Son oturum silinsin mi?</string>
+    <string name="terminal_guest_runtime_missing">%1$s misafir çalışma zamanı bu derlemede yok, bu yüzden misafir çalıştırılamadı. Bunun yerine düz bir kabuk açıldı.</string>
     <string name="terminal_delete_last_session_ended_body">%1$d çıkış koduyla sonlandı. Silmek uygulamayı kapatır; yeni oturum sıfırdan başlar.</string>
     <string name="terminal_delete_last_session_body">Silmek uygulamayı kapatır; yeni oturum sıfırdan başlar.</string>
     <string name="terminal_extracting_rootfs">Ubuntu rootfs çıkarılıyor…</string>
