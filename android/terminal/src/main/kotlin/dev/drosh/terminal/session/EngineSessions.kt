@@ -1,4 +1,4 @@
-package dev.drosh.ui.terminal
+package dev.drosh.terminal.session
 
 import dev.drosh.terminal.engine.core.EngineSession
 

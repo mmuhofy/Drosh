@@ -1,8 +1,10 @@
-package dev.drosh.ui.terminal
+package dev.drosh.terminal.session
 
 import com.termux.terminal.TerminalEmulator
 import dev.drosh.terminal.engine.core.EngineSession
-import dev.drosh.terminal.session.AnsiStripper
+
+/** What a tab becomes in a log: four spaces, the width it stood for. */
+private const val TAB_WIDTH = "    "
 
 /**
  * A session's terminal output: the lines it printed, oldest first.
@@ -26,6 +28,13 @@ import dev.drosh.terminal.session.AnsiStripper
  * into a prompt is a prompt the model cannot read, and the trailing spaces go,
  * because a terminal pads every row to the column width and the padding is
  * not part of what the command said.
+ *
+ * ## Where the mapping lives
+ *
+ * The mapping — the trimming, the tab expansion and the cap — is a pure
+ * function of the text, so it is a function of a [String] and can be tested
+ * without an emulator and without a live engine session. The readers below
+ * are the thin part that needs one.
  */
 sealed interface SessionTranscript {
 
@@ -60,21 +69,31 @@ sealed interface SessionTranscript {
              * sequences it drew with are stripped, the padding the grid added
              * is trimmed, and only the last [MAX_LINES] of them are kept.
              */
-            fun of(emulator: TerminalEmulator): Termux {
-                val text = AnsiStripper.strip(emulator.getScreen().getTranscriptText())
+            fun of(emulator: TerminalEmulator): Termux =
+                Termux(linesOf(emulator.getScreen().getTranscriptText()))
+
+            /**
+             * The plain-text lines of a raw scrollback.
+             *
+             * The whole Termux mapping in one pure function: the escape
+             * sequences are stripped, the padding the grid added is trimmed
+             * from every line, a tab becomes four spaces, and only the last
+             * [MAX_LINES] lines are kept.
+             *
+             * A tab has no width here and the grid it came from is gone, so it
+             * becomes four spaces. Emulators expand tabs at write time, so this
+             * is a guard rather than a case that occurs.
+             */
+            fun linesOf(rawTranscript: String): List<String> {
+                val text = AnsiStripper.strip(rawTranscript)
                 val lines = text.lines().map { line ->
-                    // A tab has no width here and the grid it came from is gone, so it
-                    // becomes four spaces. Emulators expand tabs at write time, so this
-                    // is a guard rather than a case that occurs.
-                    line.trimEnd().replace("\t", "    ")
+                    line.trimEnd().replace("\t", TAB_WIDTH)
                 }
-                return Termux(
-                    if (lines.size <= MAX_LINES) {
-                        lines
-                    } else {
-                        lines.subList(lines.size - MAX_LINES, lines.size)
-                    }
-                )
+                return if (lines.size <= MAX_LINES) {
+                    lines
+                } else {
+                    lines.subList(lines.size - MAX_LINES, lines.size)
+                }
             }
         }
     }
@@ -115,14 +134,22 @@ sealed interface SessionTranscript {
              * carriage returns that separated them are still in the text.
              */
             fun of(session: EngineSession): Engine =
-                Engine(
-                    session.transcript().map { line ->
-                        // The same reason the Termux side expands tabs: a tab has
-                        // no width in a text sheet, and the grid it came from is
-                        // gone. The engine's parser keeps the tab.
-                        line.replace("\t", "    ")
-                    }
-                )
+                Engine(linesOf(session.transcript()))
+
+            /**
+             * The plain-text lines of the engine's lines.
+             *
+             * The engine's lines are already plain: the core's parser removed
+             * the escape sequences and the engine trimmed the trailing
+             * spaces. Nothing is stripped here — a second pass would eat the
+             * characters that were meant to be literal.
+             *
+             * The one thing that changes is the tab: it has no width in a
+             * text sheet, and the grid it came from is gone, so it becomes
+             * four spaces. The engine's parser keeps the tab.
+             */
+            fun linesOf(engineLines: List<String>): List<String> =
+                engineLines.map { line -> line.replace("\t", TAB_WIDTH) }
         }
     }
 }

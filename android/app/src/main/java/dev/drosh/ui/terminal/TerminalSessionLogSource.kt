@@ -1,5 +1,7 @@
 package dev.drosh.ui.terminal
 
+import dev.drosh.terminal.session.EngineSessions
+import dev.drosh.terminal.session.SessionTranscript
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.ui.session.SessionLogSource
 
@@ -20,6 +22,13 @@ import dev.drosh.ui.session.SessionLogSource
  * Nowhere. It is [SessionTranscript.Termux] now, with the same cap, the same
  * stripping and the same trimming as before — the sheet still reads the
  * emulator's scrollback for every session the app runs today.
+ *
+ * ## Why this class lives in the app
+ *
+ * It implements [SessionLogSource], a `:ui` interface, and `:terminal` may
+ * not import `:ui` (docs/ARCHITECTURE.md §3). The wiring — which sessions
+ * the app has, and which of them are engine-backed — is the app's business
+ * anyway.
  */
 class TerminalSessionLogSource(
     private val terminalManager: TerminalManager,
