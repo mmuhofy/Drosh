@@ -128,6 +128,10 @@ release when it ships.
 
 ### Fixed
 
+- The module boundary checker no longer passes silently when a rule names a
+  module that is not in the tree. `:guest`'s five rules were decorative until
+  the module exists; the checker now says which module is missing, and fails
+  when a planned module shows up without its rules being moved over
 - Crashes: the stale Room identity hash on launch, the missing v3 migration
   path, an infinite redraw loop on heavy output, the URL overlay's row range,
   the blank WebView screen, R8 stripping Hilt bindings, and the splash and
