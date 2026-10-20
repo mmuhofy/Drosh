@@ -1316,11 +1316,21 @@ private fun ReadyScreen(
                 },
                 text = {
                     val exitCode = sessionEndEvent?.exitCode
+                    // A reason the app knows beats an exit code alone: a guest
+                    // runtime that is not in the build is a packaging fact, and
+                    // "exit 127" says nothing about it.
+                    val reason = sessionEndEvent?.reason
                     Text(
-                        text = if (exitCode != null) {
-                            stringResource(R.string.terminal_delete_last_session_ended_body, exitCode)
-                        } else {
-                            stringResource(R.string.terminal_delete_last_session_body)
+                        text = when {
+                            reason != null -> stringResource(
+                                R.string.terminal_guest_runtime_missing,
+                                reason,
+                            )
+
+                            exitCode != null ->
+                                stringResource(R.string.terminal_delete_last_session_ended_body, exitCode)
+
+                            else -> stringResource(R.string.terminal_delete_last_session_body)
                         },
                         color = DroshTextSecondary,
                         fontFamily = LocalFontSet.current.sans,

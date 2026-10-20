@@ -25,6 +25,32 @@ class ChrootNgRunnerTest {
         File(this, "home").mkdirs()
     }
 
+    @Test
+    fun `the runtime is missing when the build did not carry it`() {
+        // The guest binary is fetched by the build, not in the repository, so a
+        // build that skipped the fetch has no chroot-ng at all. The runner says
+        // so, rather than letting the session die with an ENOENT.
+        val runner = ChrootNgRunner(rootfs(), "/native/lib-that-is-not-there")
+        assertFalse(runner.isAvailable)
+    }
+
+    @Test
+    fun `the runtime is there when the build carried it`() {
+        val libDir = File(System.getProperty("java.io.tmpdir"), "drosh-native-lib").apply {
+            mkdirs()
+        }
+        val binary = File(libDir, "libchrootng.so").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            setExecutable(true, false)
+        }
+        try {
+            assertTrue(ChrootNgRunner(rootfs(), libDir.absolutePath).isAvailable)
+        } finally {
+            binary.delete()
+            libDir.delete()
+        }
+    }
+
     private fun argAfter(argv: List<String>, flag: String): String? {
         val index = argv.indexOf(flag)
         return if (index >= 0 && index + 1 < argv.size) argv[index + 1] else null

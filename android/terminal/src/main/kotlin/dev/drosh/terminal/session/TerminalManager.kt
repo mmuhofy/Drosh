@@ -2,6 +2,7 @@ package dev.drosh.terminal.session
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -259,7 +260,15 @@ class TerminalManager(
     private val _processExitEvent = MutableStateFlow<ProcessExitEvent?>(null)
     val processExitEvent: StateFlow<ProcessExitEvent?> = _processExitEvent.asStateFlow()
 
-    data class ProcessExitEvent(val exitCode: Int)
+    /**
+     * A terminal session's subprocess ended.
+     *
+     * @property exitCode the process's exit code.
+     * @property reason why the session could not run, when the app knows. A
+     *   missing guest runtime is a packaging fact, and the exit code alone
+     *   ("exit 1") says nothing about it.
+     */
+    data class ProcessExitEvent(val exitCode: Int, val reason: String? = null)
 
     /**
      * True once the last session is gone, whether it was closed from the UI,
@@ -1526,6 +1535,17 @@ class TerminalManager(
 
     private fun createNewSession(): TerminalSession {
         if (ubuntuBootstrap.isInstalled) {
+            // A guest engine whose runtime is not in the APK cannot run the
+            // guest, and the session would die with an `ENOENT` that says
+            // nothing about the cause. The engine's runtime is fetched by the
+            // build, so a missing one is a build that skipped the fetch; the
+            // user is told which, rather than watching a shell fail to open.
+            val launcher = guestLauncher()
+            if (!launcher.isAvailable) {
+                reportMissingGuestRuntime()
+                return plainShellSession()
+            }
+
             ensureShellRc()
 
             val guestWd = if (projectPath != null) {
@@ -1535,7 +1555,7 @@ class TerminalManager(
             val shell = effectiveShellPath()
             val integration = DroshShellIntegration.install(appContext, shell, shellLocale)
 
-            val cmd = guestLauncher().build(
+            val cmd = launcher.build(
                 GuestSpec(
                     workingDirectory = guestWd,
                     shell = shell,
@@ -1554,7 +1574,18 @@ class TerminalManager(
             )
         }
 
-        return TerminalSession(
+        return plainShellSession()
+    }
+
+    /**
+     * The shell the app falls back to when there is no guest to run.
+     *
+     * A plain Android shell, with no rootfs and no isolation: it is enough to
+     * open a session at all, and it is what the app has always used before the
+     * guest was installed.
+     */
+    private fun plainShellSession(): TerminalSession =
+        TerminalSession(
             "/system/bin/sh",
             "/",
             arrayOf("sh"),
@@ -1562,6 +1593,21 @@ class TerminalManager(
             3000,
             sessionClient
         )
+
+    /**
+     * Tells the user that the guest engine they chose cannot run here.
+     *
+     * The runtime is fetched by the build, so a missing one means the build
+     * skipped the fetch — a plain Android shell opens in the meantime, and the
+     * reason is shown rather than left in a log.
+     */
+    private fun reportMissingGuestRuntime() {
+        val engine = when (guestIsolation) {
+            GuestIsolation.PROT -> "proot"
+            GuestIsolation.CHROOT_NG -> "chroot-ng"
+        }
+        Log.e(TAG, "$engine is not in this build: the guest runtime is missing from the app's native library directory")
+        _processExitEvent.value = ProcessExitEvent(EXIT_RUNTIME_MISSING, engine)
     }
 
     private fun ensureShellRc() {
@@ -1759,6 +1805,9 @@ class TerminalManager(
     }
 
     private companion object {
+        /** The log tag the terminal's own messages go out under. */
+        const val TAG = "DroshTerminal"
+
         /**
          * A pane with no session.
          *
@@ -1768,6 +1817,15 @@ class TerminalManager(
          * public active index cannot be negative, but the pane's can.
          */
         const val NO_PANE_SESSION = -1
+
+        /**
+         * The exit code the app reports when the guest runtime is missing.
+         *
+         * Not a real exit code: nothing exited. It is a number the dialog can
+         * show, and it is distinct from the codes a shell can return, so a
+         * user who reads it knows the session never started.
+         */
+        const val EXIT_RUNTIME_MISSING = 127
 
         /**
          * Blinker rate assumed before settings have been read.
