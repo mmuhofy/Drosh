@@ -26,6 +26,7 @@ by that split: `android/data/` is still `project(":data")`.
  ├── :features:editor -► :domain, :theme
  └── :domain ----------► (nothing — pure Kotlin)
 ```
+
 | Module | Owns | Must not know about |
 |---|---|---|
 | `:domain` | Entities, ports, use cases | Android, any Drosh module |
@@ -79,7 +80,7 @@ The target is one file per concern; today the surface is `core/NativeCore.kt`
 wrapper the view talks to).
 
 ```
-android/terminal/terminal/src/main/kotlin/dev/drosh/terminal/engine/native/
+android/terminal/src/main/kotlin/dev/drosh/terminal/engine/core/
   NativeCore.kt       library load, handle lifetime
   NativeTerminal.kt   create/feed/resize/snapshot/state/modes
   NativeSelection.kt  select, extend, selectedText, wordAt, lineAt

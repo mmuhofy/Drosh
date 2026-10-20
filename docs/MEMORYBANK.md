@@ -107,7 +107,8 @@ features/agent/
   semantic/         → SemanticParser, OutputClassifier
 
 terminal/
-  engine/           → PTY bridge, ANSI parser
+  engine/           → the Rust core's Kotlin side: JNI, GL renderer, input, view
+  session/          → TerminalManager, sessions, panes, blocks, shell launch
   renderer/         → BlockRenderer, SemanticHighlighter, RichRenderer
 input/           → GhostTextEngine, InputQueue
   zoom/            → TerminalRenderer.updateTextSize, zoomTo + focal anchoring
