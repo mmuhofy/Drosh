@@ -2,9 +2,9 @@ package dev.drosh.data.di
 
 import dev.drosh.domain.input.SendKeyIntentUseCase
 import dev.drosh.domain.input.StickyModifierState
-import dev.drosh.terminal.ExtraKeyState
-import dev.drosh.terminal.TerminalManager
-import dev.drosh.terminal.input.SendKeyIntentUseCaseImpl
+import dev.drosh.terminal.session.ExtraKeyState
+import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.terminal.session.input.SendKeyIntentUseCaseImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

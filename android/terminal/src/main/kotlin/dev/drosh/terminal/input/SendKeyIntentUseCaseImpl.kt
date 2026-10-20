@@ -1,9 +1,9 @@
-package dev.drosh.terminal.input
+package dev.drosh.terminal.session.input
 
 import dev.drosh.domain.input.InputIntent
 import dev.drosh.domain.input.SendKeyIntentUseCase
-import dev.drosh.terminal.ExtraKeyState
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.ExtraKeyState
+import dev.drosh.terminal.session.TerminalManager
 
 /**
  * Implementation of [SendKeyIntentUseCase] for `:terminal`. Bridges

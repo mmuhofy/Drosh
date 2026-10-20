@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import dev.drosh.domain.block.BlockEngineState
 import dev.drosh.domain.block.BlockRepository

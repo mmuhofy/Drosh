@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import android.util.Log
 import android.view.KeyEvent

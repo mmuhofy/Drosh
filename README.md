@@ -182,7 +182,7 @@ cargo test                     # the engine crate, on the host
 ```
 
 The Rust core is built for arm64 only by CI, which drops `libdrosh_core.so`
-into `android/engine/src/main/jniLibs/arm64-v8a/` before Gradle runs.
+into `android/terminal/engine/src/main/jniLibs/arm64-v8a/` before Gradle runs.
 
 CI runs `Build Debug` and `Unit Tests` on every push and pull request, and
 `Build Release` on tags.

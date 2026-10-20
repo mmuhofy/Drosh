@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import android.os.SystemClock
 import kotlinx.coroutines.flow.MutableStateFlow

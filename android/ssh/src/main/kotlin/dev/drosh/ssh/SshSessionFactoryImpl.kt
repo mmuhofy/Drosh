@@ -7,7 +7,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.drosh.domain.ssh.AuthMethod
 import dev.drosh.domain.ssh.SshCredentialVault
 import dev.drosh.domain.ssh.SshHost
-import dev.drosh.terminal.SshSessionFactory
+import dev.drosh.terminal.session.SshSessionFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.schmizz.keepalive.KeepAliveProvider

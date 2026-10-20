@@ -16,7 +16,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.core.TerminalConstants
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.TerminalManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -84,7 +84,7 @@ class TerminalService : LifecycleService() {
         }
     }
 
-    private var lastPublishedSnippets: List<dev.drosh.terminal.SnippetsStore.Snippet> =
+    private var lastPublishedSnippets: List<dev.drosh.terminal.session.SnippetsStore.Snippet> =
         emptyList()
 
     private fun publishSnippetsIfChanged() {

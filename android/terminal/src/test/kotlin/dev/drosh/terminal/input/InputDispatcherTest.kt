@@ -1,8 +1,8 @@
-package dev.drosh.terminal.input
+package dev.drosh.terminal.session.input
 
 import dev.drosh.domain.input.ExtraKey
 import dev.drosh.domain.input.InputIntent
-import dev.drosh.terminal.ExtraKeyState
+import dev.drosh.terminal.session.ExtraKeyState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

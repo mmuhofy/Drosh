@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import com.termux.terminal.CommandSnapshot
 import com.termux.terminal.CommandStatus

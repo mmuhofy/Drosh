@@ -13,7 +13,7 @@ package dev.drosh.domain.input
  */
 sealed interface ExtraKey {
 
-    /** Modifier toggles that read from [dev.drosh.terminal.ExtraKeyState]. */
+    /** Modifier toggles that read from [dev.drosh.terminal.session.ExtraKeyState]. */
     enum class Special : ExtraKey {
         CTRL, ALT,
     }

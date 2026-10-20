@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import com.termux.terminal.TerminalBuffer
 import com.termux.view.TerminalView

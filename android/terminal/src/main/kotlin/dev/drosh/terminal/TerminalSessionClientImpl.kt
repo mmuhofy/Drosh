@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import android.content.ClipData
 import android.content.ClipboardManager

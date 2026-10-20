@@ -12,7 +12,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import dev.drosh.R
 import dev.drosh.domain.terminal.PaneSlot
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.TerminalManager
 import com.termux.view.TerminalView
 
 /**

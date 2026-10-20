@@ -22,7 +22,7 @@ import dev.drosh.core.TerminalConstants
 import dev.drosh.theme.DroshFonts
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.PaneSlot
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.TerminalManager
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking

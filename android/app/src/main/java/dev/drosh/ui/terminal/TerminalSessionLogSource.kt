@@ -1,7 +1,7 @@
 package dev.drosh.ui.terminal
 
-import dev.drosh.terminal.AnsiStripper
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.AnsiStripper
+import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.ui.session.SessionLogSource
 
 /**

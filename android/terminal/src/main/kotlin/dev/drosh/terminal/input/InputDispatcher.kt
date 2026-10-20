@@ -1,9 +1,9 @@
-package dev.drosh.terminal.input
+package dev.drosh.terminal.session.input
 
 import android.view.KeyEvent
 import dev.drosh.domain.input.ExtraKey
 import dev.drosh.domain.input.InputIntent
-import dev.drosh.terminal.ExtraKeyState
+import dev.drosh.terminal.session.ExtraKeyState
 import com.termux.terminal.KeyHandler
 import com.termux.terminal.TerminalSession
 
