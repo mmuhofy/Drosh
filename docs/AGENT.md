@@ -129,8 +129,9 @@ features/
                 streaming handler, tool implementations.
                 Depends on domain/ interfaces only.
 
-terminal/     → PTY session management, terminal emulator bridge,
-                block engine, semantic parser, ghost text engine.
+terminal/     → The terminal: the Rust core's Kotlin side (JNI, GL
+                renderer, input encoder, view) and the sessions that
+                drive it (panes, blocks, shell launch).
                 Isolated — only data/ and agent/ interact with it.
 
 guest/        → The Linux guest: rootfs, bootstrap, archive, and the

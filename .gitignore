@@ -113,6 +113,6 @@ docs/tmp-translations-only-the-missing/
 # The Rust workspace (rust/) — built only in CI.
 rust/target/
 # The cross-built core arrives from CI as an artifact, never from git.
-android/engine/src/main/jniLibs/
+android/terminal/src/main/jniLibs/
 # The chroot-ng guest runtime comes from its own release, fetched by CI.
 android/guest/src/main/jniLibs/

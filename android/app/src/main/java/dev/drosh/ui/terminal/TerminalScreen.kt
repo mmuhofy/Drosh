@@ -89,12 +89,12 @@ import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
-import dev.drosh.terminal.SearchHighlightOverlay
-import dev.drosh.terminal.TerminalSearchResults
-import dev.drosh.terminal.TerminalTranscriptSearch
-import dev.drosh.terminal.TerminalUrlOverlay
-import dev.drosh.terminal.TerminalManager
-import dev.drosh.terminal.TerminalViewClientImpl
+import dev.drosh.terminal.session.SearchHighlightOverlay
+import dev.drosh.terminal.session.TerminalSearchResults
+import dev.drosh.terminal.session.TerminalTranscriptSearch
+import dev.drosh.terminal.session.TerminalUrlOverlay
+import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.terminal.session.TerminalViewClientImpl
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.guest.UbuntuSetupState
@@ -120,7 +120,7 @@ import dev.drosh.ui.topbar.SelectionMenuSurface
 import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
 import dev.drosh.ui.topbar.SelectionMenuRow
-import dev.drosh.terminal.chromeCollapsed
+import dev.drosh.terminal.session.chromeCollapsed
 import dev.drosh.ui.topbar.rememberTerminalTopPadding
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.TOP_BAR_BACKDROP_STRIP
@@ -183,7 +183,7 @@ fun TerminalScreen(
     onRetry: () -> Unit,
     onOpenSettings: () -> Unit = {},
     terminalViewModel: TerminalViewModel = hiltViewModel(),
-    extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
+    extraKeyState: dev.drosh.terminal.session.ExtraKeyState? = null,
     onExit: () -> Unit = {},
     /**
      * Called with a guest path when the guest runs `dedit <path>`.
@@ -267,7 +267,7 @@ private fun ReadyScreen(
     blockEngineViewModel: BlockEngineViewModel = hiltViewModel(),
     inputBarViewModel: InputBarViewModel = hiltViewModel(),
     paneLayoutViewModel: PaneLayoutViewModel = hiltViewModel(),
-    extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
+    extraKeyState: dev.drosh.terminal.session.ExtraKeyState? = null,
     onOpenAgent: () -> Unit = {},
     onOpenSsh: () -> Unit = {},
     onOpenProjects: () -> Unit = {},
@@ -1562,7 +1562,7 @@ private fun TerminalPaneBody(
     terminalViewModel: TerminalViewModel,
     blockEngineViewModel: BlockEngineViewModel,
     inputBarViewModel: InputBarViewModel,
-    extraKeyState: dev.drosh.terminal.ExtraKeyState?,
+    extraKeyState: dev.drosh.terminal.session.ExtraKeyState?,
     useBlockEngine: Boolean,
     /**
      * The grid's top padding, already animated in step with the pill row.
@@ -1752,7 +1752,7 @@ private fun TerminalViewHost(
     searchResults: TerminalSearchResults?,
     searchOverlayRef: MutableState<SearchHighlightOverlay?>,
     modifier: Modifier = Modifier,
-    extraKeyState: dev.drosh.terminal.ExtraKeyState? = null,
+    extraKeyState: dev.drosh.terminal.session.ExtraKeyState? = null,
     /** Root-space bounds, for sampling the terminal as the top bar's backdrop. */
     onBoundsChanged: (androidx.compose.ui.geometry.Rect) -> Unit = {},
 ) {
@@ -1877,13 +1877,13 @@ private fun TerminalViewHost(
             val view = ownView.value
             val pointer = pointerOverlay.value
             if (view != null && pointer != null) {
-                dev.drosh.terminal.mouse.MouseInputHandler.attach(view, pointer)
+                dev.drosh.terminal.session.mouse.MouseInputHandler.attach(view, pointer)
                 mouseAttached = true
             }
         } else if (mouseAttached) {
             // the pad's events go through the focused input connection, so a
             // pane that lost focus must stop being the mouse screen
-            dev.drosh.terminal.mouse.MouseInputHandler.detach()
+            dev.drosh.terminal.session.mouse.MouseInputHandler.detach()
             mouseAttached = false
         }
     }
@@ -1891,7 +1891,7 @@ private fun TerminalViewHost(
     DisposableEffect(paneSlot) {
         onDispose {
             if (mouseAttached) {
-                dev.drosh.terminal.mouse.MouseInputHandler.detach()
+                dev.drosh.terminal.session.mouse.MouseInputHandler.detach()
                 mouseAttached = false
             }
             terminalManager.unregisterPaneView(paneSlot)

@@ -84,21 +84,14 @@ val boundaryRules = listOf(
     "domain|androidx|0",
     "domain|dev.drosh.data|0",
     "domain|dev.drosh.terminal|0",
-    "domain|dev.drosh.engine|0",
+    "domain|dev.drosh.terminal.engine|0",
     "domain|dev.drosh.guest|0",
     "domain|dev.drosh.ui|0",
     "domain|dev.drosh.ssh|0",
     "domain|dev.drosh.agent|0",
-    // :engine is the bottom of the terminal stack.
-    "engine|dev.drosh.terminal|0",
-    "engine|dev.drosh.guest|0",
-    "engine|dev.drosh.data|0",
-    "engine|dev.drosh.agent|0",
-    "engine|dev.drosh.ssh|0",
-    "engine|dev.drosh.ui|0",
     // :guest is a Linux-guest concern — no UI, no session, no engine.
     "guest|dev.drosh.terminal|0",
-    "guest|dev.drosh.engine|0",
+    "guest|dev.drosh.terminal.engine|0",
     "guest|dev.drosh.data|0",
     "guest|dev.drosh.ui|0",
     "guest|androidx.compose|0",
@@ -108,12 +101,31 @@ val boundaryRules = listOf(
     "terminal|androidx.compose|0",
     // :ui is presentation over domain only.
     "ui|dev.drosh.terminal|0",
-    "ui|dev.drosh.engine|0",
+    "ui|dev.drosh.terminal.engine|0",
     // Known debt — must reach 0. `data -> terminal` clears in P3, `ssh` in P5.
     // It was 22 before the guest moved to its own module: the nine imports of
     // the rootfs, the bootstrap and the archive were part of it.
     "features/ssh|dev.drosh.terminal|1",
     "data|dev.drosh.terminal|13",
+)
+
+// Rules inside one module: the files of a source package must not import a
+// forbidden package.
+//
+// The engine half of `:terminal` is a library the session half drives — the
+// renderer, the JNI surface and the view know nothing about panes or blocks.
+// That was a module boundary once; now that both halves live in `:terminal`,
+// the rule is a package one, and it is still mechanical: the checker reads the
+// package of each file and its imports.
+//
+// The format is `source package|forbidden package`.
+val internalRules = listOf(
+    "dev.drosh.terminal.engine|dev.drosh.terminal.session",
+    "dev.drosh.terminal.engine|dev.drosh.guest",
+    "dev.drosh.terminal.engine|dev.drosh.data",
+    "dev.drosh.terminal.engine|dev.drosh.agent",
+    "dev.drosh.terminal.engine|dev.drosh.ssh",
+    "dev.drosh.terminal.engine|dev.drosh.ui",
 )
 
 // Modules the plan expects but that are not in the tree yet. A rule may name
@@ -131,6 +143,7 @@ tasks.register("checkModuleBoundaries") {
     val projectRoot = layout.projectDirectory.asFile
     val rules = boundaryRules
     val planned = plannedModules
+    val internal = internalRules
 
     doLast {
         val failures = mutableListOf<String>()
@@ -189,6 +202,40 @@ tasks.register("checkModuleBoundaries") {
                 hits.size < allowed -> {
                     failures += "$module -> $forbidden: ${hits.size} import(s), baseline says $allowed. " +
                         "Lower the baseline in build.gradle.kts."
+                }
+            }
+        }
+
+        // Rules inside one module. A file belongs to the rule when its own
+        // package is the source package; its imports are checked the same way
+        // a module's are.
+        for (entry in internal) {
+            val (sourcePackage, forbidden) = entry.split('|')
+            val module = sourcePackage.removePrefix("dev.drosh.").substringBefore('.')
+            val sourceDir = File(projectRoot, "$module/src/main")
+            if (!sourceDir.isDirectory) continue
+
+            for (file in sourceDir.walkTopDown()) {
+                if (!file.isFile) continue
+                if (file.extension != "kt" && file.extension != "java") continue
+                val text = file.readText()
+                val packageName = Regex("^package\\s+([\\w.]+)", RegexOption.MULTILINE)
+                    .find(text)?.groupValues?.get(1)
+                if (packageName != sourcePackage) continue
+
+                var lineNumber = 0
+                for (line in text.lines()) {
+                    lineNumber++
+                    val trimmed = line.trim()
+                    if (!trimmed.startsWith("import ")) continue
+                    val fqn = trimmed
+                        .removePrefix("import ")
+                        .removeSuffix(";")
+                        .substringBefore(" as ")
+                        .trim()
+                    if (fqn != forbidden && !fqn.startsWith("$forbidden.")) continue
+                    val path = file.relativeTo(projectRoot).invariantSeparatorsPath
+                    failures += "$sourcePackage imports $forbidden — $path:$lineNumber  $fqn"
                 }
             }
         }

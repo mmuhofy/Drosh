@@ -118,9 +118,9 @@ android/                → the Gradle build; `settings.gradle.kts` and `gradlew
   ui/                   → Compose screens, ViewModels (never imports data/agent/terminal/ssh)
   domain/               → Models, use cases, repository interfaces (pure Kotlin, no Android)
   data/                 → Repository implementations, Room, DataStore, DI bindings
-  terminal/             → TerminalManager, sessions and panes, vendored termux
+  terminal/             → the terminal: the Rust core's Kotlin side (JNI, GL
+                          renderer, input, view) and the sessions that drive it
   guest/                → the Linux guest: rootfs, bootstrap, archive, guest launchers
-  engine/               → the Rust core's Kotlin side: JNI, GL renderer, input, view
   features/
     agent/              → AgentRuntime, ToolRegistry, provider adapters, eight tools
     ssh/                → SSHJ session bridge
@@ -182,7 +182,7 @@ cargo test                     # the engine crate, on the host
 ```
 
 The Rust core is built for arm64 only by CI, which drops `libdrosh_core.so`
-into `android/engine/src/main/jniLibs/arm64-v8a/` before Gradle runs.
+into `android/terminal/engine/src/main/jniLibs/arm64-v8a/` before Gradle runs.
 
 CI runs `Build Debug` and `Unit Tests` on every push and pull request, and
 `Build Release` on tags.

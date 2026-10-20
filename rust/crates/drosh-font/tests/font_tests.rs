@@ -1,6 +1,6 @@
 //! Gate 2 — the Rust font stack, against the font that actually ships.
 //!
-//! The font is read from `android/engine/src/main/assets/fonts/`, i.e. the very
+//! The font is read from `android/terminal/src/main/assets/fonts/`, i.e. the very
 //! file the APK carries, so these tests also fail if the asset goes missing or
 //! is replaced by something that is not the font we think it is.
 
@@ -17,7 +17,7 @@ const BOLD: &str = "JetBrainsMonoNL-Bold.ttf";
 /// repository root, then into the Gradle module that carries the font.
 fn asset_path(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../android/engine/src/main/assets/fonts")
+        .join("../../../android/terminal/src/main/assets/fonts")
         .join(name)
 }
 

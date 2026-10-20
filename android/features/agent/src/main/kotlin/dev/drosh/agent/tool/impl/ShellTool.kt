@@ -13,7 +13,7 @@ import dev.drosh.domain.agent.intArg
 import dev.drosh.domain.agent.stringArg
 import dev.drosh.domain.agent.toolSchema
 import dev.drosh.domain.settings.SettingsStore
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.TerminalManager
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
