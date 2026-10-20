@@ -30,6 +30,12 @@ interface SettingsRepository {
     /** Persists the font pack. Applies across the app without a restart. */
     suspend fun setFontPack(pack: FontPack)
 
+    /** Hot stream of the guest isolation engine. Emits [GuestIsolation.PROOT] first. */
+    val guestIsolation: Flow<GuestIsolation>
+
+    /** Persists the guest isolation engine. Applies to the next session. */
+    suspend fun setGuestIsolation(isolation: GuestIsolation)
+
     /** Hot stream of the Block Mode flag. Emits false on first launch. */
     val useBlockEngine: Flow<Boolean>
 

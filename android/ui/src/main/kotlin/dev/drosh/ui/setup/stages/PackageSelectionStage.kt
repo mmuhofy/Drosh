@@ -59,6 +59,7 @@ import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.terminal.PackageProfile
+import dev.drosh.domain.settings.GuestIsolation
 import dev.drosh.domain.terminal.ShellChoice
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.setup.SetupWizardViewModel
@@ -74,6 +75,7 @@ fun PackageSelectionStage(
     val profile by viewModel.packageProfile.collectAsStateWithLifecycle()
     val shellChoice by viewModel.shellChoice.collectAsStateWithLifecycle()
     val customPackagesText by viewModel.customPackagesText.collectAsStateWithLifecycle()
+    val guestIsolation by viewModel.guestIsolation.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -224,7 +226,7 @@ fun PackageSelectionStage(
         )
         Spacer(modifier = Modifier.height(10.dp))
 
-        ShellOptionCard(
+        OptionCard(
             icon = DroshIcons.Terminal,
             title = "Zsh",
             description = "Modern, feature-rich and highly customizable",
@@ -233,13 +235,48 @@ fun PackageSelectionStage(
             onSelect = { viewModel.selectShell(ShellChoice.Zsh) },
         )
         Spacer(modifier = Modifier.height(12.dp))
-        ShellOptionCard(
+        OptionCard(
             icon = DroshIcons.SquareTerminal,
             title = "Bash",
             description = "Stable, reliable and widely compatible",
             badgeText = null,
             isSelected = shellChoice == ShellChoice.Bash,
             onSelect = { viewModel.selectShell(ShellChoice.Bash) },
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Isolation",
+            style = TextStyle(
+                fontFamily = LocalFontSet.current.sans,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 18.sp,
+            ),
+            color = DroshTextMuted,
+            modifier = Modifier.align(Alignment.Start),
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OptionCard(
+            icon = DroshIcons.ShieldCheck,
+            title = "proot",
+            description = "The established engine. It forwards every syscall of the guest, " +
+                "so it is the safe choice.",
+            badgeText = "Recommended",
+            isSelected = guestIsolation == GuestIsolation.PROOT,
+            onSelect = { viewModel.selectGuestIsolation(GuestIsolation.PROOT) },
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        OptionCard(
+            icon = DroshIcons.Gauge,
+            title = "chroot-ng",
+            description = "Traps only the path syscalls and loads programs itself — faster, " +
+                "and it runs static and Rust binaries unchanged.",
+            badgeText = null,
+            isSelected = guestIsolation == GuestIsolation.CHROOT_NG,
+            onSelect = { viewModel.selectGuestIsolation(GuestIsolation.CHROOT_NG) },
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -258,7 +295,7 @@ fun PackageSelectionStage(
 }
 
 @Composable
-private fun ShellOptionCard(
+private fun OptionCard(
     icon: ImageVector,
     title: String,
     description: String,
