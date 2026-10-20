@@ -1,4 +1,4 @@
-package dev.drosh.design.system
+package dev.drosh.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

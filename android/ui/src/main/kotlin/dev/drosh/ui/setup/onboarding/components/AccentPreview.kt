@@ -7,7 +7,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import dev.drosh.design.system.LocalDroshColors
+import dev.drosh.theme.LocalDroshColors
 
 /**
  * Draws a subtree in an accent, for as long as the subtree lasts.
@@ -18,7 +18,7 @@ import dev.drosh.design.system.LocalDroshColors
  * new accent. It does **not** rebuild `MaterialTheme.colorScheme`, which was
  * composed once at the app root from the palette active at the time; a component
  * reading `MaterialTheme.colorScheme.primary` directly would keep the old
- * accent. The setup screens read the design-system tokens rather than the
+ * accent. The setup screens read the theme tokens rather than the
  * Material ones, so this covers every one of them.
  *
  * The scope is deliberately the onboarding flow. An accent that changed under

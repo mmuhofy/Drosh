@@ -3,12 +3,12 @@ package dev.drosh.core
 /**
  * Drosh's colour palette as plain ARGB integers.
  *
- * The values themselves live in `:design-system` as Compose `Color`s, which
+ * The values themselves live in `:theme` as Compose `Color`s, which
  * is what every Compose surface uses. They cannot be read from `:terminal`
  * though: that module renders through plain Android Views and has no Compose
  * dependency, and pulling Compose in to reach a constant would be the wrong
  * trade. So the numbers are declared here as the one place both sides can
- * read, and `:design-system` wraps them.
+ * read, and `:theme` wraps them.
  *
  * If you change a value, change it here. `DroshColors.kt` mirrors it.
  *

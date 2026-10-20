@@ -153,9 +153,9 @@ enum class ThemeMode {
  * Offering them separately would let someone put a terminal and a UI in two
  * unrelated typefaces, which is a worse outcome than either pairing.
  *
- * [Geist] is the default. The families themselves live in `:design-system`,
+ * [Geist] is the default. The families themselves live in `:theme`,
  * which cannot depend on this module, so consumers resolve them by name
- * through `dev.drosh.design.system.DroshFonts.byName`.
+ * through `dev.drosh.theme.DroshFonts.byName`.
  */
 enum class FontPack {
     Geist,

@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.design.system.DroshBackground
+import dev.drosh.theme.DroshBackground
 import dev.drosh.ui.setup.onboarding.scenes.AboutScene
 import dev.drosh.ui.setup.onboarding.scenes.ThemeScene
 import dev.drosh.ui.setup.onboarding.scenes.WelcomeScene

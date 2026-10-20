@@ -14,8 +14,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.LocalFontSet
 import kotlinx.coroutines.delay
 
 /**

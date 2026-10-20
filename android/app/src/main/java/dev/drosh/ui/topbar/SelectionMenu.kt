@@ -37,11 +37,11 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import com.termux.view.TerminalView
 import dev.drosh.ui.DroshIcons
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshSurfaceHigh
+import dev.drosh.theme.LocalFontSet
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 

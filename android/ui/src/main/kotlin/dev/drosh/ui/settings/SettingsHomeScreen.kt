@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.design.system.DroshBackground
+import dev.drosh.theme.DroshBackground
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.core.ShellLocaleCatalog

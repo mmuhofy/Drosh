@@ -125,7 +125,7 @@ android/                → the Gradle build; `settings.gradle.kts` and `gradlew
   ssh/                  → SSHJ session bridge
   editor/               → Sora editor wrapper, TextMate grammars
   core/                 → Locale, constants, extensions
-  design-system/        → DroshColors, typography, dropdown menu
+  theme/                → DroshColors, typography — the Compose theme
   build-logic/          → Gradle convention plugins
 
 rust/                   → the Cargo workspace; `cargo test` runs from here

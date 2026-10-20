@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import dev.drosh.ui.session.DeviceBadge
-import dev.drosh.design.system.DroshPrimary
+import dev.drosh.theme.DroshPrimary
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.Text
@@ -37,7 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.core.LanguageCatalog
 import dev.drosh.core.copyToClipboard
 import dev.drosh.core.toast
-import dev.drosh.design.system.DroshBackground
+import dev.drosh.theme.DroshBackground
 import dev.drosh.ui.session.DeviceIdentityViewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color

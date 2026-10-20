@@ -24,12 +24,12 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshSuccess
-import dev.drosh.design.system.DroshSurfaceVariant
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshSuccess
+import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.LocalFontSet
 
 /**
  * Renders unified diff text, with the new lines syntax highlighted.

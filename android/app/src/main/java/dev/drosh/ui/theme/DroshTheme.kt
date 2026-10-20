@@ -12,20 +12,20 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshOnPrimary
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshSurfaceVariant
-import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshOnPrimary
+import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurface
+import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.ui.agent.components.provideCodePalette
 import dev.drosh.ui.agent.components.provideMarkdownTheme
-import dev.drosh.design.system.DroshFontSet
-import dev.drosh.design.system.DroshFonts
-import dev.drosh.design.system.LocalFontSet
-import dev.drosh.design.system.provideDroshColors
+import dev.drosh.theme.DroshFontSet
+import dev.drosh.theme.DroshFonts
+import dev.drosh.theme.LocalFontSet
+import dev.drosh.theme.provideDroshColors
 
 @Composable
 private fun schemeFor(dark: Boolean): ColorScheme = if (dark) {
@@ -87,7 +87,7 @@ private fun droshTypography(sans: FontFamily): Typography = Typography(
 /**
  * Compose theme for the entire app.
  *
- * The colours themselves live in `:design-system` (DroshColors.kt) and are
+ * The colours themselves live in `:theme` (DroshColors.kt) and are
  * imported here. They used to be duplicated in this file, which meant two
  * copies to keep in step and one of them silently drifted out of date.
  *

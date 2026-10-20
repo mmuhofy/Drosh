@@ -21,8 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.settings.ThemePalette
 
 /**

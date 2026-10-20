@@ -9,7 +9,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 /**
  * Convention plugin applied to every Android *library* module
- * (`core`, `data`, `agent`, `terminal`, `ssh`, `ui`, `design-system`).
+ * (`core`, `data`, `agent`, `terminal`, `ssh`, `ui`, `theme`).
  *
  * Sets up:
  *  - AGP `com.android.library`

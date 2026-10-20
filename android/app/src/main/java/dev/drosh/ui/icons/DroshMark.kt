@@ -8,8 +8,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshTextSecondary
 
 /**
  * Drosh monogram — a small vector mark that ships inside the topbar.

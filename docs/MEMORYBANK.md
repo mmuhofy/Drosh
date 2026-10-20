@@ -169,15 +169,15 @@ Regular, Medium and SemiBold — the Material type scale asks for Medium and
 SemiBold at ten separate tokens, and synthesizing them from a single Regular
 is what made titles look soft before.
 
-Sources: `design-system/src/main/res/font/*.ttf`, from
+Sources: `theme/src/main/res/font/*.ttf`, from
 github.com/vercel/geist-font v1.7.2, github.com/rsms/inter v4.1 and
 github.com/JetBrains/JetBrainsMono v2.304. The families and the
 `LocalFontSet` CompositionLocal are in
-`design-system/.../DroshFontFamily.kt`; the persisted choice is
+`theme/.../DroshFontFamily.kt`; the persisted choice is
 `dev.drosh.domain.settings.FontPack`, resolved through `DroshFonts.byName`
-because `:design-system` must not depend on `:domain`.
+because `:theme` must not depend on `:domain`.
 
-`:design-system` resolves the packs by *name* rather than by the enum, so the
+`:theme` resolves the packs by *name* rather than by the enum, so the
 two lists have to stay in step — rename one without the other and `byName`
 falls back to Geist.
 
@@ -188,7 +188,7 @@ resolves the pack's `monoResId` through `resources.getFont()`; the
 platform monospace is the fallback if that fails.
 
 **Source of truth:** the values live in `core/.../DroshPalette.kt` as plain
-ARGB ints; `design-system/.../DroshColors.kt` wraps them as Compose
+ARGB ints; `theme/.../DroshColors.kt` wraps them as Compose
 `Color`s. They are plain ints in `:core` because `:terminal` renders through
 Views and has no Compose dependency, and pulling Compose in to read a
 constant is the wrong trade. Change the value in `:core`.

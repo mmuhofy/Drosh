@@ -20,9 +20,9 @@ import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownDimens
 import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
-import dev.drosh.design.system.DroshThemeColors
-import dev.drosh.design.system.LocalDroshColors
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshThemeColors
+import dev.drosh.theme.LocalDroshColors
+import dev.drosh.theme.LocalFontSet
 
 /**
  * Installs our tokens where the renderer will read them.

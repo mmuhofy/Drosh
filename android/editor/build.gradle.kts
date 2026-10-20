@@ -45,7 +45,7 @@ dependencies {
 
     api(project(":domain"))
     implementation(project(":core"))
-    implementation(project(":design-system"))
+    implementation(project(":theme"))
 
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

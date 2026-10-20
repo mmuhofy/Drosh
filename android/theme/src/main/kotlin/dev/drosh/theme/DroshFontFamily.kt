@@ -1,11 +1,11 @@
-package dev.drosh.design.system
+package dev.drosh.theme
 
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import dev.drosh.design.system.R
+import dev.drosh.theme.R
 
 /**
  * The fonts for one pack, as Compose families plus the raw resource the
@@ -13,7 +13,7 @@ import dev.drosh.design.system.R
  *
  * [monoResId] exists because the terminal does not draw through Compose — the
  * vendored Termux renderer takes an `android.graphics.Typeface`. Resolving
- * that typeface needs the resource id, which is a design-system id and so
+ * that typeface needs the resource id, which is a theme id and so
  * cannot be known from the terminal module.
  */
 data class DroshFontSet(
@@ -81,7 +81,7 @@ private val JetBrainsMono: FontFamily = FontFamily(
  * titles look soft before.
  *
  * Keyed by the name of `dev.drosh.domain.settings.FontPack` rather than by
- * the enum itself, because `:design-system` must not depend on `:domain` —
+ * the enum itself, because `:theme` must not depend on `:domain` —
  * per AGENT.md it is independent of every other layer. The enum and these
  * names have to stay in step; `byName` falls back to [Geist] if one of them
  * is renamed and the other is not.

@@ -12,7 +12,7 @@ this file says where the work came from.
 | **Ubuntu 24.04** — the Linux environment itself | downloaded on first launch |
 | **sora-editor** (Rosemoe) — the native code editor | `:editor` dependency |
 | **TextMate grammars** — syntax highlighting for the editor | `android/editor/src/main/assets/textmate/` |
-| **Geist** (Vercel × basement.studio), **Inter** (Rasmus Andersson), **JetBrains Mono** (JetBrains) — the typefaces | `android/design-system/src/main/res/font/` |
+| **Geist** (Vercel × basement.studio), **Inter** (Rasmus Andersson), **JetBrains Mono** (JetBrains) — the typefaces | `android/theme/src/main/res/font/` |
 
 Full licenses: `LICENSE.md`, `LICENSES/`, `android/editor/NOTICE.md`,
 `android/editor/src/main/assets/textmate/PROVENANCE.md`.

@@ -27,11 +27,11 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTrack
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTrack
 import kotlinx.coroutines.delay
 
 private const val WORD = "Drosh"

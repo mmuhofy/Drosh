@@ -27,12 +27,12 @@ be compiled into stays GPLv3 because of `:terminal`.
 | Terminal engine + shell integration | `android/terminal/` (both `com.termux.*` and `dev.drosh.terminal.*`) | **GPL-3.0** | modified Termux code, vendored in-tree |
 | Terminal native library | `android/terminal/src/main/jniLibs/` (`libtermux.so`) | **GPL-3.0** | Termux's JNI library |
 | chroot-ng guest runtime | fetched from its own release into `android/terminal/src/main/jniLibs/` (`libchrootng.so`) | **Apache-2.0** | third-party binary, unmodified — see `android/terminal/src/main/assets/licenses/` |
-| Drosh source | `android/app/` `android/ui/` `android/data/` `android/domain/` `android/agent/` `android/ssh/` `android/core/` `android/design-system/` | **Apache-2.0** | Drosh-authored |
+| Drosh source | `android/app/` `android/ui/` `android/data/` `android/domain/` `android/agent/` `android/ssh/` `android/core/` `android/theme/` | **Apache-2.0** | Drosh-authored |
 | Linux guest | `android/guest/` | **Apache-2.0**, except the rootfs archive format | Drosh-authored; `backup/RootfsArchive{Reader,Writer}.kt` are GPL-3.0 |
 | Editor wrapper | `android/editor/` (Drosh code) | **Apache-2.0** | Drosh-authored; the editor it wraps is LGPL — see `android/editor/NOTICE.md` |
 | Editor component | sora-editor (`io.github.rosemoe:editor`, `language-textmate`) | **LGPL-2.1-or-later** | third-party dependency, unmodified |
 | TextMate grammars | `android/editor/src/main/assets/textmate/` | **MIT** | microsoft/vscode + fwcd/vscode-kotlin — see `android/editor/src/main/assets/textmate/PROVENANCE.md` |
-| Fonts | `android/design-system/src/main/res/font/` | **OFL-1.1** | Geist, Inter, JetBrains Mono — see `LICENSES/fonts/` |
+| Fonts | `android/theme/src/main/res/font/` | **OFL-1.1** | Geist, Inter, JetBrains Mono — see `LICENSES/fonts/` |
 | PRoot binary | `android/app/src/main/assets/proot` | **GPL-2.0** | third-party binary, unmodified |
 | talloc library | `android/app/src/main/assets/libtalloc.so.2` | **LGPL** | Samba talloc, unmodified |
 | Ubuntu 24.04 userspace | downloaded on first launch, never in this repo | various (Ubuntu community licenses) | see the note below |

@@ -36,9 +36,9 @@ import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
-import dev.drosh.design.system.DroshSurfaceHigh
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextSecondary
+import dev.drosh.theme.DroshSurfaceHigh
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.ui.DroshIcons
 
 /**

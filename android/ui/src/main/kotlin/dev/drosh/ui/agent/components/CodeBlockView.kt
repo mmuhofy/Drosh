@@ -21,7 +21,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.LocalFontSet
 import org.intellij.markdown.IElementType
 import androidx.compose.ui.res.stringResource
 import dev.drosh.ui.R

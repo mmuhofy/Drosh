@@ -18,10 +18,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurface
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.input.ExtraKey
 import dev.drosh.domain.input.ExtraKeyBarLayout
 import dev.drosh.domain.input.InputIntent

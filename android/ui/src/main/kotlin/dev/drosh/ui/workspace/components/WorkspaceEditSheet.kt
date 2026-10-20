@@ -48,18 +48,18 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.design.system.DroshBackground
-import dev.drosh.design.system.DroshError
-import dev.drosh.design.system.DroshOutline
-import dev.drosh.design.system.DroshPrimary
-import dev.drosh.design.system.DroshSuccess
-import dev.drosh.design.system.DroshSurface
-import dev.drosh.design.system.DroshText
-import dev.drosh.design.system.DroshTextMuted
-import dev.drosh.design.system.DroshTextSecondary
-import dev.drosh.design.system.DroshWarning
-import dev.drosh.design.system.DroshBuild
-import dev.drosh.design.system.LocalFontSet
+import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshOutline
+import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSuccess
+import dev.drosh.theme.DroshSurface
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshWarning
+import dev.drosh.theme.DroshBuild
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.workspace.WORKSPACE_COLOR_SEED_COUNT
 import dev.drosh.domain.workspace.WorkspaceEdit
 import dev.drosh.ui.R
@@ -83,7 +83,7 @@ import kotlinx.coroutines.launch
  *
  * A function rather than a top-level `val` on purpose: these tokens read through
  * a composition local and there is no value to hold outside a composition. See
- * `design-system/.../DroshColors.kt`.
+ * `theme/.../DroshColors.kt`.
  */
 @Composable
 private fun workspaceSeedPalette(): List<Color> = listOf(

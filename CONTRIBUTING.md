@@ -10,7 +10,7 @@ directory it is in.
   (Termux-derived).
 - The Drosh-authored modules (`android/app/`, `android/ui/`, `android/data/`,
   `android/domain/`, `android/agent/`, `android/ssh/`, `android/core/`,
-  `android/design-system/`, `android/editor/`) are **Apache-2.0**.
+  `android/theme/`, `android/editor/`) are **Apache-2.0**.
 - Contributions to the Apache-2.0 modules are accepted under Apache-2.0 (see
   §5 of that license).
 
