@@ -381,7 +381,7 @@ never red; no phase closes without the device checklist.
       with it.
       - The vendored chroot-ng went to `third_party/chroot-ng` and then left the
         repository entirely — it is a pinned release asset now (P4).
-      - [x] The engine crate split into five: `drosh-core` (the JNI boundary),
+      - [x] The engine crate split into five: `drosh-jni` (the JNI boundary),
         `drosh-session`, `drosh-pty`, `drosh-bridge`, `drosh-font`. The shipped
         library is still `libdrosh_core.so` with the same symbols; what changed
         is that `ARCHITECTURE.md` §4.2's rules are now enforced by Cargo.
