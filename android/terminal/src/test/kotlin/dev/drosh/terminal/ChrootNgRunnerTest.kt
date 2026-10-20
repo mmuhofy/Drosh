@@ -50,10 +50,17 @@ class ChrootNgRunnerTest {
         )
 
         val rootfsIndex = command.argv.indexOf(rootfs.absolutePath)
-        val optionIndexes = command.argv.indices.filter { command.argv[it].startsWith("-") }
+        val programIndex = command.argv.indexOf("/bin/zsh")
+        assertTrue(rootfsIndex in 0 until programIndex)
+
+        // Nothing that looks like an option may sit between the rootfs and
+        // the program: chroot-ng stops parsing options at the rootfs, so one
+        // there would be taken for the program to run. The shell's own
+        // arguments come after the program, so they are not in this range.
+        val between = command.argv.subList(rootfsIndex + 1, programIndex)
         assertTrue(
             "an option came after the rootfs: ${command.argv}",
-            optionIndexes.all { it < rootfsIndex },
+            between.none { it.startsWith("-") },
         )
     }
 
