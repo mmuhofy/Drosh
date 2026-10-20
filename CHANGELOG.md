@@ -109,6 +109,10 @@ release when it ships.
 
 ### Changed
 
+- The product's optional surfaces moved into a `features` group: the agent, the
+  SSH transport and the editor are now `:features:agent`, `:features:ssh` and
+  `:features:editor`. They are things a user reaches, not steps in the dependency
+  chain, and the module list mixed them with the layers
 - The design system module is now `:theme` and holds what a theme is — colours
   and typography. The dropdown component moved to `:ui`, where the screens that
   use it live, and the package moved with it (`dev.drosh.design.system` →

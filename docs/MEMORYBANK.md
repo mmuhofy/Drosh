@@ -101,7 +101,7 @@ data/
   remote/           → LLM clients, SSH client, Theme Store API
   ssh/              → SshjManager, SshKeyVault
 
-agent/
+features/agent/
   tools/            → BashTool, ReadFileTool, WebSearchTool, CronTool
   loop/             → AgentLoop, MultiStepStreamer
   semantic/         → SemanticParser, OutputClassifier

@@ -9,8 +9,8 @@ directory it is in.
 - The APK and everything under `android/terminal/` are **GPL-3.0**
   (Termux-derived).
 - The Drosh-authored modules (`android/app/`, `android/ui/`, `android/data/`,
-  `android/domain/`, `android/agent/`, `android/ssh/`, `android/core/`,
-  `android/theme/`, `android/editor/`) are **Apache-2.0**.
+  `android/domain/`, `android/features/agent/`, `android/features/ssh/`, `android/core/`,
+  `android/theme/`, `android/features/editor/`) are **Apache-2.0**.
 - Contributions to the Apache-2.0 modules are accepted under Apache-2.0 (see
   §5 of that license).
 

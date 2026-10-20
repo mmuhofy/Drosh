@@ -118,12 +118,13 @@ android/                → the Gradle build; `settings.gradle.kts` and `gradlew
   ui/                   → Compose screens, ViewModels (never imports data/agent/terminal/ssh)
   domain/               → Models, use cases, repository interfaces (pure Kotlin, no Android)
   data/                 → Repository implementations, Room, DataStore, DI bindings
-  agent/                → AgentRuntime, ToolRegistry, provider adapters, eight tools
   terminal/             → TerminalManager, sessions and panes, vendored termux
   guest/                → the Linux guest: rootfs, bootstrap, archive, guest launchers
   engine/               → the Rust core's Kotlin side: JNI, GL renderer, input, view
-  ssh/                  → SSHJ session bridge
-  editor/               → Sora editor wrapper, TextMate grammars
+  features/
+    agent/              → AgentRuntime, ToolRegistry, provider adapters, eight tools
+    ssh/                → SSHJ session bridge
+    editor/             → Sora editor wrapper, TextMate grammars
   core/                 → Locale, constants, extensions
   theme/                → DroshColors, typography — the Compose theme
   build-logic/          → Gradle convention plugins
