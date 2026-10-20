@@ -350,10 +350,7 @@ mod tests {
         let session = crate::test_session();
         feed(&session, lines);
         let term = session.term.lock();
-        find_urls(&term, 10)
-            .into_iter()
-            .map(|hit| (hit.row, hit.col, hit.text))
-            .collect()
+        find_urls(&term, 10).into_iter().map(|hit| (hit.row, hit.col, hit.text)).collect()
     }
 
     #[test]

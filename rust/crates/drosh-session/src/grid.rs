@@ -88,17 +88,9 @@ pub fn logical_lines(rows: &[VisibleRow]) -> Vec<LogicalLine> {
             // padded to the column width, and that padding is not part of what
             // was said — joining it in would insert spaces where the shell
             // wrote none.
-            let row_text = if row.wraps {
-                row.text.as_str()
-            } else {
-                row.text.trim_end()
-            };
+            let row_text = if row.wraps { row.text.as_str() } else { row.text.trim_end() };
             let offset = text.chars().count();
-            parts.push(RowSpan {
-                row: index,
-                offset,
-                len: row_text.chars().count(),
-            });
+            parts.push(RowSpan { row: index, offset, len: row_text.chars().count() });
             text.push_str(row_text);
             index += 1;
             if !row.wraps || index >= rows.len() {
