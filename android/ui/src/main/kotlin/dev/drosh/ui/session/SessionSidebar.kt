@@ -104,9 +104,9 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshDropdownMenu
-import dev.drosh.theme.DroshMenuItem
+import dev.drosh.ui.DroshMenuItem
 import dev.drosh.ui.settings.SettingsViewModel
-import dev.drosh.theme.DroshMenuItemStyle
+import dev.drosh.ui.DroshMenuItemStyle
 import dev.drosh.theme.DroshOutline
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface

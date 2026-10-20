@@ -36,8 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.theme.DroshBorderSubtle
 import dev.drosh.ui.DroshDropdownMenu
-import dev.drosh.theme.DroshMenuItem
-import dev.drosh.theme.DroshMenuItemStyle
+import dev.drosh.ui.DroshMenuItem
+import dev.drosh.ui.DroshMenuItemStyle
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted

@@ -62,7 +62,7 @@ import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.ui.DroshDropdownMenu
-import dev.drosh.theme.DroshMenuItem
+import dev.drosh.ui.DroshMenuItem
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.session.SessionSwitcherViewModel

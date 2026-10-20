@@ -79,7 +79,7 @@ import dev.drosh.domain.agent.TerminalProjection
 import dev.drosh.domain.agent.TokenUsage
 import dev.drosh.domain.agent.ToolCallState
 import dev.drosh.ui.DroshIcons
-import dev.drosh.theme.DroshMenuItem
+import dev.drosh.ui.DroshMenuItem
 import dev.drosh.ui.DroshDropdownMenu
 import dev.drosh.ui.settings.SettingsCheck
 import dev.drosh.ui.agent.components.ActionButton
