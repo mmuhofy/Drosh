@@ -109,6 +109,10 @@ release when it ships.
 
 ### Changed
 
+- The guest has two backends behind one interface: proot, and chroot-ng. The
+  chroot-ng path is wired — the argv its CLI expects, the environment it
+  builds for the guest, and the device paths it binds — and can be switched on
+  a device without a UI
 - The guest runtime, chroot-ng, is no longer vendored in this repository. It is
   built and published by its own project, and Drosh consumes a pinned release
   asset — a tag and a SHA-256 it verifies before the file goes into the APK.
