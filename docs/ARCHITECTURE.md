@@ -18,10 +18,9 @@ by that split: `android/data/` is still `project(":data")`.
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
 
  ├── :ui --------------► :domain, :theme
- ├── :terminal --------► :engine, :guest, :domain
+ ├── :terminal --------► :guest, :domain
  ├── :features:agent --► :terminal, :domain
- ├── :features:ssh ----► :domain, :engine  (implements TransportPort)
- ├── :engine ----------► :domain
+ ├── :features:ssh ----► :domain, :terminal  (implements TransportPort)
  ├── :guest -----------► :domain
  ├── :data ------------► :domain
  ├── :features:editor -► :domain, :theme
@@ -31,14 +30,13 @@ by that split: `android/data/` is still `project(":data")`.
 | Module | Owns | Must not know about |
 |---|---|---|
 | `:domain` | Entities, ports, use cases | Android, any Drosh module |
-| `:engine` | Rust core, JNI surface, GL renderer, input encoder, terminal view | sessions, panes, blocks, UI chrome |
+| `:terminal` | the Rust core's Kotlin side (JNI, GL renderer, input encoder, view) and the sessions that drive it (sessions, panes, tabs, blocks, shell launch) | Compose, `:ui`, `:app`; the engine half does not know the session half |
 | `:guest` | rootfs, bootstrap, archive, chroot exec | terminal sessions, UI |
-| `:terminal` | sessions, panes, tabs, blocks, shell launch | Compose, `:ui`, `:app` |
 | `:features:ssh` | SSH transport implementing the domain port | `:terminal` |
 | `:data` | Room, DataStore, TOML, vault | `:terminal`, Compose |
 | `:features:agent` | LLM providers, tools, chat | Compose (screen lives in `:ui`) |
-| `:ui` | Screens and chrome over domain | `:terminal`, `:engine` |
-| `:theme` | Tokens, components | any feature module |
+| `:ui` | Screens and chrome over domain | `:terminal` |
+| `:theme` | Tokens, typography | any feature module |
 
 `:app` is the only module allowed to know everything; it wires ports to
 implementations and nothing else.
@@ -82,7 +80,7 @@ The target is one file per concern; today the surface is `core/NativeCore.kt`
 wrapper the view talks to).
 
 ```
-android/engine/src/main/kotlin/dev/drosh/engine/native/
+android/terminal/src/main/kotlin/dev/drosh/terminal/engine/core/
   NativeCore.kt       library load, handle lifetime
   NativeTerminal.kt   create/feed/resize/snapshot/state/modes
   NativeSelection.kt  select, extend, selectedText, wordAt, lineAt
@@ -99,11 +97,11 @@ or panic may cross the boundary; the panic hook is installed at load.
 ## 3. Layer rules (enforced)
 
 1. `:domain` imports no Android type and no Drosh module.
-2. `:engine` imports nothing above it (`:terminal`, `:guest`, `:data`, `:agent`, `:ssh`, `:ui`).
-3. `:guest` imports no UI, no `:terminal`, no `:engine`.
+2. `:terminal` imports nothing above it (`:terminal`, `:guest`, `:data`, `:agent`, `:ssh`, `:ui`).
+3. `:guest` imports no UI, no `:terminal`, no `:terminal`.
 4. `:terminal` imports no Compose, no `:ui`, no `:app`.
-5. `:ui` imports neither `:terminal` nor `:engine`.
-6. Only `android/engine/.../native/` (today `android/engine/.../core/`) declares `external fun`.
+5. `:ui` imports neither `:terminal` nor `:terminal`.
+6. Only `android/terminal/engine/.../native/` (today `android/terminal/engine/.../core/`) declares `external fun`.
 7. No module imports `com.termux.*` once Termux is removed (P3).
 
 Run `./gradlew checkModuleBoundaries` (it is also part of every `check`).
@@ -193,7 +191,7 @@ Current overruns, all scheduled: `TerminalScreen.kt` 2238 (P6), `TerminalManager
 |---|---|---|
 | P0 | this document, `checkModuleBoundaries`, baseline | `check` green, boundary breach proven red |
 | P1 | Rust: selection, search, URL, block, tint, text | `cargo test` + clippy + cross-check |
-| P2 | `:engine` view becomes the product view | device checklist |
+| P2 | `:terminal` view becomes the product view | device checklist |
 | P3 | `:terminal` rewritten, Termux deleted | both paths build; device checklist |
 | P4 | `:guest` extracted, chroot-ng replaces PRoot | clean install, `uname -a`, backup round-trip |
 | P5 | `:ssh` over bridged sessions | SSH session checklist |

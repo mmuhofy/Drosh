@@ -4,8 +4,8 @@ import com.termux.terminal.Logger
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
-import dev.drosh.terminal.SessionLifecycleCallbacks
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.SessionLifecycleCallbacks
+import dev.drosh.terminal.session.TerminalManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

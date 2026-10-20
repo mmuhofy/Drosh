@@ -45,8 +45,8 @@ import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.view.textselection.TextSelectionCursorController
 
-import dev.drosh.terminal.SearchHighlightOverlay
-import dev.drosh.terminal.TerminalUrlOverlay
+import dev.drosh.terminal.session.SearchHighlightOverlay
+import dev.drosh.terminal.session.TerminalUrlOverlay
 import dev.drosh.domain.terminal.TerminalZoom
 
 import java.util.Properties
@@ -354,7 +354,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     val contentTicks: StateFlow<Int> = _contentTicks.asStateFlow()
 
     /**
-     * Emulator access for [dev.drosh.terminal.mouse.MouseInputHandler], which
+     * Emulator access for [dev.drosh.terminal.session.mouse.MouseInputHandler], which
      * lives in the same module and needs to read the mouse-tracking state and
      * send mouse events. Null until a session is attached.
      */
@@ -372,7 +372,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
 
             override fun onUp(event: MotionEvent): Boolean {
                 mScrollRemainder = 0.0f
-                if (mEmulator != null && mEmulator!!.isMouseTrackingActive() && !event.isFromSource(InputDevice.SOURCE_MOUSE) && !isSelectingText && !scrolledWithFinger && !dev.drosh.terminal.mouse.MouseInputHandler.isActive()) {
+                if (mEmulator != null && mEmulator!!.isMouseTrackingActive() && !event.isFromSource(InputDevice.SOURCE_MOUSE) && !isSelectingText && !scrolledWithFinger && !dev.drosh.terminal.session.mouse.MouseInputHandler.isActive()) {
                     // Quick event processing when mouse tracking is active - do not wait for check of double tapping
                     // for zooming.
                     sendMouseEventCode(event, TerminalEmulator.MOUSE_LEFT_BUTTON, true)
@@ -398,7 +398,7 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
             override fun onScroll(e: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
                 if (mEmulator == null) return true
 
-                if (mEmulator!!.isMouseTrackingActive() && e.isFromSource(InputDevice.SOURCE_MOUSE) && !dev.drosh.terminal.mouse.MouseInputHandler.isActive()) {
+                if (mEmulator!!.isMouseTrackingActive() && e.isFromSource(InputDevice.SOURCE_MOUSE) && !dev.drosh.terminal.session.mouse.MouseInputHandler.isActive()) {
                     // If moving with mouse pointer while pressing button, report that instead of scroll.
                     sendMouseEventCode(e, TerminalEmulator.MOUSE_LEFT_BUTTON_MOVED, true)
                 } else {
@@ -654,12 +654,12 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
              *
              * The only channel an IME has that is app-specific: private
              * commands. The keyboard streams pixel deltas and button events,
-             * and [dev.drosh.terminal.mouse.MouseInputHandler] turns them into
+             * and [dev.drosh.terminal.session.mouse.MouseInputHandler] turns them into
              * emulator mouse events. Anything else (every other IME) is
              * ignored here.
              */
             override fun performPrivateCommand(action: String?, data: Bundle?): Boolean {
-                if (dev.drosh.terminal.mouse.MouseInputHandler.handleCommand(action, data)) {
+                if (dev.drosh.terminal.session.mouse.MouseInputHandler.handleCommand(action, data)) {
                     return true
                 }
                 return super.performPrivateCommand(action, data)

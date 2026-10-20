@@ -27,7 +27,7 @@ interface StickyModifierState {
 
     /**
      * Consumes the sticky CTRL state if it is currently active.
-     * Mirrors the behaviour of [dev.drosh.terminal.ExtraKeyState.readCtrl]:
+     * Mirrors the behaviour of [dev.drosh.terminal.session.ExtraKeyState.readCtrl]:
      * auto-deactivates after one read unless locked.
      *
      * Returns true if the next intent should see CTRL armed; false otherwise.

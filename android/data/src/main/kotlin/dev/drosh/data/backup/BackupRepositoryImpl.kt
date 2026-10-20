@@ -63,7 +63,7 @@ data class ArchiveWriteResult(
 /**
  * The rootfs tree, behind an interface.
  *
- * The work belongs to `dev.drosh.terminal.backup` (`RootfsArchiveWriter` and
+ * The work belongs to `dev.drosh.terminal.session.backup` (`RootfsArchiveWriter` and
  * `RootfsArchiveReader` — the walk with its permission-relax pass, the
  * excludes, and the zip-slip-guarded extract; see
  * `docs/BACKUP-RESTORE-PLAN.md` §3). This class only orchestrates, so it

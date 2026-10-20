@@ -7,7 +7,7 @@ import dev.drosh.domain.backup.BackupOptions
 import dev.drosh.domain.backup.BackupSection
 import dev.drosh.domain.backup.BackupSectionKind
 import dev.drosh.domain.input.InputPreferencesRepository
-import dev.drosh.terminal.SnippetsStore
+import dev.drosh.terminal.session.SnippetsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext

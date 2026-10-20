@@ -37,5 +37,5 @@ cargo check --workspace --target aarch64-linux-android
 
 The host commands need nothing but a Rust toolchain. The Android artifact is
 cross-compiled with the pinned NDK by CI, which drops it into
-`android/engine/src/main/jniLibs/arm64-v8a/` before Gradle runs; the `.so` is
+`android/terminal/src/main/jniLibs/arm64-v8a/` before Gradle runs; the `.so` is
 never committed.

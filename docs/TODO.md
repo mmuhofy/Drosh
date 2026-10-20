@@ -409,13 +409,13 @@ never red; no phase closes without the device checklist.
       reported left of where it is. Fixing it means carrying the cell column
       alongside the row text; verify on a device with a CJK row first.
 
-### P2 — `:engine` view becomes the product view
+### P2 — `:terminal` view becomes the product view
 - [ ] **The engine's view is not wired into the app.** `android/app/build.gradle.kts`
-      depends on `:engine`, but nothing in `android/app/`, `android/ui/`,
-      `android/data/` or `android/terminal/` imports `dev.drosh.engine`; the
-      product still renders through `com.termux.view.TerminalView`
-      (verified 2026-10-20). The P2 title describes the engine's own shape, not
-      the product's view — the switch is P3 work.
+      depends on `:terminal`, but nothing in `android/app/`, `android/ui/` or
+      `android/data/` imports `dev.drosh.terminal.engine`; the product still
+      renders through `com.termux.view.TerminalView` (verified 2026-10-20).
+      The P2 title describes the engine's own shape, not the product's view —
+      the switch is P3 work.
 - [x] Split `DroshTerminalView` into `TerminalView` / `TerminalGestures` /
       `SelectionOverlay` / `TerminalIme`
 - [x] `TerminalController` public surface; selection handles; find hooks; zoom
