@@ -91,8 +91,10 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
         private set
 
     /** The opaque block: backgrounds, underlines, strikeout and the cursor. */
-    val solidU: Float
-    val solidV: Float
+    var solidU = 0f
+        private set
+    var solidV = 0f
+        private set
 
     /** The same block in texels, which is what a foreground record carries. */
     var solidX = 0
@@ -101,21 +103,48 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
         private set
 
     init {
+        reserveSolid()
+    }
+
+    /**
+     * Drop every cached mask, so the atlas holds one size at a time.
+     *
+     * The atlas has a fixed size, and a terminal whose text size changes — a
+     * pinch — would otherwise fill it with the masks of sizes that are never
+     * drawn again. A full atlas draws nothing at all, which is a worse
+     * failure than the re-rasterising a size change costs.
+     */
+    fun reset() {
+        entries.clear()
+        pixels.fill(0)
+        shelfY = 0
+        shelfHeight = 0
+        penX = 0
+        full = false
+        substituted = 0
+        missing = 0
+        reserveSolid()
+        dirty = true
+    }
+
+    /** Reserve the one opaque texel the solid quads sample. */
+    private fun reserveSolid() {
         val block = reserve(SOLID, SOLID)
         if (block == null) {
             // Unreachable for any sane atlas size; a renderer must not throw.
             Log.e(TAG, "the glyph atlas cannot hold its solid texel")
             solidU = 0f
             solidV = 0f
-        } else {
-            val x = unpackX(block)
-            val y = unpackY(block)
-            pixels[y * size + x] = 255.toByte()
-            solidX = x
-            solidY = y
-            solidU = (x + 0.5f) / size
-            solidV = (y + 0.5f) / size
+            return
         }
+
+        val x = unpackX(block)
+        val y = unpackY(block)
+        pixels[y * size + x] = 255.toByte()
+        solidX = x
+        solidY = y
+        solidU = (x + 0.5f) / size
+        solidV = (y + 0.5f) / size
     }
 
     /**
