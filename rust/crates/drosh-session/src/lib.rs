@@ -410,11 +410,7 @@ impl Session {
     /// working directory and the editor target.
     pub fn block_state(&self) -> (BlockPhase, Option<String>, Option<String>) {
         let tracker = self.blocks.lock().unwrap_or_else(|e| e.into_inner());
-        (
-            tracker.phase(),
-            tracker.cwd().map(str::to_owned),
-            tracker.editor().map(str::to_owned),
-        )
+        (tracker.phase(), tracker.cwd().map(str::to_owned), tracker.editor().map(str::to_owned))
     }
 
     /// Run `f` with the engine's terminal, holding its lock.
