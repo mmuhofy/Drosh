@@ -136,6 +136,7 @@ pub fn url_at(term: &Term<EventProxy>, row: usize, col: usize) -> Option<String>
 }
 
 /// A URL in a line: the character offsets it covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Span {
     /// Character offset where the URL starts.
     start: usize,

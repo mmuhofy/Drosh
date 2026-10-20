@@ -39,16 +39,18 @@ pub fn visible_rows(term: &Term<EventProxy>) -> Vec<VisibleRow> {
     let mut rows: Vec<VisibleRow> = Vec::new();
     let mut current: Option<i32> = None;
     let mut buf = String::new();
-    let mut wraps = false;
+    // The wrap flag of the last cell seen. It is read after the loop, so the
+    // value is never stale: the flag lives on the last cell of a row, and the
+    // last cell is the last one the iterator yields for that row.
+    let mut cell_wraps = false;
 
     for indexed in term.grid().display_iter() {
         let line = indexed.point.line.0;
         if current != Some(line) {
             if current.is_some() {
-                rows.push(VisibleRow { text: std::mem::take(&mut buf), wraps });
+                rows.push(VisibleRow { text: std::mem::take(&mut buf), wraps: cell_wraps });
             }
             current = Some(line);
-            wraps = false;
         }
 
         let ch = indexed.cell.c;
@@ -57,12 +59,10 @@ pub fn visible_rows(term: &Term<EventProxy>) -> Vec<VisibleRow> {
         } else {
             buf.push(ch);
         }
-        // The flag lives on the last cell of the row, so the last cell seen is
-        // the one that decides.
-        wraps = indexed.cell.flags.contains(Flags::WRAPLINE);
+        cell_wraps = indexed.cell.flags.contains(Flags::WRAPLINE);
     }
     if current.is_some() {
-        rows.push(VisibleRow { text: buf, wraps });
+        rows.push(VisibleRow { text: buf, wraps: cell_wraps });
     }
 
     rows
