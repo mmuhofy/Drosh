@@ -148,19 +148,18 @@ responsibility is unclear: `TerminalManager` (1808 lines), `BlockEngineWire`,
 
 ### 4.2 Rust
 
-| Directory | Responsibility | Rule |
+| Crate | Responsibility | Rule |
 |---|---|---|
-| `session/` | behaviour | no Android, unit-tested with `cargo test` |
-| `bridge/` | struct/byte marshalling | no JNI, plain Rust |
-| `ffi/` | `extern "C"` + handle validation | no business logic, ≤ 120 lines |
-| `font/` | raster, shaping | |
-| `util/` | logging | |
+| `drosh-session` | behaviour | no Android, no JNI, unit-tested with `cargo test` |
+| `drosh-pty` | PTY + the child process (D8) | must not know about the grid |
+| `drosh-bridge` | struct/byte marshalling | no JNI, plain Rust |
+| `drosh-font` | raster, shaping | must not pull the VT engine in |
+| `drosh-core` | `extern "C"` + handle validation, `JNI_OnLoad`, logging | no business logic; `ffi/*.rs` ≤ 120 lines |
 
-Today all five are modules of the single crate
-`rust/crates/drosh-core/src/`. The planned split makes each one a crate of its
-own (`drosh-session`, `drosh-bridge`, `drosh-pty`, `drosh-font`), so the rules
-above bind at compile time — a crate cannot import a dependency it does not
-declare.
+The table is enforced by Cargo, not by review: a crate can only call what its
+manifest declares, so "the bridge must not see JNI" is a missing dependency
+rather than a comment. `ffi/*.rs` stays boring by keeping the behaviour in
+`drosh-session`.
 
 ---
 

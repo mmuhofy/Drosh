@@ -8,7 +8,7 @@ use jni::sys::{jint, jlong};
 use jni::JNIEnv;
 
 use crate::ffi::{fail, required_string, session_or, ErrorCode};
-use crate::session::search::SearchHit;
+use drosh_session::search::SearchHit;
 
 /// Find occurrences of `query` in the visible grid; returns `row:col:len` records.
 ///

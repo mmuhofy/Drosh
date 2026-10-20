@@ -1,0 +1,16 @@
+[package]
+name = "drosh-pty"
+description = "Raw libc PTY creation and the child process on the other end (decision D8)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# `EventedPty` / `OnResize` are implemented against alacritty's event loop, so
+# this crate depends on the engine's trait definitions and nothing else of it.
+alacritty_terminal.workspace = true
+libc.workspace = true
+log.workspace = true
+polling.workspace = true
+signal-hook.workspace = true

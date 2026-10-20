@@ -9,8 +9,8 @@ use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jlong};
 use jni::JNIEnv;
 
-use crate::bridge::events::SessionEvent;
 use crate::ffi::session_or;
+use drosh_bridge::events::SessionEvent;
 
 /// Was there a `Wakeup` since the last call?
 ///
@@ -109,8 +109,8 @@ fn sanitize(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bridge::events::Terminator;
     use crate::ffi::ErrorCode;
+    use drosh_bridge::events::Terminator;
 
     #[test]
     fn records_are_line_safe_and_stable() {
@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn shell_marks_carry_their_payload() {
-        use crate::bridge::events::ShellMark;
+        use drosh_bridge::events::ShellMark;
 
         assert_eq!(encode_event(&SessionEvent::ShellMark(ShellMark::PromptStart)), "shell_mark:a");
         assert_eq!(encode_event(&SessionEvent::ShellMark(ShellMark::CommandExec)), "shell_mark:c");

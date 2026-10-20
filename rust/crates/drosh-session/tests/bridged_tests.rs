@@ -5,13 +5,13 @@ use std::io::{ErrorKind, Read};
 use std::time::{Duration, Instant};
 
 use alacritty_terminal::tty::EventedReadWrite;
-use drosh_core::bridge::cell::CELL_BYTES;
-use drosh_core::bridge::events::{EventQueue, SessionEvent, ShellMark};
-use drosh_core::bridge::snapshot::state_index;
-use drosh_core::bridge::snapshot::STATE_LEN;
-use drosh_core::session::pty_factory::{LocalPty, PtyConfig};
-use drosh_core::session::tap::TapPty;
-use drosh_core::session::{manager, GridSize, SessionError};
+use drosh_bridge::cell::CELL_BYTES;
+use drosh_bridge::events::{EventQueue, SessionEvent, ShellMark};
+use drosh_bridge::snapshot::state_index;
+use drosh_bridge::snapshot::STATE_LEN;
+use drosh_pty::{LocalPty, PtyConfig};
+use drosh_session::tap::TapPty;
+use drosh_session::{manager, GridSize, SessionError};
 use std::sync::Arc;
 
 const COLUMNS: usize = 20;

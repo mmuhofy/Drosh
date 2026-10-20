@@ -6,9 +6,9 @@
 
 use std::path::{Path, PathBuf};
 
-use drosh_core::font::fallback::Resolution;
-use drosh_core::font::shape;
-use drosh_core::font::{FontStack, Weight};
+use drosh_font::fallback::Resolution;
+use drosh_font::shape;
+use drosh_font::{FontStack, Weight};
 
 const REGULAR: &str = "JetBrainsMonoNL-Regular.ttf";
 const BOLD: &str = "JetBrainsMonoNL-Bold.ttf";
@@ -163,8 +163,5 @@ fn codepoints_outside_the_font_are_substituted_and_reported() {
     assert!(matches!(stack.resolve('M', Weight::Regular), Resolution::Direct(_)));
 
     // The raw helper says the same thing without a FontStack.
-    assert!(matches!(
-        drosh_core::font::fallback::resolve(&regular, '中'),
-        Resolution::Substituted(_)
-    ));
+    assert!(matches!(drosh_font::fallback::resolve(&regular, '中'), Resolution::Substituted(_)));
 }

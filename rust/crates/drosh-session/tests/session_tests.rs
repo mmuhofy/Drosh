@@ -4,9 +4,9 @@ use std::time::{Duration, Instant};
 
 use alacritty_terminal::grid::Dimensions;
 
-use drosh_core::bridge::events::SessionEvent;
-use drosh_core::session::manager;
-use drosh_core::session::{GridSize, Session, SessionConfig, SessionError};
+use drosh_bridge::events::SessionEvent;
+use drosh_session::manager;
+use drosh_session::{GridSize, Session, SessionConfig, SessionError};
 
 fn shell_config(program: &str, args: &[&str]) -> SessionConfig {
     SessionConfig {

@@ -10,8 +10,8 @@ use alacritty_terminal::event::{Event, EventListener};
 use alacritty_terminal::term::{ClipboardType, Config, Osc52, Term};
 use alacritty_terminal::vte::ansi::{Processor, Rgb, StdSyncHandler};
 
-use drosh_core::bridge::events::{parse_color_template, Terminator};
-use drosh_core::session::GridSize;
+use drosh_bridge::events::{parse_color_template, Terminator};
+use drosh_session::GridSize;
 
 /// Keeps every event the engine sends, so a test can look at them.
 #[derive(Clone, Default)]

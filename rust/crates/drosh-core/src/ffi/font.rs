@@ -14,8 +14,8 @@ use jni::sys::{jboolean, jfloat, jint};
 use jni::JNIEnv;
 
 use crate::ffi::{fail, finish, ErrorCode, FfiResult};
-use crate::font::fallback::Resolution;
-use crate::font::{FontError, FontStack, Weight};
+use drosh_font::fallback::Resolution;
+use drosh_font::{FontError, FontStack, Weight};
 
 /// Bytes `nativeRasterize` writes before the coverage mask: kind, glyph id,
 /// width, height, left, top — six little-endian 32-bit fields.

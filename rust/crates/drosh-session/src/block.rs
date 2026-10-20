@@ -10,7 +10,7 @@
 //! now X" — and carries the latest working directory and editor target so they
 //! ride along with every block without another grid scan.
 
-use crate::bridge::events::ShellMark;
+use drosh_bridge::events::ShellMark;
 
 /// A boundary the block engine can act on.
 #[derive(Debug, Clone, PartialEq, Eq)]

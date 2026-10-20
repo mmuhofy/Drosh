@@ -1,0 +1,18 @@
+[package]
+name = "drosh-bridge"
+description = "The Rust → Kotlin data path: cell records, damage list and the event queue"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+alacritty_terminal.workspace = true
+# OSC 52 payloads are base64 in the event records, which are newline-separated.
+base64.workspace = true
+log.workspace = true
+
+# No `jni` here, deliberately. Cross-boundary marshalling is drosh-core's `ffi`
+# module; this crate produces plain structs and byte buffers, and
+# docs/ARCHITECTURE.md §4.2's "bridge: no JNI" is now a fact of the manifest
+# rather than a review note.

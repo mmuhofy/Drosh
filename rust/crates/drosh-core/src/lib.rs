@@ -1,18 +1,24 @@
-//! Drosh terminal core — the Rust half of the terminal, loaded by the Android
-//! app as a cdylib over JNI.
+//! Drosh terminal core — the JNI half of the Rust engine, loaded by the Android
+//! app as a cdylib.
+//!
+//! Behaviour lives in the sibling crates; this one owns the boundary and
+//! nothing else:
 //!
 //! - [`ffi`]: the JNI boundary (session lifecycle, snapshot, events).
-//! - [`session`]: [`alacritty_terminal::Term`] + event loop + PTY.
-//! - [`bridge`]: Term → flat cell buffer + damage list, and the event queue.
-//! - [`font`]: shaping (`rustybuzz`) and rasterisation (`swash`) — Phase B.
 //! - [`util`]: logging and other small shared helpers.
 //!
-//! See `TODO.md` (Phase A) and `PLAN.md` (decisions D1–D13).
+//! - `drosh-session`: [`alacritty_terminal::Term`] + event loop, and selection,
+//!   search, url, block, tint and ANSI-stripping over its grid.
+//! - `drosh-pty`: PTY creation and the child process on the other end (D8).
+//! - `drosh-bridge`: `Term` → flat cell buffer + damage list, and the event queue.
+//! - `drosh-font`: shaping (`rustybuzz`) and rasterisation (`swash`).
+//!
+//! The split is not decoration: a crate can only call what its `Cargo.toml`
+//! declares, so "the bridge must never see JNI" and "the font stack must not
+//! pull the VT engine in" are compile errors here rather than review notes
+//! (`docs/ARCHITECTURE.md` §2 and §4.2).
 
-pub mod bridge;
 pub mod ffi;
-pub mod font;
-pub mod session;
 pub mod util;
 
 use std::ffi::c_void;

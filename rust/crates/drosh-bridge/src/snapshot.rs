@@ -1,7 +1,7 @@
 //! Term → flat cell buffer + damage list (decision D5).
 //!
 //! Kotlin owns the snapshot memory: it allocates one direct `ByteBuffer` for
-//! `rows * columns` cell records (see [`crate::bridge::cell`]) and one
+//! `rows * columns` cell records (see [`crate::cell`]) and one
 //! `IntArray` for the damage list, then calls
 //! `Session::take_snapshot(buffer)` once per frame. This module only writes
 //! into those buffers, so a frame costs one copy of the damaged cells and no
@@ -15,7 +15,7 @@ use alacritty_terminal::term::color::{Colors, COUNT as COLOR_COUNT};
 use alacritty_terminal::term::{point_to_viewport, LineDamageBounds, Term, TermDamage, TermMode};
 use alacritty_terminal::vte::ansi::{CursorShape, Rgb};
 
-use crate::bridge::cell::{CellRecord, CELL_BYTES};
+use crate::cell::{CellRecord, CELL_BYTES};
 
 /// `damage_out[0]` when the whole viewport was copied into the buffer.
 pub const DAMAGE_FULL: i32 = -1;

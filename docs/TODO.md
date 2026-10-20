@@ -380,6 +380,10 @@ never red; no phase closes without the device checklist.
       `third_party/chroot-ng`. A pure move: module names, packages and the
       cdylib name are unchanged, so no import or `System.loadLibrary` call moved
       with it.
+      - [x] The engine crate split into five: `drosh-core` (the JNI boundary),
+        `drosh-session`, `drosh-pty`, `drosh-bridge`, `drosh-font`. The shipped
+        library is still `libdrosh_core.so` with the same symbols; what changed
+        is that `ARCHITECTURE.md` §4.2's rules are now enforced by Cargo.
 - [ ] Baseline numbers (`docs/BASELINE.md`): APK size, cold start, p95 frame
       time — needs a CI-built APK, not yet measured
 

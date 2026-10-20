@@ -16,7 +16,7 @@
 //! survives arbitrary chunk boundaries: an OSC body may arrive split across
 //! reads.
 
-use crate::bridge::events::ShellMark;
+use drosh_bridge::events::ShellMark;
 
 /// Upper bound on a buffered OSC body. Marks are paths and statuses, not data
 /// channels; anything longer than this is a runaway sequence, not a mark.
