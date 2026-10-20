@@ -454,6 +454,33 @@ never red; no phase closes without the device checklist.
       is built and probed in its own CI (its test suite passes on a native
       AArch64 runner); the remaining gate is `chroot-ng --probe` on a real
       Android kernel and a shell that actually runs inside the rootfs.
+- [ ] **P4 device gate — chroot-ng on a real device.** Everything below is
+      reachable without P3: the guest backend lives in `:guest`, which
+      `:terminal` uses, and the switch is a file in the app's own storage.
+
+      1. Install the CI-built debug APK (`dev.drosh.my`).
+      2. Switch the backend:
+
+         ```bash
+         adb shell run-as dev.drosh.my sh -c 'echo chroot_ng > files/guest_backend'
+         ```
+
+      3. Open a session. The guest must start. A failure here is the gate
+         failing and not the app: the proot path is still there.
+      4. Inside the session: `uname -a` (the guest's kernel, not Android's),
+         `ls /sdcard` (the bind), `echo $HOME` (`/home`), `id` (uid 0 —
+         chroot-ng fakes the identity).
+      5. The agent's file tools must still work: they resolve `/data`,
+         `/storage` and `/sdcard` to the real device, which is why those
+         three are bound.
+      6. To go back:
+
+         ```bash
+         adb shell run-as dev.drosh.my rm files/guest_backend
+         ```
+
+      The default stays proot until this passes. It is the only thing that
+      decides whether chroot-ng becomes the default and proot is deleted.
 
 ### P5 — `:ssh` over bridged sessions
 - [ ] `TransportPort` moves to `:domain`; `ssh → terminal` debt 1 → 0
