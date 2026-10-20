@@ -119,6 +119,17 @@ It is a task in the root build script, not a build-logic plugin: applying one to
 the root project puts its jar on the build classpath with an unknown version,
 which then collides with the versioned aliases the modules use.
 
+### 3.2 Modules that do not exist yet
+
+A rule may name a module the plan expects but that is not in the tree yet
+(`:guest`, in P4). Such a module is listed in `plannedModules`, and the checker
+asserts that it is *still* absent — so its rules cannot pass unnoticed, and
+when the module appears the checker fails until the rules move out of that list
+and start being enforced.
+
+A rule that names a module which is neither in the tree nor planned is a build
+failure. A rule nobody can check is a comment, not a rule.
+
 | Rule | Baseline | Cleared by |
 |---|---:|---|
 | `data → terminal` | 22 | P3 |

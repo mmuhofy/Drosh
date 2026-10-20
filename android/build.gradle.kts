@@ -114,22 +114,40 @@ val boundaryRules = listOf(
     "data|dev.drosh.terminal|22",
 )
 
+// Modules the plan expects but that are not in the tree yet. A rule may name
+// one of these: the checker then asserts that the module is *still* absent, so
+// a rule written for a module that has not been built cannot pass by accident,
+// and cannot be forgotten when the module arrives — the checker says so.
+val plannedModules = listOf("guest")
+
 tasks.register("checkModuleBoundaries") {
     group = "verification"
     description = "Fails when a module imports a package its layer forbids."
 
     val projectRoot = layout.projectDirectory.asFile
     val rules = boundaryRules
+    val planned = plannedModules
 
     doLast {
         val failures = mutableListOf<String>()
+        val plannedFound = linkedSetOf<String>()
         var knownDebt = 0
 
         for (entry in rules) {
             val (module, forbidden, allowedText) = entry.split('|')
             val allowed = allowedText.toInt()
             val sourceDir = File(projectRoot, "$module/src/main")
-            if (!sourceDir.isDirectory) continue
+            if (!sourceDir.isDirectory) {
+                if (module in planned) {
+                    plannedFound += module
+                } else {
+                    failures += "$module has no src/main — a boundary rule names a module that is not in the tree."
+                }
+                continue
+            }
+            if (module in planned) {
+                failures += "$module is in the planned list but exists now — move its rules out of plannedModules."
+            }
 
             val hits = mutableListOf<String>()
             for (file in sourceDir.walkTopDown()) {
@@ -181,7 +199,9 @@ tasks.register("checkModuleBoundaries") {
             )
         }
 
-        logger.lifecycle("module boundaries: ${rules.size} rules enforced, $knownDebt known debt import(s)")
+        val summary = "module boundaries: ${rules.size} rules enforced, $knownDebt known debt import(s)" +
+            if (plannedFound.isEmpty()) "" else ", ${plannedFound.size} planned module(s) not built yet: ${plannedFound.joinToString()}"
+        logger.lifecycle(summary)
     }
 }
 
