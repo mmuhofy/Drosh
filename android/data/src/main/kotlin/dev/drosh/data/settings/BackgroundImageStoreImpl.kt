@@ -6,7 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.drosh.domain.settings.BackgroundImageStore
-import dev.drosh.guest.UbuntuBootstrap
+import dev.drosh.linux.UbuntuBootstrap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

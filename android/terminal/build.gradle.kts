@@ -61,7 +61,7 @@ dependencies {
     api(project(":domain"))
     // The guest: its rootfs, its bootstrap and the launcher that execs a
     // shell inside it.
-    implementation(project(":guest"))
+    implementation(project(":linux"))
     implementation(project(":core"))
 
     // coroutines — dedicated TerminalManager CoroutineScope

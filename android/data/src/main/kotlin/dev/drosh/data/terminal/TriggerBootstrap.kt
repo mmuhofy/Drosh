@@ -3,7 +3,7 @@ package dev.drosh.data.terminal
 import dev.drosh.data.di.ApplicationScope
 import dev.drosh.domain.terminal.SetupPreferences
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
-import dev.drosh.guest.BootstrapStatePort
+import dev.drosh.linux.BootstrapStatePort
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow

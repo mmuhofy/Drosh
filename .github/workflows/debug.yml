@@ -144,9 +144,9 @@ jobs:
           url="https://github.com/mmuhofy/chroot-ng/releases/download/${CHROOT_NG_TAG}/libchrootng.so"
           curl -fsSL --retry 3 --retry-delay 2 -o /tmp/libchrootng.so "$url"
           echo "${CHROOT_NG_SHA256}  /tmp/libchrootng.so" | sha256sum -c -
-          mkdir -p android/guest/src/main/jniLibs/arm64-v8a
-          cp /tmp/libchrootng.so android/guest/src/main/jniLibs/arm64-v8a/libchrootng.so
-          ls -l android/guest/src/main/jniLibs/arm64-v8a/
+          mkdir -p android/linux/src/main/jniLibs/arm64-v8a
+          cp /tmp/libchrootng.so android/linux/src/main/jniLibs/arm64-v8a/libchrootng.so
+          ls -l android/linux/src/main/jniLibs/arm64-v8a/
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4

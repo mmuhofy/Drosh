@@ -1,4 +1,4 @@
-package dev.drosh.guest
+package dev.drosh.linux
 
 sealed class UbuntuSetupState {
     data object Idle : UbuntuSetupState()

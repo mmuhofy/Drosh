@@ -95,7 +95,7 @@ domain/
 
 data/
   terminal/         → TerminalManager, sessions and panes
-  guest/            → ProotRunner, ChrootNgRunner, UbuntuBootstrap, the rootfs archive
+  linux/            → ProotRunner, ChrootNgRunner, UbuntuBootstrap, the rootfs archive
   agent/            → MultiStepStreamer, ProviderAdapter, ToolRegistry
   local/            → Room DAOs, FTS5, DataStore
   remote/           → LLM clients, SSH client, Theme Store API
@@ -1880,7 +1880,7 @@ data class SshHost(
    - domain/terminal/ObserveBootstrapUseCase, TriggerBootstrapUseCase, ObserveFirstLaunchUseCase
    - data/terminal/BootstrapObserver, TriggerBootstrap, FirstLaunchRepositoryImpl
    - data/di/BindingsModule, ApplicationScopeModule
-   - guest/BootstrapStatePort (logs as SharedFlow + state as StateFlow)
+   - linux/BootstrapStatePort (logs as SharedFlow + state as StateFlow)
    - ui/setup/BootstrapViewModel, OnboardingViewModel
 ✅ BootstrapStepperScreen — 5-row Material 3 stepper with pulse-halo,
    determinate progress bar, ETA, animated current-message caption.

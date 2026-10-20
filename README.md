@@ -120,7 +120,7 @@ android/                → the Gradle build; `settings.gradle.kts` and `gradlew
   data/                 → Repository implementations, Room, DataStore, DI bindings
   terminal/             → the terminal: the Rust core's Kotlin side (JNI, GL
                           renderer, input, view) and the sessions that drive it
-  guest/                → the Linux guest: rootfs, bootstrap, archive, guest launchers
+  linux/                → the Linux userland: rootfs, bootstrap, archive, guest launchers
   features/
     agent/              → AgentRuntime, ToolRegistry, provider adapters, eight tools
     ssh/                → SSHJ session bridge

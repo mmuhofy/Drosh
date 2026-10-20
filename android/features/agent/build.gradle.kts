@@ -26,7 +26,7 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":terminal"))
     // The guest's rootfs, for the shell tool's working directory.
-    implementation(project(":guest"))
+    implementation(project(":linux"))
 
     // diff utilities — write_file diff/approve flow (AGENT.md §249)
     implementation(libs.diff.utils)

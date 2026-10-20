@@ -85,16 +85,16 @@ val boundaryRules = listOf(
     "domain|dev.drosh.data|0",
     "domain|dev.drosh.terminal|0",
     "domain|dev.drosh.terminal.engine|0",
-    "domain|dev.drosh.guest|0",
+    "domain|dev.drosh.linux|0",
     "domain|dev.drosh.ui|0",
     "domain|dev.drosh.ssh|0",
     "domain|dev.drosh.agent|0",
-    // :guest is a Linux-guest concern — no UI, no session, no engine.
-    "guest|dev.drosh.terminal|0",
-    "guest|dev.drosh.terminal.engine|0",
-    "guest|dev.drosh.data|0",
-    "guest|dev.drosh.ui|0",
-    "guest|androidx.compose|0",
+    // :linux is the Linux userland — no UI, no session, no engine.
+    "linux|dev.drosh.terminal|0",
+    "linux|dev.drosh.terminal.engine|0",
+    "linux|dev.drosh.data|0",
+    "linux|dev.drosh.ui|0",
+    "linux|androidx.compose|0",
     // :terminal owns sessions; it never draws.
     "terminal|dev.drosh.ui|0",
     "terminal|dev.drosh.app|0",
@@ -121,7 +121,7 @@ val boundaryRules = listOf(
 // The format is `source package|forbidden package`.
 val internalRules = listOf(
     "dev.drosh.terminal.engine|dev.drosh.terminal.session",
-    "dev.drosh.terminal.engine|dev.drosh.guest",
+    "dev.drosh.terminal.engine|dev.drosh.linux",
     "dev.drosh.terminal.engine|dev.drosh.data",
     "dev.drosh.terminal.engine|dev.drosh.agent",
     "dev.drosh.terminal.engine|dev.drosh.ssh",
@@ -133,7 +133,7 @@ val internalRules = listOf(
 // a rule written for a module that has not been built cannot pass by accident,
 // and cannot be forgotten when the module arrives — the checker says so.
 //
-// :guest is not here any more: the module exists, so its rules are enforced.
+// :linux is not here any more: the module exists, so its rules are enforced.
 val plannedModules = emptyList<String>()
 
 tasks.register("checkModuleBoundaries") {

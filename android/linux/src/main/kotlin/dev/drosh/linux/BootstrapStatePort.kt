@@ -1,4 +1,4 @@
-package dev.drosh.guest
+package dev.drosh.linux
 
 import dev.drosh.domain.terminal.SetupPreferences
 import kotlinx.coroutines.CoroutineScope
