@@ -91,7 +91,6 @@ import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.terminal.session.SearchHighlightOverlay
 import dev.drosh.terminal.session.TerminalSearchResults
-import dev.drosh.terminal.session.TerminalTranscriptSearch
 import dev.drosh.terminal.session.TerminalUrlOverlay
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.terminal.session.TerminalViewClientImpl
@@ -135,6 +134,7 @@ import java.util.Properties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
@@ -573,11 +573,15 @@ private fun ReadyScreen(
      * Null until a query has actually been scanned. That is a different state
      * from "nothing matched", and conflating them is how a user comes to
      * believe a terminal with a thousand matches has none.
+     *
+     * The state carries the kind of terminal the matches came from, because
+     * the two kinds answer in different coordinates and the bar has to say
+     * which one it is showing.
      */
-    var searchResults by remember { mutableStateOf<TerminalSearchResults?>(null) }
+    var findState by remember { mutableStateOf<TerminalFindState?>(null) }
 
     /** How many matches the query found. Zero before it has been scanned. */
-    val matchCount = searchResults?.count ?: 0
+    val matchCount = findState?.count ?: 0
 
     /**
      * The match the user is on, one-based, so it prints as "3/41".
@@ -586,7 +590,7 @@ private fun ReadyScreen(
      * query has been typed, so the only number it can ever show alongside
      * zero matches is the one the arrows are already disabled for.
      */
-    val currentMatch = ((searchResults?.activeIndex ?: -1) + 1).coerceAtLeast(1)
+    val currentMatch = ((findState?.activeIndex ?: -1) + 1).coerceAtLeast(1)
 
     /**
      * Which pane has focus, and therefore which pane the find bar is reading.
@@ -598,6 +602,28 @@ private fun ReadyScreen(
     val focusedPaneSlot by terminalManager.focusedPane.collectAsStateWithLifecycle()
 
     /**
+     * The source the find bar asks for the matches.
+     *
+     * The bar does not know what draws the terminal it is searching: it asks
+     * a source, and the source answers in its own coordinates — the rows of a
+     * Termux buffer, or the lines of the engine's output log. The two are
+     * told apart by the kind, so an engine answer is never passed off as a
+     * Termux one and the other way round.
+     *
+     * Asked for at the moment it is needed rather than kept: the engine's
+     * pane registers itself with the manager after the first composition, so
+     * a source resolved once would keep answering for a terminal that was not
+     * there yet.
+     */
+    fun findSource(): TerminalFindSource? {
+        val enginePane = terminalManager.focusedEnginePane()
+        return when {
+            enginePane != null -> EngineFindSource(enginePane.session)
+            else -> terminalViewRef.value?.let { TermuxFindSource(it) }
+        }
+    }
+
+    /**
      * The find matches, for whichever pane they were scanned against.
      *
      * Rows are rows of one particular buffer. A split carries two of those,
@@ -607,7 +633,7 @@ private fun ReadyScreen(
      * about the terminal the user is working in.
      */
     fun findResultsFor(slot: PaneSlot): TerminalSearchResults? =
-        searchResults.takeIf { slot == focusedPaneSlot }
+        findState?.takeIf { slot == focusedPaneSlot }?.termuxResults
 
     /**
      * Bumped by every chunk of output the focused terminal draws, so an open
@@ -624,6 +650,17 @@ private fun ReadyScreen(
      * it was when this composable first ran, before it had been measured.
      */
     var searchContentTick by remember { mutableStateOf(0) }
+
+    /**
+     * Bumped when the engine's output has moved on, so an open find bar
+     * re-scans while the log grows under it.
+     *
+     * The engine has no tick of its own: its output arrives as a stream of
+     * bytes, and the only thing that says whether the grid moved is the grid
+     * itself. So the scan is repeated on a slow timer instead — see the
+     * effect below.
+     */
+    var engineContentTick by remember { mutableStateOf(0) }
 
     /**
      * Follows the focused terminal's screen, which is where new output lands.
@@ -651,6 +688,27 @@ private fun ReadyScreen(
     }
 
     /**
+     * Repeats the scan while the find bar is open on an engine-backed
+     * terminal.
+     *
+     * The vendored path does not come through here: the view's own ticks
+     * drive its rescan, and a second timer on top of that would only read
+     * the same scrollback twice.
+     *
+     * The engine's timer is the slower of the two on purpose: its scan is a
+     * pass over the whole output log, and the log is what the user is
+     * searching in, not a screenful of rows.
+     */
+    LaunchedEffect(searchActive, findState?.kind) {
+        if (!searchActive) return@LaunchedEffect
+        if (findState?.kind != TerminalFindKind.ENGINE) return@LaunchedEffect
+        while (isActive) {
+            delay(ENGINE_RESCAN_INTERVAL_MS)
+            engineContentTick++
+        }
+    }
+
+    /**
      * Scans the focused terminal's whole scrollback for the current query.
      *
      * Re-run by the query changing, the terminal changing under the bar — the
@@ -659,12 +717,19 @@ private fun ReadyScreen(
      * Dispatchers.Default and the bar keeps its previous answer until the new
      * one lands rather than flashing a count of zero.
      */
-    LaunchedEffect(searchActive, searchQuery, terminalViewRef.value, searchContentTick, activeId) {
+    LaunchedEffect(
+        searchActive,
+        searchQuery,
+        terminalViewRef.value,
+        searchContentTick,
+        engineContentTick,
+        activeId,
+    ) {
         if (!searchActive || searchQuery.isBlank()) {
-            searchResults = null
+            findState = null
             return@LaunchedEffect
         }
-        val view = terminalViewRef.value ?: return@LaunchedEffect
+        val source = findSource() ?: return@LaunchedEffect
 
         val query = searchQuery
         // Where the user was, carried across a rescan. The row a match sits on
@@ -675,15 +740,15 @@ private fun ReadyScreen(
         // Kept for the *same* query and dropped for a new one: a rescan of what
         // is already on screen should not move the user, and the answers to a
         // different question are not answers to this one.
-        val previous = searchResults
-        if (previous != null && previous.query != query) searchResults = null
+        val previous = findState
+        if (previous != null && previous.query != query) findState = null
         val rememberedIndex = previous
             ?.takeIf { it.query == query }
             ?.activeIndex
             ?: -1
 
         val matches = withContext(Dispatchers.Default) {
-            TerminalTranscriptSearch().search(view, query)
+            source.search(query)
         }
         // The first match is active from the moment the query resolves, so the
         // bar reads "1/41" and the first hit is the one drawn stronger. No
@@ -691,12 +756,13 @@ private fun ReadyScreen(
         // the viewport to the oldest match each time would throw the user out
         // of the output they are typing in. The viewport moves when they ask
         // it to, with the arrows.
-        searchResults = TerminalSearchResults(
+        findState = TerminalFindState(
             query = query,
+            kind = source.kind,
             matches = matches,
             activeIndex = when {
-                matches.isEmpty() -> -1
-                rememberedIndex >= 0 -> rememberedIndex.coerceIn(0, matches.lastIndex)
+                matches.count == 0 -> -1
+                rememberedIndex >= 0 -> rememberedIndex.coerceIn(0, matches.count - 1)
                 else -> 0
             },
         )
@@ -710,21 +776,27 @@ private fun ReadyScreen(
      * which is a longer way of saying "start again".
      */
     fun stepMatch(forward: Boolean) {
-        val results = searchResults ?: return
-        if (results.matches.isEmpty()) return
+        val state = findState ?: return
+        val count = state.count
+        if (count == 0) return
         // Nothing active yet is the position *before* the first match, so
         // previous from there wraps to the last one. Reading -1 as a modular
         // index would land one short of it, which is the kind of off-by-one
         // that looks like a skipped match.
         val next = when {
-            forward -> (results.activeIndex + 1) % results.matches.size
-            results.activeIndex < 0 -> results.matches.lastIndex
-            else -> (results.activeIndex - 1 + results.matches.size) % results.matches.size
+            forward -> (state.activeIndex + 1) % count
+            state.activeIndex < 0 -> count - 1
+            else -> (state.activeIndex - 1 + count) % count
         }
-        searchResults = results.copy(activeIndex = next)
+        findState = state.copy(activeIndex = next)
         // Reveal after the state write, so the viewport follows the match the
         // user is now on rather than the one they were.
-        results.matches.getOrNull(next)?.let { terminalViewRef.value?.revealRow(it.row) }
+        //
+        // The source says whether it can: the vendored terminal scrolls to
+        // the row the match is on, and the engine cannot — a line of its
+        // output log is not a grid row, so there is nowhere on the screen to
+        // scroll to. It says no, and the screen stays where it is.
+        findSource()?.reveal(state.matches, next)
     }
 
     // Text selection menu. The platform ActionMode is switched off when the
@@ -1199,7 +1271,7 @@ private fun ReadyScreen(
             BackHandler {
                 searchActive = false
                 searchQuery = ""
-                searchResults = null
+                findState = null
             }
 
             TerminalFindBar(
@@ -1212,8 +1284,14 @@ private fun ReadyScreen(
                 onClose = {
                     searchActive = false
                     searchQuery = ""
-                    searchResults = null
+                    findState = null
                 },
+                // Which terminal the matches came from, and the text of the
+                // one the user is on. The engine's matches are lines of its
+                // output log and not rows of a grid, so the bar says so
+                // rather than pretending the screen moved to them.
+                kind = findState?.kind,
+                matchText = findState?.activeText,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
             )
         }
@@ -2243,6 +2321,17 @@ private const val ZOOM_CHIP_LINGER_MS = 900L
  * find bar ends up claiming there are no matches while there are fifty.
  */
 private const val FIND_RESCAN_GATE_MS = 150L
+
+/**
+ * How often the find bar rescans an engine-backed terminal.
+ *
+ * The vendored path is driven by the view's own ticks and is gated at
+ * [FIND_RESCAN_GATE_MS]; the engine has no ticks, and its scan is a pass
+ * over the whole output log, so it is repeated on this slower timer. The
+ * count is the reason: a count that says 41 while the session has since
+ * printed twelve more matches is a count the user cannot trust.
+ */
+private const val ENGINE_RESCAN_INTERVAL_MS = 1000L
 
 /** How far the unfocused pane of a split is dimmed. */
 private val DimInactivePane = Color.Black.copy(alpha = 0.4f)

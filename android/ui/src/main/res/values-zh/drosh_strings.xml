@@ -239,6 +239,7 @@
     <string name="terminal_ready">已就绪</string>
     <string name="terminal_setting_up">正在设置终端</string>
     <string name="terminal_setup_failed">终端设置失败</string>
+    <string name="terminal_find_engine_note">匹配项在输出日志中统计，屏幕不会跳转到它们。</string>
     <string name="action_apply">应用</string>
     <string name="action_close">关闭</string>
     <string name="action_close_pane">关闭第二个窗格</string>

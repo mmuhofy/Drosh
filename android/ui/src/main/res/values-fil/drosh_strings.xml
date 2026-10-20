@@ -239,6 +239,7 @@
     <string name="terminal_ready">Handa na</string>
     <string name="terminal_setting_up">Sineset up ang terminal</string>
     <string name="terminal_setup_failed">Nabigo ang pag-setup ng terminal</string>
+    <string name="terminal_find_engine_note">Binibilang sa output log ang mga tugma, hindi gumagalaw ang screen sa kanila.</string>
     <string name="action_apply">Ilapat</string>
     <string name="action_close">Isara</string>
     <string name="action_close_pane">Isara ang pangalawang pane</string>

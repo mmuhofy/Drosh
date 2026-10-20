@@ -239,6 +239,7 @@
     <string name="terminal_ready">Listo</string>
     <string name="terminal_setting_up">Configurando el terminal</string>
     <string name="terminal_setup_failed">Error al configurar el terminal</string>
+    <string name="terminal_find_engine_note">Las coincidencias se cuentan en el registro de salida, la pantalla no pasa a ellas.</string>
     <string name="action_apply">Aplicar</string>
     <string name="action_close">Cerrar</string>
     <string name="action_close_pane">Cerrar el segundo panel</string>
