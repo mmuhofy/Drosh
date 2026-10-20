@@ -295,6 +295,17 @@ class TerminalManager(
     private val paneViews = LinkedHashMap<PaneSlot, TerminalView>()
 
     /**
+     * The engine-backed pane of each slot, if that slot has one.
+     *
+     * The map above cannot hold them: Termux's view *attaches* to a session
+     * the manager owns, while the engine's pane owns its view *and* its
+     * session. One registry per shape keeps the Termux path exactly as it
+     * was — nothing in it knows the engine exists — while a host that hosts
+     * an engine pane gets the same two calls it has always used for a pane.
+     */
+    private val enginePanes = LinkedHashMap<PaneSlot, EnginePane>()
+
+    /**
      * Last cursor-blink rate seen from settings, replayed onto views as they
      * register.
      *
@@ -1158,6 +1169,44 @@ class TerminalManager(
             _hasScrolled.value = false
         }
         publishActiveId()
+    }
+
+    /**
+     * The engine-backed pane of [slot], or null when the slot has none.
+     *
+     * The engine's pane owns its own session, so the manager does not track
+     * one for it: the pane is the whole truth about that terminal.
+     */
+    fun enginePaneFor(slot: PaneSlot): EnginePane? = enginePanes[slot]
+
+    /**
+     * Registers [pane] as the engine-backed pane of [slot].
+     *
+     * A pane that was registered for [slot] before is released: the engine's
+     * pane owns its session, and nothing else would close it — a displaced
+     * pane would keep a PTY alive for as long as the core lives. The Termux
+     * path needs none of this, because there the session belongs to the
+     * manager and not to the view.
+     *
+     * Registering the same pane again is a handover and releases nothing.
+     */
+    fun registerEnginePane(slot: PaneSlot, pane: EnginePane) {
+        val previous = enginePanes.put(slot, pane)
+        if (previous != null && previous !== pane) {
+            previous.release()
+        }
+    }
+
+    /**
+     * Removes the engine-backed pane of [slot].
+     *
+     * The pane is **not** released: the host that created it owns it and
+     * releases it when it is done — a pane that is only being moved to
+     * another window comes back here a moment later, and killing its session
+     * on the way would throw the session away with it.
+     */
+    fun unregisterEnginePane(slot: PaneSlot) {
+        enginePanes.remove(slot)
     }
 
     /**
