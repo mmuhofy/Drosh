@@ -440,7 +440,13 @@ never red; no phase closes without the device checklist.
       `android/terminal/src/main/jniLibs/arm64-v8a/` and refuses to package an
       APK without it. The 69k lines of vendored C are out of this repository.
 - [ ] Move rootfs/bootstrap/archive into `:guest`
-- [ ] `ProotRunner` → chroot-ng `GuestLauncher`
+- [x] `ProotRunner` → chroot-ng `GuestLauncher` — one interface, two backends.
+      chroot-ng's argv follows the CLI's own rules: every option before the
+      rootfs (its parser stops at the rootfs, so an option after it would be
+      run as the program), the guest environment spelled out as `-E` because
+      chroot-ng builds it itself, and the device paths bound as `SRC:DST` for
+      the ones that exist. The backend is switchable from a device test
+      without a UI: `echo chroot_ng > files/guest_backend`.
 - [ ] **chroot-ng's launch path is still unverified on a device.** The artifact
       is built and probed in its own CI (its test suite passes on a native
       AArch64 runner); the remaining gate is `chroot-ng --probe` on a real

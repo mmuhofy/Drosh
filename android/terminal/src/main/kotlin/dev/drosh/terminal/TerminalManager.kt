@@ -718,8 +718,31 @@ class TerminalManager(
         _hasScrolled.value = false
     }
 
-    private val prootRunner: ProotRunner by lazy {
-        ProotRunner(ubuntuBootstrap, application.applicationInfo.nativeLibraryDir)
+    /**
+     * Which guest isolation engine launches the user's shell.
+     *
+     * Defaults to [GuestBackend.PROOT] — the path that works on a device
+     * today. chroot-ng is packaged and wired, but its launch path has not run
+     * on a device yet, so switching to it is the P4 gate. The override is a
+     * file in the app's own storage, so a device test can flip it without a
+     * UI or a build:
+     *
+     *     adb shell run-as dev.drosh.my sh -c 'echo chroot_ng > files/guest_backend'
+     */
+    private val guestBackend: GuestBackend =
+        GuestBackend.override(appContext) ?: GuestBackend.PROOT
+
+    private val guestLauncher: GuestLauncher by lazy {
+        when (guestBackend) {
+            GuestBackend.PROOT ->
+                ProotRunner(ubuntuBootstrap, application.applicationInfo.nativeLibraryDir)
+
+            GuestBackend.CHROOT_NG ->
+                ChrootNgRunner(
+                    ubuntuBootstrap.rootfsDir,
+                    application.applicationInfo.nativeLibraryDir,
+                )
+        }
     }
 
     private val managerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -1441,12 +1464,14 @@ class TerminalManager(
             val shell = effectiveShellPath()
             val integration = DroshShellIntegration.install(appContext, shell, shellLocale)
 
-            val cmd = prootRunner.build(
-            guestWd,
-            shell = shell,
-            startCommand = prootStartCommand,
-            environmentHooks = integration.environment,
-            shellArgs = integration.shellArgs,
+            val cmd = guestLauncher.build(
+                GuestSpec(
+                    workingDirectory = guestWd,
+                    shell = shell,
+                    command = prootStartCommand,
+                    environment = integration.environment,
+                    shellArgs = integration.shellArgs,
+                ),
             )
             return TerminalSession(
                 cmd.executable,
@@ -1607,7 +1632,10 @@ class TerminalManager(
             "/sdcard/dev.drosh/${File(projectPath!!).name}"
         } else null
 
-        val cmd = prootRunner.buildBashCommand(command, guestWd, effectiveShellPath())
+        val cmd = guestLauncher.buildCommand(
+            GuestSpec(workingDirectory = guestWd, shell = effectiveShellPath()),
+            command,
+        )
 
         try {
             val process = ProcessBuilder(cmd.argv)

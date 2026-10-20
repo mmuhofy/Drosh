@@ -6,7 +6,7 @@ import java.io.File
 class ProotRunner(
     private val bootstrap: UbuntuBootstrap,
     private val nativeLibDir: String
-) {
+) : GuestLauncher {
     val prootPath: String get() = bootstrap.prootFile.absolutePath
     val rootfsPath: String get() = bootstrap.rootfsDir.absolutePath
     private val baseDir: File get() = bootstrap.rootfsDir.parentFile!!
@@ -19,25 +19,23 @@ class ProotRunner(
     private val loaderPath: String get() = "$nativeLibDir/libproot-loader.so"
     private val loader32Path: String get() = "$nativeLibDir/libproot-loader32.so"
 
-    data class ProotCommand(
-        val executable: String,
-        val argv: List<String>,
-        val cwd: String,
-        val environment: List<String>
-    )
+    override fun build(spec: GuestSpec): GuestCommand = buildInternal(spec, ptyMode = true)
 
-    fun build(
-        guestWorkDir: String? = null,
-        shell: String = "/bin/zsh",
-        ptyMode: Boolean = true,
-        startCommand: String = "",
-        environmentHooks: Map<String, String> = emptyMap(),
-        shellArgs: List<String> = emptyList(),
-    ): ProotCommand {
+    override fun buildCommand(spec: GuestSpec, command: String): GuestCommand {
+        // A one-shot command runs on pipes, not on a PTY, and proot's /dev/fd
+        // binds only make sense for the latter — proot cannot sanitise the
+        // anonymous pipe paths.
+        val base = buildInternal(spec, ptyMode = false)
+        val stdbufCmd = "stdbuf -oL $command"
+        val argv = base.argv.dropLast(2) + listOf(spec.shell, "-c", stdbufCmd)
+        return base.copy(argv = argv)
+    }
+
+    private fun buildInternal(spec: GuestSpec, ptyMode: Boolean): GuestCommand {
         File(tmpPath).mkdirs()
 
         val wd = when {
-            guestWorkDir != null -> guestWorkDir
+            spec.workingDirectory != null -> spec.workingDirectory
             File(rootfsPath, "home").exists() -> "/home"
             else -> "/root"
         }
@@ -57,30 +55,23 @@ class ProotRunner(
             add("--link2symlink")
             add("--sysvipc")
             add("-L")
-            if (startCommand.isNotBlank()) {
-                startCommand.split(" ").filter { it.isNotBlank() }.forEach { add(it) }
+            if (spec.command.isNotBlank()) {
+                spec.command.split(" ").filter { it.isNotBlank() }.forEach { add(it) }
             } else {
-                add(shell)
-                addAll(shellArgs)
+                add(spec.shell)
+                addAll(spec.shellArgs)
                 add("--login")
             }
         }
 
-        val env = buildEnvironment(shell) + environmentHooks.map { "${it.key}=${it.value}" }
+        val env = buildEnvironment(spec.shell) + spec.environment.map { "${it.key}=${it.value}" }
 
-        return ProotCommand(
+        return GuestCommand(
             executable = linkerPath,
             argv = argv,
             cwd = rootfsPath,
             environment = env
         )
-    }
-
-    fun buildBashCommand(command: String, guestWorkDir: String? = null, shell: String = "/bin/zsh"): ProotCommand {
-        val base = build(guestWorkDir, shell, ptyMode = false)
-        val stdbufCmd = "stdbuf -oL $command"
-        val argv = base.argv.dropLast(2) + listOf(shell, "-c", stdbufCmd)
-        return base.copy(argv = argv)
     }
 
     private fun buildBindMounts(ptyMode: Boolean = true): List<String> {
