@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import dev.drosh.domain.agent.ToolResult
+import dev.drosh.domain.block.ShellStateSource
 import dev.drosh.domain.settings.MotdDefaults
 import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.MotdMode
@@ -107,11 +108,26 @@ class TerminalManager(
         onActiveSessionChanged?.invoke(activePersistentId())
         // Command marks are per session, so the flow follows whichever pane has
         // focus — that is the one a keystroke is going to.
-        val focusedSession = sessionForSlot(focusedPane.value)
+        val focusedSession = focusedSession()
         commandState.bind(focusedSession)
         // Same reasoning: `dedit` is a command, so it belongs to the session that
         // ran it — the focused one — not to whichever tab happens to be showing.
         editorRequests.bind(focusedSession)
+    }
+
+    /**
+     * The session the focused pane runs, or null when it runs on the engine.
+     *
+     * An engine-backed pane has no session of the app's kind: its session
+     * lives in the engine, and the command marks are the engine's own. So the
+     * publishers that follow a session are bound to nothing while such a
+     * pane has the focus — they would otherwise follow a session that is on
+     * no screen.
+     */
+    private fun focusedSession(): TerminalSession? {
+        val slot = focusedPane.value
+        if (enginePanes.containsKey(slot)) return null
+        return sessionForSlot(slot)
     }
 
     /**
@@ -233,9 +249,13 @@ class TerminalManager(
      * persisted as active. It is deliberately not the primary pane's session:
      * with a split open, the user reading scrollback in the right-hand pane is
      * working in the right-hand pane.
+     *
+     * Null when the focused pane runs on the engine: that session is not one
+     * of the app's kind, and pointing a keystroke at a session that is on no
+     * screen would be worse than pointing it at nothing.
      */
     val currentSession: TerminalSession?
-        get() = sessionForSlot(focusedPane.value)
+        get() = focusedSession()
 
     /** Display names of all tabs, in positional order. */
     val tabNames: List<String>
@@ -304,6 +324,15 @@ class TerminalManager(
      * an engine pane gets the same two calls it has always used for a pane.
      */
     private val enginePanes = LinkedHashMap<PaneSlot, EnginePane>()
+
+    /**
+     * The watch on the focused engine pane's viewport.
+     *
+     * The engine's view has no scroll callback, so the offset is read from
+     * the engine's own state instead; see [startEngineWatch]. It runs only
+     * while an engine pane has the focus.
+     */
+    private var engineWatchJob: Job? = null
 
     /**
      * Last cursor-blink rate seen from settings, replayed onto views as they
@@ -680,10 +709,25 @@ class TerminalManager(
     private fun publishAltBufferState() {
         val next = HashMap<PaneSlot, Boolean>(PaneSlot.entries.size)
         PaneSlot.entries.forEach { slot ->
-            val active = sessionForSlot(slot)?.emulator?.isAlternateBufferActive() ?: false
+            val active = computeAltBuffer(slot)
             if (active) next[slot] = true
         }
         _altBufferByPane.value = next
+    }
+
+    /**
+     * Whether the terminal in [slot] is showing a program rather than a shell.
+     *
+     * A vendored session answers from its emulator; an engine-backed pane
+     * answers from the engine's mode bits, which is where the alternate
+     * screen lives on that side.
+     */
+    private fun computeAltBuffer(slot: PaneSlot): Boolean {
+        val engine = enginePanes[slot]
+        if (engine != null) {
+            return engine.isAltBufferActive()
+        }
+        return sessionForSlot(slot)?.emulator?.isAlternateBufferActive() ?: false
     }
 
     /**
@@ -968,10 +1012,19 @@ class TerminalManager(
      *
      * Re-seeding costs a full transcript read, which is the very work the
      * gate avoids — so a session switch in classic mode does not pay it.
+     *
+     * [shellState] is the source the shell's state comes from, when the
+     * terminal reports one: an engine-backed session has the engine's marks
+     * to read, a vendored session has none and the wire keeps inferring the
+     * state from the screen.
      */
-    private fun onBlockSessionChanged(sessionId: String?, session: TerminalSession?) {
+    private fun onBlockSessionChanged(
+        sessionId: String?,
+        session: TerminalSession?,
+        shellState: ShellStateSource? = null,
+    ) {
         if (!blockEngineEnabled) return
-        blockEngineWire?.onSessionChanged(sessionId, session)
+        blockEngineWire?.onSessionChanged(sessionId, session, shellState)
     }
 
     fun updateProotStartCommand(command: String) {
@@ -1062,7 +1115,11 @@ class TerminalManager(
         // image behind it, the view's is transparent so the image shows.
         applyTerminalBackgrounds()
 
-        if (slot == focusedPane.value) activatePaneView(slot, view)
+        // A slot with an engine-backed pane is the engine's: the view that is
+        // registering does not get to report the selection or the scroll
+        // position for it. Two reporters for one slot are two opinions about
+        // the same terminal.
+        if (slot == focusedPane.value && !enginePanes.containsKey(slot)) activatePaneView(slot, view)
     }
 
     /**
@@ -1127,14 +1184,39 @@ class TerminalManager(
      * the flows that describe "the current terminal" and republishes the active
      * session id. A pane with no session cannot take focus; there would be
      * nothing to be active about.
+     *
+     * A slot with an engine-backed pane goes to the engine's path: the pane
+     * owns its session and its view, and the manager talks to the pane
+     * rather than to a view.
      */
     fun focusPane(slot: PaneSlot) {
+        val engine = enginePanes[slot]
+        if (engine != null) {
+            focusEnginePane(slot, engine)
+            return
+        }
+        focusTermuxPane(slot)
+    }
+
+    /**
+     * Moves keyboard focus to the Termux pane in [slot].
+     *
+     * The path the manager has always had; the engine's own path is
+     * [focusEnginePane]. The two are kept apart on purpose: the Termux pane
+     * attaches to a session the manager owns and reports through its view's
+     * callbacks, while the engine's pane owns its session and reports
+     * through the engine's own numbers. Sharing one method would mean
+     * asking "which kind of pane is this" in every step of it.
+     */
+    private fun focusTermuxPane(slot: PaneSlot) {
         val view = paneViews[slot] ?: return
         if (sessionForSlot(slot) == null) return
         if (_focusedPane.value == slot) {
             view.requestFocus()
             return
         }
+        // The engine pane that had the focus is told that it lost it.
+        endEnginePaneFocus()
         _focusedPane.value = slot
         _selectionBounds.value = null
         _hasSelection.value = false
@@ -1145,12 +1227,174 @@ class TerminalManager(
         view.requestFocus()
     }
 
+    /**
+     * Moves keyboard focus to the engine-backed pane in [slot].
+     *
+     * The same bookkeeping as the Termux path — the viewport state is reset,
+     * the selection is cleared, the active session is published and the
+     * terminal is told that it has the focus — with the engine's own facts
+     * in place of the view's.
+     *
+     * A pane with no running session cannot take the focus, exactly as a
+     * Termux pane with no session cannot: there would be nothing to be
+     * active about.
+     */
+    private fun focusEnginePane(slot: PaneSlot, pane: EnginePane) {
+        if (pane.state != EnginePaneState.RUNNING) {
+            return
+        }
+        if (_focusedPane.value == slot) {
+            pane.focus()
+            return
+        }
+        // The engine pane that had the focus is told that it lost it.
+        endEnginePaneFocus()
+        _focusedPane.value = slot
+        _selectionBounds.value = null
+        _hasSelection.value = false
+        activateEnginePane(pane)
+        // The block engine reads the shell's state from the engine's marks
+        // when the session runs on the engine; a vendored session has no
+        // marks to read and the wire keeps inferring from the screen.
+        onBlockSessionChanged(null, null, EngineShellStateSource(pane.session))
+        publishAltBufferState()
+        publishActiveId()
+        pane.notifyFocus(true)
+        pane.focus()
+    }
+
+    /**
+     * Ends the engine pane's turn: it is told that the focus left it, and
+     * its scroll watch stops.
+     *
+     * The focus can leave an engine pane for a Termux pane, and an engine
+     * pane can be unregistered while it has the focus — in both cases the
+     * shell on the other side has to hear that the terminal is no longer the
+     * one being typed in.
+     */
+    private fun endEnginePaneFocus() {
+        engineWatchJob?.cancel()
+        engineWatchJob = null
+        enginePanes[focusedPane.value]?.notifyFocus(false)
+    }
+
+    /**
+     * Makes [pane] the one that reports scroll position and selection.
+     *
+     * The engine's counterpart of [activatePaneView]. The same three things
+     * happen — the viewport state is reset, the scroll position is published
+     * and the selection is published — but they come from the engine's own
+     * numbers instead of from a view's callbacks.
+     */
+    private fun activateEnginePane(pane: EnginePane) {
+        // The Termux views stop reporting: the engine's pane is the one that
+        // reports now, and two panes answering for the same chrome would be
+        // two opinions about the same terminal.
+        paneViews.values.forEach { view ->
+            view.onScrollPositionChanged = null
+            view.installSelectionMenu(enabled = false, listener = null)
+        }
+        pane.selectionListener = { hasSelection ->
+            publishEngineSelection(pane, hasSelection)
+        }
+        resetViewportState()
+        publishEngineScroll(pane)
+        startEngineWatch(pane)
+    }
+
+    /**
+     * Publishes the engine pane's selection.
+     *
+     * Only the focused pane publishes, exactly as the Termux path does: the
+     * selection menu is drawn once, over whichever pane has it, and the
+     * bounds are in that pane's own pixels.
+     */
+    private fun publishEngineSelection(pane: EnginePane, hasSelection: Boolean) {
+        if (enginePanes[focusedPane.value] !== pane) return
+        val bounds = if (hasSelection) pane.selectionBounds() else null
+        // A rectangle has no equality of its own, so two rectangles with the
+        // same edges would look like two different answers — and a flow that
+        // publishes a change would then publish one every time it is asked.
+        if (sameBounds(_selectionBounds.value, bounds)) return
+        _selectionBounds.value = bounds
+        _hasSelection.value = bounds != null
+    }
+
+    /**
+     * Whether two rectangles cover the same area.
+     *
+     * [android.graphics.Rect] compares by identity, so the manager compares
+     * the edges itself.
+     */
+    private fun sameBounds(first: android.graphics.Rect?, second: android.graphics.Rect?): Boolean {
+        if (first == null || second == null) {
+            return first == null && second == null
+        }
+        return first.left == second.left &&
+            first.top == second.top &&
+            first.right == second.right &&
+            first.bottom == second.bottom
+    }
+
+    /**
+     * Republishes the chrome's scroll state from the engine's own offset.
+     *
+     * The engine counts the rows the viewport sits *above* the live edge (0
+     * at the live edge), while the chrome's rule counts them downwards from
+     * it (0 at the live edge, negative in the history). One is the other
+     * with the sign the vendored view uses, so the rule below is the rule
+     * the Termux path has always used.
+     */
+    private fun publishEngineScroll(pane: EnginePane) {
+        if (enginePanes[focusedPane.value] !== pane) return
+        val topRow = engineTopRow(pane.scrollOffset())
+        val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
+        if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
+        // "Has been touched" means "has left the first screen", the same as
+        // the Termux path reads off its scroll callback.
+        if (!atEdge) _hasScrolled.value = true
+    }
+
+    /**
+     * Watches the focused engine pane and republishes what the chrome shows.
+     *
+     * The engine's view has no scroll callback — the vendored view has
+     * `onScrollPositionChanged`, the engine's does not — so the offset is
+     * read from the engine's own state instead: the engine reports how far
+     * its viewport is from the live edge in the state array, and it rewrites
+     * that number with every frame it draws. The selection is read the same
+     * way, because the engine reports a selection change when the user picks
+     * or clears one, but not while a finger drags the edge of it.
+     *
+     * A poll, then, and not a callback: the engine has no way to say "the
+     * viewport moved", and a second opinion about where the viewport is
+     * would be worse than reading the engine's. The proper fix is a
+     * callback on the engine's view, the shape the vendored one has; until
+     * then this reads the same fact, a few times a second, and only while an
+     * engine pane has the focus.
+     */
+    private fun startEngineWatch(pane: EnginePane) {
+        engineWatchJob?.cancel()
+        engineWatchJob = managerScope.launch {
+            while (isActive) {
+                publishEngineScroll(pane)
+                publishEngineSelection(pane, pane.hasSelection())
+                delay(ENGINE_SCROLL_POLL_MILLIS)
+            }
+        }
+    }
+
     fun unregisterPaneView(slot: PaneSlot) {
         val view = paneViews.remove(slot) ?: return
         // Drop the callbacks before dropping the reference, or the view keeps a
         // strong reference to this manager after the pane is gone.
         view.onScrollPositionChanged = null
         view.installSelectionMenu(enabled = false, listener = null)
+
+        // A slot with an engine-backed pane keeps the focus it has: the pane
+        // owns the slot, and the view that is going away was never the one
+        // reporting for it.
+        if (enginePanes.containsKey(slot)) return
 
         if (slot != focusedPane.value) return
 
@@ -1180,6 +1424,31 @@ class TerminalManager(
     fun enginePaneFor(slot: PaneSlot): EnginePane? = enginePanes[slot]
 
     /**
+     * The engine-backed pane that has the focus, or null when a Termux pane
+     * has it.
+     */
+    fun focusedEnginePane(): EnginePane? = enginePanes[focusedPane.value]
+
+    /**
+     * The app's resume: every engine pane's surface and frame pump come back.
+     *
+     * The engine's view draws through a GL surface, and a surface that is not
+     * resumed draws nothing — so the app has to say when it comes back. The
+     * manager is the app's one door to the terminal, so the door is here.
+     */
+    fun onHostResume() {
+        enginePanes.values.forEach { pane -> pane.onHostResume() }
+    }
+
+    /**
+     * The app's pause: every engine pane's surface sleeps and its frame pump
+     * stops.
+     */
+    fun onHostPause() {
+        enginePanes.values.forEach { pane -> pane.onHostPause() }
+    }
+
+    /**
      * Registers [pane] as the engine-backed pane of [slot].
      *
      * A pane that was registered for [slot] before is released: the engine's
@@ -1189,11 +1458,20 @@ class TerminalManager(
      * manager and not to the view.
      *
      * Registering the same pane again is a handover and releases nothing.
+     *
+     * From here the engine's pane owns the slot: the Termux view of that
+     * slot stops reporting scroll and selection, because a pane that answers
+     * twice is a pane with two opinions.
      */
     fun registerEnginePane(slot: PaneSlot, pane: EnginePane) {
         val previous = enginePanes.put(slot, pane)
         if (previous != null && previous !== pane) {
+            previous.selectionListener = null
             previous.release()
+        }
+        paneViews[slot]?.let { view ->
+            view.onScrollPositionChanged = null
+            view.installSelectionMenu(enabled = false, listener = null)
         }
     }
 
@@ -1204,9 +1482,97 @@ class TerminalManager(
      * releases it when it is done — a pane that is only being moved to
      * another window comes back here a moment later, and killing its session
      * on the way would throw the session away with it.
+     *
+     * A pane that had the focus cannot keep it: the slot it was in has no
+     * terminal behind it any more, so the focus moves to whatever is left on
+     * screen.
      */
     fun unregisterEnginePane(slot: PaneSlot) {
-        enginePanes.remove(slot)
+        if (slot == focusedPane.value) {
+            // Before the pane leaves the registry: this is what finds it and
+            // tells the shell that the focus is gone.
+            endEnginePaneFocus()
+        }
+        val pane = enginePanes.remove(slot) ?: return
+        pane.selectionListener = null
+        if (slot != focusedPane.value) return
+
+        _selectionBounds.value = null
+        _hasSelection.value = false
+        val fallback = PaneSlot.entries.firstOrNull {
+            it != slot && slotHasTerminal(it)
+        }
+        if (fallback != null) {
+            _focusedPane.value = fallback
+            val fallbackEngine = enginePanes[fallback]
+            if (fallbackEngine != null) {
+                activateEnginePane(fallbackEngine)
+                fallbackEngine.notifyFocus(true)
+                fallbackEngine.focus()
+            } else {
+                paneViews[fallback]?.let { activatePaneView(fallback, it) }
+            }
+        } else {
+            // Nothing on screen left to be active.
+            sessionClient.terminalView = null
+            _isAtLiveEdge.value = true
+            _hasScrolled.value = false
+        }
+        publishActiveId()
+    }
+
+    /**
+     * Whether [slot] has a terminal behind it at all.
+     *
+     * Either kind counts: a slot with a running engine pane has one, and so
+     * has a slot with a view that is attached to a session. A slot with
+     * neither cannot be focused, and cannot be the fallback for a pane that
+     * is going away.
+     */
+    private fun slotHasTerminal(slot: PaneSlot): Boolean {
+        val engine = enginePanes[slot]
+        if (engine != null) {
+            return engine.state == EnginePaneState.RUNNING
+        }
+        return paneViews.containsKey(slot) && sessionForSlot(slot) != null
+    }
+
+    // --- the clipboard -----------------------------------------------------
+
+    /**
+     * Copies the focused pane's selection to the clipboard.
+     *
+     * The Termux path hands the text to the session client, which owns the
+     * clipboard; the engine's pane writes the clipboard itself, because it
+     * owns the selection too.
+     *
+     * False when there is nothing to copy.
+     */
+    fun copySelection(): Boolean {
+        val engine = enginePanes[focusedPane.value]
+        if (engine != null) {
+            return engine.copySelection()
+        }
+        val view = paneViews[focusedPane.value] ?: return false
+        val text = view.selectedText ?: return false
+        view.mTermSession?.onCopyTextToClipboard(text)
+        return true
+    }
+
+    /**
+     * Pastes the clipboard into the focused pane.
+     *
+     * The Termux path asks the session to paste, which the session client
+     * answers by handing the text to the emulator; the engine's pane writes
+     * the text to its own session, bracketed when the shell asked for it.
+     */
+    fun pasteClipboard() {
+        val engine = enginePanes[focusedPane.value]
+        if (engine != null) {
+            engine.pasteClipboard()
+            return
+        }
+        paneViews[focusedPane.value]?.pasteFromClipboard()
     }
 
     /**
@@ -1344,8 +1710,16 @@ class TerminalManager(
      * The focused pane's, not the primary pane's: this is what the sidebar
      * highlights and what survives a relaunch, and both should follow what the
      * user was last looking at.
+     *
+     * Null for an engine-backed pane: the engine's session is not a row in
+     * the app's store, so there is no id to report, and reporting the id of
+     * a session that is on no screen would be worse than reporting nothing.
      */
-    fun activePersistentId(): String? = sessionIdForSlot(focusedPane.value)
+    fun activePersistentId(): String? {
+        val slot = focusedPane.value
+        if (enginePanes.containsKey(slot)) return null
+        return sessionIdForSlot(slot)
+    }
 
     /**
      * Snippets for the keyboard. Read fresh on every call — the file is
@@ -1677,6 +2051,12 @@ class TerminalManager(
     fun destroy() {
         commandState.unbind()
         editorRequests.unbind()
+        // The engine's panes stop watching and stop reporting: a pane that
+        // is left registered keeps this manager alive through its selection
+        // listener after the screens that built it are gone.
+        engineWatchJob?.cancel()
+        engineWatchJob = null
+        enginePanes.values.forEach { pane -> pane.selectionListener = null }
         // Every pane's view, not just one: a pane left registered keeps this
         // manager alive through its selection and scroll listeners after the
         // screens that built it are gone.
@@ -1790,6 +2170,18 @@ class TerminalManager(
          * this — 0 included — reads as "blinker off".
          */
         val VALID_BLINK_RANGE = 100..2000
+
+        /**
+         * How often the focused engine pane's viewport is read, in
+         * milliseconds.
+         *
+         * The engine's view cannot say "the viewport moved", so the offset is
+         * polled instead. The chrome's rule has a dead zone of a few rows, so
+         * the answer only changes when the viewport crosses a threshold —
+         * a tenth of a second is far more often than that happens, and it is
+         * the same order as the blink clock the manager already runs.
+         */
+        const val ENGINE_SCROLL_POLL_MILLIS = 100L
     }
 }
 
@@ -1800,9 +2192,21 @@ class TerminalManager(
  * smallest thing the user can actually look at.
  */
 private const val CHROME_COLLAPSE_ROWS = -5
-
 /** How close to the live edge the viewport has to come for the chrome to return. */
 private const val CHROME_EXPAND_ROWS = -1
+
+/**
+ * The chrome's row for an engine viewport offset.
+ *
+ * The engine counts the rows the viewport sits *above* the live edge — 0 at
+ * the live edge, positive in the scrollback — while the chrome's rule counts
+ * them downwards from it: 0 at the live edge, negative in the history. One is
+ * the other with the sign the vendored view uses, so the rule the Termux
+ * path has always used applies to the engine's number unchanged.
+ *
+ * @param displayOffset the engine's own offset, in rows.
+ */
+internal fun engineTopRow(displayOffset: Int): Int = -displayOffset
 
 /**
  * Whether the viewport counts as "at the live edge" for the top chrome.

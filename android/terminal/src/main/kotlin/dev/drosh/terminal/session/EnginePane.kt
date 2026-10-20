@@ -1,13 +1,16 @@
 package dev.drosh.terminal.session
 
 import android.content.Context
+import android.graphics.Rect
 import android.util.Log
 import android.view.View
 import dev.drosh.linux.GuestCommand
 import dev.drosh.terminal.engine.core.BlockState
 import dev.drosh.terminal.engine.core.EngineSession
+import dev.drosh.terminal.engine.core.NativeCore
 import dev.drosh.terminal.engine.view.TerminalController
 import dev.drosh.terminal.engine.view.TerminalView
+import kotlin.math.roundToInt
 
 /**
  * One engine-backed terminal pane: the host-facing half of a terminal the
@@ -66,13 +69,62 @@ class EnginePane(context: Context) {
     val imeTarget: View get() = controller.imeTarget
 
     /** Where the host learns from the session (title, bell, exit, marks). */
-    var listener: TerminalView.Listener?
-        get() = controller.listener
-        set(value) { controller.listener = value }
+    var listener: TerminalView.Listener? = null
+        set(value) {
+            field = value
+            controller.listener = forwarder
+        }
+
+    /**
+     * Told when the selection in this pane appeared or disappeared.
+     *
+     * The engine's view is what knows when the user selected something, and
+     * the host publishes the selection — so the pane passes the change on.
+     * The host's own [listener] hears it too.
+     */
+    var selectionListener: ((Boolean) -> Unit)? = null
+
+    /**
+     * The engine's listener, with the pane's own observation in front of it.
+     *
+     * The engine has room for one listener and the host needs two: the
+     * events it cares about, and the selection change the pane has to see.
+     * One listener that answers to both is what keeps the host from losing
+     * its own.
+     */
+    private val forwarder = object : TerminalView.Listener {
+        override fun onTitle(title: String) {
+            listener?.onTitle(title)
+        }
+
+        override fun onBell() {
+            listener?.onBell()
+        }
+
+        override fun onSessionExited(code: Int) {
+            listener?.onSessionExited(code)
+        }
+
+        override fun onSessionEvent(record: String) {
+            listener?.onSessionEvent(record)
+        }
+
+        override fun onSelectionChanged(hasSelection: Boolean) {
+            selectionListener?.invoke(hasSelection)
+            listener?.onSelectionChanged(hasSelection)
+        }
+    }
 
     /** Where the pane is in its lifecycle. */
     var state: EnginePaneState = EnginePaneState.IDLE
         private set
+
+    init {
+        // The forwarder goes in from the start: the engine's view starts
+        // reporting the moment it has something to report, and a host that
+        // sets its listener later must not lose the events in between.
+        controller.listener = forwarder
+    }
 
     // --- lifecycle ---------------------------------------------------------
 
@@ -141,6 +193,45 @@ class EnginePane(context: Context) {
     /** The host's pause: the surface sleeps and the frame pump stops. */
     fun onHostPause() = controller.onHostPause()
 
+    // --- focus -------------------------------------------------------------
+
+    /**
+     * Gives the pane the keyboard focus.
+     *
+     * The engine's keys arrive through the IME target — the one-pixel editor
+     * inside the view — so the target is what has to be focused; the view
+     * alone would take the focus and swallow the keys. The view is asked
+     * first, because the host asks the *view* whether the pane has the focus,
+     * and a view with a focused descendant counts as focused itself.
+     *
+     * The soft keyboard is not raised here: the engine's own tap gesture
+     * raises it, and a focus that arrives from somewhere else is not the
+     * user asking for a keyboard.
+     */
+    fun focus() {
+        view.requestFocus()
+        imeTarget.requestFocus()
+    }
+
+    /**
+     * Tells the session that this pane has (or has not) the focus.
+     *
+     * `?1004` — the escape sequences xterm and alacritty send when the
+     * terminal gains and loses the focus, so a program can show that it is
+     * waiting for input. They are sent only when the application asked for
+     * them, exactly as the engine's own report does.
+     *
+     * The engine reports the *window's* focus; the pane is what the host
+     * knows about, and a split has two panes in one window — so this is the
+     * pane's own report.
+     */
+    fun notifyFocus(focused: Boolean) {
+        if (modes() and NativeCore.MODE_FOCUS_IN_OUT == 0) {
+            return
+        }
+        session.write(if (focused) FOCUS_IN else FOCUS_OUT)
+    }
+
     // --- clipboard ---------------------------------------------------------
 
     /** Copy the selection to the clipboard; false when nothing is selected. */
@@ -162,6 +253,47 @@ class EnginePane(context: Context) {
      */
     fun selectionText(): String = view.selectionOverlay.copyText()
 
+    /** Is there a selection in this pane? */
+    fun hasSelection(): Boolean = !view.selectionOverlay.isEmpty
+
+    /**
+     * The selected region in view pixels, or null when nothing is selected.
+     *
+     * The same shape the vendored view answers with: a rectangle in the
+     * pane's own coordinates, so a host can anchor a menu to it without
+     * knowing which terminal drew it.
+     *
+     * The engine's selection is a range of *cells*, and the cell is not a
+     * square number of pixels: the font is measured, not counted. So the
+     * rectangle is built from the cell the renderer draws with, which is the
+     * only size that can be right.
+     *
+     * Null when the session is gone — and that is also what keeps the cell
+     * size safe to read: a session can only exist if the font was loaded,
+     * because the engine refuses to start without it.
+     */
+    fun selectionBounds(): Rect? {
+        if (!session.isAlive) {
+            return null
+        }
+        val selection = view.selectionOverlay.selection
+        if (selection.isEmpty) {
+            return null
+        }
+        val cellWidth = view.metrics.width
+        val cellHeight = view.metrics.height
+        val left = selection.firstColumn * cellWidth
+        val right = (selection.lastColumn + 1) * cellWidth
+        val top = selection.firstRow * cellHeight
+        val bottom = (selection.lastRow + 1) * cellHeight
+        return Rect(
+            left.roundToInt(),
+            top.roundToInt(),
+            right.roundToInt(),
+            bottom.roundToInt(),
+        )
+    }
+
     /** Select the word under (row, col). */
     fun selectWord(row: Int, col: Int) = controller.selectWord(row, col)
 
@@ -170,6 +302,22 @@ class EnginePane(context: Context) {
 
     /** Clear the selection. */
     fun clearSelection() = controller.clearSelection()
+
+    // --- the viewport ------------------------------------------------------
+
+    /**
+     * How far the viewport is from the live edge, in rows.
+     *
+     * 0 at the live edge; positive in the scrollback, counting the rows the
+     * viewport sits above the last line. The engine's own number: the state
+     * array reports the display offset with every frame the engine draws.
+     */
+    fun scrollOffset(): Int =
+        if (!session.isAlive) 0 else session.stateArray[NativeCore.STATE_DISPLAY_OFFSET]
+
+    /** Is a program (the alternate screen) on screen rather than a shell? */
+    fun isAltBufferActive(): Boolean =
+        modes() and NativeCore.MODE_ALT_SCREEN != 0
 
     // --- find --------------------------------------------------------------
 
@@ -205,5 +353,11 @@ class EnginePane(context: Context) {
 
         /** How many hits a single find returns when the host asks for none. */
         const val FIND_LIMIT = 200
+
+        /** `?1004`: the terminal gained the focus. */
+        val FOCUS_IN = "\u001b[I".toByteArray(Charsets.US_ASCII)
+
+        /** `?1004`: the terminal lost the focus. */
+        val FOCUS_OUT = "\u001b[O".toByteArray(Charsets.US_ASCII)
     }
 }
