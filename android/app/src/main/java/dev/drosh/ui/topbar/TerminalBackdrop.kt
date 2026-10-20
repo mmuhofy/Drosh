@@ -1,21 +1,16 @@
 package dev.drosh.ui.topbar
 
-import android.graphics.Bitmap
-import android.graphics.Canvas as AndroidCanvas
-import android.view.View
+import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
-
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
@@ -26,13 +21,22 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import com.termux.view.TerminalView
-import android.os.Build
+import dev.drosh.ui.terminal.TerminalAppearanceSource
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 /**
  * The top bar's backdrop, sampled straight out of the terminal.
+ *
+ * ## Where the sample comes from
+ *
+ * The terminal is drawn by whichever renderer the pane holds, and the two can
+ * only be sampled in different ways: the Termux view draws into itself, so
+ * its pixels can be read back, while the engine draws through OpenGL and can
+ * only report the colours of its cells. The chrome does not know which is
+ * which — it asks a [TerminalAppearanceSource] for a strip and blurs what
+ * comes back. What a strip is worth differs between the two, and each source
+ * says so where it is written.
  *
  * ## Why not Haze
  *
@@ -62,7 +66,7 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun rememberTerminalBackdrop(
-    terminalView: TerminalView?,
+    source: TerminalAppearanceSource?,
     stripHeight: Dp,
     /** False while the row sits in the band above the terminal — nothing to sample there. */
     active: Boolean,
@@ -76,8 +80,8 @@ fun rememberTerminalBackdrop(
     // context, so LocalLifecycleOwner cannot be read inside it.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
-    LaunchedEffect(terminalView, stripPx, active, lifecycle) {
-        if (terminalView == null || !active) {
+    LaunchedEffect(source, stripPx, active, lifecycle) {
+        if (source == null || !active) {
             backdrop.value = null
             return@LaunchedEffect
         }
@@ -87,17 +91,22 @@ fun rememberTerminalBackdrop(
         // resume that backlog is exactly when the app is least able to absorb
         // it.
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            var seen = -1
+            var seen = NO_TOKEN
             while (true) {
-                // The generation gate alone is not a rate limit. contentGeneration
-                // advances once per PTY chunk, and a download produces thousands
-                // of those a second, so gating on it meant a full extra terminal
-                // render for every chunk on the main thread. The interval is the
-                // real limit; the generation check just avoids resampling when
-                // nothing has changed.
-                if (terminalView.contentGeneration != seen) {
-                    seen = terminalView.contentGeneration
-                    capture(terminalView, stripPx)?.let { backdrop.value = it.asImageBitmap() }
+                // The content gate alone is not a rate limit. A download
+                // produces thousands of output chunks a second, so gating on it
+                // meant a full extra terminal render for every chunk on the
+                // main thread. The interval is the real limit; the gate just
+                // avoids resampling when nothing has changed.
+                //
+                // The token is compared here rather than inside the source, so
+                // that starting the loop again samples again: the terminal may
+                // have said everything it had to say while the loop was not
+                // running.
+                val token = source.contentToken
+                if (token != seen) {
+                    seen = token
+                    source.captureStrip(stripPx.roundToInt())?.let { backdrop.value = it.asImageBitmap() }
                 }
                 delay(captureMillis)
             }
@@ -106,23 +115,8 @@ fun rememberTerminalBackdrop(
     return backdrop
 }
 
-private fun capture(view: View, stripHeightPx: Float): Bitmap? {
-    if (view.width <= 0 || view.height <= 0) return null
-    val h = stripHeightPx.roundToInt().coerceIn(1, view.height)
-    val bitmap = runCatching { Bitmap.createBitmap(view.width, h, Bitmap.Config.ARGB_8888) }
-        .getOrNull() ?: return null
-    // No translation. The bitmap is h tall and the view is drawn into it as-is, so
-    // the view's own rows 0..h land in it and the rest falls outside — which is the
-    // *top* strip the pills sit over.
-    //
-    // It used to translate by -(view.height - h), which lands the view's rows
-    // [view.height - h, view.height) in the bitmap: the **bottom** strip. The
-    // comment said top, so the mistake was invisible until the pills actually
-    // floated over the terminal — and then it showed the last line of output
-    // behind the first button on screen.
-    val ok = runCatching { view.draw(AndroidCanvas(bitmap)) }.isSuccess
-    return if (ok) bitmap else bitmap.also { it.recycle() }
-}
+/** The token of a terminal nobody has looked at yet. */
+private const val NO_TOKEN = -1
 
 /**
  * Whether the platform can carry a real blur at all.
