@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-package dev.drosh.guest
+package dev.drosh.linux
 
 import android.content.Context
 import timber.log.Timber

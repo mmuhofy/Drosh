@@ -1,7 +1,7 @@
 // guest/ — the Linux guest: its rootfs, its bootstrap, its archive, and the
 // launcher that execs a shell inside it.
 //
-// Per docs/ARCHITECTURE.md §1: `:guest` owns rootfs, bootstrap, archive and
+// Per docs/ARCHITECTURE.md §1: `:linux` owns rootfs, bootstrap, archive and
 // chroot exec, and must not know about the terminal, the engine, the data
 // layer or the UI. The boundary checker enforces that.
 //
@@ -22,7 +22,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.drosh.guest"
+    namespace = "dev.drosh.linux"
 
     packaging {
         jniLibs {

@@ -109,6 +109,11 @@ release when it ships.
 
 ### Changed
 
+- The guest module is now `:linux`. The app on Android is already Linux, so
+  calling the rootfs a "guest" implied a host that is not one. The module is the
+  Linux userland — rootfs, bootstrap, archive, and the way into it. The word
+  "guest" stays where it belongs: for the program running inside it, which is
+  what chroot-ng calls it
 - The engine and the sessions are one module now. `:terminal` holds the Rust
   core's Kotlin side and the sessions that drive it, in two packages
   (`dev.drosh.terminal.engine` and `dev.drosh.terminal.session`), and the rule
@@ -124,7 +129,7 @@ release when it ships.
   `dev.drosh.theme`)
 - The Linux guest is its own module. The rootfs, the bootstrap, the rootfs
   archive, the guest launchers and the guest's own assets moved out of
-  `:terminal` into `:guest`, which knows nothing about sessions, panes or the
+  `:terminal` into `:linux`, which knows nothing about sessions, panes or the
   UI — and the `data → terminal` debt fell from 22 to 13 as a side effect
 - The guest has two backends behind one interface: proot, and chroot-ng. The
   chroot-ng path is wired — the argv its CLI expects, the environment it
@@ -154,7 +159,7 @@ release when it ships.
 ### Fixed
 
 - The module boundary checker no longer passes silently when a rule names a
-  module that is not in the tree. `:guest`'s five rules were decorative until
+  module that is not in the tree. `:linux`'s five rules were decorative until
   the module exists; the checker now says which module is missing, and fails
   when a planned module shows up without its rules being moved over
 - Crashes: the stale Room identity hash on launch, the missing v3 migration

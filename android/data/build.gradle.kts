@@ -29,7 +29,7 @@ dependencies {
     // so the UI never imports Android-specific types from :terminal.
     implementation(project(":terminal"))
     // The rootfs, the bootstrap pipeline and the rootfs archive.
-    implementation(project(":guest"))
+    implementation(project(":linux"))
     // Phase 6: agent runtime bindings — :data wires agent/ implementations
     // into domain/ interfaces via Hilt, keeping ui/ free of agent/ imports.
     implementation(project(":agent"))

@@ -18,10 +18,10 @@ by that split: `android/data/` is still `project(":data")`.
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
 
  ├── :ui --------------► :domain, :theme
- ├── :terminal --------► :guest, :domain
+ ├── :terminal --------► :linux, :domain
  ├── :features:agent --► :terminal, :domain
  ├── :features:ssh ----► :domain, :terminal  (implements TransportPort)
- ├── :guest -----------► :domain
+ ├── :linux -----------► :domain
  ├── :data ------------► :domain
  ├── :features:editor -► :domain, :theme
  └── :domain ----------► (nothing — pure Kotlin)
@@ -31,7 +31,7 @@ by that split: `android/data/` is still `project(":data")`.
 |---|---|---|
 | `:domain` | Entities, ports, use cases | Android, any Drosh module |
 | `:terminal` | the Rust core's Kotlin side (JNI, GL renderer, input encoder, view) and the sessions that drive it (sessions, panes, tabs, blocks, shell launch) | Compose, `:ui`, `:app`; the engine half does not know the session half |
-| `:guest` | rootfs, bootstrap, archive, chroot exec | terminal sessions, UI |
+| `:linux` | rootfs, bootstrap, archive, chroot exec | terminal sessions, UI |
 | `:features:ssh` | SSH transport implementing the domain port | `:terminal` |
 | `:data` | Room, DataStore, TOML, vault | `:terminal`, Compose |
 | `:features:agent` | LLM providers, tools, chat | Compose (screen lives in `:ui`) |
@@ -97,8 +97,8 @@ or panic may cross the boundary; the panic hook is installed at load.
 ## 3. Layer rules (enforced)
 
 1. `:domain` imports no Android type and no Drosh module.
-2. `:terminal` imports nothing above it (`:terminal`, `:guest`, `:data`, `:agent`, `:ssh`, `:ui`).
-3. `:guest` imports no UI, no `:terminal`, no `:terminal`.
+2. `:terminal` imports nothing above it (`:terminal`, `:linux`, `:data`, `:agent`, `:ssh`, `:ui`).
+3. `:linux` imports no UI, no `:terminal`, no `:terminal`.
 4. `:terminal` imports no Compose, no `:ui`, no `:app`.
 5. `:ui` imports neither `:terminal` nor `:terminal`.
 6. Only `android/terminal/engine/.../native/` (today `android/terminal/engine/.../core/`) declares `external fun`.
@@ -120,7 +120,7 @@ which then collides with the versioned aliases the modules use.
 ### 3.2 Modules that do not exist yet
 
 A rule may name a module the plan expects but that is not in the tree yet
-(`:guest`, in P4). Such a module is listed in `plannedModules`, and the checker
+(`:linux`, in P4). Such a module is listed in `plannedModules`, and the checker
 asserts that it is *still* absent — so its rules cannot pass unnoticed, and
 when the module appears the checker fails until the rules move out of that list
 and start being enforced.
@@ -193,7 +193,7 @@ Current overruns, all scheduled: `TerminalScreen.kt` 2238 (P6), `TerminalManager
 | P1 | Rust: selection, search, URL, block, tint, text | `cargo test` + clippy + cross-check |
 | P2 | `:terminal` view becomes the product view | device checklist |
 | P3 | `:terminal` rewritten, Termux deleted | both paths build; device checklist |
-| P4 | `:guest` extracted, chroot-ng replaces PRoot | clean install, `uname -a`, backup round-trip |
+| P4 | `:linux` extracted, chroot-ng replaces PRoot | clean install, `uname -a`, backup round-trip |
 | P5 | `:ssh` over bridged sessions | SSH session checklist |
 | P6 | `:app` terminal feature split | tabs/panes/zoom/find/links |
 | P7 | docs, CHANGELOG, dead adapter removal | `check` + full device pass |

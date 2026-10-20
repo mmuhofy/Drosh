@@ -14,9 +14,9 @@ import dev.drosh.domain.backup.BackupSection
 import dev.drosh.domain.backup.BackupSectionKind
 import dev.drosh.domain.backup.RestoreSelection
 import dev.drosh.domain.session.DeviceIdentityRepository
-import dev.drosh.guest.UbuntuBootstrap
-import dev.drosh.guest.backup.RootfsArchiveReader
-import dev.drosh.guest.backup.RootfsArchiveWriter
+import dev.drosh.linux.UbuntuBootstrap
+import dev.drosh.linux.backup.RootfsArchiveReader
+import dev.drosh.linux.backup.RootfsArchiveWriter
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

@@ -139,7 +139,7 @@ proot-distro's own manifest schema.
 
 | Agent | Files | Deliverable |
 |---|---|---|
-| **B** — `android/guest/.../backup/**` | RootfsArchiveWriter (walk + relax pass + excludes + tar members), RootfsArchiveReader (staged extract + path guard), JVM tests | rootfs engine, leaf module |
+| **B** — `android/linux/.../backup/**` | RootfsArchiveWriter (walk + relax pass + excludes + tar members), RootfsArchiveReader (staged extract + path guard), JVM tests | rootfs engine, leaf module |
 | **A** — `android/data/.../backup/*.kt` + BindingsModule | BackupRepository impl orchestrating B + app-data sections + manifest read/write, `VACUUM INTO` snapshot, tests | end-to-end create/restore for app data |
 | **C** — `android/data/.../backup/termux/**` | TermuxMigrationImporter + package map + dotfile adapter + tests | bionic→glibc migration planning |
 | **D** — `android/ui/.../backup/**`, `MainActivity.kt` (route), Settings entry | BackupRestoreScreen + ViewModel + settings/nav entry + restart prompt | user-facing surface |

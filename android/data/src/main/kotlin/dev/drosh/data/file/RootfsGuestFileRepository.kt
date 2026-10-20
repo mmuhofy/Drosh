@@ -6,7 +6,7 @@ import dev.drosh.domain.file.GuestFile
 import dev.drosh.domain.file.GuestFileException
 import dev.drosh.domain.file.GuestFileLimits
 import dev.drosh.domain.file.GuestFileRepository
-import dev.drosh.guest.UbuntuBootstrap
+import dev.drosh.linux.UbuntuBootstrap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber

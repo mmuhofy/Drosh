@@ -433,15 +433,15 @@ never red; no phase closes without the device checklist.
 - [ ] Termux sources, `termux.c`, `libtermux.so`, setup scripts removed
 - [ ] `data → terminal` debt 22 → 0; `com.termux` rule added to the checker
 
-### P4 — `:guest` extracted, chroot-ng replaces PRoot
+### P4 — `:linux` extracted, chroot-ng replaces PRoot
 - [x] chroot-ng is consumed as a **pinned release asset**, not vendored source.
       `mmuhofy/chroot-ng` publishes its AArch64 build as `libchrootng.so` with
       a tag and a SHA-256; CI fetches it into
       `android/terminal/src/main/jniLibs/arm64-v8a/` and refuses to package an
       APK without it. The 69k lines of vendored C are out of this repository.
-- [x] Move rootfs/bootstrap/archive into `:guest` — the module exists, and the
+- [x] Move rootfs/bootstrap/archive into `:linux` — the module exists, and the
       bootstrap, the rootfs archive, the guest launchers and the guest's assets
-      live in it. `data → terminal` debt 22 → 13, and the rules for `:guest`
+      live in it. `data → terminal` debt 22 → 13, and the rules for `:linux`
       are enforced by the boundary checker now, not by a plan.
 - [x] `ProotRunner` → chroot-ng `GuestLauncher` — one interface, two backends.
       chroot-ng's argv follows the CLI's own rules: every option before the
@@ -455,7 +455,7 @@ never red; no phase closes without the device checklist.
       AArch64 runner); the remaining gate is `chroot-ng --probe` on a real
       Android kernel and a shell that actually runs inside the rootfs.
 - [ ] **P4 device gate — chroot-ng on a real device.** Everything below is
-      reachable without P3: the guest backend lives in `:guest`, which
+      reachable without P3: the guest backend lives in `:linux`, which
       `:terminal` uses, and the switch is a file in the app's own storage.
 
       1. Install the CI-built debug APK (`dev.drosh.my`).

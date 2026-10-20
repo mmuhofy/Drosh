@@ -97,7 +97,7 @@ import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.terminal.session.TerminalViewClientImpl
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
-import dev.drosh.guest.UbuntuSetupState
+import dev.drosh.linux.UbuntuSetupState
 import dev.drosh.ui.block.BlockEngineViewModel
 import dev.drosh.ui.block.BlockInputField
 import dev.drosh.ui.block.PromptBlock
