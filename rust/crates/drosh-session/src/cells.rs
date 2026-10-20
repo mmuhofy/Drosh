@@ -166,7 +166,7 @@ mod tests {
 
         // Scrolled to the top of the history, the red line is the top row of
         // the viewport again: the rows are viewport rows, not grid rows.
-        session.scroll(SCROLL_TO_THE_TOP);
+        let _ = session.scroll(SCROLL_TO_THE_TOP);
         let term = session.term.lock();
 
         let cells = cell_colors(&term, region(0, 0, 1, 1));
