@@ -122,13 +122,22 @@ mod tests {
         let session = crate::test_session();
         let term = session.term.lock();
 
-        // The test grid is 80 columns by 24 rows.
+        // The test grid is 80 columns by 24 rows, so a region that starts at
+        // (20, 70) and asks for 10 rows by 20 columns is cut down to the 4 rows
+        // and 10 columns that are left.
         let cells = cell_colors(&term, region(20, 70, 10, 20));
         assert_eq!(cells.len(), 4 * 10);
+
+        // The cells come in row-major order, ten to a row.
         assert_eq!(cells[0].row, 20);
         assert_eq!(cells[0].column, 70);
-        assert_eq!(cells[3].row, 23);
-        assert_eq!(cells[3].column, 79);
+        assert_eq!(cells[9].row, 20);
+        assert_eq!(cells[9].column, 79);
+
+        // The last row of the region is the grid's last row.
+        let last = cells.len() - 1;
+        assert_eq!(cells[last].row, 23);
+        assert_eq!(cells[last].column, 79);
     }
 
     #[test]
