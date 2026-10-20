@@ -116,6 +116,7 @@ import dev.drosh.ui.terminal.MotdWidget
 import dev.drosh.ui.terminal.SystemInfo
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
+import dev.drosh.domain.settings.TerminalBackend
 import dev.drosh.ui.topbar.SelectionMenuSurface
 import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
@@ -434,6 +435,14 @@ private fun ReadyScreen(
     }
     val fontSizeSp by terminalViewModel.fontSizeSp.collectAsState()
     val defaultFontSizeSp by terminalViewModel.defaultFontSizeSp.collectAsState()
+    /**
+     * Which terminal implementation the panes run.
+     *
+     * The vendored Termux terminal, or the Rust engine. Termux until the
+     * engine has been through a device — the setting is what lets it be
+     * tried without a rebuild, and what lets it be undone without one.
+     */
+    val terminalBackend by terminalViewModel.terminalBackend.collectAsStateWithLifecycle()
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
@@ -734,8 +743,23 @@ private fun ReadyScreen(
     val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
     val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    /**
+     * The selected text, or null when there is no selection.
+     *
+     * The vendored view's own selection, or the engine pane's: the manager
+     * publishes the bounds for both kinds of terminal, and each one knows
+     * its own text. The vendored view is asked first, so the path the app
+     * has always taken is unchanged.
+     */
     val selectionText by remember(hasSelection, selectionBounds) {
-        derivedStateOf { if (hasSelection) terminalViewRef.value?.selectedText else null }
+        derivedStateOf {
+            if (!hasSelection) {
+                null
+            } else {
+                terminalViewRef.value?.selectedText
+                    ?: terminalManager.focusedEnginePane()?.selectionText()?.takeIf { it.isNotEmpty() }
+            }
+        }
     }
     val selectionUrl = remember(selectionText) {
         selectionText?.let { UrlDetector.findUrls(it).singleOrNull()?.url }
@@ -764,6 +788,20 @@ private fun ReadyScreen(
 
     fun showKeyboard() {
         try {
+            // The engine's terminal keeps its own IME target — a one-pixel
+            // editor inside its view — and that is what the keyboard talks
+            // to. The vendored view is asked for as it always was.
+            val engine = terminalManager.focusedEnginePane()
+            if (engine != null) {
+                engine.focus()
+                val imm = engine.imeTarget.context.getSystemService(
+                    Context.INPUT_METHOD_SERVICE,
+                ) as InputMethodManager
+                imm.showSoftInput(engine.imeTarget, InputMethodManager.SHOW_IMPLICIT)
+                keyboardFocused = true
+                return
+            }
+
             val view = terminalViewRef.value ?: run {
                 Log.w(
                     "TerminalScreen",
@@ -811,6 +849,20 @@ private fun ReadyScreen(
 
     fun hideKeyboard() {
         try {
+            // The engine's terminal: its IME target is what the keyboard
+            // talks to, and it is inside the engine's own view.
+            val engine = terminalManager.focusedEnginePane()
+            if (engine != null) {
+                val imm = engine.imeTarget.context.getSystemService(
+                    Context.INPUT_METHOD_SERVICE,
+                ) as InputMethodManager
+                engine.imeTarget.windowToken?.let { token ->
+                    imm.hideSoftInputFromWindow(token, 0)
+                    keyboardFocused = false
+                }
+                return
+            }
+
             terminalViewRef.value?.raiseKeyboardOnFocus = false
             val view = terminalViewRef.value ?: run {
                 Log.w(
@@ -856,24 +908,30 @@ private fun ReadyScreen(
     }
 
     fun toggleKeyboard() {
-        val view = terminalViewRef.value ?: run {
-            Log.w(
-                "TerminalScreen",
-                "TerminalView is not ready, cannot toggle keyboard",
-            )
-            return
-        }
+        // The engine's terminal has no view to measure, so it is asked
+        // whether it is there at all; the vendored view is measured as it
+        // always was.
+        val engine = terminalManager.focusedEnginePane()
+        if (engine == null) {
+            val view = terminalViewRef.value ?: run {
+                Log.w(
+                    "TerminalScreen",
+                    "TerminalView is not ready, cannot toggle keyboard",
+                )
+                return
+            }
 
-        if (
-            !view.isAttachedToWindow ||
-            view.width <= 0 ||
-            view.height <= 0
-        ) {
-            Log.w(
-                "TerminalScreen",
-                "TerminalView is not attached or has zero size, cannot toggle keyboard",
-            )
-            return
+            if (
+                !view.isAttachedToWindow ||
+                view.width <= 0 ||
+                view.height <= 0
+            ) {
+                Log.w(
+                    "TerminalScreen",
+                    "TerminalView is not attached or has zero size, cannot toggle keyboard",
+                )
+                return
+            }
         }
 
         if (keyboardFocused) {
@@ -899,6 +957,13 @@ private fun ReadyScreen(
         repeat(30) {
             val view = terminalViewRef.value
             if (view != null && view.isAttachedToWindow && view.width > 0) {
+                showKeyboard()
+                return@LaunchedEffect
+            }
+            // The engine's terminal has no view to wait for: its pane is
+            // registered with the manager as soon as its session is running,
+            // and that is the moment the keyboard can be raised.
+            if (terminalManager.focusedEnginePane() != null) {
                 showKeyboard()
                 return@LaunchedEffect
             }
@@ -1012,6 +1077,7 @@ private fun ReadyScreen(
                     searchOverlayRef = searchOverlayRef,
                     terminalViewRef = terminalViewRef,
                     appearanceSource = appearanceSource,
+                    terminalBackend = terminalBackend,
                     onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
                 )
@@ -1059,6 +1125,7 @@ private fun ReadyScreen(
                     searchOverlayRef = remember { mutableStateOf<SearchHighlightOverlay?>(null) },
                     terminalViewRef = terminalViewRef,
                     appearanceSource = appearanceSource,
+                    terminalBackend = terminalBackend,
                     // Bounds are the top bar's backdrop sample, and the top bar
                     // reads whichever pane has focus. Letting the unfocused pane
                     // report would leave the bar sampling a terminal the user is
@@ -1127,12 +1194,32 @@ private fun ReadyScreen(
                 blurRadius = menuBlurRadius(appearanceSource.value?.kind),
                 onCopy = {
                     selectionText?.let { context.copyToClipboard("terminal", it) }
-                    terminalViewRef.value?.dismissSelection()
+                    // The selection is dismissed in whichever terminal made
+                    // it: the vendored view owns its own, and the engine's
+                    // pane owns the engine's.
+                    val view = terminalViewRef.value
+                    if (view != null) {
+                        view.dismissSelection()
+                    } else {
+                        terminalManager.focusedEnginePane()?.clearSelection()
+                    }
                 },
-                onPaste = { terminalViewRef.value?.pasteFromClipboard() },
+                onPaste = {
+                    val view = terminalViewRef.value
+                    if (view != null) {
+                        view.pasteFromClipboard()
+                    } else {
+                        terminalManager.focusedEnginePane()?.pasteClipboard()
+                    }
+                },
                 onOpenUrl = { url ->
                     browserUrl = url
-                    terminalViewRef.value?.dismissSelection()
+                    val view = terminalViewRef.value
+                    if (view != null) {
+                        view.dismissSelection()
+                    } else {
+                        terminalManager.focusedEnginePane()?.clearSelection()
+                    }
                 },
                 onSelectAll = { terminalViewRef.value?.selectAll() },
                 onShare = { selectionText?.let { context.shareText(it) } },
@@ -1163,7 +1250,19 @@ private fun ReadyScreen(
                     searchActive = true
                 },
                 onRefresh = {
-                    terminalManager.restartCurrentTab()
+                    // The engine's terminal owns its session, so the refresh
+                    // restarts that session; the vendored path restarts the
+                    // session the manager owns.
+                    val engine = terminalManager.focusedEnginePane()
+                    if (engine != null) {
+                        val command = terminalManager.guestCommand()
+                        if (command != null) {
+                            engine.stop()
+                            engine.start(command)
+                        }
+                    } else {
+                        terminalManager.restartCurrentTab()
+                    }
                 },
                 onOpenSettings = onOpenSettings,
                 onOpenAgent = onOpenAgent,
@@ -1634,6 +1733,13 @@ private fun TerminalPaneBody(
     terminalViewRef: MutableState<TerminalView?>,
     /** Where this pane's terminal is sampled for the chrome. */
     appearanceSource: MutableState<TerminalAppearanceSource?>,
+    /**
+     * Which terminal implementation this pane runs.
+     *
+     * The vendored Termux terminal, or the Rust engine. The setting is the
+     * user's choice, and the app follows it without a rebuild.
+     */
+    terminalBackend: TerminalBackend,
     onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
 ) {
@@ -1660,7 +1766,29 @@ private fun TerminalPaneBody(
                 .padding(top = topPadding),
         ) {
 
-            if (useBlockEngine && !altBufferActive) {
+            if (terminalBackend == TerminalBackend.ENGINE) {
+                /*
+                 * THE ENGINE'S TERMINAL
+                 *
+                 * The pane runs on the Rust engine rather than on the vendored
+                 * view. The engine owns its session and its view, so the app
+                 * hosts a pane instead of a view — see `EnginePaneHost`.
+                 *
+                 * It comes before the block engine's list on purpose: the
+                 * blocks are the vendored sessions' output, and a pane that
+                 * showed them next to an engine terminal would be showing two
+                 * terminals' worth of output at once.
+                 */
+                EnginePaneHost(
+                    paneSlot = paneSlot,
+                    terminalManager = terminalManager,
+                    fontSizeSp = fontSizeSp,
+                    defaultFontSizeSp = defaultFontSizeSp,
+                    appearanceSource = appearanceSource,
+                    onBoundsChanged = onBoundsChanged,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (useBlockEngine && !altBufferActive) {
                 val blocks by blockEngineViewModel.blocks.collectAsState()
                 val promptDir by blockEngineViewModel.lastDir.collectAsState()
                 val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()

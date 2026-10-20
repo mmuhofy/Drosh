@@ -79,6 +79,14 @@ data class TerminalSettings(
     val mode: TerminalMode = TerminalMode.Stream,
     /** Which isolation engine runs the Linux guest. */
     val guestIsolation: GuestIsolation = GuestIsolation.DEFAULT,
+    /**
+     * Which terminal implementation the app runs.
+     *
+     * Termux until the engine has been through a device: the vendored path is
+     * the one the app is known to work on, and the setting is what lets the
+     * engine be tried without a rebuild.
+     */
+    val backend: TerminalBackend = TerminalBackend.DEFAULT,
     /** The size a session opens at. A pinch moves the session, not this. */
     val defaultFontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     val cursorStyle: CursorStyle = CursorStyle.Block,

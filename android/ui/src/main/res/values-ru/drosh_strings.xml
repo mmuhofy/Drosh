@@ -65,6 +65,11 @@
     <string name="settings_cursor_style_thin">Тонкий block</string>
     <string name="settings_terminal_mode">Режим терминала</string>
     <string name="settings_terminal_mode_desc">Как располагаются команда и её вывод</string>
+    <string name="settings_terminal_backend">Движок терминала</string>
+    <string name="settings_terminal_backend_termux">Termux</string>
+    <string name="settings_terminal_backend_termux_desc">Терминал, который приложение всегда использовало</string>
+    <string name="settings_terminal_backend_engine">Engine</string>
+    <string name="settings_terminal_backend_engine_desc">Новый движок на Rust — экспериментальный</string>
     <string name="settings_mode_terminal">Терминал</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">ИИ</string>

@@ -64,6 +64,11 @@
     <string name="settings_cursor_style_thin">İnce blok</string>
     <string name="settings_terminal_mode">Terminal modu</string>
     <string name="settings_terminal_mode_desc">Bir komut ve çıktısının nasıl yerleştiği</string>
+    <string name="settings_terminal_backend">Terminal motoru</string>
+    <string name="settings_terminal_backend_termux">Termux</string>
+    <string name="settings_terminal_backend_termux_desc">Uygulamanın her zaman kullandığı terminal</string>
+    <string name="settings_terminal_backend_engine">Motor</string>
+    <string name="settings_terminal_backend_engine_desc">Yeni Rust motoru — deneysel</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Blok</string>
     <string name="settings_section_ai">Yapay zekâ</string>

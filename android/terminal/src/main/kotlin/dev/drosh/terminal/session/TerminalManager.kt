@@ -31,6 +31,7 @@ import dev.drosh.domain.settings.GuestIsolation
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.BootstrapStatePort
 import dev.drosh.linux.ChrootNgRunner
+import dev.drosh.linux.GuestCommand
 import dev.drosh.linux.GuestIsolationOverride
 import dev.drosh.linux.GuestLauncher
 import dev.drosh.linux.GuestSpec
@@ -1482,6 +1483,21 @@ class TerminalManager(
             view.onScrollPositionChanged = null
             view.installSelectionMenu(enabled = false, listener = null)
         }
+        // A pane that arrives at the slot that already has the focus is the
+        // active terminal from that moment on, so it is activated the way a
+        // focus change activates a pane: the selection and the scroll
+        // position are published for it, and the shell is told that it has
+        // the focus.
+        //
+        // Without this, a pane that registers for the focused slot would
+        // never be activated: [focusEnginePane] treats a pane that already
+        // has the focus as a pane that is already set up, and nothing else
+        // would ever set it up.
+        if (slot == focusedPane.value && pane.state == EnginePaneState.RUNNING) {
+            activateEnginePane(pane)
+            pane.notifyFocus(true)
+            pane.focus()
+        }
     }
 
     /**
@@ -1907,37 +1923,57 @@ class TerminalManager(
         publishActiveId()
     }
 
+    /**
+     * The command an interactive guest session runs, or null when the guest
+     * is not installed.
+     *
+     * The one place a guest session's exec image is built, and the answer both
+     * terminals use: the vendored path runs it on a Java PTY, and the engine's
+     * path runs the very same image through [EngineLaunch]. One command, two
+     * terminals — a guest that behaved differently per terminal would be a
+     * guest nobody could debug.
+     *
+     * Null rather than a fallback shell when the guest is not installed: the
+     * fallback below belongs to the vendored path, which starts a session
+     * before the rootfs is there, and the engine has nothing to run without
+     * one.
+     */
+    fun guestCommand(): GuestCommand? {
+        if (!ubuntuBootstrap.isInstalled) return null
+
+        ensureShellRc()
+
+        val guestWd = if (projectPath != null) {
+            "/sdcard/dev.drosh/${File(projectPath!!).name}"
+        } else null
+
+        val shell = effectiveShellPath()
+        val integration = DroshShellIntegration.install(appContext, shell, shellLocale)
+
+        return guestLauncher().build(
+            GuestSpec(
+                workingDirectory = guestWd,
+                shell = shell,
+                command = prootStartCommand,
+                environment = integration.environment,
+                shellArgs = integration.shellArgs,
+            ),
+        )
+    }
+
     private fun createNewSession(): TerminalSession {
-        if (ubuntuBootstrap.isInstalled) {
-            // A guest engine whose runtime is not in the APK cannot run the
-            // guest, and the session would die with an `ENOENT` that says
-            // nothing about the cause. The engine's runtime is fetched by the
-            // build, so a missing one is a build that skipped the fetch; the
-            // user is told which, rather than watching a shell fail to open.
-            val launcher = guestLauncher()
-            if (!launcher.isAvailable) {
-                reportMissingGuestRuntime()
-                return plainShellSession()
-            }
+        // A guest engine whose runtime is not in the APK cannot run the guest,
+        // and the session would die with an `ENOENT` that says nothing about
+        // the cause. The engine's runtime is fetched by the build, so a missing
+        // one is a build that skipped the fetch; the user is told which, rather
+        // than watching a shell fail to open.
+        if (ubuntuBootstrap.isInstalled && !guestLauncher().isAvailable) {
+            reportMissingGuestRuntime()
+            return plainShellSession()
+        }
 
-            ensureShellRc()
-
-            val guestWd = if (projectPath != null) {
-                "/sdcard/dev.drosh/${File(projectPath!!).name}"
-            } else null
-
-            val shell = effectiveShellPath()
-            val integration = DroshShellIntegration.install(appContext, shell, shellLocale)
-
-            val cmd = launcher.build(
-                GuestSpec(
-                    workingDirectory = guestWd,
-                    shell = shell,
-                    command = prootStartCommand,
-                    environment = integration.environment,
-                    shellArgs = integration.shellArgs,
-                ),
-            )
+        val cmd = guestCommand()
+        if (cmd != null) {
             return TerminalSession(
                 cmd.executable,
                 cmd.cwd,

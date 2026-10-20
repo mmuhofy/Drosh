@@ -65,6 +65,11 @@
     <string name="settings_cursor_style_thin">Dünner block</string>
     <string name="settings_terminal_mode">Terminal-Modus</string>
     <string name="settings_terminal_mode_desc">Wie ein Befehl und seine Ausgabe angeordnet werden</string>
+    <string name="settings_terminal_backend">Terminal-Backend</string>
+    <string name="settings_terminal_backend_termux">Termux</string>
+    <string name="settings_terminal_backend_termux_desc">Das Terminal, das die App immer verwendet hat</string>
+    <string name="settings_terminal_backend_engine">Engine</string>
+    <string name="settings_terminal_backend_engine_desc">Die neue Rust-Engine — experimentell</string>
     <string name="settings_mode_terminal">Terminal</string>
     <string name="settings_mode_block">Block</string>
     <string name="settings_section_ai">KI</string>
