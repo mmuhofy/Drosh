@@ -302,16 +302,31 @@ class EngineSession(
     fun search(query: String, limit: Int = 200): List<Triple<Int, Int, Int>> {
         val current = handle
         if (current == NO_HANDLE) return emptyList()
-        return NativeCore.nativeSearch(current, query, limit)
-            .lineSequence()
-            .filter { it.isNotEmpty() && !it.startsWith("error:") }
-            .mapNotNull { record ->
-                val parts = record.split(':')
-                if (parts.size == 3) {
-                    Triple(parts[0].toIntOrNull() ?: 0, parts[1].toIntOrNull() ?: 0, parts[2].toIntOrNull() ?: 0)
-                } else null
-            }
-            .toList()
+        return EngineRecords.parseTriples(NativeCore.nativeSearch(current, query, limit))
+    }
+
+    /**
+     * Find URLs on the visible grid.
+     *
+     * The scan is the engine's, because the grid is where the text is: a
+     * caller that walked a transcript copy instead would have a second opinion
+     * about where a URL starts.
+     *
+     * A URL the shell soft-wrapped across two rows is reported once per row,
+     * and every row carries the whole link — a tap on any of them opens the
+     * whole thing, not the fragment the terminal happened to break it at.
+     */
+    fun findUrls(limit: Int = 200): List<UrlHit> {
+        val current = handle
+        if (current == NO_HANDLE) return emptyList()
+        return EngineRecords.parseUrlHits(NativeCore.nativeFindUrls(current, limit))
+    }
+
+    /** The URL at a visible (row, col), or "" when the cell is not inside one. */
+    fun urlAt(row: Int, col: Int): String {
+        val current = handle
+        if (current == NO_HANDLE) return ""
+        return NativeCore.nativeUrlAt(current, row, col)
     }
 
     /** Currently selected text, or "" when nothing is selected. */

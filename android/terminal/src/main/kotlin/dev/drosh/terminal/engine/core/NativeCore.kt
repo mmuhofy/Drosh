@@ -189,6 +189,12 @@ internal object NativeCore {
     /** Where the shell is in its cycle; returns `key:value` lines (ffi::block). */
     external fun nativeBlockState(id: Long): String
 
+    /** Find URLs on the visible grid; returns `row:col:len` records (ffi::url). */
+    external fun nativeFindUrls(id: Long, limit: Int): String
+
+    /** The URL at a visible (row, col), or "" (ffi::url). */
+    external fun nativeUrlAt(id: Long, row: Int, col: Int): String
+
     /** The last lines the session printed; returns them newline-separated (ffi::session). */
     external fun nativeTranscript(id: Long): String
 

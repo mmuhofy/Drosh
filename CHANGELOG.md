@@ -109,6 +109,10 @@ release when it ships.
 
 ### Changed
 
+- The engine finds the URLs on the screen, with the same rules the app's own
+  detector uses: a bare `www.` host, the punctuation that follows a link, and
+  the brackets a link opened itself. A URL the shell soft-wrapped across two
+  rows is one URL again, and every row of it carries the whole link
 - The engine keeps a log of what each session printed, and hands it over. The
   scrollback lives inside the terminal engine's grid, which does not give it
   out, so the bytes are copied on their way to the parser instead — bounded to
