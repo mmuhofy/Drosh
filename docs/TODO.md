@@ -452,10 +452,11 @@ The shape of the work, measured rather than guessed (2026-10-20):
 
 Three slices, in this order:
 
-- [ ] **P3b-1 — the app's terminal pane hosts the engine's view.** The manager
-      keeps the panes and the tabs; the engine's view owns the session. Termux
-      stays in the tree until this has run on a device, so the change can be
-      reverted with one commit.
+- [x] **P3b-1 — the app's terminal pane hosts the engine's view.** The manager
+      keeps the panes and the tabs; the engine's view owns the session. The
+      switch is a **setting** (Settings → Terminal → "Terminal backend"), so
+      the Termux path stays the default until the engine path has been through
+      a device, and the change can be reverted with one commit.
 
   The seams that have to exist before the app can move over:
 
@@ -496,6 +497,15 @@ Three slices, in this order:
       state, and the search takes the engine's copy. `AnsiStripper`,
       `AmbientTintCalculator`, `EditorRequestPublisher` and the detection half
       of `TerminalUrlOverlay` are then dead and go.
+  - [x] The log sheet reads the engine's transcript ✔
+  - [x] The block engine takes its state from a source ✔
+  - [ ] The find bar searches an engine terminal — the engine's search is
+        viewport-only, and the transcript search has to come from the log the
+        engine keeps.
+  - [ ] The extra-keys row reaches an engine session — the dispatcher writes
+        to `currentSession`, which is null for an engine pane.
+  - [ ] The engine's own session is in the session list (the sidebar, the log
+        sheet and the block engine follow the vendored sessions today).
 - [ ] **P3b-3 — Termux deleted.** The `com.termux.*` sources (4267 lines),
       `termux.c` and `libtermux.so` go; the checker gets a `com.termux` rule;
       `data → terminal` debt 13 → 0.
