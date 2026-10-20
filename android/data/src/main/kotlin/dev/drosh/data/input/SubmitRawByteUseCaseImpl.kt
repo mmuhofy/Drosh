@@ -1,7 +1,7 @@
 package dev.drosh.data.input
 
 import dev.drosh.domain.input.SubmitRawByteUseCase
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.TerminalManager
 import javax.inject.Inject
 import javax.inject.Singleton
 

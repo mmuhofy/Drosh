@@ -20,7 +20,7 @@
 // out-of-bounds read that crashed the app whenever a soft-wrapped line
 // reached the last visible row. [TerminalUrlOverlayTest] pins that history.
 // The search half lives on in SearchHighlightOverlay.
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import android.graphics.Canvas
 import android.graphics.Paint

@@ -7,7 +7,7 @@
  * (at your option) any later version.
  */
 
-package dev.drosh.terminal.mouse
+package dev.drosh.terminal.session.mouse
 
 import android.os.Bundle
 import android.os.Handler

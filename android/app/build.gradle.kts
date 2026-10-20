@@ -148,7 +148,6 @@ dependencies {
     implementation(project(":core"))
     // The engine rides in every debug APK from R1 on; its .so is asserted in
     // CI so a missing cross-build fails here, not on the device.
-    implementation(project(":engine"))
     implementation(project(":domain"))
     implementation(project(":data"))
     implementation(project(":agent"))

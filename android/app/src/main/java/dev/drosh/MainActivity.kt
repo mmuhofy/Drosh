@@ -68,8 +68,8 @@ import dev.drosh.domain.settings.toMillis
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.editor.EditorScreen
-import dev.drosh.terminal.ExtraKeyState
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.ExtraKeyState
+import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.ui.terminal.TerminalSessionLogSource
 import dev.drosh.guest.UbuntuSetupState
 import dev.drosh.ui.setup.SetupFlowScreen

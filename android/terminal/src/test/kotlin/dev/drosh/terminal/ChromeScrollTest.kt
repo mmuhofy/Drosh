@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

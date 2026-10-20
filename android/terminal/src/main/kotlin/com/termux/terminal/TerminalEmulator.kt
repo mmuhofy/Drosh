@@ -1454,7 +1454,7 @@ class TerminalEmulator(
      * OSC [OSC_DROSH_OPEN_EDITOR] — the guest asked Drosh to open a path in the
      * native editor.
      *
-     * Written by the `editor` shell function that [dev.drosh.terminal.DroshShellIntegration]
+     * Written by the `editor` shell function that [dev.drosh.terminal.session.DroshShellIntegration]
      * installs, so the request reaches the app by the same route as every other
      * piece of shell integration: bytes out of the PTY, interpreted here. No
      * polling, no filesystem watch, no inotify.

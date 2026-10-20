@@ -1,9 +1,15 @@
-// terminal/ — PTY session management, terminal emulator bridge,
-// block engine, semantic parser, ghost text engine.
+// terminal/ — the terminal: the Rust core's Kotlin side, and the sessions
+// that drive it.
+//
+//   engine/                  the Rust core: JNI, the GL renderer, the input
+//                            encoder, the view
+//   (the rest of the files) sessions, panes, blocks, shell launch
+//
+// The engine half is a library the session half drives: it does not know about
+// sessions, and the boundary checker says so (docs/ARCHITECTURE.md §3).
 //
 // Per AGENT.md §125-128: "Isolated — only data/ and agent/ interact with it."
 // Per AGENT.md §143: "terminal/ is isolated — never imported directly by ui/"
-// Per MEMORYBANK.md §97-100: engine/, renderer/, input/.
 
 plugins {
     alias(libs.plugins.dev.drosh.android.library)
@@ -38,6 +44,13 @@ android {
         resources {
             // Ensure JNI .so libs from this module win over conflicting builds.
             pickFirsts += setOf("lib/**/libtermux.so")
+        }
+        jniLibs {
+            // libdrosh_core.so is the Rust core, cross-compiled by CI and
+            // dropped into src/main/jniLibs/arm64-v8a/ before Gradle runs. It
+            // comes from CI, never from a local cargo build; pickFirsts would
+            // only mask a duplicated-build mistake.
+            keepDebugSymbols += "**/libdrosh_core.so"
         }
     }
 }

@@ -1,8 +1,8 @@
 package dev.drosh.data.terminal
 
 import dev.drosh.domain.terminal.SubmitBlockCommandUseCase
-import dev.drosh.terminal.BlockEngineWire
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.BlockEngineWire
+import dev.drosh.terminal.session.TerminalManager
 import javax.inject.Inject
 import javax.inject.Singleton
 

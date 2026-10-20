@@ -3,8 +3,8 @@ package dev.drosh.data.ssh
 import dev.drosh.domain.ssh.SshCredentialVault
 import dev.drosh.domain.ssh.SshHostRepository
 import dev.drosh.domain.ssh.SshSessionLauncher
-import dev.drosh.terminal.SshSessionFactory
-import dev.drosh.terminal.TerminalManager
+import dev.drosh.terminal.session.SshSessionFactory
+import dev.drosh.terminal.session.TerminalManager
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton

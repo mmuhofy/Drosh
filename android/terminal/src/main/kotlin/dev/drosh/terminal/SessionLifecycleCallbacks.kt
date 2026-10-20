@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 /**
  * Callback interface allowing [TerminalManager] to notify the data/session

@@ -20,7 +20,7 @@
 // where each row is on screen right now — which is also what makes the
 // highlight stay on its text when the terminal scrolls: a match is a row, and
 // a row moves with the content.
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 import android.graphics.Canvas
 import android.graphics.Paint

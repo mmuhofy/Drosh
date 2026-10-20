@@ -3,7 +3,7 @@ package dev.drosh.data.state
 import com.termux.terminal.CommandSnapshot
 import com.termux.terminal.CommandStatus
 import com.termux.terminal.ShellIntegrationLevel
-import dev.drosh.terminal.SnippetsStore.Snippet
+import dev.drosh.terminal.session.SnippetsStore.Snippet
 
 /**
  * Holds the latest command state for cross-process readers.

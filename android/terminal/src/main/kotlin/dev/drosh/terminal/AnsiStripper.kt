@@ -1,4 +1,4 @@
-package dev.drosh.terminal
+package dev.drosh.terminal.session
 
 /**
  * Strips ANSI/VT escape sequences from a terminal buffer transcript.

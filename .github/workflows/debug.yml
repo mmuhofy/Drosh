@@ -127,7 +127,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: engine-core-so
-          path: android/engine/src/main/jniLibs/arm64-v8a
+          path: android/terminal/src/main/jniLibs/arm64-v8a
 
       # chroot-ng — the guest runtime — is not in this repository. It is built
       # and published by its own project, and the APK carries the published
