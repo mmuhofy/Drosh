@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-package dev.drosh.terminal.backup
+package dev.drosh.guest.backup
 
 import timber.log.Timber
 import java.io.BufferedInputStream

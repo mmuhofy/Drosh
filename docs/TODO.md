@@ -439,7 +439,10 @@ never red; no phase closes without the device checklist.
       a tag and a SHA-256; CI fetches it into
       `android/terminal/src/main/jniLibs/arm64-v8a/` and refuses to package an
       APK without it. The 69k lines of vendored C are out of this repository.
-- [ ] Move rootfs/bootstrap/archive into `:guest`
+- [x] Move rootfs/bootstrap/archive into `:guest` — the module exists, and the
+      bootstrap, the rootfs archive, the guest launchers and the guest's assets
+      live in it. `data → terminal` debt 22 → 13, and the rules for `:guest`
+      are enforced by the boundary checker now, not by a plan.
 - [x] `ProotRunner` → chroot-ng `GuestLauncher` — one interface, two backends.
       chroot-ng's argv follows the CLI's own rules: every option before the
       rootfs (its parser stops at the rootfs, so an option after it would be

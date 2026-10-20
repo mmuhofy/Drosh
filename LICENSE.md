@@ -28,6 +28,7 @@ be compiled into stays GPLv3 because of `:terminal`.
 | Terminal native library | `android/terminal/src/main/jniLibs/` (`libtermux.so`) | **GPL-3.0** | Termux's JNI library |
 | chroot-ng guest runtime | fetched from its own release into `android/terminal/src/main/jniLibs/` (`libchrootng.so`) | **Apache-2.0** | third-party binary, unmodified — see `android/terminal/src/main/assets/licenses/` |
 | Drosh source | `android/app/` `android/ui/` `android/data/` `android/domain/` `android/agent/` `android/ssh/` `android/core/` `android/design-system/` | **Apache-2.0** | Drosh-authored |
+| Linux guest | `android/guest/` | **Apache-2.0**, except the rootfs archive format | Drosh-authored; `backup/RootfsArchive{Reader,Writer}.kt` are GPL-3.0 |
 | Editor wrapper | `android/editor/` (Drosh code) | **Apache-2.0** | Drosh-authored; the editor it wraps is LGPL — see `android/editor/NOTICE.md` |
 | Editor component | sora-editor (`io.github.rosemoe:editor`, `language-textmate`) | **LGPL-2.1-or-later** | third-party dependency, unmodified |
 | TextMate grammars | `android/editor/src/main/assets/textmate/` | **MIT** | microsoft/vscode + fwcd/vscode-kotlin — see `android/editor/src/main/assets/textmate/PROVENANCE.md` |
@@ -41,7 +42,7 @@ be compiled into stays GPLv3 because of `:terminal`.
 **Ubuntu userspace.** The rootfs is downloaded at runtime rather than shipped,
 so its packages (each under its own license — GPL, LGPL, Apache, MIT and
 others) never enter this repository. The download source is recorded in
-`android/terminal/.../UbuntuBootstrap`.
+`android/guest/.../UbuntuBootstrap`.
 
 **Fonts.** The OFL is not a software license and does not mix into the GPL
 question: fonts are data. What the OFL does require is that each copy carry the

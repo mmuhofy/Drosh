@@ -115,4 +115,4 @@ rust/target/
 # The cross-built core arrives from CI as an artifact, never from git.
 android/engine/src/main/jniLibs/
 # The chroot-ng guest runtime comes from its own release, fetched by CI.
-android/terminal/src/main/jniLibs/
+android/guest/src/main/jniLibs/

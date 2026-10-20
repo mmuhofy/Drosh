@@ -109,6 +109,10 @@ release when it ships.
 
 ### Changed
 
+- The Linux guest is its own module. The rootfs, the bootstrap, the rootfs
+  archive, the guest launchers and the guest's own assets moved out of
+  `:terminal` into `:guest`, which knows nothing about sessions, panes or the
+  UI — and the `data → terminal` debt fell from 22 to 13 as a side effect
 - The guest has two backends behind one interface: proot, and chroot-ng. The
   chroot-ng path is wired — the argv its CLI expects, the environment it
   builds for the guest, and the device paths it binds — and can be switched on

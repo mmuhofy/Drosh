@@ -2,7 +2,7 @@ package dev.drosh.data.settings.toml
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
-import dev.drosh.terminal.UbuntuBootstrap
+import dev.drosh.guest.UbuntuBootstrap
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
