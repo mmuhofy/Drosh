@@ -10,8 +10,8 @@ use jni::objects::{JClass, JIntArray};
 use jni::sys::{jint, jlong};
 use jni::JNIEnv;
 
-use drosh_bridge::snapshot::color_at;
 use crate::ffi::{finish, int_array_len, session_or, write_int_array, ErrorCode, FfiResult};
+use drosh_bridge::snapshot::color_at;
 
 /// `-1`: the application did not override this colour; use the default palette.
 pub const UNSET: i32 = -1;

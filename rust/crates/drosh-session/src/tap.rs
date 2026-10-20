@@ -19,9 +19,9 @@ use alacritty_terminal::event::{OnResize, WindowSize};
 use alacritty_terminal::tty::{ChildEvent, EventedPty, EventedReadWrite};
 use polling::{Event as PollEvent, PollMode, Poller};
 
+use crate::shell_mark::ShellMarkScanner;
 use drosh_bridge::events::{EventQueue, ShellMark};
 use drosh_pty::LocalPty;
-use crate::shell_mark::ShellMarkScanner;
 
 pub struct TapPty {
     inner: LocalPty,

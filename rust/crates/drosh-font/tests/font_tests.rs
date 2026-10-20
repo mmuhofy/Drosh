@@ -163,8 +163,5 @@ fn codepoints_outside_the_font_are_substituted_and_reported() {
     assert!(matches!(stack.resolve('M', Weight::Regular), Resolution::Direct(_)));
 
     // The raw helper says the same thing without a FontStack.
-    assert!(matches!(
-        drosh_font::fallback::resolve(&regular, '中'),
-        Resolution::Substituted(_)
-    ));
+    assert!(matches!(drosh_font::fallback::resolve(&regular, '中'), Resolution::Substituted(_)));
 }
