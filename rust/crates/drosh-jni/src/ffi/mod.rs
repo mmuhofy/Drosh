@@ -8,6 +8,7 @@
 //! **The Kotlin mirror of [`ErrorCode`] lives in `NativeCore.kt`; the numeric
 //! values are frozen and guarded by a test in this file.**
 
+pub mod block;
 pub mod colors;
 pub mod events;
 pub mod font;

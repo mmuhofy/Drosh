@@ -271,6 +271,19 @@ class EngineSession(
         return NativeCore.nativeStripAnsi(current, data)
     }
 
+    /**
+     * Where the shell is in its cycle, as the engine's marks report it.
+     *
+     * The boundaries come from the OSC 133 marks the engine taps where the
+     * bytes enter, so the block engine does not have to diff the transcript to
+     * find them.
+     */
+    fun blockState(): BlockState {
+        val current = handle
+        if (current == NO_HANDLE) return BlockState()
+        return BlockState.parse(NativeCore.nativeBlockState(current))
+    }
+
     /** Find `query` in the visible grid; each result is `row:col:len`. */
     fun search(query: String, limit: Int = 200): List<Triple<Int, Int, Int>> {
         val current = handle

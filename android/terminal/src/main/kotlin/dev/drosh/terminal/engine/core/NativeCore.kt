@@ -186,6 +186,9 @@ internal object NativeCore {
     /** Find `query` in the visible grid; returns `row:col:len` records (ffi::search). */
     external fun nativeSearch(id: Long, query: String, limit: Int): String
 
+    /** Where the shell is in its cycle; returns `key:value` lines (ffi::block). */
+    external fun nativeBlockState(id: Long): String
+
     /** Currently selected text, or "" (ffi::selection). */
     external fun nativeSelectionText(id: Long): String
 

@@ -29,11 +29,49 @@ pub enum BlockEvent {
     EditorTarget(String),
 }
 
+/// Where the shell is in its cycle, as far as the marks say.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BlockPhase {
+    /// No mark has been seen yet — the shell has not reported in.
+    #[default]
+    Unknown,
+    /// The prompt is on screen; the shell waits for a command.
+    Prompt,
+    /// The command is being typed.
+    Typing,
+    /// The command is running.
+    Running,
+    /// The command finished; the status is absent when the shell sent a bare `D`.
+    Finished(Option<i32>),
+}
+
+impl BlockPhase {
+    /// The short code the Kotlin side reads.
+    pub fn code(self) -> &'static str {
+        match self {
+            BlockPhase::Unknown => "unknown",
+            BlockPhase::Prompt => "prompt",
+            BlockPhase::Typing => "typing",
+            BlockPhase::Running => "running",
+            BlockPhase::Finished(_) => "finished",
+        }
+    }
+
+    /// The exit status, when the phase carries one.
+    pub fn status(self) -> Option<i32> {
+        match self {
+            BlockPhase::Finished(status) => status,
+            _ => None,
+        }
+    }
+}
+
 /// Tracks block state across marks for one session.
 #[derive(Debug, Default)]
 pub struct BlockTracker {
     cwd: Option<String>,
     editor: Option<String>,
+    phase: BlockPhase,
 }
 
 impl BlockTracker {
@@ -51,13 +89,30 @@ impl BlockTracker {
         self.editor.as_deref()
     }
 
+    /// Where the shell is in its cycle.
+    pub fn phase(&self) -> BlockPhase {
+        self.phase
+    }
+
     /// Feed one mark; returns the block event it implies, if any.
     pub fn observe(&mut self, mark: &ShellMark) -> Option<BlockEvent> {
         match mark {
-            ShellMark::PromptStart => Some(BlockEvent::PromptStarted),
-            ShellMark::CommandStart => Some(BlockEvent::CommandStarted),
-            ShellMark::CommandExec => Some(BlockEvent::CommandExec),
-            ShellMark::CommandFinished { status } => Some(BlockEvent::CommandFinished(*status)),
+            ShellMark::PromptStart => {
+                self.phase = BlockPhase::Prompt;
+                Some(BlockEvent::PromptStarted)
+            }
+            ShellMark::CommandStart => {
+                self.phase = BlockPhase::Typing;
+                Some(BlockEvent::CommandStarted)
+            }
+            ShellMark::CommandExec => {
+                self.phase = BlockPhase::Running;
+                Some(BlockEvent::CommandExec)
+            }
+            ShellMark::CommandFinished { status } => {
+                self.phase = BlockPhase::Finished(*status);
+                Some(BlockEvent::CommandFinished(*status))
+            }
             ShellMark::WorkingDirectory { url } => {
                 self.cwd = Some(url.clone());
                 Some(BlockEvent::WorkingDirectory(url.clone()))
@@ -117,5 +172,25 @@ mod tests {
             tracker.observe(&ShellMark::CommandFinished { status: None }),
             Some(BlockEvent::CommandFinished(None))
         );
+    }
+
+    #[test]
+    fn the_phase_follows_the_marks() {
+        let mut tracker = BlockTracker::new();
+        assert_eq!(tracker.phase(), BlockPhase::Unknown);
+
+        tracker.observe(&ShellMark::PromptStart);
+        assert_eq!(tracker.phase(), BlockPhase::Prompt);
+
+        tracker.observe(&ShellMark::CommandStart);
+        assert_eq!(tracker.phase(), BlockPhase::Typing);
+
+        tracker.observe(&ShellMark::CommandExec);
+        assert_eq!(tracker.phase(), BlockPhase::Running);
+
+        tracker.observe(&ShellMark::CommandFinished { status: Some(3) });
+        assert_eq!(tracker.phase(), BlockPhase::Finished(Some(3)));
+        assert_eq!(tracker.phase().status(), Some(3));
+        assert_eq!(tracker.phase().code(), "finished");
     }
 }
