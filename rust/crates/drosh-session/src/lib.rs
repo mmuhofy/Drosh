@@ -33,7 +33,7 @@ use alacritty_terminal::term::{Config, LineDamageBounds, Osc52, Term};
 use alacritty_terminal::vte::ansi::{Processor, Rgb, StdSyncHandler};
 
 use crate::block::{BlockPhase, BlockTracker};
-use crate::transcript::{OutputLog, DEFAULT_MAX_LINES};
+use crate::transcript::{OutputLog, TranscriptHit, DEFAULT_MAX_LINES};
 use drosh_bridge::events::{
     EventProxy, EventQueue, SessionEvent, Terminator, DEFAULT_QUEUE_CAPACITY,
 };
@@ -432,12 +432,20 @@ impl Session {
     /// log of what a screen happened to show.
     pub fn transcript(&self) -> Vec<String> {
         let output = self.output.lock().unwrap_or_else(|e| e.into_inner());
-        output
-            .lines()
-            .iter()
-            .map(|line| crate::text::strip_ansi(line.as_bytes()))
-            .map(|line| line.trim_end().to_owned())
-            .collect()
+        output.readable_lines()
+    }
+
+    /// Case-insensitive substring search over the output log, up to `limit`
+    /// matches.
+    ///
+    /// The log is the engine's bounded copy of the output, so this reaches
+    /// further back than the grid does — but its coordinates are the log's:
+    /// the index of the line and the column range within that line. A line of
+    /// the log is an output line, not a grid row, so the answer cannot be
+    /// turned into a position on the screen.
+    pub fn search_transcript(&self, query: &str, limit: usize) -> Vec<TranscriptHit> {
+        let output = self.output.lock().unwrap_or_else(|e| e.into_inner());
+        output.search(query, limit)
     }
 
     /// Where the shell is in its cycle, as the marks report it: the phase, the

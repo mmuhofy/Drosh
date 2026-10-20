@@ -299,10 +299,33 @@ class EngineSession(
     }
 
     /** Find `query` in the visible grid; each result is `row:col:len`. */
-    fun search(query: String, limit: Int = 200): List<Triple<Int, Int, Int>> {
+    fun search(query: String, limit: Int = DEFAULT_SEARCH_LIMIT): List<Triple<Int, Int, Int>> {
         val current = handle
         if (current == NO_HANDLE) return emptyList()
         return EngineRecords.parseTriples(NativeCore.nativeSearch(current, query, limit))
+    }
+
+    /**
+     * Find `query` in the session's output log.
+     *
+     * The log is the engine's bounded copy of the output, so this reaches
+     * further back than the visible grid does — but the coordinates are the
+     * log's: the index of the line and the column range within that line. A
+     * line of the log is an output line, not a grid row, so a hit here cannot
+     * be turned into a position on the screen.
+     *
+     * The match is case-insensitive, the way the app's own search is.
+     *
+     * At most [limit] matches are reported, oldest first: a log that holds
+     * more matches than that has more than the limit, not exactly the limit.
+     */
+    fun searchTranscript(
+        query: String,
+        limit: Int = DEFAULT_TRANSCRIPT_SEARCH_LIMIT,
+    ): List<TranscriptHit> {
+        val current = handle
+        if (current == NO_HANDLE) return emptyList()
+        return TranscriptHit.parse(NativeCore.nativeSearchTranscript(current, query, limit))
     }
 
     /**
@@ -391,5 +414,17 @@ class EngineSession(
 
     companion object {
         const val NO_HANDLE = 0L
+
+        /** How many matches a grid search reports when the caller does not say. */
+        const val DEFAULT_SEARCH_LIMIT = 200
+
+        /**
+         * How many matches a log search reports when the caller does not say.
+         *
+         * The log holds four thousand lines, so a query like "a" can match
+         * thousands of times; the limit keeps one scan from building an
+         * unbounded answer.
+         */
+        const val DEFAULT_TRANSCRIPT_SEARCH_LIMIT = 1000
     }
 }
