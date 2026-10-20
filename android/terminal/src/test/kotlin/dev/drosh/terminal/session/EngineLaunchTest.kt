@@ -75,7 +75,7 @@ class EngineLaunchTest {
         assertEquals("xterm", launch.env["TERM"])
     }
 
-    @Test]
+    @Test
     fun the_working_directory_is_carried_over() {
         val launch = EngineLaunch.from(
             GuestCommand(
