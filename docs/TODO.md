@@ -456,6 +456,27 @@ Three slices, in this order:
       keeps the panes and the tabs; the engine's view owns the session. Termux
       stays in the tree until this has run on a device, so the change can be
       reverted with one commit.
+
+  The seams that have to exist before the app can move over:
+
+  - [x] **The engine can start a guest session.** `EngineLaunch` turns a
+        `GuestCommand` into what the engine runs. The one rule in it: the
+        executable is **not** repeated in the arguments — Termux's `execvp`
+        took the whole vector, the engine's PTY builds it the other way round.
+  - [x] **The engine finds the URLs on the screen**, with the app's own rules,
+        over logical lines rather than screen rows.
+  - [x] **The engine keeps the block state and the session log.**
+  - [ ] **The app reads its pixels from somewhere else.** The top bar's
+        backdrop and the selection menu's colour sampling both call
+        `view.draw(canvas)` on the Termux view, which is a software-rendered
+        View. The engine's view is a `GLSurfaceView`, so `draw()` draws
+        nothing of the terminal. Both have to ask the engine for the pixels —
+        a snapshot of the grid, drawn by the renderer — or the blur and the
+        sampled colour go with the swap.
+  - [ ] **The app's zoom and font-size setting reach the engine.** The Termux
+        view takes a text size in sp; the engine's cell size comes from the
+        bundled font's metrics at a fixed size. A pinch has to change the
+        engine's cell size, and the grid has to be re-laid out around it.
 - [ ] **P3b-2 — the app reads from the engine.** The session log sheet takes
       the engine's transcript, the block engine takes the engine's block
       state, and the search takes the engine's copy. `AnsiStripper`,
