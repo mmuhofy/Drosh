@@ -16,6 +16,7 @@ pub mod selection;
 pub mod session;
 pub mod snapshot;
 pub mod text;
+pub mod tint;
 
 use std::sync::Arc;
 
