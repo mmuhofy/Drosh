@@ -9,6 +9,7 @@
 //! against a concurrent snapshot.
 
 pub mod block;
+pub mod cells;
 pub mod grid;
 pub mod manager;
 pub mod search;
@@ -489,6 +490,14 @@ impl Session {
     /// Average background colour of the visible grid, if any cell sets one.
     pub fn ambient_tint(&self) -> Option<[u8; 3]> {
         self.with_term(|term| crate::tint::ambient_tint(term))
+    }
+
+    /// The colours of the cells in a rectangle of the visible grid.
+    ///
+    /// The rectangle is clipped to the grid, so a region that hangs over the
+    /// edge reports the cells that are there.
+    pub fn cell_colors(&self, region: crate::cells::CellRegion) -> Vec<crate::cells::CellColor> {
+        self.with_term(|term| crate::cells::cell_colors(term, region))
     }
 
     /// Currently selected text, if a selection is active.
