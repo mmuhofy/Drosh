@@ -31,17 +31,17 @@ include(":app")
 include(":core")
 include(":domain")
 include(":data")
-include(":agent")
+include(":features:agent")
 include(":terminal")
 // The Linux guest: rootfs, bootstrap, archive, and the launcher that execs a
 // shell inside it. See docs/ARCHITECTURE.md §1.
 include(":guest")
-include(":ssh")
+include(":features:ssh")
 include(":ui")
 include(":theme")
 // Native code editor (Rosemoe/sora-editor). Its own module so the LGPL-2.1
 // surface stays isolated and :ui keeps its "no :terminal" rule.
-include(":editor")
+include(":features:editor")
 
 // Convention plugins — included as a composite build so its plugin ids
 // (e.g. `dev.drosh.android.library`) are visible to all subprojects.
