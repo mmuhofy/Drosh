@@ -13,7 +13,9 @@ use crate::ffi::{fail, finish, session_or, ErrorCode};
 
 /// The currently selected text, or an empty string when nothing is selected.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSelectionText<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSelectionText<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

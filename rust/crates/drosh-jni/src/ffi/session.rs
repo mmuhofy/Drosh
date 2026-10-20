@@ -22,7 +22,9 @@ use drosh_session::{GridSize, SessionConfig};
 /// consequence of that, not of a design choice here.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
-pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeCreateSession<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeCreateSession<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     columns: jint,
