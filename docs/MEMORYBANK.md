@@ -1909,11 +1909,22 @@ data class SshHost(
    keeps inferring it, an engine-backed session gets the engine's answer.
 ✅ The log sheet can read the engine's transcript, and the two kinds of
    transcript are never interchangeable.
-⏳ P3b-1 — the app's terminal pane hosts the engine's view. The
-   manager's focus, selection and scroll flows still speak Termux's
-   `TerminalView`, so an engine pane is not focusable through the
-   manager yet. That is the next seam, and where Termux's deletion
-   finally happens.
+✅ The manager's flows speak both terminals: focus, selection, scroll
+   position, alt-buffer state and the clipboard all work for an
+   engine-backed slot, and the Termux path was moved verbatim.
+✅ The app's chrome reads the terminal's appearance from a *source*
+   rather than from `view.draw(canvas)`, which draws nothing of a
+   GLSurfaceView. The engine's side of that seam reports the cell
+   colours; the backdrop gets a colour field and the selection menu
+   the region's average colour.
+✅ The release APK carries the chroot-ng runtime. The debug build
+   fetched it and the release did not, so a release APK had no
+   chroot-ng at all and choosing it gave an ENOENT in a log with
+   nothing in the UI to say what was missing. The app now checks the
+   runtime before it opens a session and says which guest was missing.
+⏳ P3b-1 — the app's terminal pane hosts the engine's view. The app
+   still renders through `com.termux.view.TerminalView`; the switch is
+   the last seam, and where Termux's deletion finally happens.
 ```
 
 ### Boot / Setup UX (this milestone)
