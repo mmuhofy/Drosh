@@ -7,6 +7,7 @@ this file says where the work came from.
 | What | Where it lives in this project |
 |---|---|
 | **Termux** — the terminal engine, the PTY stack, the shell tooling this app was rebuilt from | `android/terminal/` (vendored, modified) |
+| **chroot-ng** — the ptrace-free chroot/bind emulation that runs the guest, upstreamed from `sylirre/fake-chroot-ng` | fetched from its own release into `android/terminal/src/main/jniLibs/` |
 | **PRoot** — the userspace that lets Ubuntu run without root | `android/app/src/main/assets/proot` |
 | **Ubuntu 24.04** — the Linux environment itself | downloaded on first launch |
 | **sora-editor** (Rosemoe) — the native code editor | `:editor` dependency |

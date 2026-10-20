@@ -129,6 +129,25 @@ jobs:
           name: engine-core-so
           path: android/engine/src/main/jniLibs/arm64-v8a
 
+      # chroot-ng — the guest runtime — is not in this repository. It is built
+      # and published by its own project, and the APK carries the published
+      # asset. The tag pins the release; the hash pins the bytes, because the
+      # build is not byte-reproducible (the debug info differs between runs), so
+      # rebuilding it would not give the same file. The hash is the one in the
+      # release's notes.
+      - name: Fetch the chroot-ng guest runtime
+        env:
+          CHROOT_NG_TAG: v1.2.0
+          CHROOT_NG_SHA256: 29473e3609c9e7692a3b9ab3613129dbdb46f9a1fa393c52b49fc601d2c7a01e
+        run: |
+          set -euo pipefail
+          url="https://github.com/mmuhofy/chroot-ng/releases/download/${CHROOT_NG_TAG}/libchrootng.so"
+          curl -fsSL --retry 3 --retry-delay 2 -o /tmp/libchrootng.so "$url"
+          echo "${CHROOT_NG_SHA256}  /tmp/libchrootng.so" | sha256sum -c -
+          mkdir -p android/terminal/src/main/jniLibs/arm64-v8a
+          cp /tmp/libchrootng.so android/terminal/src/main/jniLibs/arm64-v8a/libchrootng.so
+          ls -l android/terminal/src/main/jniLibs/arm64-v8a/
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -177,6 +196,8 @@ jobs:
           APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libdrosh_core.so"
           echo "$APK contains libdrosh_core.so"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libchrootng.so"
+          echo "$APK contains libchrootng.so"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

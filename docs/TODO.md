@@ -376,10 +376,11 @@ never red; no phase closes without the device checklist.
 - [x] Negative test: a deliberate `import android.util.Log` in `:domain` fails
       the gate with `file:line` (run 39127952871)
 - [x] **Repository split** — the Gradle build moved under `android/`, the Cargo
-      workspace under `rust/crates/`, the vendored chroot-ng to
-      `third_party/chroot-ng`. A pure move: module names, packages and the
+      workspace under `rust/crates/`. A pure move: module names, packages and the
       cdylib name are unchanged, so no import or `System.loadLibrary` call moved
       with it.
+      - The vendored chroot-ng went to `third_party/chroot-ng` and then left the
+        repository entirely — it is a pinned release asset now (P4).
       - [x] The engine crate split into five: `drosh-core` (the JNI boundary),
         `drosh-session`, `drosh-pty`, `drosh-bridge`, `drosh-font`. The shipped
         library is still `libdrosh_core.so` with the same symbols; what changed
@@ -433,8 +434,17 @@ never red; no phase closes without the device checklist.
 - [ ] `data → terminal` debt 22 → 0; `com.termux` rule added to the checker
 
 ### P4 — `:guest` extracted, chroot-ng replaces PRoot
+- [x] chroot-ng is consumed as a **pinned release asset**, not vendored source.
+      `mmuhofy/chroot-ng` publishes its AArch64 build as `libchrootng.so` with
+      a tag and a SHA-256; CI fetches it into
+      `android/terminal/src/main/jniLibs/arm64-v8a/` and refuses to package an
+      APK without it. The 69k lines of vendored C are out of this repository.
 - [ ] Move rootfs/bootstrap/archive into `:guest`
 - [ ] `ProotRunner` → chroot-ng `GuestLauncher`
+- [ ] **chroot-ng's launch path is still unverified on a device.** The artifact
+      is built and probed in its own CI (its test suite passes on a native
+      AArch64 runner); the remaining gate is `chroot-ng --probe` on a real
+      Android kernel and a shell that actually runs inside the rootfs.
 
 ### P5 — `:ssh` over bridged sessions
 - [ ] `TransportPort` moves to `:domain`; `ssh → terminal` debt 1 → 0

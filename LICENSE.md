@@ -26,6 +26,7 @@ be compiled into stays GPLv3 because of `:terminal`.
 |---|---|---|---|
 | Terminal engine + shell integration | `android/terminal/` (both `com.termux.*` and `dev.drosh.terminal.*`) | **GPL-3.0** | modified Termux code, vendored in-tree |
 | Terminal native library | `android/terminal/src/main/jniLibs/` (`libtermux.so`) | **GPL-3.0** | Termux's JNI library |
+| chroot-ng guest runtime | fetched from its own release into `android/terminal/src/main/jniLibs/` (`libchrootng.so`) | **Apache-2.0** | third-party binary, unmodified — see `android/terminal/src/main/assets/licenses/` |
 | Drosh source | `android/app/` `android/ui/` `android/data/` `android/domain/` `android/agent/` `android/ssh/` `android/core/` `android/design-system/` | **Apache-2.0** | Drosh-authored |
 | Editor wrapper | `android/editor/` (Drosh code) | **Apache-2.0** | Drosh-authored; the editor it wraps is LGPL — see `android/editor/NOTICE.md` |
 | Editor component | sora-editor (`io.github.rosemoe:editor`, `language-textmate`) | **LGPL-2.1-or-later** | third-party dependency, unmodified |

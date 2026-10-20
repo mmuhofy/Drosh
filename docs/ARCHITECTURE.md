@@ -204,7 +204,10 @@ Rules for every phase: one branch, one PR, CI green before merge, `main` never r
 no force-push.
 
 The repository layout itself was split between P0 and P1 (2026-10-20): the Gradle
-build moved under `android/` and the Cargo workspace under `rust/`, with
-`third_party/chroot-ng` for the vendored C guest runtime. It was a pure move —
-module names, Kotlin packages and the cdylib name did not change — so no import,
-Hilt binding or `System.loadLibrary` call was affected.
+build moved under `android/` and the Cargo workspace under `rust/`. It was a pure
+move — module names, Kotlin packages and the cdylib name did not change — so no
+import, Hilt binding or `System.loadLibrary` call was affected.
+
+The guest runtime left the repository with P4 (2026-10-20): chroot-ng is built
+and published by its own project, and Drosh consumes a pinned release asset
+(tag + SHA-256) instead of vendoring the source.

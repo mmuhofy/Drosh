@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Phase C, Gate 3 — the device half of it.
  *
- * chroot-ng ships in the APK as `lib/arm64-v8a/libchrootng.so`
- * (`rust/chroot-ng/VENDOR.md`): `nativeLibraryDir` is the one directory an app
+ * chroot-ng ships in the APK as `lib/arm64-v8a/libchrootng.so`, fetched by CI
+ * from its own release: `nativeLibraryDir` is the one directory an app
  * may exec from on Android 10+, and the `lib*.so` name is what makes the
  * installer extract it there. It is a static freestanding binary, not a shared
  * object — the name is a packaging requirement, not a link.

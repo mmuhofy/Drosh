@@ -133,9 +133,11 @@ rust/                   → the Cargo workspace; `cargo test` runs from here
   crates/drosh-pty/     → raw libc PTY and the child process (D8)
   crates/drosh-bridge/  → the Rust → Kotlin wire formats; no JNI, by manifest
   crates/drosh-font/    → rustybuzz shaping + swash rasterisation
-
-third_party/chroot-ng/  → vendored C guest runtime; it moves to its own repo next
 ```
+
+The guest runtime — [chroot-ng](https://github.com/mmuhofy/chroot-ng) — is not
+in this repository. It is fetched from its own release, pinned by tag and
+SHA-256, and packaged into the APK by CI.
 
 Project names are unchanged by the split — `:app`, `:data`, … — so a module is
 `android/data/` and is still depended on as `project(":data")`.

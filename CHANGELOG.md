@@ -109,6 +109,10 @@ release when it ships.
 
 ### Changed
 
+- The guest runtime, chroot-ng, is no longer vendored in this repository. It is
+  built and published by its own project, and Drosh consumes a pinned release
+  asset — a tag and a SHA-256 it verifies before the file goes into the APK.
+  That takes 68k lines of C out of the tree, and the C toolchain out of CI
 - The repository is split by build system: the Gradle build — modules, wrapper,
   convention plugins, keystore — lives under `android/`, the Rust engine
   workspace under `rust/`, and the vendored chroot-ng under `third_party/`.

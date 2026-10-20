@@ -39,6 +39,14 @@ android {
             // Ensure JNI .so libs from this module win over conflicting builds.
             pickFirsts += setOf("lib/**/libtermux.so")
         }
+        jniLibs {
+            // libchrootng.so is the freestanding, statically-linked chroot-ng
+            // monitor, fetched from its own release (see the CI step in
+            // .github/workflows/debug.yml). It has a custom linker script and
+            // no standard sections, so AGP's strip pass would corrupt it —
+            // keep it byte-for-byte.
+            keepDebugSymbols += "**/libchrootng.so"
+        }
     }
 }
 
