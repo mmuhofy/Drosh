@@ -48,7 +48,7 @@ class EngineRecordsTest {
         )
     }
 
-    @Test]
+    @Test
     fun a_record_with_a_non_number_is_skipped() {
         val text = "a:4:3\n0:4:3"
         assertEquals(listOf(Triple(0, 4, 3)), EngineRecords.parseTriples(text))
