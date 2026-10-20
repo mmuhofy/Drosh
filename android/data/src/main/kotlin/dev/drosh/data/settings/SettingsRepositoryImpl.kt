@@ -5,6 +5,7 @@ import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.DroshSettings
+import dev.drosh.domain.settings.GuestIsolation
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsRepository
@@ -48,6 +49,13 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setFontPack(pack: FontPack) {
         store.update { it.copy(appearance = it.appearance.copy(fontPack = pack)) }
+    }
+
+    override val guestIsolation: Flow<GuestIsolation> =
+        settings.map { it.terminal.guestIsolation }
+
+    override suspend fun setGuestIsolation(isolation: GuestIsolation) {
+        store.update { it.copy(terminal = it.terminal.copy(guestIsolation = isolation)) }
     }
 
     override val useBlockEngine: Flow<Boolean> =

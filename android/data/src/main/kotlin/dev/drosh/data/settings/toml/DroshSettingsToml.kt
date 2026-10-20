@@ -9,6 +9,7 @@ import dev.drosh.domain.settings.AutoLockTimeout
 import dev.drosh.domain.settings.BackgroundSettings
 import dev.drosh.domain.settings.CursorStyle
 import dev.drosh.domain.settings.DroshSettings
+import dev.drosh.domain.settings.GuestIsolation
 import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.InputSettings
 import dev.drosh.domain.settings.MetaSettings
@@ -46,6 +47,7 @@ internal object DroshSettingsToml {
         }
         with(settings.terminal) {
             putString("terminal", "mode", mode.tomlName())
+            putString("terminal", "guest_isolation", guestIsolation.name)
             putFloat("terminal", "default_font_size_sp", defaultFontSizeSp)
             putString("terminal", "cursor_style", cursorStyle.tomlName())
             putInt("terminal", "cursor_blink_ms", cursorBlinkMs)
@@ -149,6 +151,9 @@ internal object DroshSettingsToml {
             ),
             terminal = base.terminal.copy(
                 mode = TerminalMode.fromToml(document.getStringOrNull("terminal", "mode")),
+                guestIsolation = GuestIsolation.fromName(
+                    document.getStringOrNull("terminal", "guest_isolation"),
+                ) ?: base.terminal.guestIsolation,
                 defaultFontSizeSp = document.getFloat(
                     "terminal", "default_font_size_sp", base.terminal.defaultFontSizeSp,
                 ),

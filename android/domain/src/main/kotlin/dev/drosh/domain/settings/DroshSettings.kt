@@ -77,6 +77,8 @@ data class AppearanceSettings(
  */
 data class TerminalSettings(
     val mode: TerminalMode = TerminalMode.Stream,
+    /** Which isolation engine runs the Linux guest. */
+    val guestIsolation: GuestIsolation = GuestIsolation.DEFAULT,
     /** The size a session opens at. A pinch moves the session, not this. */
     val defaultFontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     val cursorStyle: CursorStyle = CursorStyle.Block,

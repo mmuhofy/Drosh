@@ -3,6 +3,8 @@ package dev.drosh.ui.setup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.ApplyThemeUseCase
+import dev.drosh.domain.settings.GuestIsolation
+import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.DroshTheme
 import dev.drosh.domain.settings.ThemePalette
 import dev.drosh.domain.terminal.BootstrapProgress
@@ -45,6 +47,7 @@ class SetupWizardViewModel @Inject constructor(
     private val triggerBootstrap: TriggerBootstrapUseCase,
     private val firstLaunch: ObserveFirstLaunchUseCase,
     private val applyTheme: ApplyThemeUseCase,
+    private val settings: SettingsRepository,
 ) : ViewModel() {
 
     val progress: StateFlow<BootstrapProgress> = observeBootstrap.progress()
@@ -66,6 +69,20 @@ class SetupWizardViewModel @Inject constructor(
 
     private val _isLogDrawerOpen = MutableStateFlow(false)
     val isLogDrawerOpen: StateFlow<Boolean> = _isLogDrawerOpen.asStateFlow()
+
+    /**
+     * Which isolation engine the guest runs under.
+     *
+     * The user's choice, kept in the settings so it survives a restart and so
+     * the session that opens next uses it. The default is proot, the engine that
+     * works on a device today.
+     */
+    val guestIsolation: StateFlow<GuestIsolation> = settings.guestIsolation
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = GuestIsolation.DEFAULT,
+        )
 
     private val _packageProfile = MutableStateFlow(PackageProfile.Standard)
     val packageProfile: StateFlow<PackageProfile> = _packageProfile.asStateFlow()
@@ -132,6 +149,17 @@ class SetupWizardViewModel @Inject constructor(
 
     fun selectShell(shell: ShellChoice) {
         _shellChoice.value = shell
+    }
+
+    /**
+     * Chooses the isolation engine and writes it to the settings.
+     *
+     * The write is a settings write like any other, so the session that opens
+     * next picks it up without a restart and without a second path to keep in
+     * step.
+     */
+    fun selectGuestIsolation(isolation: GuestIsolation) {
+        viewModelScope.launch { settings.setGuestIsolation(isolation) }
     }
 
     fun selectTheme(themeId: String) {

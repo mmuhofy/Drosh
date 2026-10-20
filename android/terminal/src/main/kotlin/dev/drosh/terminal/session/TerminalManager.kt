@@ -25,10 +25,11 @@ import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.terminal.PaneSessionBinder
+import dev.drosh.domain.settings.GuestIsolation
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.BootstrapStatePort
 import dev.drosh.linux.ChrootNgRunner
-import dev.drosh.linux.GuestBackend
+import dev.drosh.linux.GuestIsolationOverride
 import dev.drosh.linux.GuestLauncher
 import dev.drosh.linux.GuestSpec
 import dev.drosh.linux.ProotRunner
@@ -729,29 +730,34 @@ class TerminalManager(
     /**
      * Which guest isolation engine launches the user's shell.
      *
-     * Defaults to [GuestBackend.PROOT] — the path that works on a device
-     * today. chroot-ng is packaged and wired, but its launch path has not run
-     * on a device yet, so switching to it is the P4 gate. The override is a
-     * file in the app's own storage, so a device test can flip it without a
-     * UI or a build:
+     * The user's choice, made in the setup wizard and kept here by a
+     * collector, so switching it takes effect for the next session without a
+     * restart. A device test can override it with a file in the app's own
+     * storage, which wins over the setting — a test that cannot be sure which
+     * engine it is testing is not a test:
      *
      *     adb shell run-as dev.drosh.my sh -c 'echo chroot_ng > files/guest_backend'
      */
-    private val guestBackend: GuestBackend =
-        GuestBackend.override(appContext) ?: GuestBackend.PROOT
+    @Volatile
+    private var guestIsolation: GuestIsolation = GuestIsolation.DEFAULT
 
-    private val guestLauncher: GuestLauncher by lazy {
-        when (guestBackend) {
-            GuestBackend.PROOT ->
-                ProotRunner(ubuntuBootstrap, application.applicationInfo.nativeLibraryDir)
+    /**
+     * The launcher for the engine the user chose.
+     *
+     * Built per session rather than cached: the choice is a setting, and a
+     * session that starts after the switch must use the new engine.
+     */
+    private fun guestLauncher(): GuestLauncher =
+        when (guestIsolation) {
+            GuestIsolation.PROOT ->
+                ProotRunner(ubuntuBootstrap, appContext.applicationInfo.nativeLibraryDir)
 
-            GuestBackend.CHROOT_NG ->
+            GuestIsolation.CHROOT_NG ->
                 ChrootNgRunner(
                     ubuntuBootstrap.rootfsDir,
-                    application.applicationInfo.nativeLibraryDir,
+                    appContext.applicationInfo.nativeLibraryDir,
                 )
         }
-    }
 
     private val managerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -817,6 +823,14 @@ class TerminalManager(
     }
 
     init {
+        // The isolation engine is a setting, so it is read from the store rather
+        // than asked for at every session: the store's flow keeps the value
+        // fresh, and a device test's file override still wins over it.
+        managerScope.launch {
+            settingsRepository.guestIsolation.collect { chosen ->
+                guestIsolation = GuestIsolationOverride.read(appContext) ?: chosen
+            }
+        }
         sessionClient.onSessionFinished = { session -> onSessionFinished(session) }
         sessionClient.onTextChanged = { session ->
             redrawPanesShowing(session)
@@ -1472,7 +1486,7 @@ class TerminalManager(
             val shell = effectiveShellPath()
             val integration = DroshShellIntegration.install(appContext, shell, shellLocale)
 
-            val cmd = guestLauncher.build(
+            val cmd = guestLauncher().build(
                 GuestSpec(
                     workingDirectory = guestWd,
                     shell = shell,
@@ -1640,7 +1654,7 @@ class TerminalManager(
             "/sdcard/dev.drosh/${File(projectPath!!).name}"
         } else null
 
-        val cmd = guestLauncher.buildCommand(
+        val cmd = guestLauncher().buildCommand(
             GuestSpec(workingDirectory = guestWd, shell = effectiveShellPath()),
             command,
         )
