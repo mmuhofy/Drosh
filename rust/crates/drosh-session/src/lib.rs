@@ -17,6 +17,7 @@ pub mod shell_mark;
 pub mod tap;
 pub mod text;
 pub mod tint;
+pub mod transcript;
 pub mod url;
 
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -31,6 +32,7 @@ use alacritty_terminal::term::{Config, LineDamageBounds, Osc52, Term};
 use alacritty_terminal::vte::ansi::{Processor, Rgb, StdSyncHandler};
 
 use crate::block::{BlockPhase, BlockTracker};
+use crate::transcript::{OutputLog, DEFAULT_MAX_LINES};
 use drosh_bridge::events::{
     EventProxy, EventQueue, SessionEvent, Terminator, DEFAULT_QUEUE_CAPACITY,
 };
@@ -139,6 +141,8 @@ pub struct Session {
     parser: Mutex<Processor<StdSyncHandler>>,
     /// Where the shell is in its cycle, as the OSC 133 marks report it.
     blocks: Mutex<BlockTracker>,
+    /// The last lines the session printed, for a session log.
+    output: Arc<Mutex<OutputLog>>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -179,9 +183,13 @@ impl Session {
         })
         .map_err(|err| SessionError::SpawnFailed(err.to_string()))?;
 
+        // The output is copied on its way to the parser, so a session log can
+        // be read out of it: the scrollback inside the grid cannot.
+        let output = Arc::new(Mutex::new(OutputLog::new(DEFAULT_MAX_LINES)));
+
         // Shell-integration marks are tapped where the bytes enter the
         // engine; the parser itself never sees them disappear.
-        let pty = tap::TapPty::new(pty, events.clone())
+        let pty = tap::TapPty::new(pty, events.clone(), output.clone())
             .map_err(|err| SessionError::Io(err.to_string()))?;
 
         // `drain_on_exit`: the shell's last output must still reach the grid
@@ -216,6 +224,7 @@ impl Session {
             damage_scratch: Mutex::new(Vec::new()),
             parser: Mutex::new(Processor::new()),
             blocks: Mutex::new(BlockTracker::new()),
+            output,
             worker: Mutex::new(Some(worker)),
         })
     }
@@ -255,6 +264,7 @@ impl Session {
             damage_scratch: Mutex::new(Vec::new()),
             parser: Mutex::new(Processor::new()),
             blocks: Mutex::new(BlockTracker::new()),
+            output: Arc::new(Mutex::new(OutputLog::new(DEFAULT_MAX_LINES))),
             worker: Mutex::new(None),
         })
     }
@@ -283,6 +293,12 @@ impl Session {
             return;
         }
 
+        // A bridged session has no PTY and so no tap, but it has output all
+        // the same — and a session log that is empty for every remote session
+        // is worse than none.
+        if let Ok(mut output) = self.output.lock() {
+            output.push(data);
+        }
         let mut term = self.term.lock();
         let mut parser = lock(&self.parser);
         parser.advance(&mut *term, data);
@@ -404,6 +420,23 @@ impl Session {
         }
 
         pending
+    }
+
+    /// The last lines the session printed, oldest first, with the escape
+    /// sequences stripped.
+    ///
+    /// These are the lines as they arrived, not as the screen drew them: a
+    /// progress bar that redrew its line shows every draw. That is what the
+    /// output was, and a log of what a program printed is more useful than a
+    /// log of what a screen happened to show.
+    pub fn transcript(&self) -> Vec<String> {
+        let output = self.output.lock().unwrap_or_else(|e| e.into_inner());
+        output
+            .lines()
+            .iter()
+            .map(|line| crate::text::strip_ansi(line.as_bytes()))
+            .map(|line| line.trim_end().to_owned())
+            .collect()
     }
 
     /// Where the shell is in its cycle, as the marks report it: the phase, the
