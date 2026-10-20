@@ -1895,11 +1895,25 @@ data class SshHost(
    first call would have been an `UnsatisfiedLinkError` on a device, with
    a green build throughout. `tools/check-jni-symbols.py` compares both
    sides now and fails the build when they drift.
-⏳ P3b-1 — the app's terminal pane hosts the engine's view. Two seams
-   are still missing: the app samples the terminal's pixels with
-   `view.draw(canvas)`, which draws nothing of a GLSurfaceView, and the
-   engine's cell size is fixed, so the app's font-size setting and its
-   pinch cannot reach it.
+✅ The engine reports the colours of its visible cells, so the app's
+   top bar and selection menu can read the terminal's appearance
+   without reading pixels (a GLSurfaceView's `draw()` draws nothing
+   of it).
+✅ The engine's cell size can change at runtime: the font-size setting
+   and the pinch reach it, the grid is laid out around it, and the
+   session is resized through the same path a surface change uses.
+✅ `:terminal` has a host-facing engine pane — it owns the view, starts
+   a guest session in it and exposes what a host needs. The manager
+   registers it beside the Termux views.
+✅ The block engine takes its state from a source: the Termux path
+   keeps inferring it, an engine-backed session gets the engine's answer.
+✅ The log sheet can read the engine's transcript, and the two kinds of
+   transcript are never interchangeable.
+⏳ P3b-1 — the app's terminal pane hosts the engine's view. The
+   manager's focus, selection and scroll flows still speak Termux's
+   `TerminalView`, so an engine pane is not focusable through the
+   manager yet. That is the next seam, and where Termux's deletion
+   finally happens.
 ```
 
 ### Boot / Setup UX (this milestone)

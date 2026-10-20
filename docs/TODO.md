@@ -474,17 +474,23 @@ Three slices, in this order:
       a green build throughout — the two sides are wired together by a name no
       compiler checks. `tools/check-jni-symbols.py` now compares both sides and
       fails the build when they drift.
-  - [ ] **The app reads its pixels from somewhere else.** The top bar's
-        backdrop and the selection menu's colour sampling both call
-        `view.draw(canvas)` on the Termux view, which is a software-rendered
-        View. The engine's view is a `GLSurfaceView`, so `draw()` draws
-        nothing of the terminal. Both have to ask the engine for the pixels —
-        a snapshot of the grid, drawn by the renderer — or the blur and the
-        sampled colour go with the swap.
-  - [ ] **The app's zoom and font-size setting reach the engine.** The Termux
-        view takes a text size in sp; the engine's cell size comes from the
-        bundled font's metrics at a fixed size. A pinch has to change the
-        engine's cell size, and the grid has to be re-laid out around it.
+  - [x] **The app reads its pixels from somewhere else.** The top bar's backdrop
+        and the selection menu's colour sampling both call `view.draw(canvas)`
+        on the Termux view, which is a software-rendered View. The engine's
+        view is a `GLSurfaceView`, so `draw()` draws nothing of the terminal.
+        The engine now reports the colours of its visible cells
+        (`ffi::cells`), and the app draws the terminal's appearance from them.
+  - [x] **The app's zoom and font-size setting reach the engine.** The engine
+        measures its cell at any size, re-lays the grid out around it and
+        resizes the session through the same path a surface change uses.
+  - [x] **`:terminal` has a host-facing engine pane.** The engine's view owns
+        its session, so the app could not host one the way it hosts a Termux
+        one. `EnginePane` owns the view, starts a guest session in it and
+        exposes the operations a host needs; the manager registers it beside
+        the Termux views.
+  - [x] **The block engine takes its state from a source.** The Termux path
+        keeps inferring it; an engine-backed session gets the engine's answer.
+  - [x] **The log sheet can read the engine's transcript.**
 - [ ] **P3b-2 — the app reads from the engine.** The session log sheet takes
       the engine's transcript, the block engine takes the engine's block
       state, and the search takes the engine's copy. `AnsiStripper`,
