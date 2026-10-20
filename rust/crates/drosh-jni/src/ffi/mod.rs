@@ -18,6 +18,7 @@ pub mod session;
 pub mod snapshot;
 pub mod text;
 pub mod tint;
+pub mod url;
 
 use std::sync::Arc;
 
