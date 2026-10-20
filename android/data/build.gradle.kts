@@ -32,7 +32,7 @@ dependencies {
     implementation(project(":guest"))
     // Phase 6: agent runtime bindings — :data wires agent/ implementations
     // into domain/ interfaces via Hilt, keeping ui/ free of agent/ imports.
-    implementation(project(":agent"))
+    implementation(project(":features:agent"))
 
     // storage — DataStore
     implementation(libs.androidx.datastore.preferences)

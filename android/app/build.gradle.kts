@@ -151,13 +151,13 @@ dependencies {
     implementation(project(":engine"))
     implementation(project(":domain"))
     implementation(project(":data"))
-    implementation(project(":agent"))
+    implementation(project(":features:agent"))
     implementation(project(":terminal"))
     implementation(project(":guest"))
-    implementation(project(":ssh"))
+    implementation(project(":features:ssh"))
     implementation(project(":ui"))
     implementation(project(":theme"))
-    implementation(project(":editor"))
+    implementation(project(":features:editor"))
     implementation(libs.androidx.datastore.preferences)
 
     // AndroidX entry-point
