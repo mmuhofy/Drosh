@@ -114,6 +114,9 @@ release when it ships.
   light theme a near-white field, so a dark terminal had a white strip at the
   top — the one part of the screen that belonged to neither the terminal nor
   the chrome
+- The top bar is a bar of the app's own background when the chrome is up, so
+  the clock and the pills sit on one surface instead of floating over the
+  output as pale shapes
 - The guest's work directory has to exist: chroot-ng refuses one that is not
   there in the guest, and a refused one means the guest does not start at all.
   A project directory that was never created is exactly that, so the runner
@@ -148,7 +151,11 @@ release when it ships.
   character, not a glyph: the glyph is the font's answer to a run of
   characters, and a ligature is that answer covering more than one. The
   terminal knows the cells and the renderer shapes them, so the terminal never
-  learns a ligature exists
+  learns a ligature exists. The terminal's font ships with the ligature
+  tables this time — the setting decides, and the shaper switches them off
+  when it says so
+- The terminal can use a font of your own: pick a font file in the settings
+  and the terminal is drawn in it, measured from it
 - The engine finds the URLs on the screen, with the same rules the app's own
   detector uses: a bare `www.` host, the punctuation that follows a link, and
   the brackets a link opened itself. A URL the shell soft-wrapped across two

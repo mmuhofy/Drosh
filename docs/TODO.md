@@ -509,9 +509,13 @@ Three slices, in this order:
         reached it, so the terminal was drawn in the prototype's colours
         whatever the user chose — and the chrome, which samples the
         terminal's colours, had nothing to sample but the default.
-  - [ ] **The font pack reaches the engine.** The engine has one bundled
+  - [x] **The font pack reaches the engine.** The engine has one bundled
         face; the vendored path has a choice of packs. The setting is in the
         configuration the engine is handed, and the engine ignores it for now.
+  - [x] **A font of the user's own.** The settings take a file with the
+        system picker, the permission to read it is taken for as long as the
+        app lives, and the engine is handed the file's bytes. The cell is
+        measured from the new face, so the grid is laid out around it.
   - [x] **The font's ligatures, the way alacritty does them.** A terminal's
         cell holds a character, not a glyph; the glyph is the font's answer to
         a run of characters, and a ligature is that answer covering more than

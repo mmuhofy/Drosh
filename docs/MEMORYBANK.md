@@ -1938,11 +1938,23 @@ data class SshHost(
    the cells, the renderer shapes them, and only the ligatures take over
    — everything else keeps the per-codepoint path, which knows the
    font's fallback chain.
+✅ The engine ships the standard JetBrains Mono, not the `NL` variant.
+   The `NL` files were the honest choice while there was no ligature
+   support; now the shaper switches `liga`/`clig`/`calt`/`rlig` off when
+   the setting says so, and the ligatures are visible.
+✅ A font of the user's own, for the terminal: the settings take a file
+   with the system picker, the read permission is taken for as long as
+   the app lives, and the engine is handed the file's bytes. The cell is
+   measured from the new face.
 ✅ The terminal screen's ground is the terminal's colour. The chrome
    floats over the terminal, and what was behind it was the app's
    background: in the light theme a near-white field, so a dark
    terminal had a white strip at the top — the one part of the screen
    that belonged to neither the terminal nor the chrome.
+✅ The top bar has its own ground when the chrome is up: a bar of the
+   app's background from the top of the screen to the bottom of the row,
+   so the clock and the pills sit on one surface instead of a row of
+   pale shapes floating over the output.
 ⏳ P3b-2 — the app reads from the engine. The log sheet and the block
    engine do; the find bar, the extra-keys row and the session list do
    not yet. Termux's deletion waits for those.
