@@ -28,12 +28,30 @@ class UbuntuBootstrap(private val context: Context) {
     private val setupMarker: File
         get() = File(rootfsDir, "var/lib/drosh/.setup_complete")
 
-    /** Rootfs identity check — used to early-exit when bootstrap is already done. */
+    /**
+     * Whether the guest's filesystem is installed.
+     *
+     * The rootfs is the guest's, and it does not belong to an engine: proot and
+     * chroot-ng run the same filesystem, they only differ in how they enter it.
+     *
+     * Asking about proot's binary here tied the two together, so choosing
+     * chroot-ng on a device where proot had never been staged said "no guest" —
+     * and the terminal came up empty, with the vendored terminal quietly
+     * falling back to a plain shell and hiding it.
+     */
     val isInstalled: Boolean
+        get() = File(rootfsDir, "etc/apt/sources.list").exists()
+            && setupMarker.exists()
+
+    /**
+     * Whether proot — one of the two engines — can be launched.
+     *
+     * Its binary and the library it needs are staged by the bootstrap; this is
+     * what says whether they are there.
+     */
+    val isProotAvailable: Boolean
         get() = prootFile.canExecute()
             && File(libDir, "libtalloc.so.2").canRead()
-            && File(rootfsDir, "etc/apt/sources.list").exists()
-            && setupMarker.exists()
 
     @Volatile private var lastFailedStep: String = "Unknown"
 
@@ -42,7 +60,9 @@ class UbuntuBootstrap(private val context: Context) {
         onState: (UbuntuSetupState) -> Unit,
         onLog: (String) -> Unit = {},
     ) {
-        if (isInstalled) {
+        // The rootfs is reused when it is already there, so a missing proot
+        // costs the staging of the binary and not the download of the image.
+        if (isInstalled && isProotAvailable) {
             onLog("✓ Bootstrap already installed — skipping.")
             onState(UbuntuSetupState.Ready)
             return

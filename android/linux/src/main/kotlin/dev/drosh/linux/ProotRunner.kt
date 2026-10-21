@@ -17,6 +17,15 @@ class ProotRunner(
         get() = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
 
     private val loaderPath: String get() = "$nativeLibDir/libproot-loader.so"
+
+    /**
+     * Whether proot can be launched.
+     *
+     * The binary and the library it needs are staged by the bootstrap. Without
+     * them the guest cannot start, and the app says so rather than opening a
+     * session that dies with an ENOENT.
+     */
+    override val isAvailable: Boolean get() = bootstrap.isProotAvailable
     private val loader32Path: String get() = "$nativeLibDir/libproot-loader32.so"
 
     override fun build(spec: GuestSpec): GuestCommand = buildInternal(spec, ptyMode = true)
