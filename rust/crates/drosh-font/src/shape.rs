@@ -59,6 +59,10 @@ pub fn shape_text(font: &Font, text: &str, ligatures: bool) -> Option<Vec<Shaped
     // is what tells the renderer which cell a glyph belongs to.
     buffer.push_str(text);
     buffer.set_direction(Direction::LeftToRight);
+    // The script and the language, guessed from the text. A shaper plans
+    // its work per script, and a buffer without one is planned for a
+    // script nobody wrote in — which is a plan that finds no ligatures.
+    buffer.guess_segment_properties();
 
     let features = features(ligatures);
     let options = ShapeOptions::new().features(&features);
