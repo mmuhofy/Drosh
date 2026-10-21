@@ -6,12 +6,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Writes a raw byte sequence into the active terminal session's PTY
- * without CR termination. See `SubmitRawByteUseCase` for the contract.
+ * Writes a raw byte sequence into the focused terminal without CR
+ * termination. See `SubmitRawByteUseCase` for the contract.
  *
  * Implementation notes:
- *  - If no session is active, the call is a silent no-op (matches the
- *    convention of `SubmitBlockCommandUseCaseImpl`).
+ *  - The manager is asked which terminal has the focus and answers with that
+ *    terminal's writer, so the bytes reach an engine-backed pane as well as
+ *    a vendored one. If there is no terminal to write to, the call is a
+ *    silent no-op (matches the convention of `SubmitBlockCommandUseCaseImpl`).
  *  - `BlockEngineWire.onCommandSubmitted()` is intentionally NOT called —
  *    raw bytes are not user-typed commands and the wire's echo-suppression
  *    would eat them on the next output frame.
@@ -25,7 +27,6 @@ class SubmitRawByteUseCaseImpl @Inject constructor(
 
     override suspend fun submit(bytes: ByteArray) {
         if (bytes.isEmpty()) return
-        val session = terminalManager.currentSession ?: return
-        session.write(bytes, 0, bytes.size)
+        terminalManager.focusedWriter()?.writeBytes(bytes)
     }
 }
