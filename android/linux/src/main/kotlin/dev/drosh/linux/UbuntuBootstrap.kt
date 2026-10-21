@@ -431,6 +431,9 @@ class UbuntuBootstrap(private val context: Context) {
 
     companion object {
         private const val UBUNTU_VERSION = "24.04.4"
+
+        /** The chroot-ng runtime, as it travels in the APK. */
+        private const val CHROOT_NG_ASSET = "libchrootng.so"
         private val ROOTFS_ARCH_MAP = mapOf(
             "arm64-v8a" to "arm64",
             "armeabi-v7a" to "armhf",
@@ -592,8 +595,3 @@ class UbuntuBootstrap(private val context: Context) {
             .decodeToString()
     }
 }
-
-    private companion object {
-        /** The chroot-ng runtime, as it travels in the APK. */
-        const val CHROOT_NG_ASSET = "libchrootng.so"
-    }
