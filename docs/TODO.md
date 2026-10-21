@@ -523,6 +523,21 @@ Three slices, in this order:
         the shaping happens in the renderer and the terminal never learns a
         ligature exists. Only the ligatures take over: everything else keeps
         the per-codepoint path, which knows the font's fallback chain.
+
+        The shaper is **HarfRust** — rustybuzz is archived, and it does not do
+        the chained-context substitutions that every programming font keeps its
+        ligatures in. The font is the standard JetBrains Mono; the `NL` variant
+        had its ligature tables removed entirely, so it could never ligate.
+
+        **What is left:** the shipped face does not ligate *yet*. Its ligature
+        lookup is a chained-context one, and the shaper does not reach it —
+        measured with every alternate the font has switched on (`aalt`,
+        `calt`, `clig`, `dlig`, `hlig`, `liga`, `rlig`, `ss01`, `ss02`,
+        `ss19`, `ss20`): the pairs still give one glyph per character. Two
+        ways forward: the font's ligature glyphs are in the font, so the
+        renderer could ask for them by name (the `post` table) and draw them
+        itself; or the shaper's chain-context matching could be read closer.
+        Until one of them lands, the setting is plumbing without a picture.
 - [ ] **P3b-2 — the app reads from the engine.** The session log sheet takes
       the engine's transcript, the block engine takes the engine's block
       state, and the search takes the engine's copy. `AnsiStripper`,
