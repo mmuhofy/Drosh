@@ -196,8 +196,5 @@ fn ligatures_follow_the_setting() {
             ligated += 1;
         }
     }
-    assert!(
-        ligated > 0,
-        "the shipped font ligates none of {pairs:?} with ligatures on ({counts})"
-    );
+    assert!(ligated > 0, "the shipped font ligates none of {pairs:?} with ligatures on ({counts})");
 }
