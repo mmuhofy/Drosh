@@ -59,6 +59,7 @@
     <string name="topbar_hide_keyboard">Hide keyboard</string>
     <string name="topbar_open_agent">AI Agent</string>
     <string name="topbar_more_actions">More actions</string>
+    <string name="topbar_shrink_buttons">Hide the top bar</string>
     <string name="topbar_refresh">Refresh terminal</string>
     <string name="topbar_enter_fullscreen">Enter fullscreen</string>
     <string name="topbar_exit_fullscreen">Exit fullscreen</string>

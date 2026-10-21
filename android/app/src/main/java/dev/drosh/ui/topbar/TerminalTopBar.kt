@@ -433,28 +433,16 @@ fun TerminalTopBar(
         var moreExpanded by remember { mutableStateOf(false) }
 
         /*
-         * THE ROW'S OWN GROUND
+         * THE BUTTONS, HIDDEN
          *
-         * When the chrome is up — the viewport is in the scrollback, or a TUI
-         * owns the terminal — the row is a bar of the app's own background,
-         * from the top of the screen to the bottom of the row. The system
-         * status bar's clock sits on it, the pills sit on it, and the whole
-         * thing reads as one bar instead of a row of pale shapes floating
-         * over the output.
-         *
-         * When the chrome is collapsed the app is in fullscreen and the
-         * terminal is the whole screen: there is no bar, and a band across
-         * the top of the output would be a hole in it.
+         * The row can be taken out of the way: the overflow menu has an entry
+         * for it, and the row's buttons go away until the screen is tapped
+         * again. What is left is the terminal — which is what the row was
+         * drawn over in the first place.
          */
-        if (!chromeCollapsed) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(rowOffset + rowHeight)
-                    .background(DroshBackground),
-            )
-        }
+        var buttonsHidden by remember { mutableStateOf(false) }
 
+        if (!buttonsHidden) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -577,6 +565,21 @@ fun TerminalTopBar(
                 )
             }
         }
+        }
+
+        // A tap anywhere brings the row back. The bar is an overlay, so the
+        // tap is taken while the buttons are away — which is exactly when it
+        // is wanted — and given back to the terminal the moment they are.
+        if (buttonsHidden) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { buttonsHidden = false },
+            )
+        }
 
         // Material's DropdownMenu anchors to the position of the composable it is
         // called on. This one sat directly in the full-width bar Box, so it
@@ -589,6 +592,7 @@ fun TerminalTopBar(
                 onDismiss = { moreExpanded = false },
                 onFindInOutput = onFindInOutput,
                 onRefresh = onRefresh,
+                onToggleButtons = { buttonsHidden = !buttonsHidden },
             )
         }
     }
@@ -607,6 +611,7 @@ private fun MoreActionsDropdown(
     onDismiss: () -> Unit,
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
+    onToggleButtons: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
@@ -619,6 +624,9 @@ private fun MoreActionsDropdown(
             // in one four-item list.
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = "refresh"))
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_find), icon = DroshIcons.Search, id = "find"))
+            // The row itself, out of the way: the terminal is what the user
+            // is looking at, and a tap brings the row back.
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_shrink_buttons), icon = DroshIcons.EyeOff, id = "shrink"))
             // Settings is gone from here. It is reachable from the drawer, and
             // an overflow entry that duplicates a drawer item gives two ways to
             // open the same screen.
@@ -628,6 +636,7 @@ private fun MoreActionsDropdown(
             when (item.id) {
                 "refresh" -> onRefresh()
                 "find" -> onFindInOutput()
+                "shrink" -> onToggleButtons()
             }
         },
     )
