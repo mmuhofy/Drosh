@@ -22,6 +22,18 @@ internal class FrameLoop(
     private val blinkMillis: Long = BLINK_MILLIS,
 ) : Choreographer.FrameCallback {
 
+    /**
+     * How long the cursor takes to blink; 0 means it does not.
+     *
+     * alacritty's own setting (`config/cursor.rs` — `blink_interval`), and
+     * the frame loop is where the cursor's blink lives, so the application
+     * changes it here.
+     */
+    var blinkIntervalMillis: Long = blinkMillis
+        set(value) {
+            field = value
+        }
+
     /** Asked once per vsync; `true` when the engine has new output. */
     var poll: (() -> Boolean)? = null
 
@@ -54,7 +66,9 @@ internal class FrameLoop(
             onWakeup()
         }
 
-        if (frameTimeNanos - lastBlinkNanos >= blinkMillis * NANOS_PER_MILLI) {
+        if (blinkIntervalMillis > 0 &&
+            frameTimeNanos - lastBlinkNanos >= blinkIntervalMillis * NANOS_PER_MILLI
+        ) {
             lastBlinkNanos = frameTimeNanos
             onBlink()
         }

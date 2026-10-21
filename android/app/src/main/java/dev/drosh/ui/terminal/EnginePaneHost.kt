@@ -71,7 +71,6 @@ fun EnginePaneHost(
     paneSlot: PaneSlot,
     terminalManager: TerminalManager,
     fontSizeSp: Float,
-    defaultFontSizeSp: Float,
     /**
      * How the terminal should look: the application's configuration.
      *
@@ -141,6 +140,11 @@ fun EnginePaneHost(
      * at the fallback size and is resized a moment later.
      */
     LaunchedEffect(pane) {
+        // The configuration first: the cursor's fallback is fixed when the
+        // session starts, and the cell the grid is laid out around is the one
+        // the size asks for.
+        pane.view.applyAppearance(appearance)
+
         // The guest when there is one, and the plain shell when there is not —
         // the same fallback the vendored path uses, so a user who has not run
         // the setup wizard still gets a terminal on either.
@@ -148,10 +152,6 @@ fun EnginePaneHost(
             ?: terminalManager.plainShellCommand().also {
                 Log.w(TAG, "the guest is not installed; the engine's terminal opens a plain shell")
             }
-        // The size first: the grid is laid out around the cell, and a session
-        // that starts at one size and is resized to another afterwards is a
-        // flash of the wrong grid.
-        pane.view.setTextSize(defaultFontSizeSp)
         if (!pane.start(command)) {
             Log.w(TAG, "the engine refused the session")
             return@LaunchedEffect

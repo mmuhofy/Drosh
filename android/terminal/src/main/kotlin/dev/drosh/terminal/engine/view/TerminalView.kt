@@ -93,16 +93,6 @@ class TerminalView(context: Context) : FrameLayout(context) {
     /** False when the bundled font failed to load; the view is dead without it. */
     private var fontLoaded = false
 
-    /**
-     * The cursor's shape, when the terminal has not asked for one.
-     *
-     * alacritty's own fallback (`TermConfig::default_cursor_style`): the
-     * terminal's `DECSCUSR` wins over the application's setting.
-     */
-    internal var defaultCursorStyle: Int = dev.drosh.terminal.engine.core.NativeCore.CURSOR_BLOCK
-
-    /** How long the cursor takes to blink; 0 means it does not. */
-    internal var cursorBlinkMillis: Long = 750L
 
     private var exited = false
 
@@ -428,13 +418,15 @@ class TerminalView(context: Context) : FrameLayout(context) {
             .let { dev.drosh.terminal.engine.core.Palette.setApplicationTable(it) }
 
         // The cursor's shape is the terminal's to decide; this is what it falls
-        // back on (alacritty: `TermConfig::default_cursor_style`).
-        defaultCursorStyle = when (appearance.cursorStyle) {
+        // back on (alacritty: `TermConfig::default_cursor_style`). The term's
+        // configuration is fixed when the session starts, so the shape goes
+        // into the session rather than into the renderer.
+        session.cursorShape = when (appearance.cursorStyle) {
             dev.drosh.domain.settings.CursorStyle.Block ->
                 dev.drosh.terminal.engine.core.NativeCore.CURSOR_BLOCK
 
             dev.drosh.domain.settings.CursorStyle.Beam ->
-                dev.drosh.terminal.engine.core.NativeCore.CURSOR_BAR
+                dev.drosh.terminal.engine.core.NativeCore.CURSOR_BEAM
 
             dev.drosh.domain.settings.CursorStyle.Underline ->
                 dev.drosh.terminal.engine.core.NativeCore.CURSOR_UNDERLINE
@@ -444,7 +436,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
         dev.drosh.terminal.engine.core.Palette.boldBrightens = appearance.boldBrightens
 
         // The blink is the frame loop's business, and it asks the view.
-        cursorBlinkMillis = appearance.cursorBlinkMs.toLong()
+        frameLoop.blinkIntervalMillis = appearance.cursorBlinkMs.toLong()
 
         setTextSize(appearance.textSizeSp)
         requestRender()

@@ -45,6 +45,16 @@ class EngineSession(
     var handle: Long = NO_HANDLE
         private set
 
+    /**
+     * The cursor's shape, when the terminal has not asked for one.
+     *
+     * alacritty's fallback (`TermConfig::default_cursor_style`): the
+     * terminal's `DECSCUSR` wins, and this is what it falls back on. It is
+     * fixed when the session starts, because the term's configuration is.
+     */
+    @Volatile
+    var cursorShape: Int = NativeCore.CURSOR_BLOCK
+
     /** True while the core holds a live session for this wrapper. */
     val isAlive: Boolean get() = handle != NO_HANDLE
 
@@ -129,6 +139,7 @@ class EngineSession(
             args.joinToString("\n"),
             env.entries.joinToString("\n") { (key, value) -> "$key=$value" },
             cwd,
+            cursorShape,
         )
         if (created <= 0L) {
             return created.toInt()

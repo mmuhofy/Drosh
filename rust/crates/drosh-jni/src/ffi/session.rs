@@ -35,6 +35,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeCrea
     args: JString<'local>,
     env_vars: JString<'local>,
     cwd: JString<'local>,
+    cursor_shape: jint,
 ) -> jlong {
     let result = (|| -> FfiResult<u64> {
         let size = grid_size(columns, rows)?;
@@ -48,6 +49,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeCrea
             program: required_string(&mut env, &program)?,
             args: decode_lines(&required_string(&mut env, &args)?),
             env: decode_env(&required_string(&mut env, &env_vars)?)?,
+            cursor_shape: decode_cursor_shape(cursor_shape),
             cwd: optional_string(&mut env, &cwd)?,
         };
 
@@ -185,6 +187,22 @@ fn grid_size(columns: jint, rows: jint) -> FfiResult<GridSize> {
         Ok(size)
     } else {
         Err(ErrorCode::InvalidArgument)
+    }
+}
+
+/// The cursor's shape, as the application named it.
+///
+/// alacritty's shape set (`vte::ansi::CursorShape`): block, underline, beam,
+/// hollow block and hidden. An unknown number is a block, which is what the
+/// terminal falls back on anyway.
+fn decode_cursor_shape(shape: jint) -> alacritty_terminal::vte::ansi::CursorShape {
+    use alacritty_terminal::vte::ansi::CursorShape;
+    match shape {
+        1 => CursorShape::Underline,
+        2 => CursorShape::Beam,
+        3 => CursorShape::HollowBlock,
+        4 => CursorShape::Hidden,
+        _ => CursorShape::Block,
     }
 }
 

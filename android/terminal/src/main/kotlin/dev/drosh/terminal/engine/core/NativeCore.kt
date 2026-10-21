@@ -142,6 +142,7 @@ internal object NativeCore {
         args: String,
         env: String,
         cwd: String?,
+        cursorShape: Int,
     ): Long
 
     external fun nativeCreateBridgedSession(

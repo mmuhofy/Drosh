@@ -1864,7 +1864,6 @@ private fun TerminalPaneBody(
                     paneSlot = paneSlot,
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
-                    defaultFontSizeSp = defaultFontSizeSp,
                     appearance = terminalAppearance,
                     appearanceSource = appearanceSource,
                     onBoundsChanged = onBoundsChanged,

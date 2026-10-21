@@ -208,7 +208,10 @@ pub fn write_state<T: EventListener>(term: &Term<T>, out: &mut [i32; STATE_LEN])
     out[state_index::ROWS] = term.screen_lines() as i32;
     out[state_index::CURSOR_ROW] = viewport.map_or(-1, |point| point.line as i32);
     out[state_index::CURSOR_COL] = viewport.map_or(-1, |point| point.column.0 as i32);
-    out[state_index::CURSOR_SHAPE] = cursor_shape_code(content.cursor.shape);
+    // alacritty's rule: the terminal's own `DECSCUSR` wins, and the
+    // application's setting is the fallback (`Term::cursor_style` —
+    // `self.cursor_style.unwrap_or(self.config.default_cursor_style)`).
+    out[state_index::CURSOR_SHAPE] = cursor_shape_code(term.cursor_style().shape);
     out[state_index::DISPLAY_OFFSET] = offset as i32;
     out[state_index::MODE_BITS] = mode_bits(content.mode) as i32;
     out[state_index::COLORS] = colors_fingerprint(term.colors());

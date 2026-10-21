@@ -29,7 +29,7 @@ use alacritty_terminal::event_loop::{EventLoop, EventLoopSender, Msg};
 use alacritty_terminal::grid::{Dimensions, Scroll};
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::color::COUNT as COLOR_COUNT;
-use alacritty_terminal::term::{Config, LineDamageBounds, Osc52, Term};
+use alacritty_terminal::term::{Config, CursorStyle, LineDamageBounds, Osc52, Term};
 use alacritty_terminal::vte::ansi::{Processor, Rgb, StdSyncHandler};
 
 use crate::block::{BlockPhase, BlockTracker};
@@ -98,6 +98,11 @@ pub struct SessionConfig {
     /// defaults, `PATH` only on Android.
     pub env: Vec<(String, String)>,
     pub cwd: Option<String>,
+    /// The cursor's shape when the terminal has not asked for one.
+    ///
+    /// alacritty's own fallback (`TermConfig::default_cursor_style`): the
+    /// terminal's `DECSCUSR` wins, and this is what it falls back on.
+    pub cursor_shape: alacritty_terminal::vte::ansi::CursorShape,
 }
 
 /// What can go wrong around a session.
@@ -168,7 +173,14 @@ impl Session {
         // (D12): only the local shell can read the clipboard. alacritty defaults
         // to `OnlyCopy` because a remote could exfiltrate it — revisit this when
         // SSH lands (PLAN.md §8).
-        let term_config = Config { osc52: Osc52::CopyPaste, ..Config::default() };
+        let term_config = Config {
+            osc52: Osc52::CopyPaste,
+            default_cursor_style: CursorStyle {
+                shape: config.cursor_shape,
+                blinking: false,
+            },
+            ..Config::default()
+        };
         let terminal = Term::new(term_config, &config.size, proxy.clone());
         let term = Arc::new(FairMutex::new(terminal));
 
