@@ -2281,7 +2281,7 @@ private fun TerminalViewHost(
                 // session, and a pinch from the session that came before it
                 // belongs to that session alone.
                 setTextSize(defaultFontSizeSp)
-                keepPositionWhileReading = keepPositionWhileReading
+                this.keepPositionWhileReading = keepPositionWhileReading
                 isFocusable = true
                 isFocusableInTouchMode = true
                 setTerminalViewClient(viewClient)
