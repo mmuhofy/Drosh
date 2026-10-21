@@ -27,12 +27,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.R
 import dev.drosh.domain.terminal.PaneSlot
-import dev.drosh.theme.DroshTextSecondary
-import dev.drosh.theme.LocalFontSet
 import dev.drosh.terminal.session.EnginePane
 import dev.drosh.terminal.session.TerminalManager
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.LocalFontSet
+import dev.drosh.ui.R
 
 /**
  * A pane that runs on the Rust engine rather than on the vendored Termux
