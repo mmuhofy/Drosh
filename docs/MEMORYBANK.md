@@ -1938,6 +1938,20 @@ data class SshHost(
    the cells, the renderer shapes them, and only the ligatures take over
    — everything else keeps the per-codepoint path, which knows the
    font's fallback chain.
+✅ The shaper is **HarfRust**, not rustybuzz. rustybuzz does not do
+   the *chained context* substitutions (GSUB type 6), and every
+   programming font keeps its ligatures in exactly that kind of lookup
+   — JetBrains Mono's `->` is one. rustybuzz is also archived and points
+   at HarfRust, which is a complete HarfBuzz in Rust. The font is the
+   standard JetBrains Mono now; the `NL` variant had its ligature
+   tables removed entirely, so it could never ligate.
+✅ The top bar's pills carry no fill of their own. The tint was the
+   app's light surface, which in the light theme is a near-white field:
+   a row of pale shapes over the terminal, which read as a white bar.
+   The pill is glass — the terminal's own colours behind it — and the
+   row's text and icons are the terminal's foreground, not the app's.
+✅ The overflow menu can take the row away: "Hide the top bar" leaves
+   the terminal on its own until the screen is tapped.
 ✅ The engine ships the standard JetBrains Mono, not the `NL` variant.
    The `NL` files were the honest choice while there was no ligature
    support; now the shaper switches `liga`/`clig`/`calt`/`rlig` off when
