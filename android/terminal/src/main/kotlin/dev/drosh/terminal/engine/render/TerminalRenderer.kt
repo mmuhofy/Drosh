@@ -170,8 +170,10 @@ internal class TerminalRenderer(
         if (size.px <= 0f || size.metrics.width <= 0f || size.metrics.height <= 0f) {
             return
         }
-        if (size.px == fontSize.px) {
-            // The same size again: the grid is already laid out for it.
+        if (size.px == fontSize.px && size.metrics == fontSize.metrics) {
+            // The same size and the same cell again: the grid is already laid
+            // out for it. The metrics are compared too, because a font can
+            // change without the pixel size changing.
             return
         }
 
@@ -180,6 +182,16 @@ internal class TerminalRenderer(
         // never drawn again, and a pinch would fill the atlas with them.
         atlas.reset()
         updateGrid()
+    }
+
+    /**
+     * Drop the atlas's masks.
+     *
+     * The font changed: every mask in the atlas was drawn from the old face,
+     * and a mask of the wrong face is the wrong mask.
+     */
+    fun invalidateAtlas() {
+        atlas.reset()
     }
 
     /**

@@ -1,6 +1,6 @@
 //! What to draw for a codepoint.
 //!
-//! Phase B ships exactly one font (JetBrains Mono NL), which covers Latin,
+//! Phase B ships exactly one font (JetBrains Mono), which covers Latin,
 //! Greek, Cyrillic and the box-drawing range. Everything outside it — CJK,
 //! emoji, historic scripts — would come from a fallback chain, and that chain is
 //! not built yet: the grid must stay aligned, so such a cell gets the

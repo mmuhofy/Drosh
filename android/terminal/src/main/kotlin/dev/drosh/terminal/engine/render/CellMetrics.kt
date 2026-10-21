@@ -26,6 +26,18 @@ internal class CellMetrics(private val values: FloatArray) {
     /** Thickness of the underline and strikeout, scaled with the font. */
     val rule = (height * 0.06f).coerceAtLeast(1f)
 
+    /**
+     * The same geometry, value for value.
+     *
+     * A font can change without the size changing, and then the cell is a
+     * different cell even though the pixel size is the same — the renderer
+     * lays the grid out around the cell, so it has to know.
+     */
+    override fun equals(other: Any?): Boolean =
+        other is CellMetrics && values.contentEquals(other.values)
+
+    override fun hashCode(): Int = values.contentHashCode()
+
     companion object {
         /**
          * Ask the core for the metrics at `px`.

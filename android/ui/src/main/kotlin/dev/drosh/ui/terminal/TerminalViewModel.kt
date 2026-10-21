@@ -117,6 +117,16 @@ class TerminalViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, Properties())
 
     /**
+     * The font file the user picked for the terminal, if any.
+     *
+     * A URI, not the file: the bytes are read when the terminal asks for
+     * them, and a font that cannot be read leaves the terminal as it was.
+     */
+    val customFontUri: StateFlow<String> = store.settings
+        .map { it.appearance.customFontUri }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    /**
      * The terminal's configuration, as the engine is handed it.
      *
      * The engine's own answers still win: the colours an `OSC 4/10/11/12` set

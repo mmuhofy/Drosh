@@ -7,7 +7,7 @@
 //!   metrics the renderer lays the grid out with.
 //! - [`fallback`]: what to draw for a codepoint the font has no glyph for.
 //!
-//! Phase B ships one font inside the APK (JetBrains Mono NL, OFL-1.1 — see
+//! Phase B ships one font inside the APK (JetBrains Mono, OFL-1.1 — see
 //! `android/app/src/main/assets/fonts/README.md`), so a cell has the same pixel
 //! size on every device and nothing here reads `/system/fonts`. The renderer
 //! only ever receives coverage masks; colour glyphs (emoji) are a recorded
@@ -130,10 +130,10 @@ impl FontStack {
     /// Shape `text`.
     ///
     /// `ligatures` is the application's setting, and the font's own tables
-    /// decide what it means: the shipped face is the NL variant and carries no
-    /// ligature lookups at all, so the setting changes nothing until a font
-    /// with them is installed. Turning them off explicitly is what keeps a
-    /// future standard font from ligating behind the user's back.
+    /// decide what it means: the shipped face is the standard JetBrains Mono,
+    /// whose ligatures live in the `calt` feature. Turning them off is what
+    /// keeps the font from ligating behind the user's back — a terminal cell
+    /// must show the character the guest wrote when the setting says so.
     pub fn shape(
         &self,
         text: &str,

@@ -50,6 +50,15 @@ data class DroshSettings(
 data class AppearanceSettings(
     val themeMode: ThemeMode = ThemeMode.System,
     val fontPack: FontPack = FontPack.Geist,
+    /**
+     * A font file of the user's own, for the terminal.
+     *
+     * The URI of a font the user picked with the system picker; empty means
+     * the bundled face. The engine is handed the file's bytes and measures
+     * its cell from it, so the grid is laid out around the font the user
+     * chose.
+     */
+    val customFontUri: String = "",
     /** BCP-47-ish tag; "" follows the system. */
     val language: String = "",
     /**

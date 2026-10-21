@@ -213,6 +213,14 @@ class EnginePane(context: Context) {
      * raises it, and a focus that arrives from somewhere else is not the
      * user asking for a keyboard.
      */
+    /**
+     * Use a font of the host's choosing, instead of the bundled one.
+     *
+     * The bytes are the font file itself; `null` goes back to the bundled
+     * face. A font that cannot be used leaves the terminal as it was.
+     */
+    fun setCustomFont(bytes: ByteArray?): Boolean = view.setCustomFont(bytes)
+
     fun focus() {
         view.requestFocus()
         imeTarget.requestFocus()

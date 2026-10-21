@@ -10,8 +10,8 @@ use drosh_font::fallback::Resolution;
 use drosh_font::shape;
 use drosh_font::{FontStack, Weight};
 
-const REGULAR: &str = "JetBrainsMonoNL-Regular.ttf";
-const BOLD: &str = "JetBrainsMonoNL-Bold.ttf";
+const REGULAR: &str = "JetBrainsMono-Regular.ttf";
+const BOLD: &str = "JetBrainsMono-Bold.ttf";
 
 /// The shipped asset, reached from the crate directory: three levels up to the
 /// repository root, then into the Gradle module that carries the font.
@@ -164,4 +164,39 @@ fn codepoints_outside_the_font_are_substituted_and_reported() {
 
     // The raw helper says the same thing without a FontStack.
     assert!(matches!(drosh_font::fallback::resolve(&regular, '中'), Resolution::Substituted(_)));
+
+    /// The font's ligatures, and the setting that switches them off.
+    ///
+    /// The shipped face is the standard JetBrains Mono, whose ligatures live
+    /// in the `calt` feature. Turning ligatures off disables `liga`, `clig`,
+    /// `calt` and `rlig` at shape time, so the same face gives one glyph per
+    /// character and the terminal shows what the guest wrote.
+    #[test]
+    fn ligatures_follow_the_setting() {
+        let stack = stack();
+
+        // The pairs a terminal font is expected to ligate.
+        let pairs = ["->", "=>", "!=", "==", ">="];
+
+        let shaped_off = stack.shape("->", Weight::Regular, false).expect("shaping");
+        assert_eq!(
+            shaped_off.len(),
+            2,
+            "with ligatures off every character is a glyph of its own"
+        );
+
+        let ligated = pairs
+            .iter()
+            .filter(|pair| {
+                stack
+                    .shape(pair, Weight::Regular, true)
+                    .map(|glyphs| glyphs.len() < pair.chars().count())
+                    .unwrap_or(false)
+            })
+            .count();
+        assert!(
+            ligated > 0,
+            "the shipped font ligates none of {pairs:?} with ligatures on"
+        );
+    }
 }

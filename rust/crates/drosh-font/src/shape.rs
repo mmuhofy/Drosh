@@ -22,9 +22,9 @@ pub struct ShapedGlyph {
 /// Shape `text` with the given face's bytes.
 ///
 /// `ligatures = false` disables `liga`, `clig`, `calt` and `rlig`: a terminal
-/// cell must keep the character the guest wrote (D6 — no ligatures in the
-/// prototype). The shipped font is the NL variant, whose tables have no
-/// ligature lookups at all, so this is belt and braces for a future font swap.
+/// cell must keep the character the guest wrote when the setting says so. The
+/// shipped face is the standard JetBrains Mono, whose ligatures live in
+/// `calt`, so this is what switches them off.
 pub fn shape_text(data: &[u8], text: &str, ligatures: bool) -> Option<Vec<ShapedGlyph>> {
     let face = Face::from_slice(data, 0)?;
 

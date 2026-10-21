@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -15,8 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import dev.drosh.ui.session.DeviceBadge
 import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshTextMuted
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -112,6 +117,23 @@ typealias OnSettingsUpdate = ((DroshSettings) -> DroshSettings) -> Unit
 
 // ── Appearance ───────────────────────────────────────────────────────────────
 
+/**
+ * What the system picker offers for a font file.
+ *
+ * The MIME types a font file can arrive under are not agreed on: some
+ * providers say `font/ttf`, some `application/x-font-ttf`, some nothing at
+ * all. The last one is the escape hatch, and a file with no type is still a
+ * file the user picked.
+ */
+private val FONT_FILE_TYPES = arrayOf(
+    "font/ttf",
+    "font/otf",
+    "application/x-font-ttf",
+    "application/x-font-truetype",
+    "application/octet-stream",
+)
+
+
 @Composable
 fun AppearanceCategory(
     settings: DroshSettings,
@@ -126,6 +148,28 @@ fun AppearanceCategory(
     val pickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> uri?.let { viewModel.importBackgroundImage(it) } }
+
+    val context = LocalContext.current
+
+    // The user's own font file. The system picker gives a URI, and the
+    // permission to read it is taken for as long as the app lives — without
+    // that the file is readable now and gone after a restart.
+    val fontPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) {
+            return@rememberLauncherForActivityResult
+        }
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+        onUpdate {
+            it.copy(appearance = it.appearance.copy(customFontUri = uri.toString()))
+        }
+    }
 
     SettingsCategoryScreen(
         title = stringResource(R.string.settings_category_appearance),
@@ -193,6 +237,52 @@ fun AppearanceCategory(
                         selected = settings.appearance.fontPack,
                         onSelect = { pack ->
                             onUpdate { it.copy(appearance = it.appearance.copy(fontPack = pack)) }
+                        },
+                    )
+                    // A font of the user's own, for the terminal. The packs
+                    // above are the app's text; this one is the terminal's
+                    // face, and it is a file the user picks.
+                    SettingsSubRow(
+                        icon = DroshIcons.File,
+                        label = stringResource(R.string.settings_font_custom),
+                        description = settings.appearance.customFontUri
+                            .ifBlank { stringResource(R.string.settings_font_custom_none) }
+                            .substringAfterLast('/'),
+                        trailing = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (settings.appearance.customFontUri.isNotBlank()) {
+                                    IconButton(
+                                        onClick = {
+                                            onUpdate {
+                                                it.copy(
+                                                    appearance = it.appearance.copy(customFontUri = ""),
+                                                )
+                                            }
+                                        },
+                                    ) {
+                                        Icon(
+                                            imageVector = DroshIcons.X,
+                                            contentDescription = stringResource(
+                                                R.string.settings_font_custom_clear,
+                                            ),
+                                            tint = DroshTextMuted,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                }
+                                IconButton(
+                                    onClick = { fontPicker.launch(FONT_FILE_TYPES) },
+                                ) {
+                                    Icon(
+                                        imageVector = DroshIcons.Folder,
+                                        contentDescription = stringResource(
+                                            R.string.settings_font_custom_choose,
+                                        ),
+                                        tint = DroshPrimary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
                         },
                     )
                 }

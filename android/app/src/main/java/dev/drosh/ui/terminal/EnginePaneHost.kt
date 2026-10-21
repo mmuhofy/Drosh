@@ -79,6 +79,8 @@ fun EnginePaneHost(
      * alacritty splits it.
      */
     appearance: dev.drosh.domain.settings.TerminalConfig,
+    /** The font file the user picked for the terminal, if any. */
+    customFontUri: String,
     /**
      * Where this pane's terminal is sampled for the chrome.
      *
@@ -139,6 +141,25 @@ fun EnginePaneHost(
      * surface it has, and a session started before the view is laid out opens
      * at the fallback size and is resized a moment later.
      */
+    /**
+     * The font file the user picked, handed over when it changes.
+     *
+     * The bytes are read here rather than kept in the settings: a font file
+     * is megabytes, and the settings file is a small text file that is read
+     * on every change.
+     */
+    LaunchedEffect(customFontUri) {
+        val bytes = if (customFontUri.isBlank()) {
+            null
+        } else {
+            readFontBytes(context, customFontUri)
+        }
+        if (bytes == null && customFontUri.isNotBlank()) {
+            Log.w(TAG, "the font file could not be read; the bundled font stays")
+        }
+        pane.setCustomFont(bytes)
+    }
+
     LaunchedEffect(pane) {
         // The configuration first: the cursor's fallback is fixed when the
         // session starts, and the cell the grid is laid out around is the one
@@ -370,3 +391,14 @@ fun EnginePaneHost(
 }
 
 private const val TAG = "EnginePaneHost"
+
+/**
+ * A font file's bytes, read through the content resolver.
+ *
+ * The URI is the one the system picker gave, and the permission to read it
+ * was taken when it was picked. A file that cannot be read is `null`: the
+ * terminal keeps the font it had.
+ */
+private fun readFontBytes(context: android.content.Context, uri: String): ByteArray? = runCatching {
+    context.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { it.readBytes() }
+}.getOrNull()

@@ -445,6 +445,9 @@ private fun ReadyScreen(
 
     /** The terminal's configuration, as the engine is handed it. */
     val terminalConfig by terminalViewModel.terminalConfig.collectAsStateWithLifecycle()
+
+    /** The font file the user picked for the terminal, if any. */
+    val customFontUri by terminalViewModel.customFontUri.collectAsStateWithLifecycle()
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
@@ -1162,6 +1165,7 @@ private fun ReadyScreen(
                     appearanceSource = appearanceSource,
                     terminalBackend = terminalBackend,
                     terminalConfig = terminalConfig,
+                    customFontUri = customFontUri,
                     onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
                 )
@@ -1211,6 +1215,7 @@ private fun ReadyScreen(
                     appearanceSource = appearanceSource,
                     terminalBackend = terminalBackend,
                     terminalConfig = terminalConfig,
+                    customFontUri = customFontUri,
                     // Bounds are the top bar's backdrop sample, and the top bar
                     // reads whichever pane has focus. Letting the unfocused pane
                     // report would leave the bar sampling a terminal the user is
@@ -1838,6 +1843,8 @@ private fun TerminalPaneBody(
      * the ligatures, the size. The engine's own answers still win.
      */
     terminalConfig: dev.drosh.domain.settings.TerminalConfig,
+    /** The font file the user picked for the terminal, if any. */
+    customFontUri: String,
     onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
 ) {
@@ -1894,6 +1901,7 @@ private fun TerminalPaneBody(
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
                     appearance = terminalConfig,
+                    customFontUri = customFontUri,
                     appearanceSource = appearanceSource,
                     onBoundsChanged = onBoundsChanged,
                     modifier = Modifier.fillMaxSize(),

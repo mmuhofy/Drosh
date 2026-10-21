@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import kotlin.math.roundToInt
+import dev.drosh.theme.DroshBackground
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshSurfaceHigh
@@ -430,6 +431,29 @@ fun TerminalTopBar(
             .height(BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET),
     ) {
         var moreExpanded by remember { mutableStateOf(false) }
+
+        /*
+         * THE ROW'S OWN GROUND
+         *
+         * When the chrome is up — the viewport is in the scrollback, or a TUI
+         * owns the terminal — the row is a bar of the app's own background,
+         * from the top of the screen to the bottom of the row. The system
+         * status bar's clock sits on it, the pills sit on it, and the whole
+         * thing reads as one bar instead of a row of pale shapes floating
+         * over the output.
+         *
+         * When the chrome is collapsed the app is in fullscreen and the
+         * terminal is the whole screen: there is no bar, and a band across
+         * the top of the output would be a hole in it.
+         */
+        if (!chromeCollapsed) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(rowOffset + rowHeight)
+                    .background(DroshBackground),
+            )
+        }
 
         Row(
             modifier = Modifier

@@ -21,6 +21,10 @@
     <string name="settings_font_inter">Inter</string>
     <string name="settings_font_geist_desc">Geist Sans with Geist Mono</string>
     <string name="settings_font_inter_desc">Inter with JetBrains Mono</string>
+    <string name="settings_font_custom">Custom font</string>
+    <string name="settings_font_custom_none">The bundled terminal font</string>
+    <string name="settings_font_custom_choose">Choose a font file</string>
+    <string name="settings_font_custom_clear">Use the bundled font</string>
     <string name="settings_font_size_value">%1$ssp</string>
     <string name="settings_cursor_blink">Cursor blink</string>
     <string name="settings_cursor_blink_off">Off</string>

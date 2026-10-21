@@ -515,6 +515,61 @@ class TerminalView(context: Context) : FrameLayout(context) {
     var startError: String? = null
         private set
 
+    /**
+     * Use a font of the host's choosing, instead of the bundled one.
+     *
+     * The bytes are the font file itself: the host reads it — from the
+     * device, from anywhere else — and hands it over. The engine does not
+     * know where a font came from, and the bundled face is only the default.
+     *
+     * A custom face has no bold companion, so bold text is drawn from the
+     * same face and emboldened by the renderer. The cell is measured from
+     * the new face, so the grid is laid out around it.
+     *
+     * `null` goes back to the bundled font.
+     */
+    fun setCustomFont(bytes: ByteArray?): Boolean {
+        if (!fontLoaded) {
+            return false
+        }
+
+        val init = try {
+            if (bytes == null) {
+                val regular = context.assets.open(REGULAR_FONT).use { it.readBytes() }
+                val bold = context.assets.open(BOLD_FONT).use { it.readBytes() }
+                NativeCore.nativeInitFont(regular, bold)
+            } else {
+                NativeCore.nativeInitFont(bytes, null)
+            }
+        } catch (error: Throwable) {
+            Log.e(TAG, "the custom font could not be read", error)
+            return false
+        }
+        if (init != NativeCore.OK) {
+            Log.e(TAG, "font: the custom font was refused ($init)")
+            return false
+        }
+
+        val loaded = CellMetrics.fromCore(fontPx)
+        if (loaded == null) {
+            Log.e(TAG, "font: the custom font produced no cell metrics")
+            return false
+        }
+        metrics = loaded
+
+        // The atlas holds the masks of the font that was there before; every
+        // one of them is wrong now.
+        surface.queueEvent {
+            renderer.invalidateAtlas()
+            renderer.setFontSize(FontSize(fontPx, metrics))
+        }
+        Log.i(
+            TAG,
+            "font: the custom face, cell ${metrics.width}x${metrics.height}px at ${fontPx}px",
+        )
+        return true
+    }
+
     private fun loadFont(): Boolean {
         val scale = resources.displayMetrics.scaledDensity
         fontPx = spToPx(DEFAULT_TEXT_SIZE_SP)
@@ -672,8 +727,8 @@ class TerminalView(context: Context) : FrameLayout(context) {
         const val MAX_TEXT_SIZE_SP = 96f
 
         /** The faces bundled in the engine module (one font, everywhere identical). */
-        const val REGULAR_FONT = "fonts/JetBrainsMonoNL-Regular.ttf"
-        const val BOLD_FONT = "fonts/JetBrainsMonoNL-Bold.ttf"
+        const val REGULAR_FONT = "fonts/JetBrainsMono-Regular.ttf"
+        const val BOLD_FONT = "fonts/JetBrainsMono-Bold.ttf"
 
         /** Label on the clipboard entry, so a paste is recognisable. */
         const val CLIPBOARD_LABEL = "dev.drosh"
