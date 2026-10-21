@@ -171,6 +171,27 @@ fun EnginePaneHost(
     }
 
     /**
+     * The pane's own news, logged.
+     *
+     * The engine's session can die — a guest that cannot start, a shell that
+     * exits — and nothing in the view says so: the surface goes on drawing an
+     * empty grid. A terminal that is empty and silent is the hardest kind of
+     * bug to read, so the exit is logged here, where the app's log can be read
+     * next to the engine's.
+     */
+    LaunchedEffect(pane) {
+        pane.listener = object : dev.drosh.terminal.engine.view.TerminalView.Listener {
+            override fun onSessionExited(code: Int) {
+                Log.w(TAG, "the engine's session exited with $code")
+            }
+
+            override fun onSessionEvent(record: String) {
+                Log.i(TAG, "engine event: $record")
+            }
+        }
+    }
+
+    /**
      * The pane goes away with the composition.
      *
      * The manager is told first — it is the one that publishes the focus and
