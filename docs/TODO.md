@@ -506,9 +506,25 @@ Three slices, in this order:
         to `currentSession`, which is null for an engine pane.
   - [ ] The engine's own session is in the session list (the sidebar, the log
         sheet and the block engine follow the vendored sessions today).
-- [ ] **P3b-3 — Termux deleted.** The `com.termux.*` sources (4267 lines),
-      `termux.c` and `libtermux.so` go; the checker gets a `com.termux` rule;
-      `data → terminal` debt 13 → 0.
+- [ ] **P3b-3 — Termux deleted.** The `com.termux.*` sources (24 files, 8846
+      lines), `termux.c` and `libtermux.so` go; the checker gets a `com.termux`
+      rule; `data → terminal` debt 13 → 0.
+
+  What still holds Termux in, measured 2026-10-21:
+
+  - the app's **floating-pane overlay** hosts a Termux view (`FloatingPaneOverlayView`) —
+    the last view the app builds itself;
+  - the app's **appearance and find sources** for the Termux path
+    (`TermuxAppearanceSource`, `TermuxFindSource`) — they go with the Termux
+    path, and the engine's stay;
+  - the **data layer** reads four Termux types (`CommandSnapshot`,
+    `CommandStatus`, `ShellIntegrationLevel`, `Logger`);
+  - the **`:terminal` session package** has 29 `com.termux` references left,
+    the biggest being the `TerminalSession` the manager owns.
+
+  Deleting Termux means the app's default terminal is the engine, so it waits
+  for the device gate: until the engine path has been run on a device, the
+  Termux path is the one that works.
 
 - [ ] 14-file `:terminal` behind `useNativeCore`
 - [ ] Termux sources, `termux.c`, `libtermux.so`, setup scripts removed
