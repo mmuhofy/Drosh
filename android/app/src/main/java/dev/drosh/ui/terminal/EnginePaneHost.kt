@@ -78,7 +78,7 @@ fun EnginePaneHost(
      * `OSC 4/10/11/12`, the cursor a `DECSCUSR` asked for — the way
      * alacritty splits it.
      */
-    appearance: dev.drosh.domain.settings.TerminalAppearance,
+    appearance: dev.drosh.domain.settings.TerminalConfig,
     /**
      * Where this pane's terminal is sampled for the chrome.
      *

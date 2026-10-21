@@ -7,7 +7,7 @@ import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.BackgroundSettings
 import dev.drosh.domain.settings.DroshSettings
 import dev.drosh.domain.settings.MotdMode
-import dev.drosh.domain.settings.TerminalAppearance
+import dev.drosh.domain.settings.TerminalConfig
 import dev.drosh.domain.settings.ThemePalette
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.domain.settings.TerminalSettings
@@ -117,15 +117,15 @@ class TerminalViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, Properties())
 
     /**
-     * How the terminal should look, as the application's configuration.
+     * The terminal's configuration, as the engine is handed it.
      *
      * The engine's own answers still win: the colours an `OSC 4/10/11/12` set
      * and the cursor a `DECSCUSR` asked for. This is the half the
      * application owns, the way alacritty splits it.
      */
-    val appearance: StateFlow<TerminalAppearance> = store.settings
+    val terminalConfig: StateFlow<TerminalConfig> = store.settings
         .map { settings ->
-            TerminalAppearance(
+            TerminalConfig(
                 palette = settings.terminal.palette,
                 cursorStyle = settings.terminal.cursorStyle,
                 cursorBlinkMs = settings.terminal.cursorBlinkMs,
@@ -135,7 +135,7 @@ class TerminalViewModel @Inject constructor(
                 fontPack = settings.terminal.fontPack,
             )
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalAppearance())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalConfig())
 
     /**
      * The size a session opens at, as stored. The Settings slider writes this.

@@ -82,7 +82,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import dev.drosh.theme.DroshBackground
 import dev.drosh.theme.DroshError
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
@@ -444,8 +443,8 @@ private fun ReadyScreen(
      */
     val terminalBackend by terminalViewModel.terminalBackend.collectAsStateWithLifecycle()
 
-    /** How the terminal should look: the application's configuration. */
-    val terminalAppearance by terminalViewModel.appearance.collectAsStateWithLifecycle()
+    /** The terminal's configuration, as the engine is handed it. */
+    val terminalConfig by terminalViewModel.terminalConfig.collectAsStateWithLifecycle()
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
@@ -1076,7 +1075,16 @@ private fun ReadyScreen(
             bottom = 20.dp * sidebarPush.progress,
         )
         .clip(RoundedCornerShape(20.dp * sidebarPush.progress))
-        .background(DroshBackground)
+        // The terminal's own colour, and not the app's.
+        //
+        // This is the ground of the whole terminal screen, and the chrome
+        // floats over it: the clock, the pill row, the extra-key bar. The
+        // app's background was behind all of it, which in the light theme is a
+        // near-white field — so a dark terminal had a white strip at the top,
+        // the one part of the screen that belonged to neither the terminal nor
+        // the chrome. The terminal's background is the honest colour there:
+        // it is the colour the grid is drawn on.
+        .background(Color(hexToColorInt(appearance.terminal.palette.background)))
     ) {
                 	/*
          * Terminal content fills all available space.
@@ -1835,6 +1843,18 @@ private fun TerminalPaneBody(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                // The terminal's own colour behind the whole pane, the band
+                // above the grid included.
+                //
+                // The band above the grid is the chrome's ground: the pill row
+                // and the clock float over it, and what is behind them used to
+                // be the *app's* background. In the light theme that is a
+                // near-white field, so a dark terminal had a white strip over
+                // it — the one part of the screen that belonged to neither the
+                // terminal nor the chrome. The terminal's background is the
+                // honest colour there: it is the colour the grid is drawn on,
+                // and the chrome floats over the grid.
+                .background(Color(terminalBackgroundColor))
                 // The grid's top padding, and it moves with the chrome — but the two
                 // states are not symmetric. Collapsed, the status bar is gone and
                 // the grid picks up right where the pills end. Expanded, only the
@@ -1864,7 +1884,7 @@ private fun TerminalPaneBody(
                     paneSlot = paneSlot,
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
-                    appearance = terminalAppearance,
+                    appearance = terminalConfig,
                     appearanceSource = appearanceSource,
                     onBoundsChanged = onBoundsChanged,
                     modifier = Modifier.fillMaxSize(),

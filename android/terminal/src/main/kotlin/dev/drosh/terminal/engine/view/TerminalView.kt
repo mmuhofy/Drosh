@@ -412,16 +412,16 @@ class TerminalView(context: Context) : FrameLayout(context) {
      * answers still win — the colours an `OSC 4/10/11/12` set, the cursor a
      * `DECSCUSR` asked for — because a program that asked has a reason.
      */
-    fun applyAppearance(appearance: dev.drosh.domain.settings.TerminalAppearance) {
+    fun applyAppearance(config: dev.drosh.domain.settings.TerminalConfig) {
         // The palette is the engine's wire format, so it goes in whole.
-        dev.drosh.domain.settings.TerminalPaletteTable.of(appearance.palette)
+        dev.drosh.domain.settings.TerminalPaletteTable.of(config.palette)
             .let { dev.drosh.terminal.engine.core.Palette.setApplicationTable(it) }
 
         // The cursor's shape is the terminal's to decide; this is what it falls
         // back on (alacritty: `TermConfig::default_cursor_style`). The term's
         // configuration is fixed when the session starts, so the shape goes
         // into the session rather than into the renderer.
-        session.cursorShape = when (appearance.cursorStyle) {
+        session.cursorShape = when (config.cursorStyle) {
             dev.drosh.domain.settings.CursorStyle.Block ->
                 dev.drosh.terminal.engine.core.NativeCore.CURSOR_BLOCK
 
@@ -433,12 +433,12 @@ class TerminalView(context: Context) : FrameLayout(context) {
         }
 
         // Whether bold text is drawn in the bright colours.
-        dev.drosh.terminal.engine.core.Palette.boldBrightens = appearance.boldBrightens
+        dev.drosh.terminal.engine.core.Palette.boldBrightens = config.boldBrightens
 
         // The blink is the frame loop's business, and it asks the view.
-        frameLoop.blinkIntervalMillis = appearance.cursorBlinkMs.toLong()
+        frameLoop.blinkIntervalMillis = config.cursorBlinkMs.toLong()
 
-        setTextSize(appearance.textSizeSp)
+        setTextSize(config.textSizeSp)
         requestRender()
     }
 

@@ -24,7 +24,7 @@ package dev.drosh.domain.settings
  * alacritty's do: the configuration belongs to the application, the terminal
  * crate only knows what to fall back on.
  */
-data class TerminalAppearance(
+data class TerminalConfig(
     /** The theme's colours. */
     val palette: ThemePalette = ThemePalette.DEFAULT,
     /** The cursor's shape, when the terminal has not asked for one. */
