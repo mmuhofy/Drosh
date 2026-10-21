@@ -543,9 +543,12 @@ Three slices, in this order:
 ### P4 — `:linux` extracted, chroot-ng replaces PRoot
 - [x] chroot-ng is consumed as a **pinned release asset**, not vendored source.
       `mmuhofy/chroot-ng` publishes its AArch64 build as `libchrootng.so` with
-      a tag and a SHA-256; CI fetches it into
-      `android/terminal/src/main/jniLibs/arm64-v8a/` and refuses to package an
-      APK without it. The 69k lines of vendored C are out of this repository.
+      a tag and a SHA-256. It ships in the repository at
+      `android/linux/src/main/jniLibs/arm64-v8a/`, and CI checks the hash of
+      the bytes rather than fetching them: the binary is third-party and does
+      not change with our code, so a build that has to fetch it is a build that
+      can be made without one. The APK is checked for it either way. The 69k
+      lines of vendored C are out of this repository.
 - [x] Move rootfs/bootstrap/archive into `:linux` — the module exists, and the
       bootstrap, the rootfs archive, the guest launchers and the guest's assets
       live in it. `data → terminal` debt 22 → 13, and the rules for `:linux`

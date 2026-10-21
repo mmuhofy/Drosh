@@ -137,18 +137,13 @@ rust/                   → the Cargo workspace; `cargo test` runs from here
   crates/drosh-font/    → rustybuzz shaping + swash rasterisation
 ```
 
-The guest runtime — [chroot-ng](https://github.com/mmuhofy/chroot-ng) — is not
-in this repository. It is fetched from its own release, pinned by tag and
-SHA-256, and packaged into the APK by CI. A local build has to fetch it too:
-
-```bash
-tools/fetch-chroot-ng.sh
-```
-
-Without it the APK has no chroot-ng, and choosing it in the setup wizard gives
-a session that dies with `exec(".../libchrootng.so"): No such file or
-directory` — the release build fetches it, so this only bites a local build
-that skipped the step.
+The guest runtime — [chroot-ng](https://github.com/mmuhofy/chroot-ng) — is a
+third-party binary, so it ships in the repository at
+`android/linux/src/main/jniLibs/arm64-v8a/libchrootng.so`, the build that
+published it (`v1.2.0`, SHA-256 `29473e36…`). It does not change with our
+code, and a build that has to fetch it is a build that can be made without
+one. CI checks the hash rather than fetching it, so the bytes in an APK are
+always the ones that release published.
 
 Project names are unchanged by the split — `:app`, `:data`, … — so a module is
 `android/data/` and is still depended on as `project(":data")`.
