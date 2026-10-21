@@ -181,6 +181,9 @@ fun EnginePaneHost(
      */
     LaunchedEffect(appearance) {
         pane.view.applyAppearance(appearance)
+        // The size is the user's own, not the setting's: the configuration
+        // carries the size a session opens at, and a zoom is not that.
+        pane.view.setTextSize(fontSizeSp)
     }
 
     /**

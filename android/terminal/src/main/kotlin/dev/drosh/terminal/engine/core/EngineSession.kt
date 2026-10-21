@@ -46,6 +46,21 @@ class EngineSession(
         private set
 
     /**
+     * Change the cursor's shape of a running session.
+     *
+     * The fallback the terminal has not overridden: alacritty's own rule, and
+     * the term's configuration can be changed while it runs, so the setting
+     * takes effect without a new session.
+     */
+    fun setCursorShape(shape: Int) {
+        val current = handle
+        if (current == NO_HANDLE) {
+            return
+        }
+        NativeCore.nativeSetCursorShape(current, shape)
+    }
+
+    /**
      * The cursor's shape, when the terminal has not asked for one.
      *
      * alacritty's fallback (`TermConfig::default_cursor_style`): the

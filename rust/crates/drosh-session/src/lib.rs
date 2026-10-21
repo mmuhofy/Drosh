@@ -149,6 +149,13 @@ pub struct Session {
     blocks: Mutex<BlockTracker>,
     /// The last lines the session printed, for a session log.
     output: Arc<Mutex<OutputLog>>,
+    /// The term's configuration, kept so it can be changed while it runs.
+    ///
+    /// alacritty's term can be reconfigured while it runs
+    /// (`Term::set_options`), and the cursor's shape is part of that
+    /// configuration. The term keeps its own copy and does not hand it out,
+    /// so the session keeps one of its own.
+    config: Mutex<Config>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -178,7 +185,7 @@ impl Session {
             default_cursor_style: CursorStyle { shape: config.cursor_shape, blinking: false },
             ..Config::default()
         };
-        let terminal = Term::new(term_config, &config.size, proxy.clone());
+        let terminal = Term::new(term_config.clone(), &config.size, proxy.clone());
         let term = Arc::new(FairMutex::new(terminal));
 
         let pty = LocalPty::spawn(&PtyConfig {
@@ -235,6 +242,7 @@ impl Session {
             parser: Mutex::new(Processor::new()),
             blocks: Mutex::new(BlockTracker::new()),
             output,
+            config: Mutex::new(term_config),
             worker: Mutex::new(Some(worker)),
         })
     }
@@ -468,6 +476,24 @@ impl Session {
     pub fn with_term<R>(&self, f: impl FnOnce(&mut Term<EventProxy>) -> R) -> R {
         let mut term = self.term.lock();
         f(&mut term)
+    }
+
+    /// The cursor's shape, when the terminal has not asked for one.
+    ///
+    /// alacritty's own fallback: the terminal's `DECSCUSR` wins, and the
+    /// application's setting is what it falls back on. The term's
+    /// configuration is fixed when the session starts, but alacritty's term
+    /// can be reconfigured while it runs (`Term::set_options`), so this can
+    /// too — which is what makes the setting take effect without a new
+    /// session.
+    pub fn set_cursor_shape(&self, shape: CursorShape) {
+        let next = {
+            let mut guard = lock(&self.config);
+            guard.default_cursor_style = CursorStyle { shape, blinking: false };
+            guard.clone()
+        };
+
+        self.with_term(|term| term.set_options(next.clone()));
     }
 
     /// Stop the event loop; the PTY and the child are torn down when the loop

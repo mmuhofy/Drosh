@@ -141,6 +141,29 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeWrit
 
 /// Resize grid, PTY and renderer state.
 #[no_mangle]
+/// Change the cursor's shape of a running session.
+///
+/// alacritty's own fallback: the terminal's `DECSCUSR` wins, and this is
+/// what it falls back on. The term's configuration is fixed when the session
+/// starts, but alacritty's term can be reconfigured while it runs, so the
+/// setting takes effect without a new session.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSetCursorShape(
+    _env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    shape: jint,
+) -> jint {
+    let result = (|| -> FfiResult<()> {
+        let session = session_or(id)?;
+        session.set_cursor_shape(decode_cursor_shape(shape));
+        Ok(())
+    })();
+
+    finish(result)
+}
+
+#[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeResize(
     _env: JNIEnv,
     _class: JClass,

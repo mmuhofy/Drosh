@@ -188,6 +188,12 @@ internal object NativeCore {
     external fun nativeSearch(id: Long, query: String, limit: Int): String
 
     /**
+     * Change the cursor's shape of a running session: the fallback the
+     * terminal has not overridden.
+     */
+    external fun nativeSetCursorShape(id: Long, shape: Int): Int
+
+    /**
      * Shape `text` and write the glyphs into `out`: the glyph id, then the
      * byte offset the glyph starts at. The return value is the count of the
      * glyphs, and a negative one is an error code.

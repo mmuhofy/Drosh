@@ -421,7 +421,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // back on (alacritty: `TermConfig::default_cursor_style`). The term's
         // configuration is fixed when the session starts, so the shape goes
         // into the session rather than into the renderer.
-        session.cursorShape = when (config.cursorStyle) {
+        val shape = when (config.cursorStyle) {
             dev.drosh.domain.settings.CursorStyle.Block ->
                 dev.drosh.terminal.engine.core.NativeCore.CURSOR_BLOCK
 
@@ -431,6 +431,11 @@ class TerminalView(context: Context) : FrameLayout(context) {
             dev.drosh.domain.settings.CursorStyle.Underline ->
                 dev.drosh.terminal.engine.core.NativeCore.CURSOR_UNDERLINE
         }
+        session.cursorShape = shape
+        // And the running session, when there is one: the term's
+        // configuration can be changed while it runs, so the setting does not
+        // wait for the next session.
+        session.setCursorShape(shape)
 
         // Whether bold text is drawn in the bright colours.
         dev.drosh.terminal.engine.core.Palette.boldBrightens = config.boldBrightens
