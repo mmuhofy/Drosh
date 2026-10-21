@@ -233,6 +233,7 @@
     <string name="settings_speed_slow">Langsam</string>
     <string name="settings_speed_fast">Schnell</string>
     <string name="terminal_delete_last_session_title">Die letzte session löschen?</string>
+    <string name="terminal_engine_unavailable">Die Terminal-Engine konnte nicht starten: %1$s</string>
     <string name="terminal_guest_runtime_missing">Die %1$s-Laufzeitumgebung des Gasts ist in diesem Build nicht enthalten, der Gast konnte also nicht laufen. Stattdessen wurde eine einfache Shell geöffnet.</string>
     <string name="terminal_delete_last_session_ended_body">Sie endete mit Exit-Code %1$d. Das Löschen schließt die App; eine neue session startet von vorn.</string>
     <string name="terminal_delete_last_session_body">Das Löschen schließt die App; eine neue session startet von vorn.</string>

@@ -455,6 +455,18 @@ class TerminalView(context: Context) : FrameLayout(context) {
      * size on every device; a failure here is a packaging bug and is reported as
      * one instead of starting a session that cannot be laid out.
      */
+    /**
+     * Why the engine could not start, when it could not.
+     *
+     * The usual reason is a build without the Rust core: `libdrosh_core.so` is
+     * cross-compiled by CI and dropped into the app's native library folder, so
+     * a build that skipped that step has no engine at all. The symptom without
+     * this is a white rectangle, because the surface never draws a frame — so
+     * the host is told, in words, what is missing.
+     */
+    var startError: String? = null
+        private set
+
     private fun loadFont(): Boolean {
         val scale = resources.displayMetrics.scaledDensity
         fontPx = spToPx(DEFAULT_TEXT_SIZE_SP)
@@ -466,12 +478,14 @@ class TerminalView(context: Context) : FrameLayout(context) {
             val init = NativeCore.nativeInitFont(regular, bold)
             if (init != NativeCore.OK) {
                 Log.e(TAG, "font: nativeInitFont failed ($init)")
+                startError = "the font stack could not be started ($init)"
                 return false
             }
 
             val loaded = CellMetrics.fromCore(fontPx)
             if (loaded == null) {
                 Log.e(TAG, "font: the faces produced no cell metrics")
+                startError = "the bundled font produced no cell metrics"
                 return false
             }
             metrics = loaded
@@ -485,6 +499,14 @@ class TerminalView(context: Context) : FrameLayout(context) {
             true
         } catch (error: Throwable) {
             Log.e(TAG, "font assets failed to load", error)
+            // A missing native library is the usual cause: the core is
+            // cross-compiled by CI and dropped into the app's native library
+            // folder, and a build that skipped that step has no engine.
+            startError = if (error is UnsatisfiedLinkError) {
+                "the terminal engine (libdrosh_core.so) is not in this build"
+            } else {
+                "the bundled font could not be loaded"
+            }
             false
         }
     }

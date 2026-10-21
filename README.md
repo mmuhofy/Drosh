@@ -191,7 +191,26 @@ cargo test                     # the engine crate, on the host
 ```
 
 The Rust core is built for arm64 only by CI, which drops `libdrosh_core.so`
-into `android/terminal/engine/src/main/jniLibs/arm64-v8a/` before Gradle runs.
+into `android/terminal/src/main/jniLibs/arm64-v8a/` before Gradle runs.
+
+**A local build without it has no terminal engine at all.** The engine's view
+loads the core when it starts, and a missing one is an `UnsatisfiedLinkError`
+before the first frame — which shows up as a white rectangle where the
+terminal should be. The app says so in words when it happens, but the fix is
+the core itself: build the APK in CI, or cross-compile the core for arm64
+first:
+
+```bash
+# the same thing CI does, with the NDK's toolchain
+cd rust
+export ANDROID_NDK_HOME=/path/to/android-ndk
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+export CC_aarch64_linux_android="$CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER"
+export AR_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+cargo build --release --target aarch64-linux-android
+cp target/aarch64-linux-android/release/libdrosh_core.so \
+   ../android/terminal/src/main/jniLibs/arm64-v8a/
+```
 
 CI runs `Build Debug` and `Unit Tests` on every push and pull request, and
 `Build Release` on tags.

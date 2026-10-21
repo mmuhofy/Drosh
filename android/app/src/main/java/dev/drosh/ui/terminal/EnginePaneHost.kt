@@ -1,23 +1,35 @@
 package dev.drosh.ui.terminal
 
 import android.util.Log
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.drosh.R
 import dev.drosh.domain.terminal.PaneSlot
+import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.LocalFontSet
 import dev.drosh.terminal.session.EnginePane
 import dev.drosh.terminal.session.TerminalManager
 
@@ -192,6 +204,33 @@ fun EnginePaneHost(
         if (focusedPane == paneSlot) {
             appearanceSource.value = source
         }
+    }
+
+    /**
+     * Why the engine could not start, when it could not.
+     *
+     * A build without the Rust core has no engine at all, and the symptom
+     * without this is a white rectangle: the surface never draws a frame. So
+     * the pane says what is missing instead of leaving the user with a blank
+     * terminal and no reason.
+     */
+    val startError = pane.view.startError
+
+    if (startError != null) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(R.string.terminal_engine_unavailable, startError),
+                color = DroshTextSecondary,
+                fontFamily = LocalFontSet.current.sans,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(24.dp),
+            )
+        }
+        return
     }
 
     AndroidView(
