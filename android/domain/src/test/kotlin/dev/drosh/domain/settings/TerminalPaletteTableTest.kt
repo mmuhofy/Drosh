@@ -49,7 +49,7 @@ class TerminalPaletteTableTest {
         assertEquals(0x010101, table[TerminalPaletteTable.BLACK])
         assertEquals(0x020202, table[TerminalPaletteTable.RED])
         assertEquals(0x0a0a0a, table[TerminalPaletteTable.BRIGHT_RED])
-        assertEquals(0x101010, table[TerminalPaletteTable.FOREGROUND])
+        assertEquals(0xf0f0f0, table[TerminalPaletteTable.FOREGROUND])
         assertEquals(0x101010, table[TerminalPaletteTable.BACKGROUND])
         assertEquals(0xff00ff, table[TerminalPaletteTable.CURSOR])
     }
@@ -64,10 +64,11 @@ class TerminalPaletteTableTest {
     @Test
     fun `the colour cube is alacritty's`() {
         val table = TerminalPaletteTable.of(ThemePalette())
-        // The first cube entry is black; the next ones step up.
+        // alacritty's own steps: 0, then 55 + 40 * level.
         assertEquals(0x000000, table[16])
         assertEquals(0x00005f, table[17])
-        assertEquals(0x00af00, table[16 + 36])
+        // Index 52 is r1 g2 b4: 95, 135, 215.
+        assertEquals(0x5f87d7, table[16 + 36])
     }
 
     @Test

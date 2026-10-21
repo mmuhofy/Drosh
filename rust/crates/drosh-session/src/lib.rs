@@ -29,8 +29,8 @@ use alacritty_terminal::event_loop::{EventLoop, EventLoopSender, Msg};
 use alacritty_terminal::grid::{Dimensions, Scroll};
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::color::COUNT as COLOR_COUNT;
-use alacritty_terminal::term::{Config, CursorStyle, LineDamageBounds, Osc52, Term};
-use alacritty_terminal::vte::ansi::{Processor, Rgb, StdSyncHandler};
+use alacritty_terminal::term::{Config, LineDamageBounds, Osc52, Term};
+use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb, StdSyncHandler};
 
 use crate::block::{BlockPhase, BlockTracker};
 use crate::transcript::{OutputLog, TranscriptHit, DEFAULT_MAX_LINES};
@@ -102,7 +102,7 @@ pub struct SessionConfig {
     ///
     /// alacritty's own fallback (`TermConfig::default_cursor_style`): the
     /// terminal's `DECSCUSR` wins, and this is what it falls back on.
-    pub cursor_shape: alacritty_terminal::vte::ansi::CursorShape,
+    pub cursor_shape: CursorShape,
 }
 
 /// What can go wrong around a session.
@@ -175,10 +175,7 @@ impl Session {
         // SSH lands (PLAN.md §8).
         let term_config = Config {
             osc52: Osc52::CopyPaste,
-            default_cursor_style: CursorStyle {
-                shape: config.cursor_shape,
-                blinking: false,
-            },
+            default_cursor_style: CursorStyle { shape: config.cursor_shape, blinking: false },
             ..Config::default()
         };
         let terminal = Term::new(term_config, &config.size, proxy.clone());

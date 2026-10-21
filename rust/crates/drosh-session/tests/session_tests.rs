@@ -20,6 +20,7 @@ fn shell_config(program: &str, args: &[&str]) -> SessionConfig {
             ("HOME".to_owned(), "/tmp".to_owned()),
         ],
         cwd: None,
+        cursor_shape: alacritty_terminal::vte::ansi::CursorShape::Block,
     }
 }
 
