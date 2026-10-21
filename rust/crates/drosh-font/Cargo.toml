@@ -1,6 +1,6 @@
 [package]
 name = "drosh-font"
-description = "Shaping (rustybuzz) and rasterisation (swash) for the bundled faces"
+description = "Shaping (harfrust) and rasterisation (swash) for the bundled faces"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 log.workspace = true
-rustybuzz.workspace = true
+harfrust.workspace = true
 swash.workspace = true
 
 # No `alacritty_terminal` here, deliberately: the font stack is a leaf, so its

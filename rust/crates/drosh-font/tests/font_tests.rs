@@ -73,7 +73,8 @@ fn metrics_scale_linearly_with_the_pixel_size() {
 fn every_ascii_codepoint_shapes_to_one_glyph_with_the_same_advance() {
     let stack = stack();
     let regular = read_asset(REGULAR);
-    let units_per_em = shape::units_per_em(&regular).expect("units per em");
+    let font = shape::font(&regular).expect("the font");
+    let units_per_em = shape::units_per_em(&font).expect("units per em");
     let metrics = stack.metrics(24.).expect("metrics");
 
     // Includes the pairs that a standard font would ligate (`->`, `==`, `!=`).

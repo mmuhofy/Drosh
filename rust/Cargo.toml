@@ -39,10 +39,11 @@ log = "0.4"
 polling = "3.8"
 signal-hook = "0.4.3"
 # Font stack — decision D4: shaping and rasterisation in Rust. Versions read
-# from the crates themselves (2026-10-16): rustybuzz 0.20 keeps the
-# harfbuzz-style API we call (`Face::from_slice`, `shape`), and swash 0.2's
-# default features already include `scale` and `render`, i.e. the rasteriser.
-rustybuzz = "0.20"
+# from the crates themselves (2026-10-21): harfrust 0.14 is a complete
+# HarfBuzz in Rust — chain-context substitutions included, which is where
+# every programming font keeps its ligatures — and swash 0.2's default
+# features already include `scale` and `render`, i.e. the rasteriser.
+harfrust = "0.14"
 swash = "0.2"
 
 [profile.release]

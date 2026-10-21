@@ -1,4 +1,4 @@
-//! The font stack — decision D4: `rustybuzz` shapes, `swash` rasterises.
+//! The font stack — decision D4: `harfrust` shapes, `swash` rasterises.
 //!
 //! Three pieces, each in its own file:
 //!
@@ -81,13 +81,16 @@ impl std::error::Error for FontError {}
 
 /// The faces the renderer can ask for, plus the rasteriser's cache context.
 ///
-/// The font bytes are owned here. `rustybuzz::Face` and `swash::FontRef` borrow
-/// their data, so they are constructed per call — both only parse what they
-/// need, and the render maps each codepoint once into its atlas (TODO.md, Phase
-/// B), so this is not on the frame path.
+/// The font bytes are owned here, and so is the parsed face: the shaper takes
+/// a `Font` by reference, and parsing a face is not free. The rasteriser's
+/// `swash::FontRef` borrows the bytes and is constructed per call — it only
+/// parses what it needs, and the render maps each codepoint once into its
+/// atlas (TODO.md, Phase B), so this is not on the frame path.
 pub struct FontStack {
     regular: Vec<u8>,
     bold: Option<Vec<u8>>,
+    regular_font: Option<shape::Font>,
+    bold_font: Option<shape::Font>,
     scale: swash::scale::ScaleContext,
 }
 
@@ -102,7 +105,15 @@ impl FontStack {
             return Err(FontError::Empty);
         }
 
-        let stack = Self { regular, bold, scale: swash::scale::ScaleContext::new() };
+        let regular_font = shape::font(&regular);
+        let bold_font = bold.as_ref().and_then(|bytes| shape::font(bytes));
+        let stack = Self {
+            regular,
+            bold,
+            regular_font,
+            bold_font,
+            scale: swash::scale::ScaleContext::new(),
+        };
 
         // Fail here, once, rather than on every draw call.
         if !stack.is_usable(Weight::Regular) {
@@ -140,7 +151,15 @@ impl FontStack {
         weight: Weight,
         ligatures: bool,
     ) -> Option<Vec<shape::ShapedGlyph>> {
-        shape::shape_text(self.bytes(weight), text, ligatures)
+        shape::shape_text(self.font(weight)?, text, ligatures)
+    }
+
+    /// The parsed face for `weight` (bold falls back to the regular face).
+    fn font(&self, weight: Weight) -> Option<&shape::Font> {
+        match weight {
+            Weight::Bold => self.bold_font.as_ref().or(self.regular_font.as_ref()),
+            Weight::Regular => self.regular_font.as_ref(),
+        }
     }
 
     /// Rasterise one glyph at `px`, hinting on (crisp stems at small sizes).
@@ -163,8 +182,7 @@ impl FontStack {
     }
 
     fn bytes_are_a_font(data: &[u8]) -> bool {
-        swash::FontRef::from_index(data, 0).is_some()
-            && rustybuzz::Face::from_slice(data, 0).is_some()
+        swash::FontRef::from_index(data, 0).is_some() && shape::font(data).is_some()
     }
 }
 

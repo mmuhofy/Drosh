@@ -23,8 +23,9 @@ pub fn metrics(data: &[u8], px: f32) -> Option<FontMetrics> {
     let font = FontRef::from_index(data, 0)?;
     let scaled = font.metrics(&[]).scale(px);
 
-    let units_per_em = shape::units_per_em(data)?;
-    let advance_units = shape::advance_units(data, 'M')?;
+    let shaper_font = shape::font(data)?;
+    let units_per_em = shape::units_per_em(&shaper_font)?;
+    let advance_units = shape::advance_units(&shaper_font, 'M')?;
     let cell_width = advance_units / units_per_em * px;
 
     if cell_width <= 0. || !scaled.ascent.is_finite() || !scaled.descent.is_finite() {
