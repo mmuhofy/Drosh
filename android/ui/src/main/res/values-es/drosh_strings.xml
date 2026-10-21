@@ -233,6 +233,7 @@
     <string name="settings_speed_slow">Lenta</string>
     <string name="settings_speed_fast">Rápida</string>
     <string name="terminal_delete_last_session_title">¿Eliminar la última session?</string>
+    <string name="terminal_engine_session_exited">La sesión del terminal terminó (salida %1$d).</string>
     <string name="terminal_engine_unavailable">El motor del terminal no pudo iniciarse: %1$s</string>
     <string name="terminal_guest_runtime_missing">El entorno de ejecucion del invitado %1$s no esta en esta compilacion, asi que el invitado no pudo ejecutarse. En su lugar se abrio una shell simple.</string>
     <string name="terminal_delete_last_session_ended_body">Terminó con el código de salida %1$d. Eliminarla cierra la app; una nueva session empieza desde cero.</string>

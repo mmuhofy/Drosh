@@ -233,6 +233,7 @@
     <string name="settings_speed_slow">Медленно</string>
     <string name="settings_speed_fast">Быстро</string>
     <string name="terminal_delete_last_session_title">Удалить последнюю session?</string>
+    <string name="terminal_engine_session_exited">Сеанс терминала завершился (код %1$d).</string>
     <string name="terminal_engine_unavailable">Не удалось запустить терминальный движок: %1$s</string>
     <string name="terminal_guest_runtime_missing">Среда выполнения гостя %1$s отсутствует в этой сборке, поэтому гостя запустить не удалось. Вместо него открылась обычная оболочка.</string>
     <string name="terminal_delete_last_session_ended_body">Она завершилась с кодом выхода %1$d. Удаление закроет приложение; новая session начнётся с нуля.</string>

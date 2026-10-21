@@ -9,6 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
@@ -95,6 +96,15 @@ fun EnginePaneHost(
      * anything.
      */
     val pane = remember { EnginePane(context) }
+
+    /**
+     * The exit code of the session, when it ended.
+     *
+     * A guest that cannot start, or a shell that exits, leaves the surface
+     * drawing an empty grid. The code says what happened instead of a blank
+     * rectangle.
+     */
+    val sessionExit = remember { mutableStateOf<Int?>(null) }
 
     /**
      * Where the chrome samples this terminal.
@@ -202,6 +212,10 @@ fun EnginePaneHost(
         pane.listener = object : dev.drosh.terminal.engine.view.TerminalView.Listener {
             override fun onSessionExited(code: Int) {
                 Log.w(TAG, "the engine's session exited with $code")
+                // The screen goes on drawing an empty grid after the session
+                // is gone, so a terminal that is empty and silent is the
+                // hardest kind of bug to read. The exit is said out loud.
+                sessionExit.value = code
             }
 
             override fun onSessionEvent(record: String) {
@@ -258,13 +272,18 @@ fun EnginePaneHost(
      */
     val startError = pane.view.startError
 
-    if (startError != null) {
+    if (startError != null || sessionExit.value != null) {
         Box(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = stringResource(R.string.terminal_engine_unavailable, startError),
+                text = startError?.let {
+                    stringResource(R.string.terminal_engine_unavailable, it)
+                } ?: stringResource(
+                    R.string.terminal_engine_session_exited,
+                    sessionExit.value ?: 0,
+                ),
                 color = DroshTextSecondary,
                 fontFamily = LocalFontSet.current.sans,
                 fontSize = 14.sp,

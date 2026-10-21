@@ -233,6 +233,7 @@
     <string name="settings_speed_slow">遅い</string>
     <string name="settings_speed_fast">速い</string>
     <string name="terminal_delete_last_session_title">最後の session を削除しますか？</string>
+    <string name="terminal_engine_session_exited">ターミナルのセッションが終了しました（終了コード %1$d）。</string>
     <string name="terminal_engine_unavailable">ターミナルエンジンを起動できませんでした: %1$s</string>
     <string name="terminal_guest_runtime_missing">ゲスト実行環境 %1$s はこのビルドに含まれていないため、ゲストを実行できませんでした。代わりに通常のシェルを開きました。</string>
     <string name="terminal_delete_last_session_ended_body">終了コード %1$d で終了しました。削除するとアプリが閉じ、新しい session が最初から始まります。</string>
