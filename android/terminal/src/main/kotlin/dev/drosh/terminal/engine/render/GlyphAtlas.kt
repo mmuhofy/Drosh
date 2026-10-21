@@ -65,6 +65,15 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
     val pixels = ByteArray(size * size)
 
     private val entries = HashMap<Long, GlyphEntry>(256)
+
+    /**
+     * The shaped path's own cache.
+     *
+     * A separate one, because the two name different things: this one is
+     * keyed by the font's glyph id, the other by the codepoint. The same id in
+     * the two caches is not the same glyph.
+     */
+    private val shapedEntries = HashMap<Long, GlyphEntry>(256)
     private var shelfY = 0
     private var shelfHeight = 0
     private var penX = 0
@@ -116,6 +125,7 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
      */
     fun reset() {
         entries.clear()
+        shapedEntries.clear()
         pixels.fill(0)
         shelfY = 0
         shelfHeight = 0
@@ -175,6 +185,22 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
     }
 
     /**
+     * The atlas entry for a glyph id, rasterising it first if this is the
+     * first time it is asked for at this size.
+     *
+     * The shaped path knows the font's glyph ids and not the codepoints: a
+     * ligature has no codepoint of its own.
+     */
+    fun glyphById(glyphId: Int, bold: Boolean, px: Float): GlyphEntry? {
+        val key = shapedKey(glyphId, bold, px)
+        shapedEntries[key]?.let { return it }
+
+        val entry = rasterizeGlyph(glyphId, bold, px)
+        shapedEntries[key] = entry
+        return entry
+    }
+
+    /**
      * Rasterise the printable ASCII range up front.
      *
      * Without this, a burst that introduces new characters pays for each one on
@@ -223,6 +249,46 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
             NativeCore.GLYPH_MISSING -> missing += 1
         }
 
+        return store(kind, width, height, left, top)
+    }
+
+    /**
+     * Rasterise a glyph the font named by its id.
+     *
+     * The same mask the codepoint path draws, from the same scratch buffer —
+     * only the name of the glyph is different.
+     */
+    private fun rasterizeGlyph(glyphId: Int, bold: Boolean, px: Float): GlyphEntry {
+        var needed = NativeCore.nativeRasterizeGlyph(glyphId, bold, px, scratch)
+
+        if (needed > scratch.capacity()) {
+            // The core answers with the size it needs when the buffer is short.
+            scratch = ByteBuffer.allocateDirect(needed).order(ByteOrder.LITTLE_ENDIAN)
+            needed = NativeCore.nativeRasterizeGlyph(glyphId, bold, px, scratch)
+        }
+
+        if (needed < NativeCore.GLYPH_HEADER_BYTES) {
+            Log.w(TAG, "rasterize(glyph $glyphId) failed: $needed")
+            missing += 1
+            return GlyphEntry(0, 0, 0, 0, 0, 0, NativeCore.GLYPH_MISSING)
+        }
+
+        val header = scratch.duplicate().order(ByteOrder.LITTLE_ENDIAN)
+        header.position(0)
+        val kind = header.getInt()
+        header.getInt() // the glyph id, which the caller already knows
+        val width = header.getInt()
+        val height = header.getInt()
+        val left = header.getInt()
+        val top = header.getInt()
+
+        return store(kind, width, height, left, top)
+    }
+
+    /**
+     * Put a rasterised mask into the atlas and answer with its entry.
+     */
+    private fun store(kind: Int, width: Int, height: Int, left: Int, top: Int): GlyphEntry {
         if (width <= 0 || height <= 0) {
             return GlyphEntry(0, 0, 0, 0, left, top, kind)
         }
@@ -273,6 +339,15 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
         val position = pack(penX, shelfY)
         penX += width
         return position
+    }
+
+    /**
+     * The shaped path's key: the glyph id, the weight and the pixel size.
+     */
+    private fun shapedKey(glyphId: Int, bold: Boolean, px: Float): Long {
+        val sizeBits = px.toBits().toLong() and 0x7FFFFFFFL
+        val boldBit = if (bold) 1L else 0L
+        return (glyphId.toLong() shl KEY_SIZE_SHIFT) or (boldBit shl KEY_BOLD_SHIFT) or sizeBits
     }
 
     private fun key(codepoint: Int, bold: Boolean, px: Float): Long {

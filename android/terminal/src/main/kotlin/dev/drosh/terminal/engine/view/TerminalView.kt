@@ -435,6 +435,10 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // Whether bold text is drawn in the bright colours.
         dev.drosh.terminal.engine.core.Palette.boldBrightens = config.boldBrightens
 
+        // The ligatures: the font decides what a ligature is, and this is the
+        // setting that asks it. The renderer reads it on the GL thread.
+        surface.queueEvent { renderer.ligatures = config.ligatures }
+
         // The blink is the frame loop's business, and it asks the view.
         frameLoop.blinkIntervalMillis = config.cursorBlinkMs.toLong()
 

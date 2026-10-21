@@ -67,8 +67,8 @@ class TerminalPaletteTableTest {
         // alacritty's own steps: 0, then 55 + 40 * level.
         assertEquals(0x000000, table[16])
         assertEquals(0x00005f, table[17])
-        // Index 52 is r1 g2 b4: 95, 135, 215.
-        assertEquals(0x5f87d7, table[16 + 36])
+        // Index 52 is r1 g0 b0: 95, 0, 0.
+        assertEquals(0x5f0000, table[16 + 36])
     }
 
     @Test

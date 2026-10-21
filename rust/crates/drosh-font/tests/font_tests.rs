@@ -78,7 +78,7 @@ fn every_ascii_codepoint_shapes_to_one_glyph_with_the_same_advance() {
 
     // Includes the pairs that a standard font would ligate (`->`, `==`, `!=`).
     let text = "MWi1_~|->==!=";
-    let glyphs = stack.shape(text, Weight::Regular).expect("shaping");
+    let glyphs = stack.shape(text, Weight::Regular, false).expect("shaping");
 
     assert_eq!(glyphs.len(), text.chars().count(), "one glyph per character, no ligatures");
 

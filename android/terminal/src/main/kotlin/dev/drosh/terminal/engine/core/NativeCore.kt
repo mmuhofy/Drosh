@@ -188,6 +188,29 @@ internal object NativeCore {
     external fun nativeSearch(id: Long, query: String, limit: Int): String
 
     /**
+     * Shape `text` and write the glyphs into `out`: the glyph id, then the
+     * byte offset the glyph starts at. The return value is the count of the
+     * glyphs, and a negative one is an error code.
+     */
+    external fun nativeShape(
+        text: String,
+        bold: Boolean,
+        ligatures: Boolean,
+        out: IntArray,
+    ): Int
+
+    /**
+     * Rasterise a glyph by its id, rather than by the codepoint it stands
+     * for: a ligature has no codepoint of its own.
+     */
+    external fun nativeRasterizeGlyph(
+        glyphId: Int,
+        bold: Boolean,
+        px: Float,
+        out: java.nio.ByteBuffer,
+    ): Int
+
+    /**
      * Find `query` in the session's output log; returns `line:colStart:colEnd`
      * records (ffi::search).
      */

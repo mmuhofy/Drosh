@@ -90,6 +90,14 @@ internal class TerminalRenderer(
      */
     var ambientTint: Int? = null
 
+    /**
+     * Whether the font's ligatures are used.
+     *
+     * The application's setting: the font decides what a ligature is, and
+     * this only says whether to ask it.
+     */
+    var ligatures: Boolean = false
+
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
 
@@ -232,6 +240,7 @@ internal class TerminalRenderer(
             cursorVisible,
             atlas,
             fontPx,
+            ligatures,
         )
         val buildEndNanos = System.nanoTime()
 

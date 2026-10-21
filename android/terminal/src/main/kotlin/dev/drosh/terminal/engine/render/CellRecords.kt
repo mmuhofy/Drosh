@@ -43,6 +43,14 @@ internal class CellRecords(columns: Int, rows: Int) {
     var rows = rows
         private set
 
+    /**
+     * The shaped rows: the ligatures the font made of the text.
+     *
+     * The shaper is asked only when the application wants ligatures; the
+     * per-codepoint path below draws everything else.
+     */
+    private val shaper = RowShaper()
+
     /** Codepoint → atlas entry, so a glyph is looked up once, not per frame. */
     private var cellCodepoints = IntArray(0)
     private var cellBold = BooleanArray(0)
@@ -61,6 +69,7 @@ internal class CellRecords(columns: Int, rows: Int) {
         backgrounds = allocate(columns * rows * BACKGROUND_BYTES)
         foregrounds = allocate(columns * rows * OVERDRAW * RECORD_BYTES)
         resetCellCache(columns, rows)
+        shaper.resize(columns, rows)
     }
 
     fun resize(newColumns: Int, newRows: Int) {
@@ -74,6 +83,7 @@ internal class CellRecords(columns: Int, rows: Int) {
         backgrounds = allocate(newColumns * newRows * BACKGROUND_BYTES)
         foregrounds = allocate(newColumns * newRows * OVERDRAW * RECORD_BYTES)
         resetCellCache(newColumns, newRows)
+        shaper.resize(newColumns, newRows)
     }
 
     /** Rebuilt each frame: every record is written, so the buffers stay valid. */
@@ -85,10 +95,18 @@ internal class CellRecords(columns: Int, rows: Int) {
         cursorVisible: Boolean,
         atlas: GlyphAtlas,
         fontPx: Float,
+        ligatures: Boolean,
     ) {
         if (cachedFontPx != fontPx) {
             resetCellCache(columns, rows)
             cachedFontPx = fontPx
+        }
+
+        // The ligatures, when the application wants them. A row is shaped
+        // again only when its text changed, so this is a hash per row and a
+        // JNI call for the rows that moved.
+        if (ligatures) {
+            shaper.shape(cells, columns, rows, fontPx)
         }
 
         val cursorRow = state[NativeCore.STATE_CURSOR_ROW]
@@ -154,7 +172,28 @@ internal class CellRecords(columns: Int, rows: Int) {
                     continue
                 }
 
-                if (codepoint != ' '.code) {
+                // A ligature covers cells the font merged; the cells it
+                // covers after the first one draw nothing of their own.
+                val coveredByLigature = ligatures && shaper.isCovered(row, column, columns)
+                val shapedId = if (ligatures && !coveredByLigature) {
+                    shaper.glyphId(row, column, columns)
+                } else {
+                    0
+                }
+
+                if (shapedId != 0) {
+                    val entry = atlas.glyphById(shapedId, bold, fontPx)
+                    if (entry != null && !entry.isBlank) {
+                        writeGlyph(
+                            entry,
+                            entry.left.toFloat(),
+                            metrics.ascent - entry.top,
+                            column,
+                            row,
+                            foreground,
+                        )
+                    }
+                } else if (!coveredByLigature && codepoint != ' '.code) {
                     val entry = glyphFor(cell, codepoint, bold, atlas, fontPx)
                     if (entry != null && !entry.isBlank) {
                         // In-cell offsets only: the shader adds the cell's own

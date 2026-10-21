@@ -9,11 +9,11 @@
 use std::slice;
 use std::sync::Mutex;
 
-use jni::objects::{JByteArray, JByteBuffer, JClass, JFloatArray};
+use jni::objects::{JByteArray, JByteBuffer, JClass, JFloatArray, JIntArray, JString};
 use jni::sys::{jboolean, jfloat, jint};
 use jni::JNIEnv;
 
-use crate::ffi::{fail, finish, ErrorCode, FfiResult};
+use crate::ffi::{fail, finish, int_array_len, write_int_array, ErrorCode, FfiResult};
 use drosh_font::fallback::Resolution;
 use drosh_font::{FontError, FontStack, Weight};
 
@@ -23,6 +23,9 @@ pub const GLYPH_HEADER_BYTES: usize = 24;
 
 /// Floats `nativeFontMetrics` writes: width, height, ascent, descent, underline.
 pub const FONT_METRICS_LEN: usize = 5;
+
+/// Ints per shaped glyph: the glyph id and the byte offset it starts at.
+pub const SHAPE_PAIR_INTS: usize = 2;
 
 /// `font::fallback::Resolution` on the wire. `NativeCore.kt` mirrors these.
 pub mod glyph_kind {
@@ -40,6 +43,128 @@ impl From<FontError> for ErrorCode {
             FontError::Empty | FontError::NotAFont => Self::InvalidArgument,
             FontError::MetricsUnavailable => Self::Internal,
         }
+    }
+}
+
+/// Shape `text` and write the glyphs into `out`.
+///
+/// The wire format is one pair per glyph: the glyph id, then the byte offset
+/// in `text` the glyph starts at. The offset is what tells the renderer which
+/// cell a glyph belongs to — a ligature covers several cells, and the cell it
+/// starts at is the one that draws it.
+///
+/// The count of the glyphs is the return value; a negative one is an
+/// [`ErrorCode`]. `out` is a plain `int[]`, so the caller sizes it once and
+/// reuses it.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeShape<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    text: JString<'local>,
+    bold: jboolean,
+    ligatures: jboolean,
+    out: JIntArray<'local>,
+) -> jint {
+    let result = (|| -> FfiResult<usize> {
+        let text: String = env
+            .get_string(&text)
+            .map_err(|_| ErrorCode::InvalidArgument)?
+            .into();
+        let weight = if bold == 0 { Weight::Regular } else { Weight::Bold };
+
+        let capacity = int_array_len(&env, &out)?;
+        if capacity < SHAPE_PAIR_INTS {
+            return Err(ErrorCode::InvalidArgument);
+        }
+
+        let guard = FONT.lock().map_err(|_| ErrorCode::Internal)?;
+        let stack = guard.as_ref().ok_or(ErrorCode::NotSupported)?;
+        let glyphs = stack.shape(&text, weight, ligatures != 0).ok_or(ErrorCode::Internal)?;
+
+        let count = glyphs.len();
+        if count * SHAPE_PAIR_INTS > capacity {
+            return Err(ErrorCode::InvalidArgument);
+        }
+
+        let mut values = Vec::with_capacity(count * SHAPE_PAIR_INTS);
+        for glyph in &glyphs {
+            values.push(i32::from(glyph.glyph_id));
+            values.push(glyph.cluster as i32);
+        }
+        write_int_array(&env, &out, &values)?;
+
+        Ok(count)
+    })();
+
+    match result {
+        Ok(count) => jint::try_from(count).unwrap_or_else(|_| ErrorCode::Internal.as_jint()),
+        Err(code) => fail(code).as_jint(),
+    }
+}
+
+/// Rasterise a glyph by its id, rather than by the codepoint it stands for.
+///
+/// The shaped path knows the glyph ids and not the codepoints: a ligature has
+/// no codepoint of its own, and the id is what the font's tables name.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeRasterizeGlyph<
+    'local,
+>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    glyph_id: jint,
+    bold: jboolean,
+    px: jfloat,
+    out: JByteBuffer<'local>,
+) -> jint {
+    let result = (|| -> FfiResult<usize> {
+        let glyph_id = u16::try_from(glyph_id).map_err(|_| ErrorCode::InvalidArgument)?;
+        let weight = if bold == 0 { Weight::Regular } else { Weight::Bold };
+
+        let capacity =
+            env.get_direct_buffer_capacity(&out).map_err(|_| ErrorCode::InvalidArgument)?;
+        let address =
+            env.get_direct_buffer_address(&out).map_err(|_| ErrorCode::InvalidArgument)?;
+
+        let mut guard = FONT.lock().map_err(|_| ErrorCode::Internal)?;
+        let stack = guard.as_mut().ok_or(ErrorCode::NotSupported)?;
+
+        let bitmap = stack.rasterize(glyph_id, px, weight);
+        let (width, height, left, top, coverage) = match bitmap.as_ref() {
+            Some(bitmap) => {
+                (bitmap.width, bitmap.height, bitmap.left, bitmap.top, bitmap.coverage.as_slice())
+            }
+            None => (0, 0, 0, 0, &[][..]),
+        };
+
+        let size = GLYPH_HEADER_BYTES + coverage.len();
+        if size > capacity {
+            return Ok(size);
+        }
+
+        let mut header = [0u8; GLYPH_HEADER_BYTES];
+        header[0..4].copy_from_slice(&glyph_kind::DIRECT.to_le_bytes());
+        header[4..8].copy_from_slice(&u32::from(glyph_id).to_le_bytes());
+        header[8..12].copy_from_slice(&width.to_le_bytes());
+        header[12..16].copy_from_slice(&height.to_le_bytes());
+        header[16..20].copy_from_slice(&left.to_le_bytes());
+        header[20..24].copy_from_slice(&top.to_le_bytes());
+
+        // SAFETY: `address`/`capacity` describe a direct `ByteBuffer` that
+        // Kotlin keeps alive for the duration of this call, and `size` (header
+        // plus coverage) was checked against `capacity` above.
+        let buffer = unsafe { slice::from_raw_parts_mut(address, capacity) };
+        buffer[0..GLYPH_HEADER_BYTES].copy_from_slice(&header);
+        if !coverage.is_empty() {
+            buffer[GLYPH_HEADER_BYTES..size].copy_from_slice(coverage);
+        }
+
+        Ok(size)
+    })();
+
+    match result {
+        Ok(size) => jint::try_from(size).unwrap_or_else(|_| ErrorCode::Internal.as_jint()),
+        Err(code) => fail(code).as_jint(),
     }
 }
 
@@ -218,6 +343,7 @@ mod tests {
     fn wire_sizes_are_frozen() {
         assert_eq!(GLYPH_HEADER_BYTES, 24);
         assert_eq!(FONT_METRICS_LEN, 5);
+        assert_eq!(SHAPE_PAIR_INTS, 2);
         assert_eq!(glyph_kind::DIRECT, 0);
         assert_eq!(glyph_kind::SUBSTITUTED, 1);
         assert_eq!(glyph_kind::MISSING, 2);

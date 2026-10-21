@@ -127,11 +127,20 @@ impl FontStack {
         raster::metrics(&self.regular, px).ok_or(FontError::MetricsUnavailable)
     }
 
-    /// Shape `text`; ligatures are off for the shipped font either way (the NL
-    /// variant carries no ligature lookups), and are also disabled explicitly
-    /// so a future standard font cannot ligate behind our back.
-    pub fn shape(&self, text: &str, weight: Weight) -> Option<Vec<shape::ShapedGlyph>> {
-        shape::shape_text(self.bytes(weight), text, false)
+    /// Shape `text`.
+    ///
+    /// `ligatures` is the application's setting, and the font's own tables
+    /// decide what it means: the shipped face is the NL variant and carries no
+    /// ligature lookups at all, so the setting changes nothing until a font
+    /// with them is installed. Turning them off explicitly is what keeps a
+    /// future standard font from ligating behind the user's back.
+    pub fn shape(
+        &self,
+        text: &str,
+        weight: Weight,
+        ligatures: bool,
+    ) -> Option<Vec<shape::ShapedGlyph>> {
+        shape::shape_text(self.bytes(weight), text, ligatures)
     }
 
     /// Rasterise one glyph at `px`, hinting on (crisp stems at small sizes).
