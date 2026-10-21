@@ -270,7 +270,7 @@ impl Session {
         let proxy = EventProxy::new(events.clone(), sender_slot, size_slot.clone());
         // Same paste policy as a PTY session; see `spawn`.
         let term_config = Config { osc52: Osc52::CopyPaste, ..Config::default() };
-        let terminal = Term::new(term_config, &size, proxy);
+        let terminal = Term::new(term_config.clone(), &size, proxy);
 
         Ok(Self {
             id,
@@ -283,6 +283,7 @@ impl Session {
             parser: Mutex::new(Processor::new()),
             blocks: Mutex::new(BlockTracker::new()),
             output: Arc::new(Mutex::new(OutputLog::new(DEFAULT_MAX_LINES))),
+            config: Mutex::new(term_config),
             worker: Mutex::new(None),
         })
     }
