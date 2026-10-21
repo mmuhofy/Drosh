@@ -478,7 +478,11 @@ fn error_pipe() -> io::Result<(RawFd, RawFd)> {
 ///
 /// # Safety
 /// The caller must be the forked child, between `fork` and `exec`.
-unsafe fn exec_or_report(error_write: RawFd, program: &CString, argv: &[CString]) -> io::Result<()> {
+unsafe fn exec_or_report(
+    error_write: RawFd,
+    program: &CString,
+    argv: &[CString],
+) -> io::Result<()> {
     let mut pointers: Vec<*const libc::c_char> = argv.iter().map(|arg| arg.as_ptr()).collect();
     pointers.push(std::ptr::null());
 
@@ -499,11 +503,7 @@ unsafe fn exec_or_report(error_write: RawFd, program: &CString, argv: &[CString]
 unsafe fn read_exec_error(error_read: RawFd) -> Option<String> {
     let mut buffer = [0u8; 256];
     // SAFETY: `read` writes at most `buffer.len()` bytes into the buffer.
-    let count = libc::read(
-        error_read,
-        buffer.as_mut_ptr() as *mut libc::c_void,
-        buffer.len(),
-    );
+    let count = libc::read(error_read, buffer.as_mut_ptr() as *mut libc::c_void, buffer.len());
     if count <= 0 {
         return None;
     }
