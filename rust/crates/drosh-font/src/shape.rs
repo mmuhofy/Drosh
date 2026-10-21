@@ -17,7 +17,7 @@
 //! it — and it is a complete HarfBuzz, chain contexts included.
 
 use harfrust::font::Blob;
-use harfrust::{Buffer, BufferFlags, Direction, ShapeOptions, ShaperFont, Script};
+use harfrust::{Buffer, BufferFlags, Direction, Script, ShapeOptions, ShaperFont};
 
 /// The parsed face, re-exported so the stack can name it without depending
 /// on the shaper's own vocabulary.
