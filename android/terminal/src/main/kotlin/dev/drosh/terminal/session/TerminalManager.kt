@@ -41,6 +41,9 @@ import dev.drosh.linux.UbuntuSetupState
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
+import dev.drosh.terminal.session.input.EngineTerminalWriter
+import dev.drosh.terminal.session.input.TerminalWriter
+import dev.drosh.terminal.session.input.TermuxTerminalWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -1438,6 +1441,31 @@ class TerminalManager(
      * has it.
      */
     fun focusedEnginePane(): EnginePane? = enginePanes[focusedPane.value]
+
+    /**
+     * Where the input of the focused terminal goes.
+     *
+     * The focused pane may run on either terminal, and the two take bytes in
+     * different ways: the vendored session takes a code point or a VT
+     * string, the engine's session takes bytes. The writer is the seam — the
+     * caller asks the manager which terminal has the focus and writes to the
+     * writer it gets back, without knowing which terminal that is.
+     *
+     * This is the same question the chrome asks for the appearance source,
+     * asked the same way: the manager knows what has the focus, and the
+     * caller does not.
+     *
+     * Null when there is no terminal to write to: no pane has the focus, or
+     * the pane that has it has no session.
+     */
+    fun focusedWriter(): TerminalWriter? {
+        val engine = focusedEnginePane()
+        if (engine != null) {
+            return EngineTerminalWriter(engine)
+        }
+        val session = currentSession ?: return null
+        return TermuxTerminalWriter(session)
+    }
 
     /**
      * The app's resume: every engine pane's surface and frame pump come back.

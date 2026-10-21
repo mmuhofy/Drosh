@@ -4,28 +4,38 @@ import android.view.KeyEvent
 import dev.drosh.domain.input.ExtraKey
 import dev.drosh.domain.input.InputIntent
 import dev.drosh.terminal.session.ExtraKeyState
-import com.termux.terminal.KeyHandler
-import com.termux.terminal.TerminalSession
 
 /**
  * Dispatches a list of [InputIntent]s to the right surface for the
  * current render mode (classic vs block). Pure-Kotlin where possible —
  * the only Android coupling is the [KeyEvent] synthetic used to talk to
- * `TerminalView.handleKeyCode()` and `TerminalSession.write()`.
+ * `TerminalView.handleKeyCode()`.
+ *
+ * ## What is decided here, and what is not
+ *
+ * The decisions are the app's: which key a button means, which modifier is
+ * held, and that a held modifier applies to the key that follows it. They
+ * are made once, here, and they do not change with the terminal behind the
+ * pane.
+ *
+ * The bytes are the terminal's: the dispatcher does not encode anything, it
+ * hands the key and the modifiers to a [TerminalWriter] — the vendored
+ * session's writer or the engine's — and that writer makes the bytes its
+ * terminal understands. The two are not the same bytes for every key, and
+ * they are not meant to be: the engine's encoder is the authority for the
+ * engine.
  *
  * Mode selection is done by the caller — `InputDispatcher` takes a
- * `TerminalSession` for byte-level writes (used in both modes) and an
+ * [TerminalWriter] for the byte-level writes (used in both modes) and an
  * optional [keyEventSink] for classic-mode special keys. When the sink
- * is null, classic-mode navigation/control intent falls back to
- * writing the equivalent VT sequence directly to the session — useful
- * for headless tests and for environments where no `TerminalView`
- * exists.
+ * is null, the intent goes to the writer — useful for headless tests and
+ * for environments where no `TerminalView` exists.
  *
  * Sticky modifier handling:
  *  - When [InputIntent.ArmModifier] fires, [extraKeyState] is updated.
  *  - The next non-modifier intent consults [extraKeyState] for sticky
- *    CTRL/ALT and folds them into the dispatched KeyEvent's meta state
- *    before the call hits the TerminalView. This matches Termux's
+ *    CTRL/ALT and folds them into the modifiers it hands to the writer
+ *    before the call hits the terminal. This matches Termux's
  *    `inputCodePoint` flow: `readControlKey()` / `readAltKey()` are
  *    OR'd into `keyMod`.
  *
@@ -34,7 +44,7 @@ import com.termux.terminal.TerminalSession
  */
 class InputDispatcher(
     private val extraKeyState: ExtraKeyState,
-    private val session: TerminalSession?,
+    private val writer: TerminalWriter?,
     private val keyEventSink: KeyEventSink? = null,
 ) {
 
@@ -72,18 +82,21 @@ class InputDispatcher(
     private fun typeChar(char: Char) {
         val ctrlDown = extraKeyState.readCtrl()
         val altDown = extraKeyState.readAlt()
-        val keyCode = char.uppercaseChar().code.let { if (ctrlDown) translateCtrl(it) else it }
         if (keyEventSink != null) {
+            // The vendored view reads the control code out of the key code it
+            // is given, so the vendored terminal's own table is used here.
+            val keyCode = char.uppercaseChar().code.let {
+                if (ctrlDown) termuxControlCode(it) else it
+            }
             val meta = buildMetaState(ctrlDown = ctrlDown, altDown = altDown)
             val event = KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, meta)
             keyEventSink.onKeyEvent(event, keyCode)
             return
         }
-        // Fallback — codepoint path directly through TerminalSession.
-        session ?: return
-        val appendEscape = altDown
-        val cp = if (ctrlDown) translateCtrl(char.code) else char.code
-        session.writeCodePoint(appendEscape, cp)
+        // The writer makes the bytes: the vendored session takes the code
+        // point, the engine's encoder takes the character and the modifiers.
+        writer ?: return
+        writer.writeChar(char, InputModifiers(ctrl = ctrlDown, alt = altDown))
     }
 
     private fun navigate(key: ExtraKey.Navigation) {
@@ -96,22 +109,15 @@ class InputDispatcher(
             keyEventSink.onKeyEvent(event, keyCode)
             return
         }
-        // Fallback — synthesize the VT escape sequence and write it directly.
-        session ?: return
-        val keyMod = buildKeyHandlerMod(ctrlDown, altDown)
-        val code = KeyHandler.getCode(
-            keyCode = keyCode,
-            keyMode = keyMod,
-            cursorApp = false,
-            keypadApplication = false,
-        )
-        code?.let { session.write(it) }
+        // The writer makes the bytes: the vendored key handler turns the key
+        // code into a VT sequence, the engine's encoder into its own.
+        writer ?: return
+        writer.writeKey(keyCode, InputModifiers(ctrl = ctrlDown, alt = altDown))
     }
 
     private fun flushBytes(bytes: ByteArray) {
-        session ?: return
-        if (bytes.isEmpty()) return
-        session.write(bytes, 0, bytes.size)
+        writer ?: return
+        writer.writeBytes(bytes)
     }
 
     private fun buildMetaState(ctrlDown: Boolean, altDown: Boolean): Int {
@@ -119,30 +125,6 @@ class InputDispatcher(
         if (ctrlDown) meta = meta or KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
         if (altDown) meta = meta or KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
         return meta
-    }
-
-    private fun buildKeyHandlerMod(ctrlDown: Boolean, altDown: Boolean): Int {
-        var mod = 0
-        if (ctrlDown) mod = mod or KeyHandler.KEYMOD_CTRL
-        if (altDown) mod = mod or KeyHandler.KEYMOD_ALT
-        return mod
-    }
-
-    /**
-     * Mirrors the C0-control translation in
-     * `TerminalView.inputCodePoint` (see docs/MEMORYBANK.md §8).
-     */
-    private fun translateCtrl(cp: Int): Int = when (cp) {
-        in 'a'.code..'z'.code -> cp - 'a'.code + 1
-        in 'A'.code..'Z'.code -> cp - 'A'.code + 1
-        ' '.code, '2'.code -> 0
-        '['.code, '3'.code -> 27
-        '\\'.code, '4'.code -> 28
-        ']'.code, '5'.code -> 29
-        '^'.code, '6'.code -> 30
-        '_'.code, '7'.code, '/'.code -> 31
-        '8'.code -> 127
-        else -> cp
     }
 
     private fun ExtraKey.Navigation.toAndroidKeyCode(): Int = when (this) {

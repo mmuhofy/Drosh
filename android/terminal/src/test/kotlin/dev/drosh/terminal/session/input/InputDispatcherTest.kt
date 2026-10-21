@@ -8,36 +8,35 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Verifies that [InputDispatcher]'s pure-Kotlin fallback path (no
- * KeyEventSink) writes the expected VT/control sequences to the
- * session — the same bytes Termux would write via `handleKeyCode` and
- * `inputCodePoint`.
+ * Verifies that [InputDispatcher]'s pure-Kotlin path (no KeyEventSink)
+ * hands the expected key and modifiers to its writer — the same bytes
+ * Termux would write via `handleKeyCode` and `inputCodePoint`.
  *
- * Because [TerminalSession] is an Android-touching class, we exercise
- * the dispatcher with `session = null` so we can observe the
- * intent-rewriting logic without the session dependency. The unit tests
- * below cover the translation table (Ctrl+C → `\u0003`, arrows → VT,
- * etc.) and the sticky-modifier semantics.
+ * Because the terminal writers are Android-touching classes, we
+ * exercise the dispatcher with `writer = null` so we can observe the
+ * intent-rewriting logic without the terminal dependency. The unit tests
+ * below cover the sticky-modifier semantics and the order the intents
+ * are dispatched in; the bytes themselves are the writer's business.
  */
 class InputDispatcherTest {
 
     @Test fun `ArmModifier CTRL sets extra key state`() {
         val state = ExtraKeyState()
-        val dispatcher = InputDispatcher(state, session = null)
+        val dispatcher = InputDispatcher(state, writer = null)
         dispatcher.dispatch(InputIntent.ArmModifier(ExtraKey.Special.CTRL))
         assertTrue(state.readCtrl())
     }
 
     @Test fun `ArmModifier ALT sets extra key state`() {
         val state = ExtraKeyState()
-        val dispatcher = InputDispatcher(state, session = null)
+        val dispatcher = InputDispatcher(state, writer = null)
         dispatcher.dispatch(InputIntent.ArmModifier(ExtraKey.Special.ALT))
         assertTrue(state.readAlt())
     }
 
     @Test fun `Sticky CTRL auto-clears after one read`() {
         val state = ExtraKeyState()
-        val dispatcher = InputDispatcher(state, session = null)
+        val dispatcher = InputDispatcher(state, writer = null)
         dispatcher.dispatch(InputIntent.ArmModifier(ExtraKey.Special.CTRL))
         assertTrue("sticky CTRL should be active immediately", state.readCtrl())
         assertEquals("CTRL consumed on read should be inactive", false, state.readCtrl())
@@ -45,18 +44,18 @@ class InputDispatcherTest {
 
     @Test fun `TypeChar navigates through translateCtrl correctly`() {
         val state = ExtraKeyState()
-        val dispatcher = InputDispatcher(state, session = null)
-        // Direct call to translateCtrl is package-private — exercise the
-        // dispatcher and verify state transitions instead.
+        val dispatcher = InputDispatcher(state, writer = null)
+        // The ctrl table belongs to the vendored writer — exercise the
+        // dispatcher and verify the state transitions instead.
         dispatcher.dispatch(InputIntent.ArmModifier(ExtraKey.Special.CTRL))
         // Read the sticky value — this consumes it.
         assertTrue(state.readCtrl())
     }
 
-    @Test fun `Navigate dispatches in order with no session fails silently`() {
+    @Test fun `Navigate dispatches in order with no writer fails silently`() {
         val state = ExtraKeyState()
-        val dispatcher = InputDispatcher(state, session = null)
-        // No session attached → should not crash.
+        val dispatcher = InputDispatcher(state, writer = null)
+        // No writer attached → should not crash.
         dispatcher.dispatch(InputIntent.Navigate(ExtraKey.Navigation.ARROW_UP))
         dispatcher.dispatch(InputIntent.Navigate(ExtraKey.Navigation.ARROW_DOWN))
         dispatcher.dispatch(InputIntent.Navigate(ExtraKey.Navigation.ESC))
@@ -65,14 +64,14 @@ class InputDispatcherTest {
 
     @Test fun `FlushBytes with empty array is a no-op`() {
         val state = ExtraKeyState()
-        val dispatcher = InputDispatcher(state, session = null)
+        val dispatcher = InputDispatcher(state, writer = null)
         dispatcher.dispatch(InputIntent.FlushBytes(ByteArray(0)))
         // No crash = pass.
     }
 
     @Test fun `List of intents dispatches in order`() {
         val state = ExtraKeyState()
-        val dispatcher = InputDispatcher(state, session = null)
+        val dispatcher = InputDispatcher(state, writer = null)
         dispatcher.dispatch(
             listOf(
                 InputIntent.ArmModifier(ExtraKey.Special.CTRL),
