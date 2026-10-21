@@ -24,7 +24,8 @@ pub struct ShapedGlyph {
 /// `ligatures = false` disables `liga`, `clig`, `calt` and `rlig`: a terminal
 /// cell must keep the character the guest wrote when the setting says so. The
 /// shipped face is the standard JetBrains Mono, whose ligatures live in
-/// `calt`, so this is what switches them off.
+/// `calt` — a feature the shaper has to ask for by name, because it is not
+/// one of the common features a shaper applies on its own.
 pub fn shape_text(data: &[u8], text: &str, ligatures: bool) -> Option<Vec<ShapedGlyph>> {
     let face = Face::from_slice(data, 0)?;
 
@@ -75,14 +76,18 @@ pub fn units_per_em(data: &[u8]) -> Option<f32> {
 }
 
 fn features(ligatures: bool) -> Vec<Feature> {
-    if ligatures {
-        return Vec::new();
-    }
-
     // Four-byte OpenType tags; the array literal makes the length a compile-time
     // fact, so `Tag::from_bytes` cannot fail.
-    [*b"liga", *b"clig", *b"calt", *b"rlig"]
-        .iter()
-        .map(|name| Feature::new(Tag::from_bytes(name), 0, ..))
-        .collect()
+    const LIGATURES: [&[u8; 4]; 4] = [b"liga", b"clig", b"calt", b"rlig"];
+
+    // The value is the feature's own switch: 1 asks for it, 0 refuses it.
+    //
+    // Asking for them is not the same as leaving them alone. HarfBuzz — and
+    // rustybuzz with it — applies a font's *common* features by default, and
+    // `calt` is not one of them: it is asked for by name. JetBrains Mono keeps
+    // its ligatures in `calt`, so a font that has them and a shaper that says
+    // nothing ligate nothing at all.
+    let value = if ligatures { 1 } else { 0 };
+    LIGATURES.iter().map(|name| Feature::new(Tag::from_bytes(name), value, ..)).collect()
+
 }
