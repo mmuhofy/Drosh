@@ -1161,6 +1161,7 @@ private fun ReadyScreen(
                     terminalViewRef = terminalViewRef,
                     appearanceSource = appearanceSource,
                     terminalBackend = terminalBackend,
+                    terminalConfig = terminalConfig,
                     onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
                 )
@@ -1209,6 +1210,7 @@ private fun ReadyScreen(
                     terminalViewRef = terminalViewRef,
                     appearanceSource = appearanceSource,
                     terminalBackend = terminalBackend,
+                    terminalConfig = terminalConfig,
                     // Bounds are the top bar's backdrop sample, and the top bar
                     // reads whichever pane has focus. Letting the unfocused pane
                     // report would leave the bar sampling a terminal the user is
@@ -1829,6 +1831,13 @@ private fun TerminalPaneBody(
      * user's choice, and the app follows it without a rebuild.
      */
     terminalBackend: TerminalBackend,
+    /**
+     * The terminal's configuration, as the engine is handed it.
+     *
+     * The application's half: the colours, the cursor, the blink, the bold,
+     * the ligatures, the size. The engine's own answers still win.
+     */
+    terminalConfig: dev.drosh.domain.settings.TerminalConfig,
     onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
 ) {
