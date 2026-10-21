@@ -53,11 +53,7 @@ pub fn font(data: &[u8]) -> Option<Font> {
 ///
 /// The features are the ones to switch on and off; a shaper applies the
 /// font's own defaults on top of them.
-pub fn shape_text(
-    font: &Font,
-    text: &str,
-    features: &[Feature],
-) -> Option<Vec<ShapedGlyph>> {
+pub fn shape_text(font: &Font, text: &str, features: &[Feature]) -> Option<Vec<ShapedGlyph>> {
     let shaper = ShaperFont::new(font);
 
     let mut buffer = Buffer::new();

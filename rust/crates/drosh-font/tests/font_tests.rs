@@ -191,15 +191,14 @@ fn ligatures_follow_the_setting() {
 
     // With every alternate the font has: if one of them is the one that
     // carries the ligature, this is where it shows.
-    let every = [
-        "aalt", "calt", "clig", "dlig", "hlig", "liga", "rlig", "ss01", "ss02", "ss19", "ss20",
-    ]
-    .map(|name| {
-        let mut tag = [b' '; 4];
-        tag.copy_from_slice(&name.as_bytes()[..4]);
-        Feature::new(Tag::new(&tag), 1, ..)
-    })
-    .to_vec();
+    let every =
+        ["aalt", "calt", "clig", "dlig", "hlig", "liga", "rlig", "ss01", "ss02", "ss19", "ss20"]
+            .map(|name| {
+                let mut tag = [b' '; 4];
+                tag.copy_from_slice(&name.as_bytes()[..4]);
+                Feature::new(Tag::new(&tag), 1, ..)
+            })
+            .to_vec();
 
     let font = shape::font(&read_asset(REGULAR)).expect("the font");
     let mut all_counts = String::new();

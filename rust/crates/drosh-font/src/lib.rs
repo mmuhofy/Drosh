@@ -151,11 +151,7 @@ impl FontStack {
         weight: Weight,
         ligatures: bool,
     ) -> Option<Vec<shape::ShapedGlyph>> {
-        shape::shape_text(
-            self.font(weight)?,
-            text,
-            &shape::ligature_features(ligatures),
-        )
+        shape::shape_text(self.font(weight)?, text, &shape::ligature_features(ligatures))
     }
 
     /// The parsed face for `weight` (bold falls back to the regular face).
