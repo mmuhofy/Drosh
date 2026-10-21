@@ -463,7 +463,10 @@ fn error_pipe() -> io::Result<(RawFd, RawFd)> {
         return Err(io::Error::last_os_error());
     }
     // SAFETY: both descriptors are valid and owned from here on.
+    // Both ends are close-on-exec: the write end is what a successful exec
+    // closes, and the read end has no business in the program that starts.
     unsafe {
+        libc::fcntl(fds[0], libc::F_SETFD, libc::FD_CLOEXEC);
         libc::fcntl(fds[1], libc::F_SETFD, libc::FD_CLOEXEC);
     }
     Ok((fds[1], fds[0]))
