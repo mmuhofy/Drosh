@@ -53,11 +53,16 @@ class EnginePane(context: Context) {
     /**
      * The engine's own controller, which owns the view and the session.
      *
-     * The application context is used on purpose: the pane outlives the
-     * composition that created it (the manager keeps it), and a view that
-     * holds an activity context would keep that activity alive with it.
+     * The context is the one the host gave — the activity's, for a view. A
+     * `GLSurfaceView` built with the application context has no window to
+     * draw in, and the terminal is a surface that never draws: the app shows
+     * a blank rectangle where the terminal should be.
+     *
+     * The pane does not outlive its host: the host releases it when the
+     * composition goes, and the manager drops it then too. So the view's
+     * context is the activity's for exactly as long as the activity is.
      */
-    private val controller = TerminalController(context.applicationContext ?: context)
+    private val controller = TerminalController(context)
 
     /** The engine's view: what the host puts into its layout. */
     val view: TerminalView get() = controller.view
