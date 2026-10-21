@@ -178,7 +178,12 @@ fn ligatures_follow_the_setting() {
     let stack = stack();
 
     // The pairs a terminal font is expected to ligate.
-    let pairs = ["->", "=>", "!=", "==", ">="];
+    //
+    // With a space in front: the font's ligature lookup is a *chained
+    // context* one, and its backtrack asks for the space a word follows.
+    // Without one there is nothing to match, and the pair stays two
+    // characters.
+    let pairs = [" ->", " =>", " !=", " ==", " >="];
 
     let shaped_off = stack.shape("->", Weight::Regular, false).expect("shaping");
     assert_eq!(shaped_off.len(), 2, "with ligatures off every character is its own glyph");
