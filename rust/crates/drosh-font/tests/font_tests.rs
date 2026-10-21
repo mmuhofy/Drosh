@@ -194,9 +194,6 @@ fn codepoints_outside_the_font_are_substituted_and_reported() {
                     .unwrap_or(false)
             })
             .count();
-        assert!(
-            ligated > 0,
-            "the shipped font ligates none of {pairs:?} with ligatures on"
-        );
+        assert!(ligated > 0, "the shipped font ligates none of {pairs:?} with ligatures on");
     }
 }
