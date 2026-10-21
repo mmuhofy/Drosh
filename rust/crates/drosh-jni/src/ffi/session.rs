@@ -139,8 +139,6 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeWrit
     finish(result)
 }
 
-/// Resize grid, PTY and renderer state.
-#[no_mangle]
 /// Change the cursor's shape of a running session.
 ///
 /// alacritty's own fallback: the terminal's `DECSCUSR` wins, and this is
@@ -163,6 +161,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSetC
     finish(result)
 }
 
+/// Resize grid, PTY and renderer state.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeResize(
     _env: JNIEnv,
