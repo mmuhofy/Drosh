@@ -126,6 +126,7 @@ typealias OnSettingsUpdate = ((DroshSettings) -> DroshSettings) -> Unit
  * file the user picked.
  */
 private val FONT_FILE_TYPES = arrayOf(
+    "font/*",
     "font/ttf",
     "font/otf",
     "application/x-font-ttf",
