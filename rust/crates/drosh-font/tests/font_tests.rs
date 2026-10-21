@@ -164,30 +164,30 @@ fn codepoints_outside_the_font_are_substituted_and_reported() {
 
     // The raw helper says the same thing without a FontStack.
     assert!(matches!(drosh_font::fallback::resolve(&regular, '中'), Resolution::Substituted(_)));
+}
 
-    /// The font's ligatures, and the setting that switches them off.
-    ///
-    /// The shipped face is the standard JetBrains Mono, whose ligatures live
-    /// in the `calt` feature. Turning ligatures off disables `liga`, `clig`,
-    /// `calt` and `rlig` at shape time, so the same face gives one glyph per
-    /// character and the terminal shows what the guest wrote.
-    #[test]
-    fn ligatures_follow_the_setting() {
-        let stack = stack();
+/// The font's ligatures, and the setting that switches them off.
+///
+/// The shipped face is the standard JetBrains Mono, whose ligatures live in
+/// the `calt` feature. Turning ligatures off disables `liga`, `clig`, `calt`
+/// and `rlig` at shape time, so the same face gives one glyph per character
+/// and the terminal shows what the guest wrote.
+#[test]
+fn ligatures_follow_the_setting() {
+    let stack = stack();
 
-        // The pairs a terminal font is expected to ligate.
-        let pairs = ["->", "=>", "!=", "==", ">="];
+    // The pairs a terminal font is expected to ligate.
+    let pairs = ["->", "=>", "!=", "==", ">="];
 
-        let shaped_off = stack.shape("->", Weight::Regular, false).expect("shaping");
-        assert_eq!(shaped_off.len(), 2, "with ligatures off every character is its own glyph");
+    let shaped_off = stack.shape("->", Weight::Regular, false).expect("shaping");
+    assert_eq!(shaped_off.len(), 2, "with ligatures off every character is its own glyph");
 
-        let mut ligated = 0;
-        for pair in pairs {
-            let glyphs = stack.shape(pair, Weight::Regular, true).expect("shaping");
-            if glyphs.len() < pair.chars().count() {
-                ligated += 1;
-            }
+    let mut ligated = 0;
+    for pair in pairs {
+        let glyphs = stack.shape(pair, Weight::Regular, true).expect("shaping");
+        if glyphs.len() < pair.chars().count() {
+            ligated += 1;
         }
-        assert!(ligated > 0, "the shipped font ligates none of {pairs:?} with ligatures on");
     }
+    assert!(ligated > 0, "the shipped font ligates none of {pairs:?} with ligatures on");
 }
