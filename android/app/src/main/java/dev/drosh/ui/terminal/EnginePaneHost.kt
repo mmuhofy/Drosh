@@ -9,6 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
@@ -97,6 +98,11 @@ fun EnginePaneHost(
     val pane = remember { EnginePane(context) }
 
     /**
+     * That the guest is not installed, so the pane has nothing to run.
+     */
+    val guestMissing = remember { mutableStateOf(false) }
+
+    /**
      * Where the chrome samples this terminal.
      *
      * The engine's pixels live in a surface of their own, so the chrome asks
@@ -114,9 +120,15 @@ fun EnginePaneHost(
     LaunchedEffect(pane) {
         val command = terminalManager.guestCommand()
         if (command == null) {
+            // No rootfs, so there is nothing for the engine to run. The
+            // vendored path opens a plain shell in that case; the engine has
+            // no guest and no plain shell of its own, so the pane says so
+            // rather than showing an empty rectangle.
             Log.w(TAG, "the guest is not installed; the engine's terminal has nothing to run")
+            guestMissing.value = true
             return@LaunchedEffect
         }
+        guestMissing.value = false
         // The size first: the grid is laid out around the cell, and a session
         // that starts at one size and is resized to another afterwards is a
         // flash of the wrong grid.
@@ -216,13 +228,15 @@ fun EnginePaneHost(
      */
     val startError = pane.view.startError
 
-    if (startError != null) {
+    if (startError != null || guestMissing.value) {
         Box(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = stringResource(R.string.terminal_engine_unavailable, startError),
+                text = startError?.let {
+                    stringResource(R.string.terminal_engine_unavailable, it)
+                } ?: stringResource(R.string.terminal_engine_no_guest),
                 color = DroshTextSecondary,
                 fontFamily = LocalFontSet.current.sans,
                 fontSize = 14.sp,
