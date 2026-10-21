@@ -132,7 +132,7 @@ class TerminalViewModel @Inject constructor(
                 boldBrightens = settings.terminal.boldBrightens,
                 ligatures = settings.terminal.ligatures,
                 textSizeSp = settings.terminal.defaultFontSizeSp,
-                fontPack = settings.terminal.fontPack,
+                fontPack = settings.appearance.fontPack,
             )
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalConfig())

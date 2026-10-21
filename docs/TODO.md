@@ -492,6 +492,30 @@ Three slices, in this order:
   - [x] **The block engine takes its state from a source.** The Termux path
         keeps inferring it; an engine-backed session gets the engine's answer.
   - [x] **The log sheet can read the engine's transcript.**
+  - [x] **The engine takes the application's configuration.** alacritty's
+        split, the same way: the *application* holds the configuration and the
+        *display* holds what it resolved, and the terminal's own answers still
+        win — the colours an `OSC 4/10/11/12` set, the cursor a `DECSCUSR`
+        asked for.
+
+        The palette travels whole, because the engine's wire format is a table
+        of colours (alacritty's layout, index for index) and the theme is that
+        table's source. The cursor's shape and the blink come with it:
+        alacritty's own fallback, where the shape goes into the session
+        because the term's configuration is fixed when the session starts, and
+        the blink is the frame loop's.
+
+        Before this, the engine drew its own palette: the app's theme never
+        reached it, so the terminal was drawn in the prototype's colours
+        whatever the user chose — and the chrome, which samples the
+        terminal's colours, had nothing to sample but the default.
+  - [x] **The font's ligatures, the way alacritty does them.** A terminal's
+        cell holds a character, not a glyph; the glyph is the font's answer to
+        a run of characters, and a ligature is that answer covering more than
+        one. The terminal knows the cells and the *renderer* shapes them, so
+        the shaping happens in the renderer and the terminal never learns a
+        ligature exists. Only the ligatures take over: everything else keeps
+        the per-codepoint path, which knows the font's fallback chain.
 - [ ] **P3b-2 — the app reads from the engine.** The session log sheet takes
       the engine's transcript, the block engine takes the engine's block
       state, and the search takes the engine's copy. `AnsiStripper`,

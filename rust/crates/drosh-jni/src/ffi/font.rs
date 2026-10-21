@@ -66,10 +66,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeShap
     out: JIntArray<'local>,
 ) -> jint {
     let result = (|| -> FfiResult<usize> {
-        let text: String = env
-            .get_string(&text)
-            .map_err(|_| ErrorCode::InvalidArgument)?
-            .into();
+        let text: String = env.get_string(&text).map_err(|_| ErrorCode::InvalidArgument)?.into();
         let weight = if bold == 0 { Weight::Regular } else { Weight::Bold };
 
         let capacity = int_array_len(&env, &out)?;

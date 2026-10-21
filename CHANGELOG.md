@@ -109,6 +109,11 @@ release when it ships.
 
 ### Fixed
 
+- The terminal screen's ground is the terminal's colour. The chrome floats
+  over the terminal, and what was behind it was the app's background: in the
+  light theme a near-white field, so a dark terminal had a white strip at the
+  top — the one part of the screen that belonged to neither the terminal nor
+  the chrome
 - The guest's work directory has to exist: chroot-ng refuses one that is not
   there in the guest, and a refused one means the guest does not start at all.
   A project directory that was never created is exactly that, so the runner
@@ -132,6 +137,18 @@ release when it ships.
 
 ### Changed
 
+- The engine draws in the app's theme. It kept its own palette, so the
+  terminal was drawn in the prototype's colours whatever the user chose — and
+  the chrome, which samples the terminal's colours, had nothing to sample but
+  the default. The application's configuration now goes to the engine the way
+  alacritty splits it: the app holds the configuration, the engine holds what
+  it resolved, and the terminal's own answers still win — the colours an
+  `OSC 4/10/11/12` set, the cursor a `DECSCUSR` asked for
+- The font's ligatures, the way alacritty does them. A terminal's cell holds a
+  character, not a glyph: the glyph is the font's answer to a run of
+  characters, and a ligature is that answer covering more than one. The
+  terminal knows the cells and the renderer shapes them, so the terminal never
+  learns a ligature exists
 - The engine finds the URLs on the screen, with the same rules the app's own
   detector uses: a bare `www.` host, the punctuation that follows a link, and
   the brackets a link opened itself. A URL the shell soft-wrapped across two

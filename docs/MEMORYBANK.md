@@ -1927,6 +1927,22 @@ data class SshHost(
    the default until the engine path has been through a device. One
    guest command, two terminals: it is built in one place
    (`TerminalManager.guestCommand()`) and both run the same image.
+✅ The engine takes the application's configuration, alacritty's split:
+   the app holds the configuration, the engine holds what it resolved,
+   and the terminal's own answers still win (OSC 4/10/11/12, DECSCUSR).
+   The palette is a 269-slot table in alacritty's layout — the engine's
+   wire format — and the domain builds it the way alacritty's display
+   does. Before this the engine drew its own palette, so the app's
+   theme never reached it.
+✅ The font's ligatures, the way alacritty does them: the terminal knows
+   the cells, the renderer shapes them, and only the ligatures take over
+   — everything else keeps the per-codepoint path, which knows the
+   font's fallback chain.
+✅ The terminal screen's ground is the terminal's colour. The chrome
+   floats over the terminal, and what was behind it was the app's
+   background: in the light theme a near-white field, so a dark
+   terminal had a white strip at the top — the one part of the screen
+   that belonged to neither the terminal nor the chrome.
 ⏳ P3b-2 — the app reads from the engine. The log sheet and the block
    engine do; the find bar, the extra-keys row and the session list do
    not yet. Termux's deletion waits for those.
