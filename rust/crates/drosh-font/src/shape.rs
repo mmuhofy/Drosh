@@ -74,7 +74,7 @@ pub fn shape_text(font: &Font, text: &str, ligatures: bool) -> Option<Vec<Shaped
             .map(|(info, position)| ShapedGlyph {
                 // OpenType glyph ids are 16-bit; a font that says otherwise
                 // is broken, and the id is clamped rather than wrapped.
-                glyph_id: info.glyph_id.to_u32().min(u32::from(u16::MAX)) as u16,
+                glyph_id: info.glyph_id.min(u32::from(u16::MAX)) as u16,
                 cluster: info.cluster,
                 x_advance: position.x_advance,
                 x_offset: position.x_offset,

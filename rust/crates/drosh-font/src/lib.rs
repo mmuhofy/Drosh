@@ -167,7 +167,7 @@ impl FontStack {
         // The fields are destructured on purpose: `self.bytes(..)` borrows all of
         // `self` immutably, which would collide with the mutable borrow of the
         // rasteriser's context.
-        let Self { regular, bold, scale } = self;
+        let Self { regular, bold, scale, .. } = self;
         let bytes = face(regular.as_slice(), bold.as_deref(), weight);
         raster::rasterize(scale, bytes, glyph_id, px, true)
     }
