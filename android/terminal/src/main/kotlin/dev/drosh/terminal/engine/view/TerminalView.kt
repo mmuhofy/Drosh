@@ -93,6 +93,17 @@ class TerminalView(context: Context) : FrameLayout(context) {
     /** False when the bundled font failed to load; the view is dead without it. */
     private var fontLoaded = false
 
+    /**
+     * The cursor's shape, when the terminal has not asked for one.
+     *
+     * alacritty's own fallback (`TermConfig::default_cursor_style`): the
+     * terminal's `DECSCUSR` wins over the application's setting.
+     */
+    internal var defaultCursorStyle: Int = dev.drosh.terminal.engine.core.NativeCore.CURSOR_BLOCK
+
+    /** How long the cursor takes to blink; 0 means it does not. */
+    internal var cursorBlinkMillis: Long = 750L
+
     private var exited = false
 
     /** The armed Ctrl of an external extra-keys row, honoured by the IME path. */
@@ -403,6 +414,42 @@ class TerminalView(context: Context) : FrameLayout(context) {
      * handed over to the GL thread; the renderer reports the grid it laid
      * out, and the session follows on the UI thread.
      */
+    /**
+     * The application's terminal configuration.
+     *
+     * alacritty's split, the same way: the *application* holds the
+     * configuration and the *display* holds what it resolved. The terminal's own
+     * answers still win — the colours an `OSC 4/10/11/12` set, the cursor a
+     * `DECSCUSR` asked for — because a program that asked has a reason.
+     */
+    fun applyAppearance(appearance: dev.drosh.domain.settings.TerminalAppearance) {
+        // The palette is the engine's wire format, so it goes in whole.
+        dev.drosh.domain.settings.TerminalPaletteTable.of(appearance.palette)
+            .let { dev.drosh.terminal.engine.core.Palette.setApplicationTable(it) }
+
+        // The cursor's shape is the terminal's to decide; this is what it falls
+        // back on (alacritty: `TermConfig::default_cursor_style`).
+        defaultCursorStyle = when (appearance.cursorStyle) {
+            dev.drosh.domain.settings.CursorStyle.Block ->
+                dev.drosh.terminal.engine.core.NativeCore.CURSOR_BLOCK
+
+            dev.drosh.domain.settings.CursorStyle.Beam ->
+                dev.drosh.terminal.engine.core.NativeCore.CURSOR_BAR
+
+            dev.drosh.domain.settings.CursorStyle.Underline ->
+                dev.drosh.terminal.engine.core.NativeCore.CURSOR_UNDERLINE
+        }
+
+        // Whether bold text is drawn in the bright colours.
+        dev.drosh.terminal.engine.core.Palette.boldBrightens = appearance.boldBrightens
+
+        // The blink is the frame loop's business, and it asks the view.
+        cursorBlinkMillis = appearance.cursorBlinkMs.toLong()
+
+        setTextSize(appearance.textSizeSp)
+        requestRender()
+    }
+
     fun setTextSize(sp: Float) {
         if (!fontLoaded) {
             Log.w(TAG, "the bundled font failed to load; the text size cannot change")

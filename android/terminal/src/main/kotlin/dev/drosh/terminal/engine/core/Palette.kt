@@ -26,8 +26,66 @@ internal object Palette {
     const val DEFAULT_BACKGROUND = 0x181818
     const val CURSOR = DEFAULT_FOREGROUND
 
+    /**
+     * The application's own table, when it has one.
+     *
+     * alacritty's split, the same way: the *application* holds the
+     * configuration and the *display* holds the resolved table
+     * (`alacritty/src/display/color.rs` — `impl From<&Colors> for List`). The
+     * terminal crate only knows the defaults and the overrides the terminal
+     * itself asked for; the app's theme is one layer above that.
+     *
+     * The table is the engine's wire format (`bridge/cell.rs` encodes a colour
+     * as the index into this same table), so it is alacritty's layout, index
+     * for index.
+     */
+    @Volatile
+    private var application: IntArray? = null
+
+    /**
+     * Whether bold text is drawn in the bright colours.
+     *
+     * alacritty's own setting (`config/color.rs` —
+     * `draw_bold_text_with_bright_colors`): the bold flag reaches the renderer
+     * as a flag, and the *renderer* decides what bold means. A program that
+     * asked for a colour gets it; the application's setting only decides how
+     * the eight bold colours are drawn.
+     */
+    @Volatile
+    var boldBrightens: Boolean = false
+
+    /**
+     * The application's table, the 269 colours the engine names.
+     *
+     * The array is owned by the caller and only replaced when the app's theme
+     * changes.
+     */
+    fun setApplicationTable(table: IntArray) {
+        application = table
+    }
+
     /** `vte::ansi::NamedColor` slots for the primary colours. */
     private const val NAMED_FOREGROUND = 256
+
+    /** The dim named colours, 259..266. */
+    private const val NAMED_DIM_BLACK = 259
+    private const val NAMED_DIM_RED = 260
+    private const val NAMED_DIM_GREEN = 261
+    private const val NAMED_DIM_YELLOW = 262
+    private const val NAMED_DIM_BLUE = 263
+    private const val NAMED_DIM_MAGENTA = 264
+    private const val NAMED_DIM_CYAN = 265
+    private const val NAMED_DIM_WHITE = 266
+
+    /** The bright named colours, 8..15. */
+    private const val BRIGHT_BLACK = 8
+    private const val BRIGHT_RED = 9
+    private const val BRIGHT_GREEN = 10
+    private const val BRIGHT_YELLOW = 11
+    private const val BRIGHT_BLUE = 12
+    private const val BRIGHT_MAGENTA = 13
+    private const val BRIGHT_CYAN = 14
+    private const val BRIGHT_WHITE = 15
     private const val NAMED_BACKGROUND = 257
     private const val NAMED_CURSOR = 258
 
@@ -49,13 +107,13 @@ internal object Palette {
     }
 
     /** The current primary foreground, after any `OSC 10` override. */
-    val foreground: Int get() = override(NAMED_FOREGROUND) ?: DEFAULT_FOREGROUND
+    val foreground: Int get() = override(NAMED_FOREGROUND) ?: application(NAMED_FOREGROUND) ?: DEFAULT_FOREGROUND
 
     /** The current primary background, after any `OSC 11` override. */
-    val background: Int get() = override(NAMED_BACKGROUND) ?: DEFAULT_BACKGROUND
+    val background: Int get() = override(NAMED_BACKGROUND) ?: application(NAMED_BACKGROUND) ?: DEFAULT_BACKGROUND
 
     /** The cursor colour; alacritty's default is the foreground. */
-    val cursor: Int get() = override(NAMED_CURSOR) ?: foreground
+    val cursor: Int get() = override(NAMED_CURSOR) ?: application(NAMED_CURSOR) ?: foreground
 
     /** Resolve a wire color (see `bridge/cell.rs`) to `0xRRGGBB`. */
     fun resolve(encoded: Int, defaultColor: Int): Int {
@@ -65,6 +123,19 @@ internal object Palette {
             NativeCore.COLOR_TAG_INDEXED -> override(payload) ?: indexed(payload)
             else -> payload
         }
+    }
+
+    /**
+     * The bright version of a colour, for bold text.
+     *
+     * The named colours are the *dim* ones, so the bright one is the same hue
+     * with the dim factor undone. A colour that is not one of the named eight
+     * is left alone: there is no bright version of it to have.
+     */
+    fun brightened(color: Int): Int {
+        val index = DIM_NAMES.indexOfFirst { dim(it) == color }
+        if (index < 0) return color
+        return application(BRIGHT_NAMES[index]) ?: BRIGHT_DEFAULTS[index]
     }
 
     /**
@@ -79,6 +150,13 @@ internal object Palette {
         return set ?: if (index < 256) indexed(index) else named(index, DEFAULT_FOREGROUND)
     }
 
+    /** The application's colour at an index, when it has a table. */
+    private fun application(index: Int): Int? {
+        val table = application ?: return null
+        if (index < 0 || index >= table.size) return null
+        return table[index]
+    }
+
     private fun override(index: Int): Int? {
         val table = overrides ?: return null
         if (index < 0 || index >= table.size) {
@@ -90,20 +168,20 @@ internal object Palette {
 
     /** `vte::ansi::NamedColor` values: 0..15 ANSI, 16..255 unused, then 256+. */
     private fun named(index: Int, defaultColor: Int): Int = when {
-        index < 16 -> ANSI[index]
-        index == NAMED_FOREGROUND -> DEFAULT_FOREGROUND
-        index == NAMED_BACKGROUND -> DEFAULT_BACKGROUND
-        index == NAMED_CURSOR -> CURSOR
-        index in 259..266 -> dim(ANSI[index - 259])
-        index == 267 -> ANSI[15]
-        index == 268 -> dim(DEFAULT_FOREGROUND)
+        index < 16 -> application(index) ?: ANSI[index]
+        index == NAMED_FOREGROUND -> application(index) ?: DEFAULT_FOREGROUND
+        index == NAMED_BACKGROUND -> application(index) ?: DEFAULT_BACKGROUND
+        index == NAMED_CURSOR -> application(index) ?: CURSOR
+        index in 259..266 -> dim(application(index) ?: ANSI[index - 259])
+        index == 267 -> application(index) ?: ANSI[15]
+        index == 268 -> dim(application(index) ?: DEFAULT_FOREGROUND)
         // vte 0.15 ends the enum at `DimForeground` (268); anything else means
         // the engine moved and the mapping has to be re-read from its source.
         else -> defaultColor
     }
 
     private fun indexed(index: Int): Int = when {
-        index < 16 -> ANSI[index]
+        index < 16 -> application(index) ?: ANSI[index]
         index < 232 -> {
             val cube = index - 16
             rgb(level(cube / 36), level((cube % 36) / 6), level(cube % 6))
@@ -116,6 +194,23 @@ internal object Palette {
     }
 
     private fun level(value: Int): Int = if (value == 0) 0 else value * 40 + 55
+
+    /** The named colours, in the order the bright ones follow them. */
+    private val DIM_NAMES = listOf(
+        NAMED_DIM_BLACK, NAMED_DIM_RED, NAMED_DIM_GREEN, NAMED_DIM_YELLOW,
+        NAMED_DIM_BLUE, NAMED_DIM_MAGENTA, NAMED_DIM_CYAN, NAMED_DIM_WHITE,
+    )
+
+    /** The bright counterpart of each dim colour. */
+    private val BRIGHT_NAMES = listOf(
+        BRIGHT_BLACK, BRIGHT_RED, BRIGHT_GREEN, BRIGHT_YELLOW,
+        BRIGHT_BLUE, BRIGHT_MAGENTA, BRIGHT_CYAN, BRIGHT_WHITE,
+    )
+
+    /** alacritty's own bright colours, for when the application has no table. */
+    private val BRIGHT_DEFAULTS = intArrayOf(
+        0x6b6b6b, 0xc55555, 0xaac474, 0xfeca88, 0x82b8c8, 0xc28cb8, 0x93d3c3, 0xf8f8f8,
+    )
 
     private fun dim(color: Int): Int = rgb(
         ((color shr 16 and 0xff) * DIM_FACTOR).toInt(),

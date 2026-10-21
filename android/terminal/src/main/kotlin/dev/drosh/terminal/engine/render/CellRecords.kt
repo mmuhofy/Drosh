@@ -114,6 +114,14 @@ internal class CellRecords(columns: Int, rows: Int) {
                 var background = Palette.resolve(bgEncoded, Palette.DEFAULT_BACKGROUND)
                 val bold = flags and NativeCore.FLAG_BOLD != 0
 
+                // Bold text in the bright colours, when the application asked
+                // for it (alacritty's `draw_bold_text_with_bright_colors`).
+                // The named colour is the dim one, so the bright one is the
+                // same hue with the dim factor undone.
+                if (bold && Palette.boldBrightens) {
+                    foreground = Palette.brightened(foreground)
+                }
+
                 if (flags and NativeCore.FLAG_INVERSE != 0) {
                     val swap = foreground
                     foreground = background

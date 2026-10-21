@@ -443,6 +443,9 @@ private fun ReadyScreen(
      * tried without a rebuild, and what lets it be undone without one.
      */
     val terminalBackend by terminalViewModel.terminalBackend.collectAsStateWithLifecycle()
+
+    /** How the terminal should look: the application's configuration. */
+    val terminalAppearance by terminalViewModel.appearance.collectAsStateWithLifecycle()
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
@@ -1862,6 +1865,7 @@ private fun TerminalPaneBody(
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
+                    appearance = terminalAppearance,
                     appearanceSource = appearanceSource,
                     onBoundsChanged = onBoundsChanged,
                     modifier = Modifier.fillMaxSize(),

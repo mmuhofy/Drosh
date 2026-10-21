@@ -73,6 +73,14 @@ fun EnginePaneHost(
     fontSizeSp: Float,
     defaultFontSizeSp: Float,
     /**
+     * How the terminal should look: the application's configuration.
+     *
+     * The engine's own answers still win — the colours a program set with
+     * `OSC 4/10/11/12`, the cursor a `DECSCUSR` asked for — the way
+     * alacritty splits it.
+     */
+    appearance: dev.drosh.domain.settings.TerminalAppearance,
+    /**
      * Where this pane's terminal is sampled for the chrome.
      *
      * Published by the pane that has the focus, because the chrome samples
@@ -163,6 +171,16 @@ fun EnginePaneHost(
      */
     LaunchedEffect(fontSizeSp) {
         pane.view.setTextSize(fontSizeSp)
+    }
+
+    /**
+     * The application's configuration, handed over as it changes.
+     *
+     * The palette travels whole, because the engine's wire format is a table
+     * of colours and the theme is that table's source.
+     */
+    LaunchedEffect(appearance) {
+        pane.view.applyAppearance(appearance)
     }
 
     /**
