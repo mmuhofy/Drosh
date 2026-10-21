@@ -831,7 +831,11 @@ class TerminalManager(
             GuestIsolation.CHROOT_NG ->
                 ChrootNgRunner(
                     ubuntuBootstrap.rootfsDir,
-                    appContext.applicationInfo.nativeLibraryDir,
+                    // The staged runtime, not a path in the APK: a `lib/` entry
+                    // that nothing loads is not extracted by the installer, so
+                    // a runtime that lives there is in the APK and nowhere
+                    // else, and the guest has nothing to run.
+                    ubuntuBootstrap.chrootNgFile,
                 )
         }
 

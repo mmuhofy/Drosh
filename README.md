@@ -139,11 +139,16 @@ rust/                   → the Cargo workspace; `cargo test` runs from here
 
 The guest runtime — [chroot-ng](https://github.com/mmuhofy/chroot-ng) — is a
 third-party binary, so it ships in the repository at
-`android/linux/src/main/jniLibs/arm64-v8a/libchrootng.so`, the build that
-published it (`v1.2.0`, SHA-256 `29473e36…`). It does not change with our
-code, and a build that has to fetch it is a build that can be made without
-one. CI checks the hash rather than fetching it, so the bytes in an APK are
-always the ones that release published.
+`android/linux/src/main/assets/libchrootng.so`, the build that published it
+(`v1.2.0`, SHA-256 `29473e36…`). It does not change with our code, and a
+build that has to fetch it is a build that can be made without one. CI checks
+the hash rather than fetching it, so the bytes in an APK are always the ones
+that release published.
+
+It travels as an **asset** and the bootstrap stages it into the app's own
+storage, the way proot is staged. A `lib/` entry that nothing loads is not
+extracted by the installer, so a runtime that lives there is in the APK and
+nowhere else — and the guest has nothing to run.
 
 Project names are unchanged by the split — `:app`, `:data`, … — so a module is
 `android/data/` and is still depended on as `project(":data")`.

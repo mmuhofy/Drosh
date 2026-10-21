@@ -37,7 +37,11 @@ private const val TAG = "DroshGuest"
  */
 class ChrootNgRunner(
     private val rootfsDir: File,
-    private val nativeLibDir: String,
+    /**
+     * The staged runtime — the file the bootstrap put in the app's own
+     * storage, not a path in the APK's native library folder.
+     */
+    private val runtimeFile: File,
     /**
      * Host paths the guest sees as themselves.
      *
@@ -48,7 +52,7 @@ class ChrootNgRunner(
     private val devicePaths: List<String> = listOf("/data", "/storage", "/sdcard"),
 ) : GuestLauncher {
 
-    private val chrootNgPath: String get() = "$nativeLibDir/libchrootng.so"
+    private val chrootNgPath: String get() = runtimeFile.absolutePath
     private val rootfsPath: String get() = rootfsDir.absolutePath
 
     /**
@@ -61,7 +65,7 @@ class ChrootNgRunner(
      * says nothing about the cause.
      */
     override val isAvailable: Boolean
-        get() = File(chrootNgPath).let { it.isFile && it.canExecute() }
+        get() = runtimeFile.isFile && runtimeFile.canExecute()
 
     /**
      * The binds, as `SRC:DST` pairs.

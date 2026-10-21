@@ -18,7 +18,16 @@ import java.io.File
 class ChrootNgRunnerTest {
 
     private fun runner(rootfs: File, devicePaths: List<String> = emptyList()): ChrootNgRunner =
-        ChrootNgRunner(rootfs, "/native/lib", devicePaths)
+        ChrootNgRunner(rootfs, stagedRuntime(), devicePaths)
+
+    /** The runtime the bootstrap stages, as a file that is there. */
+    private fun stagedRuntime(): File {
+        val file = File(System.getProperty("java.io.tmpdir"), "drosh-libchrootng.so").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            setExecutable(true, false)
+        }
+        return file
+    }
 
     private fun rootfs(): File = File(System.getProperty("java.io.tmpdir"), "drosh-rootfs").apply {
         mkdirs()
@@ -27,27 +36,21 @@ class ChrootNgRunnerTest {
 
     @Test
     fun `the runtime is missing when the build did not carry it`() {
-        // The guest binary is fetched by the build, not in the repository, so a
-        // build that skipped the fetch has no chroot-ng at all. The runner says
-        // so, rather than letting the session die with an ENOENT.
-        val runner = ChrootNgRunner(rootfs(), "/native/lib-that-is-not-there")
+        // The runtime is staged from an asset by the bootstrap. Without that
+        // step there is no chroot-ng at all, and the runner says so rather
+        // than letting the session die with an ENOENT.
+        val missing = File(System.getProperty("java.io.tmpdir"), "drosh-no-such-runtime.so")
+        val runner = ChrootNgRunner(rootfs(), missing, emptyList())
         assertFalse(runner.isAvailable)
     }
 
     @Test
     fun `the runtime is there when the build carried it`() {
-        val libDir = File(System.getProperty("java.io.tmpdir"), "drosh-native-lib").apply {
-            mkdirs()
-        }
-        val binary = File(libDir, "libchrootng.so").apply {
-            writeBytes(byteArrayOf(1, 2, 3))
-            setExecutable(true, false)
-        }
+        val file = stagedRuntime()
         try {
-            assertTrue(ChrootNgRunner(rootfs(), libDir.absolutePath).isAvailable)
+            assertTrue(ChrootNgRunner(rootfs(), file, emptyList()).isAvailable)
         } finally {
-            binary.delete()
-            libDir.delete()
+            file.delete()
         }
     }
 

@@ -26,7 +26,7 @@ be compiled into stays GPLv3 because of `:terminal`.
 |---|---|---|---|
 | Terminal engine + shell integration | `android/terminal/` (both `com.termux.*` and `dev.drosh.terminal.*`) | **GPL-3.0** | modified Termux code, vendored in-tree |
 | Terminal native library | `android/terminal/src/main/jniLibs/` (`libtermux.so`) | **GPL-3.0** | Termux's JNI library |
-| chroot-ng guest runtime | its own release, shipped as `android/linux/src/main/jniLibs/arm64-v8a/libchrootng.so` | **Apache-2.0** | third-party binary, unmodified — see `android/terminal/src/main/assets/licenses/` |
+| chroot-ng guest runtime | its own release, shipped as `android/linux/src/main/assets/libchrootng.so` | **Apache-2.0** | third-party binary, unmodified — see `android/terminal/src/main/assets/licenses/` |
 | Drosh source | `android/app/` `android/ui/` `android/data/` `android/domain/` `android/features/agent/` `android/features/ssh/` `android/core/` `android/theme/` | **Apache-2.0** | Drosh-authored |
 | Linux userland | `android/linux/` | **Apache-2.0**, except the rootfs archive format | Drosh-authored; `backup/RootfsArchive{Reader,Writer}.kt` are GPL-3.0 |
 | Editor wrapper | `android/features/editor/` (Drosh code) | **Apache-2.0** | Drosh-authored; the editor it wraps is LGPL — see `android/features/editor/NOTICE.md` |

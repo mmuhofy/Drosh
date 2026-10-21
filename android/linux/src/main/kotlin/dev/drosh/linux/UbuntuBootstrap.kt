@@ -20,9 +20,22 @@ class UbuntuBootstrap(private val context: Context) {
 
     private val baseDir: File get() = File(context.filesDir, "ubuntu")
     val prootFile: File get() = File(baseDir, "bin/proot")
+
+    /**
+     * The chroot-ng runtime, staged where it can be run.
+     *
+     * An **asset**, not a native library: the installer does not extract a
+     * `lib/` entry that nothing loads, so a runtime that lives there is in the
+     * APK and nowhere else, and the guest has nothing to run. proot is staged
+     * from an asset for the same reason, and it works.
+     */
+    val chrootNgFile: File get() = File(baseDir, "bin/libchrootng.so")
     val libDir: File get() = File(baseDir, "lib")
     val rootfsDir: File get() = File(baseDir, "rootfs")
     private val tmpDir: File get() = File(baseDir, "tmp")
+
+    /** The chroot-ng runtime, as it travels in the APK. */
+    private const val CHROOT_NG_ASSET = "libchrootng.so"
 
     /** Marker file written by `rootfs-optimize.sh` once bootstrap completes. */
     private val setupMarker: File
@@ -53,6 +66,14 @@ class UbuntuBootstrap(private val context: Context) {
         get() = prootFile.canExecute()
             && File(libDir, "libtalloc.so.2").canRead()
 
+    /**
+     * Whether chroot-ng — the other engine — can be launched.
+     *
+     * The runtime is staged from an asset, like proot, and run from there.
+     */
+    val isChrootNgAvailable: Boolean
+        get() = chrootNgFile.canExecute()
+
     @Volatile private var lastFailedStep: String = "Unknown"
 
     suspend fun install(
@@ -62,7 +83,7 @@ class UbuntuBootstrap(private val context: Context) {
     ) {
         // The rootfs is reused when it is already there, so a missing proot
         // costs the staging of the binary and not the download of the image.
-        if (isInstalled && isProotAvailable) {
+        if (isInstalled && isProotAvailable && isChrootNgAvailable) {
             onLog("✓ Bootstrap already installed — skipping.")
             onState(UbuntuSetupState.Ready)
             return
@@ -94,6 +115,17 @@ class UbuntuBootstrap(private val context: Context) {
                 }
                 prootFile.setExecutable(true, false)
                 onLog("  · PRoot binary staged.")
+
+                // The chroot-ng runtime, the same way: an asset, staged into
+                // the app's own storage, where it can be run.
+                context.assets.open(CHROOT_NG_ASSET).use { input ->
+                    chrootNgFile.parentFile!!.mkdirs()
+                    FileOutputStream(chrootNgFile).use { out ->
+                        input.copyTo(out)
+                    }
+                }
+                chrootNgFile.setExecutable(true, false)
+                onLog("  · chroot-ng runtime staged.")
 
                 // libtalloc.so.2
                 context.assets.open("libtalloc.so.2").use { input ->

@@ -144,7 +144,7 @@ jobs:
           # does not change with our code. The hash is still checked, because
           # the bytes are the ones a release published and a build that
           # carries different ones is a build nobody can account for.
-          runtime="android/linux/src/main/jniLibs/arm64-v8a/libchrootng.so"
+          runtime="android/linux/src/main/assets/libchrootng.so"
           test -f "$runtime"
           echo "${CHROOT_NG_SHA256}  ${runtime}" | sha256sum -c -
           ls -l "$runtime"
@@ -197,7 +197,7 @@ jobs:
           APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libdrosh_core.so"
           echo "$APK contains libdrosh_core.so"
-          unzip -l "$APK" | grep -q "lib/arm64-v8a/libchrootng.so"
+          unzip -l "$APK" | grep -q "assets/libchrootng.so"
           echo "$APK contains libchrootng.so"
 
       - name: Upload debug APK

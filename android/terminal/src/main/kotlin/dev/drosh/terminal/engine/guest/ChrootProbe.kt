@@ -33,16 +33,23 @@ object ChrootProbe {
     private const val BINARY = "libchrootng.so"
     private const val TIMEOUT_SECONDS = 10L
 
-    /** The packaged binary, or null when the build did not carry it. */
+    /**
+     * The staged runtime, or null when the build did not carry it.
+     *
+     * The runtime travels in the APK as an **asset** and the bootstrap stages
+     * it into the app's own storage, the way proot is staged: a `lib/` entry
+     * that nothing loads is not extracted by the installer, so a runtime that
+     * lives there is in the APK and nowhere else.
+     */
     fun binary(context: Context): File? {
-        val file = File(context.applicationInfo.nativeLibraryDir, BINARY)
+        val file = File(context.filesDir, "ubuntu/bin/$BINARY")
         return if (file.isFile) file else null
     }
 
     /** Runs chroot-ng with [args] and returns its combined output. */
     fun run(context: Context, vararg args: String): String {
         val binary = binary(context)
-            ?: return "probe: $BINARY is missing from ${context.applicationInfo.nativeLibraryDir}"
+            ?: return "probe: $BINARY is missing from ${context.filesDir}/ubuntu/bin"
         val output = try {
             val process = ProcessBuilder(listOf(binary.absolutePath) + args)
                 .redirectErrorStream(true)
