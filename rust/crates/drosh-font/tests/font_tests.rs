@@ -207,19 +207,4 @@ fn ligatures_follow_the_setting() {
         all_counts.push_str(&format!("{pair}: {} ", glyphs.len()));
     }
     panic!("every alternate: {all_counts}");
-
-    // With ligatures on, the font decides. A font that ligates gives fewer
-    // glyphs than it has characters; one that does not gives the same number.
-    // The counts are in the message, so a build that says the font does not
-    // ligate says how many glyphs it did give.
-    let mut counts = String::new();
-    let mut ligated = 0;
-    for pair in pairs {
-        let glyphs = stack.shape(pair, Weight::Regular, true).expect("shaping");
-        counts.push_str(&format!("{pair}: {} ", glyphs.len()));
-        if glyphs.len() < pair.chars().count() {
-            ligated += 1;
-        }
-    }
-    assert!(ligated > 0, "the shipped font ligates none of {pairs:?} with ligatures on ({counts})");
 }
