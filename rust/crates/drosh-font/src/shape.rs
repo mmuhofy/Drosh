@@ -17,7 +17,7 @@
 //! it — and it is a complete HarfBuzz, chain contexts included.
 
 use harfrust::font::Blob;
-use harfrust::{Buffer, Direction, Feature, ShapeOptions, ShaperFont, Tag};
+use harfrust::{Buffer, BufferFlags, Direction, Feature, ShapeOptions, ShaperFont, Tag};
 
 /// The parsed face, re-exported so the stack can name it without depending
 /// on the shaper's own vocabulary.
@@ -63,6 +63,11 @@ pub fn shape_text(font: &Font, text: &str, ligatures: bool) -> Option<Vec<Shaped
     // its work per script, and a buffer without one is planned for a
     // script nobody wrote in — which is a plan that finds no ligatures.
     buffer.guess_segment_properties();
+    // The text is the whole text: it begins where it begins and ends where
+    // it ends. A shaper that is told otherwise looks for the context of a
+    // paragraph, and a ligature at the edge of the buffer needs to know
+    // that the edge *is* the edge.
+    buffer.set_flags(BufferFlags::BEGINNING_OF_TEXT | BufferFlags::END_OF_TEXT);
 
     let features = features(ligatures);
     let options = ShapeOptions::new().features(&features);
