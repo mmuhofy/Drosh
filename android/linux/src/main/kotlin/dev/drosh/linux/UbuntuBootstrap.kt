@@ -34,9 +34,6 @@ class UbuntuBootstrap(private val context: Context) {
     val rootfsDir: File get() = File(baseDir, "rootfs")
     private val tmpDir: File get() = File(baseDir, "tmp")
 
-    /** The chroot-ng runtime, as it travels in the APK. */
-    private const val CHROOT_NG_ASSET = "libchrootng.so"
-
     /** Marker file written by `rootfs-optimize.sh` once bootstrap completes. */
     private val setupMarker: File
         get() = File(rootfsDir, "var/lib/drosh/.setup_complete")
@@ -595,3 +592,8 @@ class UbuntuBootstrap(private val context: Context) {
             .decodeToString()
     }
 }
+
+    private companion object {
+        /** The chroot-ng runtime, as it travels in the APK. */
+        const val CHROOT_NG_ASSET = "libchrootng.so"
+    }
