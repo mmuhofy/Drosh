@@ -185,14 +185,19 @@ fn ligatures_follow_the_setting() {
 
     // With ligatures on, the font decides. A font that ligates gives fewer
     // glyphs than it has characters; one that does not gives the same number.
-    // The count is printed either way, so a build that says the font does not
+    // The counts are in the message, so a build that says the font does not
     // ligate says how many glyphs it did give.
+    let mut counts = String::new();
+    let mut ligated = 0;
     for pair in pairs {
         let glyphs = stack.shape(pair, Weight::Regular, true).expect("shaping");
-        println!("{pair}: {} glyphs", glyphs.len());
-        assert!(
-            glyphs.len() <= pair.chars().count(),
-            "a ligature cannot make more glyphs than there are characters"
-        );
+        counts.push_str(&format!("{pair}: {} ", glyphs.len()));
+        if glyphs.len() < pair.chars().count() {
+            ligated += 1;
+        }
     }
+    assert!(
+        ligated > 0,
+        "the shipped font ligates none of {pairs:?} with ligatures on ({counts})"
+    );
 }
