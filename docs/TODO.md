@@ -526,6 +526,16 @@ Three slices, in this order:
   for the device gate: until the engine path has been run on a device, the
   Termux path is the one that works.
 
+  Measured 2026-10-21: 52 `com.termux` references outside the vendored
+  sources, in 12 files. The biggest is `:terminal`'s own session package —
+  `TerminalSession`, `TerminalBuffer`, `TerminalEmulator` and the colour
+  scheme — which is what the manager's session list is built on. The app's
+  are the floating-pane overlay, the screen's vendored view, and the two
+  sources that ask it for pixels and for the scrollback. The data layer's
+  four are the shell's command state (`CommandSnapshot`, `CommandStatus`,
+  `ShellIntegrationLevel`, `Logger`), which the engine reports as events
+  instead.
+
 - [ ] 14-file `:terminal` behind `useNativeCore`
 - [ ] Termux sources, `termux.c`, `libtermux.so`, setup scripts removed
 - [ ] `data → terminal` debt 22 → 0; `com.termux` rule added to the checker
