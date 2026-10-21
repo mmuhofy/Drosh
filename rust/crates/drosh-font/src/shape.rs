@@ -89,5 +89,4 @@ fn features(ligatures: bool) -> Vec<Feature> {
     // nothing ligate nothing at all.
     let value = if ligatures { 1 } else { 0 };
     LIGATURES.iter().map(|name| Feature::new(Tag::from_bytes(name), value, ..)).collect()
-
 }
