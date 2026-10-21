@@ -52,7 +52,7 @@ class EngineSession(
      * the term's configuration can be changed while it runs, so the setting
      * takes effect without a new session.
      */
-    fun setCursorShape(shape: Int) {
+    fun applyCursorShape(shape: Int) {
         val current = handle
         if (current == NO_HANDLE) {
             return

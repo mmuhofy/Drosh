@@ -435,7 +435,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // And the running session, when there is one: the term's
         // configuration can be changed while it runs, so the setting does not
         // wait for the next session.
-        session.setCursorShape(shape)
+        session.applyCursorShape(shape)
 
         // Whether bold text is drawn in the bright colours.
         dev.drosh.terminal.engine.core.Palette.boldBrightens = config.boldBrightens
