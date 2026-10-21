@@ -131,13 +131,38 @@ class ChrootNgRunnerTest {
             .build(GuestSpec())
 
         val binds = command.argv.windowed(2, 2, partialWindows = false)
-            .filter { it[0] == "-b" }
+            .filter { it[0] == "--bind" }
             .map { it[1] }
         assertEquals(listOf("${existing.absolutePath}:${existing.absolutePath}"), binds)
         assertFalse(
             "a missing source must not be bound",
             binds.any { it.startsWith(missing.absolutePath) },
         )
+    }
+
+    @Test
+    fun `a work directory that does not exist falls back to the home`() {
+        // chroot-ng refuses a work directory that is not there in the guest,
+        // and a refused one means the guest does not start at all. A project
+        // directory that was never created is exactly that.
+        val rootfs = rootfs()
+        val missing = File(System.getProperty("java.io.tmpdir"), "drosh-no-such-project")
+
+        val command = runner(rootfs).build(GuestSpec(workingDirectory = missing.absolutePath))
+
+        val workDir = command.argv[command.argv.indexOf("--work-dir") + 1]
+        assertEquals("/home", workDir)
+    }
+
+    @Test
+    fun `a work directory that exists is used`() {
+        val rootfs = rootfs()
+        val existing = File(System.getProperty("java.io.tmpdir"), "drosh-project").apply { mkdirs() }
+
+        val command = runner(rootfs).build(GuestSpec(workingDirectory = existing.absolutePath))
+
+        val workDir = command.argv[command.argv.indexOf("--work-dir") + 1]
+        assertEquals(existing.absolutePath, workDir)
     }
 
     @Test

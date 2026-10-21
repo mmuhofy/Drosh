@@ -1,6 +1,10 @@
 package dev.drosh.linux
 
+import android.util.Log
 import java.io.File
+
+/** The log tag the guest runtime's own messages go out under. */
+private const val TAG = "DroshGuest"
 
 /**
  * Drives `libchrootng.so` — the ptrace-free chroot/bind emulator from the
@@ -74,14 +78,39 @@ class ChrootNgRunner(
     private fun defaultWorkingDirectory(): String =
         if (File(rootfsPath, "home").isDirectory) "/home" else "/root"
 
+    /**
+     * Where the guest starts, and why it is not always what was asked for.
+     *
+     * The work directory has to exist inside the guest: chroot-ng **refuses** a
+     * bad one rather than quietly demoting it to the root. A path that only
+     * exists on the host — a project directory that was never created — is
+     * refused, and the guest does not start at all.
+     *
+     * The binds are the identity (`/data:/data`, `/sdcard:/sdcard`), so a guest
+     * path under one of them is the same path on the host, and that is what the
+     * check looks at.
+     */
+    private fun workingDirectory(spec: GuestSpec): String {
+        val requested = spec.workingDirectory
+        if (requested != null) {
+            if (File(requested).isDirectory) {
+                return requested
+            }
+            Log.w(TAG, "the work directory $requested does not exist; starting in the home")
+        }
+        return defaultWorkingDirectory()
+    }
+
     override fun build(spec: GuestSpec): GuestCommand {
         val argv = mutableListOf<String>().apply {
             add(chrootNgPath)
-            add("-u") // fake root identity (uid/gid 0)
-            add("-l") // emulate hardlinks where the host refuses link(2)
-            add("-R") // ahead-of-time svc rewriting
+            // The long forms of the options the lab ran with: the same
+            // options, but the names say what they do.
+            add("--fake-id=0:0") // fake root identity (uid/gid 0)
+            add("--link2symlink") // emulate hardlinks where the host refuses link(2)
+            add("--rewrite") // ahead-of-time svc rewriting
             deviceBinds().forEach { bind ->
-                add("-b")
+                add("--bind")
                 add(bind)
             }
             // The work directory is a *guest* path and must exist inside the
@@ -89,8 +118,8 @@ class ChrootNgRunner(
             // quietly demoting it to /. Without one it would start the guest at
             // the rootfs root, so the home is named explicitly — which is what
             // proot does too.
-            add("-w")
-            add(spec.workingDirectory ?: defaultWorkingDirectory())
+            add("--work-dir")
+            add(workingDirectory(spec))
             // Every option comes before the rootfs: chroot-ng stops parsing
             // options at the rootfs, so an -E after it would be taken for the
             // program to run.
