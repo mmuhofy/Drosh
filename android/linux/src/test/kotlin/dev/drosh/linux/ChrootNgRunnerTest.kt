@@ -94,12 +94,17 @@ class ChrootNgRunnerTest {
     }
 
     @Test
-    fun `the binary is the one in the native library directory`() {
+    fun `the binary is the staged runtime`() {
+        // The runtime is staged from an asset into the app's own storage, the
+        // way proot is: a `lib/` entry that nothing loads is not extracted by
+        // the installer, so a runtime that lives there is in the APK and
+        // nowhere else.
         val rootfs = rootfs()
+        val runtime = stagedRuntime()
         val command = runner(rootfs).build(GuestSpec())
 
-        assertEquals("/native/lib/libchrootng.so", command.executable)
-        assertEquals("/native/lib/libchrootng.so", command.argv.first())
+        assertEquals(runtime.absolutePath, command.executable)
+        assertEquals(runtime.absolutePath, command.argv.first())
     }
 
     @Test
