@@ -179,21 +179,15 @@ fn codepoints_outside_the_font_are_substituted_and_reported() {
         let pairs = ["->", "=>", "!=", "==", ">="];
 
         let shaped_off = stack.shape("->", Weight::Regular, false).expect("shaping");
-        assert_eq!(
-            shaped_off.len(),
-            2,
-            "with ligatures off every character is a glyph of its own"
-        );
+        assert_eq!(shaped_off.len(), 2, "with ligatures off every character is its own glyph");
 
-        let ligated = pairs
-            .iter()
-            .filter(|pair| {
-                stack
-                    .shape(pair, Weight::Regular, true)
-                    .map(|glyphs| glyphs.len() < pair.chars().count())
-                    .unwrap_or(false)
-            })
-            .count();
+        let mut ligated = 0;
+        for pair in pairs {
+            let glyphs = stack.shape(pair, Weight::Regular, true).expect("shaping");
+            if glyphs.len() < pair.chars().count() {
+                ligated += 1;
+            }
+        }
         assert!(ligated > 0, "the shipped font ligates none of {pairs:?} with ligatures on");
     }
 }
