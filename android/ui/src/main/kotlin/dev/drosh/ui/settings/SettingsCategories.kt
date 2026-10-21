@@ -621,7 +621,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     )
                 }
 
-                else -> SettingsTile(
+                5 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_terminal_keep_awake),
                     icon = DroshIcons.Eye,
