@@ -9,7 +9,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
@@ -98,11 +97,6 @@ fun EnginePaneHost(
     val pane = remember { EnginePane(context) }
 
     /**
-     * That the guest is not installed, so the pane has nothing to run.
-     */
-    val guestMissing = remember { mutableStateOf(false) }
-
-    /**
      * Where the chrome samples this terminal.
      *
      * The engine's pixels live in a surface of their own, so the chrome asks
@@ -118,17 +112,13 @@ fun EnginePaneHost(
      * at the fallback size and is resized a moment later.
      */
     LaunchedEffect(pane) {
+        // The guest when there is one, and the plain shell when there is not —
+        // the same fallback the vendored path uses, so a user who has not run
+        // the setup wizard still gets a terminal on either.
         val command = terminalManager.guestCommand()
-        if (command == null) {
-            // No rootfs, so there is nothing for the engine to run. The
-            // vendored path opens a plain shell in that case; the engine has
-            // no guest and no plain shell of its own, so the pane says so
-            // rather than showing an empty rectangle.
-            Log.w(TAG, "the guest is not installed; the engine's terminal has nothing to run")
-            guestMissing.value = true
-            return@LaunchedEffect
-        }
-        guestMissing.value = false
+            ?: terminalManager.plainShellCommand().also {
+                Log.w(TAG, "the guest is not installed; the engine's terminal opens a plain shell")
+            }
         // The size first: the grid is laid out around the cell, and a session
         // that starts at one size and is resized to another afterwards is a
         // flash of the wrong grid.
@@ -228,15 +218,13 @@ fun EnginePaneHost(
      */
     val startError = pane.view.startError
 
-    if (startError != null || guestMissing.value) {
+    if (startError != null) {
         Box(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = startError?.let {
-                    stringResource(R.string.terminal_engine_unavailable, it)
-                } ?: stringResource(R.string.terminal_engine_no_guest),
+                text = stringResource(R.string.terminal_engine_unavailable, startError),
                 color = DroshTextSecondary,
                 fontFamily = LocalFontSet.current.sans,
                 fontSize = 14.sp,

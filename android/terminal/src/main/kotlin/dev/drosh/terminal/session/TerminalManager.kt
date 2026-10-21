@@ -1989,6 +1989,26 @@ class TerminalManager(
         )
     }
 
+    /**
+     * The plain shell, for when there is no guest to run.
+     *
+     * The vendored path opens this when the rootfs is not installed, so a user
+     * who has not run the setup wizard still gets a terminal. The engine's path
+     * must do the same: without it, choosing the engine on a fresh install
+     * shows an empty rectangle where the terminal should be, which reads as
+     * "the engine is broken" rather than "there is no guest yet".
+     */
+    fun plainShellCommand(): GuestCommand = GuestCommand(
+        executable = PLAIN_SHELL,
+        argv = listOf(PLAIN_SHELL),
+        cwd = "/",
+        environment = listOf(
+            "PATH=/system/bin:/system/xbin",
+            "HOME=/",
+            "TERM=vt100",
+        ),
+    )
+
     private fun createNewSession(): TerminalSession {
         // A guest engine whose runtime is not in the APK cannot run the guest,
         // and the session would die with an `ENOENT` that says nothing about
@@ -2022,15 +2042,17 @@ class TerminalManager(
      * open a session at all, and it is what the app has always used before the
      * guest was installed.
      */
-    private fun plainShellSession(): TerminalSession =
-        TerminalSession(
-            "/system/bin/sh",
-            "/",
-            arrayOf("sh"),
-            arrayOf("PATH=/system/bin:/system/xbin", "HOME=/", "TERM=vt100"),
+    private fun plainShellSession(): TerminalSession {
+        val command = plainShellCommand()
+        return TerminalSession(
+            command.executable,
+            command.cwd,
+            command.argv.toTypedArray(),
+            command.environment.toTypedArray(),
             3000,
             sessionClient
         )
+    }
 
     /**
      * Tells the user that the guest engine they chose cannot run here.
@@ -2261,6 +2283,15 @@ class TerminalManager(
          * public active index cannot be negative, but the pane's can.
          */
         const val NO_PANE_SESSION = -1
+
+        /**
+         * The shell the app falls back to when there is no guest to run.
+         *
+         * A plain Android shell, with no rootfs and no isolation: enough to
+         * open a session at all, and what the app has always used before the
+         * guest was installed.
+         */
+        const val PLAIN_SHELL = "/system/bin/sh"
 
         /**
          * The exit code the app reports when the guest runtime is missing.

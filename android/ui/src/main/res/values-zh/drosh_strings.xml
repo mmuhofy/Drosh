@@ -233,7 +233,6 @@
     <string name="settings_speed_slow">慢</string>
     <string name="settings_speed_fast">快</string>
     <string name="terminal_delete_last_session_title">删除最后一个 session？</string>
-    <string name="terminal_engine_no_guest">终端引擎没有可运行的访客。请先通过设置向导安装访客。</string>
     <string name="terminal_engine_unavailable">终端引擎无法启动：%1$s</string>
     <string name="terminal_guest_runtime_missing">此构建中不包含访客运行时 %1$s，因此无法运行访客。已改为打开普通 shell。</string>
     <string name="terminal_delete_last_session_ended_body">它以退出代码 %1$d 结束。删除它将关闭应用；新的 session 将从头开始。</string>

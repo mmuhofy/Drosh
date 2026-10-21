@@ -233,7 +233,6 @@
     <string name="settings_speed_slow">Lenta</string>
     <string name="settings_speed_fast">Rápida</string>
     <string name="terminal_delete_last_session_title">Excluir a última session?</string>
-    <string name="terminal_engine_no_guest">O motor do terminal não tem nenhum convidado para executar. Instale o convidado pelo assistente de configuração primeiro.</string>
     <string name="terminal_engine_unavailable">O motor do terminal não pôde iniciar: %1$s</string>
     <string name="terminal_guest_runtime_missing">O ambiente de execucao do convidado %1$s nao esta nesta compilacao, entao o convidado nao pode ser executado. Em vez disso, um shell simples foi aberto.</string>
     <string name="terminal_delete_last_session_ended_body">Ela terminou com o código de saída %1$d. Excluí-la fecha o app; uma nova session começa do zero.</string>

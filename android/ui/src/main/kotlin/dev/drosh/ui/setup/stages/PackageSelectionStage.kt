@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,7 +84,12 @@ fun PackageSelectionStage(
             .fillMaxSize()
             .background(DroshBackground)
             .padding(horizontal = 28.dp)
-            .windowInsetsPadding(WindowInsets.statusBars),
+            .windowInsetsPadding(WindowInsets.statusBars)
+            // The stage grew a third choice — the isolation engine — and the
+            // content is taller than a phone. Scrolling is what keeps the last
+            // choice reachable instead of below the fold, where it looks like
+            // the stage does not have it.
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(modifier = Modifier.height(16.dp))

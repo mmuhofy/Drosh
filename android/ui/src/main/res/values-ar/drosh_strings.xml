@@ -233,7 +233,6 @@
     <string name="settings_speed_slow">بطيء</string>
     <string name="settings_speed_fast">سريع</string>
     <string name="terminal_delete_last_session_title">هل تريد حذف الـ session الأخيرة؟</string>
-    <string name="terminal_engine_no_guest">لا يوجد ضيف يمكن لمحرك الطرفية تشغيله. ثبّت الضيف من معالج الإعداد أولاً.</string>
     <string name="terminal_engine_unavailable">تعذر تشغيل محرك الطرفية: %1$s</string>
     <string name="terminal_guest_runtime_missing">بيئة تشغيل الضيف %1$s غير موجودة في هذه النسخة، لذلك تعذر تشغيل الضيف. بدلا من ذلك فُتحت الصدفة بسيطة.</string>
     <string name="terminal_delete_last_session_ended_body">انتهت برمز الخروج %1$d. حذفها يغلق التطبيق؛ وستبدأ session جديدة من الصفر.</string>
