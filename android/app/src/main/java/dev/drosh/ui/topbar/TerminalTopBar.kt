@@ -61,7 +61,6 @@ import dev.drosh.ui.DroshIcons
 import kotlin.math.roundToInt
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
-import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.ui.DroshDropdownMenu
 import dev.drosh.ui.DroshMenuItem
 import dev.drosh.theme.DroshText
@@ -152,12 +151,6 @@ private const val PILL_SURFACE_ALPHA = 0.28f
  * readable. This tint does not depend on the blur for anything.
  */
 private const val PILL_SURFACE_ALPHA_UNBLURRED = 0.88f
-
-/**
- * The tint for a pill whose blur is actually rendering.
- */
-private val PILL_TINT_ALPHA: Float =
-    if (BLUR_SUPPORTED) PILL_SURFACE_ALPHA else PILL_SURFACE_ALPHA_UNBLURRED
 
 /**
  * The hairline around and between pills. The prototype's `rgba(255,255,255,.14)`.
@@ -514,7 +507,6 @@ fun TerminalTopBar(
                 modifier = Modifier
                     .height(rowHeight)
                     .clip(PILL_SHAPE)
-                    .background(DroshSurfaceHigh.copy(alpha = PILL_TINT_ALPHA))
                     .liquidGlassBorder(PILL_SHAPE),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
@@ -773,7 +765,6 @@ private fun GlassSurface(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(DroshSurfaceHigh.copy(alpha = PILL_TINT_ALPHA))
                     .liquidGlassBorder(shape),
             )
         }
