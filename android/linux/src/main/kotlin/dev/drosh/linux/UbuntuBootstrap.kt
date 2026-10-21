@@ -73,6 +73,53 @@ class UbuntuBootstrap(private val context: Context) {
 
     @Volatile private var lastFailedStep: String = "Unknown"
 
+    /**
+     * Stages the guest's launchers, and nothing else.
+     *
+     * The launchers are a few megabytes and the rootfs is a gigabyte, so they
+     * are staged on their own: a device that has the rootfs but not the
+     * runtime — which is every device that was set up before the runtime
+     * travelled as an asset — gets the runtime without the rootfs being
+     * extracted again.
+     *
+     * Safe to call more than once: a file that is already there is left
+     * alone.
+     */
+    suspend fun stageRuntimes() = withContext(Dispatchers.IO) {
+        baseDir.mkdirs()
+        File(baseDir, "bin").mkdirs()
+        libDir.mkdirs()
+
+        if (!prootFile.canExecute()) {
+            context.assets.open(PROOT_ASSET).use { input ->
+                prootFile.parentFile!!.mkdirs()
+                FileOutputStream(prootFile).use { out ->
+                    input.copyTo(out)
+                }
+            }
+            prootFile.setExecutable(true, false)
+        }
+
+        if (!File(libDir, "libtalloc.so.2").canRead()) {
+            context.assets.open(LIBTALLOC_ASSET).use { input ->
+                libDir.mkdirs()
+                FileOutputStream(File(libDir, "libtalloc.so.2")).use { out ->
+                    input.copyTo(out)
+                }
+            }
+        }
+
+        if (!chrootNgFile.canExecute()) {
+            context.assets.open(CHROOT_NG_ASSET).use { input ->
+                chrootNgFile.parentFile!!.mkdirs()
+                FileOutputStream(chrootNgFile).use { out ->
+                    input.copyTo(out)
+                }
+            }
+            chrootNgFile.setExecutable(true, false)
+        }
+    }
+
     suspend fun install(
         preferences: SetupPreferences = SetupPreferences.defaults(),
         onState: (UbuntuSetupState) -> Unit,
@@ -103,35 +150,11 @@ class UbuntuBootstrap(private val context: Context) {
                 onLog("→ Extracting PRoot binary and Ubuntu rootfs…")
                 onState(UbuntuSetupState.Extracting)
 
-                // proot binary
-                context.assets.open("proot").use { input ->
-                    prootFile.parentFile!!.mkdirs()
-                    FileOutputStream(prootFile).use { out ->
-                        input.copyTo(out)
-                    }
-                }
-                prootFile.setExecutable(true, false)
-                onLog("  · PRoot binary staged.")
-
-                // The chroot-ng runtime, the same way: an asset, staged into
-                // the app's own storage, where it can be run.
-                context.assets.open(CHROOT_NG_ASSET).use { input ->
-                    chrootNgFile.parentFile!!.mkdirs()
-                    FileOutputStream(chrootNgFile).use { out ->
-                        input.copyTo(out)
-                    }
-                }
-                chrootNgFile.setExecutable(true, false)
-                onLog("  · chroot-ng runtime staged.")
-
-                // libtalloc.so.2
-                context.assets.open("libtalloc.so.2").use { input ->
-                    libDir.mkdirs()
-                    FileOutputStream(File(libDir, "libtalloc.so.2")).use { out ->
-                        input.copyTo(out)
-                    }
-                }
-                onLog("  · libtalloc.so.2 staged.")
+                // The launchers first, on their own: a device that has the
+                // rootfs but not the runtime gets it without the rootfs being
+                // extracted again.
+                stageRuntimes()
+                onLog("  · Guest launchers staged.")
 
                 // Ubuntu rootfs (try multiple asset names, fallback to download)
                 rootfsDir.mkdirs()
@@ -434,6 +457,12 @@ class UbuntuBootstrap(private val context: Context) {
 
         /** The chroot-ng runtime, as it travels in the APK. */
         private const val CHROOT_NG_ASSET = "libchrootng.so"
+
+        /** proot's binary, as it travels in the APK. */
+        private const val PROOT_ASSET = "proot"
+
+        /** proot's own library, as it travels in the APK. */
+        private const val LIBTALLOC_ASSET = "libtalloc.so.2"
         private val ROOTFS_ARCH_MAP = mapOf(
             "arm64-v8a" to "arm64",
             "armeabi-v7a" to "armhf",

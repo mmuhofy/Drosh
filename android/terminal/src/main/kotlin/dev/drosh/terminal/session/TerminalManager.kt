@@ -903,6 +903,12 @@ class TerminalManager(
     }
 
     init {
+        // The guest's launchers are staged on their own, in the background:
+        // they are a few megabytes, and a device that was set up before the
+        // runtime travelled as an asset has the rootfs but not the runtime.
+        managerScope.launch {
+            runCatching { ubuntuBootstrap.stageRuntimes() }
+        }
         // The isolation engine is a setting, so it is read from the store rather
         // than asked for at every session: the store's flow keeps the value
         // fresh, and a device test's file override still wins over it.
