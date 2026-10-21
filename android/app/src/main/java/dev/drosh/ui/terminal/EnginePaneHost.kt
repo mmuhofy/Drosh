@@ -107,6 +107,17 @@ fun EnginePaneHost(
     val sessionExit = remember { mutableStateOf<Int?>(null) }
 
     /**
+     * What chroot-ng's probe said, when it said something.
+     *
+     * The probe is the runtime's own account of itself: whether the binary is
+     * in the build, and whether the device can run it. The first line is the
+     * one that matters, and it is what the screen shows when the guest cannot
+     * start — a terminal that stays empty and says nothing is the hardest kind
+     * of bug to read.
+     */
+    val probeFinding = remember { mutableStateOf<String?>(null) }
+
+    /**
      * Where the chrome samples this terminal.
      *
      * The engine's pixels live in a surface of their own, so the chrome asks
@@ -197,6 +208,14 @@ fun EnginePaneHost(
         }
         val report = dev.drosh.terminal.engine.guest.ChrootProbe.run(context)
         Log.i(TAG, "chroot-ng probe:\n$report")
+        // The probe's first line is the one that matters: the runtime is
+        // missing, or it cannot run here. That is the difference between "the
+        // guest is broken" and "this build has no guest runtime", and it is
+        // the difference the log would otherwise be the only place to find.
+        val finding = report.lineSequence().firstOrNull { it.startsWith("probe: ") }
+        if (finding != null) {
+            probeFinding.value = finding.removePrefix("probe: ").trim()
+        }
     }
 
     /**
@@ -272,13 +291,15 @@ fun EnginePaneHost(
      */
     val startError = pane.view.startError
 
-    if (startError != null || sessionExit.value != null) {
+    if (startError != null || sessionExit.value != null || probeFinding.value != null) {
         Box(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = startError?.let {
+                    stringResource(R.string.terminal_engine_unavailable, it)
+                } ?: probeFinding.value?.let {
                     stringResource(R.string.terminal_engine_unavailable, it)
                 } ?: stringResource(
                     R.string.terminal_engine_session_exited,
