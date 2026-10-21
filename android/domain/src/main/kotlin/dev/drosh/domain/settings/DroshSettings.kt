@@ -102,6 +102,16 @@ data class TerminalSettings(
     /** Milliseconds; 0 is off. The view accepts 100..2000. */
     val cursorBlinkMs: Int = 500,
     val keepAwake: Boolean = false,
+    /**
+     * The terminal keeps its place while the user reads.
+     *
+     * New output pulls the viewport back to the live edge, which is right
+     * for output the shell produced on its own and wrong for the user who
+     * has scrolled up to read something. With this on, a terminal that is
+     * scrolled up stays where it is; scrolling to the bottom by hand is
+     * still what brings it back.
+     */
+    val keepPositionWhileReading: Boolean = false,
     /** Bold text in the first eight colours uses the bright half. */
     val boldBrightens: Boolean = true,
     /** Programming-ligature shaping, where the typeface carries them. */

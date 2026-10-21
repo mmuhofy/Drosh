@@ -87,14 +87,33 @@ class EngineAppearanceSource(private val session: EngineSession) : TerminalAppea
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
         // One rectangle per cell, in the cell's own colour.
         for (cell in cells) {
+            val left = (cell.column * cellWidth).toFloat()
+            val top = (cell.row * cellHeight).toFloat()
+            val right = left + cellWidth
+            val bottom = top + cellHeight
+
             paint.color = opaque(cell.backgroundRgb)
-            canvas.drawRect(
-                (cell.column * cellWidth).toFloat(),
-                (cell.row * cellHeight).toFloat(),
-                ((cell.column + 1) * cellWidth).toFloat(),
-                ((cell.row + 1) * cellHeight).toFloat(),
-                paint,
-            )
+            canvas.drawRect(left, top, right, bottom, paint)
+
+            // And the character in it, as a block.
+            //
+            // The blur over this backdrop is only a blur if there is
+            // something to blur: a field of flat background colours blurs to
+            // a flat colour, and the pill reads as a tint rather than as
+            // glass. The block stands in for the glyph — the engine reports
+            // the cell's colours, not its shape — and the blur does the rest.
+            if (!cell.blank && cell.foregroundRgb != cell.backgroundRgb) {
+                paint.color = opaque(cell.foregroundRgb)
+                val inset = cellWidth * 0.2f
+                val glyphTop = top + cellHeight * 0.18f
+                canvas.drawRect(
+                    left + inset,
+                    glyphTop,
+                    right - inset,
+                    bottom - cellHeight * 0.18f,
+                    paint,
+                )
+            }
         }
         return bitmap
     }

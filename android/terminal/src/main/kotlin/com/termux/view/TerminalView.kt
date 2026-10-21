@@ -188,6 +188,16 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
     @JvmField
     var mTopRow: Int = 0
 
+    /**
+     * New output does not pull the viewport back to the live edge.
+     *
+     * The application's setting: a terminal that keeps throwing itself to the
+     * bottom is a terminal nobody can read in, and the user who scrolled up
+     * to read something said so by scrolling up.
+     */
+    @JvmField
+    var keepPositionWhileReading: Boolean = false
+
     @JvmField
     var mDefaultSelectors: IntArray = intArrayOf(-1, -1, -1, -1)
 
@@ -916,7 +926,13 @@ class TerminalView(context: Context, attributes: AttributeSet?) : View(context, 
         // New output pulls the viewport back to the live edge. That is right for
         // output the shell produced on its own, and wrong for the repaint a shell
         // produces because *we* resized it — see [justResized].
-        if (!skipScroll && mTopRow != 0 && !justResized()) {
+        //
+        // It is also wrong for the user who has scrolled up to read something:
+        // a terminal that keeps throwing itself to the bottom is a terminal
+        // nobody can read in. That is the application's setting
+        // ([keepPositionWhileReading]), and it leaves the viewport where the
+        // user put it — scrolling to the bottom by hand is what brings it back.
+        if (!skipScroll && mTopRow != 0 && !justResized() && !keepPositionWhileReading) {
             // Scroll down if not already there.
             if (mTopRow < -3) {
                 // Awaken scroll bars only if scrolling a noticeable amount

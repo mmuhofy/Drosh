@@ -20,12 +20,14 @@ package dev.drosh.terminal.engine.core
  * @property column the visible column, counted from the left
  * @property foreground the foreground colour, encoded
  * @property background the background colour, encoded
+ * @property blank the cell holds no character
  */
 data class CellColor(
     val row: Int,
     val column: Int,
     val foreground: Int,
     val background: Int,
+    val blank: Boolean = true,
 ) {
     /** The foreground colour as `0xRRGGBB`. */
     val foregroundRgb: Int get() = Palette.resolve(foreground, Palette.DEFAULT_FOREGROUND)
@@ -39,7 +41,7 @@ data class CellColor(
 
         /**
          * Parse the engine's answer: newline-separated
-         * `row:column:foreground:background` records.
+         * `row:column:foreground:background:blank` records.
          *
          * A record that is not in that shape is skipped rather than guessed
          * at, and an `error:` record — what the engine answers for an unknown
@@ -51,12 +53,13 @@ data class CellColor(
                 .filter { it.isNotEmpty() && !it.startsWith("error:") }
                 .mapNotNull { line ->
                     val parts = line.split(':')
-                    if (parts.size != 4) return@mapNotNull null
+                    if (parts.size < 4) return@mapNotNull null
                     val row = parts[0].toIntOrNull() ?: return@mapNotNull null
                     val column = parts[1].toIntOrNull() ?: return@mapNotNull null
                     val foreground = color(parts[2]) ?: return@mapNotNull null
                     val background = color(parts[3]) ?: return@mapNotNull null
-                    CellColor(row, column, foreground, background)
+                    val blank = parts.getOrNull(4)?.toIntOrNull()?.let { it != 0 } ?: true
+                    CellColor(row, column, foreground, background, blank)
                 }
                 .toList()
 

@@ -1138,6 +1138,7 @@ private fun ReadyScreen(
                     cornerRadiusDp = appearance.background.cornerRadiusDp,
                     dimInactivePanes = appearance.terminal.dimInactivePanes,
                     keepAwake = appearance.terminal.keepAwake,
+                    keepPositionWhileReading = appearance.terminal.keepPositionWhileReading,
                     terminalViewModel = terminalViewModel,
                     blockEngineViewModel = blockEngineViewModel,
                     inputBarViewModel = inputBarViewModel,
@@ -1184,6 +1185,7 @@ private fun ReadyScreen(
                     cornerRadiusDp = appearance.background.cornerRadiusDp,
                     dimInactivePanes = appearance.terminal.dimInactivePanes,
                     keepAwake = appearance.terminal.keepAwake,
+                    keepPositionWhileReading = appearance.terminal.keepPositionWhileReading,
                     terminalViewModel = terminalViewModel,
                     blockEngineViewModel = blockEngineViewModel,
                     inputBarViewModel = inputBarViewModel,
@@ -1793,6 +1795,11 @@ private fun TerminalPaneBody(
     cornerRadiusDp: Int,
     dimInactivePanes: Boolean,
     keepAwake: Boolean,
+    /**
+     * New output does not pull the viewport back to the live edge while the
+     * user is reading something further up.
+     */
+    keepPositionWhileReading: Boolean,
     terminalViewModel: TerminalViewModel,
     blockEngineViewModel: BlockEngineViewModel,
     inputBarViewModel: InputBarViewModel,
@@ -1990,6 +1997,7 @@ private fun TerminalPaneBody(
                     cornerRadiusDp = cornerRadiusDp,
                     dimInactivePanes = dimInactivePanes,
                     keepAwake = keepAwake,
+                    keepPositionWhileReading = keepPositionWhileReading,
                     terminalViewModel = terminalViewModel,
                     terminalViewRef = terminalViewRef,
                     appearanceSource = appearanceSource,
@@ -2029,6 +2037,11 @@ private fun TerminalViewHost(
     cornerRadiusDp: Int,
     dimInactivePanes: Boolean,
     keepAwake: Boolean,
+    /**
+     * New output does not pull the viewport back to the live edge while the
+     * user is reading something further up.
+     */
+    keepPositionWhileReading: Boolean,
     terminalViewModel: TerminalViewModel,
     terminalViewRef: MutableState<TerminalView?>,
     /**
@@ -2268,6 +2281,7 @@ private fun TerminalViewHost(
                 // session, and a pinch from the session that came before it
                 // belongs to that session alone.
                 setTextSize(defaultFontSizeSp)
+                keepPositionWhileReading = keepPositionWhileReading
                 isFocusable = true
                 isFocusableInTouchMode = true
                 setTerminalViewClient(viewClient)

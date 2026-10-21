@@ -6,7 +6,7 @@
 //! GL renderer there are no pixels to read, so the engine reports the colours
 //! of the cells themselves.
 //!
-//! The answer is newline-separated `row:column:foreground:background`
+//! The answer is newline-separated `row:column:foreground:background:blank`
 //! records. The colours are encoded the way the cell records encode them, so
 //! the Kotlin side resolves them with the palette table it already has.
 
@@ -56,11 +56,16 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeCell
     env.new_string(records.join("\n")).unwrap_or_default()
 }
 
-/// One cell as a `row:column:foreground:background` record.
+/// One cell as a `row:column:foreground:background:blank` record.
 ///
 /// The colours are the engine's own 32-bit wire values, written as the
 /// unsigned decimal they are: a colour with the "truecolour" tag set is
-/// larger than a signed 32-bit number, and Kotlin narrows it back.
+/// larger than a signed 32-bit number, and Kotlin narrows it back. The last
+/// field says whether the cell holds a character at all, so the app can draw
+/// the output's text into the chrome's backdrop.
 fn cell_record(cell: &CellColor) -> String {
-    format!("{}:{}:{}:{}", cell.row, cell.column, cell.foreground, cell.background)
+    format!(
+        "{}:{}:{}:{}:{}",
+        cell.row, cell.column, cell.foreground, cell.background, cell.blank as u8
+    )
 }

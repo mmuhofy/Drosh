@@ -30,6 +30,12 @@ pub struct CellColor {
     pub foreground: u32,
     /// The background colour, encoded as in `drosh_bridge::cell`.
     pub background: u32,
+    /// The cell holds no character: it is a space, or nothing at all.
+    ///
+    /// The app draws the chrome's backdrop from these cells, and a backdrop
+    /// that carries the output's *text* is what makes a blur over it look
+    /// like a blur and not like a tint.
+    pub blank: bool,
 }
 
 /// A rectangle of the visible grid.
@@ -77,6 +83,7 @@ pub fn cell_colors(term: &Term<EventProxy>, region: CellRegion) -> Vec<CellColor
                 column,
                 foreground: encode_color(cell.fg),
                 background: encode_color(cell.bg),
+                blank: cell.c == ' ' || cell.c == '\0',
             });
         }
     }

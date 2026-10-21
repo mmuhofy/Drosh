@@ -502,7 +502,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_terminal),
-            items = 6,
+            items = 7,
         ) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -631,6 +631,26 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                         checked = settings.terminal.keepAwake,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(terminal = it.terminal.copy(keepAwake = on)) }
+                        },
+                    )
+                }
+
+                // The last one: what the terminal does with new output while
+                // the user is reading something further up.
+                6 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_terminal_keep_position),
+                    icon = DroshIcons.ArrowUp,
+                    supporting = stringResource(R.string.settings_terminal_keep_position_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.keepPositionWhileReading,
+                        onCheckedChange = { on ->
+                            onUpdate {
+                                it.copy(
+                                    terminal = it.terminal.copy(keepPositionWhileReading = on),
+                                )
+                            }
                         },
                     )
                 }
