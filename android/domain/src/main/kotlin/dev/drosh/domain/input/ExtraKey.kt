@@ -21,10 +21,21 @@ sealed interface ExtraKey {
     /** Printable glyphs. UTF-16 single-codepoint; combined chars are not supported in v1. */
     data class Text(val glyph: String) : ExtraKey
 
-    /** Navigation keys — arrows, PgUp/PgDn, Home, End, Tab, Esc. */
+    /**
+     * A function key, F1 to F12.
+     *
+     * A function key is not a character: sending it as text types the letter
+     * "F", which is what the row used to do — the button said "F1" and the
+     * terminal received an "F".
+     */
+    data class FunctionKey(val number: Int) : ExtraKey
+
+    /** Navigation keys — arrows, PgUp/PgDn, Home, End, Tab, Esc, Backspace. */
     enum class Navigation : ExtraKey {
         ESC,
         TAB,
+        /** The erase key, DEL — not the "Home" it was wired to. */
+        BACKSPACE,
         ARROW_LEFT,
         ARROW_RIGHT,
         ARROW_UP,

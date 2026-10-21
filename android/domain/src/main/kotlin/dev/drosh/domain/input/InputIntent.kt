@@ -20,6 +20,14 @@ sealed interface InputIntent {
     /** Press a navigation key. Block mode: BasicTextField cursor or block list scroll. Classic: `handleKeyCode`. */
     data class Navigate(val key: ExtraKey.Navigation) : InputIntent
 
+    /**
+     * Press a function key, F1 to F12.
+     *
+     * Its own intent rather than a character: a function key is not text, and
+     * sending it as text types its label.
+     */
+    data class FunctionKey(val key: ExtraKey.FunctionKey) : InputIntent
+
     /** Arm a sticky modifier. Consumed by the next non-modifier intent (or expires on next read). */
     data class ArmModifier(val modifier: ExtraKey.Special) : InputIntent
 

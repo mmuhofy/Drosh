@@ -123,8 +123,10 @@ class InputBarViewModel @Inject constructor(
     fun onIntent(intent: InputIntent) {
         if (intent is InputIntent.TypeChar) {
             val ctrl = modifierState.consumeCtrl()
-            val alt = modifierState.consumeAlt()
             if (ctrl) {
+                // The alt is consumed and put back, so it stays armed for the
+                // next key: the control byte is the whole of this one.
+                val alt = modifierState.consumeAlt()
                 // Block mode override: flush the control byte straight to PTY
                 // instead of typing the literal char; matches the agreed
                 // semantics — see MEMORYBANK.md §8.
@@ -134,6 +136,10 @@ class InputBarViewModel @Inject constructor(
                 pushModifierState(ctrl = false, alt = alt)
                 return
             }
+            // The alt is **not** consumed here. The dispatcher reads it and
+            // applies the ESC prefix; consuming it here took the modifier away
+            // from the key that was about to use it, so Alt+letter from the
+            // row sent a bare letter.
         }
         sendKeyIntent.dispatch(intent)
         pushModifierState(ctrl = modifierState.peekCtrl(), alt = modifierState.peekAlt())

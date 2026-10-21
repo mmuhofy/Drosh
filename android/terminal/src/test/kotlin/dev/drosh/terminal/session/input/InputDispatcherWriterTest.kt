@@ -69,6 +69,31 @@ class InputDispatcherWriterTest {
     }
 
     /** A writer that remembers what it was asked to write. */
+    @Test
+    fun `Backspace travels as the erase key`() {
+        // The row's "BkSPC" button was wired to Home, so it moved the cursor
+        // instead of erasing. The erase key is what a terminal sends.
+        val writer = RecordingWriter()
+        val dispatcher = InputDispatcher(ExtraKeyState(), writer)
+
+        dispatcher.dispatch(InputIntent.Navigate(ExtraKey.Navigation.BACKSPACE))
+
+        assertEquals(KeyEvent.KEYCODE_DEL, writer.keyCode)
+    }
+
+    @Test
+    fun `a function key travels as its own key code`() {
+        // The row's F1..F12 buttons were text, so they typed the letter "F".
+        val writer = RecordingWriter()
+        val dispatcher = InputDispatcher(ExtraKeyState(), writer)
+
+        dispatcher.dispatch(InputIntent.FunctionKey(ExtraKey.FunctionKey(1)))
+        assertEquals(KeyEvent.KEYCODE_F1, writer.keyCode)
+
+        dispatcher.dispatch(InputIntent.FunctionKey(ExtraKey.FunctionKey(12)))
+        assertEquals(KeyEvent.KEYCODE_F12, writer.keyCode)
+    }
+
     private class RecordingWriter : TerminalWriter {
 
         var char: Char? = null

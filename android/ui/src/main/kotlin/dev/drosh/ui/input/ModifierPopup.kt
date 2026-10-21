@@ -86,6 +86,7 @@ fun ModifierPopup(
                             is ExtraKey.Special -> "⌃"
                             is ExtraKey.Text -> piece.glyph
                             is ExtraKey.Navigation -> piece.name
+                            is ExtraKey.FunctionKey -> "F${piece.number}"
                         }
                     }
                     Column(
@@ -117,5 +118,6 @@ private fun List<ExtraKey>.toIntents(): List<InputIntent> = map { key ->
         is ExtraKey.Special -> InputIntent.ArmModifier(key)
         is ExtraKey.Text -> InputIntent.TypeChar(key.glyph.first())
         is ExtraKey.Navigation -> InputIntent.Navigate(key)
+        is ExtraKey.FunctionKey -> InputIntent.FunctionKey(key)
     }
 }

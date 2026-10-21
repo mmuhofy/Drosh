@@ -68,6 +68,7 @@ class InputDispatcher(
             is InputIntent.ArmModifier -> armModifier(intent.modifier)
             is InputIntent.TypeChar -> typeChar(intent.char)
             is InputIntent.Navigate -> navigate(intent.key)
+            is InputIntent.FunctionKey -> functionKey(intent.key)
             is InputIntent.FlushBytes -> flushBytes(intent.bytes)
         }
     }
@@ -115,6 +116,26 @@ class InputDispatcher(
         writer.writeKey(keyCode, InputModifiers(ctrl = ctrlDown, alt = altDown))
     }
 
+    /**
+     * A function key, F1 to F12.
+     *
+     * The key code is what the row's key events would have carried, so the
+     * vendored key handler and the engine's encoder both answer for it.
+     */
+    private fun functionKey(key: ExtraKey.FunctionKey) {
+        val ctrlDown = extraKeyState.readCtrl()
+        val altDown = extraKeyState.readAlt()
+        val keyCode = KeyEvent.KEYCODE_F1 + (key.number - 1)
+        if (keyEventSink != null) {
+            val meta = buildMetaState(ctrlDown = ctrlDown, altDown = altDown)
+            val event = KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, meta)
+            keyEventSink.onKeyEvent(event, keyCode)
+            return
+        }
+        writer ?: return
+        writer.writeKey(keyCode, InputModifiers(ctrl = ctrlDown, alt = altDown))
+    }
+
     private fun flushBytes(bytes: ByteArray) {
         writer ?: return
         writer.writeBytes(bytes)
@@ -130,6 +151,7 @@ class InputDispatcher(
     private fun ExtraKey.Navigation.toAndroidKeyCode(): Int = when (this) {
         ExtraKey.Navigation.ESC -> KeyEvent.KEYCODE_ESCAPE
         ExtraKey.Navigation.TAB -> KeyEvent.KEYCODE_TAB
+        ExtraKey.Navigation.BACKSPACE -> KeyEvent.KEYCODE_DEL
         ExtraKey.Navigation.ARROW_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
         ExtraKey.Navigation.ARROW_RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
         ExtraKey.Navigation.ARROW_UP -> KeyEvent.KEYCODE_DPAD_UP

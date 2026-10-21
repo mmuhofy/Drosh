@@ -169,8 +169,10 @@ fun FlatKeyBar(
 
             KeyGroupSection(
                 keys = listOf(
-                    FlatKeySpec.Text("BkSPC", ExtraKey.Navigation.HOME),
-                    FlatKeySpec.Text("Enter", ExtraKey.Text("\n")),
+                    FlatKeySpec.Text("BkSPC", ExtraKey.Navigation.BACKSPACE),
+                    // CR, not LF: a terminal's Enter is a carriage return, and a
+                    // program in raw mode reads the difference.
+                    FlatKeySpec.Text("Enter", ExtraKey.Text("\r")),
                     FlatKeySpec.Text("Space", ExtraKey.Text(" ")),
                 ),
                 onIntent = onIntent,
@@ -181,7 +183,7 @@ fun FlatKeyBar(
 
             KeyGroupSection(
                 keys = (1..12).map { n ->
-                    FlatKeySpec.Fn("F$n", ExtraKey.Text("F$n"))
+                    FlatKeySpec.Fn("F$n", ExtraKey.FunctionKey(n))
                 },
                 onIntent = onIntent,
                 onLongPressPrimary = { _, _ -> },
@@ -452,4 +454,6 @@ private fun ExtraKey.toSingleIntent(): InputIntent = when (this) {
         InputIntent.TypeChar(glyph.first())
     is ExtraKey.Navigation ->
         InputIntent.Navigate(this)
+    is ExtraKey.FunctionKey ->
+        InputIntent.FunctionKey(this)
 }
