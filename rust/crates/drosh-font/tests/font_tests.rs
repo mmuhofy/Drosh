@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use drosh_font::fallback::Resolution;
 use drosh_font::shape;
+use drosh_font::shape::{Feature, Tag};
 use drosh_font::{FontStack, Weight};
 
 const REGULAR: &str = "JetBrainsMono-Regular.ttf";
@@ -187,6 +188,26 @@ fn ligatures_follow_the_setting() {
 
     let shaped_off = stack.shape("->", Weight::Regular, false).expect("shaping");
     assert_eq!(shaped_off.len(), 2, "with ligatures off every character is its own glyph");
+
+    // With every alternate the font has: if one of them is the one that
+    // carries the ligature, this is where it shows.
+    let every = [
+        "aalt", "calt", "clig", "dlig", "hlig", "liga", "rlig", "ss01", "ss02", "ss19", "ss20",
+    ]
+    .map(|name| {
+        let mut tag = [b' '; 4];
+        tag.copy_from_slice(&name.as_bytes()[..4]);
+        Feature::new(Tag::new(&tag), 1, ..)
+    })
+    .to_vec();
+
+    let font = shape::font(&read_asset(REGULAR)).expect("the font");
+    let mut all_counts = String::new();
+    for pair in pairs {
+        let glyphs = shape::shape_text(&font, pair, &every).expect("shaping");
+        all_counts.push_str(&format!("{pair}: {} ", glyphs.len()));
+    }
+    panic!("every alternate: {all_counts}");
 
     // With ligatures on, the font decides. A font that ligates gives fewer
     // glyphs than it has characters; one that does not gives the same number.

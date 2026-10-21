@@ -23,6 +23,10 @@ use harfrust::{Buffer, BufferFlags, Direction, Feature, Script, ShapeOptions, Sh
 /// on the shaper's own vocabulary.
 pub use harfrust::font::Font;
 
+/// The shaper's own vocabulary, re-exported: a caller that wants to ask for
+/// a feature of its own needs to name it.
+pub use harfrust::{Feature, Tag};
+
 /// One shaped glyph, in font units (divide by `units_per_em` and multiply by
 /// the pixel size to get pixels).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,13 +49,15 @@ pub fn font(data: &[u8]) -> Option<Font> {
     Font::new(blob, 0)
 }
 
-/// Shape `text` with the given face.
+/// Shape `text` with the given face and features.
 ///
-/// `ligatures` is the application's setting, and the font's own tables decide
-/// what it means. Turning them off is what keeps the font from ligating
-/// behind the user's back: a terminal cell must show the character the guest
-/// wrote when the setting says so.
-pub fn shape_text(font: &Font, text: &str, ligatures: bool) -> Option<Vec<ShapedGlyph>> {
+/// The features are the ones to switch on and off; a shaper applies the
+/// font's own defaults on top of them.
+pub fn shape_text(
+    font: &Font,
+    text: &str,
+    features: &[Feature],
+) -> Option<Vec<ShapedGlyph>> {
     let shaper = ShaperFont::new(font);
 
     let mut buffer = Buffer::new();
@@ -76,8 +82,7 @@ pub fn shape_text(font: &Font, text: &str, ligatures: bool) -> Option<Vec<Shaped
     // that the edge *is* the edge.
     buffer.set_flags(BufferFlags::BEGINNING_OF_TEXT | BufferFlags::END_OF_TEXT);
 
-    let features = features(ligatures);
-    let options = ShapeOptions::new().features(&features);
+    let options = ShapeOptions::new().features(features);
     harfrust::shape(&shaper, &mut buffer, options).ok()?;
 
     let infos = buffer.glyph_infos();
@@ -106,7 +111,7 @@ pub fn advance_units(font: &Font, codepoint: char) -> Option<f32> {
     let mut buffer = [0u8; 4];
     let text = codepoint.encode_utf8(&mut buffer);
 
-    shape_text(font, text, false)?.first().map(|glyph| glyph.x_advance as f32)
+    shape_text(font, text, &ligature_features(false))?.first().map(|glyph| glyph.x_advance as f32)
 }
 
 /// Font units per em, i.e. the scale factor of the shaped values.
@@ -118,18 +123,23 @@ pub fn units_per_em(font: &Font) -> Option<f32> {
     Some(f32::from(units))
 }
 
-fn features(ligatures: bool) -> Vec<Feature> {
+/// The features a terminal asks for.
+///
+/// `ligatures` is the application's setting, and the font's own tables decide
+/// what it means. Turning them off is what keeps the font from ligating
+/// behind the user's back: a terminal cell must show the character the guest
+/// wrote when the setting says so.
+///
+/// Asking for them is not the same as leaving them alone. HarfBuzz — and
+/// HarfRust with it — applies a font's *common* features by default, and
+/// `calt` is not one of them: it is asked for by name. JetBrains Mono keeps
+/// its ligatures in `calt`, so a font that has them and a shaper that says
+/// nothing ligate nothing at all.
+pub fn ligature_features(ligatures: bool) -> Vec<Feature> {
     // Four-byte OpenType tags; the array literal makes the length a compile-time
     // fact, so `Tag::new` cannot fail.
     const LIGATURES: [&[u8; 4]; 4] = [b"liga", b"clig", b"calt", b"rlig"];
 
-    // The value is the feature's own switch: 1 asks for it, 0 refuses it.
-    //
-    // Asking for them is not the same as leaving them alone. HarfBuzz — and
-    // HarfRust with it — applies a font's *common* features by default, and
-    // `calt` is not one of them: it is asked for by name. JetBrains Mono keeps
-    // its ligatures in `calt`, so a font that has them and a shaper that says
-    // nothing ligate nothing at all.
     let value = if ligatures { 1 } else { 0 };
     LIGATURES.iter().map(|name| Feature::new(Tag::new(name), value, ..)).collect()
 }
