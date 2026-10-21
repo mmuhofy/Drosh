@@ -810,6 +810,14 @@ class TerminalManager(
     private var guestIsolation: GuestIsolation = GuestIsolation.DEFAULT
 
     /**
+     * Which isolation engine the guest runs under, as it is right now.
+     *
+     * The choice is the user's and it can change while the app runs, so this
+     * is the current answer rather than a stored one.
+     */
+    val currentGuestIsolation: GuestIsolation get() = guestIsolation
+
+    /**
      * The launcher for the engine the user chose.
      *
      * Built per session rather than cached: the choice is a setting, and a

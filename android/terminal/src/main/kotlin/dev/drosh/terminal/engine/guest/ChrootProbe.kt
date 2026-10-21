@@ -6,7 +6,13 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * Phase C, Gate 3 — the device half of it.
+ * What the device can do, asked of chroot-ng itself.
+ *
+ * Public because the app asks it: chroot-ng's own README says to run the
+ * probe on a target device *first*, because the whole in-process design
+ * depends on the SELinux `execmem` permission being granted. A device that
+ * cannot grant it cannot run the guest, and the app can say so instead of
+ * showing a terminal that stays empty.
  *
  * chroot-ng ships in the APK as `lib/arm64-v8a/libchrootng.so`, fetched by CI
  * from its own release: `nativeLibraryDir` is the one directory an app
@@ -21,7 +27,7 @@ import java.util.concurrent.TimeUnit
  * line under one tag — a device run can be read back with
  * `adb logcat -s DroshLabChroot`.
  */
-internal object ChrootProbe {
+object ChrootProbe {
 
     private const val TAG = "DroshLabChroot"
     private const val BINARY = "libchrootng.so"

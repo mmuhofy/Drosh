@@ -171,6 +171,25 @@ fun EnginePaneHost(
     }
 
     /**
+     * What the device can do, asked of chroot-ng itself.
+     *
+     * chroot-ng's own README says to run its probe on a target device
+     * *first*: the whole in-process design depends on the SELinux `execmem`
+     * permission being granted, and a device that cannot grant it cannot run
+     * the guest. The answer is the difference between "the guest is broken" and
+     * "this device cannot run it", so it is asked once and logged.
+     */
+    LaunchedEffect(pane, terminalManager.currentGuestIsolation) {
+        // The probe is chroot-ng's own question, so it is only asked when
+        // chroot-ng is the engine that would run the guest.
+        if (terminalManager.currentGuestIsolation != dev.drosh.domain.settings.GuestIsolation.CHROOT_NG) {
+            return@LaunchedEffect
+        }
+        val report = dev.drosh.terminal.engine.guest.ChrootProbe.run(context)
+        Log.i(TAG, "chroot-ng probe:\n$report")
+    }
+
+    /**
      * The pane's own news, logged.
      *
      * The engine's session can die — a guest that cannot start, a shell that
