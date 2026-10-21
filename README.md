@@ -215,6 +215,23 @@ cp target/aarch64-linux-android/release/libdrosh_core.so \
 CI runs `Build Debug` and `Unit Tests` on every push and pull request, and
 `Build Release` on tags.
 
+## Reading the engine's log on a device
+
+The engine logs under two tags: `DroshEngine` (the view, the session, the
+input) and `DroshLab` (the renderer, the glyph atlas, the font stack).
+
+```bash
+adb logcat -s DroshEngine DroshLab
+```
+
+The lines that matter when the terminal is blank:
+
+| Line | What it means |
+|------|---------------|
+| `font assets failed to load` | the Rust core is not in the APK — the build skipped its cross-compile |
+| `font: cell WxHpx at Npx` | the core is there and the cell was measured; the problem is elsewhere |
+| `the guest is not installed` | there is no rootfs, so the engine has nothing to run |
+
 ## Tests
 
 464 unit tests across the pure-JVM modules — domain, data, terminal, agent
