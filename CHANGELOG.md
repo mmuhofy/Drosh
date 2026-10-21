@@ -109,6 +109,21 @@ release when it ships.
 
 ### Fixed
 
+- The guest's work directory has to exist: chroot-ng refuses one that is not
+  there in the guest, and a refused one means the guest does not start at all.
+  A project directory that was never created is exactly that, so the runner
+  falls back to the home and says so
+- A program that cannot be started now says why. The exec's error was lost, so
+  the session started, produced nothing, and the terminal was an empty screen
+  with nothing in the log
+- The engine's view needs a window to draw in. It was built with the
+  application context, so its surface had nowhere to draw and the terminal was
+  blank
+- The engine opens a plain shell when there is no guest to run, the way the
+  vendored terminal does. Without it, choosing the engine on a fresh install
+  showed an empty rectangle
+- The setup stage scrolls. It grew a third choice, and the last one sat below
+  the fold
 - The engine's JNI entry points answer to the names Kotlin calls again. The
   engine's `NativeCore` moved packages when the engine and the sessions became
   one module, and the Rust side kept the old name, so every call would have
