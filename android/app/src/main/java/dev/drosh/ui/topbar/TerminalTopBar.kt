@@ -165,6 +165,16 @@ private const val PILL_SURFACE_ALPHA_UNBLURRED = 0.88f
  */
 private val PILL_BORDER = Color.White.copy(alpha = 0.14f)
 
+/**
+ * The row's own colour for its text and its icons.
+ *
+ * The row floats over the terminal, and the terminal is dark in every theme
+ * — a dark terminal in a light app. So the row's content is the light one
+ * whatever the app's own text colour is: what is behind the row is the
+ * terminal, and the terminal's foreground is what belongs on it.
+ */
+private val PILL_CONTENT = Color(0xFFF2F2F2)
+
 /** Thickness of the glass edge. Visible stroke width, measured inside the shape. */
 private val PILL_EDGE_WIDTH = 1.dp
 
@@ -478,7 +488,7 @@ fun TerminalTopBar(
                 ) {
                     Text(
                         text = activeName ?: "Drosh",
-                        color = DroshText,
+                        color = PILL_CONTENT,
                         fontFamily = LocalFontSet.current.sans,
                         fontWeight = FontWeight.Medium,
                         fontSize = 15.sp,
@@ -709,7 +719,7 @@ private fun GlassPillBody(
         Box(
             modifier = Modifier.size(iconSize),
             contentAlignment = Alignment.Center,
-        ) { content(DroshText) }
+        ) { content(PILL_CONTENT) }
     }
 }
 
