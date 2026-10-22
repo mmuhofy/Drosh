@@ -186,7 +186,11 @@ fn ligatures_follow_the_setting() {
     // With them on, the pair becomes the font's own glyph for it: one glyph
     // where there were two, and not the hyphen's.
     println!("ligature count: {}", stack.ligature_count());
-    let shaped_on = stack.shape("->", Weight::Regular, true).expect("shaping");
+    let glyphs_off = stack.shape("->", Weight::Regular, false).expect("shaping");
+    println!("off: {} glyphs, clusters {:?}", glyphs_off.len(), glyphs_off.iter().map(|g| g.cluster).collect::<Vec<_>>());
+    let glyphs_on = stack.shape("->", Weight::Regular, true).expect("shaping");
+    println!("on: {} glyphs, clusters {:?}", glyphs_on.len(), glyphs_on.iter().map(|g| g.cluster).collect::<Vec<_>>());
+    let shaped_on = glyphs_on;
     assert_eq!(shaped_on.len(), 1, "the arrow is one glyph when ligatures are on");
     assert_ne!(
         shaped_on[0].glyph_id, shaped_off[0].glyph_id,
