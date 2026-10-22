@@ -72,7 +72,7 @@ pub fn shape_text_with_ligatures(
     features: &[Feature],
     ligatures: &Ligatures,
 ) -> Option<Vec<ShapedGlyph>> {
-    let mut glyphs = shape_text_plain(font, text, features)?;
+    let glyphs = shape_text_plain(font, text, features)?;
     if ligatures.is_empty() || text.is_empty() {
         return Some(glyphs);
     }

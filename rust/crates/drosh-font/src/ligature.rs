@@ -91,7 +91,7 @@ impl Ligatures {
 
         // The longest first: a three-character ligature beats the two that
         // start the same way.
-        entries.sort_by(|a, b| b.chars.len().cmp(&a.chars.len()));
+        entries.sort_by_key(|entry| std::cmp::Reverse(entry.chars.len()));
 
         Some(Ligatures { entries })
     }
