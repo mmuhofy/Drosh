@@ -188,6 +188,7 @@ fn ligatures_follow_the_setting() {
     println!("ligature count: {}", stack.ligature_count());
     let seqs = stack.ligature_sequences();
     println!("has arrow: {}", seqs.iter().any(|s| s == &['-', '>']));
+    println!("has hyphen char: {}", seqs.iter().any(|s| s.contains(&'-')));
     println!("first 5: {:?}", &seqs[..5.min(seqs.len())]);
     let glyphs_off = stack.shape("->", Weight::Regular, false).expect("shaping");
     println!(
