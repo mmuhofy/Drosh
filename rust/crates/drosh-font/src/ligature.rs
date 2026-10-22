@@ -149,14 +149,15 @@ fn post_names(data: &[u8]) -> Option<Vec<Option<String>>> {
     let mut names: Vec<Option<String>> = vec![None; count];
     for (gid, name) in names.iter_mut().enumerate() {
         let index =
-            u16::from_be_bytes(post[indices + gid * 2..indices + gid * 2 + 2].try_into().ok()?) as usize;
+            u16::from_be_bytes(post[indices + gid * 2..indices + gid * 2 + 2].try_into().ok()?)
+                as usize;
         if index >= 258 {
             // The font's own name.
             *name = custom.get(index - 258).cloned();
         } else if (0x20..0x7f).contains(&index) {
             // One of the standard Macintosh names, which for this range are
             // the ASCII ones.
-            *name = Some(STANDARD_NAMES[index - 0x20].to_string());
+            *name = standard_name(index - 0x20).map(|name| name.to_string());
         }
     }
 
@@ -193,16 +194,17 @@ fn table(data: &[u8], tag: &[u8; 4]) -> Option<&[u8]> {
 /// The `post` table's first 258 names are these; the rest of the table is
 /// the font's own. The ligature components are ASCII, so this is the part
 /// that matters.
-const STANDARD_NAMES: [&str; 95] = [
-    "space", "exclam", "quotedbl", "numbersign", "dollar", "percent", "ampersand", "quotesingle",
-    "parenleft", "parenright", "asterisk", "plus", "comma", "hyphen", "period", "slash", "zero",
-    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "colon", "semicolon",
-    "less", "equal", "greater", "question", "at", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
-    "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-    "bracketleft", "backslash", "bracketright", "asciicircum", "underscore", "grave", "a", "b", "c",
-    "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u",
-    "v", "w", "x", "y", "z", "braceleft", "bar", "braceright", "asciitilde",
-];
+const STANDARD_NAMES: &str = "space exclam quotedbl numbersign dollar percent ampersand \
+    quotesingle parenleft parenright asterisk plus comma hyphen period slash zero one two \
+    three four five six seven eight nine colon semicolon less equal greater question at A B C D \
+    E F G H I J K L M N O P Q R S T U V W X Y Z bracketleft backslash bracketright \
+    asciicircum underscore grave a b c d e f g h i j k l m n o p q r s t u v w x y z braceleft bar \
+    braceright asciitilde";
+
+/// The standard name at `index` (0..95), or none if there is none.
+fn standard_name(index: usize) -> Option<&'static str> {
+    STANDARD_NAMES.split_whitespace().nth(index)
+}
 
 #[cfg(test)]
 mod tests {

@@ -113,12 +113,9 @@ impl FontStack {
         // The ligatures each face carries. They are read once, when the stack is
         // built: the table is a name per glyph, and a name does not change
         // while the session runs.
-        let regular_ligatures =
-            ligature::Ligatures::build(&regular).unwrap_or_default();
-        let bold_ligatures = bold
-            .as_ref()
-            .and_then(|bytes| ligature::Ligatures::build(bytes))
-            .unwrap_or_default();
+        let regular_ligatures = ligature::Ligatures::build(&regular).unwrap_or_default();
+        let bold_ligatures =
+            bold.as_ref().and_then(|bytes| ligature::Ligatures::build(bytes)).unwrap_or_default();
         let stack = Self {
             regular,
             bold,
