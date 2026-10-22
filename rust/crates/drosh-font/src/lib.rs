@@ -186,6 +186,11 @@ impl FontStack {
         }
     }
 
+    /// The number of ligatures the regular face carries.
+    pub fn ligature_count(&self) -> usize {
+        self.regular_ligatures.len()
+    }
+
     /// The parsed face for `weight` (bold falls back to the regular face).
     fn font(&self, weight: Weight) -> Option<&shape::Font> {
         match weight {

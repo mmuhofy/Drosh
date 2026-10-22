@@ -101,6 +101,11 @@ impl Ligatures {
         self.entries.is_empty()
     }
 
+    /// How many ligatures the font carries.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
     /// The ligature that starts the given characters, if there is one.
     pub fn at(&self, chars: &[char]) -> Option<&Ligature> {
         self.entries.iter().find(|entry| {
