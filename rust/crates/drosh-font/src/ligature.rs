@@ -52,9 +52,21 @@ impl Ligatures {
         let names = post_names(data)?;
         let charmap = font.charmap();
 
-        // The name each character answers to. The font's own names, so a font
-        // that calls the hyphen something else still works.
+        // The name each character answers to.
+        //
+        // The standard Macintosh names are the same for every font, so they
+        // are taken from the fixed list rather than from the font's post
+        // table: the font's own table only *indexes* them, and an index is
+        // easy to get wrong. A font that uses its own names (custom names,
+        // index >= 258) overrides them below.
         let mut name_of_char: HashMap<&str, char> = HashMap::new();
+        for (index, name) in STANDARD_NAMES.iter().enumerate() {
+            if let Some(character) = char::from_u32(0x20 + index as u32) {
+                name_of_char.insert(*name, character);
+            }
+        }
+        // The font's own names, which override the standard ones for fonts
+        // that name their ASCII glyphs differently.
         for codepoint in 0x20u32..=0x7e {
             let Some(character) = char::from_u32(codepoint) else { continue };
             let gid = charmap.map(character);
