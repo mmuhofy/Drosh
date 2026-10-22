@@ -106,6 +106,11 @@ impl Ligatures {
         self.entries.len()
     }
 
+    /// The character sequences the font ligates, for diagnostics.
+    pub fn sequences(&self) -> Vec<Vec<char>> {
+        self.entries.iter().map(|entry| entry.chars.clone()).collect()
+    }
+
     /// The ligature that starts the given characters, if there is one.
     pub fn at(&self, chars: &[char]) -> Option<&Ligature> {
         self.entries.iter().find(|entry| {

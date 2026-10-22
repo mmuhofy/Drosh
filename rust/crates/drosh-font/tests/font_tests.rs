@@ -186,6 +186,9 @@ fn ligatures_follow_the_setting() {
     // With them on, the pair becomes the font's own glyph for it: one glyph
     // where there were two, and not the hyphen's.
     println!("ligature count: {}", stack.ligature_count());
+    let seqs = stack.ligature_sequences();
+    println!("has arrow: {}", seqs.iter().any(|s| s == &['-', '>']));
+    println!("first 5: {:?}", &seqs[..5.min(seqs.len())]);
     let glyphs_off = stack.shape("->", Weight::Regular, false).expect("shaping");
     println!(
         "off: {} glyphs, clusters {:?}",

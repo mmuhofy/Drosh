@@ -191,6 +191,11 @@ impl FontStack {
         self.regular_ligatures.len()
     }
 
+    /// The character sequences the regular face ligates, for diagnostics.
+    pub fn ligature_sequences(&self) -> Vec<Vec<char>> {
+        self.regular_ligatures.sequences()
+    }
+
     /// The parsed face for `weight` (bold falls back to the regular face).
     fn font(&self, weight: Weight) -> Option<&shape::Font> {
         match weight {
