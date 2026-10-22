@@ -164,10 +164,11 @@ fn post_names(data: &[u8]) -> Option<Vec<Option<String>>> {
         if index >= 258 {
             // The font's own name.
             *name = custom.get(index - 258).cloned();
-        } else if (0x20..0x7f).contains(&index) {
-            // One of the standard Macintosh names, which for this range are
-            // the ASCII ones.
-            *name = standard_name(index - 0x20).map(|name| name.to_string());
+        } else if (3..98).contains(&index) {
+            // One of the standard Macintosh names for the ASCII range.
+            // The standard list starts with .notdef, .null and
+            // nonmarkingreturn, so the ASCII names live at indices 3..98.
+            *name = standard_name(index - 3).map(|name| name.to_string());
         }
     }
 
