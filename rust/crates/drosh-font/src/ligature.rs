@@ -60,9 +60,9 @@ impl Ligatures {
         // easy to get wrong. A font that uses its own names (custom names,
         // index >= 258) overrides them below.
         let mut name_of_char: HashMap<&str, char> = HashMap::new();
-        for (index, name) in STANDARD_NAMES.iter().enumerate() {
+        for (index, name) in STANDARD_NAMES.split_whitespace().enumerate() {
             if let Some(character) = char::from_u32(0x20 + index as u32) {
-                name_of_char.insert(*name, character);
+                name_of_char.insert(name, character);
             }
         }
         // The font's own names, which override the standard ones for fonts
