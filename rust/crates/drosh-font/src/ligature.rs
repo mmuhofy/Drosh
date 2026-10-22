@@ -165,7 +165,7 @@ fn post_names(data: &[u8]) -> Option<Vec<Option<String>>> {
 }
 
 /// A table in the font, by its four-byte tag.
-fn table(data: &[u8], tag: &[u8; 4]) -> Option<&[u8]> {
+fn table<'a>(data: &'a [u8], tag: &[u8; 4]) -> Option<&'a [u8]> {
     if data.len() < 12 {
         return None;
     }

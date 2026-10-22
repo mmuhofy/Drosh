@@ -17,7 +17,7 @@
 //! it — and it is a complete HarfBuzz, chain contexts included.
 
 use harfrust::font::Blob;
-use harfrust::{Buffer, BufferFlags, Direction, Feature, Script, ShapeOptions, ShaperFont};
+use harfrust::{Buffer, BufferFlags, Direction, Script, ShapeOptions, ShaperFont};
 
 use crate::ligature::Ligatures;
 
