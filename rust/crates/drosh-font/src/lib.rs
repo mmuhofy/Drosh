@@ -14,6 +14,7 @@
 //! decision, not implemented yet (`PLAN.md` §8).
 
 pub mod fallback;
+pub mod ligature;
 pub mod raster;
 pub mod shape;
 
@@ -91,6 +92,8 @@ pub struct FontStack {
     bold: Option<Vec<u8>>,
     regular_font: Option<shape::Font>,
     bold_font: Option<shape::Font>,
+    regular_ligatures: ligature::Ligatures,
+    bold_ligatures: ligature::Ligatures,
     scale: swash::scale::ScaleContext,
 }
 
@@ -107,11 +110,22 @@ impl FontStack {
 
         let regular_font = shape::font(&regular);
         let bold_font = bold.as_ref().and_then(|bytes| shape::font(bytes));
+        // The ligatures each face carries. They are read once, when the stack is
+        // built: the table is a name per glyph, and a name does not change
+        // while the session runs.
+        let regular_ligatures =
+            ligature::Ligatures::build(&regular).unwrap_or_default();
+        let bold_ligatures = bold
+            .as_ref()
+            .and_then(|bytes| ligature::Ligatures::build(bytes))
+            .unwrap_or_default();
         let stack = Self {
             regular,
             bold,
             regular_font,
             bold_font,
+            regular_ligatures,
+            bold_ligatures,
             scale: swash::scale::ScaleContext::new(),
         };
 
@@ -142,16 +156,37 @@ impl FontStack {
     ///
     /// `ligatures` is the application's setting, and the font's own tables
     /// decide what it means: the shipped face is the standard JetBrains Mono,
-    /// whose ligatures live in the `calt` feature. Turning them off is what
-    /// keeps the font from ligating behind the user's back — a terminal cell
-    /// must show the character the guest wrote when the setting says so.
+    /// whose ligature glyphs are in the font under their own names. Turning
+    /// them off is what keeps the font from ligating behind the user's back —
+    /// a terminal cell must show the character the guest wrote when the
+    /// setting says so.
     pub fn shape(
         &self,
         text: &str,
         weight: Weight,
         ligatures: bool,
     ) -> Option<Vec<shape::ShapedGlyph>> {
-        shape::shape_text(self.font(weight)?, text, &shape::ligature_features(ligatures))
+        // The font's own ligature features are always off: the terminal
+        // applies the ligatures it was asked for, and they are the font's own
+        // glyphs.
+        let features = shape::ligature_features(false);
+        if !ligatures {
+            return shape::shape_text(self.font(weight)?, text, &features);
+        }
+        shape::shape_text_with_ligatures(
+            self.font(weight)?,
+            text,
+            &features,
+            self.ligatures(weight),
+        )
+    }
+
+    /// The ligatures the face for `weight` carries.
+    fn ligatures(&self, weight: Weight) -> &ligature::Ligatures {
+        match weight {
+            Weight::Bold => &self.bold_ligatures,
+            Weight::Regular => &self.regular_ligatures,
+        }
     }
 
     /// The parsed face for `weight` (bold falls back to the regular face).

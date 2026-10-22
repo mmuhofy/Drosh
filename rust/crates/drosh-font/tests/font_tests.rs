@@ -169,37 +169,26 @@ fn codepoints_outside_the_font_are_substituted_and_reported() {
 
 /// The font's ligatures, and the setting that switches them off.
 ///
-/// The shipped face is the standard JetBrains Mono, whose ligatures live in
-/// the `calt` feature. Turning ligatures off disables `liga`, `clig`, `calt`
-/// and `rlig` at shape time, so the same face gives one glyph per character
-/// and the terminal shows what the guest wrote.
+/// The shipped face is the standard JetBrains Mono, whose ligature glyphs are
+/// in the font under their own names (`hyphen_greater.liga` and the rest).
+/// The terminal asks for them by name, because a terminal has no idea
+/// whether the text in front of it is code — and that is the setting's whole
+/// job: with ligatures off every character is a glyph of its own, and the
+/// terminal shows what the guest wrote.
 #[test]
 fn ligatures_follow_the_setting() {
     let stack = stack();
 
-    // The pairs a terminal font is expected to ligate.
-    //
-    // With a space in front: the font's ligature lookup is a *chained
-    // context* one, and its backtrack asks for the space a word follows.
-    // Without one there is nothing to match, and the pair stays two
-    // characters.
-    let pairs = [" ->", " =>", " !=", " ==", " >="];
-
-    // With ligatures off, every character is a glyph of its own: a terminal
-    // cell must show the character the guest wrote.
+    // With ligatures off, every character is a glyph of its own.
     let shaped_off = stack.shape("->", Weight::Regular, false).expect("shaping");
     assert_eq!(shaped_off.len(), 2, "with ligatures off every character is its own glyph");
 
-    // With them on, the font decides — and the shipped face does not
-    // ligate: its ligatures live in a chained-context lookup that the
-    // shaper does not reach, with every alternate the font has switched
-    // on (see TODO.md). What the test can say is that a ligature never
-    // makes *more* glyphs than there are characters.
-    for pair in pairs {
-        let glyphs = stack.shape(pair, Weight::Regular, true).expect("shaping");
-        assert!(
-            glyphs.len() <= pair.chars().count(),
-            "a ligature cannot make more glyphs than there are characters"
-        );
-    }
+    // With them on, the pair becomes the font's own glyph for it: one glyph
+    // where there were two, and not the hyphen's.
+    let shaped_on = stack.shape("->", Weight::Regular, true).expect("shaping");
+    assert_eq!(shaped_on.len(), 1, "the arrow is one glyph when ligatures are on");
+    assert_ne!(
+        shaped_on[0].glyph_id, shaped_off[0].glyph_id,
+        "the ligature is the font's own glyph, not the hyphen's"
+    );
 }

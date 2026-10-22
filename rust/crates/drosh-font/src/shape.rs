@@ -17,7 +17,9 @@
 //! it — and it is a complete HarfBuzz, chain contexts included.
 
 use harfrust::font::Blob;
-use harfrust::{Buffer, BufferFlags, Direction, Script, ShapeOptions, ShaperFont};
+use harfrust::{Buffer, BufferFlags, Direction, Feature, Script, ShapeOptions, ShaperFont};
+
+use crate::ligature::Ligatures;
 
 /// The parsed face, re-exported so the stack can name it without depending
 /// on the shaper's own vocabulary.
@@ -54,6 +56,86 @@ pub fn font(data: &[u8]) -> Option<Font> {
 /// The features are the ones to switch on and off; a shaper applies the
 /// font's own defaults on top of them.
 pub fn shape_text(font: &Font, text: &str, features: &[Feature]) -> Option<Vec<ShapedGlyph>> {
+    shape_text_with_ligatures(font, text, features, &Ligatures::default())
+}
+
+/// Shape `text`, replacing the runs the ligatures name with the font's own
+/// glyph for them.
+///
+/// The replacement is how a terminal's ligatures work: the font already drew
+/// the arrow, the terminal asks for it by name and puts it where the
+/// characters were. The result is one glyph where there were several, which
+/// is what the grid expects.
+pub fn shape_text_with_ligatures(
+    font: &Font,
+    text: &str,
+    features: &[Feature],
+    ligatures: &Ligatures,
+) -> Option<Vec<ShapedGlyph>> {
+    let mut glyphs = shape_text_plain(font, text, features)?;
+    if ligatures.is_empty() || text.is_empty() {
+        return Some(glyphs);
+    }
+
+    // The characters, and where each of them starts in the text.
+    let mut starts: Vec<usize> = Vec::new();
+    let mut chars: Vec<char> = Vec::new();
+    for (offset, character) in text.char_indices() {
+        starts.push(offset);
+        chars.push(character);
+    }
+
+    // The runs the ligatures name.
+    let mut matches: Vec<(usize, usize, u16)> = Vec::new();
+    let mut index = 0;
+    while index < chars.len() {
+        match ligatures.at(&chars[index..]) {
+            Some(ligature) => {
+                let last = index + ligature.chars.len();
+                let end = if last < chars.len() { starts[last] } else { text.len() };
+                matches.push((starts[index], end, ligature.gid));
+                index = last;
+            }
+            None => index += 1,
+        }
+    }
+    if matches.is_empty() {
+        return Some(glyphs);
+    }
+
+    // And the glyphs they replace.
+    let mut shaped: Vec<ShapedGlyph> = Vec::new();
+    let mut glyph = 0;
+    let mut matched = 0;
+    while glyph < glyphs.len() {
+        let current = matches.get(matched).copied();
+        if let Some((start, end, gid)) = current {
+            if glyphs[glyph].cluster as usize == start {
+                let mut advance = 0;
+                while glyph < glyphs.len() && (glyphs[glyph].cluster as usize) < end {
+                    advance += glyphs[glyph].x_advance;
+                    glyph += 1;
+                }
+                shaped.push(ShapedGlyph {
+                    glyph_id: gid,
+                    cluster: start as u32,
+                    x_advance: advance,
+                    x_offset: 0,
+                    y_offset: 0,
+                });
+                matched += 1;
+                continue;
+            }
+        }
+        shaped.push(glyphs[glyph]);
+        glyph += 1;
+    }
+
+    Some(shaped)
+}
+
+/// Shape `text` with the given face and features, and nothing else.
+fn shape_text_plain(font: &Font, text: &str, features: &[Feature]) -> Option<Vec<ShapedGlyph>> {
     let shaper = ShaperFont::new(font);
 
     let mut buffer = Buffer::new();
