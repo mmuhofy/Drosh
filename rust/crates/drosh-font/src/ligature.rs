@@ -127,8 +127,8 @@ fn post_names(data: &[u8]) -> Option<Vec<Option<String>>> {
         return None;
     }
 
-    let count = u16::from_be_bytes(post[32..34].try_into().ok()?) as usize;
-    let indices = 34;
+    let count = u16::from_be_bytes(post[30..32].try_into().ok()?) as usize;
+    let indices = 32;
     if post.len() < indices + count * 2 {
         return None;
     }
