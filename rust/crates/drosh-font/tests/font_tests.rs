@@ -187,8 +187,5 @@ fn ligatures_follow_the_setting() {
     // font carries it. A ligature never makes more glyphs than there are
     // characters.
     let shaped_on = stack.shape("->", Weight::Regular, true).expect("shaping");
-    assert!(
-        shaped_on.len() <= 2,
-        "a ligature cannot make more glyphs than there are characters"
-    );
+    assert!(shaped_on.len() <= 2, "a ligature cannot make more glyphs than there are characters");
 }
