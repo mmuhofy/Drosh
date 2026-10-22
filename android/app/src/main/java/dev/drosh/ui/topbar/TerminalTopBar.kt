@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import kotlin.math.roundToInt
+import dev.drosh.theme.DroshBackground
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
 import dev.drosh.ui.DroshDropdownMenu
@@ -428,22 +429,51 @@ fun TerminalTopBar(
     /** The icon's size, matching every lucide glyph in the row. */
     val pillIconSize = 22.dp
 
+    /*
+     * THE BUTTONS, HIDDEN
+     *
+     * The row can be taken out of the way: the overflow menu has an entry for
+     * it, and the row's buttons go away until the screen is tapped again. What
+     * is left is the terminal — which is what the row was drawn over in the
+     * first place.
+     */
+    var buttonsHidden by remember { mutableStateOf(false) }
+
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET),
+        modifier = if (buttonsHidden) {
+            // The whole screen, so a tap anywhere brings the row back. The bar
+            // is an overlay: it is drawn over the terminal, and a tap on the
+            // terminal is a tap the terminal never sees.
+            modifier.fillMaxSize()
+        } else {
+            modifier
+                .fillMaxWidth()
+                .height(BAR_TOP_OFFSET + BAR_ROW_HEIGHT + BAR_BOTTOM_OFFSET)
+        },
     ) {
         var moreExpanded by remember { mutableStateOf(false) }
 
         /*
-         * THE BUTTONS, HIDDEN
+         * THE BAND ABOVE THE ROW
          *
-         * The row can be taken out of the way: the overflow menu has an entry
-         * for it, and the row's buttons go away until the screen is tapped
-         * again. What is left is the terminal — which is what the row was
-         * drawn over in the first place.
+         * When the chrome is up — the viewport is in the scrollback, or a TUI
+         * owns the terminal — the row sits below the system status bar, and
+         * the band between them is Drosh's own background. Not the terminal's:
+         * a terminal with a light theme would put a light band there, and the
+         * status bar's clock would sit on it.
+         *
+         * When the chrome is collapsed the terminal reaches the top edge and
+         * the band is not drawn at all — there is nothing between the status
+         * bar and the output.
          */
-        var buttonsHidden by remember { mutableStateOf(false) }
+        if (!chromeCollapsed) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(statusBarH + BAR_TOP_OFFSET)
+                    .background(DroshBackground),
+            )
+        }
 
         if (!buttonsHidden) {
         Row(
@@ -626,8 +656,8 @@ private fun MoreActionsDropdown(
             // in one four-item list.
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = "refresh"))
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_find), icon = DroshIcons.Search, id = "find"))
-            // The row itself, out of the way: the terminal is what the user
-            // is looking at, and a tap brings the row back.
+            // The row's buttons, out of the way: the terminal is what the
+            // user is looking at, and a tap brings them back.
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_shrink_buttons), icon = DroshIcons.EyeOff, id = "shrink"))
             // Settings is gone from here. It is reachable from the drawer, and
             // an overflow entry that duplicates a drawer item gives two ways to

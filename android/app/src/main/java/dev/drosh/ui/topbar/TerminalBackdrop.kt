@@ -165,12 +165,47 @@ fun TerminalBackdropSlice(
         }.then(modifier)
             .clip(shape)
     ) {
+        // The picture is magnified before it is blurred.
+        //
+        // A blur of a 1:1 crop is an average: at a radius as large as the
+        // pill, every pixel in it becomes the average colour of the terminal
+        // behind it, and what shows through is a colour rather than a blur. A
+        // magnified picture keeps its shapes — the text is still there, but it
+        // is shapes rather than letters, and the blur finishes the job.
+        //
+        // The source region is therefore half the pill's size and is drawn
+        // over the whole pill, so what the blur works on is a picture twice
+        // the size of the glass it fills.
+        val width = size.width.roundToInt()
+        val height = size.height.roundToInt()
+        val sourceWidth = (width / MAGNIFICATION).coerceAtLeast(1)
+        val sourceHeight = (height / MAGNIFICATION).coerceAtLeast(1)
+        val source = sourceOffset()
+
+        // The region has to be inside the sampled strip, or the picture is
+        // partly nothing and the blur spreads that nothing over the pill.
+        val left = (source.x + (width - sourceWidth) / 2).coerceIn(0, (backdrop.width - sourceWidth).coerceAtLeast(0))
+        val top = (source.y + (height - sourceHeight) / 2).coerceIn(0, (backdrop.height - sourceHeight).coerceAtLeast(0))
+
         drawImage(
             image = backdrop,
-            srcOffset = sourceOffset(),
-            srcSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+            // Centred on the pill: the smaller region is the middle of what
+            // the pill covers, so what is behind the glass is what is behind
+            // the glass.
+            srcOffset = IntOffset(left, top),
+            srcSize = IntSize(sourceWidth, sourceHeight),
             dstOffset = IntOffset.Zero,
-            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+            dstSize = IntSize(width, height),
         )
     }
 }
+
+/**
+ * How much larger the picture behind a pill is drawn than the glass it fills.
+ *
+ * Three is enough: the blur's radius in the source's own pixels falls to a
+ * third, so the same radius spreads over a picture with three times the
+ * detail. What comes out is the terminal's shapes rather than the terminal's
+ * text — the letters are gone, the blur is not.
+ */
+private const val MAGNIFICATION = 3
