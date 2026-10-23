@@ -45,8 +45,7 @@ import dev.drosh.terminal.session.ExtraKeyState
 class InputDispatcher(
     private val extraKeyState: ExtraKeyState,
     private val writer: TerminalWriter?,
-    private val keyEventSink: KeyEventSink? = null,
-) {
+    // keyEventSink removed — engine is the only terminal.) {
 
     /**
      * Callback the caller wires to its `TerminalView` so we can fire a
@@ -83,17 +82,8 @@ class InputDispatcher(
     private fun typeChar(char: Char) {
         val ctrlDown = extraKeyState.readCtrl()
         val altDown = extraKeyState.readAlt()
-        if (keyEventSink != null) {
-            // The vendored view reads the control code out of the key code it
-            // is given, so the vendored terminal's own table is used here.
-            val keyCode = char.uppercaseChar().code.let {
-                if (ctrlDown) termuxControlCode(it) else it
-            }
-            val meta = buildMetaState(ctrlDown = ctrlDown, altDown = altDown)
-            val event = KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, meta)
-            keyEventSink.onKeyEvent(event, keyCode)
-            return
-        }
+        // The vendored view path is removed — the engine's encoder makes
+        // the bytes directly. Fall through to the writer.
         // The writer makes the bytes: the vendored session takes the code
         // point, the engine's encoder takes the character and the modifiers.
         writer ?: return
@@ -126,12 +116,6 @@ class InputDispatcher(
         val ctrlDown = extraKeyState.readCtrl()
         val altDown = extraKeyState.readAlt()
         val keyCode = KeyEvent.KEYCODE_F1 + (key.number - 1)
-        if (keyEventSink != null) {
-            val meta = buildMetaState(ctrlDown = ctrlDown, altDown = altDown)
-            val event = KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, meta)
-            keyEventSink.onKeyEvent(event, keyCode)
-            return
-        }
         writer ?: return
         writer.writeKey(keyCode, InputModifiers(ctrl = ctrlDown, alt = altDown))
     }
