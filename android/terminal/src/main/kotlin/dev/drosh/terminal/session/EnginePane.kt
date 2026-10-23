@@ -342,8 +342,14 @@ class EnginePane(context: Context) {
     /** Select the whole line containing (row, col). */
     fun selectLine(row: Int, col: Int) = controller.selectLine(row, col)
 
+    /** Select the entire visible grid. */
+    fun selectAll() = controller.selectAll()
+
     /** Clear the selection. */
     fun clearSelection() = controller.clearSelection()
+
+    /** Select all text in the terminal. */
+    fun selectAll() = controller.selectAll()
 
     // --- the viewport ------------------------------------------------------
 
