@@ -755,26 +755,7 @@ class TerminalManager(
      * but the OMZ install failed during bootstrap.
      */
     private fun recoverFallbackSessions() {
-        if (!ubuntuBootstrap.isInstalled) return
-        val fallbackIndices = sessions.mapIndexedNotNull { idx, s ->
-            idx to s.isFallbackSession
-        }.filter { it.second }.map { it.first }
-        if (fallbackIndices.isEmpty()) return
-
-        for (idx in fallbackIndices) {
-            val old = sessions[idx]
-            old.terminalSession.finishIfRunning()
-            sessions[idx] = DroshSession(
-                terminalSession = createNewSession(),
-                persistentId = old.persistentId,
-                name = old.name,
-                pid = 0,
-                isFallbackSession = false,
-            )
-            if (idx == _activeTabIndex.value) {
-                reattachPanesAt(idx)
-            }
-        }
+        // Termux fallback sessions removed — engine panes handle their own.
     }
 
     private fun effectiveShellPath(): String {
