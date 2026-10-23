@@ -907,41 +907,7 @@ private fun ReadyScreen(
                 return
             }
 
-            // Termux view removed.
-            // Termux view removed.
-                Log.w(
-                    "TerminalScreen",
-                    "TerminalView is not ready, cannot hide keyboard",
-                )
-                return
-            }
-
-            if (
-                !view.isAttachedToWindow ||
-                view.width <= 0 ||
-                view.height <= 0
-            ) {
-                Log.w(
-                    "TerminalScreen",
-                    "TerminalView is not attached or has zero size, cannot hide keyboard",
-                )
-                return
-            }
-
-            val imm = view.context.getSystemService(
-                Context.INPUT_METHOD_SERVICE,
-            ) as InputMethodManager
-
-            val token = view.windowToken
-
-            if (token != null) {
-                imm.hideSoftInputFromWindow(
-                    token,
-                    0,
-                )
-
-                keyboardFocused = false
-            }
+            Log.w("TerminalScreen", "No engine pane available, cannot hide keyboard")
         } catch (e: Exception) {
             Log.e(
                 "TerminalScreen",
@@ -952,37 +918,13 @@ private fun ReadyScreen(
     }
 
     fun toggleKeyboard() {
-        // The engine's terminal has no view to measure, so it is asked
-        // whether it is there at all; the vendored view is measured as it
-        // always was.
-        val engine = terminalManager.focusedEnginePane()
-        if (engine == null) {
-            // Termux view removed.
-                Log.w(
-                    "TerminalScreen",
-                    "TerminalView is not ready, cannot toggle keyboard",
-                )
-                return
-            }
-
-            if (
-                !view.isAttachedToWindow ||
-                view.width <= 0 ||
-                view.height <= 0
-            ) {
-                Log.w(
-                    "TerminalScreen",
-                    "TerminalView is not attached or has zero size, cannot toggle keyboard",
-                )
-                return
-            }
-        }
-
         if (keyboardFocused) {
             hideKeyboard()
         } else {
             showKeyboard()
         }
+    }
+
     }
 
     /**
@@ -999,14 +941,6 @@ private fun ReadyScreen(
      */
     LaunchedEffect(Unit) {
         repeat(30) {
-            // Termux view removed.
-            if (view != null && view.isAttachedToWindow && view.width > 0) {
-                showKeyboard()
-                return@LaunchedEffect
-            }
-            // The engine's terminal has no view to wait for: its pane is
-            // registered with the manager as soon as its session is running,
-            // and that is the moment the keyboard can be raised.
             if (terminalManager.focusedEnginePane() != null) {
                 showKeyboard()
                 return@LaunchedEffect
