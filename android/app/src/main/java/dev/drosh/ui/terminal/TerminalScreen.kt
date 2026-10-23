@@ -844,7 +844,7 @@ private fun ReadyScreen(
             }
             Log.w("TerminalScreen", "No engine pane, cannot show keyboard")
         } catch (e: Exception) {
-            Log.e('TerminalScreen', 'showKeyboard failed', e)
+            Log.e("TerminalScreen", "showKeyboard failed", e)
         }
     }
 
@@ -863,7 +863,7 @@ private fun ReadyScreen(
             }
             Log.w("TerminalScreen", "No engine pane, cannot hide keyboard")
         } catch (e: Exception) {
-            Log.e('TerminalScreen', 'hideKeyboard failed', e)
+            Log.e("TerminalScreen", "hideKeyboard failed", e)
         }
     }
 
