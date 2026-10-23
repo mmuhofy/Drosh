@@ -45,7 +45,7 @@ import dev.drosh.terminal.session.ExtraKeyState
 class InputDispatcher(
     private val extraKeyState: ExtraKeyState,
     private val writer: TerminalWriter?,
-    // keyEventSink removed — engine is the only terminal.) {
+) {
 
     /**
      * Callback the caller wires to its `TerminalView` so we can fire a
