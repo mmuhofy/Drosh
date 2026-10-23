@@ -18,7 +18,7 @@ class TerminalBackendTest {
 
     @Test
     fun `the default is the terminal the app is known to work on`() {
-        assertSame("Termux until the engine has been through a device", TerminalBackend.TERMUX, TerminalBackend.DEFAULT)
+        assertSame("Engine is now the default backend", TerminalBackend.ENGINE, TerminalBackend.DEFAULT)
         assertSame("and the setting itself defaults to it", TerminalBackend.TERMUX, TerminalSettings.DEFAULT.backend)
     }
 

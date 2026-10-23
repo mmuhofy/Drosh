@@ -49,6 +49,17 @@ internal class SelectionOverlay(private val view: TerminalView) {
         view.notifySelectionChanged()
     }
 
+    /** Select the entire visible grid. */
+    fun selectAll() {
+        val columns = view.session.columns
+        val rows = view.session.rows
+        if (columns <= 0 || rows <= 0) {
+            return
+        }
+        selection.select(0, 0, rows - 1, columns - 1)
+        view.notifySelectionChanged()
+    }
+
     /** Drag the selection to (row, col). */
     fun extend(row: Int, col: Int) {
         selection.extend(row, col)

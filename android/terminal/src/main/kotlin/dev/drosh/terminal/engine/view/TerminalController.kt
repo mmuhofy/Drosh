@@ -72,6 +72,8 @@ class TerminalController(context: android.content.Context) {
     /** Clear any active selection. */
     fun clearSelection() = view.selectionOverlay.clear()
 
+    fun selectAll() = view.selectionOverlay.selectAll()
+
     /** The currently selected text, or "" when nothing is selected. */
     /**
      * The selected text, or "" when nothing is selected.
