@@ -1970,7 +1970,7 @@ class TerminalManager(
      */
     fun removeEngineSession(persistentId: String) {
         val session = engineSessions.find { it.persistentId == persistentId } ?: return
-        session.enginePane.release()
+        session.enginePane?.release()
         engineSessions.remove(session)
         enginePanes.entries.removeAll { it.value === session.enginePane }
 
@@ -2405,7 +2405,7 @@ class TerminalManager(
         sessionClient.terminalView = null
         sessions.forEach { it.terminalSession.finishIfRunning() }
         sessions.clear()
-        engineSessions.forEach { it.enginePane.release() }
+        engineSessions.forEach { it.enginePane?.release() }
         engineSessions.clear()
         idToIndex.clear()
     }
