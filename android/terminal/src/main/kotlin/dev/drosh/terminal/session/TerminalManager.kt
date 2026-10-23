@@ -974,7 +974,6 @@ class TerminalManager(
             focusEnginePane(slot, engine)
             return
         }
-        focusTermuxPane(slot)
     }
 
     /**
@@ -987,24 +986,7 @@ class TerminalManager(
      * through the engine's own numbers. Sharing one method would mean
      * asking "which kind of pane is this" in every step of it.
      */
-    private fun focusTermuxPane(slot: PaneSlot) {
-        // Termux view removed.
-        if (sessionForSlot(slot) == null) return
-        if (_focusedPane.value == slot) {
-            view.requestFocus()
-            return
-        }
-        // The engine pane that had the focus is told that it lost it.
-        endEnginePaneFocus()
-        _focusedPane.value = slot
-        _selectionBounds.value = null
-        _hasSelection.value = false
-        activatePaneView(slot, view)
-        onBlockSessionChanged(sessionIdForSlot(slot), sessionForSlot(slot))
-        publishAltBufferState()
-        publishActiveId()
-        view.requestFocus()
-    }
+    // Termux focus removed — engine panes handle their own.
 
     /**
      * Moves keyboard focus to the engine-backed pane in [slot].
@@ -1066,13 +1048,7 @@ class TerminalManager(
      * numbers instead of from a view's callbacks.
      */
     private fun activateEnginePane(pane: EnginePane) {
-        // The Termux views stop reporting: the engine's pane is the one that
-        // reports now, and two panes answering for the same chrome would be
-        // two opinions about the same terminal.
-        // Termux view removed.
-            view.onScrollPositionChanged = null
-            view.installSelectionMenu(enabled = false, listener = null)
-        }
+        // The engine's pane is the one that reports now.
         pane.selectionListener = { hasSelection ->
             publishEngineSelection(pane, hasSelection)
         }
@@ -1299,39 +1275,6 @@ class TerminalManager(
             onEngineSessionExited(pane, code)
         }
 
-        // Termux view removed.
-            view.onScrollPositionChanged = null
-            view.installSelectionMenu(enabled = false, listener = null)
-        }
-        // A pane that arrives at the slot that already has the focus is the
-        // active terminal from that moment on, so it is activated the way a
-        // focus change activates a pane: the selection and the scroll
-        // position are published for it, and the shell is told that it has
-        // the focus.
-        //
-        // Without this, a pane that registers for the focused slot would
-        // never be activated: [focusEnginePane] treats a pane that already
-        // has the focus as a pane that is already set up, and nothing else
-        // would ever set it up.
-        if (slot == focusedPane.value && pane.state == EnginePaneState.RUNNING) {
-            activateEnginePane(pane)
-            pane.notifyFocus(true)
-            pane.focus()
-        }
-        // Termux view removed.
-            view.onScrollPositionChanged = null
-            view.installSelectionMenu(enabled = false, listener = null)
-        }
-        // A pane that arrives at the slot that already has the focus is the
-        // active terminal from that moment on, so it is activated the way a
-        // focus change activates a pane: the selection and the scroll
-        // position are published for it, and the shell is told that it has
-        // the focus.
-        //
-        // Without this, a pane that registers for the focused slot would
-        // never be activated: [focusEnginePane] treats a pane that already
-        // has the focus as a pane that is already set up, and nothing else
-        // would ever set it up.
         if (slot == focusedPane.value && pane.state == EnginePaneState.RUNNING) {
             activateEnginePane(pane)
             pane.notifyFocus(true)
@@ -1941,14 +1884,7 @@ class TerminalManager(
         engineWatchJob?.cancel()
         engineWatchJob = null
         enginePanes.values.forEach { pane -> pane.selectionListener = null }
-        // Every pane's view, not just one: a pane left registered keeps this
-        // manager alive through its selection and scroll listeners after the
-        // screens that built it are gone.
         // Termux view removed.
-                view.installSelectionMenu(enabled = false, listener = null)
-        }
-        // Termux view removed.
-        sessions.forEach { it.terminalSession.finishIfRunning() }
         sessions.clear()
         engineSessions.forEach { it.enginePane?.release() }
         engineSessions.clear()
