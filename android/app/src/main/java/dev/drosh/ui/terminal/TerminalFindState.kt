@@ -1,6 +1,6 @@
 package dev.drosh.ui.terminal
 
-import dev.drosh.terminal.session.TerminalSearchResults
+// Terminal search results removed — engine only.
 
 /**
  * What one find query found in the terminal the user is looking at.
@@ -33,7 +33,7 @@ data class TerminalFindState(
      * Termux buffer. Nothing is drawn for an engine match — there is no cell
      * of it on the screen.
      */
-    val termuxResults: TerminalSearchResults?
+    // Termux results removed — engine only.
         get() = (matches as? TerminalFindMatches.Termux)?.results?.copy(activeIndex = activeIndex)
 
     /**

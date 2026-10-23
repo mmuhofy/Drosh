@@ -68,6 +68,7 @@ import dev.drosh.domain.settings.toMillis
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.editor.EditorScreen
+import dev.drosh.terminal.engine.core.EngineSession
 import dev.drosh.terminal.session.EngineSessions
 import dev.drosh.terminal.session.ExtraKeyState
 import dev.drosh.terminal.session.TerminalManager

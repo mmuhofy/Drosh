@@ -46,38 +46,13 @@ class ServiceSystemOverlayController @Inject constructor(
     override fun canDrawOverlays(): Boolean = Settings.canDrawOverlays(context)
 
     override fun attach(slot: PaneSlot): Boolean {
-        if (!canDrawOverlays()) return false
-        if (_isAttached.value) return false
-
-        return runCatching {
-            ContextCompat.startForegroundService(
-                context,
-                Intent(context, FloatingPaneOverlayService::class.java)
-                    .putExtra(FloatingPaneOverlayView.EXTRA_SLOT, slot.name),
-            )
-            _isAttached.value = true
-            // Explicit: an assignment is Unit, so letting the block end on one
-            // would make runCatching<Unit> and getOrElse unreachable.
-            true
-        }.getOrElse {
-            // startForegroundService throws when the app is in the background
-            // without an exemption, and no window ever appears. Claiming success
-            // would strand the pane: laid out as an overlay, with nothing to show
-            // it and no way to reach it.
-            _isAttached.value = false
-            false
-        }
+        // Floating pane overlay removed — engine panes are in-app only.
+        return false
     }
 
     override fun detach(): Boolean {
         if (!_isAttached.value) return false
         _isAttached.value = false
-        // stopService rather than the notification's stop action: the pane has to
-        // come back into this app's window, and that is driven by the layout
-        // changing rather than by the service noticing it was dismissed.
-        runCatching {
-            context.stopService(Intent(context, FloatingPaneOverlayService::class.java))
-        }
         return true
     }
 }

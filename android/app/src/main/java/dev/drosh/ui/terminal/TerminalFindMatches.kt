@@ -1,30 +1,15 @@
 package dev.drosh.ui.terminal
 
-import dev.drosh.terminal.session.TerminalSearchResults
-
 /**
  * What one find query found in one terminal.
  *
- * The matches are the source's own: a Termux-backed terminal answers with
- * the rows of its buffer, an engine-backed one with the lines of its output
- * log. The two are kept apart here rather than flattened into one list,
- * because they cannot be used the same way — the Termux matches can be drawn
- * on the screen and scrolled to, and the engine's cannot.
+ * The matches are the source's own: the Rust engine answers with the lines
+ * of its output log. The Termux path has been removed.
  */
 sealed interface TerminalFindMatches {
 
     /** How many matches the query found. */
     val count: Int
-
-    /**
-     * The matches of the vendored Termux terminal.
-     *
-     * The results are the ones the terminal's own search produced, so the
-     * highlight overlay draws exactly the runs of cells the scan found.
-     */
-    data class Termux(val results: TerminalSearchResults) : TerminalFindMatches {
-        override val count: Int get() = results.count
-    }
 
     /**
      * The matches of the Rust engine.

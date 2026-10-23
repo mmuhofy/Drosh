@@ -41,7 +41,7 @@ import dev.drosh.linux.UbuntuSetupState
 import com.termux.terminal.TerminalSession
 import dev.drosh.terminal.session.input.EngineTerminalWriter
 import dev.drosh.terminal.session.input.TerminalWriter
-import dev.drosh.terminal.session.input.TermuxTerminalWriter
+// TermuxTerminalWriter removed — engine is the only terminal.
 import dev.drosh.terminal.engine.core.EngineSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -1174,8 +1174,7 @@ class TerminalManager(
         if (engine != null) {
             return EngineTerminalWriter(engine)
         }
-        val session = currentSession ?: return null
-        return TermuxTerminalWriter(session)
+        return null
     }
 
     /**

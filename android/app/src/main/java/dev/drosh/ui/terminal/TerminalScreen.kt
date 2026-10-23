@@ -88,9 +88,6 @@ import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
-import dev.drosh.terminal.session.SearchHighlightOverlay
-import dev.drosh.terminal.session.TerminalSearchResults
-import dev.drosh.terminal.session.TerminalUrlOverlay
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
@@ -631,8 +628,7 @@ private fun ReadyScreen(
      * nobody asked about. The counter and the arrows stay global; they are
      * about the terminal the user is working in.
      */
-    fun findResultsFor(slot: PaneSlot): TerminalSearchResults? =
-        findState?.takeIf { slot == focusedPaneSlot }?.termuxResults
+    fun findResultsFor(slot: PaneSlot): Any? = null
 
     /**
      * Bumped by every chunk of output the focused terminal draws, so an open
@@ -831,7 +827,7 @@ private fun ReadyScreen(
     )
 
     val searchOverlayRef = remember {
-        mutableStateOf<SearchHighlightOverlay?>(null)
+        mutableStateOf<Any?>(null)
     }
 
     fun showKeyboard() {
@@ -1182,7 +1178,7 @@ private fun ReadyScreen(
                     searchActive = searchActive,
                     searchQuery = searchQuery,
                     searchResults = findResultsFor(PaneSlot.SECONDARY),
-                    searchOverlayRef = remember { mutableStateOf<SearchHighlightOverlay?>(null) },
+                    searchOverlayRef = remember { mutableStateOf<Any?>(null) },
                     appearanceSource = appearanceSource,
                     terminalBackend = terminalBackend,
                     terminalConfig = terminalConfig,
@@ -1800,8 +1796,8 @@ private fun TerminalPaneBody(
      * Only the pane the search ran against gets these: they are rows of one
      * particular terminal, and another pane's rows are a different buffer.
      */
-    searchResults: TerminalSearchResults?,
-    searchOverlayRef: MutableState<SearchHighlightOverlay?>,
+    searchResults: Any? = null,
+    searchOverlayRef: MutableState<Any?>? = null,
     /** Where this pane's terminal is sampled for the chrome. */
     appearanceSource: MutableState<TerminalAppearanceSource?>,
     /**
