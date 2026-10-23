@@ -846,40 +846,10 @@ private fun ReadyScreen(
                 return
             }
 
-            // Termux view removed.
-                Log.w(
-                    "TerminalScreen",
-                    "TerminalView is not ready, cannot show keyboard",
-                )
+            // Termux view removed — engine only.
+            Log.w("TerminalScreen", "No engine pane, cannot show keyboard")
                 return
             }
-
-            if (
-                !view.isAttachedToWindow ||
-                view.width <= 0 ||
-                view.height <= 0
-            ) {
-                Log.w(
-                    "TerminalScreen",
-                    "TerminalView is not attached or has zero size, cannot show keyboard",
-                )
-                return
-            }
-
-            // The view only accepts showSoftInput while it reports itself as a
-            // text editor, and that flag is off the rest of the time so that
-            // focus alone cannot raise the keyboard.
-            view.raiseKeyboardOnFocus = true
-            view.requestFocusFromTouch()
-
-            val imm = view.context.getSystemService(
-                Context.INPUT_METHOD_SERVICE,
-            ) as InputMethodManager
-
-            imm.showSoftInput(
-                view,
-                InputMethodManager.SHOW_IMPLICIT,
-            )
 
             keyboardFocused = true
         } catch (e: Exception) {
@@ -923,8 +893,6 @@ private fun ReadyScreen(
         } else {
             showKeyboard()
         }
-    }
-
     }
 
     /**
