@@ -5,7 +5,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.drosh.domain.ssh.AuthMethod
 import dev.drosh.domain.ssh.SshCredentialVault
 import dev.drosh.domain.ssh.SshHost
-import dev.drosh.terminal.engine.core.NativeCore
+import dev.drosh.terminal.engine.core.EngineSession
 import dev.drosh.terminal.session.SshSessionFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -61,7 +61,7 @@ class SshSessionFactoryImpl @Inject constructor(
         val shell = channel.startShell()
 
         // Create the bridged session in the engine core.
-        val handle = NativeCore.nativeCreateBridgedSession(columns, rows, cellWidth, cellHeight)
+        val handle = EngineSession.createBridgedSession(columns, rows, cellWidth, cellHeight)
         if (handle <= 0L) {
             runCatching { channel.close() }
             runCatching { ssh.disconnect() }
@@ -76,12 +76,12 @@ class SshSessionFactoryImpl @Inject constructor(
                 while (true) {
                     val read = input.read(buffer)
                     if (read <= 0) break
-                    NativeCore.nativeFeed(handle, buffer.copyOfRange(0, read))
+                    EngineSession.feedBridgedSession(handle, buffer.copyOfRange(0, read))
                 }
             } catch (_: Exception) {
                 // Connection dropped — fall through to finish.
             } finally {
-                NativeCore.nativeCloseSession(handle)
+                EngineSession.closeBridgedSession(handle)
                 runCatching { channel.close() }
                 runCatching { ssh.disconnect() }
             }

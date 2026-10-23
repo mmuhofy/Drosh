@@ -464,6 +464,23 @@ class EngineSession(
     }
 
     companion object {
+        /**
+         * Create a bridged session in the Rust engine core.
+         *
+         * Public wrapper for [NativeCore.nativeCreateBridgedSession], which is
+         * internal to `:terminal`. Used by `:ssh` to create SSH-backed sessions.
+         */
+        fun createBridgedSession(columns: Int, rows: Int, cellWidth: Int, cellHeight: Int): Long =
+            NativeCore.nativeCreateBridgedSession(columns, rows, cellWidth, cellHeight)
+
+        fun feedBridgedSession(handle: Long, data: ByteArray) {
+            NativeCore.nativeFeed(handle, data)
+        }
+
+        fun closeBridgedSession(handle: Long) {
+            NativeCore.nativeCloseSession(handle)
+        }
+
         const val NO_HANDLE = 0L
 
         /** How many matches a grid search reports when the caller does not say. */

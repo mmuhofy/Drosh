@@ -1,14 +1,14 @@
 package dev.drosh.terminal.session
 
 import dev.drosh.domain.ssh.SshHost
-import dev.drosh.terminal.engine.core.NativeCore
+import dev.drosh.terminal.engine.core.EngineSession
 
 /**
  * Builds a bridged session for one host: the session's byte source is the SSH
  * channel, not a local subprocess.
  *
  * Returns the native bridged-session handle from
- * [NativeCore.nativeCreateBridgedSession]. The caller wraps it in an
+ * [EngineSession.createBridgedSession]. The caller wraps it in an
  * [EngineSession] and registers it via [TerminalManager.addEngineTabWithId].
  *
  * Lives in `:terminal` because it returns a handle owned by the engine core,
