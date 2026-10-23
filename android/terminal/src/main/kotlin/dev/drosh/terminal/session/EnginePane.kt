@@ -49,7 +49,26 @@ import kotlin.math.roundToInt
  * would disagree the first time the cell size changed.
  */
 class EnginePane(context: Context) {
+    /**
+     * The persistent id of the session this pane runs, or "" when the pane
+     * has not been bound to a session yet.
+     *
+     * The engine owns the session, but the app owns the identity: a pane
+     * that was started without an id is a pane the app cannot reconcile,
+     * close or restore, so it would exist outside the session system.
+     */
+    var persistentId: String = ""
+        private set
 
+    /** The user-visible name of the session this pane runs. */
+    var sessionName: String = ""
+        private set
+
+    /** Bind this pane to a persistent session identity. */
+    fun bindIdentity(persistentId: String, name: String) {
+        this.persistentId = persistentId
+        this.sessionName = name
+    }
     /**
      * The engine's own controller, which owns the view and the session.
      *
@@ -81,6 +100,15 @@ class EnginePane(context: Context) {
         }
 
     /**
+     * Called when the session exits, in addition to [listener.onSessionExited].
+     *
+     * The manager uses this to track engine sessions without replacing the
+     * host's listener. Both are called: the host's for UI, the manager's for
+     * bookkeeping.
+     */
+    var onSessionExitedCallback: ((Int) -> Unit)? = null
+
+    /**
      * Told when the selection in this pane appeared or disappeared.
      *
      * The engine's view is what knows when the user selected something, and
@@ -108,6 +136,7 @@ class EnginePane(context: Context) {
 
         override fun onSessionExited(code: Int) {
             listener?.onSessionExited(code)
+            onSessionExitedCallback?.invoke(code)
         }
 
         override fun onSessionEvent(record: String) {

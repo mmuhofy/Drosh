@@ -87,6 +87,18 @@ class TerminalManager(
      */
     private val irisSessions: MutableList<DroshSession> = mutableListOf()
 
+    /**
+     * Engine-backed sessions, tracked alongside the Termux ones while the
+     * migration is in progress. Each entry wraps an [EnginePane] with its
+     * persistent id and display name, mirroring [DroshSession] for the Rust
+     * path.
+     *
+     * Phase 1 of the TerminalManager → Rust migration: the engine panes are
+     * still registered separately (see [enginePanes]), but their identity is
+     * now tracked here so the sidebar and the session reconciliation can
+     * see them.
+     */
+    private val engineSessions: MutableList<EngineDroshSession> = mutableListOf()
     private val _sessionCount = MutableStateFlow(0)
     val sessionCountFlow: StateFlow<Int> = _sessionCount.asStateFlow()
 
@@ -1519,11 +1531,68 @@ class TerminalManager(
      * slot stops reporting scroll and selection, because a pane that answers
      * twice is a pane with two opinions.
      */
-    fun registerEnginePane(slot: PaneSlot, pane: EnginePane) {
+    fun registerEnginePane(
+        slot: PaneSlot,
+        pane: EnginePane,
+        persistentId: String = "",
+        name: String = "",
+    ) {
+        if (persistentId.isNotEmpty()) {
+            pane.bindIdentity(persistentId, name)
+        }
         val previous = enginePanes.put(slot, pane)
         if (previous != null && previous !== pane) {
             previous.selectionListener = null
             previous.release()
+            // Drop the previous pane's session from the engine list too, so the
+            // sidebar and the reconciliation do not keep a dead entry.
+            engineSessions.removeAll { it.enginePane === previous }
+        }
+
+        // Track the pane as a session when it carries an identity. A pane
+        // started without one (e.g. a preview) is still tracked as a pane
+        // but not as a session — it cannot be reconciled, closed or restored.
+        if (pane.persistentId.isNotEmpty()) {
+            val existing = engineSessions.find { it.persistentId == pane.persistentId }
+            if (existing == null) {
+                engineSessions.add(
+                    EngineDroshSession(
+                        enginePane = pane,
+                        persistentId = pane.persistentId,
+                        name = pane.sessionName,
+                    )
+                )
+            } else {
+                existing.enginePane = pane
+                existing.name = pane.sessionName
+            }
+        }
+
+        // Exit callback: the pane's session died. The host sets its own
+        // listener (in EnginePaneHost), so we hook into the pane's exit
+        // callback instead of replacing the listener.
+        pane.onSessionExitedCallback = { code ->
+            onEngineSessionExited(pane, code)
+        }
+
+        paneViews[slot]?.let { view ->
+            view.onScrollPositionChanged = null
+            view.installSelectionMenu(enabled = false, listener = null)
+        }
+        // A pane that arrives at the slot that already has the focus is the
+        // active terminal from that moment on, so it is activated the way a
+        // focus change activates a pane: the selection and the scroll
+        // position are published for it, and the shell is told that it has
+        // the focus.
+        //
+        // Without this, a pane that registers for the focused slot would
+        // never be activated: [focusEnginePane] treats a pane that already
+        // has the focus as a pane that is already set up, and nothing else
+        // would ever set it up.
+        if (slot == focusedPane.value && pane.state == EnginePaneState.RUNNING) {
+            activateEnginePane(pane)
+            pane.notifyFocus(true)
+            pane.focus()
         }
         paneViews[slot]?.let { view ->
             view.onScrollPositionChanged = null
@@ -1788,7 +1857,10 @@ class TerminalManager(
      */
     fun activePersistentId(): String? {
         val slot = focusedPane.value
-        if (enginePanes.containsKey(slot)) return null
+        val engine = enginePanes[slot]
+        if (engine != null) {
+            return engine.persistentId.ifEmpty { null }
+        }
         return sessionIdForSlot(slot)
     }
 
@@ -1822,8 +1894,7 @@ class TerminalManager(
     }
 
     fun liveSessionIds(): Set<String> =
-        irisSessions.map { it.persistentId }.toSet()
-
+        (irisSessions.map { it.persistentId } + engineSessions.map { it.persistentId }).toSet()
     fun renameTab(index: Int, name: String) {
         if (index in irisSessions.indices) {
             irisSessions[index].name = name
@@ -2198,6 +2269,29 @@ class TerminalManager(
         lifecycleCallbacks?.onSessionPidChanged(irisSession.persistentId, pid)
     }
 
+    /**
+     * Called when an engine-backed session's process exits.
+     *
+     * Mirrors [onSessionFinished] for the Rust path: removes the session
+     * from [engineSessions], notifies the lifecycle callbacks so Room learns
+     * about it, and publishes the exit event when it was the last one.
+     */
+    private fun onEngineSessionExited(pane: EnginePane, exitCode: Int) {
+        val session = engineSessions.find { it.enginePane === pane } ?: return
+        val persistentId = session.persistentId
+
+        engineSessions.remove(session)
+        enginePanes.entries.removeAll { it.value === pane }
+
+        lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
+
+        if (engineSessions.isEmpty() && irisSessions.isEmpty()) {
+            _processExitEvent.value = ProcessExitEvent(exitCode)
+            _noSessionsLeft.value = true
+        }
+        publishActiveId()
+    }
+
     fun destroy() {
         commandState.unbind()
         editorRequests.unbind()
@@ -2217,6 +2311,8 @@ class TerminalManager(
         sessionClient.terminalView = null
         irisSessions.forEach { it.terminalSession.finishIfRunning() }
         irisSessions.clear()
+        engineSessions.forEach { it.enginePane.release() }
+        engineSessions.clear()
         idToIndex.clear()
     }
 
