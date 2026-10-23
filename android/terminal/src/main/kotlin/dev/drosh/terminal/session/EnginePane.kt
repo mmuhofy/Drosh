@@ -348,9 +348,6 @@ class EnginePane(context: Context) {
     /** Clear the selection. */
     fun clearSelection() = controller.clearSelection()
 
-    /** Select all text in the terminal. */
-    fun selectAll() = controller.selectAll()
-
     // --- the viewport ------------------------------------------------------
 
     /**
