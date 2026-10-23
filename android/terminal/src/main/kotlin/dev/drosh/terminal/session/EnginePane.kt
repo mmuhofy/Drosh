@@ -163,6 +163,27 @@ class EnginePane(context: Context) {
     // --- lifecycle ---------------------------------------------------------
 
     /**
+     * Attach an existing bridged session handle (e.g. from SSH) to this pane.
+     *
+     * The handle must already be a live bridged session from
+     * [NativeCore.nativeCreateBridgedSession]. The pane takes ownership of the
+     * session and runs it as if it had started it.
+     *
+     * Returns false when the pane cannot start — it is already running or it
+     * was released.
+     */
+    fun attachExisting(handle: Long, columns: Int, rows: Int, cellWidth: Int, cellHeight: Int): Boolean {
+        if (!state.canStart) {
+            Log.w(TAG, "attachExisting refused: the pane is $state")
+            return false
+        }
+
+        session.attachExistingHandle(handle, columns, rows, cellWidth, cellHeight)
+        state = state.started()
+        return true
+    }
+
+    /**
      * Start a session that runs [command] inside the guest.
      *
      * The command is translated by [EngineLaunch]: the program is the guest

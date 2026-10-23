@@ -139,6 +139,31 @@ class EngineSession(
         return NativeCore.OK
     }
 
+    /**
+     * Attach an existing bridged session handle (created externally, e.g. by
+     * the SSH factory) to this [EngineSession].
+     *
+     * The handle must already be a live bridged session from
+     * [NativeCore.nativeCreateBridgedSession]. This does not create a new
+     * session — it takes ownership of the existing one.
+     */
+    fun attachExistingHandle(
+        handle: Long,
+        columns: Int,
+        rows: Int,
+        cellWidth: Int,
+        cellHeight: Int,
+    ) {
+        close()
+        this.handle = handle
+        this.cellWidth = cellWidth
+        this.cellHeight = cellHeight
+        this.columns = columns
+        this.rows = rows
+        colorsPulled = false
+        allocate(columns, rows)
+    }
+
     /** Returns [NativeCore.OK] or a negative error code. */
     fun start(columns: Int, rows: Int, cellWidth: Int, cellHeight: Int): Int {
         close()

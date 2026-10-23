@@ -1,12 +1,11 @@
 package dev.drosh.ssh
 
 import android.content.Context
-import com.termux.terminal.TerminalSession
-import com.termux.terminal.TerminalSessionClient
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.drosh.domain.ssh.AuthMethod
 import dev.drosh.domain.ssh.SshCredentialVault
 import dev.drosh.domain.ssh.SshHost
+import dev.drosh.terminal.engine.core.NativeCore
 import dev.drosh.terminal.session.SshSessionFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,8 +21,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Connects over SSHJ and bridges the shell channel into a
- * [TerminalSession] running in bridged mode.
+ * Connects over SSHJ and bridges the shell channel into a bridged session
+ * running in the Rust engine core.
+ *
+ * Returns the native bridged-session handle; the caller wraps it in an
+ * [EngineSession] and registers it via [TerminalManager.addEngineTabWithId].
  */
 @Singleton
 class SshSessionFactoryImpl @Inject constructor(
@@ -31,7 +33,13 @@ class SshSessionFactoryImpl @Inject constructor(
     private val vault: SshCredentialVault,
 ) : SshSessionFactory {
 
-    override suspend fun createSession(host: SshHost, client: TerminalSessionClient): TerminalSession {
+    override suspend fun createSession(
+        host: SshHost,
+        columns: Int,
+        rows: Int,
+        cellWidth: Int,
+        cellHeight: Int,
+    ): Long {
         val config = DefaultConfig()
         config.setKeepAliveProvider(KeepAliveProvider.KEEP_ALIVE)
 
@@ -49,56 +57,37 @@ class SshSessionFactoryImpl @Inject constructor(
         }
 
         val channel = ssh.startSession()
-        channel.allocatePTY("xterm-256color", DEFAULT_COLS, DEFAULT_ROWS, 0, 0, emptyMap<PTYMode, Int>())
+        channel.allocatePTY("xterm-256color", columns, rows, 0, 0, emptyMap<PTYMode, Int>())
         val shell = channel.startShell()
 
-        val session = TerminalSession(
-            "",
-            "/",
-            arrayOf(),
-            arrayOf("TERM=xterm-256color"),
-            null,
-            client,
-        )
-        session.bridged = true
-        session.mSessionName = host.name
-
-        session.externalInputSink = { data, offset, count ->
-            runCatching {
-                shell.outputStream.write(data, offset, count)
-                shell.outputStream.flush()
-            }
-        }
-        session.bridgedResizeListener = { cols, rows, width, height ->
-            runCatching { shell.changeWindowDimensions(cols, rows, width, height) }
+        // Create the bridged session in the engine core.
+        val handle = NativeCore.nativeCreateBridgedSession(columns, rows, cellWidth, cellHeight)
+        if (handle <= 0L) {
+            runCatching { channel.close() }
+            runCatching { ssh.disconnect() }
+            throw IllegalStateException("Failed to create bridged session for ${host.name}")
         }
 
+        // Forward channel output into the bridged session.
         Thread({
-            // The emulator is created on attach (updateSize on the main
-            // thread). Bytes from the channel can sit in the stream buffer
-            // until then — the channel's receive window holds them, so the
-            // pause loses nothing.
-            while (session.emulator == null) {
-                try { Thread.sleep(50) } catch (_: InterruptedException) { return@Thread }
-            }
             try {
                 val input = shell.inputStream
                 val buffer = ByteArray(64 * 1024)
                 while (true) {
                     val read = input.read(buffer)
                     if (read <= 0) break
-                    session.feedBridgedInput(buffer, read)
+                    NativeCore.nativeFeed(handle, buffer.copyOfRange(0, read))
                 }
             } catch (_: Exception) {
                 // Connection dropped — fall through to finish.
             } finally {
-                session.finishBridged(0)
+                NativeCore.nativeCloseSession(handle)
                 runCatching { channel.close() }
                 runCatching { ssh.disconnect() }
             }
         }, "SshChannelReader[${host.id}]").start()
 
-        return session
+        return handle
     }
 
     private suspend fun authenticate(ssh: SSHClient, host: SshHost) {
@@ -112,10 +101,8 @@ class SshSessionFactoryImpl @Inject constructor(
             AuthMethod.KEY_WITH_PASSPHRASE,
             -> {
                 val pem = vault.getPrivateKeyPem(host.keyId ?: "")
-                    ?: throw IllegalStateException("No saved private key for ${host.name}")
+                    ?: throw IllegalStateException("No saved private key for ${host.keyId}")
                 val passphrase = vault.getPrivateKeyPassphrase(host.keyId ?: "")
-                // loadKeys wants a filesystem path, and the vault keeps the
-                // PEM in-memory — so write a temporary, then delete it.
                 val pemFile = File(context.cacheDir, "ssh_pem_${host.keyId}")
                 pemFile.writeText(pem)
                 try {
