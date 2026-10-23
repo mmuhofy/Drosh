@@ -1740,7 +1740,7 @@ class TerminalManager(
      * sidebar would list a session the system does not know it has. Every
      * session now enters through the repository first.
      */
-    fun addTabWithId(persistentId: String, name: String): TerminalSession {
+    fun addTabWithId(persistentId: String, name: String): TerminalSession? {
         val wasInstalled = ubuntuBootstrap.isInstalled
         val irisSession = DroshSession(
             terminalSession = createNewSession(),
@@ -1758,7 +1758,7 @@ class TerminalManager(
         paneTabIndices[focusedPane.value] = newIndex
         // A brand new session has no scrollback and has not been touched, which
         // is exactly the state the chrome treats as "first screen".
-        _sessionCount.value = sessions.size
+        _sessionCount.value = sessions.size + engineSessions.size
         _liveSessionIds.value = liveSessionIds()
         // A session exists again, so the exit dialog no longer applies.
         _noSessionsLeft.value = false
