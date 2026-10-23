@@ -36,7 +36,6 @@ class SendKeyIntentUseCaseImpl(
         val dispatcher = InputDispatcher(
             extraKeyState = state,
             writer = manager.focusedWriter(),
-            keyEventSink = null,
         )
         dispatcher.dispatch(intent)
     }

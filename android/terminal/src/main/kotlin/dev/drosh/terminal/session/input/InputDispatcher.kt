@@ -94,14 +94,8 @@ class InputDispatcher(
         val ctrlDown = extraKeyState.readCtrl()
         val altDown = extraKeyState.readAlt()
         val keyCode = key.toAndroidKeyCode()
-        if (keyEventSink != null) {
-            val meta = buildMetaState(ctrlDown = ctrlDown, altDown = altDown)
-            val event = KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, meta)
-            keyEventSink.onKeyEvent(event, keyCode)
-            return
-        }
-        // The writer makes the bytes: the vendored key handler turns the key
-        // code into a VT sequence, the engine's encoder into its own.
+        // The writer makes the bytes: the engine's encoder turns the key
+        // code into a VT sequence.
         writer ?: return
         writer.writeKey(keyCode, InputModifiers(ctrl = ctrlDown, alt = altDown))
     }
