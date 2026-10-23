@@ -92,7 +92,6 @@ import dev.drosh.terminal.session.SearchHighlightOverlay
 import dev.drosh.terminal.session.TerminalSearchResults
 import dev.drosh.terminal.session.TerminalUrlOverlay
 import dev.drosh.terminal.session.TerminalManager
-import dev.drosh.terminal.session.TerminalViewClientImpl
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.UbuntuSetupState
@@ -547,17 +546,6 @@ private fun ReadyScreen(
     var keyboardFocused by remember { mutableStateOf(true) }
 
     /**
-     * This reference is also used by the Liquid Glass extra-key surface.
-     *
-     * It is populated only after TerminalView has a valid attached size.
-     * Therefore the backdrop implementation never receives a zero-sized
-     * TerminalView during its normal initialization path.
-     */
-    val terminalViewRef = remember {
-        mutableStateOf<TerminalView?>(null)
-    }
-
-    /**
      * Where the chrome reads the focused terminal's appearance from.
      *
      * The pane publishes it, because only the pane knows what draws its
@@ -566,7 +554,7 @@ private fun ReadyScreen(
      * two cannot be mixed up — a Termux-backed terminal is sampled from its
      * pixels and an engine-backed one from its cells.
      *
-     * Published like [terminalViewRef] and for the same reason: only the
+     // Termux view removed.
      * focused pane is the terminal the user is looking at.
      */
     val appearanceSource = remember {
@@ -631,10 +619,7 @@ private fun ReadyScreen(
      */
     fun findSource(): TerminalFindSource? {
         val enginePane = terminalManager.focusedEnginePane()
-        return when {
-            enginePane != null -> EngineFindSource(enginePane.session)
-            else -> terminalViewRef.value?.let { TermuxFindSource(it) }
-        }
+        return if (enginePane != null) EngineFindSource(enginePane.session) else null
     }
 
     /**
@@ -658,7 +643,7 @@ private fun ReadyScreen(
      * the active match drifting up out of view is the same detachment the
      * absolute-row anchoring fixes for the highlight.
      *
-     * The terminal itself is read straight off [terminalViewRef], because that
+     // Termux view removed.
      * is the one that has focus — the terminal the user is looking at is the
      * terminal they mean — and a snapshot of it in a val would be the view as
      * it was when this composable first ran, before it had been measured.
@@ -689,18 +674,6 @@ private fun ReadyScreen(
      * answers, and a find bar stuck on "no matches" under heavy output is worse
      * than one that is a fifth of a second behind it.
      */
-    LaunchedEffect(focusedPaneSlot, terminalViewRef.value) {
-        val view = terminalViewRef.value ?: return@LaunchedEffect
-        var lastBumpAt = 0L
-        view.contentTicks.collect { generation ->
-            val now = android.os.SystemClock.uptimeMillis()
-            if (now - lastBumpAt >= FIND_RESCAN_GATE_MS) {
-                lastBumpAt = now
-                searchContentTick = generation
-            }
-        }
-    }
-
     /**
      * Repeats the scan while the find bar is open on an engine-backed
      * terminal.
@@ -734,7 +707,6 @@ private fun ReadyScreen(
     LaunchedEffect(
         searchActive,
         searchQuery,
-        terminalViewRef.value,
         searchContentTick,
         engineContentTick,
         activeId,
@@ -833,8 +805,7 @@ private fun ReadyScreen(
             if (!hasSelection) {
                 null
             } else {
-                terminalViewRef.value?.selectedText
-                    ?: terminalManager.focusedEnginePane()?.selectionText()?.takeIf { it.isNotEmpty() }
+                terminalManager.focusedEnginePane()?.selectionText()?.takeIf { it.isNotEmpty() }
             }
         }
     }
@@ -879,7 +850,7 @@ private fun ReadyScreen(
                 return
             }
 
-            val view = terminalViewRef.value ?: run {
+            // Termux view removed.
                 Log.w(
                     "TerminalScreen",
                     "TerminalView is not ready, cannot show keyboard",
@@ -940,8 +911,8 @@ private fun ReadyScreen(
                 return
             }
 
-            terminalViewRef.value?.raiseKeyboardOnFocus = false
-            val view = terminalViewRef.value ?: run {
+            // Termux view removed.
+            // Termux view removed.
                 Log.w(
                     "TerminalScreen",
                     "TerminalView is not ready, cannot hide keyboard",
@@ -990,7 +961,7 @@ private fun ReadyScreen(
         // always was.
         val engine = terminalManager.focusedEnginePane()
         if (engine == null) {
-            val view = terminalViewRef.value ?: run {
+            // Termux view removed.
                 Log.w(
                     "TerminalScreen",
                     "TerminalView is not ready, cannot toggle keyboard",
@@ -1032,7 +1003,7 @@ private fun ReadyScreen(
      */
     LaunchedEffect(Unit) {
         repeat(30) {
-            val view = terminalViewRef.value
+            // Termux view removed.
             if (view != null && view.isAttachedToWindow && view.width > 0) {
                 showKeyboard()
                 return@LaunchedEffect
@@ -1162,7 +1133,6 @@ private fun ReadyScreen(
                     searchQuery = searchQuery,
                     searchResults = findResultsFor(PaneSlot.PRIMARY),
                     searchOverlayRef = searchOverlayRef,
-                    terminalViewRef = terminalViewRef,
                     appearanceSource = appearanceSource,
                     terminalBackend = terminalBackend,
                     terminalConfig = terminalConfig,
@@ -1213,7 +1183,6 @@ private fun ReadyScreen(
                     searchQuery = searchQuery,
                     searchResults = findResultsFor(PaneSlot.SECONDARY),
                     searchOverlayRef = remember { mutableStateOf<SearchHighlightOverlay?>(null) },
-                    terminalViewRef = terminalViewRef,
                     appearanceSource = appearanceSource,
                     terminalBackend = terminalBackend,
                     terminalConfig = terminalConfig,
@@ -1289,7 +1258,7 @@ private fun ReadyScreen(
                     // The selection is dismissed in whichever terminal made
                     // it: the vendored view owns its own, and the engine's
                     // pane owns the engine's.
-                    val view = terminalViewRef.value
+                    // Termux view removed.
                     if (view != null) {
                         view.dismissSelection()
                     } else {
@@ -1297,7 +1266,7 @@ private fun ReadyScreen(
                     }
                 },
                 onPaste = {
-                    val view = terminalViewRef.value
+                    // Termux view removed.
                     if (view != null) {
                         view.pasteFromClipboard()
                     } else {
@@ -1306,14 +1275,14 @@ private fun ReadyScreen(
                 },
                 onOpenUrl = { url ->
                     browserUrl = url
-                    val view = terminalViewRef.value
+                    // Termux view removed.
                     if (view != null) {
                         view.dismissSelection()
                     } else {
                         terminalManager.focusedEnginePane()?.clearSelection()
                     }
                 },
-                onSelectAll = { terminalViewRef.value?.selectAll() },
+                // Termux view removed.
                 onShare = { selectionText?.let { context.shareText(it) } },
                 modifier = Modifier
                     .offset(x = anchorX, y = belowSelection)
@@ -1833,7 +1802,6 @@ private fun TerminalPaneBody(
      */
     searchResults: TerminalSearchResults?,
     searchOverlayRef: MutableState<SearchHighlightOverlay?>,
-    terminalViewRef: MutableState<TerminalView?>,
     /** Where this pane's terminal is sampled for the chrome. */
     appearanceSource: MutableState<TerminalAppearanceSource?>,
     /**
@@ -1919,455 +1887,6 @@ private fun TerminalPaneBody(
         // the divider moves.
     }
 }
-
-@Composable
-private fun TerminalViewHost(
-    paneSlot: PaneSlot,
-    terminalManager: TerminalManager,
-    fontSizeSp: Float,
-    defaultFontSizeSp: Float,
-    colorProps: Properties,
-    backgroundFile: File?,
-    terminalBackgroundColor: Int,
-    backgroundOpacity: Int,
-    contentPaddingDp: Int,
-    cornerRadiusDp: Int,
-    dimInactivePanes: Boolean,
-    keepAwake: Boolean,
-    /**
-     * New output does not pull the viewport back to the live edge while the
-     * user is reading something further up.
-     */
-    keepPositionWhileReading: Boolean,
-    terminalViewModel: TerminalViewModel,
-    terminalViewRef: MutableState<TerminalView?>,
-    /**
-     * Where this pane's terminal is sampled for the chrome.
-     *
-     * Published by the pane that has focus, because the chrome samples the
-     * terminal the user is looking at.
-     */
-    appearanceSource: MutableState<TerminalAppearanceSource?>,
-    onUrlClick: (String) -> Unit,
-    searchQuery: String?,
-    /**
-     * The matches to draw, or null when the find bar is closed or the scan has
-     * not run. Already resolved against **this** terminal by the caller.
-     */
-    searchResults: TerminalSearchResults?,
-    searchOverlayRef: MutableState<SearchHighlightOverlay?>,
-    modifier: Modifier = Modifier,
-    extraKeyState: dev.drosh.terminal.session.ExtraKeyState? = null,
-    /** Root-space bounds, for sampling the terminal as the top bar's backdrop. */
-    onBoundsChanged: (androidx.compose.ui.geometry.Rect) -> Unit = {},
-) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val context = LocalContext.current
-    val focusedPane by terminalManager.focusedPane.collectAsStateWithLifecycle()
-    val monoResId = LocalFontSet.current.monoResId
-
-    /**
-     * This pane's own view.
-     *
-     * Local rather than the caller's shared ref, which now names whichever
-     * pane has focus. Sharing one would make both panes apply their font size
-     * and colours to the same view and leave the other one on the defaults.
-     */
-    val ownView = remember { mutableStateOf<TerminalView?>(null) }
-
-    /**
-     * This pane's own appearance source, paired with [ownView].
-     *
-     * The chrome samples the terminal through it rather than through the view
-     * itself, so a terminal drawn by another renderer can be sampled the same
-     * way. The Termux view is the one this pane holds, so the source is the
-     * one that reads its pixels.
-     */
-    val ownAppearance = remember { mutableStateOf<TerminalAppearanceSource?>(null) }
-
-    /**
-     * The mouse pointer overlay for this pane.
-     *
-     * Created once in the AndroidView factory and handed to
-     * [MouseInputHandler] whenever this pane is the focused one — the mouse
-     * pad writes through the focused input connection, so only the focused
-     * pane can ever receive its events.
-     */
-    val pointerOverlay = remember { mutableStateOf<android.widget.ImageView?>(null) }
-    var mouseAttached by remember { mutableStateOf(false) }
-
-    /**
-     * The size chip, shown only while the terminal is being pinched.
-     *
-     * Local rather than in the ViewModel: this changes 60 times a second, and
-     * a flow read at the screen's root would recompose both panes and the whole
-     * chrome for a number only this overlay shows. The chip keeps it, the
-     * terminal view keeps the real size, and the ViewModel only ever hears
-     * about it once, when the fingers lift.
-     */
-    var zoomChip by remember { mutableStateOf(ZoomChipState.Hidden) }
-
-    // Kept alive briefly after the gesture so the size is readable once the
-    // fingers are gone — the value is otherwise only ever seen mid-gesture.
-    //
-    // Keyed on the visibility alone, not on the size: the size changes on every
-    // frame of a gesture, and re-launching the delay on each one would restart
-    // it continuously and the chip would never actually hide.
-    LaunchedEffect(zoomChip.visible) {
-        if (!zoomChip.visible && zoomChip.textSizeSp > 0f) {
-            delay(ZOOM_CHIP_LINGER_MS)
-            zoomChip = ZoomChipState.Hidden
-        }
-    }
-
-    val viewClient = remember(
-        terminalViewModel,
-        extraKeyState,
-        onUrlClick,
-    ) {
-        TerminalViewClientImpl(
-            // Writes to `zoomChip`, which is a state local to this composable
-            // and therefore captured by the closure — safe across
-            // recomposition, and the reason these lambdas are built once here
-            // rather than on every frame.
-            onZoomChange = { sizeSp, focusX, focusY ->
-                zoomChip = ZoomChipState(sizeSp, focusX, focusY, visible = true)
-            },
-            onZoomEndChange = { sizeSp ->
-                // Read the focus point from the state as it is now, not from a
-                // captured value: these callbacks run from the touch handler
-                // and the chip has been moving with the fingers up to this
-                // frame.
-                val focus = zoomChip
-                zoomChip = ZoomChipState(sizeSp, focus.focusX, focus.focusY, visible = false)
-                terminalViewModel.onZoomCommitted(sizeSp)
-            },
-            // A double-tap no longer resets anything. It is not a zoom
-            // gesture — the pinch is — and a second tap on the terminal
-            // means nothing twice over, so the size a session was left at
-            // is the size it keeps.
-            defaultFontSizeSp = defaultFontSizeSp,
-            extraKeyState = extraKeyState,
-            context = context,
-            onUrlClick = onUrlClick,
-        )
-    }
-
-    LaunchedEffect(fontSizeSp) {
-        ownView.value?.setTextSize(fontSizeSp)
-    }
-
-    // The terminal does not draw through Compose — the vendored Termux renderer
-    // takes an android.graphics.Typeface — so the font preference has to be
-    // resolved to a real typeface here rather than read off LocalFontSet.
-    //
-    // setTypeface re-measures the grid, which is why this is separate from the
-    // size effect above: the two can arrive in either order on first
-    // composition, and each one rebuilds the renderer from the other's value.
-    val terminalTypeface = remember(monoResId) {
-        runCatching { context.resources.getFont(monoResId) }.getOrNull()
-    }
-    LaunchedEffect(terminalTypeface) {
-        terminalTypeface?.let { ownView.value?.setTypeface(it) }
-    }
-
-    val hostActivity = LocalDroshActivity.current
-    LaunchedEffect(keepAwake) {
-        val window = hostActivity?.window ?: return@LaunchedEffect
-        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-        if (keepAwake) window.addFlags(flag) else window.clearFlags(flag)
-    }
-
-    LaunchedEffect(colorProps) {
-        ownView.value?.updateColors(colorProps)
-    }
-
-    // The caller's ref is what the keyboard, the selection menu and the top bar
-    // backdrop all reach through, and all three mean "the terminal the user is
-    // looking at". Republishing it on focus is what keeps them pointing at the
-    // right one after a tap into the other pane.
-    //
-    // The appearance source travels with it: the chrome samples the terminal
-    // through the source, and a source that pointed at the other pane's
-    // terminal would sample the wrong output.
-    LaunchedEffect(focusedPane, ownView.value, ownAppearance.value) {
-        if (paneSlot == focusedPane) {
-            terminalViewRef.value = ownView.value
-            appearanceSource.value = ownAppearance.value
-            val view = ownView.value
-            val pointer = pointerOverlay.value
-            if (view != null && pointer != null) {
-                dev.drosh.terminal.session.mouse.MouseInputHandler.attach(view, pointer)
-                mouseAttached = true
-            }
-        } else if (mouseAttached) {
-            // the pad's events go through the focused input connection, so a
-            // pane that lost focus must stop being the mouse screen
-            dev.drosh.terminal.session.mouse.MouseInputHandler.detach()
-            mouseAttached = false
-        }
-    }
-
-    DisposableEffect(paneSlot) {
-        onDispose {
-            if (mouseAttached) {
-                dev.drosh.terminal.session.mouse.MouseInputHandler.detach()
-                mouseAttached = false
-            }
-            terminalManager.unregisterPaneView(paneSlot)
-        }
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, _ ->
-            // Lifecycle hook intentionally kept here.
-        }
-
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    BoxWithConstraints(
-        modifier = modifier
-            .padding(horizontal = contentPaddingDp.dp, vertical = contentPaddingDp.dp)
-            // Rounded corners on the content, settings-side. Clipping the host
-            // rather than the view itself: the terminal is a View, and a View
-            // cannot be asked to round its own edges from here.
-            .clip(RoundedCornerShape(cornerRadiusDp.dp)),
-    ) {
-    AndroidView(
-        modifier = Modifier
-            .fillMaxSize()
-            // Compose does not clip children to layout bounds the way a
-            // ViewGroup does, and TerminalView draws a full-bleed background.
-            .clipToBounds()
-            .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) },
-
-        factory = { ctx ->
-            val frameLayout = android.widget.FrameLayout(ctx).apply {
-                layoutParams = android.widget.FrameLayout.LayoutParams(
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                )
-                // A translucent background image blends against the theme's
-                // colour rather than the window's: at half opacity the
-                // terminal should still read as its own background.
-                setBackgroundColor(terminalBackgroundColor)
-            }
-
-            // Behind everything, because the terminal paints no background of
-            // its own for default cells — the view is transparent and this is
-            // what a background image shows through. A missing or undecodable
-            // file leaves the theme colour, which is the honest fallback.
-            backgroundFile?.let { file ->
-                loadBackgroundDrawable(ctx, file)?.let { drawable ->
-                    val imageView = android.widget.ImageView(ctx).apply {
-                        setImageDrawable(drawable)
-                        scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
-                        imageAlpha = (backgroundOpacity.coerceIn(0, 100) * 255) / 100
-                    }
-                    frameLayout.addView(imageView)
-                }
-            }
-
-            val tv = TerminalView(ctx, null).apply {
-                // The default, not the live size: this pane is opening a
-                // session, and a pinch from the session that came before it
-                // belongs to that session alone.
-                setTextSize(defaultFontSizeSp)
-                this.keepPositionWhileReading = keepPositionWhileReading
-                isFocusable = true
-                isFocusableInTouchMode = true
-                setTerminalViewClient(viewClient)
-                viewClient.terminalView = this
-                // This pane's session, not the active one. A View shows one
-                // session, so the unfocused pane has to be attached to its own
-                // or the split would render the same terminal twice.
-                terminalManager.sessionForSlot(paneSlot)?.let { session ->
-                    if (attachSession(session)) terminalViewModel.onSessionOpened()
-                }
-                terminalManager.registerPaneView(paneSlot, this, ctx)
-
-                // A tap is how the user says "I am working here". Wired to the
-                // platform focus listener rather than a Compose click handler so
-                // it does not consume the tap — the terminal still needs to see
-                // it, to select a word or open a link, and an overlay handler
-                // above the View would take both.
-                setOnFocusChangeListener { _, hasFocus ->
-                    if (hasFocus) terminalManager.focusPane(paneSlot)
-                }
-
-                val listener =
-                    object : ViewTreeObserver.OnGlobalLayoutListener {
-                        override fun onGlobalLayout() {
-                            if (width > 0 && height > 0 && isAttachedToWindow) {
-                                viewTreeObserver.removeOnGlobalLayoutListener(this)
-                                ownView.value = this@apply
-                                // The source that reads this view's pixels. Made
-                                // once, here, so the chrome's sampling loop is not
-                                // restarted by a new instance every time it asks.
-                                ownAppearance.value = TermuxAppearanceSource(this@apply)
-                                if (paneSlot == focusedPane) {
-                                    terminalViewRef.value = this@apply
-                                    appearanceSource.value = ownAppearance.value
-                                    this@apply.requestFocus()
-                                }
-                            }
-                        }
-                    }
-                viewTreeObserver.addOnGlobalLayoutListener(listener)
-            }
-
-            // Two overlays, two jobs. Search paints the matches a find query
-            // resolved elsewhere; links need logical-line grouping across
-            // soft-wrapped rows and a press state. They were one View until
-            // that combination crashed the draw pass, so the link half now
-            // lives in TerminalUrlOverlay and this one stays search-only.
-            val searchOverlay = SearchHighlightOverlay(ctx).apply {
-                terminalView = tv
-                updateQuery(searchQuery)
-                isFocusable = false
-                isFocusableInTouchMode = false
-            }
-            val urlOverlay = TerminalUrlOverlay(ctx).apply {
-                terminalView = tv
-                // Opening a link is the screen's business — in-app browser,
-                // sheet, whatever — not the overlay's.
-                onLinkClick = onUrlClick
-                isFocusable = false
-                isFocusableInTouchMode = false
-            }
-            tv.searchHighlightOverlay = searchOverlay
-            tv.urlOverlay = urlOverlay
-            // Let taps resolve against the overlay's logical lines so a URL the
-            // terminal wrapped across rows opens whole.
-            viewClient.urlOverlay = urlOverlay
-            // Feed raw touches to the overlay so a held link can show its
-            // surface. Returning false leaves the terminal's own handling intact.
-            tv.setOnTouchListener { _, event ->
-                urlOverlay.onTerminalTouch(event)
-                false
-            }
-
-            // On-screen mouse pointer, driven by the Drosh Keyboard mouse pad.
-            val pointerSize = (22f * ctx.resources.displayMetrics.density).toInt()
-            val pointer = android.widget.ImageView(ctx).apply {
-                setImageResource(dev.drosh.R.drawable.ic_mouse_pointer)
-                visibility = android.view.View.GONE
-                layoutParams = android.widget.FrameLayout.LayoutParams(
-                    pointerSize,
-                    pointerSize,
-                )
-            }
-            pointerOverlay.value = pointer
-
-            // The terminal itself, first: the overlays draw on top of it and
-            // the pointer above them. Without it the pane is two overlays
-            // floating over nothing — which is exactly what the mouse-pad
-            // replay shipped when its conflict resolution dropped this line.
-            frameLayout.addView(tv)
-            frameLayout.addView(searchOverlay)
-            frameLayout.addView(urlOverlay)
-            frameLayout.addView(pointer)
-            searchOverlayRef.value = searchOverlay
-
-            frameLayout
-        },
-
-        update = { _ ->
-            val tv = ownView.value
-            val overlay = searchOverlayRef.value
-
-            tv?.setTextSize(fontSizeSp)
-            tv?.updateColors(colorProps)
-            terminalManager.sessionForSlot(paneSlot)?.let { session ->
-                // A *new* session, not the same one re-attached: the view
-                // reports that, and it is the moment the pane's size goes back
-                // to the default. Without this, a pinch in one session would
-                // meet the user again in the next one, which is the behaviour
-                // the default was introduced to end.
-                if (tv?.attachSession(session) == true) {
-                    terminalViewModel.onSessionOpened()
-                }
-            }
-
-            // The query goes in first and the matches follow it, because the
-            // overlay clears what it had when the query changes: a stale
-            // highlight under a query that no longer asked for it is worse
-            // than a missing one for the frame the scan takes.
-            overlay?.updateQuery(searchQuery)
-            if (searchResults != null && searchResults.query == searchQuery) {
-                overlay?.updateMatches(searchResults)
-            }
-        },
-    )
-
-    // The unfocused pane of a split, dimmed. Drawn here rather than inside
-    // the terminal because the terminal is a View and this is a Compose
-    // layer: one alpha box over the whole pane, following focus, and it
-    // cannot fight the renderer for pixels.
-    if (dimInactivePanes && paneSlot != focusedPane) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(DimInactivePane),
-        )
-    }
-
-    // The chip, above the terminal and out of its way. Positioned at the point
-    // the fingers are on so it reads as attached to the gesture rather than
-    // dropped in a corner — but clamped inside the pane, because a pinch near
-    // an edge would otherwise put the one number the user wants to see
-    // off-screen. The two size constants deliberately over-estimate the chip:
-    // overshooting pulls it further from the edge, undershooting clips it.
-    //
-    // Always composed while a size is known, visible or fading out: removing it
-    // from the tree the moment the gesture ends would cut the fade short, and
-    // the linger is the whole reason the chip is worth having.
-    if (zoomChip.textSizeSp > 0f) {
-        val density = LocalDensity.current
-        TerminalZoomChip(
-            state = zoomChip,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                // The focus point arrives in pixels, because that is what the scale
-                // detector reports; the chip is placed in dp. Converting at the
-                // boundary rather than multiplying by density keeps the two
-                // units from being mixed anywhere else.
-                .offset {
-                    val paneWidth = with(density) { constraints.maxWidth.toDp() }
-                    val paneHeight = with(density) { constraints.maxHeight.toDp() }
-                    val maxX = (paneWidth - ZOOM_CHIP_ESTIMATED_WIDTH).coerceAtLeast(0.dp)
-                    val maxY = (paneHeight - ZOOM_CHIP_ESTIMATED_HEIGHT).coerceAtLeast(0.dp)
-                    val x = with(density) { zoomChip.focusX.toDp() } - ZOOM_CHIP_OFFSET
-                    val y = with(density) { zoomChip.focusY.toDp() } - ZOOM_CHIP_OFFSET
-                    IntOffset(
-                        x.coerceIn(0.dp, maxX).value.roundToInt(),
-                        y.coerceIn(0.dp, maxY).value.roundToInt(),
-                    )
-                },
-        )
-    }
-}
-}
-
-/**
- * How long the chip lingers after the fingers lift.
- *
- * Long enough to read a number that has stopped moving, short enough that it
- * is not part of the terminal by the time the user looks at the text.
- */
-/**
- * Loads a background file — including a GIF, which plays.
- *
- * [android.graphics.ImageDecoder] handles every format the convention
- * recognises and, from API 28, hands back an animated drawable for a GIF;
- * below that a plain bitmap decode is what there is. A file that will not
- * decode answers null rather than throwing into a factory.
- */
 /** "#RRGGBB" as a colour int; black when it is not one. */
 private fun hexToColorInt(hex: String): Int =
     runCatching { android.graphics.Color.parseColor(hex) }.getOrDefault(android.graphics.Color.BLACK)
