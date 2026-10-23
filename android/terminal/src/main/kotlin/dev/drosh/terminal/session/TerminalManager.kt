@@ -189,6 +189,13 @@ class TerminalManager(
     val currentAmbientTint: Int? get() = _currentAmbientTint
 
     private fun recomputeAmbientTint(): Int? {
+        // Engine panes report their tint through the engine's own surface;
+        // the vendored path reads it from the emulator's screen.
+        val engine = enginePanes[focusedPane.value]
+        if (engine != null) {
+            val tint = engine.ambientTint()
+            return if (tint.isNotEmpty()) (0xFF shl 24) or (tint[0] shl 16) or (tint[1] shl 8) or tint[2] else null
+        }
         val session = sessionForSlot(focusedPane.value) ?: return null
         val emulator = session.emulator ?: return null
         return runCatching {
