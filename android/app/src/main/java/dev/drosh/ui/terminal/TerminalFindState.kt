@@ -34,7 +34,6 @@ data class TerminalFindState(
      * of it on the screen.
      */
     // Termux results removed — engine only.
-        get() = (matches as? TerminalFindMatches.Termux)?.results?.copy(activeIndex = activeIndex)
 
     /**
      * The text of the match the user is on.
