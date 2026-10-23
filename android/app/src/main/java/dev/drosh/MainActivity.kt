@@ -699,7 +699,10 @@ class MainActivity : ComponentActivity() {
                 // keeps the log reader honest — it reads the emulator's
                 // scrollback, which is where the output is.
                 val logSource = remember(terminalManager) {
-                    TerminalSessionLogSource(terminalManager, EngineSessions.NONE)
+                    TerminalSessionLogSource(terminalManager, object : EngineSessions {
+                        override fun sessionFor(sessionId: String): EngineSession? =
+                            terminalManager.engineSessionById(sessionId)
+                    })
                 }
                 val logSessions by sessionSwitcherViewModel.allSessions
                     .collectAsStateWithLifecycle()

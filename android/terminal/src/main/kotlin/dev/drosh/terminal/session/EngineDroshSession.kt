@@ -14,12 +14,12 @@ import dev.drosh.terminal.engine.core.EngineSession
  * Adapted for Drosh — dev.drosh
  */
 class EngineDroshSession(
-    var enginePane: EnginePane,
+    var enginePane: EnginePane? = null,
     val persistentId: String,
     var name: String,
     var pid: Int = 0,
     var isFallbackSession: Boolean = false,
 ) {
-    /** The engine's session behind the pane. */
-    val session: EngineSession get() = enginePane.session
+    /** The engine's session behind the pane, or null when the pane has not been registered yet. */
+    val session: EngineSession? get() = enginePane?.session
 }
