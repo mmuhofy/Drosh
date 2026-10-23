@@ -832,9 +832,6 @@ private fun ReadyScreen(
 
     fun showKeyboard() {
         try {
-            // The engine's terminal keeps its own IME target — a one-pixel
-            // editor inside its view — and that is what the keyboard talks
-            // to. The vendored view is asked for as it always was.
             val engine = terminalManager.focusedEnginePane()
             if (engine != null) {
                 engine.focus()
@@ -845,26 +842,14 @@ private fun ReadyScreen(
                 keyboardFocused = true
                 return
             }
-
-            // Termux view removed — engine only.
-            Log.w("TerminalScreen", "No engine pane, cannot show keyboard")
-                return
-            }
-
-            keyboardFocused = true
+            Log.w('TerminalScreen', 'No engine pane, cannot show keyboard')
         } catch (e: Exception) {
-            Log.e(
-                "TerminalScreen",
-                "showKeyboard failed",
-                e,
-            )
+            Log.e('TerminalScreen', 'showKeyboard failed', e)
         }
     }
 
     fun hideKeyboard() {
         try {
-            // The engine's terminal: its IME target is what the keyboard
-            // talks to, and it is inside the engine's own view.
             val engine = terminalManager.focusedEnginePane()
             if (engine != null) {
                 val imm = engine.imeTarget.context.getSystemService(
@@ -876,14 +861,9 @@ private fun ReadyScreen(
                 }
                 return
             }
-
-            Log.w("TerminalScreen", "No engine pane available, cannot hide keyboard")
+            Log.w('TerminalScreen', 'No engine pane, cannot hide keyboard')
         } catch (e: Exception) {
-            Log.e(
-                "TerminalScreen",
-                "hideKeyboard failed",
-                e,
-            )
+            Log.e('TerminalScreen', 'hideKeyboard failed', e)
         }
     }
 
