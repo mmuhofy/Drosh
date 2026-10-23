@@ -1742,33 +1742,33 @@ class TerminalManager(
      */
     fun addTabWithId(persistentId: String, name: String): TerminalSession? {
         val wasInstalled = ubuntuBootstrap.isInstalled
-        val irisSession = DroshSession(
-            terminalSession = createNewSession(),
-            persistentId = persistentId,
-            name = name,
-            isFallbackSession = !wasInstalled,
-        )
-        sessions.add(irisSession)
-        val newIndex = sessions.size - 1
-        idToIndex[persistentId] = newIndex
-        // Into the focused pane, matching the old single-view behaviour where
-        // opening a session always showed it. The pane it displaces stays live
-        // and keeps its place in the sidebar — it simply is not on screen,
-        // which is exactly what happened before the split existed.
-        paneTabIndices[focusedPane.value] = newIndex
-        // A brand new session has no scrollback and has not been touched, which
-        // is exactly the state the chrome treats as "first screen".
-        _sessionCount.value = sessions.size + engineSessions.size
+
+        // Engine path: record the session identity. The actual EnginePane is
+        // created by the UI (EnginePaneHost) and registered via
+        // registerEnginePane, which binds the pane to this entry.
+        val existing = engineSessions.find { it.persistentId == persistentId }
+        if (existing == null) {
+            engineSessions.add(
+                EngineDroshSession(
+                    enginePane = null,
+                    persistentId = persistentId,
+                    name = name,
+                    isFallbackSession = !wasInstalled,
+                )
+            )
+        } else {
+            existing.name = name
+        }
+
+        _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()
         // A session exists again, so the exit dialog no longer applies.
         _noSessionsLeft.value = false
-        // Block mode shares these sessions; point the block store at the new one.
-        onBlockSessionChanged(persistentId, irisSession.terminalSession)
-        paneViews[focusedPane.value]?.attachSession(irisSession.terminalSession)
+
         syncActiveTabIndex()
         publishAltBufferState()
         publishActiveId()
-        return irisSession.terminalSession
+        return null
     }
 
     /**
@@ -1921,8 +1921,7 @@ class TerminalManager(
     }
 
     fun liveSessionIds(): Set<String> =
-        (sessions.map { it.persistentId } + engineSessions.map { it.persistentId }).toSet()
-
+        engineSessions.map { it.persistentId }.toSet()
     /**
      * Registers an engine-backed session in the manager's session list.
      *
