@@ -44,6 +44,7 @@ import com.termux.view.TerminalView
 import dev.drosh.terminal.session.input.EngineTerminalWriter
 import dev.drosh.terminal.session.input.TerminalWriter
 import dev.drosh.terminal.session.input.TermuxTerminalWriter
+import dev.drosh.terminal.engine.core.EngineSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -85,7 +86,7 @@ class TerminalManager(
      * shell pid — eliminating the prior risk of _sessions / _tabNames /
      * _idToIndex / _indexToId falling out of sync.
      */
-    private val irisSessions: MutableList<DroshSession> = mutableListOf()
+    private val sessions: MutableList<DroshSession> = mutableListOf()
 
     /**
      * Engine-backed sessions, tracked alongside the Termux ones while the
@@ -104,7 +105,7 @@ class TerminalManager(
 
     /**
      * Reverse map: persistent session id (UUID, stored in Room) →
-     * positional index into [irisSessions]. Inspired by ReTerminal's
+     * positional index into [sessions]. Inspired by ReTerminal's
      * SessionService id-keyed HashMap (github.com/RohitKushvaha01/ReTerminal,
      * file core/main/src/main/java/com/rk/terminal/service/SessionService.kt).
      */
@@ -202,7 +203,7 @@ class TerminalManager(
     private val _activeTabIndex = MutableStateFlow(0)
 
     /**
-     * Positional index into [irisSessions] for each pane, or [NO_PANE_SESSION]
+     * Positional index into [sessions] for each pane, or [NO_PANE_SESSION]
      * when the pane is empty.
      *
      * Both panes hold explicit indices rather than one of them following
@@ -241,7 +242,7 @@ class TerminalManager(
      *
      * The split layout stores a session id, and that session can end while the
      * app runs. The UI needs to watch the live set to drop a pane whose session
-     * has gone, and it cannot see [irisSessions] — only the ids that made it
+     * has gone, and it cannot see [sessions] — only the ids that made it
      * into Room belong in the public surface.
      */
     private val _liveSessionIds = MutableStateFlow<Set<String>>(emptySet())
@@ -255,7 +256,7 @@ class TerminalManager(
      */
     fun getActiveTabIndexSnapshot(): Int = _activeTabIndex.value
 
-    val tabCount: Int get() = irisSessions.size
+    val tabCount: Int get() = sessions.size
 
     /**
      * The session the user is currently working in: whichever pane last had
@@ -276,7 +277,7 @@ class TerminalManager(
 
     /** Display names of all tabs, in positional order. */
     val tabNames: List<String>
-        get() = irisSessions.map { it.name }
+        get() = sessions.map { it.name }
 
     val sessionClient: TerminalSessionClientImpl = TerminalSessionClientImpl()
 
@@ -528,7 +529,7 @@ class TerminalManager(
         val index = getIndexForId(sessionId)
         if (index < 0) return false
         paneTabIndices[slot] = index
-        paneViews[slot]?.let { view -> irisSessions[index].terminalSession.let(view::attachSession) }
+        paneViews[slot]?.let { view -> sessions[index].terminalSession.let(view::attachSession) }
         return true
     }
 
@@ -542,7 +543,7 @@ class TerminalManager(
     override fun primarySessionId(): String? = sessionIdForSlot(PaneSlot.PRIMARY)
 
     /** The session id shown in [slot], or null when the pane is empty. */
-    fun sessionIdForSlot(slot: PaneSlot): String? = irisSessions
+    fun sessionIdForSlot(slot: PaneSlot): String? = sessions
         .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
         ?.persistentId
 
@@ -598,10 +599,10 @@ class TerminalManager(
         paneTabIndices[PaneSlot.PRIMARY] = getIndexForId(primaryId)
         paneTabIndices[PaneSlot.SECONDARY] = getIndexForId(secondaryId)
         paneViews[PaneSlot.PRIMARY]?.let { view ->
-            irisSessions[paneTabIndices[PaneSlot.PRIMARY]!!].terminalSession.let(view::attachSession)
+            sessions[paneTabIndices[PaneSlot.PRIMARY]!!].terminalSession.let(view::attachSession)
         }
         paneViews[PaneSlot.SECONDARY]?.let { view ->
-            irisSessions[paneTabIndices[PaneSlot.SECONDARY]!!].terminalSession.let(view::attachSession)
+            sessions[paneTabIndices[PaneSlot.SECONDARY]!!].terminalSession.let(view::attachSession)
         }
         return true
     }
@@ -626,7 +627,7 @@ class TerminalManager(
         paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
 
         paneViews[PaneSlot.PRIMARY]?.let { view ->
-            irisSessions.getOrNull(secondary)?.terminalSession?.let(view::attachSession)
+            sessions.getOrNull(secondary)?.terminalSession?.let(view::attachSession)
         }
         // The second pane keeps whatever it last had until the layout drops it:
         // the split UI unbinds it on the next composition, and clearing the index
@@ -665,7 +666,7 @@ class TerminalManager(
     }
 
     /** The session shown in [slot], or null when the pane is empty. */
-    fun sessionForSlot(slot: PaneSlot): TerminalSession? = irisSessions
+    fun sessionForSlot(slot: PaneSlot): TerminalSession? = sessions
         .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
         ?.terminalSession
 
@@ -684,7 +685,7 @@ class TerminalManager(
         if (index == paneTabIndices[focusedPane.value]) resetViewportState()
         paneTabIndices.forEach { (slot, slotIndex) ->
             if (slotIndex != index) return@forEach
-            val session = irisSessions.getOrNull(index)?.terminalSession ?: return@forEach
+            val session = sessions.getOrNull(index)?.terminalSession ?: return@forEach
             paneViews[slot]?.attachSession(session)
         }
     }
@@ -701,9 +702,9 @@ class TerminalManager(
         var focusMoved = false
         paneTabIndices.forEach { (slot, index) ->
             if (index == NO_PANE_SESSION) return@forEach
-            val clamped = index.coerceIn(0, (irisSessions.size - 1).coerceAtLeast(0))
+            val clamped = index.coerceIn(0, (sessions.size - 1).coerceAtLeast(0))
             if (clamped != index) paneTabIndices[slot] = clamped
-            val session = irisSessions.getOrNull(clamped)?.terminalSession
+            val session = sessions.getOrNull(clamped)?.terminalSession
             if (session == null) {
                 paneTabIndices[slot] = NO_PANE_SESSION
                 if (slot == focusedPane.value) focusMoved = true
@@ -714,7 +715,7 @@ class TerminalManager(
 
         // A pane whose session vanished cannot stay focused — the app's idea of
         // "active session" would then name something that is not on screen.
-        if (focusMoved || irisSessions.isEmpty()) {
+        if (focusMoved || sessions.isEmpty()) {
             val fallback = PaneSlot.entries.firstOrNull {
                 (paneTabIndices[it] ?: NO_PANE_SESSION) >= 0
             }
@@ -727,7 +728,7 @@ class TerminalManager(
     /** Keeps [_activeTabIndex] pointing at the focused pane's session. */
     private fun syncActiveTabIndex() {
         val index = paneTabIndices[focusedPane.value] ?: NO_PANE_SESSION
-        _activeTabIndex.value = index.coerceIn(0, (irisSessions.size - 1).coerceAtLeast(0))
+        _activeTabIndex.value = index.coerceIn(0, (sessions.size - 1).coerceAtLeast(0))
     }
 
     /** Recomputes the per-pane alt-buffer flags from the live sessions. */
@@ -888,15 +889,15 @@ class TerminalManager(
      */
     private fun recoverFallbackSessions() {
         if (!ubuntuBootstrap.isInstalled) return
-        val fallbackIndices = irisSessions.mapIndexedNotNull { idx, s ->
+        val fallbackIndices = sessions.mapIndexedNotNull { idx, s ->
             idx to s.isFallbackSession
         }.filter { it.second }.map { it.first }
         if (fallbackIndices.isEmpty()) return
 
         for (idx in fallbackIndices) {
-            val old = irisSessions[idx]
+            val old = sessions[idx]
             old.terminalSession.finishIfRunning()
-            irisSessions[idx] = DroshSession(
+            sessions[idx] = DroshSession(
                 terminalSession = createNewSession(),
                 persistentId = old.persistentId,
                 name = old.name,
@@ -938,7 +939,7 @@ class TerminalManager(
             _currentAmbientTint = recomputeAmbientTint()
             val persistentId = getIndexOfSession(session)
                 .takeIf { it >= 0 }
-                ?.let { irisSessions[it].persistentId }
+                ?.let { sessions[it].persistentId }
             blockEngineWire?.takeIf { blockEngineEnabled }?.onSessionTextChanged(session, persistentId)
         }
         sessionClient.onAltBufferChanged = { session, isActive ->
@@ -1045,7 +1046,7 @@ class TerminalManager(
      */
     private fun reanchorBlockWire() {
         val wire = blockEngineWire ?: return
-        irisSessions.forEach { session ->
+        sessions.forEach { session ->
             wire.reanchor(session.terminalSession)
         }
     }
@@ -1732,8 +1733,8 @@ class TerminalManager(
             name = name,
             isFallbackSession = !wasInstalled,
         )
-        irisSessions.add(irisSession)
-        val newIndex = irisSessions.size - 1
+        sessions.add(irisSession)
+        val newIndex = sessions.size - 1
         idToIndex[persistentId] = newIndex
         // Into the focused pane, matching the old single-view behaviour where
         // opening a session always showed it. The pane it displaces stays live
@@ -1742,7 +1743,7 @@ class TerminalManager(
         paneTabIndices[focusedPane.value] = newIndex
         // A brand new session has no scrollback and has not been touched, which
         // is exactly the state the chrome treats as "first screen".
-        _sessionCount.value = irisSessions.size
+        _sessionCount.value = sessions.size
         _liveSessionIds.value = liveSessionIds()
         // A session exists again, so the exit dialog no longer applies.
         _noSessionsLeft.value = false
@@ -1775,16 +1776,27 @@ class TerminalManager(
      * of a session the user is not currently looking at.
      */
     fun sessionForId(persistentId: String): TerminalSession? {
+        // Engine sessions take precedence: their session is an EngineSession,
+        // not a Termux TerminalSession. Callers that need the engine session
+        // should use engineSessionForId() instead.
+        val engine = engineSessions.find { it.persistentId == persistentId }
+        if (engine != null) return null // Engine sessions don't expose TerminalSession
         val index = getIndexForId(persistentId)
         if (index < 0) return null
-        return irisSessions.getOrNull(index)?.terminalSession
+        return sessions.getOrNull(index)?.terminalSession
     }
+
+    /**
+     * Look up an engine session's underlying [EngineSession] by persistent id.
+     */
+    fun engineSessionById(persistentId: String): EngineSession? =
+        engineSessions.find { it.persistentId == persistentId }?.session
 
     /**
      * Reverse lookup: positional index → persistent id.
      */
     fun getIdForIndex(index: Int): String? =
-        irisSessions.getOrNull(index)?.persistentId
+        sessions.getOrNull(index)?.persistentId
 
     /**
      * Creates an interactive SSH session backed by the bridged TerminalSession
@@ -1804,13 +1816,13 @@ class TerminalManager(
             persistentId = persistentId,
             name = name,
         )
-        irisSessions.add(irisSession)
-        val newIndex = irisSessions.size - 1
+        sessions.add(irisSession)
+        val newIndex = sessions.size - 1
         idToIndex[persistentId] = newIndex
         paneTabIndices[focusedPane.value] = newIndex
         // A brand new session has no scrollback and has not been touched, which
         // is exactly the state the chrome treats as "first screen".
-        _sessionCount.value = irisSessions.size
+        _sessionCount.value = sessions.size
         _liveSessionIds.value = liveSessionIds()
         _noSessionsLeft.value = false
         onBlockSessionChanged(persistentId, irisSession.terminalSession)
@@ -1826,13 +1838,13 @@ class TerminalManager(
      * Returns -1 if the session is not currently managed.
      */
     fun getIndexOfSession(session: TerminalSession): Int =
-        irisSessions.indexOfFirst { it.terminalSession === session }
+        sessions.indexOfFirst { it.terminalSession === session }
 
     /**
      * Look up the [DroshSession] for a [TerminalSession] by reference.
      */
     private fun getDroshSession(session: TerminalSession): DroshSession? =
-        irisSessions.find { it.terminalSession === session }
+        sessions.find { it.terminalSession === session }
 
     /**
      * Switch to the session identified by [persistentId]. No-op when
@@ -1875,7 +1887,7 @@ class TerminalManager(
 
     /**
      * Snapshot of all session ids currently live in the terminal manager
-     * (i.e. in [irisSessions] with a non-null [DroshSession.persistentId]).
+     * (i.e. in [sessions] with a non-null [DroshSession.persistentId]).
      * Used by [SessionManagerAdapter] to reconcile Room state with live
      * PTY sessions.
      */
@@ -1888,28 +1900,94 @@ class TerminalManager(
      * session.
      */
     private fun reindexFrom(index: Int) {
-        for (i in index until irisSessions.size) {
-            idToIndex[irisSessions[i].persistentId] = i
+        for (i in index until sessions.size) {
+            idToIndex[sessions[i].persistentId] = i
         }
     }
 
     fun liveSessionIds(): Set<String> =
-        (irisSessions.map { it.persistentId } + engineSessions.map { it.persistentId }).toSet()
-    fun renameTab(index: Int, name: String) {
-        if (index in irisSessions.indices) {
-            irisSessions[index].name = name
+        (sessions.map { it.persistentId } + engineSessions.map { it.persistentId }).toSet()
+
+    /**
+     * Registers an engine-backed session in the manager's session list.
+     *
+     * The pane is created by the UI (it needs a Context for its GL surface);
+     * this method records its identity so the sidebar, the reconciliation
+     * and the active-id tracking see it. The pane itself is tracked in
+     * [enginePanes] via [registerEnginePane].
+     *
+     * Returns the pane's [EngineSession] for callers that need it.
+     */
+    fun addEngineTabWithId(
+        persistentId: String,
+        name: String,
+        pane: EnginePane,
+    ): EngineSession {
+        pane.bindIdentity(persistentId, name)
+
+        val existing = engineSessions.find { it.persistentId == persistentId }
+        if (existing != null) {
+            existing.enginePane = pane
+            existing.name = name
+        } else {
+            engineSessions.add(
+                EngineDroshSession(
+                    enginePane = pane,
+                    persistentId = persistentId,
+                    name = name,
+                )
+            )
+        }
+
+        // Register the pane for focus/selection/scroll tracking.
+        // The slot is determined by the caller; default to the focused pane.
+        registerEnginePane(focusedPane.value, pane, persistentId, name)
+
+        _sessionCount.value = sessions.size + engineSessions.size
+        _liveSessionIds.value = liveSessionIds()
+        _noSessionsLeft.value = false
+
+        publishActiveId()
+        return pane.session
+    }
+
+    /**
+     * Removes an engine-backed session from the manager's session list.
+     */
+    fun removeEngineSession(persistentId: String) {
+        val session = engineSessions.find { it.persistentId == persistentId } ?: return
+        session.enginePane.release()
+        engineSessions.remove(session)
+        enginePanes.entries.removeAll { it.value === session.enginePane }
+
+        _sessionCount.value = sessions.size + engineSessions.size
+        _liveSessionIds.value = liveSessionIds()
+        publishActiveId()
+
+        if (sessions.isEmpty() && engineSessions.isEmpty()) {
+            _noSessionsLeft.value = true
+        }
+    }
+
+    /**
+     * Look up an engine session by its persistent id.
+     */
+    fun engineSessionForId(persistentId: String): EngineDroshSession? =
+        engineSessions.find { it.persistentId == persistentId }    fun renameTab(index: Int, name: String) {
+        if (index in sessions.indices) {
+            sessions[index].name = name
         }
     }
 
     fun moveTab(from: Int, to: Int) {
         if (from == to) return
-        if (from !in irisSessions.indices || to !in irisSessions.indices) return
-        val session = irisSessions.removeAt(from)
-        irisSessions.add(to, session)
+        if (from !in sessions.indices || to !in sessions.indices) return
+        val session = sessions.removeAt(from)
+        sessions.add(to, session)
 
         val rebaseRange = if (from < to) (from + 1)..to else to until from
         rebaseRange.forEach { idx ->
-            val id = irisSessions[idx].persistentId
+            val id = sessions[idx].persistentId
             idToIndex[id] = idx
         }
 
@@ -1930,14 +2008,14 @@ class TerminalManager(
 
     fun restartCurrentTab() {
         val index = paneTabIndices[focusedPane.value] ?: NO_PANE_SESSION
-        if (index !in irisSessions.indices) return
-        val irisSession = irisSessions[index]
+        if (index !in sessions.indices) return
+        val irisSession = sessions[index]
 
         val replacement = createNewSession()
         irisSession.terminalSession.finishIfRunning()
         irisSession.terminalSession = replacement
 
-        _sessionCount.value = irisSessions.size
+        _sessionCount.value = sessions.size
         // Same session id, so onSessionChanged would be a no-op. The diff anchor
         // has to be re-seeded regardless, or the new shell's first output is
         // diffed against the dead shell's transcript.
@@ -1955,8 +2033,8 @@ class TerminalManager(
      * can leave a shell running behind a finished app.
      */
     fun closeAll() {
-        irisSessions.forEach { it.terminalSession.finishIfRunning() }
-        irisSessions.clear()
+        sessions.forEach { it.terminalSession.finishIfRunning() }
+        sessions.clear()
         idToIndex.clear()
         paneTabIndices[PaneSlot.PRIMARY] = 0
         paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
@@ -1973,12 +2051,12 @@ class TerminalManager(
     }
 
     fun closeTab(index: Int) {
-        if (index !in irisSessions.indices) return
-        val irisSession = irisSessions[index]
+        if (index !in sessions.indices) return
+        val irisSession = sessions[index]
         val persistentId = irisSession.persistentId
         irisSession.terminalSession.finishIfRunning()
-        irisSessions.removeAt(index)
-        _sessionCount.value = irisSessions.size
+        sessions.removeAt(index)
+        _sessionCount.value = sessions.size
 
         idToIndex.remove(persistentId)
         reindexFrom(index)
@@ -2003,7 +2081,7 @@ class TerminalManager(
         // one — green dot, "now" and all — and refused to clear it.
         publishActiveId()
 
-        if (irisSessions.isEmpty()) {
+        if (sessions.isEmpty()) {
             _noSessionsLeft.value = true
         }
     }
@@ -2018,7 +2096,7 @@ class TerminalManager(
      * reset the other's scroll position on every attach.
      */
     fun switchTab(index: Int) {
-        if (index < 0 || index >= irisSessions.size) return
+        if (index < 0 || index >= sessions.size) return
         val slot = focusedPane.value
         if ((paneTabIndices[slot] ?: NO_PANE_SESSION) == index) return
 
@@ -2029,7 +2107,7 @@ class TerminalManager(
         }
 
         paneTabIndices[slot] = index
-        val target = irisSessions[index]
+        val target = sessions[index]
         // A different session is now what the user is looking at, so whatever
         // they had scrolled to belongs to the one that was there before.
         // Blocks are stored per session, so switching shows that session's
@@ -2225,12 +2303,12 @@ class TerminalManager(
         val idx = getIndexOfSession(finishedSession)
         if (idx < 0) return
 
-        val irisSession = irisSessions[idx]
+        val irisSession = sessions[idx]
         val persistentId = irisSession.persistentId
         val exitCode = finishedSession.exitStatus
 
-        irisSessions.removeAt(idx)
-        _sessionCount.value = irisSessions.size
+        sessions.removeAt(idx)
+        _sessionCount.value = sessions.size
 
         idToIndex.remove(persistentId)
 
@@ -2247,7 +2325,7 @@ class TerminalManager(
         // user can pick another from the sidebar. The dialog is reserved for
         // the point where there is nothing left to switch to, so it appears when
         // the user tries to exit the final session and not on every exit.
-        if (irisSessions.isEmpty()) {
+        if (sessions.isEmpty()) {
             _processExitEvent.value = ProcessExitEvent(exitCode)
             _noSessionsLeft.value = true
         }
@@ -2285,7 +2363,7 @@ class TerminalManager(
 
         lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
 
-        if (engineSessions.isEmpty() && irisSessions.isEmpty()) {
+        if (engineSessions.isEmpty() && sessions.isEmpty()) {
             _processExitEvent.value = ProcessExitEvent(exitCode)
             _noSessionsLeft.value = true
         }
@@ -2309,8 +2387,8 @@ class TerminalManager(
         }
         paneViews.clear()
         sessionClient.terminalView = null
-        irisSessions.forEach { it.terminalSession.finishIfRunning() }
-        irisSessions.clear()
+        sessions.forEach { it.terminalSession.finishIfRunning() }
+        sessions.clear()
         engineSessions.forEach { it.enginePane.release() }
         engineSessions.clear()
         idToIndex.clear()
