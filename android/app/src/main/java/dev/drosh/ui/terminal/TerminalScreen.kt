@@ -842,7 +842,7 @@ private fun ReadyScreen(
                 keyboardFocused = true
                 return
             }
-            Log.w('TerminalScreen', 'No engine pane, cannot show keyboard')
+            Log.w("TerminalScreen", "No engine pane, cannot show keyboard")
         } catch (e: Exception) {
             Log.e('TerminalScreen', 'showKeyboard failed', e)
         }
@@ -861,7 +861,7 @@ private fun ReadyScreen(
                 }
                 return
             }
-            Log.w('TerminalScreen', 'No engine pane, cannot hide keyboard')
+            Log.w("TerminalScreen", "No engine pane, cannot hide keyboard")
         } catch (e: Exception) {
             Log.e('TerminalScreen', 'hideKeyboard failed', e)
         }
@@ -1136,31 +1136,16 @@ private fun ReadyScreen(
                     // The selection is dismissed in whichever terminal made
                     // it: the vendored view owns its own, and the engine's
                     // pane owns the engine's.
-                    // Termux view removed.
-                    if (view != null) {
-                        view.dismissSelection()
-                    } else {
-                        terminalManager.focusedEnginePane()?.clearSelection()
-                    }
+                    terminalManager.focusedEnginePane()?.clearSelection()
                 },
                 onPaste = {
-                    // Termux view removed.
-                    if (view != null) {
-                        view.pasteFromClipboard()
-                    } else {
-                        terminalManager.focusedEnginePane()?.pasteClipboard()
-                    }
+                    terminalManager.focusedEnginePane()?.pasteClipboard()
                 },
                 onOpenUrl = { url ->
                     browserUrl = url
-                    // Termux view removed.
-                    if (view != null) {
-                        view.dismissSelection()
-                    } else {
-                        terminalManager.focusedEnginePane()?.clearSelection()
-                    }
+                    terminalManager.focusedEnginePane()?.clearSelection()
                 },
-                // Termux view removed.
+                onSelectAll = { terminalManager.focusedEnginePane()?.selectAll() },
                 onShare = { selectionText?.let { context.shareText(it) } },
                 modifier = Modifier
                     .offset(x = anchorX, y = belowSelection)
