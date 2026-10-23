@@ -128,7 +128,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import dev.drosh.domain.settings.SettingsRepository
-import com.termux.view.TerminalView
+// Termux view removed — engine is the only terminal now.
 import kotlinx.coroutines.delay
 import java.util.Properties
 import kotlinx.coroutines.Dispatchers

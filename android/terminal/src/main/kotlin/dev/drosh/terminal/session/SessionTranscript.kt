@@ -1,6 +1,5 @@
 package dev.drosh.terminal.session
 
-import com.termux.terminal.TerminalEmulator
 import dev.drosh.terminal.engine.core.EngineSession
 
 /** What a tab becomes in a log: four spaces, the width it stood for. */
@@ -49,54 +48,7 @@ sealed interface SessionTranscript {
      * has its buffer, which is why the log can be offered from the drawer for
      * a session that has no pane on screen.
      */
-    data class Termux(override val lines: List<String>) : SessionTranscript {
-
-        companion object {
-
-            /**
-             * How much of a session is offered.
-             *
-             * A sheet, not a file: past a few thousand lines nobody scrolls to
-             * the top of a log to paste it, and every extra line is a line
-             * laid out.
-             */
-            const val MAX_LINES = 4000
-
-            /**
-             * The emulator's scrollback as plain text.
-             *
-             * The lines are the ones the emulator's buffer holds: the escape
-             * sequences it drew with are stripped, the padding the grid added
-             * is trimmed, and only the last [MAX_LINES] of them are kept.
-             */
-            fun of(emulator: TerminalEmulator): Termux =
-                Termux(linesOf(emulator.getScreen().getTranscriptText()))
-
-            /**
-             * The plain-text lines of a raw scrollback.
-             *
-             * The whole Termux mapping in one pure function: the escape
-             * sequences are stripped, the padding the grid added is trimmed
-             * from every line, a tab becomes four spaces, and only the last
-             * [MAX_LINES] lines are kept.
-             *
-             * A tab has no width here and the grid it came from is gone, so it
-             * becomes four spaces. Emulators expand tabs at write time, so this
-             * is a guard rather than a case that occurs.
-             */
-            fun linesOf(rawTranscript: String): List<String> {
-                val text = AnsiStripper.strip(rawTranscript)
-                val lines = text.lines().map { line ->
-                    line.trimEnd().replace("\t", TAB_WIDTH)
-                }
-                return if (lines.size <= MAX_LINES) {
-                    lines
-                } else {
-                    lines.subList(lines.size - MAX_LINES, lines.size)
-                }
-            }
-        }
-    }
+    // Termux transcript removed — engine is the only terminal now.
 
     /**
      * Read out of the Rust engine's bounded copy of the session's output.

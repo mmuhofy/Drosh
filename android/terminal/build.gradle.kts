@@ -19,17 +19,6 @@ plugins {
 
 android {
     namespace = "dev.drosh.terminal"
-    // The termux view + emulator Java sources ship as src/main/java/ alongside
-    // src/main/kotlin/ in this module. AGP must schedule compileDebugJavaWithJavac
-    // before compileDebugKotlin so the Java sources are reachable from Kotlin.
-    // We explicitly add both source dirs to be certain the variant builder picks
-    // them up.
-    sourceSets {
-        getByName("main") {
-            java.srcDirs("src/main/java")
-        }
-    }
-
     defaultConfig {
         minSdk = 26
         // Required for native arm64 binary support.
@@ -42,8 +31,7 @@ android {
 
     packaging {
         resources {
-            // Ensure JNI .so libs from this module win over conflicting builds.
-            pickFirsts += setOf("lib/**/libtermux.so")
+            // No termux .so — engine uses Rust core only.
         }
         jniLibs {
             // libdrosh_core.so is the Rust core, cross-compiled by CI and

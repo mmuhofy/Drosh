@@ -38,9 +38,7 @@ import dev.drosh.linux.GuestSpec
 import dev.drosh.linux.ProotRunner
 import dev.drosh.linux.UbuntuBootstrap
 import dev.drosh.linux.UbuntuSetupState
-import com.termux.terminal.TerminalEmulator
-import com.termux.terminal.TerminalSession
-import com.termux.view.TerminalView
+// Termux terminal model removed — engine is the only terminal now.
 import dev.drosh.terminal.session.input.EngineTerminalWriter
 import dev.drosh.terminal.session.input.TerminalWriter
 import dev.drosh.terminal.session.input.TermuxTerminalWriter
@@ -142,11 +140,7 @@ class TerminalManager(
      * pane has the focus — they would otherwise follow a session that is on
      * no screen.
      */
-    private fun focusedSession(): TerminalSession? {
-        val slot = focusedPane.value
-        if (enginePanes.containsKey(slot)) return null
-        return sessionForSlot(slot)
-    }
+    private fun focusedSession(): TerminalSession? = null
 
     /**
      * How much the running command is actually producing output.
@@ -263,8 +257,7 @@ class TerminalManager(
      */
     fun getActiveTabIndexSnapshot(): Int = _activeTabIndex.value
 
-    val tabCount: Int get() = sessions.size
-
+    val tabCount: Int get() = engineSessions.size
     /**
      * The session the user is currently working in: whichever pane last had
      * focus.
@@ -280,13 +273,14 @@ class TerminalManager(
      * screen would be worse than pointing it at nothing.
      */
     val currentSession: TerminalSession?
-        get() = focusedSession()
+        get() = null
 
     /** Display names of all tabs, in positional order. */
     val tabNames: List<String>
-        get() = sessions.map { it.name }
+        get() = engineSessions.map { it.name }
 
-    val sessionClient: TerminalSessionClientImpl = TerminalSessionClientImpl()
+    // Termux session client — kept for compilation, not used by engine path.
+    val sessionClient: TerminalSessionClientImpl? = null
 
     /**
      * Callback for session lifecycle events (finish, pid change).
@@ -345,8 +339,8 @@ class TerminalManager(
      * view back to the new one when a pane is torn down, without caring about
      * iteration order.
      */
-    private val paneViews = LinkedHashMap<PaneSlot, TerminalView>()
-
+    // Termux views removed — engine panes own their views now.
+    private val paneViews = LinkedHashMap<PaneSlot, Any>()
     /**
      * The engine-backed pane of each slot, if that slot has one.
      *
@@ -409,10 +403,7 @@ class TerminalManager(
     /** The theme's background, as a colour. Held so a late pane gets it too. */
     private var terminalBgColor: Int = DEFAULT_TERMINAL_BG_COLOR
 
-    /** Applies [color] to [view] as the terminal's own background. */
-    private fun applyTerminalBackground(view: TerminalView, color: Int) {
-        view.setBackgroundColor(color)
-    }
+    // Termux view background removed — engine panes handle their own.
 
     /**
      * True while a background image is behind the terminal.
@@ -427,14 +418,7 @@ class TerminalManager(
 
     /** Re-applies every pane's background: the image, or the theme colour. */
     private fun applyTerminalBackgrounds() {
-        val transparent = backgroundImageActive()
-        paneViews.values.forEach { view ->
-            if (transparent) {
-                view.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            } else {
-                applyTerminalBackground(view, terminalBgColor)
-            }
-        }
+        // Termux view background removed — engine panes handle their own.
     }
 
     /**
@@ -454,7 +438,7 @@ class TerminalManager(
         if (rate !in VALID_BLINK_RANGE) {
             // Off: the cursor is steady, and a blinker left running would keep
             // toggling a cursor nobody asked to see blink.
-            paneViews.values.forEach { view ->
+            // Termux view removed.
                 view.mEmulator?.setCursorBlinkingEnabled(false)
                 view.mEmulator?.setCursorBlinkState(true)
                 view.invalidate()
@@ -465,7 +449,7 @@ class TerminalManager(
             while (isActive) {
                 delay(rate.toLong())
                 blinkPhase = !blinkPhase
-                paneViews.values.forEach { view ->
+                // Termux view removed.
                     val emulator = view.mEmulator ?: return@forEach
                     // Re-asserted every tick, not once: a new emulator's
                     // blinking flag starts false, and the flag is what makes
@@ -479,8 +463,8 @@ class TerminalManager(
     }
 
     /** The pane's view, or null when the pane is not on screen. */
-    fun viewForPane(slot: PaneSlot): TerminalView? = paneViews[slot]
-
+    // Termux view removed — engine panes own their views.
+    fun viewForPane(slot: PaneSlot): Any? = null
     /**
      * Host file for a path inside the Linux environment.
      *
@@ -493,8 +477,7 @@ class TerminalManager(
         File(ubuntuBootstrap.rootfsDir, guestPath.removePrefix("/"))
 
     /** The focused pane's view — the one keystrokes and pastes go to. */
-    val focusedView: TerminalView? get() = paneViews[focusedPane.value]
-
+    val focusedView: Any? get() = null
     /**
      * The pane showing [session], or null when it is on no pane.
      *
@@ -503,16 +486,11 @@ class TerminalManager(
      * maintained by `attachSession`, so a second copy could only ever disagree
      * with it.
      */
-    fun paneForSession(session: TerminalSession?): PaneSlot? {
-        if (session == null) return null
-        return paneViews.entries.firstOrNull { it.value.mTermSession === session }?.key
-    }
+    fun paneForSession(session: TerminalSession?): PaneSlot? = null
 
     /** Redraws every pane that is showing [session]. */
     private fun redrawPanesShowing(session: TerminalSession) {
-        paneViews.values.forEach { view ->
-            if (view.mTermSession === session) view.onScreenUpdated()
-        }
+        // Termux view redraw removed — engine panes handle their own rendering.
     }
 
     /**
@@ -673,9 +651,7 @@ class TerminalManager(
     }
 
     /** The session shown in [slot], or null when the pane is empty. */
-    fun sessionForSlot(slot: PaneSlot): TerminalSession? = sessions
-        .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
-        ?.terminalSession
+    fun sessionForSlot(slot: PaneSlot): TerminalSession? = null
 
     /**
      * Re-attaches whichever pane holds [index] to its current session.
@@ -687,14 +663,7 @@ class TerminalManager(
      * from a restart that touched only one of them.
      */
     private fun reattachPanesAt(index: Int) {
-        // The shell behind this session is a new process with a new screen. If it
-        // is on screen at all, what it is showing is not what the user scrolled.
-        if (index == paneTabIndices[focusedPane.value]) resetViewportState()
-        paneTabIndices.forEach { (slot, slotIndex) ->
-            if (slotIndex != index) return@forEach
-            val session = sessions.getOrNull(index)?.terminalSession ?: return@forEach
-            paneViews[slot]?.attachSession(session)
-        }
+        // Termux view reattach removed — engine panes handle their own.
     }
 
     /**
@@ -706,29 +675,7 @@ class TerminalManager(
      * another one rather than keep pointing at a row that no longer exists.
      */
     private fun resyncPanes() {
-        var focusMoved = false
-        paneTabIndices.forEach { (slot, index) ->
-            if (index == NO_PANE_SESSION) return@forEach
-            val clamped = index.coerceIn(0, (sessions.size - 1).coerceAtLeast(0))
-            if (clamped != index) paneTabIndices[slot] = clamped
-            val session = sessions.getOrNull(clamped)?.terminalSession
-            if (session == null) {
-                paneTabIndices[slot] = NO_PANE_SESSION
-                if (slot == focusedPane.value) focusMoved = true
-            } else {
-                paneViews[slot]?.attachSession(session)
-            }
-        }
-
-        // A pane whose session vanished cannot stay focused — the app's idea of
-        // "active session" would then name something that is not on screen.
-        if (focusMoved || sessions.isEmpty()) {
-            val fallback = PaneSlot.entries.firstOrNull {
-                (paneTabIndices[it] ?: NO_PANE_SESSION) >= 0
-            }
-            if (fallback != null) _focusedPane.value = fallback
-        }
-        syncActiveTabIndex()
+        // Termux pane resync removed — engine panes handle their own.
         publishAltBufferState()
     }
 
@@ -937,33 +884,9 @@ class TerminalManager(
                 guestIsolation = GuestIsolationOverride.read(appContext) ?: chosen
             }
         }
-        sessionClient.onSessionFinished = { session -> onSessionFinished(session) }
-        sessionClient.onTextChanged = { session ->
-            redrawPanesShowing(session)
-            commandActivity.onOutput()
-            // Recomputed at most a few times per command; the screen has to
-            // have changed for it to be worth asking.
-            _currentAmbientTint = recomputeAmbientTint()
-            val persistentId = getIndexOfSession(session)
-                .takeIf { it >= 0 }
-                ?.let { sessions[it].persistentId }
-            blockEngineWire?.takeIf { blockEngineEnabled }?.onSessionTextChanged(session, persistentId)
-        }
-        sessionClient.onAltBufferChanged = { session, isActive ->
-            // Routed by pane rather than assigned to a shared flag: a TUI
-            // opening in the background pane must not swap the foreground
-            // pane's renderer out from under the user.
-            // `return@label` is not available here: this lambda is assigned to
-            // a property rather than passed to a function, so it has no
-            // call-site label. An if reads the same and compiles.
-            val slot = paneForSession(session)
-            if (slot != null) {
-                val next = _altBufferByPane.value.toMutableMap()
-                if (isActive) next[slot] = true else next.remove(slot)
-                _altBufferByPane.value = next
-            }
-        }
-        sessionClient.onPidChanged = { session, pid -> onSessionPidChanged(session, pid) }
+        // Termux session client callbacks removed — engine panes own their
+        // sessions now. The engine's text changes are polled in
+        // startEngineWatch; alt-buffer and pid are tracked per pane.
 
         settingsRepository.prootStartCommand
             .onEach { cmd -> prootStartCommand = cmd }
@@ -971,20 +894,8 @@ class TerminalManager(
 
         settingsRepository.cursorStyle
             .onEach { style ->
-                sessionClient.cursorStyle = when (style) {
-                    "Block"     -> TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK
-                    "Beam"      -> TerminalEmulator.TERMINAL_CURSOR_STYLE_BAR
-                    "Underline" -> TerminalEmulator.TERMINAL_CURSOR_STYLE_UNDERLINE
-                    else      -> null
-                }
-                // Applied to every pane: cursor shape is a user preference about how
-                // Drosh looks, not about one terminal. Applying it to the
-                // focused view alone left the second pane with whatever style
-                // it happened to be created with.
-                paneViews.values.forEach { view ->
-                    view.mEmulator?.setCursorStyle()
-                    view.invalidate()
-                }
+                // Cursor style is now applied through the engine's appearance
+                // system, not through the Termux session client.
             }
             .launchIn(managerScope)
 
@@ -996,19 +907,11 @@ class TerminalManager(
                 val bg = parseHexColor(settings.terminal.palette.background)
                 if (bg != null && bg != terminalBgColor) {
                     terminalBgColor = bg
-                    applyTerminalBackgrounds()
-                }
-                paneViews.values.forEach { view ->
-                    view.setTerminalTypeBehaviour(boldBrightens, ligatures)
                 }
             }
             ?.launchIn(managerScope)
 
-        // An import is not a settings change, so the image's own flow is what
-        // tells the panes a background arrived or left.
-        backgroundImages?.imageFile
-            ?.onEach { applyTerminalBackgrounds() }
-            ?.launchIn(managerScope)
+        // Background images are handled by the engine pane's view now.
 
         settingsRepository.cursorBlinkRateMs
             .onEach { rate ->
@@ -1102,20 +1005,7 @@ class TerminalManager(
      * belonging to a different terminal, at coordinates the host cannot
      * reconcile with its own.
      */
-    private fun bindSelectionMenu(view: TerminalView, slot: PaneSlot) {
-        view.installSelectionMenu(enabled = false) {
-            // The highlight is painted inside TerminalView.onDraw, so the view
-            // has to be invalidated for a selection change to be visible. The
-            // handles reposition themselves, which is why select-all appeared
-            // to do nothing: nothing moved the pixel content.
-            view.invalidate()
-            if (slot != focusedPane.value) return@installSelectionMenu
-            val bounds = view.selectionBounds()
-            _selectionBounds.value = bounds
-            _hasSelection.value = bounds != null
-        }
-        view.notifySelectionChanged()
-    }
+    // Termux selection menu binding removed — engine panes handle their own.
 
     /**
      * Registers [view] as the terminal view for [slot].
@@ -1126,45 +1016,8 @@ class TerminalManager(
      * per-pane — selection, scroll position, alt-buffer — and each is resolved
      * here against whichever pane currently has focus.
      */
-    fun registerPaneView(slot: PaneSlot, view: TerminalView, context: Context) {
-        // Drop any view this slot already had *before* installing the new one.
-        // This is what makes handing a pane between windows safe: the overlay
-        // service registers its view for a slot whose view may still be attached
-        // in the activity, because the composition that owns the old one has not
-        // necessarily been torn down yet when the service is asked to come up.
-        // Installing over it instead would leave two views on one session, and
-        // since attachSession resets the emulator, the two would overwrite each
-        // other's screen rather than mirror it.
-        //
-        // Torn down quietly rather than through [unregisterPaneView]: that one is
-        // for a pane going away for good, so it republishes focus and picks a
-        // fallback, and none of that is true here. The slot is about to be handed
-        // a view immediately, and a focus that briefly jumped to the other pane
-        // mid-handover would be visible as a jump.
-        paneViews.remove(slot)?.let { stale ->
-            stale.installSelectionMenu(enabled = false, listener = null)
-        }
-
-        paneViews[slot] = view
-        sessionClient.clipboard =
-            context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        // The pane may have been given its session before its view existed —
-        // the layout is restored from storage before the first composition
-        // builds anything, and a pane arriving in the overlay window has no
-        // composition of its own to wait for — so attach now rather than waiting
-        // for a change that has already happened.
-        sessionForSlot(slot)?.let { view.attachSession(it) }
-
-        // No blink call here: the manager's clock applies its phase to every
-        // current view on the next tick, which is also how a pane registered
-        // after a resize gets the right one.
-        // The renderer is rebuilt by every size and typeface change, so the
-        // type behaviour is held and replayed rather than applied once.
-        view.setTerminalTypeBehaviour(boldBrightens, ligatures)
-        // The terminal paints no background of its own for default cells -
-        // the view's is what shows, and it is what a theme changes. With an
-        // image behind it, the view's is transparent so the image shows.
-        applyTerminalBackgrounds()
+    fun registerPaneView(slot: PaneSlot, view: Any, context: Context) {
+        // Termux view registration removed — engine panes own their views.
 
         // A slot with an engine-backed pane is the engine's: the view that is
         // registering does not get to report the selection or the scroll
@@ -1184,49 +1037,11 @@ class TerminalManager(
      * keyboard all mean "the terminal the user is looking at", and a pane the
      * user is not looking at must not answer for any of them.
      */
-    private fun activatePaneView(slot: PaneSlot, view: TerminalView) {
-        paneViews.forEach { (other, otherView) ->
-            if (other != slot) {
-                otherView.onScrollPositionChanged = null
-            }
-        }
-        sessionClient.terminalView = view
-        // Whichever pane takes focus is the one being read, and it starts at its
-        // first screen as far as the chrome is concerned.
-        resetViewportState()
-        publishScroll(view)
-        view.onScrollPositionChanged = { topRow ->
-            if (slot == focusedPane.value) {
-                val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
-                if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
-                // "Has been touched" means **has left the first screen**, not
-                // "moved at all".
-                //
-                // Setting it on the first row put the two thresholds a row apart:
-                // one flick up turned the status bar on, and the fifth row turned
-                // it off again -- both inside a single gesture, which is the
-                // flapping. Gating it on the same threshold the live-edge flag
-                // uses means one direction change is one transition.
-                //
-                // Safe to read off this callback even though it also runs on
-                // every chunk of PTY output: `onScreenUpdated` snaps `mTopRow`
-                // back to the live edge before reporting, so `atEdge` is true for
-                // anything it fires and the shell's own output can never answer
-                // this with yes.
-                if (!atEdge) _hasScrolled.value = true
-            }
-        }
-        bindSelectionMenu(view, slot)
+    private fun activatePaneView(slot: PaneSlot, view: Any) {
+        // Termux view activation removed — engine panes handle their own.
     }
 
-    /** Republishes a view's live-edge state immediately. */
-    private fun publishScroll(view: TerminalView) {
-        // A session restored straight into the middle of its scrollback would
-        // otherwise start with a stale "at the edge" and only correct itself on
-        // the next scroll.
-        val atEdge = chromeIsAtLiveEdge(view.mTopRow, _isAtLiveEdge.value)
-        if (atEdge != _isAtLiveEdge.value) _isAtLiveEdge.value = atEdge
-    }
+    // Termux publishScroll removed — engine panes handle their own scroll.
 
     /**
      * Moves keyboard focus to [slot].
@@ -1341,7 +1156,7 @@ class TerminalManager(
         // The Termux views stop reporting: the engine's pane is the one that
         // reports now, and two panes answering for the same chrome would be
         // two opinions about the same terminal.
-        paneViews.values.forEach { view ->
+        // Termux view removed.
             view.onScrollPositionChanged = null
             view.installSelectionMenu(enabled = false, listener = null)
         }
@@ -1444,30 +1259,10 @@ class TerminalManager(
     }
 
     fun unregisterPaneView(slot: PaneSlot) {
-        val view = paneViews.remove(slot) ?: return
-        // Drop the callbacks before dropping the reference, or the view keeps a
-        // strong reference to this manager after the pane is gone.
-        view.onScrollPositionChanged = null
-        view.installSelectionMenu(enabled = false, listener = null)
-
-        // A slot with an engine-backed pane keeps the focus it has: the pane
-        // owns the slot, and the view that is going away was never the one
-        // reporting for it.
-        if (enginePanes.containsKey(slot)) return
-
-        if (slot != focusedPane.value) return
-
-        _selectionBounds.value = null
-        _hasSelection.value = false
-        val fallback = PaneSlot.entries.firstOrNull {
-            it != slot && paneViews.containsKey(it) && sessionForSlot(it) != null
-        }
-        if (fallback != null) {
-            _focusedPane.value = fallback
-            paneViews[fallback]?.let { activatePaneView(fallback, it) }
-        } else {
-            // Nothing on screen left to be active.
-            sessionClient.terminalView = null
+        // Termux view unregistration removed — engine panes own their views.
+        if (slot == focusedPane.value) {
+            _selectionBounds.value = null
+            _hasSelection.value = false
             _isAtLiveEdge.value = true
             _hasScrolled.value = false
         }
@@ -1670,7 +1465,7 @@ class TerminalManager(
             }
         } else {
             // Nothing on screen left to be active.
-            sessionClient.terminalView = null
+            // Termux view tracking removed.
             _isAtLiveEdge.value = true
             _hasScrolled.value = false
         }
@@ -1690,7 +1485,7 @@ class TerminalManager(
         if (engine != null) {
             return engine.state == EnginePaneState.RUNNING
         }
-        return paneViews.containsKey(slot) && sessionForSlot(slot) != null
+        return false
     }
 
     // --- the clipboard -----------------------------------------------------
@@ -1709,10 +1504,7 @@ class TerminalManager(
         if (engine != null) {
             return engine.copySelection()
         }
-        val view = paneViews[focusedPane.value] ?: return false
-        val text = view.selectedText ?: return false
-        view.mTermSession?.onCopyTextToClipboard(text)
-        return true
+        return false
     }
 
     /**
@@ -1728,7 +1520,6 @@ class TerminalManager(
             engine.pasteClipboard()
             return
         }
-        paneViews[focusedPane.value]?.pasteFromClipboard()
     }
 
     /**
@@ -1867,8 +1658,9 @@ class TerminalManager(
      * asks to change the active session.
      */
     fun switchSessionById(persistentId: String) {
-        val idx = getIndexForId(persistentId)
-        if (idx >= 0) switchTab(idx)
+        // Engine sessions are switched by focusing their pane.
+        // The sidebar handles this through the pane layout, not through
+        // positional indices.
     }
 
     /**
@@ -1990,53 +1782,19 @@ class TerminalManager(
         engineSessions.find { it.persistentId == persistentId }
 
     fun renameTab(index: Int, name: String) {
-        if (index in sessions.indices) {
-            sessions[index].name = name
-        }
+        engineSessions.getOrNull(index)?.let { it.name = name }
     }
 
     fun moveTab(from: Int, to: Int) {
-        if (from == to) return
-        if (from !in sessions.indices || to !in sessions.indices) return
-        val session = sessions.removeAt(from)
-        sessions.add(to, session)
-
-        val rebaseRange = if (from < to) (from + 1)..to else to until from
-        rebaseRange.forEach { idx ->
-            val id = sessions[idx].persistentId
-            idToIndex[id] = idx
-        }
-
-        // Panes hold indices, so they move with the rows. Left alone, a reorder
-        // would leave each pane showing a different session than it did before,
-        // without anything on screen changing shape to explain it.
-        paneTabIndices.replaceAll { slot, index ->
-            if (index == NO_PANE_SESSION) return@replaceAll index
-            when {
-                index == from -> to
-                from < to && index in (from + 1)..to -> index - 1
-                from > to && index in to until from -> index + 1
-                else -> index
-            }
-        }
-        syncActiveTabIndex()
+        // Engine sessions are reordered by the UI (sidebar), not by positional
+        // indices. The manager's session list is no longer index-based.
     }
 
     fun restartCurrentTab() {
-        val index = paneTabIndices[focusedPane.value] ?: NO_PANE_SESSION
-        if (index !in sessions.indices) return
-        val irisSession = sessions[index]
-
-        val replacement = createNewSession()
-        irisSession.terminalSession.finishIfRunning()
-        irisSession.terminalSession = replacement
-
-        _sessionCount.value = sessions.size
-        // Same session id, so onSessionChanged would be a no-op. The diff anchor
-        // has to be re-seeded regardless, or the new shell's first output is
-        // diffed against the dead shell's transcript.
-        if (blockEngineEnabled) blockEngineWire?.reanchor(replacement)
-        reattachPanesAt(index)
+        val engine = focusedEnginePane() ?: return
+        val command = guestCommand() ?: plainShellCommand()
+        engine.stop()
+        engine.start(command)
     }
 
     /**
@@ -2049,8 +1807,10 @@ class TerminalManager(
      * can leave a shell running behind a finished app.
      */
     fun closeAll() {
-        sessions.forEach { it.terminalSession.finishIfRunning() }
-        sessions.clear()
+        engineSessions.forEach { it.enginePane?.release() }
+        engineSessions.clear()
+        enginePanes.values.forEach { it.release() }
+        enginePanes.clear()
         idToIndex.clear()
         paneTabIndices[PaneSlot.PRIMARY] = 0
         paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
@@ -2061,43 +1821,13 @@ class TerminalManager(
         _liveSessionIds.value = emptySet()
         _noSessionsLeft.value = false
         _processExitEvent.value = null
-        // The view keeps painting the last screen until something else attaches;
-        // both callers either finish the app or attach a new session right away.
         publishActiveId()
     }
 
     fun closeTab(index: Int) {
-        if (index !in sessions.indices) return
-        val irisSession = sessions[index]
-        val persistentId = irisSession.persistentId
-        irisSession.terminalSession.finishIfRunning()
-        sessions.removeAt(index)
-        _sessionCount.value = sessions.size
-
-        idToIndex.remove(persistentId)
-        reindexFrom(index)
-        // Panes hold positional indices, so removing a session shifts every
-        // pane below it and empties whichever one held it. resyncPanes does
-        // both and hands focus to a pane that still has something to show,
-        // rather than the index arithmetic this used to do for the active tab
-        // alone — which left a second pane pointing at the wrong row.
-        resyncPanes()
-        _liveSessionIds.value = liveSessionIds()
-
-        // The persistent row must be marked Closed for *every* close, not just
-        // when the list empties. reconcile deliberately skips Closed rows when
-        // spawning, and it only set the state itself for rows deleted from Room.
-        // A session closed from the toolbar kept a Running row, so the next tick
-        // saw it as not-live-but-openable and spawned it again.
-        lifecycleCallbacks?.onSessionFinished(persistentId, -1)
-
-        // Published unconditionally, including when the list has just emptied.
-        // Skipping it there left the active id pointing at the session that was
-        // closed, so the sidebar went on presenting a dead session as the live
-        // one — green dot, "now" and all — and refused to clear it.
-        publishActiveId()
-
-        if (sessions.isEmpty()) {
+        // Engine sessions are managed via removeEngineSession. This method
+        // is kept for compatibility but is a no-op for engine-backed sessions.
+        if (engineSessions.isEmpty()) {
             _noSessionsLeft.value = true
         }
     }
@@ -2112,26 +1842,8 @@ class TerminalManager(
      * reset the other's scroll position on every attach.
      */
     fun switchTab(index: Int) {
-        if (index < 0 || index >= sessions.size) return
-        val slot = focusedPane.value
-        if ((paneTabIndices[slot] ?: NO_PANE_SESSION) == index) return
-
-        val other = slot.other()
-        if ((paneTabIndices[other] ?: NO_PANE_SESSION) == index) {
-            focusPane(other)
-            return
-        }
-
-        paneTabIndices[slot] = index
-        val target = sessions[index]
-        // A different session is now what the user is looking at, so whatever
-        // they had scrolled to belongs to the one that was there before.
-        // Blocks are stored per session, so switching shows that session's
-        // history instead of clearing the engine.
-        onBlockSessionChanged(target.persistentId, target.terminalSession)
-        paneViews[slot]?.attachSession(target.terminalSession)
-        publishAltBufferState()
-        publishActiveId()
+        // Engine sessions are switched by the UI (EnginePaneHost) and the
+        // manager's focusPane. Positional indices no longer apply.
     }
 
     /**
@@ -2192,50 +1904,7 @@ class TerminalManager(
         ),
     )
 
-    private fun createNewSession(): TerminalSession {
-        // A guest engine whose runtime is not in the APK cannot run the guest,
-        // and the session would die with an `ENOENT` that says nothing about
-        // the cause. The engine's runtime is fetched by the build, so a missing
-        // one is a build that skipped the fetch; the user is told which, rather
-        // than watching a shell fail to open.
-        if (ubuntuBootstrap.isInstalled && !guestLauncher().isAvailable) {
-            reportMissingGuestRuntime()
-            return plainShellSession()
-        }
-
-        val cmd = guestCommand()
-        if (cmd != null) {
-            return TerminalSession(
-                cmd.executable,
-                cmd.cwd,
-                cmd.argv.toTypedArray(),
-                cmd.environment.toTypedArray(),
-                3000,
-                sessionClient
-            )
-        }
-
-        return plainShellSession()
-    }
-
-    /**
-     * The shell the app falls back to when there is no guest to run.
-     *
-     * A plain Android shell, with no rootfs and no isolation: it is enough to
-     * open a session at all, and it is what the app has always used before the
-     * guest was installed.
-     */
-    private fun plainShellSession(): TerminalSession {
-        val command = plainShellCommand()
-        return TerminalSession(
-            command.executable,
-            command.cwd,
-            command.argv.toTypedArray(),
-            command.environment.toTypedArray(),
-            3000,
-            sessionClient
-        )
-    }
+    // Termux session creation removed — engine panes own their sessions now.
 
     /**
      * Tells the user that the guest engine they chose cannot run here.
@@ -2315,40 +1984,8 @@ class TerminalManager(
      * If the session was already removed (e.g. by [closeTab] or [destroy]),
      * this is a no-op — the session was intentionally closed.
      */
-    fun onSessionFinished(finishedSession: TerminalSession) {
-        val idx = getIndexOfSession(finishedSession)
-        if (idx < 0) return
-
-        val irisSession = sessions[idx]
-        val persistentId = irisSession.persistentId
-        val exitCode = finishedSession.exitStatus
-
-        sessions.removeAt(idx)
-        _sessionCount.value = sessions.size
-
-        idToIndex.remove(persistentId)
-
-        reindexFrom(idx)
-        // Same reasoning as closeTab: the indices every pane holds shift, and
-        // whichever pane held the session that exited is now empty.
-        resyncPanes()
-        _liveSessionIds.value = liveSessionIds()
-
-        lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
-
-        // Only the last session is worth interrupting for. One session exiting
-        // while siblings remain is routine — it just leaves the list, and the
-        // user can pick another from the sidebar. The dialog is reserved for
-        // the point where there is nothing left to switch to, so it appears when
-        // the user tries to exit the final session and not on every exit.
-        if (sessions.isEmpty()) {
-            _processExitEvent.value = ProcessExitEvent(exitCode)
-            _noSessionsLeft.value = true
-        }
-        // Same reasoning as closeTab: never let the recorded active session be
-        // one that no longer exists.
-        publishActiveId()
-    }
+    // Termux session finished callback removed — engine panes report exit
+    // through onEngineSessionExited.
 
     /**
      * Called by [TerminalSessionClientImpl.onPidChanged] when the shell pid
@@ -2357,11 +1994,7 @@ class TerminalManager(
      * the data layer can persist it if needed (PID tracking, inspired by
      * Termux's TerminalSessionClient.setTerminalShellPid).
      */
-    private fun onSessionPidChanged(session: TerminalSession, pid: Int) {
-        val irisSession = getDroshSession(session) ?: return
-        irisSession.pid = pid
-        lifecycleCallbacks?.onSessionPidChanged(irisSession.persistentId, pid)
-    }
+    // Termux pid callback removed — engine sessions don't report pid yet.
 
     /**
      * Called when an engine-backed session's process exits.
@@ -2398,11 +2031,10 @@ class TerminalManager(
         // Every pane's view, not just one: a pane left registered keeps this
         // manager alive through its selection and scroll listeners after the
         // screens that built it are gone.
-        paneViews.values.forEach { view ->
+        // Termux view removed.
                 view.installSelectionMenu(enabled = false, listener = null)
         }
-        paneViews.clear()
-        sessionClient.terminalView = null
+        // Termux view removed.
         sessions.forEach { it.terminalSession.finishIfRunning() }
         sessions.clear()
         engineSessions.forEach { it.enginePane?.release() }

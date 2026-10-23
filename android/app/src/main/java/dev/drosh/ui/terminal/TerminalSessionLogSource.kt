@@ -54,7 +54,6 @@ class TerminalSessionLogSource(
         if (engineSession != null) {
             return SessionTranscript.Engine.of(engineSession)
         }
-        val emulator = terminalManager.sessionForId(sessionId)?.emulator ?: return null
-        return SessionTranscript.Termux.of(emulator)
+        return null
     }
 }

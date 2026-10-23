@@ -117,7 +117,7 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             // Comprehensiveness for native libs included from terminal module.
-            pickFirsts += setOf("lib/**/libtermux.so")
+            // No termux .so — engine uses Rust core only.
         }
     }
 

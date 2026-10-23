@@ -255,11 +255,8 @@ class SessionManagerAdapter @Inject constructor(
 
             val stale = liveIds - currentIds
             stale.forEach { id ->
-                val idx = terminalManager.getIndexForId(id)
-                if (idx >= 0) {
-                    terminalManager.closeTab(idx)
-                    sessionRepository.updateState(id, SessionState.Closed)
-                }
+                terminalManager.removeEngineSession(id)
+                sessionRepository.updateState(id, SessionState.Closed)
             }
 
         }

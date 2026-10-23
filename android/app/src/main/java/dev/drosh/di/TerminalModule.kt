@@ -15,7 +15,7 @@ import dev.drosh.domain.terminal.SystemOverlayController
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.ui.overlay.ServiceSystemOverlayController
 import dev.drosh.terminal.session.TerminalSessionClientImpl
-import dev.drosh.terminal.session.TerminalViewClientImpl
+// Termux view client removed — engine panes own their views.
 import dev.drosh.linux.UbuntuBootstrap
 import dev.drosh.terminal.session.SshSessionFactory
 import dev.drosh.ssh.SshSessionFactoryImpl
