@@ -31,7 +31,7 @@ enum class TerminalBackend {
 
     companion object {
         /** The backend used when nothing was chosen. */
-        val DEFAULT = TERMUX
+        val DEFAULT = ENGINE
 
         /**
          * The backend of [name], or null when the name is none.

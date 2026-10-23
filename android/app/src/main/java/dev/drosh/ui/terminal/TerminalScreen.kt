@@ -1890,126 +1890,23 @@ private fun TerminalPaneBody(
                 .padding(top = topPadding),
         ) {
 
-            if (terminalBackend == TerminalBackend.ENGINE) {
-                /*
-                 * THE ENGINE'S TERMINAL
-                 *
-                 * The pane runs on the Rust engine rather than on the vendored
-                 * view. The engine owns its session and its view, so the app
-                 * hosts a pane instead of a view — see `EnginePaneHost`.
-                 *
-                 * It comes before the block engine's list on purpose: the
-                 * blocks are the vendored sessions' output, and a pane that
-                 * showed them next to an engine terminal would be showing two
-                 * terminals' worth of output at once.
-                 */
-                EnginePaneHost(
-                    paneSlot = paneSlot,
-                    terminalManager = terminalManager,
-                    fontSizeSp = fontSizeSp,
-                    appearance = terminalConfig,
-                    customFontUri = customFontUri,
-                    appearanceSource = appearanceSource,
-                    onBoundsChanged = onBoundsChanged,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else if (useBlockEngine && !altBufferActive) {
-                val blocks by blockEngineViewModel.blocks.collectAsState()
-                val promptDir by blockEngineViewModel.lastDir.collectAsState()
-                val promptSuffix by blockEngineViewModel.promptSuffix.collectAsState()
-
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    if (motdMode == MotdMode.Compose && !motdDismissed) {
-                        MotdWidget(
-                            motdText = motdText,
-                            systemInfo = systemInfo,
-                            onHelpClick = { /* TODO: open help */ },
-                            onDismiss = onDismissMotd,
-                        )
-                    }
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        state = rememberLazyListState(),
-                    ) {
-                        items(blocks, key = { it.id }) { block ->
-                            PromptBlock(
-                                block = block,
-                                promptDir = promptDir,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                onCopyCommand = { blockEngineViewModel.onCopyCommand(block) },
-                                onCopyOutput = { blockEngineViewModel.onCopyOutput(block) },
-                                onRerunCommand = { cmd -> blockEngineViewModel.onRerunCommand(cmd) },
-                                onEditCommand = { cmd -> blockEngineViewModel.onEditCommand(cmd) },
-                                onExportOutput = { blockEngineViewModel.onExportOutput(block) },
-                                onDeleteBlock = { blockEngineViewModel.onDeleteBlock(block.id) },
-                                onUrlClick = onUrlClick,
-                            )
-                            if (block.id != blocks.lastOrNull()?.id) {
-                                PromptDivider()
-                            }
-                        }
-                    }
-
-                    PromptDivider()
-
-                    // While the shell is at its prompt this records a command
-                    // block. Once an interactive program takes the terminal the
-                    // line goes straight to the program instead, so the bar stops
-                    // labelling itself as a command prompt and its output is not
-                    // mistaken for one.
-                    BlockInputField(
-                        onSubmit = { cmd ->
-                            if (awaitingShellInput) {
-                                blockEngineViewModel.onCommandSubmitted("", cmd)
-                            } else {
-                                blockEngineViewModel.onRawInput(cmd)
-                            }
-                        },
-                        promptLabel = promptDir,
-                        promptSuffix = promptSuffix,
-                        programPrompt = if (awaitingShellInput) null else PROGRAM_PROMPT_MARKER,
-                    )
-                }
-            } else {
-                /*
-                 * CLASSIC TERMINAL PATH
-                 *
-                 * terminalViewRef is handed to the caller so overlays (search
-                 * highlight, WebView chrome) can sample this exact TerminalView.
-                 * Only the focused pane reports its bounds: the top bar samples
-                 * one terminal to blur behind itself, and there is no sensible
-                 * answer while two are on screen.
-                 */
-                TerminalViewHost(
-                    paneSlot = paneSlot,
-                    terminalManager = terminalManager,
-                    fontSizeSp = fontSizeSp,
-                    defaultFontSizeSp = defaultFontSizeSp,
-                    colorProps = colorProps,
-                    backgroundFile = backgroundFile,
-                    terminalBackgroundColor = terminalBackgroundColor,
-                    backgroundOpacity = backgroundOpacity,
-                    contentPaddingDp = contentPaddingDp,
-                    cornerRadiusDp = cornerRadiusDp,
-                    dimInactivePanes = dimInactivePanes,
-                    keepAwake = keepAwake,
-                    keepPositionWhileReading = keepPositionWhileReading,
-                    terminalViewModel = terminalViewModel,
-                    terminalViewRef = terminalViewRef,
-                    appearanceSource = appearanceSource,
-                    extraKeyState = extraKeyState,
-                    onUrlClick = onUrlClick,
-                    searchQuery = if (searchActive && searchQuery.isNotBlank()) searchQuery else null,
-                    searchResults = searchResults,
-                    searchOverlayRef = searchOverlayRef,
-                    onBoundsChanged = onBoundsChanged,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            /*
+             * THE ENGINE'S TERMINAL
+             *
+             * The pane runs on the Rust engine. The engine owns its
+             * session and its view, so the app hosts a pane instead of
+             * a view — see `EnginePaneHost`.
+             */
+            EnginePaneHost(
+                paneSlot = paneSlot,
+                terminalManager = terminalManager,
+                fontSizeSp = fontSizeSp,
+                appearance = terminalConfig,
+                customFontUri = customFontUri,
+                appearanceSource = appearanceSource,
+                onBoundsChanged = onBoundsChanged,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
         // No extra-key bar here.
         //
