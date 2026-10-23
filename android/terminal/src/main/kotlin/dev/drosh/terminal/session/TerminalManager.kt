@@ -1430,6 +1430,14 @@ class TerminalManager(
             while (isActive) {
                 publishEngineScroll(pane)
                 publishEngineSelection(pane, pane.hasSelection())
+                // Block engine wire: poll the transcript for engine sessions,
+                // mirroring the Termux path where onTextChanged fires.
+                if (blockEngineEnabled) {
+                    val sessionId = pane.persistentId
+                    if (sessionId.isNotEmpty()) {
+                        blockEngineWire?.onEngineSessionTextChanged(pane.session, sessionId)
+                    }
+                }
                 delay(ENGINE_SCROLL_POLL_MILLIS)
             }
         }
@@ -1980,7 +1988,9 @@ class TerminalManager(
      * Look up an engine session by its persistent id.
      */
     fun engineSessionForId(persistentId: String): EngineDroshSession? =
-        engineSessions.find { it.persistentId == persistentId }    fun renameTab(index: Int, name: String) {
+        engineSessions.find { it.persistentId == persistentId }
+
+    fun renameTab(index: Int, name: String) {
         if (index in sessions.indices) {
             sessions[index].name = name
         }

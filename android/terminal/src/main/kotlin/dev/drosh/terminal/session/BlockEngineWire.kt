@@ -7,6 +7,7 @@ import dev.drosh.domain.block.ShellState
 import dev.drosh.domain.block.ShellStateSource
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
+import dev.drosh.terminal.engine.core.EngineSession
 
 /**
  * Wires the Termux terminal session into the block engine via the
@@ -288,6 +289,107 @@ class BlockEngineWire(
                 blockRepository.onCommandCompleted(exitCode = 0)
             }
         }
+    }
+
+    /**
+     * Engine-backed session text change.
+     *
+     * Mirrors [onSessionTextChanged] but reads the transcript from the
+     * Rust engine instead of the Termux emulator's screen. The diff logic
+     * is the same; only the transcript source differs.
+     */
+    fun onEngineSessionTextChanged(session: EngineSession, sessionId: String?) {
+        if (sessionId != activeSessionId) return
+        val current = session.transcript().joinToString("\n")
+        if (current.isEmpty()) {
+            previousTranscript = ""
+            return
+        }
+
+        val appended = if (previousTranscript.isEmpty()) {
+            current
+        } else {
+            val anchor = findRollingAnchor(previousTranscript, current)
+                ?: return resetAnchor(current)
+            val idx = current.lastIndexOf(anchor)
+            if (idx < 0) return resetAnchor(current)
+            current.substring(idx + anchor.length)
+        }
+        previousTranscript = current
+
+        val liveLine = current.substringAfterLast('\n').trimEnd('\r')
+        val inputMatch = if (awaitingShellInput) {
+            PROMPT_WITH_INPUT_REGEX.find(liveLine.trimEnd())
+        } else null
+        val isEditing = inputMatch != null
+
+        val lines = appended.split('\n')
+        val nonEmpty = lines
+            .map { it.trimEnd('\r') }
+            .filter { it.isNotEmpty() || lines.size == 1 }
+        if (nonEmpty.isEmpty()) return
+
+        val firstIsEcho = pendingEcho?.let { echo ->
+            nonEmpty.first().trimEnd() == echo || nonEmpty.first().trimEnd().endsWith(echo)
+        } ?: false
+        if (firstIsEcho) pendingEcho = null
+        val linesAfterEcho = if (firstIsEcho) nonEmpty.drop(1) else nonEmpty
+
+        if (isEditing) {
+            val typed = inputMatch!!.groupValues[2].trimEnd()
+            if (typed.isNotEmpty()) pendingEcho = typed
+            updatePromptFrom(inputMatch.groupValues[1])
+            if (linesAfterEcho.size == 1) return
+            blockRepository.onBootOutput(linesAfterEcho.dropLast(1).joinToString("\n"))
+            return
+        }
+
+        if (pendingEchoWasClear) {
+            pendingEchoWasClear = false
+            blockRepository.clear()
+            return
+        }
+
+        if (linesAfterEcho.isEmpty()) return
+
+        val lastLineOfAppended = linesAfterEcho.last()
+        val promptSuffix = PROMPT_SUFFIX_REGEX.find(lastLineOfAppended)
+        val completeAppended = promptSuffix != null
+
+        if (completeAppended) {
+            val outputLines = linesAfterEcho.dropLast(1)
+            if (outputLines.isNotEmpty()) {
+                blockRepository.onOutputChunk(outputLines.joinToString("\n"))
+            }
+            lastPrompt = lastLineOfAppended.trimEnd('\r').trimEnd().ifBlank { DEFAULT_PROMPT }
+            updateDirFromPrompt(lastLineOfAppended.substring(0, promptSuffix!!.range.first).trimEnd().ifBlank { DEFAULT_PROMPT })
+            pendingEcho = null
+            blockRepository.onCommandCompleted(exitCode = 0)
+            return
+        }
+
+        blockRepository.onBootOutput(linesAfterEcho.joinToString("\n"))
+
+        val lastVisibleLine = current.substringAfterLast('\n').trimEnd('\r')
+        if (linesAfterEcho.size == 1 && lastLineOfAppended != lastVisibleLine) {
+            val visibleSuffix = PROMPT_SUFFIX_REGEX.find(lastVisibleLine)
+            if (visibleSuffix != null) {
+                val visiblePromptText = lastVisibleLine.substring(0, visibleSuffix.range.first).trimEnd()
+                val visibleFullPrompt = lastVisibleLine.trimEnd()
+                lastPrompt = visibleFullPrompt.ifBlank { DEFAULT_PROMPT }
+                updateDirFromPrompt(visiblePromptText.ifBlank { DEFAULT_PROMPT })
+                pendingEcho = null
+                blockRepository.onCommandCompleted(exitCode = 0)
+            }
+        }
+    }
+
+    /**
+     * Re-seed the diff anchor against an engine session's transcript.
+     */
+    fun reanchorEngine(session: EngineSession) {
+        previousTranscript = session.transcript().joinToString("\n")
+        pendingEcho = null
     }
 
     fun onCommandSubmitted(command: String) {
