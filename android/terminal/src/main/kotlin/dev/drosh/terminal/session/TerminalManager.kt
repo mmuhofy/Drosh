@@ -38,7 +38,7 @@ import dev.drosh.linux.GuestSpec
 import dev.drosh.linux.ProotRunner
 import dev.drosh.linux.UbuntuBootstrap
 import dev.drosh.linux.UbuntuSetupState
-// Termux terminal model removed — engine is the only terminal now.
+import com.termux.terminal.TerminalSession
 import dev.drosh.terminal.session.input.EngineTerminalWriter
 import dev.drosh.terminal.session.input.TerminalWriter
 import dev.drosh.terminal.session.input.TermuxTerminalWriter
@@ -280,7 +280,7 @@ class TerminalManager(
         get() = engineSessions.map { it.name }
 
     // Termux session client — kept for compilation, not used by engine path.
-    val sessionClient: TerminalSessionClientImpl? = null
+    // Termux session client removed — engine panes own their sessions now.
 
     /**
      * Callback for session lifecycle events (finish, pid change).
@@ -340,7 +340,7 @@ class TerminalManager(
      * iteration order.
      */
     // Termux views removed — engine panes own their views now.
-    private val paneViews = LinkedHashMap<PaneSlot, Any>()
+    // Termux view removed.
     /**
      * The engine-backed pane of each slot, if that slot has one.
      *
@@ -436,28 +436,14 @@ class TerminalManager(
         cursorBlinkRateMs = rate
         blinkJob?.cancel()
         if (rate !in VALID_BLINK_RANGE) {
-            // Off: the cursor is steady, and a blinker left running would keep
-            // toggling a cursor nobody asked to see blink.
-            // Termux view removed.
-                view.mEmulator?.setCursorBlinkingEnabled(false)
-                view.mEmulator?.setCursorBlinkState(true)
-                view.invalidate()
-            }
+            // Off: the cursor is steady.
             return
         }
         blinkJob = managerScope.launch {
             while (isActive) {
                 delay(rate.toLong())
                 blinkPhase = !blinkPhase
-                // Termux view removed.
-                    val emulator = view.mEmulator ?: return@forEach
-                    // Re-asserted every tick, not once: a new emulator's
-                    // blinking flag starts false, and the flag is what makes
-                    // the phase visible at all.
-                    emulator.setCursorBlinkingEnabled(true)
-                    emulator.setCursorBlinkState(blinkPhase)
-                    view.invalidate()
-                }
+                // Blink is handled by the engine pane's own renderer now.
             }
         }
     }
@@ -514,7 +500,7 @@ class TerminalManager(
         val index = getIndexForId(sessionId)
         if (index < 0) return false
         paneTabIndices[slot] = index
-        paneViews[slot]?.let { view -> sessions[index].terminalSession.let(view::attachSession) }
+        // Termux view removed.
         return true
     }
 
@@ -547,24 +533,7 @@ class TerminalManager(
      * Focus follows the pane the user was looking at, so the swap does not also
      * move the keyboard somewhere they were not.
      */
-    override fun swapPanes(): Boolean {
-        val primary = paneTabIndices[PaneSlot.PRIMARY] ?: NO_PANE_SESSION
-        val secondary = paneTabIndices[PaneSlot.SECONDARY] ?: NO_PANE_SESSION
-        if (primary == NO_PANE_SESSION || secondary == NO_PANE_SESSION) return false
-
-        paneTabIndices[PaneSlot.PRIMARY] = secondary
-        paneTabIndices[PaneSlot.SECONDARY] = primary
-
-        val primaryView = paneViews[PaneSlot.PRIMARY]
-        val secondaryView = paneViews[PaneSlot.SECONDARY]
-        if (primaryView != null && secondaryView != null) {
-            val primarySession = sessionForSlot(PaneSlot.PRIMARY)
-            val secondarySession = sessionForSlot(PaneSlot.SECONDARY)
-            primarySession?.let(primaryView::attachSession)
-            secondarySession?.let(secondaryView::attachSession)
-        }
-        return true
-    }
+    override fun swapPanes(): Boolean = false
 
     /**
      * Puts [sessionId] in the primary pane and [otherId] in the secondary one.
@@ -578,19 +547,7 @@ class TerminalManager(
      * case: a half-applied swap would leave the panes bound to sessions that are
      * not the pair the user chose.
      */
-    override fun setPaneSessions(primaryId: String, secondaryId: String): Boolean {
-        if (primaryId == secondaryId) return false
-        if (getIndexForId(primaryId) < 0 || getIndexForId(secondaryId) < 0) return false
-        paneTabIndices[PaneSlot.PRIMARY] = getIndexForId(primaryId)
-        paneTabIndices[PaneSlot.SECONDARY] = getIndexForId(secondaryId)
-        paneViews[PaneSlot.PRIMARY]?.let { view ->
-            sessions[paneTabIndices[PaneSlot.PRIMARY]!!].terminalSession.let(view::attachSession)
-        }
-        paneViews[PaneSlot.SECONDARY]?.let { view ->
-            sessions[paneTabIndices[PaneSlot.SECONDARY]!!].terminalSession.let(view::attachSession)
-        }
-        return true
-    }
+    override fun setPaneSessions(primaryId: String, secondaryId: String): Boolean = false
 
     /**
      * Moves the second pane's session into the primary pane.
@@ -604,51 +561,7 @@ class TerminalManager(
      *
      * Returns false, and changes nothing, when the second pane is empty.
      */
-    override fun promoteSecondaryToPrimary(): Boolean {
-        val secondary = paneTabIndices[PaneSlot.SECONDARY] ?: NO_PANE_SESSION
-        if (secondary == NO_PANE_SESSION) return false
-
-        paneTabIndices[PaneSlot.PRIMARY] = secondary
-        paneTabIndices[PaneSlot.SECONDARY] = NO_PANE_SESSION
-
-        paneViews[PaneSlot.PRIMARY]?.let { view ->
-            sessions.getOrNull(secondary)?.terminalSession?.let(view::attachSession)
-        }
-        // The second pane keeps whatever it last had until the layout drops it:
-        // the split UI unbinds it on the next composition, and clearing the index
-        // first means anything reading it in between sees "empty" rather than a
-        // session that is no longer supposed to be on screen.
-        //
-        // Everything below is the same tail [focusPane] runs, and for the same
-        // reason: the primary pane's *contents* changed even though its view and
-        // its focus did not, so the active session, the per-session command state
-        // and the block engine's binding all have to be told. Without them the app
-        // would keep reporting the session the user just closed as the active one
-        // — a name that no longer had a terminal behind it.
-        syncActiveTabIndex()
-        // Focus has to follow the survivor.
-        //
-        // The primary pane is where the promoted session now lives, and leaving
-        // focus on the second slot points it at a slot this function has just
-        // emptied. `activePersistentId()` would then answer null, and since that
-        // is what gets written back as the app's persisted active session, the
-        // sidebar's highlight and the stored id would both disappear — the app
-        // forgetting which session the user was in, from a gesture that was
-        // meant to keep one.
-        if (focusedPane.value != PaneSlot.PRIMARY) {
-            paneViews[PaneSlot.PRIMARY]?.let { view ->
-                _focusedPane.value = PaneSlot.PRIMARY
-                _selectionBounds.value = null
-                _hasSelection.value = false
-                activatePaneView(PaneSlot.PRIMARY, view)
-            }
-        }
-        val promoted = sessionForSlot(PaneSlot.PRIMARY)
-        onBlockSessionChanged(sessionIdForSlot(PaneSlot.PRIMARY), promoted)
-        publishAltBufferState()
-        publishActiveId()
-        return true
-    }
+    override fun promoteSecondaryToPrimary(): Boolean = false
 
     /** The session shown in [slot], or null when the pane is empty. */
     fun sessionForSlot(slot: PaneSlot): TerminalSession? = null
@@ -1075,7 +988,7 @@ class TerminalManager(
      * asking "which kind of pane is this" in every step of it.
      */
     private fun focusTermuxPane(slot: PaneSlot) {
-        val view = paneViews[slot] ?: return
+        // Termux view removed.
         if (sessionForSlot(slot) == null) return
         if (_focusedPane.value == slot) {
             view.requestFocus()
@@ -1386,7 +1299,7 @@ class TerminalManager(
             onEngineSessionExited(pane, code)
         }
 
-        paneViews[slot]?.let { view ->
+        // Termux view removed.
             view.onScrollPositionChanged = null
             view.installSelectionMenu(enabled = false, listener = null)
         }
@@ -1405,7 +1318,7 @@ class TerminalManager(
             pane.notifyFocus(true)
             pane.focus()
         }
-        paneViews[slot]?.let { view ->
+        // Termux view removed.
             view.onScrollPositionChanged = null
             view.installSelectionMenu(enabled = false, listener = null)
         }
@@ -1461,7 +1374,7 @@ class TerminalManager(
                 fallbackEngine.notifyFocus(true)
                 fallbackEngine.focus()
             } else {
-                paneViews[fallback]?.let { activatePaneView(fallback, it) }
+                // Termux view removed.
             }
         } else {
             // Nothing on screen left to be active.
@@ -1632,7 +1545,7 @@ class TerminalManager(
         _liveSessionIds.value = liveSessionIds()
         _noSessionsLeft.value = false
         onBlockSessionChanged(persistentId, irisSession.terminalSession)
-        paneViews[focusedPane.value]?.attachSession(irisSession.terminalSession)
+        // Termux view removed.
         syncActiveTabIndex()
         publishAltBufferState()
         publishActiveId()
