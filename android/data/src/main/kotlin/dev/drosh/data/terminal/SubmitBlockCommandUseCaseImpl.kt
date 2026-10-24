@@ -7,12 +7,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Writes a command string into the currently active terminal session
- * and tells the [BlockEngineWire] to expect the shell's echo of that
- * command on the next output line.
+ * Writes a command string into the currently focused terminal pane and tells
+ * the [BlockEngineWire] to expect the shell's echo of that command on the next
+ * output line.
  *
- * CR is used as the line terminator because PTYs expect CR (Enter key)
- * to dispatch a command.
+ * CR is used as the line terminator because PTYs expect CR (Enter key) to
+ * dispatch a command.
  */
 @Singleton
 class SubmitBlockCommandUseCaseImpl @Inject constructor(
@@ -22,17 +22,15 @@ class SubmitBlockCommandUseCaseImpl @Inject constructor(
 
     override suspend fun submit(command: String) {
         if (command.isBlank()) return
-        val session = terminalManager.currentSession ?: return
+        val writer = terminalManager.focusedWriter() ?: return
         blockEngineWire.onCommandSubmitted(command)
-        val payload = (command + "\r").toByteArray()
-        session.write(payload, 0, payload.size)
+        writer.writeBytes((command + "\r").toByteArray())
     }
 
     override suspend fun submitRaw(line: String) {
         if (line.isEmpty()) return
-        val session = terminalManager.currentSession ?: return
+        val writer = terminalManager.focusedWriter() ?: return
         // No onCommandSubmitted, so no block is opened and no echo is pending.
-        val payload = (line + "\r").toByteArray()
-        session.write(payload, 0, payload.size)
+        writer.writeBytes((line + "\r").toByteArray())
     }
 }
