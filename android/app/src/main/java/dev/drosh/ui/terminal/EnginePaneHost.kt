@@ -324,7 +324,7 @@ fun EnginePaneHost(
      * user with a terminal that is blank for a reason only a layout inspector
      * could see.
      */
-    var paneHeightPx by remember { mutableStateOf(0) }
+    val paneHeightPx = remember { mutableStateOf(0) }
 
     /**
      * The pane goes away with the composition.
@@ -412,7 +412,7 @@ fun EnginePaneHost(
                 .fillMaxSize()
                 .onGloballyPositioned {
                     onBoundsChanged(it.boundsInRoot())
-                    paneHeightPx = it.size.height
+                    paneHeightPx.value = it.size.height
                 },
             factory = { ctx ->
             val frame = android.widget.FrameLayout(ctx).apply {
@@ -462,7 +462,7 @@ fun EnginePaneHost(
                     modifier = Modifier.padding(24.dp),
                 )
             }
-        } else if (paneHeightPx == 0) {
+        } else if (paneHeightPx.value == 0) {
             // The host is on screen with no height. Nothing can be drawn in a
             // surface of zero pixels, and nothing reports it, so the reason is
             // named here instead of leaving a blank rectangle.
