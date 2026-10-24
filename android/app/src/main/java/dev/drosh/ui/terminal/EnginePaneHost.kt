@@ -29,6 +29,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.terminal.PaneSlot
+import dev.drosh.linux.GuestCommand
 import dev.drosh.terminal.session.EnginePane
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
@@ -133,6 +134,16 @@ fun EnginePaneHost(
     val startFailed = remember { mutableStateOf(false) }
 
     /**
+     * The reason a start *threw*, when it threw rather than refusing.
+     *
+     * The engine's own start returns false and leaves a reason in its view;
+     * a broken JNI boundary throws instead. Both have to reach the screen,
+     * because the symptom of the second is a black terminal with nothing
+     * anywhere to read.
+     */
+    val startErrorFromThrow = remember { mutableStateOf<String?>(null) }
+
+    /**
      * Why the guest is not running, when it is not.
      *
      * A message rather than a silent plain shell: a terminal that opens
@@ -176,7 +187,16 @@ fun EnginePaneHost(
         pane.setCustomFont(bytes)
     }
 
-    LaunchedEffect(pane) {
+    /**
+     * The guest command, and the view configured to start it.
+     *
+     * Everything that can fail before the spawn is in one place, so the caller
+     * can guard the whole of it: a font that cannot be loaded, a rootfs that
+     * is not installed, a command whose builder throws.
+     *
+     * Null when there is nothing to start; [statusMessage] then says why.
+     */
+    suspend fun startSession(): GuestCommand? {
         // The configuration first: the cursor's fallback is fixed when the
         // session starts, and the cell the grid is laid out around is the one
         // the size asks for.
@@ -187,16 +207,31 @@ fun EnginePaneHost(
         // main thread. A composable's LaunchedEffect runs on the main
         // dispatcher, and doing this work there is what made the terminal
         // screen appear to hang on its first frame.
-        val command = withContext(Dispatchers.IO) {
+        return withContext(Dispatchers.IO) {
             val guest = terminalManager.guestCommand()
             if (guest == null) {
                 // No guest, or no runtime: say which, on the screen, rather
                 // than opening a plain shell the user did not ask for and
                 // cannot tell from a broken terminal.
                 statusMessage.value = terminalManager.guestUnavailableReason()
-                return@withContext null
             }
             guest
+        }
+    }
+
+    LaunchedEffect(pane) {
+        // The whole start path is guarded, not just the spawn: the
+        // configuration call and the command builder touch the engine and the
+        // disk too, and an exception from either would kill this effect with
+        // nothing on the screen to say so.
+        val command = try {
+            startSession()
+        } catch (error: Throwable) {
+            Log.e(TAG, "the session could not be prepared", error)
+            startErrorFromThrow.value =
+                "${error.javaClass.simpleName}: ${error.message ?: "no message"}"
+            startFailed.value = true
+            null
         } ?: return@LaunchedEffect
         // Starting the session forks the guest and execs the launcher — with
         // chroot-ng that is a process spawn plus a pile of binds, and on the
@@ -210,12 +245,25 @@ fun EnginePaneHost(
                 "\n  cwd=${command.cwd}" +
                 "\n  env=${command.environment.joinToString(" ")}",
         )
-        val started = withContext(Dispatchers.IO) { pane.start(command) }
+        val started = withContext(Dispatchers.IO) {
+            try {
+                pane.start(command)
+            } catch (error: Throwable) {
+                // A JNI failure — the core library missing, its static
+                // initialiser failing, a signature that no longer matches —
+                // throws instead of returning false, and an escaping throw
+                // from a LaunchedEffect kills the effect silently: no start,
+                // no error, no grid, a black screen. It is caught here and
+                // said out loud like any other refusal.
+                Log.e(TAG, "the engine threw while starting", error)
+                startErrorFromThrow.value =
+                    "${error.javaClass.simpleName}: ${error.message ?: "no message"}"
+                false
+            }
+        }
         if (!started) {
-            Log.w(
-                TAG,
-                "the engine refused the session: ${pane.view.startError ?: "no reason given by the engine"}",
-            )
+            val reason = pane.view.startError ?: startErrorFromThrow.value
+            Log.w(TAG, "the engine refused the session: ${reason ?: "no reason given"}")
             startFailed.value = true
             return@LaunchedEffect
         }
@@ -458,12 +506,14 @@ fun EnginePaneHost(
      */
     val problem: String? = statusMessage.value
         ?: startError?.let { stringResource(R.string.terminal_engine_unavailable, it) }
-        ?: if (startFailed.value) {
-            // The pane could not start and has no reason of its own to give.
-            // The one reason left that the *host* can see is the identity: a
-            // pane with no session id cannot be recorded, cannot be restored,
-            // and cannot be found again by anything in the app.
-            pane.persistentId.ifEmpty { "the pane has no session id" }
+        ?: startErrorFromThrow.value?.let {
+            stringResource(R.string.terminal_engine_unavailable, it)
+        } ?: if (startFailed.value) {
+            // The pane could not start and the engine gave no reason. The one
+            // thing the host can still check is the guest command itself: a
+            // session is never started without one, so "nothing was asked to
+            // run" is a real answer rather than a shrug.
+            "the session was refused and the engine gave no reason"
         } else {
             sessionExit.value?.let { stringResource(R.string.terminal_engine_session_exited, it) }
         }
