@@ -164,6 +164,43 @@ class BlockEngineWire(
         pendingEcho = null
     }
 
+    /**
+     * Engine-backed session text change.
+     *
+     * Mirrors the Termux path but reads the transcript from the Rust engine
+     * instead of the Termux emulator's screen. The diff logic is the same;
+     * only the transcript source differs.
+     */
+    fun onEngineSessionTextChanged(session: EngineSession, sessionId: String?) {
+        if (sessionId != activeSessionId) return
+        val current = session.transcript().joinToString("\n")
+        if (current.isEmpty()) {
+            previousTranscript = ""
+            return
+        }
+
+        val appended = if (previousTranscript.isEmpty()) {
+            current
+        } else {
+            val anchor = findRollingAnchor(previousTranscript, current)
+                ?: return resetAnchor(current)
+            val idx = current.lastIndexOf(anchor)
+            if (idx < 0) return resetAnchor(current)
+            current.substring(idx + anchor.length)
+        }
+        previousTranscript = current
+
+        val lines = appended.split('\n')
+        val nonEmpty = lines
+            .map { it.trimEnd('\r') }
+            .filter { it.isNotEmpty() || lines.size == 1 }
+        if (nonEmpty.isEmpty()) return
+
+        if (nonEmpty.size == 1) return
+
+        blockRepository.onBootOutput(nonEmpty.joinToString("\n"))
+    }
+
     fun onCommandSubmitted(command: String) {
         pendingEcho = command
         if (command.trim() == "clear") pendingEchoWasClear = true
