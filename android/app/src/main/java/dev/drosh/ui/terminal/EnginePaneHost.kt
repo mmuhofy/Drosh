@@ -135,6 +135,18 @@ fun EnginePaneHost(
     val startFailed = remember { mutableStateOf(false) }
 
     /**
+     * How far the start got, as one line of text.
+     *
+     * The log is the first place to look for a session that never appeared,
+     * and on a device where the log cannot be read there is no first place at
+     * all. So the host keeps the same fact where the screen can show it: the
+     * step it reached, and what the step said. A blank terminal then says
+     * "preparing", "starting the session", "start returned false" — each one a
+     * different bug.
+     */
+    val step = remember { mutableStateOf("waiting") }
+
+    /**
      * The reason a start *threw*, when it threw rather than refusing.
      *
      * The engine's own start returns false and leaves a reason in its view;
@@ -221,6 +233,11 @@ fun EnginePaneHost(
     }
 
     LaunchedEffect(pane) {
+        // The start step, as the screen can read it. Every branch below writes
+        // here *and* to the log: a device whose log is unreachable still shows
+        // which step the session reached, and that is the difference between a
+        // blank terminal and a diagnosed one.
+        step.value = "preparing"
         // The configuration, the command and the spawn all happen once.
         //
         // They must not depend on anything that changes while the terminal is
@@ -238,11 +255,16 @@ fun EnginePaneHost(
             startSession()
         } catch (error: Throwable) {
             Log.e(TAG, "the session could not be prepared", error)
+            step.value = "prepare threw ${error.javaClass.simpleName}: ${error.message}"
             startErrorFromThrow.value =
                 "${error.javaClass.simpleName}: ${error.message ?: "no message"}"
             startFailed.value = true
             null
-        } ?: return@LaunchedEffect
+        } ?: run {
+            step.value = "no command to run: ${statusMessage.value ?: "the guest is not installed"}"
+            return@LaunchedEffect
+        }
+        step.value = "command built: " + command.executable.substringAfterLast('/')
         // Starting the session forks the guest and execs the launcher — with
         // chroot-ng that is a process spawn plus a pile of binds, and on the
         // main thread it is a freeze the system reports as an ANR.
@@ -255,6 +277,8 @@ fun EnginePaneHost(
                 "\n  cwd=${command.cwd}" +
                 "\n  env=${command.environment.joinToString(" ")}",
         )
+        step.value = "starting the session"
+        val startAt = System.currentTimeMillis()
         val started = withContext(Dispatchers.IO) {
             try {
                 pane.start(command)
@@ -266,14 +290,18 @@ fun EnginePaneHost(
                 // no error, no grid, a black screen. It is caught here and
                 // said out loud like any other refusal.
                 Log.e(TAG, "the engine threw while starting", error)
+                step.value = "start threw " + error.javaClass.simpleName + ": " + error.message
                 startErrorFromThrow.value =
                     "${error.javaClass.simpleName}: ${error.message ?: "no message"}"
                 false
             }
         }
+        step.value = "start returned $started after " +
+            (System.currentTimeMillis() - startAt) + " ms"
         if (!started) {
             val reason = pane.view.startError ?: startErrorFromThrow.value
             Log.w(TAG, "the engine refused the session: ${reason ?: "no reason given"}")
+            step.value = "refused: " + (reason ?: "no reason given")
             startFailed.value = true
             return@LaunchedEffect
         }
@@ -606,10 +634,11 @@ fun EnginePaneHost(
         } else if (snapshot != null && !drewSomething) {
             // The host is on screen and the engine has not put a pixel on it.
             // That is not a failure the engine reports — it draws an empty
-            // grid without complaint — so the numbers behind it are named
-            // here: a zero grid means the session was never laid out, a
-            // non-zero grid with no frames means the surface never rendered,
-            // and a zero height means there is nothing to draw into.
+            // grid without complaint — so the step it reached, the size it
+            // was given and the numbers behind it are all named here: a zero
+            // grid means the session was never laid out, a non-zero grid with
+            // no frames means the surface never rendered, and a step that never
+            // reached "start returned" means the call itself did not come back.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -617,7 +646,8 @@ fun EnginePaneHost(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "the engine is not drawing\nheight ${paneHeightPx.value}px\n$engineReport",
+                    text = "the engine is not drawing\nheight ${paneHeightPx.value}px\n" +
+                        "step: ${step.value}\n$engineReport",
                     color = DroshTextSecondary,
                     fontFamily = LocalFontSet.current.sans,
                     fontSize = 12.sp,
