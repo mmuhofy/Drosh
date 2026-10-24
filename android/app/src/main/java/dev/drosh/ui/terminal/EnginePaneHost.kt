@@ -36,6 +36,7 @@ import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.R
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -220,10 +221,19 @@ fun EnginePaneHost(
     }
 
     LaunchedEffect(pane) {
-        // The whole start path is guarded, not just the spawn: the
-        // configuration call and the command builder touch the engine and the
-        // disk too, and an exception from either would kill this effect with
-        // nothing on the screen to say so.
+        // The configuration, the command and the spawn all happen once.
+        //
+        // They must not depend on anything that changes while the terminal is
+        // open — the font size is the obvious one, and it moved with the
+        // keyboard: every inset change recomposed this effect, `pane.start`
+        // was called a second time on a pane that was already running, the
+        // start was refused, and the terminal went from drawing to reporting a
+        // refusal. Each of the three has its own effect below, keyed on the
+        // value it actually uses.
+        //
+        // The whole start path is guarded, not just the spawn: an exception
+        // from any of it would kill this effect with nothing on the screen to
+        // say so.
         val command = try {
             startSession()
         } catch (error: Throwable) {
@@ -407,6 +417,32 @@ fun EnginePaneHost(
     val paneHeightPx = remember { mutableStateOf(0) }
 
     /**
+     * What the engine reports about itself, refreshed a second after the start.
+     *
+     * The three numbers are read from the engine's own state, and the state is
+     * written by the session — so reading it once, at the moment this pane was
+     * first composed, read it before there was anything to read. The report
+     * that said "grid 0x0, frames 0" was true when it was built and false a
+     * moment later, and showing it is how a working terminal looked like a
+     * broken one.
+     */
+    var engineSnapshot by remember { mutableStateOf<EngineSnapshot?>(null) }
+    LaunchedEffect(pane) {
+        repeat(ENGINE_SNAPSHOT_POLLS) {
+            delay(ENGINE_SNAPSHOT_INTERVAL_MS)
+            engineSnapshot = EngineSnapshot(
+                frames = pane.view.displayedFrameCount,
+                refused = pane.view.refusedFrameCount,
+                columns = pane.session.columns,
+                rows = pane.session.rows,
+                cellWidth = pane.view.cellWidthPx,
+                cellHeight = pane.view.cellHeightPx,
+                gl = pane.view.glVersion,
+            )
+        }
+    }
+
+    /**
      * What the engine actually did, as numbers.
      *
      * A terminal that is on screen and draws nothing is indistinguishable from
@@ -416,30 +452,14 @@ fun EnginePaneHost(
      * disagreed, and how many cells the session holds — and reports them
      * rather than leaving "nothing drew" as an unexplained symptom.
      */
-    val drawnFrames = pane.view.displayedFrameCount
-    val refusedFrames = pane.view.refusedFrameCount
-    val gridColumns = pane.session.columns
-    val gridRows = pane.session.rows
-
-    /**
-     * The session is alive, has a grid, and has drawn at least one frame.
-     *
-     * This is the whole question the user's blank screen asks, answered from
-     * the engine instead of from the app's assumptions.
-     */
-    val drewSomething = drawnFrames > 0
+    val snapshot = engineSnapshot
+    val drewSomething = (snapshot?.frames ?: 0) > 0
 
     /** Where a report of the engine's own state goes, so the screen can show it. */
-    val engineReport = buildString {
-        append("frames ").append(drawnFrames)
-        append(", refused ").append(refusedFrames)
-        append(", grid ").append(gridColumns).append('x').append(gridRows)
-        append(", cell ").append(pane.view.cellWidthPx).append('x').append(pane.view.cellHeightPx)
-        append(", gl ").append(pane.view.glVersion)
-    }
-    LaunchedEffect(engineReport) {
-        Log.i(TAG, "engine: $engineReport")
-    }
+    val engineReport = snapshot?.let {
+        "frames ${it.frames}, refused ${it.refused}, grid ${it.columns}x${it.rows}, " +
+            "cell ${it.cellWidth}x${it.cellHeight}, gl ${it.gl}"
+    }.orEmpty()
 
     /**
      * The pane goes away with the composition.
@@ -583,7 +603,7 @@ fun EnginePaneHost(
                     modifier = Modifier.padding(24.dp),
                 )
             }
-        } else if (!drewSomething) {
+        } else if (snapshot != null && !drewSomething) {
             // The host is on screen and the engine has not put a pixel on it.
             // That is not a failure the engine reports — it draws an empty
             // grid without complaint — so the numbers behind it are named
@@ -608,6 +628,27 @@ fun EnginePaneHost(
         }
     }
 }
+
+/**
+ * The engine's own account of a pane, read at one moment.
+ *
+ * A value rather than six public properties on the view: the report is only
+ * meaningful read together, and a report assembled from six reads at six
+ * different moments can say "grid 0x0, frames 40", which never happened.
+ */
+private data class EngineSnapshot(
+    val frames: Int,
+    val refused: Int,
+    val columns: Int,
+    val rows: Int,
+    val cellWidth: Int,
+    val cellHeight: Int,
+    val gl: String,
+)
+
+/** How often the engine's report is taken after a start. */
+private const val ENGINE_SNAPSHOT_POLLS = 20
+private const val ENGINE_SNAPSHOT_INTERVAL_MS = 150L
 
 private const val TAG = "EnginePaneHost"
 
