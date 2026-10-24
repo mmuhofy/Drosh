@@ -141,7 +141,6 @@ class BlockEngineWire(
      */
     fun onSessionChanged(
         sessionId: String?,
-        session: TerminalSession? = null,
         shellState: ShellStateSource? = null,
     ) {
         // The source belongs to the session, so it is bound before the early

@@ -854,11 +854,10 @@ class TerminalManager(
      */
     private fun onBlockSessionChanged(
         sessionId: String?,
-        session: TerminalSession?,
         shellState: ShellStateSource? = null,
     ) {
         if (!blockEngineEnabled) return
-        blockEngineWire?.onSessionChanged(sessionId, session, shellState)
+        blockEngineWire?.onSessionChanged(sessionId, shellState)
     }
 
     fun updateProotStartCommand(command: String) {
@@ -984,7 +983,7 @@ class TerminalManager(
         // The block engine reads the shell's state from the engine's marks
         // when the session runs on the engine; a vendored session has no
         // marks to read and the wire keeps inferring from the screen.
-        onBlockSessionChanged(null, null, EngineShellStateSource(pane.session))
+        onBlockSessionChanged(null, EngineShellStateSource(pane.session))
         publishAltBufferState()
         publishActiveId()
         pane.notifyFocus(true)
@@ -1437,28 +1436,36 @@ class TerminalManager(
     fun addSshSession(
         persistentId: String,
         name: String,
-        terminalSession: TerminalSession,
-    ): TerminalSession {
-        val irisSession = DroshSession(
-            terminalSession = terminalSession,
-            persistentId = persistentId,
-            name = name,
-        )
-        sessions.add(irisSession)
-        val newIndex = sessions.size - 1
-        idToIndex[persistentId] = newIndex
-        paneTabIndices[focusedPane.value] = newIndex
-        // A brand new session has no scrollback and has not been touched, which
-        // is exactly the state the chrome treats as "first screen".
-        _sessionCount.value = sessions.size
+        pane: EnginePane,
+    ): EngineSession {
+        pane.bindIdentity(persistentId, name)
+
+        val existing = engineSessions.find { it.persistentId == persistentId }
+        if (existing == null) {
+            engineSessions.add(
+                EngineDroshSession(
+                    enginePane = pane,
+                    persistentId = persistentId,
+                    name = name,
+                )
+            )
+        } else {
+            existing.enginePane = pane
+            existing.name = name
+        }
+
+        registerEnginePane(focusedPane.value, pane, persistentId, name)
+
+        onBlockSessionChanged(persistentId, EngineShellStateSource(pane.session))
+
+        _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()
         _noSessionsLeft.value = false
-        onBlockSessionChanged(persistentId, irisSession.terminalSession)
-        // Termux view removed.
+
         syncActiveTabIndex()
         publishAltBufferState()
         publishActiveId()
-        return irisSession.terminalSession
+        return pane.session
     }
 
     /**
