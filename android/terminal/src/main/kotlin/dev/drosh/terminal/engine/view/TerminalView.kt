@@ -277,6 +277,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
         cwd: String? = null,
     ): Boolean {
         session.configure(program, args, env, cwd)
+        startError = null
         return restart()
     }
 
@@ -284,6 +285,12 @@ class TerminalView(context: Context) : FrameLayout(context) {
     fun restart(): Boolean {
         if (!fontLoaded) {
             Log.e(TAG, "restart refused: ${startError ?: "the font failed to load"}")
+            // Said out loud rather than left in the log: [startError] is what
+            // the host shows, and a refusal that leaves it null is a blank
+            // terminal with no reason on it.
+            if (startError == null) {
+                startError = "the font stack could not be started"
+            }
             return false
         }
         exited = false
@@ -301,6 +308,10 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
         if (result != NativeCore.OK) {
             Log.e(TAG, "nativeCreateSession returned $result")
+            // The code is the engine's own: a missing program, no more
+            // descriptors, too many sessions. It is the only thing that says
+            // which, and the host has nowhere else to learn it.
+            startError = "the session could not be started (engine error $result)"
             return false
         }
 
@@ -559,7 +570,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
      * the host is told, in words, what is missing.
      */
     var startError: String? = null
-        private set
+        internal set
 
     /**
      * Use a font of the host's choosing, instead of the bundled one.
