@@ -327,6 +327,41 @@ fun EnginePaneHost(
     val paneHeightPx = remember { mutableStateOf(0) }
 
     /**
+     * What the engine actually did, as numbers.
+     *
+     * A terminal that is on screen and draws nothing is indistinguishable from
+     * one that was never built, and both look exactly like an empty screen. So
+     * the pane counts the three things that decide it — the frames the
+     * renderer drew, the frames it refused because its grid and the session
+     * disagreed, and how many cells the session holds — and reports them
+     * rather than leaving "nothing drew" as an unexplained symptom.
+     */
+    val drawnFrames = pane.view.displayedFrameCount
+    val refusedFrames = pane.view.refusedFrameCount
+    val gridColumns = pane.session.columns
+    val gridRows = pane.session.rows
+
+    /**
+     * The session is alive, has a grid, and has drawn at least one frame.
+     *
+     * This is the whole question the user's blank screen asks, answered from
+     * the engine instead of from the app's assumptions.
+     */
+    val drewSomething = drawnFrames > 0
+
+    /** Where a report of the engine's own state goes, so the screen can show it. */
+    val engineReport = buildString {
+        append("frames ").append(drawnFrames)
+        append(", refused ").append(refusedFrames)
+        append(", grid ").append(gridColumns).append('x').append(gridRows)
+        append(", cell ").append(pane.view.cellWidthPx).append('x').append(pane.view.cellHeightPx)
+        append(", gl ").append(pane.view.glVersion)
+    }
+    LaunchedEffect(engineReport) {
+        Log.i(TAG, "engine: $engineReport")
+    }
+
+    /**
      * The pane goes away with the composition.
      *
      * The manager is told first — it is the one that publishes the focus and
@@ -462,10 +497,13 @@ fun EnginePaneHost(
                     modifier = Modifier.padding(24.dp),
                 )
             }
-        } else if (paneHeightPx.value == 0) {
-            // The host is on screen with no height. Nothing can be drawn in a
-            // surface of zero pixels, and nothing reports it, so the reason is
-            // named here instead of leaving a blank rectangle.
+        } else if (!drewSomething) {
+            // The host is on screen and the engine has not put a pixel on it.
+            // That is not a failure the engine reports — it draws an empty
+            // grid without complaint — so the numbers behind it are named
+            // here: a zero grid means the session was never laid out, a
+            // non-zero grid with no frames means the surface never rendered,
+            // and a zero height means there is nothing to draw into.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -473,10 +511,10 @@ fun EnginePaneHost(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "the terminal has no height to draw in",
+                    text = "the engine is not drawing\nheight ${paneHeightPx.value}px\n$engineReport",
                     color = DroshTextSecondary,
                     fontFamily = LocalFontSet.current.sans,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(24.dp),
                 )

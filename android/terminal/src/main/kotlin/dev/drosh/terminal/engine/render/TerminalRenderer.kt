@@ -41,6 +41,13 @@ internal class TerminalRenderer(
     private val selection: Selection,
     /** Frame timings for the acceptance numbers. */
     private val stats: FrameStats,
+    /**
+     * Called once a frame that actually drew is done, and once more when a
+     * frame was refused. The host counts them: a renderer that draws nothing
+     * is otherwise invisible from outside, and a blank terminal with no
+     * number behind it is the hardest kind of bug to read.
+     */
+    private val onFrame: (drawn: Boolean) -> Unit = {},
 ) : GLSurfaceView.Renderer {
 
     /**
@@ -224,12 +231,17 @@ internal class TerminalRenderer(
         GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
-        val cells = session.cells ?: return
+        val cells = session.cells
         // Wait for the activity's resize to land before drawing a stale grid.
-        if (backgroundProgram == 0 || foregroundProgram == 0) {
+        // Every one of these is a frame that was asked for and not drawn, so
+        // it is counted: "the surface rendered fourteen frames and refused
+        // four hundred" says where the terminal went, and silence does not.
+        if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
+            onFrame(false)
             return
         }
         if (session.columns != columns || session.rows != rows) {
+            onFrame(false)
             return
         }
 
@@ -278,6 +290,7 @@ internal class TerminalRenderer(
             System.nanoTime(),
             records.foregroundCount,
         )
+        onFrame(true)
     }
 
     /**

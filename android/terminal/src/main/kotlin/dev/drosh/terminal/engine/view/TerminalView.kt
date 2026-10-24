@@ -107,6 +107,36 @@ class TerminalView(context: Context) : FrameLayout(context) {
     private val stats = FrameStats()
 
     /**
+     * How many frames the renderer has drawn.
+     *
+     * Zero after a surface change means the surface never rendered at all —
+     * a blank terminal with nothing to report, which is the hardest kind of
+     * blank terminal to read. Read from the UI thread; the renderer writes it
+     * from the GL thread and a stale number is still a true one.
+     */
+    @Volatile
+    var displayedFrameCount: Int = 0
+        internal set
+
+    /** Frames the renderer refused to draw because its grid and the session disagreed. */
+    @Volatile
+    var refusedFrameCount: Int = 0
+        internal set
+
+    /**
+     * The cell geometry the engine is drawing cells at, in pixels.
+     *
+     * Zero before the font has been measured: [metrics] is late-initialised,
+     * and a host that asked for it too early would take the view down with an
+     * uninitialised-property error for the sake of a log line.
+     */
+    val cellWidthPx: Int get() = if (::metrics.isInitialized) metrics.width.toInt() else 0
+    val cellHeightPx: Int get() = if (::metrics.isInitialized) metrics.height.toInt() else 0
+
+    /** The GL version the surface reported, or "none" before it has one. */
+    val glVersion: String get() = renderer?.glVersion ?: "none"
+
+    /**
      * The frame pump: the engine's wakeup flag is polled once per vsync instead
      * of on a timer, so output reaches the screen on the next refresh.
      */
@@ -152,7 +182,12 @@ class TerminalView(context: Context) : FrameLayout(context) {
             FontSize(fontPx, metrics),
             selectionOverlay.selection,
             stats,
-        )
+        ) { drawn ->
+            // Written from the GL thread and read from the UI thread: both
+            // counters only ever grow, so a reader sees a true number either
+            // way.
+            if (drawn) displayedFrameCount += 1 else refusedFrameCount += 1
+        }
         created.onGridChanged = { columns, rows, size ->
             // The renderer reports from the GL thread; the session is only ever
             // touched from the UI thread. The size travels with the grid: the
