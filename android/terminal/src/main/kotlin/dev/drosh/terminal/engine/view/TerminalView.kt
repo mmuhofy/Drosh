@@ -299,12 +299,27 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
         val columns = gridColumns()
         val rows = gridRows()
+        // The start, in full, before it is attempted: the size the grid was
+        // laid out for, the size the view actually has, and when the call was
+        // made. A session that never appears is then a timestamp that has no
+        // matching "started" line, rather than a blank terminal with nothing
+        // to read.
+        Log.i(
+            TAG,
+            "start: grid ${columns}x$rows, view ${width}x$height, " +
+                "cell ${metrics.width.toInt()}x${metrics.height.toInt()}px",
+        )
+        val startedAt = System.nanoTime()
         val result = try {
             session.start(columns, rows, metrics.width.toInt(), metrics.height.toInt())
         } catch (error: Throwable) {
             Log.e(TAG, "native setup failed", error)
             -1
         }
+        Log.i(
+            TAG,
+            "start returned $result after ${(System.nanoTime() - startedAt) / 1_000_000} ms",
+        )
 
         if (result != NativeCore.OK) {
             Log.e(TAG, "nativeCreateSession returned $result")
@@ -327,10 +342,36 @@ class TerminalView(context: Context) : FrameLayout(context) {
     }
 
     private fun gridColumns(): Int =
-        if (width == 0 || metrics.width <= 0f) 80 else (width / metrics.width).toInt().coerceAtLeast(2)
+        if (width == 0 || metrics.width <= 0f) fallbackColumns() else (width / metrics.width).toInt().coerceAtLeast(2)
 
     private fun gridRows(): Int =
-        if (height == 0 || metrics.height <= 0f) 24 else (height / metrics.height).toInt().coerceAtLeast(1)
+        if (height == 0 || metrics.height <= 0f) fallbackRows() else (height / metrics.height).toInt().coerceAtLeast(1)
+
+    /**
+     * The grid when the view has not been laid out yet.
+     *
+     * The engine's window size is fixed at the moment a session is created —
+     * the terminal is told how many columns and rows it has before the child
+     * program runs — so a session started before the first measure would be
+     * locked to a grid that has nothing to do with the phone. The screen's own
+     * metrics are the honest answer at that point: they are what the view is
+     * about to be laid out into.
+     *
+     * This is the same rule the engine's own lab uses, and the difference it
+     * makes is the difference between a session with a size and one that is
+     * waiting for a view that may never be measured.
+     */
+    private fun fallbackColumns(): Int {
+        val screen = resources.displayMetrics.widthPixels
+        if (screen <= 0 || metrics.width <= 0f) return FALLBACK_COLUMNS
+        return (screen / metrics.width).toInt().coerceAtLeast(2)
+    }
+
+    private fun fallbackRows(): Int {
+        val screen = resources.displayMetrics.heightPixels
+        if (screen <= 0 || metrics.height <= 0f) return FALLBACK_ROWS
+        return (screen / metrics.height).toInt().coerceAtLeast(1)
+    }
 
     // --- host-facing helpers ----------------------------------------------
 
@@ -799,5 +840,15 @@ class TerminalView(context: Context) : FrameLayout(context) {
         /** Focus reporting (`?1004`), as alacritty's `on_focus_change` sends it. */
         val FOCUS_IN = "\u001b[I".toByteArray(Charsets.US_ASCII)
         val FOCUS_OUT = "\u001b[O".toByteArray(Charsets.US_ASCII)
+
+        /**
+         * The grid a session opens at when the view has not been measured.
+         *
+         * Only reached on a device whose display metrics are unusable, which
+         * is not a real screen: 80x24 is the classic terminal, and it is a
+         * size the engine can draw rather than a size of zero.
+         */
+        const val FALLBACK_COLUMNS = 80
+        const val FALLBACK_ROWS = 24
     }
 }
