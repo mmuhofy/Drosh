@@ -426,11 +426,11 @@ fun EnginePaneHost(
      * moment later, and showing it is how a working terminal looked like a
      * broken one.
      */
-    var engineSnapshot by remember { mutableStateOf<EngineSnapshot?>(null) }
+    val engineSnapshot = remember { mutableStateOf<EngineSnapshot?>(null) }
     LaunchedEffect(pane) {
         repeat(ENGINE_SNAPSHOT_POLLS) {
             delay(ENGINE_SNAPSHOT_INTERVAL_MS)
-            engineSnapshot = EngineSnapshot(
+            engineSnapshot.value = EngineSnapshot(
                 frames = pane.view.displayedFrameCount,
                 refused = pane.view.refusedFrameCount,
                 columns = pane.session.columns,
@@ -452,7 +452,7 @@ fun EnginePaneHost(
      * disagreed, and how many cells the session holds — and reports them
      * rather than leaving "nothing drew" as an unexplained symptom.
      */
-    val snapshot = engineSnapshot
+    val snapshot = engineSnapshot.value
     val drewSomething = (snapshot?.frames ?: 0) > 0
 
     /** Where a report of the engine's own state goes, so the screen can show it. */
