@@ -252,7 +252,7 @@ class TerminalViewModel @Inject constructor(
 /**
  * The palette as the terminal's colour channel speaks it.
  *
- * Keys are the ones [com.termux.terminal.TerminalColorScheme.updateWith]
+ * Keys are the ones the palette table defines:
  * reads: the three outside the ANSI range, the selection pair, and the
  * sixteen indexed colours. A theme is twenty-two colours and this is
  * where all twenty-two land — the accent no longer borrows the cyan slot,

@@ -11,7 +11,7 @@ private const val TAB_WIDTH = "    "
  * ## Why there are two kinds
  *
  * The app is between two terminals. The vendored Termux emulator keeps a
- * scrollback in a [com.termux.terminal.TerminalBuffer]; the Rust engine keeps
+ * scrollback of its own; the Rust engine keeps
  * a bounded copy of what the session printed and hands it over through JNI
  * ([EngineSession.transcript]). Both can answer "what did this session
  * print?", so the log sheet asks that one question of whichever terminal owns

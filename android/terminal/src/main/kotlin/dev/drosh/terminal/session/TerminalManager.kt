@@ -38,7 +38,6 @@ import dev.drosh.linux.GuestSpec
 import dev.drosh.linux.ProotRunner
 import dev.drosh.linux.UbuntuBootstrap
 import dev.drosh.linux.UbuntuSetupState
-import com.termux.terminal.TerminalSession
 import dev.drosh.terminal.session.input.EngineTerminalWriter
 import dev.drosh.terminal.session.input.TerminalWriter
 // TermuxTerminalWriter removed — engine is the only terminal.
@@ -55,13 +54,9 @@ import java.util.concurrent.TimeUnit
  * Adapted for Drosh — dev.drosh
  *
  * Key improvements over the prior implementation:
- *  - [DroshSession] wrapper bundles TerminalSession + persistentId + name + pid,
- *    replacing the fragile 4-parallel-structure design (_sessions + _tabNames
- *    + _idToIndex + _indexToId) that could desync.
- *  - [onSessionFinished] now cleans up id mappings (like [closeTab] does) and
- *    notifies [SessionLifecycleCallbacks] so the data layer can sync Room.
- *  - PID tracking is wired through [TerminalSessionClientImpl.setTerminalShellPid],
- *    following Termux's TerminalSessionClient callback pattern.
+ *  - Every session is an engine-backed pane, tracked by [EngineDroshSession].
+ *  - Exit is reported through [onEngineSessionExited], which notifies
+ *    [SessionLifecycleCallbacks] so the data layer can sync Room.
  */
 class TerminalManager(
     private val ubuntuBootstrap: UbuntuBootstrap,
@@ -78,24 +73,14 @@ class TerminalManager(
     // build a split from a chosen pair. Those two operations are the whole
     // surface; everything else about the layout stays in :domain.
     private val appContext: Context = application.applicationContext
-    /**
-     * Single source of truth for session storage. Each [DroshSession] bundles
-     * the live [TerminalSession] with its persistent id, display name, and
-     * shell pid — eliminating the prior risk of _sessions / _tabNames /
-     * _idToIndex / _indexToId falling out of sync.
-     */
-    private val sessions: MutableList<DroshSession> = mutableListOf()
 
     /**
-     * Engine-backed sessions, tracked alongside the Termux ones while the
-     * migration is in progress. Each entry wraps an [EnginePane] with its
-     * persistent id and display name, mirroring [DroshSession] for the Rust
-     * path.
+     * The sessions the app knows about, by persistent id.
      *
-     * Phase 1 of the TerminalManager → Rust migration: the engine panes are
-     * still registered separately (see [enginePanes]), but their identity is
-     * now tracked here so the sidebar and the session reconciliation can
-     * see them.
+     * Each entry wraps an [EnginePane] with its persistent id and display
+     * name. The pane itself is registered in [enginePanes] once the UI has
+     * built it; this list is what the sidebar and the session reconciliation
+     * read, so a session exists here from the moment its row is created.
      */
     private val engineSessions: MutableList<EngineDroshSession> = mutableListOf()
     private val _sessionCount = MutableStateFlow(0)
@@ -103,7 +88,7 @@ class TerminalManager(
 
     /**
      * Reverse map: persistent session id (UUID, stored in Room) →
-     * positional index into [sessions]. Inspired by ReTerminal's
+     * positional index into [engineSessions]. Inspired by ReTerminal's
      * SessionService id-keyed HashMap (github.com/RohitKushvaha01/ReTerminal,
      * file core/main/src/main/java/com/rk/terminal/service/SessionService.kt).
      */
@@ -123,12 +108,13 @@ class TerminalManager(
     private fun publishActiveId() {
         onActiveSessionChanged?.invoke(activePersistentId())
         // Command marks are per session, so the flow follows whichever pane has
-        // focus — that is the one a keystroke is going to.
-        val focusedSession = focusedSession()
-        commandState.bind(focusedSession)
+        // focus — that is the one a keystroke is going to. The engine's session
+        // is the only kind there is now.
+        val focusedEngineSession = enginePanes[focusedPane.value]?.session
+        commandState.bind(focusedEngineSession)
         // Same reasoning: `dedit` is a command, so it belongs to the session that
         // ran it — the focused one — not to whichever tab happens to be showing.
-        editorRequests.bind(focusedSession)
+        editorRequests.bind(focusedEngineSession)
     }
 
     /**
@@ -140,8 +126,6 @@ class TerminalManager(
      * pane has the focus — they would otherwise follow a session that is on
      * no screen.
      */
-    private fun focusedSession(): TerminalSession? = null
-
     /**
      * How much the running command is actually producing output.
      *
@@ -229,7 +213,7 @@ class TerminalManager(
      *
      * The split layout stores a session id, and that session can end while the
      * app runs. The UI needs to watch the live set to drop a pane whose session
-     * has gone, and it cannot see [sessions] — only the ids that made it
+     * has gone, and it cannot see [engineSessions] — only the ids that made it
      * into Room belong in the public surface.
      */
     private val _liveSessionIds = MutableStateFlow<Set<String>>(emptySet())
@@ -258,21 +242,15 @@ class TerminalManager(
      * of the app's kind, and pointing a keystroke at a session that is on no
      * screen would be worse than pointing it at nothing.
      */
-    val currentSession: TerminalSession?
-        get() = null
-
     /** Display names of all tabs, in positional order. */
     val tabNames: List<String>
         get() = engineSessions.map { it.name }
 
-    // Termux session client — kept for compilation, not used by engine path.
-    // Termux session client removed — engine panes own their sessions now.
-
     /**
      * Callback for session lifecycle events (finish, pid change).
-     * Set by the data layer (SessionManagerAdapter) so Room stays
-     * in sync with PTY state — inspired by Termux's TerminalSessionClient
-     * callback flow (github.com/termux/termux-app).
+     *
+     * Set by the data layer (SessionManagerAdapter) so Room stays in sync with
+     * the live sessions.
      */
     var lifecycleCallbacks: SessionLifecycleCallbacks? = null
 
@@ -458,13 +436,6 @@ class TerminalManager(
      * maintained by `attachSession`, so a second copy could only ever disagree
      * with it.
      */
-    fun paneForSession(session: TerminalSession?): PaneSlot? = null
-
-    /** Redraws every pane that is showing [session]. */
-    private fun redrawPanesShowing(session: TerminalSession) {
-        // Termux view redraw removed — engine panes handle their own rendering.
-    }
-
     /**
      * Points [slot] at [sessionId].
      *
@@ -500,9 +471,8 @@ class TerminalManager(
     override fun primarySessionId(): String? = sessionIdForSlot(PaneSlot.PRIMARY)
 
     /** The session id shown in [slot], or null when the pane is empty. */
-    fun sessionIdForSlot(slot: PaneSlot): String? = sessions
-        .getOrNull(paneTabIndices[slot] ?: NO_PANE_SESSION)
-        ?.persistentId
+    fun sessionIdForSlot(slot: PaneSlot): String? =
+        enginePanes[slot]?.persistentId?.ifEmpty { null }
 
     /**
      * Exchanges the two panes' sessions.
@@ -549,13 +519,10 @@ class TerminalManager(
      */
     override fun promoteSecondaryToPrimary(): Boolean = false
 
-    /** The session shown in [slot], or null when the pane is empty. */
-    fun sessionForSlot(slot: PaneSlot): TerminalSession? = null
-
     /**
      * Re-attaches whichever pane holds [index] to its current session.
      *
-     * Called after a session's [TerminalSession] is replaced — a restart, or a
+     * Called after a session's engine session is replaced — a restart, or a
      * fallback shell being swapped in — because a view keeps its reference to
      * the dead session until something tells it otherwise. Matching on the
      * index rather than on the focused pane is what lets both panes recover
@@ -581,7 +548,7 @@ class TerminalManager(
     /** Keeps [_activeTabIndex] pointing at the focused pane's session. */
     private fun syncActiveTabIndex() {
         val index = paneTabIndices[focusedPane.value] ?: NO_PANE_SESSION
-        _activeTabIndex.value = index.coerceIn(0, (sessions.size - 1).coerceAtLeast(0))
+        _activeTabIndex.value = index.coerceIn(0, (engineSessions.size - 1).coerceAtLeast(0))
     }
 
     /** Recomputes the per-pane alt-buffer flags from the live sessions. */
@@ -894,7 +861,7 @@ class TerminalManager(
      * Registers [view] as the terminal view for [slot].
      *
      * Every pane gets its own view rather than sharing one: a View holds a
-     * single [TerminalSession], so two sessions cannot be drawn by one of them.
+     * single engine session, so two panes cannot share one.
      * That makes several of this manager's single-value flows genuinely
      * per-pane — selection, scroll position, alt-buffer — and each is resolved
      * here against whichever pane currently has focus.
@@ -1116,6 +1083,12 @@ class TerminalManager(
                             wire?.onEngineSessionTextChanged(session, sessionId)
                         }
                     }
+                }
+                // The command lifecycle and the editor target are both read
+                // from the engine's marks, and both are JNI calls.
+                withContext(Dispatchers.IO) {
+                    commandState.poll()
+                    editorRequests.poll()
                 }
                 delay(ENGINE_SCROLL_POLL_MILLIS)
             }
@@ -1361,7 +1334,7 @@ class TerminalManager(
      * sidebar would list a session the system does not know it has. Every
      * session now enters through the repository first.
      */
-    fun addTabWithId(persistentId: String, name: String): TerminalSession? {
+    fun addTabWithId(persistentId: String, name: String) {
         val wasInstalled = ubuntuBootstrap.isInstalled
 
         // Engine path: record the session identity. The actual EnginePane is
@@ -1389,7 +1362,6 @@ class TerminalManager(
         syncActiveTabIndex()
         publishAltBufferState()
         publishActiveId()
-        return null
     }
 
     /**
@@ -1411,17 +1383,6 @@ class TerminalManager(
      * rather than the one on screen — the whole point of it is reaching the output
      * of a session the user is not currently looking at.
      */
-    fun sessionForId(persistentId: String): TerminalSession? {
-        // Engine sessions take precedence: their session is an EngineSession,
-        // not a Termux TerminalSession. Callers that need the engine session
-        // should use engineSessionForId() instead.
-        val engine = engineSessions.find { it.persistentId == persistentId }
-        if (engine != null) return null // Engine sessions don't expose TerminalSession
-        val index = getIndexForId(persistentId)
-        if (index < 0) return null
-        return sessions.getOrNull(index)?.terminalSession
-    }
-
     /**
      * Look up an engine session's underlying [EngineSession] by persistent id.
      */
@@ -1432,12 +1393,11 @@ class TerminalManager(
      * Reverse lookup: positional index → persistent id.
      */
     fun getIdForIndex(index: Int): String? =
-        sessions.getOrNull(index)?.persistentId
+        engineSessions.getOrNull(index)?.persistentId
 
     /**
-     * Creates an interactive SSH session backed by the bridged TerminalSession
-     * from [sshSessionFactory]. Not reconciled against Room rows — it lives
-     * only as long as the process, like a local PTY session.
+     * Registers an interactive SSH session. Not reconciled against Room rows —
+     * it lives only as long as the process.
      *
      * [persistentId] is supplied by the caller via the SshSessionLauncher so
      * the launch result can be surfaced to the user.
@@ -1476,19 +1436,6 @@ class TerminalManager(
         publishActiveId()
         return pane.session
     }
-
-    /**
-     * Look up the positional index of a [TerminalSession] by reference.
-     * Returns -1 if the session is not currently managed.
-     */
-    fun getIndexOfSession(session: TerminalSession): Int =
-        sessions.indexOfFirst { it.terminalSession === session }
-
-    /**
-     * Look up the [DroshSession] for a [TerminalSession] by reference.
-     */
-    private fun getDroshSession(session: TerminalSession): DroshSession? =
-        sessions.find { it.terminalSession === session }
 
     /**
      * Switch to the session identified by [persistentId]. No-op when
@@ -1531,12 +1478,6 @@ class TerminalManager(
         SnippetsStore.load(File(ubuntuBootstrap.rootfsDir, "home"))
 
     /**
-     * Snapshot of all session ids currently live in the terminal manager
-     * (i.e. in [sessions] with a non-null [DroshSession.persistentId]).
-     * Used by [SessionManagerAdapter] to reconcile Room state with live
-     * PTY sessions.
-     */
-    /**
      * Rebuilds the id→index entries from [index] onwards.
      *
      * Removing a session shifts every position after it, and each removal site
@@ -1545,13 +1486,14 @@ class TerminalManager(
      * session.
      */
     private fun reindexFrom(index: Int) {
-        for (i in index until sessions.size) {
-            idToIndex[sessions[i].persistentId] = i
+        for (i in index until engineSessions.size) {
+            idToIndex[engineSessions[i].persistentId] = i
         }
     }
 
     fun liveSessionIds(): Set<String> =
         engineSessions.map { it.persistentId }.toSet()
+
     /**
      * Registers an engine-backed session in the manager's session list.
      *
@@ -1676,7 +1618,7 @@ class TerminalManager(
      * With a split open this cannot mean "make it the only thing on screen",
      * so a session already on screen in the other pane takes focus instead of
      * being opened twice. Two [TerminalView]s driven by one
-     * [TerminalSession] is not a thing the emulator can serve: they would each
+     * engine session is not a thing the emulator can serve: they would each
      * reset the other's scroll position on every attach.
      */
     fun switchTab(index: Int) {
@@ -1811,35 +1753,11 @@ class TerminalManager(
     }
 
     /**
-     * Called by [TerminalSessionClientImpl.onSessionFinished] when the PTY
-     * process exits (either naturally or via [closeTab] → [finishIfRunning]).
-     *
-     * Fixes two bugs from the prior implementation:
-     *  1. Was not cleaning up [idToIndex] mappings (unlike [closeTab]).
-     *  2. Was not notifying [lifecycleCallbacks] so Room never learned
-     *     the session exited — it stayed "Running" forever.
-     *
-     * If the session was already removed (e.g. by [closeTab] or [destroy]),
-     * this is a no-op — the session was intentionally closed.
-     */
-    // Termux session finished callback removed — engine panes report exit
-    // through onEngineSessionExited.
-
-    /**
-     * Called by [TerminalSessionClientImpl.onPidChanged] when the shell pid
-     * is assigned (during [TerminalSession.initializeEmulator]). Stores the
-     * pid on the [DroshSession] and forwards it to [lifecycleCallbacks] so
-     * the data layer can persist it if needed (PID tracking, inspired by
-     * Termux's TerminalSessionClient.setTerminalShellPid).
-     */
-    // Termux pid callback removed — engine sessions don't report pid yet.
-
-    /**
      * Called when an engine-backed session's process exits.
      *
-     * Mirrors [onSessionFinished] for the Rust path: removes the session
-     * from [engineSessions], notifies the lifecycle callbacks so Room learns
-     * about it, and publishes the exit event when it was the last one.
+     * Removes the session from [engineSessions], notifies the lifecycle
+     * callbacks so Room learns about it, and publishes the exit event when it
+     * was the last one.
      */
     private fun onEngineSessionExited(pane: EnginePane, exitCode: Int) {
         val session = engineSessions.find { it.enginePane === pane } ?: return

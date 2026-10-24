@@ -15,6 +15,7 @@
 package dev.drosh.terminal.session
 
 import android.content.Context
+import dev.drosh.domain.terminal.ShellIntegrationLevel
 import java.io.File
 
 /**
@@ -31,7 +32,7 @@ import java.io.File
  *  - **bash** reads `--rcfile`, which sources the user's `.bashrc` first and
  *    then installs the marks, so an existing `PROMPT_COMMAND` still runs.
  *  - **anything else** gets no marks. The emulator reports
- *    [com.termux.terminal.ShellIntegrationLevel.NONE] and the terminal keeps
+ *    [ShellIntegrationLevel.NONE] and the terminal keeps
  *    working; only the optional features are unavailable.
  *
  * `dash`/`sh` have no pre-exec hook of any kind, so exit status is not

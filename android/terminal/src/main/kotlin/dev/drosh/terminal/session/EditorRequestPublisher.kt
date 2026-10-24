@@ -14,8 +14,7 @@
 
 package dev.drosh.terminal.session
 
-import com.termux.terminal.ShellIntegrationState
-import com.termux.terminal.TerminalSession
+import dev.drosh.terminal.engine.core.EngineSession
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -33,8 +32,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
  * between the escape sequence arriving and the screen subscribing, and drops
  * the event if nobody ever comes back for it.
  *
- * Mirrors [CommandStatePublisher] in binding: it follows the active tab, so
- * two terminals cannot each try to open the editor for the other's command.
+ * The engine reports the editor target as part of its block state (`OSC 1339`),
+ * so [poll] is driven by the same watch that reads the viewport.
  */
 class EditorRequestPublisher {
 
@@ -46,22 +45,33 @@ class EditorRequestPublisher {
     /** Guest paths, in the order the guest asked for them. */
     val requests: Flow<String> = channel.receiveAsFlow()
 
-    private var bound: ShellIntegrationState? = null
+    private var bound: EngineSession? = null
 
-    private val listener: (String) -> Unit = { guestPath ->
-        // trySend, not send: this runs on the emulator's thread inside the PTY
-        // read loop, and suspending there would stall terminal output.
-        // The buffer exists precisely so a full channel cannot happen.
-        channel.trySend(guestPath)
-    }
+    /** The last editor target seen, so the same request is not delivered twice. */
+    private var lastTarget: String? = null
 
-    fun bind(session: TerminalSession?) {
-        val target = session?.shellIntegration
-        if (bound === target) return
-        bound?.removeEditorListener(listener)
-        bound = target
-        target?.addEditorListener(listener)
+    fun bind(session: EngineSession?) {
+        if (bound === session) return
+        bound = session
+        lastTarget = null
     }
 
     fun unbind() = bind(null)
+
+    /**
+     * Reads the engine's current editor target and delivers it when it is new.
+     *
+     * Called from the engine watch (a background dispatcher), so this does not
+     * touch the UI thread. `trySend` rather than `send`: the buffer exists
+     * precisely so this can never suspend.
+     */
+    fun poll() {
+        val session = bound ?: return
+        if (!session.isAlive) return
+
+        val target = session.blockState().editorTarget
+        if (target.isNullOrEmpty() || target == lastTarget) return
+        lastTarget = target
+        channel.trySend(target)
+    }
 }

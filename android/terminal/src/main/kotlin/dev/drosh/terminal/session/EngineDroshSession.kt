@@ -7,7 +7,7 @@ import dev.drosh.terminal.engine.core.EngineSession
  * metadata (id, name, shell pid).
  *
  * The Rust-engine counterpart of [DroshSession]: where [DroshSession]
- * wraps a Termux [com.termux.terminal.TerminalSession], this wraps an
+ * wraps a vendored terminal session, this wraps an
  * [EnginePane] that owns its own [EngineSession] and view.
  *
  * Ported from: mmuhofy/IrisCode — terminal/TerminalManager.kt

@@ -1,8 +1,8 @@
 package dev.drosh.data.state
 
-import com.termux.terminal.CommandSnapshot
-import com.termux.terminal.CommandStatus
-import com.termux.terminal.ShellIntegrationLevel
+import dev.drosh.domain.terminal.CommandSnapshot
+import dev.drosh.domain.terminal.CommandStatus
+import dev.drosh.domain.terminal.ShellIntegrationLevel
 import dev.drosh.terminal.session.SnippetsStore.Snippet
 
 /**

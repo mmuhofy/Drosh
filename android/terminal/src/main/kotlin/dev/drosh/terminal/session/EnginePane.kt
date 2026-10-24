@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
  * ## Why this type exists
  *
  * The two terminal implementations do not agree on who owns the session.
- * Termux's [com.termux.view.TerminalView] *attaches* to a session that the
+ * A vendored view *attaches* to a session that the
  * manager owns; the engine's [TerminalView] *owns* its [EngineSession] and
  * starts it itself. A host that has to know that difference ends up with two
  * shapes of "a terminal", and the difference leaks into the product: a pane is
