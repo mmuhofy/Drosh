@@ -73,8 +73,11 @@ class TerminalView(context: Context) : FrameLayout(context) {
     /** The session behind the view; the host may [EngineSession.configure] it. */
     val session = EngineSession()
 
-    private lateinit var surface: GLSurfaceView
-    private lateinit var renderer: TerminalRenderer
+    // Null until [buildContent] runs, and never assigned when the font failed
+    // to load. A host that calls onHostResume on such a view must not crash:
+    // the engine is not there, and the view says so through [startError].
+    private var surface: GLSurfaceView? = null
+    private var renderer: TerminalRenderer? = null
 
     /** Cell geometry from the bundled font, filled in by [loadFont]. */
     internal lateinit var metrics: CellMetrics
@@ -110,13 +113,13 @@ class TerminalView(context: Context) : FrameLayout(context) {
     private val frameLoop = FrameLoop(
         onWakeup = {
             reportGlErrors()
-            surface.requestRender()
+            surface?.requestRender()
             drainEvents()
         },
         onBlink = {
             reportGlErrors()
-            renderer.cursorVisible = !renderer.cursorVisible
-            surface.requestRender()
+            renderer?.let { it.cursorVisible = !it.cursorVisible }
+            surface?.requestRender()
             drainEvents()
         },
     )
@@ -143,33 +146,35 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
     /** Everything that needs the font's metrics; skipped when [fontLoaded] is false. */
     private fun buildContent() {
-        renderer = TerminalRenderer(
+        val created = TerminalRenderer(
             session,
             GlyphAtlas(),
             FontSize(fontPx, metrics),
             selectionOverlay.selection,
             stats,
         )
-        renderer.onGridChanged = { columns, rows, size ->
+        created.onGridChanged = { columns, rows, size ->
             // The renderer reports from the GL thread; the session is only ever
             // touched from the UI thread. The size travels with the grid: the
             // session is resized with the cell the grid was laid out for.
             post {
                 session.resize(columns, rows, size.metrics.width.toInt(), size.metrics.height.toInt())
-                surface.requestRender()
+                surface?.requestRender()
                 applyAmbientTint()
             }
         }
+        renderer = created
 
-        surface = GLSurfaceView(context).apply {
+        val gl = GLSurfaceView(context).apply {
             setEGLContextClientVersion(3)
-            setRenderer(renderer)
+            setRenderer(created)
             renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
             setOnTouchListener(gestures.listener())
             setOnGenericMotionListener { _, event -> gestures.onGenericMotion(event) }
         }
+        surface = gl
         addView(
-            surface,
+            gl,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
         )
 
@@ -187,7 +192,9 @@ class TerminalView(context: Context) : FrameLayout(context) {
     // --- lifecycle ---------------------------------------------------------
 
     fun onHostResume() {
-        surface.onResume()
+        // No surface means the font failed to load; there is nothing to
+        // resume, and [startError] says why.
+        surface?.onResume() ?: return
         frameLoop.poll = { session.pollWakeup() }
         frameLoop.start()
         // Numbers from this session only: a resume is a fresh start.
@@ -196,7 +203,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
     fun onHostPause() {
         frameLoop.stop()
-        surface.onPause()
+        surface?.onPause()
     }
 
     override fun onDetachedFromWindow() {
@@ -240,7 +247,10 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
     /** (Re)start the session with the current configuration. */
     fun restart(): Boolean {
-        check(fontLoaded) { "the bundled font failed to load; the terminal cannot start" }
+        if (!fontLoaded) {
+            Log.e(TAG, "restart refused: ${startError ?: "the font failed to load"}")
+            return false
+        }
         exited = false
         selectionOverlay.clear()
         listener?.onSelectionChanged(false)
@@ -265,7 +275,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
                 "${session.columns}x${session.rows} cells of " +
                 "${metrics.width.toInt()}x${metrics.height.toInt()}px",
         )
-        surface.requestRender()
+        surface?.requestRender()
         applyAmbientTint()
         return true
     }
@@ -298,9 +308,10 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
     /** Push the ambient tint into the renderer so the clear colour matches the program. */
     internal fun applyAmbientTint() {
+        val target = renderer ?: return
         val tint = ambientTint()
         if (tint.size == 3) {
-            renderer.ambientTint = (tint[0] and 0xff shl 16) or (tint[1] and 0xff shl 8) or (tint[2] and 0xff)
+            target.ambientTint = (tint[0] and 0xff shl 16) or (tint[1] and 0xff shl 8) or (tint[2] and 0xff)
         }
     }
 
@@ -310,12 +321,12 @@ class TerminalView(context: Context) : FrameLayout(context) {
     /** Notify the host and the renderer that the selection state changed. */
     internal fun notifySelectionChanged() {
         listener?.onSelectionChanged(!selectionOverlay.isEmpty)
-        surface.requestRender()
+        surface?.requestRender()
     }
 
     /** Request a redraw of the GL surface. */
     internal fun requestRender() {
-        surface.requestRender()
+        surface?.requestRender()
     }
 
     /** Focus the IME target and open the soft keyboard. */
@@ -442,7 +453,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
         // The ligatures: the font decides what a ligature is, and this is the
         // setting that asks it. The renderer reads it on the GL thread.
-        surface.queueEvent { renderer.ligatures = config.ligatures }
+        surface?.queueEvent { renderer?.let { it.ligatures = config.ligatures } }
 
         // The blink is the frame loop's business, and it asks the view.
         frameLoop.blinkIntervalMillis = config.cursorBlinkMs.toLong()
@@ -484,7 +495,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
         metrics = measured.metrics
         fontPx = measured.px
 
-        surface.queueEvent { renderer.setFontSize(measured) }
+        surface?.queueEvent { renderer?.setFontSize(measured) }
     }
 
     /**
@@ -559,9 +570,11 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
         // The atlas holds the masks of the font that was there before; every
         // one of them is wrong now.
-        surface.queueEvent {
-            renderer.invalidateAtlas()
-            renderer.setFontSize(FontSize(fontPx, metrics))
+        surface?.queueEvent {
+            renderer?.let {
+                it.invalidateAtlas()
+                it.setFontSize(FontSize(fontPx, metrics))
+            }
         }
         Log.i(
             TAG,
@@ -617,8 +630,9 @@ class TerminalView(context: Context) : FrameLayout(context) {
     // --- engine events -----------------------------------------------------
 
     private fun reportGlErrors() {
-        renderer.lastGlError?.let { message ->
-            renderer.lastGlError = null
+        val target = renderer ?: return
+        target.lastGlError?.let { message ->
+            target.lastGlError = null
             Log.w(TAG, "renderer: $message")
         }
     }
