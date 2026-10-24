@@ -90,7 +90,7 @@ class AgentChatRepositoryImpl @Inject constructor(
         /**
          * The guest home.
          *
-         * `ProotRunner` sets HOME=/home, and a chat created with no directory
+         * A session sets HOME=/home, and a chat created with no directory
          * should land where a user's first `cd` would.
          */
         const val DEFAULT_DIRECTORY = "/home"

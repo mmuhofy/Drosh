@@ -472,7 +472,7 @@ class AgentLoop @Inject constructor(
          */
         const val SYSTEM_PROMPT =
             "You are the agent inside Drosh, an Android terminal app. You act on a " +
-                "real Linux environment running under PRoot. Commands you run have " +
+                "real Linux environment running under chroot-ng. Commands you run have " +
                 "real effects on real files.\n" +
                 "Rules:\n" +
                 "- Work inside the given working directory. Do not guess at paths you " +

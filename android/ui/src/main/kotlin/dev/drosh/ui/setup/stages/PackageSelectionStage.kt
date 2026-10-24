@@ -77,7 +77,6 @@ fun PackageSelectionStage(
     val profile by viewModel.packageProfile.collectAsStateWithLifecycle()
     val shellChoice by viewModel.shellChoice.collectAsStateWithLifecycle()
     val customPackagesText by viewModel.customPackagesText.collectAsStateWithLifecycle()
-    val guestIsolation by viewModel.guestIsolation.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -267,22 +266,12 @@ fun PackageSelectionStage(
         Spacer(modifier = Modifier.height(10.dp))
 
         OptionCard(
-            icon = DroshIcons.ShieldCheck,
-            title = "proot",
-            description = "The established engine. It forwards every syscall of the guest, " +
-                "so it is the safe choice.",
-            badgeText = "Recommended",
-            isSelected = guestIsolation == GuestIsolation.PROOT,
-            onSelect = { viewModel.selectGuestIsolation(GuestIsolation.PROOT) },
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        OptionCard(
             icon = DroshIcons.Gauge,
             title = "chroot-ng",
-            description = "Traps only the path syscalls and loads programs itself — faster, " +
-                "and it runs static and Rust binaries unchanged.",
-            badgeText = null,
-            isSelected = guestIsolation == GuestIsolation.CHROOT_NG,
+            description = "Traps only the path syscalls and loads programs itself — " +
+                "faster, and it runs static and Rust binaries unchanged.",
+            badgeText = "Recommended",
+            isSelected = true,
             onSelect = { viewModel.selectGuestIsolation(GuestIsolation.CHROOT_NG) },
         )
 

@@ -5,17 +5,15 @@ package dev.drosh.linux
  * and the environment of the binary that execs the user's shell inside the
  * Ubuntu rootfs.
  *
- * Two implementations exist:
+ * One implementation exists:
  *
- *  - [ProotRunner] — drives `proot` (ptrace-based, from the bootstrap).
  *  - [ChrootNgRunner] — drives `libchrootng.so` (ptrace-free, seccomp/SIGSYS,
  *    built and published by the chroot-ng project).
  *
- * The interface describes the *session*, not either backend's quirks: proot
- * needs to know whether the session has a PTY (it binds `/dev/fd` only for
- * one), and chroot-ng needs nothing of the sort. Which of the two shapes a
- * call is — an interactive session on a PTY, or a one-shot command on pipes —
- * is what the method says.
+ * The interface describes the *session*, not the backend's quirks: chroot-ng
+ * needs nothing beyond the program and its arguments. Which of the two shapes
+ * a call is — an interactive session on a PTY, or a one-shot command on pipes
+ * — is what the method says.
  */
 interface GuestLauncher {
     /**

@@ -18,7 +18,7 @@ import java.io.File
 /**
  * The two file tools, tested against a real directory.
  *
- * They do no network and no PRoot, so a temp directory exercises the actual
+ * They do no network and no guest, so a temp directory exercises the actual
  * traversal, glob and overwrite logic — the parts where a unit test with a mocked
  * filesystem would be testing the mock.
  */

@@ -99,10 +99,10 @@ sealed class FileWriteResult {
 /**
  * Read and write files inside the Ubuntu rootfs.
  *
- * Scope is deliberately the rootfs only. PRoot bind-mounts `/sdcard`,
+ * Scope is deliberately the rootfs only. The launcher binds `/sdcard`,
  * `/storage`, `/data`, `/proc`, `/sys` and the `/system*` partitions into the
  * guest, and none of those has a host path the app can compute — the mount
- * table lives in the PRoot process, not in Kotlin. A naive
+ * table lives in the guest process, not in Kotlin. A naive
  * `rootfsDir + guestPath` concatenation silently produces a wrong path for all
  * of them, so this interface refuses them outright via [FileFailure.OutsideRootfs]
  * rather than pretending.

@@ -185,7 +185,7 @@ data class InputSettings(
 data class ShellSettings(
     val motdMode: MotdMode = MotdMode.PlainText,
     val motdText: String = MotdDefaults.DEFAULT_MOTD_TEXT,
-    /** Custom PRoot start command; "" is the default shell. */
+    /** Custom guest start command; "" is the default shell. */
     val startupCommand: String = "",
     /**
      * The shell's locale, as LANG/LC_ALL on every session — from the file

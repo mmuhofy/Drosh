@@ -182,7 +182,7 @@ fun EnginePaneHost(
             }
         }
         // Starting the session forks the guest and execs the launcher — with
-        // proot that is a process spawn plus a pile of bind mounts, and on the
+        // chroot-ng that is a process spawn plus a pile of binds, and on the
         // main thread it is a freeze the system reports as an ANR.
         val started = withContext(Dispatchers.IO) { pane.start(command) }
         if (!started) {

@@ -40,7 +40,7 @@ sealed interface TerminalLine {
  *
  * ## Why this is not a terminal
  *
- * A real PTY per agent chat costs a PRoot process each: memory on a device that
+ * A real PTY per agent chat costs a guest process each: memory on a device that
  * already runs one for the user's session, and battery while it sits idle. The
  * questions a terminal view is asked to answer — *what did it just run, and what
  * did it say* — are already answered by the tool rows.

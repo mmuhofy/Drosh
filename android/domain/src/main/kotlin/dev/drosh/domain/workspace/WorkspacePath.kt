@@ -15,7 +15,7 @@ package dev.drosh.domain.workspace
 object WorkspacePath {
 
     /**
-     * The guest home directory, which is where `ProotRunner` sets HOME.
+     * The guest home directory, which is where a session sets HOME.
      *
      * The default when the field is left blank: a project with no directory is
      * still a valid group, and inventing one would be worse than saying nothing.

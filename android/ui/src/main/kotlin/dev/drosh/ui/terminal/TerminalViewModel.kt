@@ -87,7 +87,7 @@ class TerminalViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalBackend.DEFAULT)
 
-    val prootStartCommand: StateFlow<String> = settingsRepository.prootStartCommand
+    val guestStartCommand: StateFlow<String> = settingsRepository.guestStartCommand
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     // ── MOTD ────────────────────────────────────────────────────────────────────
@@ -242,9 +242,9 @@ class TerminalViewModel @Inject constructor(
         _fontSizeSp.value = defaultFontSizeSp.value
     }
 
-    fun setProotStartCommand(command: String) {
+    fun setGuestStartCommand(command: String) {
         viewModelScope.launch {
-            settingsRepository.setProotStartCommand(command)
+            settingsRepository.setGuestStartCommand(command)
         }
     }
 }

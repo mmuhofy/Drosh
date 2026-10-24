@@ -82,7 +82,7 @@ abstract class AgentToolsModule {
         fun provideGuestPaths(ubuntuBootstrap: UbuntuBootstrap): GuestPaths =
             GuestPaths(ubuntuBootstrap.rootfsDir, DEFAULT_WORKING_DIRECTORY)
 
-        /** The guest home, as `ProotRunner` sets HOME. */
+        /** The guest home, which is where a session starts. */
         private const val DEFAULT_WORKING_DIRECTORY = "/home"
     }
 }

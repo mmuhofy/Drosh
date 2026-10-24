@@ -9,7 +9,6 @@ import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.SettingsStore
 import dev.drosh.terminal.session.BlockEngineWire
 import dev.drosh.linux.BootstrapStatePort
-import dev.drosh.linux.ProotRunner
 import dev.drosh.domain.terminal.PaneSessionBinder
 import dev.drosh.domain.terminal.SystemOverlayController
 import dev.drosh.terminal.session.TerminalManager
@@ -29,7 +28,7 @@ import javax.inject.Singleton
  * Hilt module for the terminal layer.
  *
  * Provides the singleton graph that Phase 1 Terminal Core functionality relies on:
- *  - `UbuntuBootstrap` (lifecycle for PRoot + Ubuntu rootfs)
+ *  - `UbuntuBootstrap` (lifecycle for the guest runtime + Ubuntu rootfs)
  *  - `TerminalManager` (PTY session lifecycle, tab state)
  *
  * Per AGENT.md §125-128 the terminal layer is isolated — only `:app` (and `:agent`

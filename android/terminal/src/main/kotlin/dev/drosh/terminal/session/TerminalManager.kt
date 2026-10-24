@@ -35,7 +35,6 @@ import dev.drosh.linux.GuestCommand
 import dev.drosh.linux.GuestIsolationOverride
 import dev.drosh.linux.GuestLauncher
 import dev.drosh.linux.GuestSpec
-import dev.drosh.linux.ProotRunner
 import dev.drosh.linux.UbuntuBootstrap
 import dev.drosh.linux.UbuntuSetupState
 import dev.drosh.terminal.session.input.EngineTerminalWriter
@@ -651,26 +650,19 @@ class TerminalManager(
     val currentGuestIsolation: GuestIsolation get() = guestIsolation
 
     /**
-     * The launcher for the engine the user chose.
+     * The launcher for the guest.
      *
-     * Built per session rather than cached: the choice is a setting, and a
-     * session that starts after the switch must use the new engine.
+     * Built per session rather than cached: the runtime file is staged by the
+     * bootstrap, and a session that starts after staging must find it.
      */
-    private fun guestLauncher(): GuestLauncher =
-        when (guestIsolation) {
-            GuestIsolation.PROOT ->
-                ProotRunner(ubuntuBootstrap, appContext.applicationInfo.nativeLibraryDir)
-
-            GuestIsolation.CHROOT_NG ->
-                ChrootNgRunner(
-                    ubuntuBootstrap.rootfsDir,
-                    // The staged runtime, not a path in the APK: a `lib/` entry
-                    // that nothing loads is not extracted by the installer, so
-                    // a runtime that lives there is in the APK and nowhere
-                    // else, and the guest has nothing to run.
-                    ubuntuBootstrap.chrootNgFile,
-                )
-        }
+    private fun guestLauncher(): GuestLauncher = ChrootNgRunner(
+        ubuntuBootstrap.rootfsDir,
+        // The staged runtime, not a path in the APK: a `lib/` entry that
+        // nothing loads is not extracted by the installer, so a runtime that
+        // lives there is in the APK and nowhere else, and the guest has
+        // nothing to run.
+        ubuntuBootstrap.chrootNgFile,
+    )
 
     private val managerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -692,7 +684,7 @@ class TerminalManager(
         combine(_focusedPane, _altBufferByPane) { slot, byPane -> byPane[slot] == true }
             .stateIn(managerScope, SharingStarted.Eagerly, false)
 
-    private var prootStartCommand: String = ""
+    private var guestStartCommand: String = ""
 
     /** The shell's locale, from the file; "" leaves the image's default. */
     private var shellLocale: String = ""
@@ -735,8 +727,8 @@ class TerminalManager(
         // sessions now. The engine's text changes are polled in
         // startEngineWatch; alt-buffer and pid are tracked per pane.
 
-        settingsRepository.prootStartCommand
-            .onEach { cmd -> prootStartCommand = cmd }
+        settingsRepository.guestStartCommand
+            .onEach { cmd -> guestStartCommand = cmd }
             .launchIn(managerScope)
 
         settingsRepository.cursorStyle
@@ -832,7 +824,7 @@ class TerminalManager(
     }
 
     fun updateProotStartCommand(command: String) {
-        prootStartCommand = command
+        guestStartCommand = command
     }
 
     private val _selectionBounds = MutableStateFlow<android.graphics.Rect?>(null)
@@ -1657,7 +1649,7 @@ class TerminalManager(
             GuestSpec(
                 workingDirectory = guestWd,
                 shell = shell,
-                command = prootStartCommand,
+                command = guestStartCommand,
                 environment = integration.environment,
                 shellArgs = integration.shellArgs,
             ),
@@ -1695,7 +1687,6 @@ class TerminalManager(
      */
     private fun reportMissingGuestRuntime() {
         val engine = when (guestIsolation) {
-            GuestIsolation.PROOT -> "proot"
             GuestIsolation.CHROOT_NG -> "chroot-ng"
         }
         Log.e(TAG, "$engine is not in this build: the guest runtime is missing from the app's native library directory")

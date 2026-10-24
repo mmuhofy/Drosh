@@ -12,14 +12,14 @@ private const val TAG = "DroshGuest"
  *
  * chroot-ng intercepts only path-bearing syscalls in-process (seccomp
  * `RET_TRAP` → `SIGSYS`) and runs guest programs with its own userland ELF
- * loader, so it works on static / Go / Rust / raw-syscall binaries where
- * `LD_PRELOAD` tricks and proot's per-syscall ptrace both fail.
+ * loader, so it works on static / Go / Rust / raw-syscall binaries where an
+ * `LD_PRELOAD` shim would not.
  *
  * The binary comes from the chroot-ng project's own release, pinned by tag and
  * SHA-256 in CI (`.github/workflows/debug.yml`), and lands in the app's
  * `nativeLibraryDir` — the one directory an app may exec from.
  *
- * ## Two things differ from proot
+ * ## Two things worth knowing
  *
  * **The environment is built, not inherited.** chroot-ng starts the guest from
  * a clean environment and carries over only `TERM` and `COLORTERM`, because a
@@ -33,7 +33,7 @@ private const val TAG = "DroshGuest"
  * that describes the guest rather than the host, and a `/dev` with a fixed
  * whitelist of nodes. The binds below are the ones a guest genuinely needs to
  * see the device: the storage the user's files live in, and `/data`, which
- * proot exposed for the same reason.
+
  */
 class ChrootNgRunner(
     private val rootfsDir: File,
@@ -47,7 +47,7 @@ class ChrootNgRunner(
      *
      * A parameter rather than a constant so the argv can be tested without a
      * device: what the guest needs to see is the storage the user's files live
-     * in, and `/data`, which proot exposed for the same reason.
+     * in, and `/data`.
      */
     private val devicePaths: List<String> = listOf("/data", "/storage", "/sdcard"),
 ) : GuestLauncher {
@@ -121,7 +121,7 @@ class ChrootNgRunner(
             // rootfs or in a bind; chroot-ng refuses a bad one rather than
             // quietly demoting it to /. Without one it would start the guest at
             // the rootfs root, so the home is named explicitly — which is what
-            // proot does too.
+
             add("--work-dir")
             add(workingDirectory(spec))
             // Every option comes before the rootfs: chroot-ng stops parsing
@@ -154,7 +154,7 @@ class ChrootNgRunner(
 
     override fun buildCommand(spec: GuestSpec, command: String): GuestCommand {
         // chroot-ng runs a single program, so a one-shot command is the shell
-        // running it — the same shape proot uses, so the output is line-buffered
+        // running it, so the output is line-buffered
         // and the caller sees it as it arrives.
         val oneShot = spec.copy(
             command = "stdbuf -oL $command",
@@ -168,7 +168,7 @@ class ChrootNgRunner(
      *
      * The values here are the ones the app needs the guest to have; anything
      * the shell integration asks for is added on top, so a hook can override a
-     * default (the shell's own path, the locale) the way it does under proot.
+     * default (the shell's own path, the locale).
      */
     private fun guestEnvironment(spec: GuestSpec): List<String> {
         val environment = linkedMapOf(

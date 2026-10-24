@@ -133,7 +133,7 @@ class SettingsViewModel @Inject constructor(
     val terminalTextColor: StateFlow<String> = settings.terminalTextColor
         .stateIn(viewModelScope, SharingStarted.Eagerly, "#E8E8E8")
 
-    val prootStartCommand: StateFlow<String> = settings.prootStartCommand
+    val guestStartCommand: StateFlow<String> = settings.guestStartCommand
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     val cursorStyle: StateFlow<String> = settings.cursorStyle
@@ -181,8 +181,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settings.setTerminalTextColor(hex) }
     }
 
-    fun setProotStartCommand(command: String) {
-        viewModelScope.launch { settings.setProotStartCommand(command) }
+    fun setGuestStartCommand(command: String) {
+        viewModelScope.launch { settings.setGuestStartCommand(command) }
     }
 
     fun setCursorStyle(style: CursorStyle) {

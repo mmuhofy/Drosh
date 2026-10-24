@@ -170,7 +170,7 @@ class AgentHomeViewModel @Inject constructor(
     companion object {
         const val DEFAULT_PROVIDER_ID = "openrouter"
 
-        /** The guest home, which is where `ProotRunner` sets HOME. */
+        /** The guest home, which is where a session sets HOME. */
         const val DEFAULT_DIRECTORY = "/home"
         private const val DEFAULT_NAME = "New chat"
         private const val STOP_TIMEOUT_MS = 5_000L

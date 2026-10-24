@@ -106,7 +106,7 @@ interface RootfsArchivePort {
  * descriptor-based walk, the excludes, the path guard) lives in the terminal
  * slice, and a second copy of any of them here would be a second place to get
  * it wrong. The writer is built with its own default excludes, which are the
- * parts of a rootfs that must never be packed (`proc`, `sys`, the staged proot
+ * parts of a rootfs that must never be packed (`proc`, `sys`, the staged guest
  * binary); the tree itself is named per call, not per instance.
  */
 internal class TerminalRootfsArchivePort : RootfsArchivePort {

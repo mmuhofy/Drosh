@@ -14,19 +14,17 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.util.zip.GZIPInputStream
 
-// Inspired by: github.com/Xed-Editor/Karbon-PackagesX (proot binary for Android NDK)
-// and github.com/termux/termux-app (proot-loader)
+// Inspired by: github.com/termux/termux-app (asset staging and rootfs layout)
 class UbuntuBootstrap(private val context: Context) {
 
     private val baseDir: File get() = File(context.filesDir, "ubuntu")
-    val prootFile: File get() = File(baseDir, "bin/proot")
 
     /**
      * The chroot-ng runtime, staged where it can be run.
      *
      * An **asset**, not a native library: the installer does not extract a
      * `lib/` entry that nothing loads, so a runtime that lives there is in the
-     * APK and nowhere else, and the guest has nothing to run. proot is staged
+     * APK and nowhere else, and the guest has nothing to run. The runtime is staged
      * from an asset for the same reason, and it works.
      */
     val chrootNgFile: File get() = File(baseDir, "bin/libchrootng.so")
@@ -41,11 +39,11 @@ class UbuntuBootstrap(private val context: Context) {
     /**
      * Whether the guest's filesystem is installed.
      *
-     * The rootfs is the guest's, and it does not belong to an engine: proot and
+     * The rootfs is the guest's, and it does not belong to an engine: chroot-ng and
      * chroot-ng run the same filesystem, they only differ in how they enter it.
      *
-     * Asking about proot's binary here tied the two together, so choosing
-     * chroot-ng on a device where proot had never been staged said "no guest" —
+     * Asking about one engine's binary here tied the two together, so choosing
+     * chroot-ng on a device where it had never been staged said "no guest" —
      * and the terminal came up empty, with the vendored terminal quietly
      * falling back to a plain shell and hiding it.
      */
@@ -54,19 +52,10 @@ class UbuntuBootstrap(private val context: Context) {
             && setupMarker.exists()
 
     /**
-     * Whether proot — one of the two engines — can be launched.
+     * Whether the guest runtime can be launched.
      *
-     * Its binary and the library it needs are staged by the bootstrap; this is
-     * what says whether they are there.
-     */
-    val isProotAvailable: Boolean
-        get() = prootFile.canExecute()
-            && File(libDir, "libtalloc.so.2").canRead()
-
-    /**
-     * Whether chroot-ng — the other engine — can be launched.
-     *
-     * The runtime is staged from an asset, like proot, and run from there.
+     * It is staged from an asset by the bootstrap; this is what says whether
+     * it is there.
      */
     val isChrootNgAvailable: Boolean
         get() = chrootNgFile.canExecute()
@@ -90,25 +79,6 @@ class UbuntuBootstrap(private val context: Context) {
         File(baseDir, "bin").mkdirs()
         libDir.mkdirs()
 
-        if (!prootFile.canExecute()) {
-            context.assets.open(PROOT_ASSET).use { input ->
-                prootFile.parentFile!!.mkdirs()
-                FileOutputStream(prootFile).use { out ->
-                    input.copyTo(out)
-                }
-            }
-            prootFile.setExecutable(true, false)
-        }
-
-        if (!File(libDir, "libtalloc.so.2").canRead()) {
-            context.assets.open(LIBTALLOC_ASSET).use { input ->
-                libDir.mkdirs()
-                FileOutputStream(File(libDir, "libtalloc.so.2")).use { out ->
-                    input.copyTo(out)
-                }
-            }
-        }
-
         if (!chrootNgFile.canExecute()) {
             context.assets.open(CHROOT_NG_ASSET).use { input ->
                 chrootNgFile.parentFile!!.mkdirs()
@@ -125,9 +95,9 @@ class UbuntuBootstrap(private val context: Context) {
         onState: (UbuntuSetupState) -> Unit,
         onLog: (String) -> Unit = {},
     ) {
-        // The rootfs is reused when it is already there, so a missing proot
+        // The rootfs is reused when it is already there, so a missing runtime
         // costs the staging of the binary and not the download of the image.
-        if (isInstalled && isProotAvailable && isChrootNgAvailable) {
+        if (isInstalled && isChrootNgAvailable) {
             onLog("✓ Bootstrap already installed — skipping.")
             onState(UbuntuSetupState.Ready)
             return
@@ -178,7 +148,7 @@ class UbuntuBootstrap(private val context: Context) {
                 onLog("→ Configuring rootfs (apt sources, resolv.conf, shells)…")
                 onState(UbuntuSetupState.Configuring)
                 lastFailedStep = "Configure"
-                runScriptInProot(SCRIPTS_CONFIGURE, onLog = onLog)
+                runScriptInGuest(SCRIPTS_CONFIGURE, onLog = onLog)
                 onLog("✓ Rootfs configured.")
 
                 // Always install base packages — ensures zsh is available
@@ -186,7 +156,7 @@ class UbuntuBootstrap(private val context: Context) {
                 onLog("→ Installing base packages…")
                 onState(UbuntuSetupState.InstallingPackages("apt", "Installing packages..."))
                 lastFailedStep = "Packages"
-                runScriptInProot(
+                runScriptInGuest(
                     SCRIPTS_PACKAGES,
                     onLog = onLog,
                     envExtras = mapOf(
@@ -197,7 +167,7 @@ class UbuntuBootstrap(private val context: Context) {
 
                 // `dedit` ships as a real package so the command exists in the
                 // terminal the way a user expects. dpkg-deb and apt are used
-                // inside proot rather than by hand; see dedit-install.sh.
+                // inside the guest rather than by hand; see dedit-install.sh.
                 onLog("→ Installing the dedit package…")
                 installDeditPackage(onLog)
 
@@ -208,11 +178,11 @@ class UbuntuBootstrap(private val context: Context) {
                     lastFailedStep = "OhMyZsh"
                     var omzSuccess = false
                     try {
-                        val rc1 = runScriptInProot(SCRIPTS_SET_DEFAULT_SHELL, onLog = onLog)
+                        val rc1 = runScriptInGuest(SCRIPTS_SET_DEFAULT_SHELL, onLog = onLog)
                         if (rc1 != 0) throw Exception("set-default-shell exited $rc1")
-                        val rc2 = runScriptInProot(SCRIPTS_OMZ, onLog = onLog)
+                        val rc2 = runScriptInGuest(SCRIPTS_OMZ, onLog = onLog)
                         if (rc2 != 0) throw Exception("omz-install exited $rc2")
-                        val rc3 = runScriptInProot(SCRIPTS_ZSHRC, onLog = onLog)
+                        val rc3 = runScriptInGuest(SCRIPTS_ZSHRC, onLog = onLog)
                         if (rc3 != 0) throw Exception("zshrc-write exited $rc3")
                         onLog("✓ Oh My Zsh ready.")
                         omzSuccess = true
@@ -222,15 +192,15 @@ class UbuntuBootstrap(private val context: Context) {
                     // If OMZ failed, reset default shell to bash so /etc/passwd
                     // is consistent with the bash .bashrc we write next.
                     if (!omzSuccess) {
-                        runScriptInProot(SCRIPTS_RESET_SHELL_TO_BASH, onLog = onLog)
-                        runScriptInProot(SCRIPTS_BASHRC, onLog = onLog)
+                        runScriptInGuest(SCRIPTS_RESET_SHELL_TO_BASH, onLog = onLog)
+                        runScriptInGuest(SCRIPTS_BASHRC, onLog = onLog)
                         onLog("✓ Fallback to bash configured for ${preferences.userName}.")
                     }
                 } else {
                     onLog("→ Bash selected — skipping Oh My Zsh and set-default-shell.")
                     onState(UbuntuSetupState.Optimizing)
                     lastFailedStep = "Bash"
-                    runScriptInProot(SCRIPTS_BASHRC, onLog = onLog)
+                    runScriptInGuest(SCRIPTS_BASHRC, onLog = onLog)
                     onLog("✓ .bashrc configured for ${preferences.userName}.")
                 }
 
@@ -238,7 +208,7 @@ class UbuntuBootstrap(private val context: Context) {
                 onState(UbuntuSetupState.Optimizing)
                 lastFailedStep = "Optimize"
                 val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
-                runScriptInProot(
+                runScriptInGuest(
                     SCRIPTS_OPTIMIZE,
                     onLog = onLog,
                     envExtras = mapOf(
@@ -265,9 +235,9 @@ class UbuntuBootstrap(private val context: Context) {
 
     // All installation / configuration logic is now in shell scripts under
     // terminal/src/main/assets/shell-scripts/setup/. Kotlin only orchestrates
-    // the pipeline and forwards logs — see `runScriptInProot`.
+    // the pipeline and forwards logs — see `runScriptInGuest`.
 
-    // ─── Proot script loading & execution ──────────────────────────
+    // ─── Guest script loading & execution ─────────────────────────
 
     /**
      * Stages and installs the `dedit` package.
@@ -288,7 +258,7 @@ class UbuntuBootstrap(private val context: Context) {
             return
         }
         val repoDir = File(baseDir, "dedit-repo").apply { mkdirs() }
-        val rc = runScriptInProot(
+        val rc = runScriptInGuest(
             SCRIPTS_DEDIT,
             onLog = onLog,
             envExtras = mapOf(
@@ -304,40 +274,47 @@ class UbuntuBootstrap(private val context: Context) {
         return context.assets.open(path).bufferedReader().use { it.readText() }
     }
 
-    private fun pipeScriptInProot(
+    /**
+     * Runs a shell script inside the guest, streaming its output.
+     *
+     * The script arrives on the guest shell's stdin (`bash -s`), which is what
+     * keeps the setup steps out of the argv: a script with a `$` in it would
+     * otherwise be expanded by the host shell on the way in.
+     */
+    private fun pipeScriptInGuest(
         scriptBody: String,
         onLog: (String) -> Unit,
         envExtras: Map<String, String> = emptyMap(),
     ): Int {
-        val prootExe = prootFile.absolutePath
         val rootfs = rootfsDir.absolutePath
-        val lib = libDir.absolutePath
-        val tmp = tmpDir.absolutePath
+        val runtime = chrootNgFile.absolutePath
 
-        val argv = listOf(
-            linkerPath, prootExe,
-            "--kill-on-exit", "-0", "--link2symlink",
-            "-r", rootfs,
-            "-w", "/home",
-            "-b", "/dev", "-b", "/proc", "-b", "/sys",
-            "-b", "/system", "-b", "/data",
-            "-b", "${lib}:/hostlib",
-            "/bin/bash", "-s",
-        )
+        val argv = mutableListOf<String>().apply {
+            add(runtime)
+            add("--fake-id=0:0")
+            add("--link2symlink")
+            add("--rewrite")
+            listOf("/data", "/storage", "/sdcard")
+                .filter { File(it).isDirectory }
+                .forEach { add("--bind"); add("$it:$it") }
+            add("--work-dir")
+            add("/home")
+            val environment = linkedMapOf(
+                "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME" to "/home",
+                "LANG" to "C.UTF-8",
+                "TMPDIR" to "/tmp",
+            )
+            environment.putAll(envExtras)
+            environment.forEach { (name, value) -> add("-E"); add("$name=$value") }
+            add(rootfs)
+            add("/bin/bash")
+            add("-s")
+        }
 
-        val env = mapOf(
-            "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "HOME" to "/home",
-            "TERM" to "xterm-256color",
-            "LANG" to "C.UTF-8",
-            "TMPDIR" to "/tmp",
-            "LD_LIBRARY_PATH" to lib,
-            "PROOT_TMP_DIR" to tmp,
-        ) + envExtras
-
-        val pb = ProcessBuilder(*argv.toTypedArray())
+        val pb = ProcessBuilder(argv)
         pb.environment().clear()
-        pb.environment().putAll(env)
+        pb.environment()["TERM"] = "xterm-256color"
         pb.directory(File(rootfs))
         pb.redirectErrorStream(true)
 
@@ -357,54 +334,56 @@ class UbuntuBootstrap(private val context: Context) {
         return process.waitFor()
     }
 
-    private fun runScriptInProot(
+    private fun runScriptInGuest(
         scriptName: String,
         onLog: (String) -> Unit,
         envExtras: Map<String, String> = emptyMap(),
     ): Int {
         val body = loadAssetScript(scriptName)
-        return pipeScriptInProot(body, onLog, envExtras)
+        return pipeScriptInGuest(body, onLog, envExtras)
     }
 
 
-    // ─── Proot command execution (for setup steps) ─────────────────
+    // ─── Guest command execution (for setup steps) ─────────────────
 
-    private val linkerPath: String
-        get() = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
-
-    private fun runInProot(
+    /**
+     * Runs one shell command inside the guest and streams its output.
+     *
+     * The same argv shape [ChrootNgRunner] builds for a session, kept here
+     * because the bootstrap runs before a session exists.
+     */
+    private fun runInGuest(
         command: String,
         onLog: (String) -> Unit = {},
     ): Int {
-        val prootExe = prootFile.absolutePath
         val rootfs = rootfsDir.absolutePath
-        val lib = libDir.absolutePath
-        val tmp = tmpDir.absolutePath
+        val runtime = chrootNgFile.absolutePath
 
-        val argv = listOf(
-            linkerPath, prootExe,
-            "--kill-on-exit", "-0", "--link2symlink",
-            "-r", rootfs,
-            "-w", "/home",
-            "-b", "/dev", "-b", "/proc", "-b", "/sys",
-            "-b", "/system", "-b", "/data",
-            "-b", "${lib}:/hostlib",
-            "/bin/bash", "-c", command
-        )
+        val argv = mutableListOf<String>().apply {
+            add(runtime)
+            add("--fake-id=0:0")
+            add("--link2symlink")
+            add("--rewrite")
+            listOf("/data", "/storage", "/sdcard")
+                .filter { File(it).isDirectory }
+                .forEach { add("--bind"); add("$it:$it") }
+            add("--work-dir")
+            add("/home")
+            listOf(
+                "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME" to "/home",
+                "LANG" to "C.UTF-8",
+                "TMPDIR" to "/tmp",
+            ).forEach { (name, value) -> add("-E"); add("$name=$value") }
+            add(rootfs)
+            add("/bin/bash")
+            add("-c")
+            add(command)
+        }
 
-        val env = mapOf(
-            "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "HOME" to "/home",
-            "TERM" to "xterm-256color",
-            "LANG" to "C.UTF-8",
-            "TMPDIR" to "/tmp",
-            "LD_LIBRARY_PATH" to lib,
-            "PROOT_TMP_DIR" to tmp
-        )
-
-        val pb = ProcessBuilder(*argv.toTypedArray())
+        val pb = ProcessBuilder(argv)
         pb.environment().clear()
-        pb.environment().putAll(env)
+        pb.environment()["TERM"] = "xterm-256color"
         pb.directory(File(rootfs))
         pb.redirectErrorStream(true)
 
@@ -458,11 +437,6 @@ class UbuntuBootstrap(private val context: Context) {
         /** The chroot-ng runtime, as it travels in the APK. */
         private const val CHROOT_NG_ASSET = "libchrootng.so"
 
-        /** proot's binary, as it travels in the APK. */
-        private const val PROOT_ASSET = "proot"
-
-        /** proot's own library, as it travels in the APK. */
-        private const val LIBTALLOC_ASSET = "libtalloc.so.2"
         private val ROOTFS_ARCH_MAP = mapOf(
             "arm64-v8a" to "arm64",
             "armeabi-v7a" to "armhf",
@@ -471,7 +445,7 @@ class UbuntuBootstrap(private val context: Context) {
         )
 
         // Asset script filenames under terminal/src/main/assets/shell-scripts/setup/.
-        // Each is shipped in the APK and streamed to proot via stdin (`bash -s`).
+        // Each is shipped in the APK and streamed to the guest via stdin (`bash -s`).
         private const val SCRIPTS_CONFIGURE = "rootfs-configure.sh"
         private const val SCRIPTS_PACKAGES = "packages-install.sh"
         private const val SCRIPTS_DEDIT = "dedit-install.sh"

@@ -6,7 +6,7 @@ package dev.drosh.agent.tool.diff
  * ## Why not `diff` and not `java-diff-utils`
  *
  * `git diff --no-index` and a real `diff` binary both have to exist inside the
- * PRoot guest. They may not — the rootfs is minimal and what is present varies
+ * guest. They may not — the rootfs is minimal and what is present varies
  * by version — and shelling out to produce a preview means the agent can render
  * an approval card that it is then unable to apply, or vice versa. Producing the
  * diff on the host removes the guest from the loop entirely.

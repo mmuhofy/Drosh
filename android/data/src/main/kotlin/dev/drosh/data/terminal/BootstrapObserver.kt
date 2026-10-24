@@ -149,7 +149,7 @@ class BootstrapObserver @Inject constructor(
 
     private fun messageFor(state: UbuntuSetupState): String = when (state) {
         UbuntuSetupState.Idle -> "Preparing…"
-        UbuntuSetupState.Extracting -> "Extracting PRoot + Ubuntu rootfs…"
+        UbuntuSetupState.Extracting -> "Extracting Ubuntu rootfs…"
         UbuntuSetupState.Configuring -> "Configuring rootfs (apt, resolv.conf, shells)…"
         is UbuntuSetupState.InstallingPackages -> state.message
         is UbuntuSetupState.InstallingOhMyZsh -> state.message

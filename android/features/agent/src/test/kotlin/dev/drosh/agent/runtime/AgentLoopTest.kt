@@ -185,7 +185,7 @@ class AgentLoopTest {
         assertNotNull(sent.systemPrompt)
         assertTrue(
             "the prompt should say the environment is real",
-            sent.systemPrompt!!.contains("PRoot"),
+            sent.systemPrompt!!.contains("chroot-ng"),
         )
         assertEquals(listOf("read_file", "shell"), sent.tools.map { it.name }.sorted())
     }

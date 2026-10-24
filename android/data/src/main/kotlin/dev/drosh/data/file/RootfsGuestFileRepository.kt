@@ -130,7 +130,7 @@ class RootfsGuestFileRepository @Inject constructor(
     /**
      * Maps a guest path onto a host file inside the rootfs, or explains why not.
      *
-     * The check that matters is the second half. PRoot bind-mounts `/sdcard`,
+     * The check that matters is the second half. The guest launcher binds `/sdcard`,
      * `/storage`, `/data`, `/proc`, `/sys` and the `/system*` partitions into
      * the guest, and `rootfsDir + "/sdcard/..."` names a real directory that has
      * nothing to do with the phone's shared storage — so a path that looked

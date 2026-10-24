@@ -30,7 +30,7 @@ interface SettingsRepository {
     /** Persists the font pack. Applies across the app without a restart. */
     suspend fun setFontPack(pack: FontPack)
 
-    /** Hot stream of the guest isolation engine. Emits [GuestIsolation.PROOT] first. */
+    /** Hot stream of the guest isolation engine. Emits [GuestIsolation.CHROOT_NG] first. */
     val guestIsolation: Flow<GuestIsolation>
 
     /** Persists the guest isolation engine. Applies to the next session. */
@@ -74,15 +74,15 @@ interface SettingsRepository {
     suspend fun setTerminalTextColor(hex: String)
 
     /**
-     * Custom PRoot start command (e.g. `/bin/bash --login --norc`).
+     * Custom guest start command (e.g. `/bin/bash --login --norc`).
      * Empty string = use default (shell + `--login`).
      *
      * WARNING: Experimental. Changing this can break terminal sessions.
      */
-    val prootStartCommand: Flow<String>
+    val guestStartCommand: Flow<String>
 
-    /** Persists the custom PRoot start command. */
-    suspend fun setProotStartCommand(command: String)
+    /** Persists the custom guest start command. */
+    suspend fun setGuestStartCommand(command: String)
 
     /** Hot stream of the cursor style preference. Emits Block on first launch. */
     val cursorStyle: Flow<String>

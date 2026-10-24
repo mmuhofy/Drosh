@@ -101,9 +101,9 @@ class SettingsRepositoryImpl @Inject constructor(
         store.update { it.copy(terminal = it.terminal.copy(palette = it.terminal.palette.copy(foreground = hex))) }
     }
 
-    override val prootStartCommand: Flow<String> = settings.map { it.shell.startupCommand }
+    override val guestStartCommand: Flow<String> = settings.map { it.shell.startupCommand }
 
-    override suspend fun setProotStartCommand(command: String) {
+    override suspend fun setGuestStartCommand(command: String) {
         store.update { it.copy(shell = it.shell.copy(startupCommand = command)) }
     }
 

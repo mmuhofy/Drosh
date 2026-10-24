@@ -9,11 +9,11 @@ import java.io.IOException
  *
  * ## The mapping
  *
- * The PRoot guest root lives at `<filesDir>/ubuntu/rootfs`, so `/home/zsh/App.kt`
+ * The guest root lives at `<filesDir>/ubuntu/rootfs`, so `/home/zsh/App.kt`
  * is `<filesDir>/ubuntu/rootfs/home/zsh/App.kt` on the device — the same thing
  * `TerminalManager` does when it reads `File(rootfsDir, "home")`.
  *
- * A handful of guest prefixes are *not* under the rootfs. `ProotRunner` bind-mounts
+ * A handful of guest prefixes are *not* under the rootfs. The guest launcher binds
  * `/data`, `/storage` and `/sdcard` from the real filesystem, so those resolve to
  * the real absolute path. Getting this wrong in either direction is a security
  * problem: a false negative writes outside the sandbox, a false positive makes
@@ -30,7 +30,7 @@ class GuestPaths(
     private val workingDirectory: String,
 ) {
 
-    /** Guest prefixes that ProotRunner binds from the real device. */
+    /** Guest prefixes that the launcher binds from the real device. */
     private val bindMounts = listOf("/data", "/storage", "/sdcard")
 
     /** The guest working directory this resolver is scoped to. */

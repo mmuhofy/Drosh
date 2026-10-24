@@ -7,7 +7,7 @@ import dev.drosh.domain.settings.DroshTheme
  * pipeline.
  *
  * Created from the local state collected in SetupFlowScreen, then passed to
- * [TriggerBootstrapUseCase.start] so the bootstrap (PRoot + Ubuntu rootfs)
+ * [TriggerBootstrapUseCase.start] so the bootstrap (guest runtime + Ubuntu rootfs)
  * can honour:
  *   - the chosen shell (Zsh → install Oh My Zsh; Bash → skip it)
  *   - the username for the shell prompt

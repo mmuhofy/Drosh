@@ -55,7 +55,7 @@ data class AgentSessionScope(
         /**
          * The guest home.
          *
-         * * `ProotRunner` sets HOME=/home, and a user's first `cd` lands there.
+         * * A session sets HOME=/home, and a user's first `cd` lands there.
          * * The agent's file tools default to it when a call carries no directory.
          *
          * Duplicated rather than referenced across module boundaries: `:ui` reads

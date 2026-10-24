@@ -19,7 +19,7 @@ import javax.inject.Singleton
  * idempotency: if everything is already installed, it short-circuits to
  * `Ready` and emits a single line to logs.
  */
-// Inspired by: github.com/termux/termux-app (proot-loader)
+// Inspired by: github.com/termux/termux-app (asset staging)
 // Adapted for Drosh — dev.drosh
 @Singleton
 class TriggerBootstrap @Inject constructor(
