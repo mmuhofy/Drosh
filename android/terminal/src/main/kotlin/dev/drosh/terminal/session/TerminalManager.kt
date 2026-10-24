@@ -469,9 +469,30 @@ class TerminalManager(
      */
     override fun primarySessionId(): String? = sessionIdForSlot(PaneSlot.PRIMARY)
 
-    /** The session id shown in [slot], or null when the pane is empty. */
+    /**
+     * The session id shown in [slot], or null when the pane is empty.
+     *
+     * The primary pane falls back to the active tab: a pane that is not bound
+     * yet is *about to* show the active session, and the host needs that id
+     * before the pane exists — it is what the pane is registered with.
+     * Without the fallback the primary pane had no identity until something
+     * other than the pane itself bound it, which is nothing.
+     */
     fun sessionIdForSlot(slot: PaneSlot): String? =
         enginePanes[slot]?.persistentId?.ifEmpty { null }
+            ?: if (slot == PaneSlot.PRIMARY) {
+                val index = (paneTabIndices[slot] ?: 0).coerceAtLeast(0)
+                engineSessions.getOrNull(index)?.persistentId?.ifEmpty { null }
+            } else {
+                null
+            }
+
+    /** The display name of the session shown in [slot], or null. */
+    fun sessionNameForSlot(slot: PaneSlot): String? {
+        val id = sessionIdForSlot(slot) ?: return null
+        return engineSessions.firstOrNull { it.persistentId == id }?.name
+            ?: enginePanes[slot]?.sessionName?.ifEmpty { null }
+    }
 
     /**
      * Exchanges the two panes' sessions.
@@ -1556,10 +1577,24 @@ class TerminalManager(
      * Removes an engine-backed session from the manager's session list.
      */
     fun removeEngineSession(persistentId: String) {
-        val session = engineSessions.find { it.persistentId == persistentId } ?: return
-        session.enginePane?.release()
-        engineSessions.remove(session)
-        enginePanes.entries.removeAll { it.value === session.enginePane }
+        val session = engineSessions.find { it.persistentId == persistentId }
+        // A session that was recorded but never had a pane — one whose row the
+        // reconciliation dropped before the UI hosted it — has to be removable
+        // too, or a stale session stays in the list forever and the app keeps
+        // opening a terminal for a session that no longer exists.
+        if (session != null) {
+            session.enginePane?.release()
+            engineSessions.remove(session)
+            enginePanes.entries.removeAll { it.value === session.enginePane }
+        } else {
+            // Nothing recorded for this id: the pane has to be found by its
+            // identity instead, or removing it leaves a live session behind.
+            val pane = enginePanes.values.firstOrNull { it.persistentId == persistentId }
+            if (pane != null) {
+                enginePanes.entries.removeAll { it.value === pane }
+                pane.release()
+            }
+        }
 
         _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()

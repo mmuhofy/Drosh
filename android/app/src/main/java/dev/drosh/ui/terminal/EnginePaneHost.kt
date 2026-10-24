@@ -73,6 +73,17 @@ import kotlinx.coroutines.withContext
 fun EnginePaneHost(
     paneSlot: PaneSlot,
     terminalManager: TerminalManager,
+    /**
+     * The session this pane runs, when the host knows it.
+     *
+     * The identity is what makes the pane a session rather than an anonymous
+     * terminal: without it the manager cannot record it, the sidebar cannot
+     * list it, and a relaunch cannot restore it. The host has it before the
+     * pane starts, so it is handed over at that point instead of being
+     * discovered afterwards.
+     */
+    sessionId: String = "",
+    sessionName: String = "",
     fontSizeSp: Float,
     /**
      * How the terminal should look: the application's configuration.
@@ -199,9 +210,18 @@ fun EnginePaneHost(
         statusMessage.value = null
         // From here the manager answers for this pane: the focus, the
         // selection, the scroll position and the clipboard are its business.
-        // Registering it at the slot that already has the focus is enough —
-        // the manager activates a pane that arrives there.
-        terminalManager.registerEnginePane(paneSlot, pane)
+        //
+        // The identity goes over with it. This used to register a pane with no
+        // id, which the manager records as a pane but not as a session — so a
+        // terminal could run on screen and the app still had no session it
+        // could name, list, restore or close. It is what made a working
+        // terminal look like a screen that had never been built.
+        terminalManager.registerEnginePane(
+            paneSlot,
+            pane,
+            persistentId = sessionId,
+            name = sessionName,
+        )
     }
 
     /**
@@ -427,7 +447,11 @@ fun EnginePaneHost(
     val problem: String? = statusMessage.value
         ?: startError?.let { stringResource(R.string.terminal_engine_unavailable, it) }
         ?: if (startFailed.value) {
-            stringResource(R.string.terminal_engine_session_exited, 0)
+            // The pane could not start and has no reason of its own to give.
+            // The one reason left that the *host* can see is the identity: a
+            // pane with no session id cannot be recorded, cannot be restored,
+            // and cannot be found again by anything in the app.
+            pane.persistentId.ifEmpty { "the pane has no session id" }
         } else {
             sessionExit.value?.let { stringResource(R.string.terminal_engine_session_exited, it) }
         }

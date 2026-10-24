@@ -159,8 +159,18 @@ class SessionManagerAdapter @Inject constructor(
                     sessionRepository.updateState(resumable.id, SessionState.Running)
                     terminalManager.addTabWithId(resumable.id, resumable.name)
                 } else {
+                    // The row is written **and** the session recorded, in one
+                    // step. Writing the row alone was the bug: the terminal
+                    // screen only hosts a pane for an id the manager already
+                    // knows, so a launch with no resumable row wrote a session
+                    // to the database, told the manager nothing, and the screen
+                    // had no session to open — an empty terminal with no
+                    // fallback, because `sessionsEstablished` then stopped
+                    // [ensureSessionExists] from ever trying again.
                     val defaultId = sessionRepository.create(DEFAULT_SESSION_NAME)
                     sessionRepository.setActiveId(defaultId)
+                    sessionRepository.updateState(defaultId, SessionState.Running)
+                    terminalManager.addTabWithId(defaultId, DEFAULT_SESSION_NAME)
                 }
             }.onFailure { error ->
                 Log.w("Drosh", "Session recovery attempt failed: ${error.message}")
