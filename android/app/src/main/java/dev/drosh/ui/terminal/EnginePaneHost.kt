@@ -257,7 +257,13 @@ fun EnginePaneHost(
         if (terminalManager.currentGuestIsolation != dev.drosh.domain.settings.GuestIsolation.CHROOT_NG) {
             return@LaunchedEffect
         }
-        val report = dev.drosh.terminal.engine.guest.ChrootProbe.run(context)
+        // The probe starts a process and waits up to ten seconds for it. On the
+        // main thread that is a ten-second freeze, which the system reports as
+        // an ANR — so it runs off the UI thread and the terminal is usable
+        // while it does.
+        val report = withContext(Dispatchers.IO) {
+            dev.drosh.terminal.engine.guest.ChrootProbe.run(context)
+        }
         Log.i(TAG, "chroot-ng probe:\n$report")
         // The probe's first line is the one that matters: the runtime is
         // missing, or it cannot run here. That is the difference between "the
