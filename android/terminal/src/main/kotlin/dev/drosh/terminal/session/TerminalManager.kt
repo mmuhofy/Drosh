@@ -836,8 +836,12 @@ class TerminalManager(
      */
     private fun reanchorBlockWire() {
         val wire = blockEngineWire ?: return
-        engineSessions.forEach { session ->
-            session.session?.let { wire.reanchorEngine(it) }
+        // Reading a transcript is a JNI call over the whole output log; it is
+        // not something to do on the main thread.
+        managerScope.launch(Dispatchers.IO) {
+            engineSessions.forEach { session ->
+                session.session?.let { wire.reanchorEngine(it) }
+            }
         }
     }
 
@@ -1100,12 +1104,17 @@ class TerminalManager(
             while (isActive) {
                 publishEngineScroll(pane)
                 publishEngineSelection(pane, pane.hasSelection())
-                // Block engine wire: poll the transcript for engine sessions,
-                // mirroring the Termux path where onTextChanged fires.
+                // The transcript is a JNI read of up to four thousand lines,
+                // so it is never done on the main thread: polling it there
+                // is what stalled the UI on a busy session.
                 if (blockEngineEnabled) {
                     val sessionId = pane.persistentId
                     if (sessionId.isNotEmpty()) {
-                        blockEngineWire?.onEngineSessionTextChanged(pane.session, sessionId)
+                        val wire = blockEngineWire
+                        val session = pane.session
+                        withContext(Dispatchers.IO) {
+                            wire?.onEngineSessionTextChanged(session, sessionId)
+                        }
                     }
                 }
                 delay(ENGINE_SCROLL_POLL_MILLIS)

@@ -33,6 +33,8 @@ import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * A pane that runs on the Rust engine rather than on the vendored Termux
@@ -115,6 +117,9 @@ fun EnginePaneHost(
      */
     val sessionExit = remember { mutableStateOf<Int?>(null) }
 
+    /** True when the engine refused to start the session at all. */
+    val startFailed = remember { mutableStateOf(false) }
+
     /**
      * What chroot-ng's probe said, when it said something.
      *
@@ -166,15 +171,19 @@ fun EnginePaneHost(
         // the size asks for.
         pane.view.applyAppearance(appearance)
 
-        // The guest when there is one, and the plain shell when there is not —
-        // the same fallback the vendored path uses, so a user who has not run
-        // the setup wizard still gets a terminal on either.
-        val command = terminalManager.guestCommand()
-            ?: terminalManager.plainShellCommand().also {
+        // The guest command builds its shell rc files and asks the launcher
+        // what it can run — both touch the disk, so they must not run on the
+        // main thread. A composable's LaunchedEffect runs on the main
+        // dispatcher, and doing this work there is what made the terminal
+        // screen appear to hang on its first frame.
+        val command = withContext(Dispatchers.IO) {
+            terminalManager.guestCommand() ?: terminalManager.plainShellCommand().also {
                 Log.w(TAG, "the guest is not installed; the engine's terminal opens a plain shell")
             }
+        }
         if (!pane.start(command)) {
             Log.w(TAG, "the engine refused the session")
+            startFailed.value = true
             return@LaunchedEffect
         }
         // From here the manager answers for this pane: the focus, the
@@ -333,7 +342,7 @@ fun EnginePaneHost(
      */
     val startError = pane.view.startError
 
-    if (startError != null || sessionExit.value != null || probeFinding.value != null) {
+    if (startError != null || sessionExit.value != null || probeFinding.value != null || startFailed.value) {
         Box(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
@@ -343,10 +352,14 @@ fun EnginePaneHost(
                     stringResource(R.string.terminal_engine_unavailable, it)
                 } ?: probeFinding.value?.let {
                     stringResource(R.string.terminal_engine_unavailable, it)
-                } ?: stringResource(
-                    R.string.terminal_engine_session_exited,
-                    sessionExit.value ?: 0,
-                ),
+                } ?: if (startFailed.value) {
+                    stringResource(R.string.terminal_engine_session_exited, 0)
+                } else {
+                    stringResource(
+                        R.string.terminal_engine_session_exited,
+                        sessionExit.value ?: 0,
+                    )
+                },
                 color = DroshTextSecondary,
                 fontFamily = LocalFontSet.current.sans,
                 fontSize = 14.sp,
