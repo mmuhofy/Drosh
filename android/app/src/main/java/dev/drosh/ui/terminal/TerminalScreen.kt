@@ -110,7 +110,6 @@ import dev.drosh.ui.terminal.MotdWidget
 import dev.drosh.ui.terminal.SystemInfo
 import dev.drosh.domain.settings.AboutInfo
 import dev.drosh.domain.settings.MotdMode
-import dev.drosh.domain.settings.TerminalBackend
 import dev.drosh.ui.topbar.SelectionMenuSurface
 import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
@@ -437,7 +436,6 @@ private fun ReadyScreen(
      * engine has been through a device — the setting is what lets it be
      * tried without a rebuild, and what lets it be undone without one.
      */
-    val terminalBackend by terminalViewModel.terminalBackend.collectAsStateWithLifecycle()
 
     /** The terminal's configuration, as the engine is handed it. */
     val terminalConfig by terminalViewModel.terminalConfig.collectAsStateWithLifecycle()
@@ -1012,7 +1010,6 @@ private fun ReadyScreen(
                     searchResults = findResultsFor(PaneSlot.PRIMARY),
                     searchOverlayRef = searchOverlayRef,
                     appearanceSource = appearanceSource,
-                    terminalBackend = terminalBackend,
                     terminalConfig = terminalConfig,
                     customFontUri = customFontUri,
                     onBoundsChanged = { terminalBounds = it },
@@ -1062,7 +1059,6 @@ private fun ReadyScreen(
                     searchResults = findResultsFor(PaneSlot.SECONDARY),
                     searchOverlayRef = remember { mutableStateOf<Any?>(null) },
                     appearanceSource = appearanceSource,
-                    terminalBackend = terminalBackend,
                     terminalConfig = terminalConfig,
                     customFontUri = customFontUri,
                     // Bounds are the top bar's backdrop sample, and the top bar
@@ -1667,13 +1663,6 @@ private fun TerminalPaneBody(
     searchOverlayRef: MutableState<Any?>? = null,
     /** Where this pane's terminal is sampled for the chrome. */
     appearanceSource: MutableState<TerminalAppearanceSource?>,
-    /**
-     * Which terminal implementation this pane runs.
-     *
-     * The vendored Termux terminal, or the Rust engine. The setting is the
-     * user's choice, and the app follows it without a rebuild.
-     */
-    terminalBackend: TerminalBackend,
     /**
      * The terminal's configuration, as the engine is handed it.
      *

@@ -57,7 +57,6 @@ import dev.drosh.domain.settings.FontPack
 import dev.drosh.domain.settings.MotdDefaults
 import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
-import dev.drosh.domain.settings.TerminalBackend
 import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.domain.terminal.PackageProfile
@@ -593,35 +592,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     )
                 }
 
-                // Which terminal implementation runs the sessions. A setting
-                // rather than a build flag: the engine is not through a device
-                // yet, and the user has to be able to go back to the path that
-                // is.
                 4 -> SettingsTile(
-                    cap = cap,
-                    stacked = true,
-                    title = stringResource(R.string.settings_terminal_backend),
-                    icon = DroshIcons.SquareTerminal,
-                    supporting = stringResource(
-                        when (settings.terminal.backend) {
-                            TerminalBackend.TERMUX -> R.string.settings_terminal_backend_termux_desc
-                            TerminalBackend.ENGINE -> R.string.settings_terminal_backend_engine_desc
-                        },
-                    ),
-                ) {
-                    SettingsSegmented(
-                        options = listOf(
-                            TerminalBackend.TERMUX to stringResource(R.string.settings_terminal_backend_termux),
-                            TerminalBackend.ENGINE to stringResource(R.string.settings_terminal_backend_engine),
-                        ),
-                        selected = settings.terminal.backend,
-                        onSelect = { backend ->
-                            onUpdate { it.copy(terminal = it.terminal.copy(backend = backend)) }
-                        },
-                    )
-                }
-
-                5 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_terminal_keep_awake),
                     icon = DroshIcons.Eye,

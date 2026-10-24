@@ -95,7 +95,6 @@ data class TerminalSettings(
      * the one the app is known to work on, and the setting is what lets the
      * engine be tried without a rebuild.
      */
-    val backend: TerminalBackend = TerminalBackend.DEFAULT,
     /** The size a session opens at. A pinch moves the session, not this. */
     val defaultFontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     val cursorStyle: CursorStyle = CursorStyle.Block,

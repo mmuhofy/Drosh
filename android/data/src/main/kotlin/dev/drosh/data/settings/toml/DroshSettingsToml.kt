@@ -17,7 +17,6 @@ import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.SecuritySettings
 import dev.drosh.domain.settings.SessionSettings
 import dev.drosh.domain.settings.ShellSettings
-import dev.drosh.domain.settings.TerminalBackend
 import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.TerminalSettings
 import dev.drosh.domain.settings.ThemeMode
@@ -49,7 +48,6 @@ internal object DroshSettingsToml {
         with(settings.terminal) {
             putString("terminal", "mode", mode.tomlName())
             putString("terminal", "guest_isolation", guestIsolation.name)
-            putString("terminal", "backend", backend.tomlName())
             putFloat("terminal", "default_font_size_sp", defaultFontSizeSp)
             putString("terminal", "cursor_style", cursorStyle.tomlName())
             putInt("terminal", "cursor_blink_ms", cursorBlinkMs)
@@ -156,9 +154,6 @@ internal object DroshSettingsToml {
                 guestIsolation = GuestIsolation.fromName(
                     document.getStringOrNull("terminal", "guest_isolation"),
                 ) ?: base.terminal.guestIsolation,
-                backend = TerminalBackend.fromName(
-                    document.getStringOrNull("terminal", "backend"),
-                ) ?: base.terminal.backend,
                 defaultFontSizeSp = document.getFloat(
                     "terminal", "default_font_size_sp", base.terminal.defaultFontSizeSp,
                 ),
