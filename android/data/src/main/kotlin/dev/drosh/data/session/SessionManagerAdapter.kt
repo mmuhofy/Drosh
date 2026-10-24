@@ -1,6 +1,6 @@
 package dev.drosh.data.session
 
-import com.termux.terminal.Logger
+import android.util.Log
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
@@ -163,7 +163,7 @@ class SessionManagerAdapter @Inject constructor(
                     sessionRepository.setActiveId(defaultId)
                 }
             }.onFailure { error ->
-                Logger.logWarn(null, "Drosh", "Session recovery attempt failed: ${error.message}")
+                Log.w("Drosh", "Session recovery attempt failed: ${error.message}")
             }
         }
     }

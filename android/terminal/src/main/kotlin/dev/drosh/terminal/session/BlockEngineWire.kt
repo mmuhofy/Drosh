@@ -5,8 +5,7 @@ import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.ShellPhase
 import dev.drosh.domain.block.ShellState
 import dev.drosh.domain.block.ShellStateSource
-import com.termux.terminal.TerminalEmulator
-import com.termux.terminal.TerminalSession
+// Termux terminal model removed — engine is the only terminal now.
 import dev.drosh.terminal.engine.core.EngineSession
 
 /**
@@ -142,7 +141,7 @@ class BlockEngineWire(
      */
     fun onSessionChanged(
         sessionId: String?,
-        session: TerminalSession?,
+        session: TerminalSession? = null,
         shellState: ShellStateSource? = null,
     ) {
         // The source belongs to the session, so it is bound before the early
@@ -151,23 +150,18 @@ class BlockEngineWire(
         shellStateSource = shellState
         if (activeSessionId == sessionId) return
         activeSessionId = sessionId
-        previousTranscript = session?.let { snapshotOf(it) } ?: ""
+        previousTranscript = ""
         pendingEcho = null
         blockRepository.setActiveSession(sessionId)
     }
 
-    private fun snapshotOf(session: TerminalSession): String {
-        val emulator = session.emulator ?: return ""
-        return AnsiStripper.strip(emulator.getScreen().getTranscriptTextWithoutJoinedLines())
-    }
-
     /**
-     * Re-seeds the diff anchor against [session]'s current transcript without
+     * Re-seeds the diff anchor against an engine session's transcript without
      * changing which session is active. Used after a restart, where the id is
      * unchanged but the process and everything on screen is new.
      */
-    fun reanchor(session: TerminalSession) {
-        previousTranscript = snapshotOf(session)
+    fun reanchorEngine(session: EngineSession) {
+        previousTranscript = session.transcript().joinToString("\n")
         pendingEcho = null
     }
 
