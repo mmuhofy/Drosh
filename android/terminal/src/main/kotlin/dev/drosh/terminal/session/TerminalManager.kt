@@ -1634,6 +1634,14 @@ class TerminalManager(
      * one.
      */
     fun guestCommand(): GuestCommand? {
+        // A runtime that is not staged cannot run the guest, and the session
+        // would die with an ENOENT that says nothing about the cause. The
+        // engine's runtime is fetched by the build and staged by the bootstrap,
+        // so a missing one is reported rather than watched.
+        if (!ubuntuBootstrap.isChrootNgAvailable) {
+            reportMissingGuestRuntime()
+            return null
+        }
         if (!ubuntuBootstrap.isInstalled) return null
 
         ensureShellRc()
@@ -1685,6 +1693,20 @@ class TerminalManager(
      * skipped the fetch — a plain Android shell opens in the meantime, and the
      * reason is shown rather than left in a log.
      */
+    /**
+     * Why the guest cannot start, as a message the screen can show.
+     *
+     * Checked in the order a user can act on: the runtime is a build fact,
+     * the rootfs is the setup wizard's result.
+     */
+    fun guestUnavailableReason(): String? = when {
+        !ubuntuBootstrap.isChrootNgAvailable ->
+            "the guest runtime is not in this build — reinstall the app"
+        !ubuntuBootstrap.isInstalled ->
+            "the Ubuntu rootfs is not installed — run setup from the sidebar"
+        else -> null
+    }
+
     private fun reportMissingGuestRuntime() {
         val engine = when (guestIsolation) {
             GuestIsolation.CHROOT_NG -> "chroot-ng"

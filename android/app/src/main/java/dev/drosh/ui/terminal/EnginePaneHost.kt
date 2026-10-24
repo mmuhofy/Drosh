@@ -121,6 +121,15 @@ fun EnginePaneHost(
     val startFailed = remember { mutableStateOf(false) }
 
     /**
+     * Why the guest is not running, when it is not.
+     *
+     * A message rather than a silent plain shell: a terminal that opens
+     * `/system/bin/sh` looks exactly like a broken guest, and the user cannot
+     * tell which of the two they are looking at.
+     */
+    val statusMessage = remember { mutableStateOf<String?>(null) }
+
+    /**
      * What chroot-ng's probe said, when it said something.
      *
      * The probe is the runtime's own account of itself: whether the binary is
@@ -177,10 +186,16 @@ fun EnginePaneHost(
         // dispatcher, and doing this work there is what made the terminal
         // screen appear to hang on its first frame.
         val command = withContext(Dispatchers.IO) {
-            terminalManager.guestCommand() ?: terminalManager.plainShellCommand().also {
-                Log.w(TAG, "the guest is not installed; the engine's terminal opens a plain shell")
+            val guest = terminalManager.guestCommand()
+            if (guest == null) {
+                // No guest, or no runtime: say which, on the screen, rather
+                // than opening a plain shell the user did not ask for and
+                // cannot tell from a broken terminal.
+                statusMessage.value = terminalManager.guestUnavailableReason()
+                return@withContext null
             }
-        }
+            guest
+        } ?: return@LaunchedEffect
         // Starting the session forks the guest and execs the launcher — with
         // chroot-ng that is a process spawn plus a pile of binds, and on the
         // main thread it is a freeze the system reports as an ANR.
@@ -190,6 +205,7 @@ fun EnginePaneHost(
             startFailed.value = true
             return@LaunchedEffect
         }
+        statusMessage.value = null
         // From here the manager answers for this pane: the focus, the
         // selection, the scroll position and the clipboard are its business.
         // Registering it at the slot that already has the focus is enough —
@@ -352,24 +368,25 @@ fun EnginePaneHost(
      */
     val startError = pane.view.startError
 
-    if (startError != null || sessionExit.value != null || probeFinding.value != null || startFailed.value) {
+    if (startError != null || sessionExit.value != null || probeFinding.value != null || startFailed.value || statusMessage.value != null) {
         Box(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = startError?.let {
-                    stringResource(R.string.terminal_engine_unavailable, it)
-                } ?: probeFinding.value?.let {
-                    stringResource(R.string.terminal_engine_unavailable, it)
-                } ?: if (startFailed.value) {
-                    stringResource(R.string.terminal_engine_session_exited, 0)
-                } else {
-                    stringResource(
-                        R.string.terminal_engine_session_exited,
-                        sessionExit.value ?: 0,
-                    )
-                },
+                text = statusMessage.value
+                    ?: startError?.let {
+                        stringResource(R.string.terminal_engine_unavailable, it)
+                    } ?: probeFinding.value?.let {
+                        stringResource(R.string.terminal_engine_unavailable, it)
+                    } ?: if (startFailed.value) {
+                        stringResource(R.string.terminal_engine_session_exited, 0)
+                    } else {
+                        stringResource(
+                            R.string.terminal_engine_session_exited,
+                            sessionExit.value ?: 0,
+                        )
+                    },
                 color = DroshTextSecondary,
                 fontFamily = LocalFontSet.current.sans,
                 fontSize = 14.sp,
