@@ -146,7 +146,17 @@ class ChrootNgRunner(
         return GuestCommand(
             executable = chrootNgPath,
             argv = argv,
-            cwd = rootfsPath,
+            // The parent, not the rootfs itself.
+            //
+            // The process is forked from this directory, and chroot-ng is then
+            // handed the rootfs as its new root. Forking *inside* the directory
+            // it is about to become root of means the child holds a cwd that is
+            // the guest's own `/`, and the loader and the guest both resolve it
+            // against a root they no longer share. Some kernels accept that and
+            // some return an error the session reports as "the session could
+            // not be started"; the parent costs nothing and is what a shell
+            // does when it runs the same command by hand.
+            cwd = rootfsDir.parentFile?.absolutePath ?: rootfsPath,
             // Only TERM crosses over; chroot-ng builds the rest itself.
             environment = listOf("TERM=xterm-256color"),
         )
