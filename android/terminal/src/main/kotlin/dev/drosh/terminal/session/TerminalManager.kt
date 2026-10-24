@@ -573,7 +573,7 @@ class TerminalManager(
         if (engine != null) {
             return engine.isAltBufferActive()
         }
-        return sessionForSlot(slot)?.emulator?.isAlternateBufferActive() ?: false
+        return false
     }
 
     /**
@@ -1529,7 +1529,7 @@ class TerminalManager(
         // The slot is determined by the caller; default to the focused pane.
         registerEnginePane(focusedPane.value, pane, persistentId, name)
 
-        _sessionCount.value = sessions.size + engineSessions.size
+        _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()
         _noSessionsLeft.value = false
 
@@ -1546,11 +1546,11 @@ class TerminalManager(
         engineSessions.remove(session)
         enginePanes.entries.removeAll { it.value === session.enginePane }
 
-        _sessionCount.value = sessions.size + engineSessions.size
+        _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()
         publishActiveId()
 
-        if (sessions.isEmpty() && engineSessions.isEmpty()) {
+        if (engineSessions.isEmpty()) {
             _noSessionsLeft.value = true
         }
     }
@@ -1768,7 +1768,7 @@ class TerminalManager(
 
         lifecycleCallbacks?.onSessionFinished(persistentId, exitCode)
 
-        if (engineSessions.isEmpty() && sessions.isEmpty()) {
+        if (engineSessions.isEmpty()) {
             _processExitEvent.value = ProcessExitEvent(exitCode)
             _noSessionsLeft.value = true
         }
@@ -1784,8 +1784,6 @@ class TerminalManager(
         engineWatchJob?.cancel()
         engineWatchJob = null
         enginePanes.values.forEach { pane -> pane.selectionListener = null }
-        // Termux view removed.
-        sessions.clear()
         engineSessions.forEach { it.enginePane?.release() }
         engineSessions.clear()
         idToIndex.clear()
