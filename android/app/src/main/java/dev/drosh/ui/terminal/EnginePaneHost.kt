@@ -181,7 +181,11 @@ fun EnginePaneHost(
                 Log.w(TAG, "the guest is not installed; the engine's terminal opens a plain shell")
             }
         }
-        if (!pane.start(command)) {
+        // Starting the session forks the guest and execs the launcher — with
+        // proot that is a process spawn plus a pile of bind mounts, and on the
+        // main thread it is a freeze the system reports as an ANR.
+        val started = withContext(Dispatchers.IO) { pane.start(command) }
+        if (!started) {
             Log.w(TAG, "the engine refused the session")
             startFailed.value = true
             return@LaunchedEffect
