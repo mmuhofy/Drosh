@@ -836,8 +836,8 @@ class TerminalManager(
      */
     private fun reanchorBlockWire() {
         val wire = blockEngineWire ?: return
-        sessions.forEach { session ->
-            wire.reanchor(session.terminalSession)
+        engineSessions.forEach { session ->
+            session.session?.let { wire.reanchorEngine(it) }
         }
     }
 
