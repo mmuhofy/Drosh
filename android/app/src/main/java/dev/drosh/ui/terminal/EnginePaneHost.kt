@@ -1,6 +1,7 @@
 package dev.drosh.ui.terminal
 
 import android.util.Log
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -129,16 +130,6 @@ fun EnginePaneHost(
      */
     val statusMessage = remember { mutableStateOf<String?>(null) }
 
-    /**
-     * What chroot-ng's probe said, when it said something.
-     *
-     * The probe is the runtime's own account of itself: whether the binary is
-     * in the build, and whether the device can run it. The first line is the
-     * one that matters, and it is what the screen shows when the guest cannot
-     * start — a terminal that stays empty and says nothing is the hardest kind
-     * of bug to read.
-     */
-    val probeFinding = remember { mutableStateOf<String?>(null) }
 
     /**
      * Where the chrome samples this terminal.
@@ -291,7 +282,10 @@ fun EnginePaneHost(
         // the difference the log would otherwise be the only place to find.
         val finding = report.lineSequence().firstOrNull { it.startsWith("probe: ") }
         if (finding != null) {
-            probeFinding.value = finding.removePrefix("probe: ").trim()
+            // Logged, not shown. The probe's first line is its normal output
+            // on most devices, and a diagnostic that takes the screen away
+            // from the terminal it describes is worse than no diagnostic.
+            Log.i(TAG, "probe finding: " + finding.removePrefix("probe: ").trim())
         }
     }
 
@@ -321,13 +315,29 @@ fun EnginePaneHost(
     }
 
     /**
+     * The pane's actual height, in pixels.
+     *
+     * A surface of zero height draws nothing — no background, no cursor, no
+     * text — and it draws it without an error, so the symptom is a blank
+     * rectangle with no failure to report. The host measures the terminal as
+     * it is laid out and says so when it is empty, rather than leaving the
+     * user with a terminal that is blank for a reason only a layout inspector
+     * could see.
+     */
+    var paneHeightPx by remember { mutableStateOf(0) }
+
+    /**
      * The pane goes away with the composition.
      *
      * The manager is told first — it is the one that publishes the focus and
      * the selection — and the pane is released after: the pane owns the
      * session, and this is the only thing that closes it.
+     *
+     * **Keyed on nothing but the slot.** The effect must not restart for a
+     * reason of its own, because restarting it means the undo below runs while
+     * the host is still on screen.
      */
-    DisposableEffect(pane, paneSlot) {
+    DisposableEffect(paneSlot) {
         onDispose {
             terminalManager.unregisterEnginePane(paneSlot)
             pane.release()
@@ -368,39 +378,43 @@ fun EnginePaneHost(
      */
     val startError = pane.view.startError
 
-    if (startError != null || sessionExit.value != null || probeFinding.value != null || startFailed.value || statusMessage.value != null) {
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = statusMessage.value
-                    ?: startError?.let {
-                        stringResource(R.string.terminal_engine_unavailable, it)
-                    } ?: probeFinding.value?.let {
-                        stringResource(R.string.terminal_engine_unavailable, it)
-                    } ?: if (startFailed.value) {
-                        stringResource(R.string.terminal_engine_session_exited, 0)
-                    } else {
-                        stringResource(
-                            R.string.terminal_engine_session_exited,
-                            sessionExit.value ?: 0,
-                        )
-                    },
-                color = DroshTextSecondary,
-                fontFamily = LocalFontSet.current.sans,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(24.dp),
-            )
+    /**
+     * What is wrong, in one string, or null when nothing is.
+     *
+     * The order is the order a user can act on: a session that never started
+     * beats one that ended, and both beat a probe's opinion.
+     *
+     * **The probe's answer is deliberately not here.** It used to be, and a
+     * probe line that began with `probe: ` — its normal output, not a failure
+     * — replaced the terminal with a message. A diagnostic is not an error,
+     * and it must never take the screen away from the terminal it describes.
+     */
+    val problem: String? = statusMessage.value
+        ?: startError?.let { stringResource(R.string.terminal_engine_unavailable, it) }
+        ?: if (startFailed.value) {
+            stringResource(R.string.terminal_engine_session_exited, 0)
+        } else {
+            sessionExit.value?.let { stringResource(R.string.terminal_engine_session_exited, it) }
         }
-        return
-    }
 
-    AndroidView(
-        modifier = modifier
-            .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) },
-        factory = { ctx ->
+    /**
+     * The terminal, and the reason over it when there is one.
+     *
+     * The terminal is composed **first and always**; the message is an overlay
+     * on top of it rather than a replacement for it. The two used to be
+     * exclusive — a message returned before the view was built — so any
+     * failure, and any false alarm, showed an empty screen where the terminal
+     * should have been.
+     */
+    Box(modifier = modifier) {
+        AndroidView(
+            modifier = Modifier
+                .fillMaxSize()
+                .onGloballyPositioned {
+                    onBoundsChanged(it.boundsInRoot())
+                    paneHeightPx = it.size.height
+                },
+            factory = { ctx ->
             val frame = android.widget.FrameLayout(ctx).apply {
                 layoutParams = android.widget.FrameLayout.LayoutParams(
                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
@@ -427,7 +441,48 @@ fun EnginePaneHost(
             }
             frame
         },
-    )
+        )
+
+        // The reason, over the terminal rather than instead of it. A
+        // translucent ground, because the surface underneath is the
+        // terminal's own and a message on a bare grid is unreadable.
+        if (problem != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = problem,
+                    color = DroshTextSecondary,
+                    fontFamily = LocalFontSet.current.sans,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+        } else if (paneHeightPx == 0) {
+            // The host is on screen with no height. Nothing can be drawn in a
+            // surface of zero pixels, and nothing reports it, so the reason is
+            // named here instead of leaving a blank rectangle.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "the terminal has no height to draw in",
+                    color = DroshTextSecondary,
+                    fontFamily = LocalFontSet.current.sans,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+        }
+    }
 }
 
 private const val TAG = "EnginePaneHost"

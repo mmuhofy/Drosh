@@ -557,6 +557,10 @@ class TerminalManager(
             val active = computeAltBuffer(slot)
             if (active) next[slot] = true
         }
+        // Published only when it changed. This is now read with the scroll
+        // poll, and writing the same map twenty times a second would recompose
+        // the whole terminal screen on every tick.
+        if (next == _altBufferByPane.value) return
         _altBufferByPane.value = next
     }
 
@@ -1060,29 +1064,48 @@ class TerminalManager(
     private fun startEngineWatch(pane: EnginePane) {
         engineWatchJob?.cancel()
         engineWatchJob = managerScope.launch {
-            while (isActive) {
-                publishEngineScroll(pane)
-                publishEngineSelection(pane, pane.hasSelection())
-                // The transcript is a JNI read of up to four thousand lines,
-                // so it is never done on the main thread: polling it there
-                // is what stalled the UI on a busy session.
-                if (blockEngineEnabled) {
-                    val sessionId = pane.persistentId
-                    if (sessionId.isNotEmpty()) {
-                        val wire = blockEngineWire
-                        val session = pane.session
-                        withContext(Dispatchers.IO) {
-                            wire?.onEngineSessionTextChanged(session, sessionId)
+            try {
+                while (isActive) {
+                    publishEngineScroll(pane)
+                    publishEngineSelection(pane, pane.hasSelection())
+                    // Whether a program (vim, htop) owns the screen. The chrome
+                    // collapses on it, and that answer was only ever computed
+                    // when a session was added — so a shell that was at the
+                    // alternate screen when the pane registered left the chrome
+                    // collapsed for the rest of the session, and the grid stayed
+                    // padded down under a pill row that was not there. It is one
+                    // mode read on the engine's own state, so it is read with
+                    // the scroll.
+                    publishAltBufferState()
+                    // The transcript is a JNI read of up to four thousand lines,
+                    // so it is never done on the main thread: polling it there
+                    // is what stalled the UI on a busy session.
+                    if (blockEngineEnabled) {
+                        val sessionId = pane.persistentId
+                        if (sessionId.isNotEmpty()) {
+                            val wire = blockEngineWire
+                            val session = pane.session
+                            withContext(Dispatchers.IO) {
+                                wire?.onEngineSessionTextChanged(session, sessionId)
+                            }
                         }
                     }
+                    // The command lifecycle and the editor target are both read
+                    // from the engine's marks, and both are JNI calls.
+                    withContext(Dispatchers.IO) {
+                        commandState.poll()
+                        editorRequests.poll()
+                    }
+                    delay(ENGINE_SCROLL_POLL_MILLIS)
                 }
-                // The command lifecycle and the editor target are both read
-                // from the engine's marks, and both are JNI calls.
-                withContext(Dispatchers.IO) {
-                    commandState.poll()
-                    editorRequests.poll()
-                }
-                delay(ENGINE_SCROLL_POLL_MILLIS)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                // The session can be gone between two reads of it — a shell
+                // that exited leaves a handle the engine no longer knows — and
+                // an exception escaping here would cancel the manager's whole
+                // scope, taking every other watcher with it.
+                Log.w(TAG, "the engine watch stopped", error)
             }
         }
     }
