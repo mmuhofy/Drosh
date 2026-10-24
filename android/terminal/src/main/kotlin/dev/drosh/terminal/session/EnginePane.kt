@@ -127,6 +127,12 @@ class EnginePane(context: Context) {
      */
     private val forwarder = object : TerminalView.Listener {
         override fun onTitle(title: String) {
+            // The title is the guest's own idea of itself, and it is the first
+            // thing a terminal says: a shell that prints "root@…" in its title
+            // has started and is about to print a prompt. Logged because a
+            // blank screen cannot tell "the shell never ran" from "the shell
+            // ran and nothing was drawn", and this is the line that can.
+            Log.i(TAG, "title: $title")
             listener?.onTitle(title)
         }
 
@@ -135,6 +141,7 @@ class EnginePane(context: Context) {
         }
 
         override fun onSessionExited(code: Int) {
+            Log.w(TAG, "session exited: $code")
             listener?.onSessionExited(code)
             onSessionExitedCallback?.invoke(code)
         }
