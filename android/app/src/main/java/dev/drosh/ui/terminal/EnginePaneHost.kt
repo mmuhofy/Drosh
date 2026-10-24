@@ -201,9 +201,21 @@ fun EnginePaneHost(
         // Starting the session forks the guest and execs the launcher — with
         // chroot-ng that is a process spawn plus a pile of binds, and on the
         // main thread it is a freeze the system reports as an ANR.
+        // The whole launch, in the log: the program, its arguments and where
+        // it runs. A guest that does not start is then a chroot-ng command that
+        // can be run by hand, rather than a terminal that is simply empty.
+        Log.i(
+            TAG,
+            "starting: ${command.executable} " + command.argv.drop(1).joinToString(" ") +
+                "\n  cwd=${command.cwd}" +
+                "\n  env=${command.environment.joinToString(" ")}",
+        )
         val started = withContext(Dispatchers.IO) { pane.start(command) }
         if (!started) {
-            Log.w(TAG, "the engine refused the session")
+            Log.w(
+                TAG,
+                "the engine refused the session: ${pane.view.startError ?: "no reason given by the engine"}",
+            )
             startFailed.value = true
             return@LaunchedEffect
         }
