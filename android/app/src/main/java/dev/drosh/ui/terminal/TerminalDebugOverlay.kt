@@ -12,7 +12,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.terminal.engine.render.FrameReport
-import java.util.Locale
 
 /**
  * A corner of numbers describing the last frame.
@@ -41,20 +40,29 @@ fun TerminalDebugOverlay(
             .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.78f))
             .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
+        // `String.format` reads a space between `%` and a conversion as a
+        // flag, and two in a row is a duplicate — so the numbers are composed,
+        // not formatted together.
         Line(
-            "frame %d  %.1f ms  build %.1f  draw %.1f".format(
-                Locale.US,
-                report.frames,
-                report.frameMillis,
-                report.buildMillis,
-                report.drawMillis,
-            ),
+            "frame " + report.frames +
+                "  " + one(report.frameMillis) + " ms" +
+                "  build " + one(report.buildMillis) +
+                "  draw " + one(report.drawMillis),
         )
         Line("grid ${report.columns}x${report.rows}  damage ${report.damage}")
         Line("glyphs ${report.glyphs}  coloured ${report.coloredCells}")
-        Line("atlas ${report.atlasPercent}%  bg #%06x".format(Locale.US, report.background and 0xffffff))
+        Line(
+            "atlas " + report.atlasPercent + "%  bg #" +
+                (report.background and 0xffffff).toString(16).padStart(6, '0'),
+        )
         Line(report.gl)
     }
+}
+
+/** One decimal place, without `String.format`'s flag parsing. */
+private fun one(value: Float): String {
+    val tenths = (value * 10f).toInt()
+    return (tenths / 10).toString() + "." + (tenths % 10)
 }
 
 @Composable
