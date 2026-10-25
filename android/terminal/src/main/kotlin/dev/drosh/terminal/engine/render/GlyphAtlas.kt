@@ -64,7 +64,7 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
     /** Coverage, one byte per texel, row-major from the top row. */
     val pixels = ByteArray(size * size)
 
-    private val entries = HashMap<Long, GlyphEntry>(256)
+    private var entries = HashMap<Long, GlyphEntry>(256)
 
     /**
      * The shaped path's own cache.
@@ -73,7 +73,15 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
      * keyed by the font's glyph id, the other by the codepoint. The same id in
      * the two caches is not the same glyph.
      */
-    private val shapedEntries = HashMap<Long, GlyphEntry>(256)
+    private var shapedEntries = HashMap<Long, GlyphEntry>(256)
+
+    /** The previous size's masks, still addressable while a pinch moves on. */
+    private var previousEntries = HashMap<Long, GlyphEntry>(0)
+    private var previousShaped = HashMap<Long, GlyphEntry>(0)
+
+    /** The pixel size the current generation was rasterised at. */
+    private var currentPx = 0f
+    private var previousPx = 0f
     private var shelfY = 0
     private var shelfHeight = 0
     private var penX = 0
@@ -124,8 +132,17 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
      * failure than the re-rasterising a size change costs.
      */
     fun reset() {
+        clear()
+    }
+
+    /** Drop everything: the next frame rasterises the size it is drawing. */
+    private fun clear() {
         entries.clear()
         shapedEntries.clear()
+        previousEntries.clear()
+        previousShaped.clear()
+        currentPx = 0f
+        previousPx = 0f
         pixels.fill(0)
         shelfY = 0
         shelfHeight = 0
@@ -135,6 +152,38 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
         missing = 0
         reserveSolid()
         dirty = true
+    }
+
+    /**
+     * The masks of the *previous* size, kept until the current size has filled
+     * its own shelf.
+     *
+     * A pinch changes the size on every frame, and a reset on every frame threw
+     * away the glyphs the very next frame was about to draw again — every
+     * character was re-rasterised from scratch, the atlas was re-uploaded in
+     * full, and the atlas's own shelves were re-laid-out each time. On a device
+     * that reads as the text shaking during a pinch.
+     *
+     * So the atlas keeps two generations: the size being drawn now, and the one
+     * before it. A size that is still being asked for finds its masks; a third
+     * size retires the oldest, which is a size no frame is drawing any more.
+     */
+    fun beginSize(px: Float) {
+        if (px == currentPx) {
+            return
+        }
+        previousPx = currentPx
+        currentPx = px
+        previousEntries = entries
+        previousShaped = shapedEntries
+        entries = HashMap(256)
+        shapedEntries = HashMap(256)
+        // The pixels themselves stay: two sizes share the atlas, and the blocks
+        // of the retired generation are simply no longer addressed. The shelf
+        // keeps growing, and the whole thing is dropped when it fills.
+        if (full) {
+            clear()
+        }
     }
 
     /** Reserve the one opaque texel the solid quads sample. */
@@ -178,6 +227,7 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
     fun glyph(codepoint: Int, bold: Boolean, px: Float): GlyphEntry? {
         val key = key(codepoint, bold, px)
         entries[key]?.let { return it }
+        if (px == previousPx) previousEntries[key]?.let { return it }
 
         val entry = rasterize(codepoint, bold, px)
         entries[key] = entry
@@ -194,6 +244,7 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
     fun glyphById(glyphId: Int, bold: Boolean, px: Float): GlyphEntry? {
         val key = shapedKey(glyphId, bold, px)
         shapedEntries[key]?.let { return it }
+        if (px == previousPx) previousShaped[key]?.let { return it }
 
         val entry = rasterizeGlyph(glyphId, bold, px)
         shapedEntries[key] = entry

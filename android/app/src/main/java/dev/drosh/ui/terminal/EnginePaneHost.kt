@@ -638,27 +638,14 @@ fun EnginePaneHost(
                 )
             }
         } else if (snapshot != null && !drewSomething) {
-            // The host is on screen and the engine has not put a pixel on it.
-            // That is not a failure the engine reports — it draws an empty
-            // grid without complaint — so the step it reached, the size it
-            // was given and the numbers behind it are all named here: a zero
-            // grid means the session was never laid out, a non-zero grid with
-            // no frames means the surface never rendered, and a step that never
-            // reached "start returned" means the call itself did not come back.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "the engine is not drawing\nheight ${paneHeightPx.value}px\n" +
-                        "step: ${step.value}\n$engineReport",
-                    color = DroshTextSecondary,
-                    fontFamily = LocalFontSet.current.sans,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(24.dp),
+            // Nothing is drawn and there is no engine error. The terminal still
+            // shows its own background — a black band over a working terminal
+            // is worse than a terminal that is empty — so the diagnosis goes to
+            // the log and the screen stays a terminal.
+            LaunchedEffect(step.value, engineReport) {
+                Log.w(
+                    TAG,
+                    "nothing drawn: height ${paneHeightPx.value}px, step ${step.value}, $engineReport",
                 )
             }
         }

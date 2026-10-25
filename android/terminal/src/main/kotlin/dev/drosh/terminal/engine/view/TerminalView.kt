@@ -723,12 +723,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
         // The atlas holds the masks of the font that was there before; every
         // one of them is wrong now.
-        surface?.queueEvent {
-            renderer?.let {
-                it.invalidateAtlas()
-                it.setFontSize(FontSize(fontPx, metrics))
-            }
-        }
+        surface?.queueEvent { renderer?.setFontSize(FontSize(fontPx, metrics)) }
         Log.i(
             TAG,
             "font: the custom face, cell ${metrics.width}x${metrics.height}px at ${fontPx}px",

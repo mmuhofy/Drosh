@@ -785,6 +785,26 @@ private fun ReadyScreen(
     // the output behind it.
     val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
     val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
+
+    /**
+     * True while a fresh selection is still being made.
+     *
+     * The menu is anchored to the selection, so it is drawn the moment the
+     * bounds exist — and a long press that became a pinch would leave a menu
+     * sitting over the zoom. Waiting a beat costs nothing a user can feel and
+     * removes that case entirely. The timer is reset by every change of
+     * bounds, so a drag keeps the menu away until the finger settles.
+     */
+    var selectionSettling by remember { mutableStateOf(false) }
+    LaunchedEffect(selectionBounds, hasSelection) {
+        if (!hasSelection) {
+            selectionSettling = false
+            return@LaunchedEffect
+        }
+        selectionSettling = true
+        delay(SELECTION_SETTLE_MS)
+        selectionSettling = false
+    }
     val context = LocalContext.current
     /**
      * The selected text, or null when there is no selection.
@@ -1098,7 +1118,11 @@ private fun ReadyScreen(
         // Selection menu. Anchored to the selection, whose bounds are in
         // terminal view coordinates; the host sits in this same Box, so the only
         // thing between the two is the status bar inset.
-        selectionBounds?.let { bounds ->
+        // A pinch is not a selection. The menu waits a moment after the
+        // selection appears, because a selection made by a pinch that was
+        // read as a long press must not put a menu over the zoom.
+        val menuBounds = selectionBounds?.takeIf { !selectionSettling }
+        menuBounds?.let { bounds ->
             val density = LocalDensity.current
             val screenDp = LocalConfiguration.current.screenWidthDp
             // Derived from how many actions are actually showing, so the first
@@ -1789,6 +1813,14 @@ private const val FIND_RESCAN_GATE_MS = 150L
  * printed twelve more matches is a count the user cannot trust.
  */
 private const val ENGINE_RESCAN_INTERVAL_MS = 1000L
+
+/**
+ * How long a selection must hold still before its menu is drawn.
+ *
+ * Long enough that a pinch read as a long press never shows a menu over the
+ * zoom, short enough not to feel like a delay on an ordinary selection.
+ */
+private const val SELECTION_SETTLE_MS = 220L
 
 /** How far the unfocused pane of a split is dimmed. */
 private val DimInactivePane = Color.Black.copy(alpha = 0.4f)

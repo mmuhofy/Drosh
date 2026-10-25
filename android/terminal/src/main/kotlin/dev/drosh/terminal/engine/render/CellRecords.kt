@@ -97,6 +97,20 @@ internal class CellRecords(columns: Int, rows: Int) {
         fontPx: Float,
         ligatures: Boolean,
     ) {
+        // The buffer must hold the grid the caller asked for.
+        //
+        // A frame can arrive while the session is still resizing: the renderer
+        // has laid its grid out for the new size and the session has not yet
+        // been resized to match, or the other way round. Reading it anyway is
+        // an index out of bounds in the middle of a pinch; drawing nothing and
+        // leaving the last frame on screen is the honest answer.
+        if (cells.limit() < columns * rows * NativeCore.CELL_BYTES) {
+            backgrounds.clear()
+            foregrounds.clear()
+            foregroundCount = 0
+            return
+        }
+
         if (cachedFontPx != fontPx) {
             resetCellCache(columns, rows)
             cachedFontPx = fontPx

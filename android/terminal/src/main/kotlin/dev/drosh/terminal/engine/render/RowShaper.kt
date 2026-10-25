@@ -80,7 +80,12 @@ internal class RowShaper {
      * a frame that changed one line shapes one line.
      */
     fun shape(cells: ByteBuffer, columns: Int, rows: Int, fontPx: Float) {
-        if (glyphIds.size < columns * rows) {
+        // The cache is sized by the grid the caller is about to read, every
+        // time — not only when it grew. A buffer that shrank and then grew
+        // again (a pinch in, a pinch out) had arrays from the old shape, and
+        // reading them past their end is the index out of bounds a fast pinch
+        // produced.
+        if (glyphIds.size != columns * rows || keys.size != rows) {
             resize(columns, rows)
         }
         for (row in 0 until rows) {
@@ -110,6 +115,12 @@ internal class RowShaper {
         var key = FNV_OFFSET_BASIS
         key = key * FNV_PRIME + fontPx.toBits().toLong()
         val base = row * columns * NativeCore.CELL_BYTES
+        // A frame that arrives between a resize and the session catching up can
+        // hold a buffer for a different grid. Nothing is drawable in it, so the
+        // row is left as it was rather than read past the end.
+        if (base < 0 || base + columns * NativeCore.CELL_BYTES > cells.limit()) {
+            return key
+        }
         for (column in 0 until columns) {
             val at = base + column * NativeCore.CELL_BYTES
             val codepoint = cells.getInt(at + NativeCore.CELL_OFFSET_CODEPOINT)
@@ -125,6 +136,9 @@ internal class RowShaper {
      */
     private fun shapeRow(row: Int, cells: ByteBuffer, columns: Int, fontPx: Float) {
         val base = row * columns * NativeCore.CELL_BYTES
+        if (base < 0 || base + columns * NativeCore.CELL_BYTES > cells.limit()) {
+            return
+        }
         text.setLength(0)
         var entries = 0
 

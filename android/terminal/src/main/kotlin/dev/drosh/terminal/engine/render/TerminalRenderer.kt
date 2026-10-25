@@ -195,10 +195,26 @@ internal class TerminalRenderer(
         }
 
         fontSize = size
-        // The atlas holds the masks of the size that was drawn last. They are
-        // never drawn again, and a pinch would fill the atlas with them.
-        atlas.reset()
+        // The atlas keeps the previous size's masks as well as this one's: a
+        // pinch changes size every frame, and throwing the masks away each time
+        // re-rasterised every character on the frame after it — the text shook
+        // during a pinch. Two generations are enough; the third drops the
+        // first.
+        atlas.beginSize(size.px)
+        // Lay the grid out **now**, and report it, before the next frame.
+        //
+        // `onDrawFrame` builds the cell records for the session's grid, and
+        // that build reads a buffer sized for the columns and rows of the
+        // frame. A renderer whose grid was laid out for one size while the
+        // session still held another was reading past the end of its own cell
+        // buffer — the index out of bounds a fast pinch produced. The two are
+        // kept in step here, at the moment the size changes, rather than a
+        // frame later.
         updateGrid()
+        // The session resize travels to the UI thread; the next frame waits for
+        // it (`session.columns != columns` is a refused frame, and a refused
+        // frame now keeps the last picture rather than clearing).
+        onGridChanged?.invoke(columns, rows, fontSize)
     }
 
     /**
