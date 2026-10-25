@@ -143,6 +143,9 @@ internal class TerminalRenderer(
      */
     private var forceRedraw = false
 
+    /** Frames logged since this renderer started; see `onDrawFrame`. */
+    private var framesLogged = 0
+
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
 
@@ -348,6 +351,18 @@ internal class TerminalRenderer(
         // `records.build` is what a frame actually costs, and it has already
         // run.
         val idle = damage == 0 && forceRedraw == false && drewOnce
+        // A frame that clears and then draws is a frame the user can see
+        // change; one that is skipped is not. Logging both, with the damage
+        // that decided it, is how "the screen flickers" is separated from "the
+        // screen is redrawn every frame".
+        if (framesLogged < FRAME_LOG_LIMIT) {
+            framesLogged += 1
+            Log.i(
+                TAG,
+                "frame ${if (idle) "skipped" else "drawn"}: damage=$damage " +
+                    "force=$forceRedraw drew=$drewOnce",
+            )
+        }
         if (idle) {
             // Nothing changed: the picture on screen is the right one, and
             // clearing it would take it away to put back what was there. This
@@ -651,6 +666,9 @@ internal class TerminalRenderer(
 
     private companion object {
         const val TAG = "DroshLab"
+        /** How many frames the start-up log covers. */
+        const val FRAME_LOG_LIMIT = 24
+
         const val MIN_COLUMNS = 2
         const val MIN_ROWS = 1
         const val FLOAT_BYTES = 4
