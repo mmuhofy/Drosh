@@ -19,6 +19,19 @@ import kotlin.math.abs
  */
 internal class TerminalGestures(private val view: TerminalView) {
 
+    /**
+     * Sub-line scroll offset, in pixels.
+     *
+     * The engine's viewport is a whole number of rows, so a drag that moved
+     * half a row had nowhere to go and was thrown away — which is what made
+     * scrolling read as a series of jumps. The remainder is kept here and the
+     * renderer shifts the grid by it, so the grid follows the finger.
+     */
+    private var scrollOffsetPx = 0f
+
+    /** Momentum, from the same `Scroller` the vendored terminal used. */
+    private var scroller: android.widget.Scroller? = null
+
     private var scrollAccumulator = 0f
     private var draggingSelection = false
     private var lastMouseColumn = -1
@@ -83,12 +96,20 @@ internal class TerminalGestures(private val view: TerminalView) {
                     }
 
                     // Finger down (positive dy) scrolls back into the history.
-                    scrollAccumulator += distanceY
-                    val rowsMoved = (scrollAccumulator / view.metrics.height).toInt()
-                    if (rowsMoved != 0) {
-                        scrollAccumulator -= rowsMoved * view.metrics.height
-                        scrollByRows(rowsMoved)
+                    scrollByPixels(distanceY)
+                    return true
+                }
+
+                override fun onFling(
+                    first: MotionEvent?,
+                    current: MotionEvent,
+                    velocityX: Float,
+                    velocityY: Float,
+                ): Boolean {
+                    if (draggingSelection || view.mouseMode()) {
+                        return true
                     }
+                    startFling(velocityY)
                     return true
                 }
             },
@@ -148,9 +169,119 @@ internal class TerminalGestures(private val view: TerminalView) {
      * alternate screen (alacritty's `scroll_terminal`). The sequences are SS3
      * regardless of DECCKM, matching alacritty's bytes.
      */
-    private fun scrollByRows(rows: Int, allowAlternate: Boolean = true) {
-        if (rows == 0) {
+    /**
+     * Scroll by a finger distance, keeping the sub-line remainder.
+     *
+     * The vendored terminal's rule, moved over whole: a drag advances the
+     * viewport by as many whole rows as it crossed and keeps the rest in
+     * [scrollOffsetPx], which the renderer draws as a shift of the grid. Adding
+     * the remainder to a whole-row scroll is what makes a drag follow the
+     * finger instead of stepping.
+     *
+     * A program that tracks the mouse, or an alternate screen, needs discrete
+     * rows — those cannot carry a sub-line offset — so the pixel path hands
+     * them over to [scrollByRows] instead.
+     */
+    private fun scrollByPixels(distanceYPx: Float) {
+        val spacing = view.metrics.height
+        if (spacing <= 0f || distanceYPx == 0f) {
             return
+        }
+
+        val bits = view.modes()
+        val alternate = bits and NativeCore.MODE_ALT_SCREEN != 0
+        if (view.mouseMode() || alternate) {
+            // Discrete events; no sub-line offset can be drawn and the program
+            // would not understand one.
+            scrollAccumulator += distanceYPx
+            val rows = (scrollAccumulator / spacing).toInt()
+            if (rows != 0) {
+                scrollAccumulator -= rows * spacing
+                scrollByRows(rows)
+            }
+            return
+        }
+
+        // GestureDetector reports distanceY as lastY - currentY, so dragging
+        // the finger down is negative — and that is the gesture for revealing
+        // older output, which moves the viewport offset in the other direction.
+        var offset = scrollOffsetPx + distanceYPx
+        var rows = 0
+        // Whole rows in either direction, one at a time so the clamp at each
+        // end is the engine's own answer rather than an estimate of it.
+        while (offset >= spacing) {
+            if (!scrollByRows(-1, allowAlternate = false)) {
+                offset = 0f
+                break
+            }
+            rows -= 1
+            offset -= spacing
+        }
+        while (offset <= -spacing) {
+            if (!scrollByRows(1, allowAlternate = false)) {
+                offset = 0f
+                break
+            }
+            rows += 1
+            offset += spacing
+        }
+
+        scrollOffsetPx = offset
+        view.applyScrollOffset(scrollOffsetPx)
+        view.requestRender()
+    }
+
+    /**
+     * Momentum after the finger lifts.
+     *
+     * The same `Scroller` and the same 0.25 scale the vendored terminal used:
+     * the velocity the detector reports is measured for a fling over a list, and
+     * a terminal that moved at that speed scrolled a screenful per gesture. The
+     * fling then goes through [scrollByPixels] like a drag, so it carries the
+     * sub-line remainder and the ends ease instead of slamming.
+     */
+    private fun startFling(velocityY: Float) {
+        val scroller = scroller ?: android.widget.Scroller(view.context).also { scroller = it }
+        if (!scroller.isFinished) {
+            // The previous fling owns the viewport until it lands.
+            return
+        }
+        scroller.fling(0, 0, 0, -(velocityY * FLING_SCALE).toInt(), 0, 0, Int.MIN_VALUE, Int.MAX_VALUE)
+
+        val step = object : Runnable {
+            private var lastY = 0
+
+            override fun run() {
+                if (scroller.isFinished) {
+                    snapToWholeRow()
+                    return
+                }
+                scroller.computeScrollOffset()
+                val y = scroller.currY
+                if (y != lastY) {
+                    scrollByPixels((y - lastY).toFloat())
+                    lastY = y
+                }
+                view.post(this)
+            }
+        }
+        view.post(step)
+    }
+
+    /** Settle the sub-line offset back onto a whole row, smoothly. */
+    private fun snapToWholeRow() {
+        if (scrollOffsetPx == 0f) {
+            return
+        }
+        view.applyScrollOffset(0f)
+        scrollOffsetPx = 0f
+        scrollAccumulator = 0f
+        view.requestRender()
+    }
+
+    private fun scrollByRows(rows: Int, allowAlternate: Boolean = true): Boolean {
+        if (rows == 0) {
+            return false
         }
 
         val bits = view.modes()
@@ -160,11 +291,20 @@ internal class TerminalGestures(private val view: TerminalView) {
         if (alternate) {
             val sequence = if (rows > 0) "\u001bOA" else "\u001bOB"
             repeat(abs(rows)) { view.session.writeUtf8(sequence) }
-            return
+            return true
         }
 
+        // The engine clamps at the history's ends; a row it refused is a row
+        // the finger cannot push past, which is what stops the sub-line offset
+        // from growing while the grid stays put.
+        if (view.mouseMode() && !alternate) {
+            // Mouse reporting owns the wheel; the local history is not ours to
+            // move.
+            return false
+        }
         view.session.scroll(rows)
         view.requestRender()
+        return true
     }
 
     /**
@@ -285,5 +425,17 @@ internal class TerminalGestures(private val view: TerminalView) {
             return 0
         }
         return (x / view.metrics.width).toInt().coerceIn(0, columns - 1)
+    }
+
+    private companion object {
+        /**
+         * How much of the reported fling velocity reaches the viewport.
+         *
+         * The vendored terminal's value, kept because it is what the gesture
+         * felt like: the detector's velocity is measured for a list that
+         * follows the finger 1:1, and a terminal that did the same shot a
+         * whole screen past the point the user aimed at.
+         */
+        const val FLING_SCALE = 0.25f
     }
 }

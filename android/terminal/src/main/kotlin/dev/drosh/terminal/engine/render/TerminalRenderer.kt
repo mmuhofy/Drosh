@@ -105,6 +105,16 @@ internal class TerminalRenderer(
      */
     var ligatures: Boolean = false
 
+    /**
+     * The sub-line part of a scroll, in pixels.
+     *
+     * The engine's viewport is a whole number of rows, so a finger that moved
+     * half a row had nowhere to go. Written by the view from the UI thread
+     * through `queueEvent`; read here while the frame draws. Positive draws the
+     * grid down, which is the direction a drag back into the history produces.
+     */
+    var scrollOffsetPx: Float = 0f
+
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
 
@@ -328,7 +338,15 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(backgroundProgram)
-        GLES20.glUniform4f(backgroundProjection, -1f, 1f, 2f / width, -2f / height)
+        // The whole screen moves as one: the projection's y origin carries the
+        // sub-line offset, in the same clip units the scale uses.
+        GLES20.glUniform4f(
+            backgroundProjection,
+            -1f,
+            1f + scrollOffsetPx * 2f / height.coerceAtLeast(1),
+            2f / width,
+            -2f / height.coerceAtLeast(1),
+        )
         GLES20.glUniform2f(backgroundCellSize, metrics.width, metrics.height)
         GLES20.glUniform1i(backgroundColumns, columns)
         GLES30.glBindVertexArray(backgroundVao)
@@ -343,7 +361,13 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(foregroundProgram)
-        GLES20.glUniform4f(foregroundProjection, -1f, 1f, 2f / width, -2f / height)
+        GLES20.glUniform4f(
+            foregroundProjection,
+            -1f,
+            1f + scrollOffsetPx * 2f / height.coerceAtLeast(1),
+            2f / width,
+            -2f / height.coerceAtLeast(1),
+        )
         GLES20.glUniform2f(foregroundCellSize, metrics.width, metrics.height)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
