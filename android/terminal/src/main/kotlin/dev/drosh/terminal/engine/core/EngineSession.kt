@@ -264,6 +264,23 @@ class EngineSession(
     /** Last column that changed on damaged line [index]. */
     fun damageRight(index: Int): Int = damage[3 + index * NativeCore.DAMAGE_STRIDE]
 
+    /**
+     * Bytes typed but not yet handed to the engine.
+     *
+     * The engine's channel is bounded: `write` blocks when it is full, and a
+     * keystroke that blocks the UI thread is a terminal that freezes while it
+     * types. Termux solved this the same way (`TerminalSession`'s
+     * `mTerminalToProcessIOQueue`): the UI appends, a writer thread drains.
+     */
+    private val inputQueue = java.util.concurrent.ConcurrentLinkedQueue<ByteArray>()
+    private val inputPending = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Append input and return at once.
+     *
+     * The writer only starts when there is something to write, so an idle
+     * terminal costs nothing.
+     */
     fun write(bytes: ByteArray) {
         if (bytes.isEmpty()) {
             return
@@ -275,9 +292,28 @@ class EngineSession(
             return
         }
 
-        val current = handle
-        if (current != NO_HANDLE) {
-            NativeCore.nativeWrite(current, bytes)
+        inputQueue.add(bytes)
+        if (inputPending.compareAndSet(false, true)) {
+            jniExecutor.execute(::drainInput)
+        }
+    }
+
+    /** Hand the queued bytes to the engine, oldest first. */
+    private fun drainInput() {
+        while (true) {
+            val chunk = inputQueue.poll() ?: break
+            val current = handle
+            if (current == NO_HANDLE) {
+                inputQueue.clear()
+                break
+            }
+            NativeCore.nativeWrite(current, chunk)
+        }
+        inputPending.set(false)
+        // A chunk that arrived between the last poll and the clear of the flag
+        // would otherwise wait for the next keystroke.
+        if (inputQueue.isNotEmpty() && inputPending.compareAndSet(false, true)) {
+            jniExecutor.execute(::drainInput)
         }
     }
 
@@ -514,6 +550,19 @@ class EngineSession(
     }
 
     companion object {
+        /**
+         * Where input is written from.
+         *
+         * One thread for the whole process: a terminal has one keyboard, and a
+         * thread per session would be a thread per split pane for no gain. The
+         * engine's own channel does the queueing after this; this only keeps
+         * the blocking part off the UI thread.
+         */
+        private val jniExecutor: java.util.concurrent.Executor =
+            java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+                Thread(runnable, "drosh-input").apply { isDaemon = true }
+            }
+
         /**
          * Create a bridged session in the Rust engine core.
          *

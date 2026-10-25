@@ -187,6 +187,14 @@ internal class TerminalRenderer(
         foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
         foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
 
+        // The atlas belongs to the context that filled it. A new context means
+        // the texture this renderer will bind has never been given a byte, and
+        // the atlas's own caches still describe the old one — including its
+        // `dirty` flag, which says "nothing changed since the last upload".
+        // Without this reset every glyph drew as an empty mask: the frame was
+        // a grid of backgrounds with no text on it, which is exactly what the
+        // screen showed after every pause.
+        atlas.reset()
         buildTexture()
 
         // Rasterise ASCII before the first frame: a burst should not pay for

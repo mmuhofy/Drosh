@@ -172,6 +172,12 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
         if (px == currentPx) {
             return
         }
+        // A pinch moves through a hair's width of sizes, not thirty: treating
+        // each as a new generation threw away the masks the next frame was
+        // about to ask for again. Half a pixel is finer than a cell can show.
+        if (currentPx > 0f && kotlin.math.abs(px - currentPx) < 0.5f) {
+            return
+        }
         previousPx = currentPx
         currentPx = px
         previousEntries = entries
