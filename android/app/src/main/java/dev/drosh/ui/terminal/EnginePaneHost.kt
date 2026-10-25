@@ -30,7 +30,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.GuestCommand
-import dev.drosh.terminal.engine.render.TerminalRenderer
+import dev.drosh.terminal.engine.render.FrameReport
 import dev.drosh.terminal.session.EnginePane
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
@@ -461,7 +461,7 @@ fun EnginePaneHost(
      * the key arrives in the view, the overlay is drawn here.
      */
     var showDebugOverlay by remember { mutableStateOf(false) }
-    var frameReport by remember { mutableStateOf<TerminalRenderer.FrameReport?>(null) }
+    var frameReport by remember { mutableStateOf<FrameReport?>(null) }
 
     LaunchedEffect(pane, showDebugOverlay) {
         if (!showDebugOverlay) {

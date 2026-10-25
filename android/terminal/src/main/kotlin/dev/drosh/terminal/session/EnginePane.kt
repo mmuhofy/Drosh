@@ -110,7 +110,7 @@ class EnginePane(context: Context) {
      * Forwarded from the view rather than copied: the overlay wants the frame
      * that is on screen now, not the one that was there when it asked.
      */
-    val frameReport: dev.drosh.terminal.engine.render.TerminalRenderer.FrameReport?
+    val frameReport: dev.drosh.terminal.engine.render.FrameReport?
         get() = view.frameReport
 
     /** Whether the user asked for the frame overlay (Ctrl+Shift+D in the view). */

@@ -11,7 +11,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.terminal.engine.render.TerminalRenderer
+import dev.drosh.terminal.engine.render.FrameReport
 import java.util.Locale
 
 /**
@@ -28,7 +28,7 @@ import java.util.Locale
  */
 @Composable
 fun TerminalDebugOverlay(
-    report: TerminalRenderer.FrameReport?,
+    report: FrameReport?,
     modifier: Modifier = Modifier,
 ) {
     if (report == null) {

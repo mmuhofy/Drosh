@@ -16,6 +16,7 @@ import dev.drosh.terminal.engine.input.SelectionText
 import dev.drosh.terminal.engine.render.CellMetrics
 import dev.drosh.terminal.engine.render.FontSize
 import dev.drosh.terminal.engine.render.FrameLoop
+import dev.drosh.terminal.engine.render.FrameReport
 import dev.drosh.terminal.engine.render.GlyphAtlas
 import dev.drosh.terminal.engine.render.TerminalRenderer
 import dev.drosh.terminal.engine.core.Palette
@@ -85,7 +86,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
      * Null before the first frame, and null when the font failed to load — in
      * both cases there is nothing true to say.
      */
-    val frameReport: TerminalRenderer.FrameReport? get() = renderer?.report
+    val frameReport: FrameReport? get() = renderer?.report
 
     /**
      * Whether the host should draw the frame overlay.

@@ -118,28 +118,6 @@ internal class TerminalRenderer(
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
 
-    /**
-     * A frame's numbers, for the debug overlay.
-     *
-     * Read on the GL thread, written straight through: the overlay reads it a
-     * few times a second and a torn read only means one stale number, which is
-     * what an overlay is for anyway.
-     */
-    data class FrameReport(
-        val frames: Int,
-        val frameMillis: Float,
-        val buildMillis: Float,
-        val drawMillis: Float,
-        val columns: Int,
-        val rows: Int,
-        val glyphs: Int,
-        val coloredCells: Int,
-        val atlasPercent: Int,
-        val damage: Int,
-        val background: Int,
-        val gl: String,
-    )
-
     /** The last frame's numbers, or null before the first frame. */
     @Volatile
     var report: FrameReport? = null
