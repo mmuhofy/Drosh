@@ -68,6 +68,9 @@ pub(crate) fn open_pair(
 /// between the two cannot hand the descriptor to a child that should not have
 /// it.
 fn open_master() -> io::Result<File> {
+    // The mut is only needed on Android, where the non-blocking bit is or-ed
+    // in; the host build would call it unused.
+    #[allow(unused_mut)]
     let mut flags = libc::O_RDWR | libc::O_NOCTTY | libc::O_CLOEXEC;
     #[cfg(target_os = "android")]
     {
