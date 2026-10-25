@@ -377,11 +377,21 @@ internal class TerminalRenderer(
             uploadAtlas()
         }
 
+        // Every rebuilt frame goes up whole: the buffers are STREAM_DRAW and
+        // the records were just rewritten in place. Skipping this and drawing
+        // anyway would put the previous frame's cells on screen under the new
+        // one — which is what a terminal that "stutters and then catches up"
+        // is doing.
         uploadStreams()
         val uploadEndNanos = System.nanoTime()
 
         drawBackgrounds()
         drawForegrounds()
+
+        if (records.coloredCells > 0) {
+            Log.i(TAG, "frame: ${records.coloredCells} coloured cells, " +
+                "${records.foregroundCount} glyphs, bg ${Integer.toHexString(Palette.background)}")
+        }
 
         stats.record(
             startedNanos,
@@ -673,6 +683,9 @@ internal class TerminalRenderer(
                 );
                 vec2 cell = vec2(float(column), float(row)) * uCellSize;
                 gl_Position = vec4(uProjection.xy + uProjection.zw * (cell + corner * uCellSize), 0.0, 1.0);
+                // The record is `0xAARRGGBB` in the CPU's Int, which is
+                // little-endian on the wire: the shader sees it as a uint whose
+                // low byte is the blue channel.
                 vColor = vec4(
                     float((aColor >> 16) & 0xffu),
                     float((aColor >> 8) & 0xffu),

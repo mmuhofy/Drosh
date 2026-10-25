@@ -37,6 +37,10 @@ internal class CellRecords(columns: Int, rows: Int) {
     var foregroundCount = 0
         private set
 
+    /** Cells whose background is not the terminal's own, this frame. */
+    var coloredCells = 0
+        private set
+
     var columns = columns
         private set
 
@@ -138,6 +142,7 @@ internal class CellRecords(columns: Int, rows: Int) {
         backgrounds.clear()
         foregrounds.clear()
         foregroundCount = 0
+        coloredCells = 0
 
         for (row in 0 until rows) {
             for (column in 0 until columns) {
@@ -170,6 +175,15 @@ internal class CellRecords(columns: Int, rows: Int) {
                     // alacritty's default selection colours are the inverted cell.
                     background = Palette.foreground
                     foreground = Palette.background
+                }
+
+                // A cell with a background other than the terminal's own is a
+                // block the application drew — nano's menu bar, vim's status
+                // line, an inverse-video highlight. Counted so a device run can
+                // tell "the program did not send one" from "we did not draw
+                // one", which are the same picture and opposite bugs.
+                if ((background and 0xffffff) != (Palette.background and 0xffffff)) {
+                    coloredCells += 1
                 }
 
                 val hidden = flags and NativeCore.FLAG_HIDDEN != 0

@@ -635,6 +635,16 @@ class TerminalView(context: Context) : FrameLayout(context) {
         if (spacingAfter <= 0f || !fontLoaded) {
             return
         }
+
+        // The grid must be laid out for the new cell before the size can be
+        // drawn, and the session resized to match. Both travel through the
+        // renderer, which owns the surface size; asking it here rather than
+        // waiting for the next `onSurfaceChanged` keeps the two in step — a
+        // session whose grid is still the old one draws the new size's glyphs
+        // into cells that no longer exist, which reads as a screen full of
+        // replacement characters.
+        surface?.queueEvent { renderer?.setFontSize(FontSize(fontPx, metrics)) }
+
         val rowUnderFocus = (focusY / spacingAfter).toInt()
         val target = (anchoredRow - rowUnderFocus)
         // The engine owns the clamp; asking for more than it has settles at its
