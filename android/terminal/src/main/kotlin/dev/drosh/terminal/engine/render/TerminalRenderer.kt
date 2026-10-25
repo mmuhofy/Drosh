@@ -115,6 +115,15 @@ internal class TerminalRenderer(
      */
     private var scrollOffsetPx = 0f
 
+    /**
+     * Whether a frame has been drawn since the surface was created or resized.
+     *
+     * The first frame after either one must draw whatever the damage says: the
+     * surface is empty, so "nothing changed" is not a reason to leave it that
+     * way.
+     */
+    private var drewOnce = false
+
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
 
@@ -136,6 +145,9 @@ internal class TerminalRenderer(
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         glVersion = GLES20.glGetString(GLES20.GL_VERSION) ?: "unknown"
+        // A fresh context has no glyphs in it: the atlas and every buffer are
+        // recreated below, so the first frame after this draws in full.
+        drewOnce = false
         Log.i(TAG, "GL version: $glVersion")
 
         backgroundProgram = buildProgram(BACKGROUND_VERTEX, BACKGROUND_FRAGMENT)
@@ -170,6 +182,9 @@ internal class TerminalRenderer(
         width = surfaceWidth
         height = surfaceHeight
         GLES20.glViewport(0, 0, width, height)
+        // The surface is new, so nothing is on it: the next frame draws even if
+        // the engine says nothing changed.
+        drewOnce = false
         updateGrid()
     }
 
@@ -195,6 +210,7 @@ internal class TerminalRenderer(
         }
 
         fontSize = size
+        drewOnce = false
         // The atlas keeps the previous size's masks as well as this one's: a
         // pinch changes size every frame, and throwing the masks away each time
         // re-rasterised every character on the frame after it — the text shook
@@ -269,6 +285,28 @@ internal class TerminalRenderer(
             return
         }
 
+        // The snapshot first: it is what says whether anything changed.
+        val damage = session.pump()
+        if (damage < 0) {
+            // A snapshot that failed leaves the buffer as it was.
+            onFrame(false)
+            return
+        }
+
+        // Nothing damaged and nothing moved: the picture already on screen is
+        // the correct one. Redrawing it costs a full rebuild of every cell
+        // record — the most expensive part of a frame — for a result identical
+        // to the last one. A program that prints nothing and a viewport that
+        // has not moved are the common case, not the exception.
+        val idle = damage == 0 &&
+            records.columns == columns &&
+            records.rows == rows &&
+            drewOnce
+        if (idle) {
+            onFrame(false)
+            return
+        }
+
         // The sub-line part of the scroll, as the engine holds it (kitty's
         // `pixel_scroll_offset_y`). Read here rather than pushed in, so the
         // grid and the row count can never disagree about where the viewport
@@ -280,9 +318,56 @@ internal class TerminalRenderer(
         // The Rust-served ambient tint wins over the palette default when present.
         val background = ambientTint ?: Palette.background
         GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
-        session.pump()
+        // Clear only what is about to be redrawn.
+        //
+        // The clear used to cover the whole surface every frame, so a frame
+        // that then drew one changed row left the rest of the screen blank for
+        // as long as the draw took. The scissor is the same rectangle the
+        // damaged rows occupy — alacritty's `damage.rs` does exactly this with
+        // `shape_frame_damage` — so what is cleared is what is replaced.
+        val damagedTop: Int
+        val damagedBottom: Int
+        val fullFrame = damage == NativeCore.DAMAGE_FULL || damage >= rows
+        if (fullFrame) {
+            damagedTop = 0
+            damagedBottom = height
+        } else {
+            var top = Int.MAX_VALUE
+            var bottom = Int.MIN_VALUE
+            for (index in 0 until damage) {
+                val row = session.damageRow(index)
+                val cellTop = (row * metrics.height).toInt()
+                val cellBottom = cellTop + metrics.height.toInt()
+                if (cellTop < top) top = cellTop
+                if (cellBottom > bottom) bottom = cellBottom
+            }
+            if (top == Int.MAX_VALUE) {
+                damagedTop = 0
+                damagedBottom = height
+            } else {
+                // A glyph can hang above or below its row; one row of margin on
+                // each side is cheaper than a missed pixel.
+                val margin = metrics.height.toInt()
+                damagedTop = (top - margin).coerceAtLeast(0)
+                damagedBottom = (bottom + margin).coerceAtMost(height)
+            }
+        }
+        // The sub-line shift moves content into the band above the first row;
+        // with a non-zero offset the whole surface is the honest rectangle.
+        val scissored = scrollOffsetPx == 0f && !fullFrame
+        if (scissored) {
+            // GL's origin is the bottom-left corner; the rows are counted from
+            // the top.
+            GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
+            GLES20.glScissor(0, height - damagedBottom, width, damagedBottom - damagedTop)
+        }
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        if (scissored) {
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+        }
+
+        drewOnce = true
         val pumpEndNanos = System.nanoTime()
 
         // `pump` refreshed the engine's colour table; install it only when the
