@@ -234,7 +234,8 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeScro
     }
 }
 
-fn grid_size(columns: jint, rows: jint) -> FfiResult<GridSize> {    let columns = u16::try_from(columns).map_err(|_| ErrorCode::InvalidArgument)?;
+fn grid_size(columns: jint, rows: jint) -> FfiResult<GridSize> {
+    let columns = u16::try_from(columns).map_err(|_| ErrorCode::InvalidArgument)?;
     let rows = u16::try_from(rows).map_err(|_| ErrorCode::InvalidArgument)?;
     let size = GridSize::new(columns, rows);
 

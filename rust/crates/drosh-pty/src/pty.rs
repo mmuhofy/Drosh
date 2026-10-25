@@ -86,7 +86,8 @@ fn open_master() -> io::Result<File> {
     // Some OEM kernels ship without `/dev/ptmx` reachable by name; the
     // device node itself still works.
     log::warn!("drosh-core: posix_openpt failed, falling back to /dev/ptmx");
-    let file = OpenOptions::new().read(true).write(true).custom_flags(libc::O_NOCTTY).open("/dev/ptmx")?;
+    let file =
+        OpenOptions::new().read(true).write(true).custom_flags(libc::O_NOCTTY).open("/dev/ptmx")?;
     unlock(&file)?;
     Ok(file)
 }
