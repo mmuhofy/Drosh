@@ -149,19 +149,23 @@ fn state_reports_size_cursor_and_offset() {
 }
 
 #[test]
-fn dectcem_hides_the_cursor() {
-    // `?25l`/`?25h` is DECTCEM. The engine resolves it into the cursor shape,
-    // so the renderer must not need a mode bit of its own.
+fn dectcem_toggles_the_show_cursor_mode() {
+    // `?25l`/`?25h` is DECTCEM, and alacritty keeps it where it belongs: a mode
+    // bit (`TermMode::SHOW_CURSOR`), not a cursor shape. The shape is what the
+    // *application* asked for with `DECSCUSR`, and the two answer different
+    // questions — "should the cursor be drawn" and "how should it look". The
+    // renderer draws no cursor at all when the bit is clear, whatever the
+    // shape says.
     let mut term = new_term();
     let mut out = [0i32; STATE_LEN];
 
     feed(&mut term, b"\x1b[?25l");
     write_state(&term, &mut out);
-    assert_eq!(out[state_index::CURSOR_SHAPE], cursor_shape::HIDDEN);
+    assert_eq!(out[state_index::MODE_BITS] & mode::SHOW_CURSOR as i32, 0);
 
     feed(&mut term, b"\x1b[?25h");
     write_state(&term, &mut out);
-    assert_eq!(out[state_index::CURSOR_SHAPE], cursor_shape::BLOCK);
+    assert_ne!(out[state_index::MODE_BITS] & mode::SHOW_CURSOR as i32, 0);
 }
 
 #[test]
