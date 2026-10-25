@@ -423,18 +423,6 @@ class TerminalView(context: Context) : FrameLayout(context) {
         surface?.requestRender()
     }
 
-    /**
-     * The sub-line part of a scroll, in pixels.
-     *
-     * The engine's viewport moves in whole rows; a finger does not. This is the
-     * remainder the gesture kept, handed to the renderer so the grid follows
-     * the finger instead of stepping between rows. Positive means the grid is
-     * drawn this many pixels *down*, which is what a finger dragging back into
-     * the history produces.
-     */
-    internal fun applyScrollOffset(offsetPx: Float) {
-        surface?.queueEvent { renderer?.scrollOffsetPx = offsetPx }
-    }
 
     /** Focus the IME target and open the soft keyboard. */
     internal fun focusInput() {

@@ -126,6 +126,12 @@ internal class CellRecords(columns: Int, rows: Int) {
         val cursorRow = state[NativeCore.STATE_CURSOR_ROW]
         val cursorColumn = state[NativeCore.STATE_CURSOR_COL]
         val cursorShape = state[NativeCore.STATE_CURSOR_SHAPE]
+        // DECTCEM (`?25l`/`?25h`) is a mode bit, not a shape: the application
+        // says "draw no cursor" and the shape says how it would look if it
+        // were drawn. The bit was never read here, so a program that hid its
+        // cursor left one on screen, and the blink alone decided whether any
+        // was drawn at all.
+        val cursorShown = state[NativeCore.STATE_MODE_BITS] and NativeCore.MODE_SHOW_CURSOR != 0
         val cellWidth = metrics.width
         val cellHeight = metrics.height
 
@@ -166,7 +172,9 @@ internal class CellRecords(columns: Int, rows: Int) {
                     foreground = Palette.background
                 }
 
+                val hidden = flags and NativeCore.FLAG_HIDDEN != 0
                 val cursorHere = cursorVisible &&
+                    cursorShown &&
                     cursorShape != NativeCore.CURSOR_HIDDEN &&
                     row == cursorRow &&
                     column == cursorColumn
@@ -175,14 +183,23 @@ internal class CellRecords(columns: Int, rows: Int) {
                     foreground = Palette.background
                 }
 
-                backgrounds.putInt(pack(background))
+                // Hidden text still draws its background. A program that picks
+                // a colour and then hides the character — what nano and every
+                // other menu draws a filled block with — must show the block,
+                // not the terminal's own colour: skipping the background too
+                // was why those programs looked like blank space with no
+                // colours at all.
+                if (hidden) {
+                    backgrounds.putInt(pack(background))
+                    continue
+                }
 
-                // A wide character's spacer has no glyph of its own; a hidden cell
-                // draws nothing at all (its background is already written).
-                val hidden = flags and NativeCore.FLAG_HIDDEN != 0
+                // A wide character's spacer has no glyph of its own; its
+                // background is already written and it draws nothing on top.
                 val spacer = flags and NativeCore.FLAG_WIDE_CHAR_SPACER != 0 ||
                     flags and NativeCore.FLAG_LEADING_WIDE_CHAR_SPACER != 0
-                if (hidden || spacer) {
+                backgrounds.putInt(pack(background))
+                if (spacer) {
                     continue
                 }
 

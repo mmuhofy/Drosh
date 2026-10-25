@@ -6,6 +6,7 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import dev.drosh.terminal.engine.bench.FrameStats
 import dev.drosh.terminal.engine.core.EngineSession
+import dev.drosh.terminal.engine.core.NativeCore
 import dev.drosh.terminal.engine.input.Selection
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -105,15 +106,14 @@ internal class TerminalRenderer(
      */
     var ligatures: Boolean = false
 
+
     /**
-     * The sub-line part of a scroll, in pixels.
+     * The sub-line part of the scroll for the frame being drawn, in pixels.
      *
-     * The engine's viewport is a whole number of rows, so a finger that moved
-     * half a row had nowhere to go. Written by the view from the UI thread
-     * through `queueEvent`; read here while the frame draws. Positive draws the
-     * grid down, which is the direction a drag back into the history produces.
+     * Read from the session at the top of `onDrawFrame`; the engine owns the
+     * value, this is only the copy the two draw calls share.
      */
-    var scrollOffsetPx: Float = 0f
+    private var scrollOffsetPx = 0f
 
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
@@ -268,6 +268,12 @@ internal class TerminalRenderer(
             onFrame(false)
             return
         }
+
+        // The sub-line part of the scroll, as the engine holds it (kitty's
+        // `pixel_scroll_offset_y`). Read here rather than pushed in, so the
+        // grid and the row count can never disagree about where the viewport
+        // is: both come from the same snapshot.
+        scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat()
 
         // The background can be changed by the application (`OSC 11`), so the
         // clear colour is read every frame rather than fixed at surface setup.

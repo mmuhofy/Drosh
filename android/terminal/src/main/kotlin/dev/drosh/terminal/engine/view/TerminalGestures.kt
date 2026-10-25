@@ -17,16 +17,6 @@ import kotlin.math.abs
  */
 internal class TerminalGestures(private val view: TerminalView) {
 
-    /**
-     * Sub-line scroll offset, in pixels.
-     *
-     * The engine's viewport is a whole number of rows, so a drag that moved
-     * half a row had nowhere to go and was thrown away — which is what made
-     * scrolling read as a series of jumps. The remainder is kept here and the
-     * renderer shifts the grid by it, so the grid follows the finger.
-     */
-    private var scrollOffsetPx = 0f
-
     /** Momentum, from the same `Scroller` the vendored terminal used. */
     private var scroller: android.widget.Scroller? = null
 
@@ -233,13 +223,13 @@ internal class TerminalGestures(private val view: TerminalView) {
      * regardless of DECCKM, matching alacritty's bytes.
      */
     /**
-     * Scroll by a finger distance, keeping the sub-line remainder.
+     * Scroll by a finger distance.
      *
-     * The vendored terminal's rule, moved over whole: a drag advances the
-     * viewport by as many whole rows as it crossed and keeps the rest in
-     * [scrollOffsetPx], which the renderer draws as a shift of the grid. Adding
-     * the remainder to a whole-row scroll is what makes a drag follow the
-     * finger instead of stepping.
+     * The engine holds both halves of the position — the whole rows and the
+     * sub-line remainder — so this hands the finger's pixels over and nothing
+     * else. It used to advance whole rows here and keep the fraction in the
+     * view, which meant two places knew where the viewport was; a pan carried
+     * them out of step and the grid stepped while the finger slid.
      *
      * A program that tracks the mouse, or an alternate screen, needs discrete
      * rows — those cannot carry a sub-line offset — so the pixel path hands
@@ -267,30 +257,9 @@ internal class TerminalGestures(private val view: TerminalView) {
 
         // GestureDetector reports distanceY as lastY - currentY, so dragging
         // the finger down is negative — and that is the gesture for revealing
-        // older output, which moves the viewport offset in the other direction.
-        var offset = scrollOffsetPx + distanceYPx
-        var rows = 0
-        // Whole rows in either direction, one at a time so the clamp at each
-        // end is the engine's own answer rather than an estimate of it.
-        while (offset >= spacing) {
-            if (!scrollByRows(-1, allowAlternate = false)) {
-                offset = 0f
-                break
-            }
-            rows -= 1
-            offset -= spacing
-        }
-        while (offset <= -spacing) {
-            if (!scrollByRows(1, allowAlternate = false)) {
-                offset = 0f
-                break
-            }
-            rows += 1
-            offset += spacing
-        }
-
-        scrollOffsetPx = offset
-        view.applyScrollOffset(scrollOffsetPx)
+        // older output. The engine takes the same sign: positive is "content
+        // moves down", which is what the history scroll is.
+        view.session.scrollByPixels(-distanceYPx, spacing.toInt())
         view.requestRender()
     }
 
@@ -331,13 +300,15 @@ internal class TerminalGestures(private val view: TerminalView) {
         view.post(step)
     }
 
-    /** Settle the sub-line offset back onto a whole row, smoothly. */
+    /**
+     * Settle the fling: the engine keeps the sub-line remainder between rows,
+     * and a fling that ends mid-row is a viewport that is mid-row.
+     *
+     * Nothing to snap in the view — for that reason this only clears the
+     * accumulator the discrete path uses, so the next drag starts from zero
+     * rather than from the tail of the fling.
+     */
     private fun snapToWholeRow() {
-        if (scrollOffsetPx == 0f) {
-            return
-        }
-        view.applyScrollOffset(0f)
-        scrollOffsetPx = 0f
         scrollAccumulator = 0f
         view.requestRender()
     }

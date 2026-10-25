@@ -62,7 +62,7 @@ internal object NativeCore {
         FLAG_DOTTED_UNDERLINE or FLAG_DASHED_UNDERLINE
 
     // --- state array (bridge::snapshot::state_index) ---
-    const val STATE_LEN = 8
+    const val STATE_LEN = 9
     const val STATE_COLUMNS = 0
     const val STATE_ROWS = 1
     const val STATE_CURSOR_ROW = 2
@@ -71,6 +71,9 @@ internal object NativeCore {
     const val STATE_DISPLAY_OFFSET = 5
     const val STATE_MODE_BITS = 6
     const val STATE_COLORS = 7
+
+    /** Sub-line part of the scroll, in pixels (kitty's `pixel_scroll_offset_y`). */
+    const val STATE_SUB_LINE_PX = 8
 
     // --- dynamic colour table (ffi::colors) ---
     /** Entries in the engine's colour table (`term::color::COUNT`). */
@@ -168,6 +171,9 @@ internal object NativeCore {
     ): Int
 
     external fun nativeScroll(id: Long, delta: Int): Int
+
+    /** Scroll by a finger distance; returns the whole rows moved. */
+    external fun nativeScrollByPixels(id: Long, delta: Float, cellHeight: Int): Int
 
     external fun nativeSnapshot(id: Long, cells: java.nio.ByteBuffer, damageOut: IntArray): Int
 
