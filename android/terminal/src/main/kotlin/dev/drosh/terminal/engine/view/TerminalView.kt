@@ -209,6 +209,15 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
         val gl = GLSurfaceView(context).apply {
             setEGLContextClientVersion(3)
+            // Keep the GL context alive across a pause.
+            //
+            // Without this, GLSurfaceView throws the context away on every
+            // `onPause` and rebuilds the programs, the glyph atlas and the
+            // vertex buffers on the next `onResume` — and the surface in
+            // between has nothing on it. The keyboard, the sidebar and a split
+            // all pause the host for a moment while they animate, so the
+            // terminal blinked to black every time one of them moved.
+            preserveEGLContextOnPause = true
             setRenderer(created)
             renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
             setOnTouchListener(gestures.listener())
@@ -241,11 +250,18 @@ class TerminalView(context: Context) : FrameLayout(context) {
         frameLoop.start()
         // Numbers from this session only: a resume is a fresh start.
         stats.reset()
+        // Draw at once rather than waiting for output: a resume with a quiet
+        // session otherwise shows whatever the surface happened to keep.
+        surface?.requestRender()
     }
 
     fun onHostPause() {
         frameLoop.stop()
         surface?.onPause()
+        // The last frame stays on screen while the host is paused. With the
+        // context preserved the surface keeps its contents, but a redraw is
+        // still what puts them back after the window comes forward again.
+        surface?.requestRender()
     }
 
     override fun onDetachedFromWindow() {
