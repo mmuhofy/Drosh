@@ -66,6 +66,16 @@ internal class TerminalRenderer(
 
     @Volatile
     var cursorVisible = true
+        set(value) {
+            if (field != value) {
+                field = value
+                // The cursor is drawn from this flag, not from the engine's
+                // damage: a blink changes the picture and nothing in the
+                // terminal has changed at all. Without this the frame is
+                // skipped as idle and the cursor stops blinking.
+                forceRedraw = true
+            }
+        }
 
     /** Logged once; useful when a device cannot do GL ES 3. */
     var glVersion: String = "unknown"
@@ -310,26 +320,6 @@ internal class TerminalRenderer(
         // grid and the row count can never disagree about where the viewport
         // is: both come from the same snapshot.
         scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat()
-
-        // Clear the whole surface, every frame, unconditionally.
-        //
-        // This is alacritty's order (`display/mod.rs` — `renderer.clear(...)`
-        // then `draw_cells`): the clear is a GPU fill, a fraction of a
-        // millisecond, and the optimisation belongs in the *draw*, not here.
-        //
-        // The rectangle used to be scissored to the damaged rows, and that was
-        // the bug: the build and the draw cover the whole grid, so a partial
-        // clear left every row that was not damaged sitting on a ground that
-        // was never repainted. On screen that is a terminal whose top two rows
-        // have their colours and whose remaining rows are black.
-        val background = ambientTint ?: Palette.background
-        GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-        if (GLES20.glIsEnabled(GLES20.GL_SCISSOR_TEST)) {
-            // A scissor left on by anything else would still cut the draw.
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
-        }
-
         val pumpEndNanos = System.nanoTime()
 
         // `pump` refreshed the engine's colour table; install it only when the
@@ -359,11 +349,25 @@ internal class TerminalRenderer(
         // run.
         val idle = damage == 0 && forceRedraw == false && drewOnce
         if (idle) {
+            // Nothing changed: the picture on screen is the right one, and
+            // clearing it would take it away to put back what was there. This
+            // is the blink — a cursor toggle asks for a redraw twice a second —
+            // and it is why the terminal flickered: the clear ran, the draw was
+            // skipped, and the screen went to the background colour for one
+            // frame on every blink.
             onFrame(false)
             return
         }
         forceRedraw = false
         drewOnce = true
+
+        // The clear belongs immediately before the draw, not before the
+        // decision to draw. Alacritty's order (`display/mod.rs`) is `clear`
+        // then `draw_cells`, and the pair is what leaves a frame that can be
+        // shown; a clear on its own is a frame with nothing on it.
+        val background = ambientTint ?: Palette.background
+        GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         // The atlas is uploaded after the build, not before it: a glyph the
         // build had to rasterise is in the atlas by now, and the texture has
