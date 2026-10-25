@@ -291,6 +291,25 @@ class TerminalView(context: Context) : FrameLayout(context) {
         surface?.requestRender()
     }
 
+    /**
+     * A hardware key, before it reaches the session.
+     *
+     * Ctrl+Shift+D toggles the frame overlay here rather than in the IME, so
+     * it fires whether the key came from a physical keyboard, the extra-keys
+     * row, or an IME that reported it as a key event — the overlay is a
+     * diagnosis, and a diagnosis reachable only from one kind of keyboard is
+     * one that is missing exactly when it is needed.
+     */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_D &&
+            event.isCtrlPressed && event.isShiftPressed
+        ) {
+            toggleDebugOverlay()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     override fun onDetachedFromWindow() {
         frameLoop.stop()
         super.onDetachedFromWindow()

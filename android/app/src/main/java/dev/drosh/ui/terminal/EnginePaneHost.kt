@@ -461,7 +461,11 @@ fun EnginePaneHost(
      * Toggled by Ctrl+Shift+D, which the terminal's own key handling raises:
      * the key arrives in the view, the overlay is drawn here.
      */
-    var showDebugOverlay by remember { mutableStateOf(false) }
+    // Always on: the frame's own numbers are the one thing that makes a broken
+    // picture readable, and a shortcut that does not fire on a device is a
+    // diagnosis nobody can get. It is removed once the renderer has nothing to
+    // say.
+    var showDebugOverlay by remember { mutableStateOf(true) }
     var frameReport by remember { mutableStateOf<FrameReport?>(null) }
 
     LaunchedEffect(pane, showDebugOverlay) {
