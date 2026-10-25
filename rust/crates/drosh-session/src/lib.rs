@@ -157,6 +157,13 @@ pub struct Session {
     /// so the session keeps one of its own.
     config: Mutex<Config>,
     worker: Mutex<Option<JoinHandle<()>>>,
+    /// Whole rows the viewport sits above the live edge — kitty's
+    /// `scrolled_by`. Kept here rather than derived from the term on every
+    /// scroll, so the pixel total and the row count cannot drift apart.
+    rows_above_edge: AtomicUsize,
+    /// The sub-line remainder of that position, in pixels — kitty's
+    /// `pixel_scroll_offset_y`.
+    sub_line_px: AtomicU32,
 }
 
 impl Session {
@@ -244,6 +251,8 @@ impl Session {
             output,
             config: Mutex::new(term_config),
             worker: Mutex::new(Some(worker)),
+            rows_above_edge: AtomicUsize::new(0),
+            sub_line_px: AtomicU32::new(0),
         })
     }
 
@@ -285,6 +294,8 @@ impl Session {
             output: Arc::new(Mutex::new(OutputLog::new(DEFAULT_MAX_LINES))),
             config: Mutex::new(term_config),
             worker: Mutex::new(None),
+            rows_above_edge: AtomicUsize::new(0),
+            sub_line_px: AtomicU32::new(0),
         })
     }
 
@@ -360,8 +371,86 @@ impl Session {
 
         // `scroll_display` marks the whole viewport damaged when the offset
         // actually changed.
-        self.term.lock().scroll_display(Scroll::Delta(delta));
+        let mut term = self.term.lock();
+        let before = term.grid().display_offset();
+        term.scroll_display(Scroll::Delta(delta));
+        let after = term.grid().display_offset();
+        drop(term);
+        // A whole-row scroll discards the fraction: the two cannot be added
+        // without saying which one the user meant, and the absolute position
+        // is what a keyboard scroll is about.
+        self.rows_above_edge.store(after, Ordering::Relaxed);
+        self.sub_line_px.store(0, Ordering::Relaxed);
+        let _ = before;
         Ok(())
+    }
+
+    /// Scroll by a finger distance, keeping the sub-line remainder.
+    ///
+    /// The model is kitty's (`kitty/kitty/screen.c` — `scroll_by_pixels`): one
+    /// absolute total in pixels, split into whole rows for the engine and a
+    /// remainder for the renderer. The two were apart — the engine moved by
+    /// rows, Kotlin kept the fraction — and a pan carried them out of step, so
+    /// the grid stepped while the finger slid.
+    ///
+    /// `delta_pixels` is positive when the content should move down, i.e. when
+    /// the user is dragging back into the history. `cell_height` is the height
+    /// of a row in the same pixels.
+    ///
+    /// Returns whether anything moved.
+    pub fn scroll_by_pixels(&self, delta_pixels: f32, cell_height: u16) -> bool {
+        let cell = f32::from(cell_height);
+        if cell <= 0.0 || delta_pixels == 0.0 || !delta_pixels.is_finite() {
+            return false;
+        }
+
+        let total = self.sub_line_px.load(Ordering::Relaxed)
+            + self.rows_above_edge.load(Ordering::Relaxed) as f32 * cell
+            + delta_pixels;
+
+        // The engine clamps the rows it can actually show; the remainder is
+        // clamped with them, so a finger that runs past the end does not leave
+        // the grid offset by a line that is not there.
+        let max_rows = self.history_rows();
+        let max_total = max_rows as f32 * cell;
+        let total = total.clamp(0.0, max_total);
+
+        let rows = (total / cell).floor() as usize;
+        let remainder = total - rows as f32 * cell;
+
+        let previous_rows = self.rows_above_edge.load(Ordering::Relaxed);
+        let previous_remainder = self.sub_line_px.load(Ordering::Relaxed);
+        if rows == previous_rows && (remainder - previous_remainder).abs() < 0.01 {
+            return false;
+        }
+
+        self.rows_above_edge.store(rows, Ordering::Relaxed);
+        self.sub_line_px.store(remainder, Ordering::Relaxed);
+        if rows != previous_rows {
+            // `rows_above_edge` counts *up* into the history; the engine's
+            // `scroll_display` takes a signed delta on its own scale.
+            let delta = previous_rows as i32 - rows as i32;
+            self.term.lock().scroll_display(Scroll::Delta(delta));
+        }
+        true
+    }
+
+    /// How many rows of history the viewport can move through.
+    fn history_rows(&self) -> usize {
+        let term = self.term.lock();
+        let grid = term.grid();
+        grid.total_lines().saturating_sub(grid.screen_lines())
+    }
+
+    /// The sub-line part of the scroll, in pixels. The renderer shifts the grid
+    /// by this so a drag follows the finger between rows.
+    pub fn sub_line_pixels(&self) -> f32 {
+        self.sub_line_px.load(Ordering::Relaxed)
+    }
+
+    /// Whole rows the viewport sits above the live edge.
+    pub fn rows_above_edge(&self) -> usize {
+        self.rows_above_edge.load(Ordering::Relaxed)
     }
 
     /// Fill `buffer` with the damaged cells and return `damage[0]`:
@@ -384,6 +473,8 @@ impl Session {
     pub fn state(&self) -> [i32; snapshot::STATE_LEN] {
         let mut out = [0i32; snapshot::STATE_LEN];
         snapshot::write_state(&self.term.lock(), &mut out);
+        out[snapshot::state_index::SUB_LINE_PX] =
+            self.sub_line_px.load(Ordering::Relaxed) as i32;
         out
     }
 

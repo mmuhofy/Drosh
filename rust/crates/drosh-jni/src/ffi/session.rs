@@ -1,7 +1,7 @@
 //! `native*` functions for the session lifecycle.
 
 use jni::objects::{JByteArray, JClass, JString};
-use jni::sys::{jint, jlong};
+use jni::sys::{jfloat, jint, jlong};
 use jni::JNIEnv;
 
 use crate::ffi::{
@@ -200,8 +200,41 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeScro
     finish(result)
 }
 
-fn grid_size(columns: jint, rows: jint) -> FfiResult<GridSize> {
-    let columns = u16::try_from(columns).map_err(|_| ErrorCode::InvalidArgument)?;
+/// Scroll by a finger distance, keeping the sub-line remainder.
+///
+/// `delta` is positive when the content should move down — the user dragging
+/// back into the history. `cell_height` is a row's height in the same pixels.
+/// Returns the number of whole rows the viewport moved (negative when it moved
+/// toward the live edge), or an error code.
+///
+/// This is the path a pan and a fling take; `nativeScroll` is the whole-row one
+/// a keyboard and a wheel use.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeScrollByPixels(
+    _env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    delta: jfloat,
+    cell_height: jint,
+) -> jint {
+    let result = (|| -> FfiResult<i32> {
+        let session = session_or(id)?;
+        let cell_height = u16::try_from(cell_height).map_err(|_| ErrorCode::InvalidArgument)?;
+        let before = session.rows_above_edge();
+        let moved = session.scroll_by_pixels(delta, cell_height);
+        if !moved {
+            return Ok(0);
+        }
+        Ok(session.rows_above_edge() as i32 - before as i32)
+    })();
+
+    match result {
+        Ok(rows) => rows,
+        Err(code) => code.as_jint(),
+    }
+}
+
+fn grid_size(columns: jint, rows: jint) -> FfiResult<GridSize> {    let columns = u16::try_from(columns).map_err(|_| ErrorCode::InvalidArgument)?;
     let rows = u16::try_from(rows).map_err(|_| ErrorCode::InvalidArgument)?;
     let size = GridSize::new(columns, rows);
 
