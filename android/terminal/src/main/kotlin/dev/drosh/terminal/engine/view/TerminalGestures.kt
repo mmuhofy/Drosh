@@ -180,6 +180,7 @@ internal class TerminalGestures(private val view: TerminalView) {
                 return@OnTouchListener true
             }
             detector.onTouchEvent(event)
+            true
         }
     }
 
