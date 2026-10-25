@@ -192,6 +192,13 @@ class TerminalView(context: Context) : FrameLayout(context) {
             // The renderer reports from the GL thread; the session is only ever
             // touched from the UI thread. The size travels with the grid: the
             // session is resized with the cell the grid was laid out for.
+            //
+            // Posted, not run inline, and that is deliberate: a resize from the
+            // GL thread would race the parser. What it must not do is wait for
+            // the *next* frame to be requested — the frame that reported this
+            // is already drawing, so the request has to be made here or the
+            // surface sits on the refused frame until something else asks for
+            // a redraw.
             post {
                 session.resize(columns, rows, size.metrics.width.toInt(), size.metrics.height.toInt())
                 surface?.requestRender()

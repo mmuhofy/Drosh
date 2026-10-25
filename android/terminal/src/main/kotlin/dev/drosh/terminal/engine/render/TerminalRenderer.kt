@@ -224,18 +224,16 @@ internal class TerminalRenderer(
     override fun onDrawFrame(gl: GL10?) {
         val startedNanos = System.nanoTime()
 
-        // The background can be changed by the application (`OSC 11`), so the
-        // clear colour is read every frame rather than fixed at surface setup.
-        // The Rust-served ambient tint wins over the palette default when present.
-        val background = ambientTint ?: Palette.background
-        GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-
         val cells = session.cells
-        // Wait for the activity's resize to land before drawing a stale grid.
         // Every one of these is a frame that was asked for and not drawn, so
         // it is counted: "the surface rendered fourteen frames and refused
         // four hundred" says where the terminal went, and silence does not.
+        //
+        // The clear happens **after** this check, not before it. Clearing and
+        // then returning left the surface with nothing on it at all — a black
+        // pane for as long as the resize took, which is what the keyboard, the
+        // sidebar and the split all showed. A frame that cannot draw now keeps
+        // the previous one on screen, and the previous one is a terminal.
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
             onFrame(false)
             return
@@ -244,6 +242,13 @@ internal class TerminalRenderer(
             onFrame(false)
             return
         }
+
+        // The background can be changed by the application (`OSC 11`), so the
+        // clear colour is read every frame rather than fixed at surface setup.
+        // The Rust-served ambient tint wins over the palette default when present.
+        val background = ambientTint ?: Palette.background
+        GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         session.pump()
         val pumpEndNanos = System.nanoTime()
