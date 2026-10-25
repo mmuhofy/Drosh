@@ -92,6 +92,18 @@ class EnginePane(context: Context) {
     /** The IME's focus target; the host keeps it in the hierarchy (1×1 px). */
     val imeTarget: View get() = controller.imeTarget
 
+    /**
+     * The size a pinch has reached, or 0 when none is in progress.
+     *
+     * The view knows it and the host draws the chip, so the pane passes the
+     * report along rather than the host reaching into the view.
+     */
+    var zoomListener: (sp: Float) -> Unit
+        get() = view.zoomListener
+        set(value) {
+            view.zoomListener = value
+        }
+
     /** Where the host learns from the session (title, bell, exit, marks). */
     var listener: TerminalView.Listener? = null
         set(value) {

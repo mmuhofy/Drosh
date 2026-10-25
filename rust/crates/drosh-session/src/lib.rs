@@ -424,7 +424,8 @@ impl Session {
         // shifted by a few pixels under a finger that had nothing left to
         // reveal.
         let at_end = total <= 0.0 || total >= max_total;
-        let rows = if at_end { (total / cell).round() as usize } else { (total / cell).floor() as usize };
+        let rows =
+            if at_end { (total / cell).round() as usize } else { (total / cell).floor() as usize };
         let remainder = if at_end { 0.0 } else { total - rows as f32 * cell };
 
         let previous_rows = self.rows_above_edge.load(Ordering::Relaxed);
