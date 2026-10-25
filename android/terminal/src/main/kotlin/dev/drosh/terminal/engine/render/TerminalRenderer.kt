@@ -319,20 +319,21 @@ internal class TerminalRenderer(
         val background = ambientTint ?: Palette.background
         GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
 
-        // Clear only what is about to be redrawn.
+        // Clear what is about to be redrawn, and nothing more.
         //
-        // The clear used to cover the whole surface every frame, so a frame
-        // that then drew one changed row left the rest of the screen blank for
-        // as long as the draw took. The scissor is the same rectangle the
-        // damaged rows occupy — alacritty's `damage.rs` does exactly this with
-        // `shape_frame_damage` — so what is cleared is what is replaced.
+        // The rectangle is the damaged rows — alacritty's `damage.rs` shapes
+        // its frame damage the same way — so a frame that replaces one row
+        // leaves the rest of the screen alone.
+        //
+        // **Only when there is damage, though.** A frame with an empty damage
+        // list is here because something else asked for a redraw — a resume, a
+        // scroll offset that moved by a pixel, the frame pump — and the picture
+        // on screen is already correct. Clearing it would take the terminal
+        // away and put back exactly what was there, which is the flicker this
+        // whole path exists to avoid.
         val damagedTop: Int
         val damagedBottom: Int
-        val fullFrame = damage == NativeCore.DAMAGE_FULL || damage >= rows
-        if (fullFrame) {
-            damagedTop = 0
-            damagedBottom = height
-        } else {
+        if (damage > 0 && scrollOffsetPx == 0f) {
             var top = Int.MAX_VALUE
             var bottom = Int.MIN_VALUE
             for (index in 0 until damage) {
@@ -352,19 +353,25 @@ internal class TerminalRenderer(
                 damagedTop = (top - margin).coerceAtLeast(0)
                 damagedBottom = (bottom + margin).coerceAtMost(height)
             }
+        } else {
+            // Nothing damaged, a full frame, or a scrolled grid: the whole
+            // surface is the honest rectangle.
+            damagedTop = 0
+            damagedBottom = height
         }
-        // The sub-line shift moves content into the band above the first row;
-        // with a non-zero offset the whole surface is the honest rectangle.
-        val scissored = scrollOffsetPx == 0f && !fullFrame
-        if (scissored) {
-            // GL's origin is the bottom-left corner; the rows are counted from
-            // the top.
-            GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
-            GLES20.glScissor(0, height - damagedBottom, width, damagedBottom - damagedTop)
-        }
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-        if (scissored) {
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+
+        val fullFrame = damagedTop == 0 && damagedBottom == height
+        if (damage > 0 || !drewOnce || fullFrame) {
+            if (!fullFrame) {
+                // GL's origin is the bottom-left corner; the rows are counted
+                // from the top.
+                GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
+                GLES20.glScissor(0, height - damagedBottom, width, damagedBottom - damagedTop)
+            }
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            if (!fullFrame) {
+                GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+            }
         }
 
         drewOnce = true

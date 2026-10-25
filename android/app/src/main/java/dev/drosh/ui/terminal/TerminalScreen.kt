@@ -113,7 +113,6 @@ import dev.drosh.domain.settings.MotdMode
 import dev.drosh.ui.topbar.SelectionMenuSurface
 import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
-import dev.drosh.ui.topbar.SelectionMenuRow
 import dev.drosh.terminal.session.chromeCollapsed
 import dev.drosh.ui.topbar.rememberTerminalTopPadding
 import dev.drosh.ui.topbar.TerminalTopBar
@@ -786,25 +785,6 @@ private fun ReadyScreen(
     val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
     val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
 
-    /**
-     * True while a fresh selection is still being made.
-     *
-     * The menu is anchored to the selection, so it is drawn the moment the
-     * bounds exist — and a long press that became a pinch would leave a menu
-     * sitting over the zoom. Waiting a beat costs nothing a user can feel and
-     * removes that case entirely. The timer is reset by every change of
-     * bounds, so a drag keeps the menu away until the finger settles.
-     */
-    var selectionSettling by remember { mutableStateOf(false) }
-    LaunchedEffect(selectionBounds, hasSelection) {
-        if (!hasSelection) {
-            selectionSettling = false
-            return@LaunchedEffect
-        }
-        selectionSettling = true
-        delay(SELECTION_SETTLE_MS)
-        selectionSettling = false
-    }
     val context = LocalContext.current
     /**
      * The selected text, or null when there is no selection.
@@ -1118,61 +1098,6 @@ private fun ReadyScreen(
         // Selection menu. Anchored to the selection, whose bounds are in
         // terminal view coordinates; the host sits in this same Box, so the only
         // thing between the two is the status bar inset.
-        // A pinch is not a selection. The menu waits a moment after the
-        // selection appears, because a selection made by a pinch that was
-        // read as a long press must not put a menu over the zoom.
-        val menuBounds = selectionBounds?.takeIf { !selectionSettling }
-        menuBounds?.let { bounds ->
-            val density = LocalDensity.current
-            val screenDp = LocalConfiguration.current.screenWidthDp
-            // Derived from how many actions are actually showing, so the first
-            // frame samples the right region instead of waiting to be measured.
-            // Kopyala, Tümü, Paylaş and the keyboard toggle are unconditional.
-            val actionCount = 4 + (if (hasClipboardText) 1 else 0) + (if (selectionUrl != null) 1 else 0)
-            val densityPx = with(density) { menuWidthFor(actionCount).roundToPx() }
-            val menuHeightPx = with(density) { MENU_HEIGHT_PX.roundToPx() }
-            var measured by remember { mutableStateOf(IntSize.Zero) }
-            val backdrop by SelectionMenuBackdrop(
-                source = appearanceSource.value,
-                bounds = bounds,
-                sizePx = if (measured.width > 0) measured else IntSize(densityPx, menuHeightPx),
-            )
-            val inset = statusBarInset()
-            val menuWidth = with(density) { menuWidthFor(actionCount) }
-            val anchorX = with(density) {
-                (bounds.left.toDp() - MENU_GUTTER)
-                    .coerceIn(MENU_GUTTER, (screenDp.dp - menuWidth).coerceAtLeast(MENU_GUTTER))
-            }
-            val belowSelection = with(density) { bounds.bottom.toDp() } + MENU_GAP + inset
-
-            SelectionMenuRow(
-                backdrop = backdrop,
-                selectedText = selectionText,
-                url = selectionUrl,
-                canPaste = hasClipboardText,
-                blurRadius = menuBlurRadius(appearanceSource.value?.kind),
-                onCopy = {
-                    selectionText?.let { context.copyToClipboard("terminal", it) }
-                    // The selection is dismissed in whichever terminal made
-                    // it: the vendored view owns its own, and the engine's
-                    // pane owns the engine's.
-                    terminalManager.focusedEnginePane()?.clearSelection()
-                },
-                onPaste = {
-                    terminalManager.focusedEnginePane()?.pasteClipboard()
-                },
-                onOpenUrl = { url ->
-                    browserUrl = url
-                    terminalManager.focusedEnginePane()?.clearSelection()
-                },
-                onSelectAll = { terminalManager.focusedEnginePane()?.selectAll() },
-                onShare = { selectionText?.let { context.shareText(it) } },
-                modifier = Modifier
-                    .offset(x = anchorX, y = belowSelection)
-                    .onSizeChanged { measured = it },
-            )
-        }
-
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(
                 chromeCollapsed = immersive,
@@ -1814,13 +1739,7 @@ private const val FIND_RESCAN_GATE_MS = 150L
  */
 private const val ENGINE_RESCAN_INTERVAL_MS = 1000L
 
-/**
- * How long a selection must hold still before its menu is drawn.
- *
- * Long enough that a pinch read as a long press never shows a menu over the
- * zoom, short enough not to feel like a delay on an ordinary selection.
- */
-private const val SELECTION_SETTLE_MS = 220L
+
 
 /** How far the unfocused pane of a split is dimmed. */
 private val DimInactivePane = Color.Black.copy(alpha = 0.4f)

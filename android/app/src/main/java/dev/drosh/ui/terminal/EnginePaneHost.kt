@@ -626,6 +626,36 @@ fun EnginePaneHost(
             }
             pane.view.setOnFocusChangeListener { _, hasFocus -> reportFocus(hasFocus) }
             pane.imeTarget.setOnFocusChangeListener { _, hasFocus -> reportFocus(hasFocus) }
+            // Android's own selection menu, over the terminal's selection.
+            //
+            // The app used to draw a menu of its own, anchored to the bounds of
+            // the selection and sampling the pixels behind it. Android's is
+            // better at what a text menu is for — it follows the platform's
+            // gestures, its languages, its accessibility and its clipboard
+            // behaviour — so the view replaces the callbacks it offers and
+            // keeps the selection itself.
+            pane.view.setCustomSelectionActionModeCallback(
+                object : android.view.ActionMode.Callback {
+                    override fun onCreateActionMode(
+                        mode: android.view.ActionMode,
+                        menu: android.view.Menu,
+                    ): Boolean = true
+
+                    override fun onPrepareActionMode(
+                        mode: android.view.ActionMode,
+                        menu: android.view.Menu,
+                    ): Boolean = false
+
+                    override fun onActionItemClicked(
+                        mode: android.view.ActionMode,
+                        item: android.view.MenuItem,
+                    ): Boolean = false
+
+                    override fun onDestroyActionMode(mode: android.view.ActionMode) {
+                        pane.clearSelection()
+                    }
+                },
+            )
             frame
         },
         )

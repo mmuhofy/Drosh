@@ -906,7 +906,15 @@ class TerminalView(context: Context) : FrameLayout(context) {
         const val MIN_TEXT_SIZE_SP = 8f
 
         /** The largest text the engine draws, in sp: a cell wider than a screen. */
-        const val MAX_TEXT_SIZE_SP = 96f
+        /**
+         * The largest text the engine draws, in sp.
+         *
+         * A cell taller than a few dozen pixels leaves a phone showing twelve
+         * rows, which is not a terminal any more — and JetBrains Mono has no
+         * hinting at that size, so the glyphs are a blurred mass. 36 sp is
+         * about two and a half times the default and still a terminal.
+         */
+        const val MAX_TEXT_SIZE_SP = 36f
 
         /** The faces bundled in the engine module (one font, everywhere identical). */
         const val REGULAR_FONT = "fonts/JetBrainsMono-Regular.ttf"
