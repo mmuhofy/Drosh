@@ -399,8 +399,6 @@ fn spawn_login_tty(config: &PtyConfig, slave_fd: RawFd) -> io::Result<Child> {
     command.stderr(Stdio::null());
 
     let cwd = cwd_c_string(config)?;
-    let (program, argv) = exec_image(config)?;
-    let (error_write, error_read) = error_pipe()?;
 
     // SAFETY: `slave_fd` stays open in the parent until the child has been
     // spawned, and the closure only calls async-signal-safe libc functions.
@@ -409,109 +407,23 @@ fn spawn_login_tty(config: &PtyConfig, slave_fd: RawFd) -> io::Result<Child> {
             if let Some(dir) = cwd.as_ref() {
                 chdir(dir)?;
             }
-            setup_child_tty(slave_fd)?;
-            // The exec is done here rather than by `spawn`, so that a failure
-            // can be reported: a program that cannot be run leaves the child
-            // alive for a moment and then dies, and the reason it died is
-            // lost unless the child says so.
-            exec_or_report(error_write, &program, &argv)
+            setup_child_tty(slave_fd)
         });
     }
 
-    let child = command.spawn()?;
-    // The parent's end is closed, so a successful exec — which closes the
-    // child's end — reads back as an end of file.
-    // SAFETY: the descriptor was opened here and is read exactly once.
-    let reason = unsafe { read_exec_error(error_read) };
-    // SAFETY: the descriptor was opened here and is closed exactly once.
-    unsafe { libc::close(error_read) };
-    if let Some(reason) = reason {
-        return Err(io::Error::other(reason));
-    }
-    Ok(child)
-}
-
-/// The program and its argument vector, as C strings.
-///
-/// `argv[0]` is the program itself, the way a shell passes it.
-fn exec_image(config: &PtyConfig) -> io::Result<(CString, Vec<CString>)> {
-    let program = CString::new(config.program.as_str())
-        .map_err(|_| io::Error::other("the program contains a NUL byte"))?;
-    let mut argv = Vec::with_capacity(config.args.len() + 1);
-    argv.push(program.clone());
-    for arg in &config.args {
-        argv.push(
-            CString::new(arg.as_str())
-                .map_err(|_| io::Error::other("an argument contains a NUL byte"))?,
-        );
-    }
-    Ok((program, argv))
-}
-
-/// The pipe a child reports a failed `exec` through.
-///
-/// The write end is close-on-exec, so a program that starts successfully closes
-/// it and the parent reads an end of file. A program that cannot be started
-/// writes the reason first, and the parent turns that into the error the
-/// caller sees — instead of a session that starts and then dies in silence.
-///
-/// Returns the child's end and the parent's end.
-fn error_pipe() -> io::Result<(RawFd, RawFd)> {
-    let mut fds = [0 as RawFd; 2];
-    // SAFETY: `pipe` fills both descriptors, and the error is checked.
-    if unsafe { libc::pipe(fds.as_mut_ptr()) } < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: both descriptors are valid and owned from here on.
-    // Both ends are close-on-exec: the write end is what a successful exec
-    // closes, and the read end has no business in the program that starts.
-    unsafe {
-        libc::fcntl(fds[0], libc::F_SETFD, libc::FD_CLOEXEC);
-        libc::fcntl(fds[1], libc::F_SETFD, libc::FD_CLOEXEC);
-    }
-    Ok((fds[1], fds[0]))
-}
-
-/// Exec the program, or report why it could not be started.
-///
-/// Runs in the child, between `fork` and `exec`: only async-signal-safe calls
-/// belong here, so the reason is written with `write` and the child leaves with
-/// `_exit` — a child that stayed alive would look like a session that started
-/// and then hung.
-///
-/// # Safety
-/// The caller must be the forked child, between `fork` and `exec`.
-unsafe fn exec_or_report(
-    error_write: RawFd,
-    program: &CString,
-    argv: &[CString],
-) -> io::Result<()> {
-    let mut pointers: Vec<*const libc::c_char> = argv.iter().map(|arg| arg.as_ptr()).collect();
-    pointers.push(std::ptr::null());
-
-    libc::execvp(program.as_ptr(), pointers.as_ptr());
-
-    // The exec failed. Say why, in the one channel the parent reads.
-    let reason = io::Error::last_os_error();
-    let mut text = format!("{}: {}", program.to_string_lossy(), reason).into_bytes();
-    text.push(0);
-    let _ = libc::write(error_write, text.as_ptr() as *const libc::c_void, text.len());
-    libc::_exit(127)
-}
-
-/// Why the exec failed, or None when it did not.
-///
-/// # Safety
-/// The descriptor must be the parent's end of the error pipe.
-unsafe fn read_exec_error(error_read: RawFd) -> Option<String> {
-    let mut buffer = [0u8; 256];
-    // SAFETY: `read` writes at most `buffer.len()` bytes into the buffer.
-    let count = libc::read(error_read, buffer.as_mut_ptr() as *mut libc::c_void, buffer.len());
-    if count <= 0 {
-        return None;
-    }
-    let text = String::from_utf8_lossy(&buffer[..count as usize]);
-    Some(text.trim_end_matches('\0').to_owned())
+    // `spawn` does the exec itself.
+    //
+    // This used to exec inside `pre_exec`, through a pipe that reported why an
+    // exec failed. That is a deadlock: `std::process::Command` writes its own
+    // handshake after `pre_exec` returns, so a `pre_exec` that execs never
+    // returns and `spawn` waits for a handshake that cannot come. The session
+    // started and then hung, with the child running and the caller still
+    // inside this call.
+    //
+    // What the pipe bought was the reason an exec failed. `spawn` returns
+    // `Err` for that too — the OS error is there — and a program that cannot
+    // be run is a failure the session reports rather than one it survives.
+    command.spawn()
 }
 
 /// Attach the slave as the child's stdio, without a controlling terminal.
@@ -523,28 +435,18 @@ fn spawn_slave_stdio(config: &PtyConfig, slave: &File) -> io::Result<Child> {
     command.stderr(Stdio::from(slave.try_clone()?));
 
     let cwd = cwd_c_string(config)?;
-    let (program, argv) = exec_image(config)?;
-    let (error_write, error_read) = error_pipe()?;
 
     // SAFETY: the closure only calls async-signal-safe libc functions.
     unsafe {
-        command.pre_exec(move || {
-            if let Some(dir) = cwd.as_ref() {
-                chdir(dir)?;
-            }
-            exec_or_report(error_write, &program, &argv)
+        command.pre_exec(move || match cwd.as_ref() {
+            Some(dir) => chdir(dir),
+            None => Ok(()),
         });
     }
 
-    let child = command.spawn()?;
-    // SAFETY: the descriptor was opened here and is read exactly once.
-    let reason = unsafe { read_exec_error(error_read) };
-    // SAFETY: the descriptor was opened here and is closed exactly once.
-    unsafe { libc::close(error_read) };
-    if let Some(reason) = reason {
-        return Err(io::Error::other(reason));
-    }
-    Ok(child)
+    // `spawn` does the exec itself — see `spawn_login_tty` for why an exec
+    // inside `pre_exec` deadlocks the caller.
+    command.spawn()
 }
 
 /// POSIX login-tty sequence, run between `fork` and `exec`.
