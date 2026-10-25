@@ -157,12 +157,21 @@ pub fn take_snapshot<T>(
         return Err(SnapshotError::DamageOutTooSmall { needed: damage_needed, got: damage_len });
     }
 
-    // Damage rows are viewport-relative while the content of a scrolled-back
-    // viewport lives in the history grid. Redrawing the viewport in that state
-    // is cheap and removes a whole class of off-by-one bugs (the renderer
-    // redraws everything after a scroll anyway).
+    // Damage rows are viewport-relative, and `Term::damage` marks the whole
+    // viewport whenever the display offset changed — which is exactly what a
+    // scroll is. The earlier version read `offset > 0` and copied the entire
+    // grid on every frame of a pan: sixty kilobytes per frame while a finger
+    // moved, for a viewport that had moved one row.
+    //
+    // The engine already reports the scroll as full damage when it happens
+    // once; the frames after it are not damaged at all. So the flow is
+    // untouched and the per-frame cost of a pan is what it always should have
+    // been: the one row that came into view.
     let offset = term.grid().display_offset();
-    let mut full = offset > 0;
+    let mut full = false;
+    // A frame in which nothing was damaged still has to say so: an empty list
+    // means "the picture on screen is correct", which is what lets the
+    // renderer skip the upload and the draw entirely.
 
     match term.damage() {
         TermDamage::Full => full = true,
