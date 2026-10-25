@@ -298,6 +298,29 @@ class EngineSession(
         }
     }
 
+    /**
+     * Put the viewport at `offset` rows above the live edge.
+     *
+     * [scroll] moves relative to where the viewport already is, which is what a
+     * drag wants; this is absolute, which is what a zoom wants — the row the
+     * fingers were on is an absolute row, and asking for it by delta would
+     * carry the error from every size change that came before.
+     *
+     * The engine clamps to what the history still holds, so a request past
+     * either end settles there rather than being refused.
+     */
+    fun scrollToOffset(offset: Int) {
+        val current = handle
+        if (current == NO_HANDLE) {
+            return
+        }
+        val now = stateArray[NativeCore.STATE_DISPLAY_OFFSET]
+        val delta = offset - now
+        if (delta != 0) {
+            NativeCore.nativeScroll(current, delta)
+        }
+    }
+
     fun pollWakeup(): Boolean {
         val current = handle
         return current != NO_HANDLE && NativeCore.nativePollWakeup(current)

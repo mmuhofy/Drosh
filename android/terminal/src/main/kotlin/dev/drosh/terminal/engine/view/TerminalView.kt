@@ -606,6 +606,52 @@ class TerminalView(context: Context) : FrameLayout(context) {
     }
 
     /**
+     * Zoom to [sp], keeping the line under `focusY` where it is.
+     *
+     * The vendored terminal's `zoomTo`, unchanged in behaviour: the row under
+     * the fingers is remembered as an *absolute* history row before the size
+     * changes — a viewport-relative row does not survive the reflow, an
+     * absolute one does — and put back under them afterwards. Without it a
+     * pinch drags the output out from under the finger, and the further into
+     * the scrollback the user is, the further it goes.
+     *
+     * The row is clamped to what the history still has: zooming out makes the
+     * grid hold more rows, so the row the fingers were on can be one that no
+     * longer exists, and the bottom of the screen is then empty rather than
+     * wrong.
+     */
+    internal fun zoomTo(sp: Float, focusY: Float) {
+        val spacingBefore = metrics.height
+        val offsetBefore = session.stateArray[NativeCore.STATE_DISPLAY_OFFSET]
+        val anchoredRow = offsetBefore + if (spacingBefore > 0f) (focusY / spacingBefore).toInt() else 0
+
+        setTextSize(sp)
+
+        val spacingAfter = metrics.height
+        if (spacingAfter <= 0f || !fontLoaded) {
+            return
+        }
+        val rowUnderFocus = (focusY / spacingAfter).toInt()
+        val target = (anchoredRow - rowUnderFocus)
+        // The engine owns the clamp; asking for more than it has settles at its
+        // own end, which is where a pinch that ran out of history belongs.
+        session.scrollToOffset(target)
+        requestRender()
+    }
+
+    /**
+     * The size a pinch settled on.
+     *
+     * Reported once per gesture rather than per frame: the value is worth
+     * persisting once, at the end, and every frame of a pinch would write the
+     * settings file a few dozen times. The host decides whether it keeps it.
+     */
+    internal var zoomEndListener: (sp: Float) -> Unit = {}
+
+    /** Forwarded from the gesture recogniser, which owns the pinch's lifetime. */
+    internal fun onZoomEnd(sp: Float) = zoomEndListener.invoke(sp)
+
+    /**
      * The scale from sp to pixels.
      *
      * `scaledDensity` is the display density with the user's font-size

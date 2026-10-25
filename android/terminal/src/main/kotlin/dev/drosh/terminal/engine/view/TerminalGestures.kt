@@ -1,7 +1,5 @@
 package dev.drosh.terminal.engine.view
 
-import android.content.Context
-import android.view.GestureDetector
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -34,17 +32,29 @@ internal class TerminalGestures(private val view: TerminalView) {
 
     private var scrollAccumulator = 0f
     private var draggingSelection = false
+
+    /** The size the current pinch started at; reset per gesture. */
+    private var zoomBaseSp = 0f
+
+    /** Total finger travel this pinch, in log scale. */
+    private var zoomScaleFactor = 1f
+
+    /** Latched once the pinch leaves the dead zone; see `onScale`. */
+    private var zoomPassedDeadZone = false
     private var lastMouseColumn = -1
     private var lastMouseLine = -1
 
     /** The touch listener the surface attaches. */
     fun listener(): View.OnTouchListener {
-        val detector = GestureDetector(
+        val detector = GestureAndScaleRecognizer(
             view.context,
-            object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(event: MotionEvent): Boolean = true
-
+            object : GestureAndScaleRecognizer.Listener {
                 override fun onSingleTapUp(event: MotionEvent): Boolean {
+                    // The dead-zone latch is per gesture: a tap is a new one.
+                    zoomScaleFactor = 1f
+                    zoomBaseSp = 0f
+                    zoomPassedDeadZone = false
+
                     // With mouse tracking on, a tap is a left click — a finger
                     // has no buttons, so this is the mobile mapping Termux uses.
                     if (view.mouseMode()) {
@@ -77,13 +87,12 @@ internal class TerminalGestures(private val view: TerminalView) {
                 }
 
                 override fun onScroll(
-                    first: MotionEvent?,
-                    current: MotionEvent,
-                    distanceX: Float,
-                    distanceY: Float,
+                    second: MotionEvent,
+                    dx: Float,
+                    dy: Float,
                 ): Boolean {
                     if (draggingSelection) {
-                        view.selectionOverlay.extend(cellRow(current.y), cellColumn(current.x))
+                        view.selectionOverlay.extend(cellRow(second.y), cellColumn(second.x))
                         return true
                     }
 
@@ -91,18 +100,17 @@ internal class TerminalGestures(private val view: TerminalView) {
                     // xterm's 64/65 buttons. Scrolling the local history instead
                     // would hide the program's own scrolling from it.
                     if (view.mouseMode()) {
-                        wheelBy(distanceY, current.x, current.y)
+                        wheelBy(dy, second.x, second.y)
                         return true
                     }
 
                     // Finger down (positive dy) scrolls back into the history.
-                    scrollByPixels(distanceY)
+                    scrollByPixels(dy)
                     return true
                 }
 
                 override fun onFling(
-                    first: MotionEvent?,
-                    current: MotionEvent,
+                    second: MotionEvent,
                     velocityX: Float,
                     velocityY: Float,
                 ): Boolean {
@@ -111,6 +119,53 @@ internal class TerminalGestures(private val view: TerminalView) {
                     }
                     startFling(velocityY)
                     return true
+                }
+
+                override fun onScaleBegin() {
+                    // The gesture's own origin, so the size is recomputed from
+                    // where the fingers started rather than from the last
+                    // frame's rounded value.
+                    zoomBaseSp = view.textSizeSp
+                    zoomScaleFactor = 1f
+                    zoomPassedDeadZone = false
+                }
+
+                override fun onScale(focusX: Float, focusY: Float, scale: Float): Boolean {
+                    if (draggingSelection) {
+                        return true
+                    }
+                    // One event, one bounded step: a finger that moves 40%
+                    // between two events — or a third finger arriving — would
+                    // otherwise take several steps in one frame and read as a
+                    // jump.
+                    val step = scale.coerceIn(1f / MAX_ZOOM_STEP, MAX_ZOOM_STEP)
+                    zoomScaleFactor *= step
+
+                    // A dead zone in log-scale, so it is symmetric: 4% either
+                    // way reads as no movement. Latched once crossed, and the
+                    // latch is the point: without it, returning the fingers to
+                    // where they started lands back inside the zone and the
+                    // terminal keeps the peak of the pinch — a zoom that the
+                    // same gesture cannot undo.
+                    if (!zoomPassedDeadZone) {
+                        if (Math.abs(Math.log(zoomScaleFactor.toDouble())) < ZOOM_DEAD_ZONE) {
+                            return true
+                        }
+                        zoomPassedDeadZone = true
+                    }
+
+                    val base = if (zoomBaseSp > 0f) zoomBaseSp else view.textSizeSp
+                    view.zoomTo(base * zoomScaleFactor, focusY)
+                    return true
+                }
+
+                override fun onScaleEnd() {
+                    // The gesture is over: the dead zone is per-gesture, and
+                    // the size is now worth keeping.
+                    zoomScaleFactor = 1f
+                    zoomBaseSp = 0f
+                    zoomPassedDeadZone = false
+                    view.onZoomEnd(view.textSizeSp)
                 }
             },
         )
@@ -437,5 +492,16 @@ internal class TerminalGestures(private val view: TerminalView) {
          * whole screen past the point the user aimed at.
          */
         const val FLING_SCALE = 0.25f
+
+        /** The largest size change a single scale event may apply. */
+        const val MAX_ZOOM_STEP = 1.5f
+
+        /**
+         * How far a pinch must move, in log scale, before it is a zoom.
+         *
+         * Symmetric by construction: `|ln(factor)| < 0.04` is the same 4%
+         * either way, which a linear threshold cannot be.
+         */
+        const val ZOOM_DEAD_ZONE = 0.04
     }
 }
