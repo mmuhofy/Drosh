@@ -66,16 +66,6 @@ internal class TerminalRenderer(
 
     @Volatile
     var cursorVisible = true
-        set(value) {
-            if (field != value) {
-                field = value
-                // The cursor is drawn from this flag, not from the engine's
-                // damage: a blink changes the picture and nothing in the
-                // terminal has changed at all. Without this the frame is
-                // skipped as idle and the cursor stops blinking.
-                forceRedraw = true
-            }
-        }
 
     /** Logged once; useful when a device cannot do GL ES 3. */
     var glVersion: String = "unknown"
@@ -125,29 +115,37 @@ internal class TerminalRenderer(
      */
     private var scrollOffsetPx = 0f
 
-    /**
-     * Whether a frame has been drawn since the surface was created or resized.
-     *
-     * The first frame after either one must draw whatever the damage says: the
-     * surface is empty, so "nothing changed" is not a reason to leave it that
-     * way.
-     */
-    private var drewOnce = false
-
-    /**
-     * Set when the picture on screen is known to be stale.
-     *
-     * The surface was recreated, the grid was resized, the font changed, the
-     * host resumed. In those cases "the engine says nothing changed" is true
-     * and irrelevant: there is nothing correct on the screen to keep.
-     */
-    private var forceRedraw = false
-
-    /** Frames logged since this renderer started; see `onDrawFrame`. */
-    private var framesLogged = 0
-
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
+
+    /**
+     * A frame's numbers, for the debug overlay.
+     *
+     * Read on the GL thread, written straight through: the overlay reads it a
+     * few times a second and a torn read only means one stale number, which is
+     * what an overlay is for anyway.
+     */
+    data class FrameReport(
+        val frames: Int,
+        val frameMillis: Float,
+        val buildMillis: Float,
+        val drawMillis: Float,
+        val columns: Int,
+        val rows: Int,
+        val glyphs: Int,
+        val coloredCells: Int,
+        val atlasPercent: Int,
+        val damage: Int,
+        val background: Int,
+        val gl: String,
+    )
+
+    /** The last frame's numbers, or null before the first frame. */
+    @Volatile
+    var report: FrameReport? = null
+        private set
+
+    private var frameCount = 0
 
     private var backgroundProgram = 0
     private var foregroundProgram = 0
@@ -169,8 +167,6 @@ internal class TerminalRenderer(
         glVersion = GLES20.glGetString(GLES20.GL_VERSION) ?: "unknown"
         // A fresh context has no glyphs in it: the atlas and every buffer are
         // recreated below, so the first frame after this draws in full.
-        drewOnce = false
-        forceRedraw = true
         Log.i(TAG, "GL version: $glVersion")
 
         backgroundProgram = buildProgram(BACKGROUND_VERTEX, BACKGROUND_FRAGMENT)
@@ -215,8 +211,6 @@ internal class TerminalRenderer(
         GLES20.glViewport(0, 0, width, height)
         // The surface is new, so nothing is on it: the next frame draws even if
         // the engine says nothing changed.
-        drewOnce = false
-        forceRedraw = true
         updateGrid()
     }
 
@@ -245,9 +239,6 @@ internal class TerminalRenderer(
         // Nothing is invalidated here. The frame that follows is drawn because
         // the grid changed — `updateGrid` reports the new size when it differs —
         // and a size that produces the same grid changes nothing on screen.
-        // Resetting `forceRedraw`/`drewOnce` here, as an earlier version did,
-        // made every font-size call a full redraw of a screen that had not
-        // changed. The atlas still needs the new generation, and that is all.
         // The atlas keeps the previous size's masks as well as this one's: a
         // pinch changes size every frame, and throwing the masks away each time
         // re-rasterised every character on the frame after it — the text shook
@@ -314,46 +305,44 @@ internal class TerminalRenderer(
         val startedNanos = System.nanoTime()
 
         val cells = session.cells
-        // Every one of these is a frame that was asked for and not drawn, so
-        // it is counted: "the surface rendered fourteen frames and refused
-        // four hundred" says where the terminal went, and silence does not.
-        //
-        // The clear happens **after** this check, not before it. Clearing and
-        // then returning left the surface with nothing on it at all — a black
-        // pane for as long as the resize took, which is what the keyboard, the
-        // sidebar and the split all showed. A frame that cannot draw now keeps
-        // the previous one on screen, and the previous one is a terminal.
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
-            onFrame(false)
             return
         }
         if (session.columns != columns || session.rows != rows) {
-            onFrame(false)
+            // The session has not caught up with the grid yet. Returning without
+            // clearing leaves the previous frame on screen, which is a terminal
+            // rather than the background colour.
             return
         }
 
-        // The snapshot first: it is what says whether anything changed.
+        // One frame, in alacritty's order (`display/mod.rs`): clear the whole
+        // surface, build every cell, draw. Nothing here is conditional — no
+        // damage check, no scissor, no "nothing changed" shortcut.
+        //
+        // Every one of those was tried and each was wrong in its own way: a
+        // scissor left the undamaged rows on a ground that was never repainted;
+        // the idle check cleared the surface and then declined to draw on it;
+        // the force flag made every recomposition a full redraw. A terminal is
+        // a few thousand cells, and a phone's GPU fills them in well under a
+        // millisecond. Correctness first; the numbers come from the overlay and
+        // the work is only optimised once they say it needs to be.
         val damage = session.pump()
         if (damage < 0) {
-            // A snapshot that failed leaves the buffer as it was.
-            onFrame(false)
             return
         }
-
-        // The sub-line part of the scroll, as the engine holds it (kitty's
-        // `pixel_scroll_offset_y`). Read here rather than pushed in, so the
-        // grid and the row count can never disagree about where the viewport
-        // is: both come from the same snapshot.
-        scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat()
         val pumpEndNanos = System.nanoTime()
 
         // `pump` refreshed the engine's colour table; install it only when the
-        // engine says it changed. The array is rewritten in place on this
-        // thread, so handing the reference over is safe here.
+        // engine says it changed.
         if (session.colorsStamp != appliedColorsStamp) {
             appliedColorsStamp = session.colorsStamp
             Palette.setOverrides(session.colors)
         }
+
+        // The sub-line part of the scroll, as the engine holds it (kitty's
+        // `pixel_scroll_offset_y`). Read from the same snapshot as the rows, so
+        // the grid and the offset cannot disagree.
+        scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat()
 
         records.build(
             cells,
@@ -367,76 +356,46 @@ internal class TerminalRenderer(
         )
         val buildEndNanos = System.nanoTime()
 
-        // Nothing changed: the records were rebuilt (cheap, and it keeps them
-        // honest), and the picture they describe is the one already on screen.
-        // Skipping the upload and the two draw calls is where the saving is —
-        // `records.build` is what a frame actually costs, and it has already
-        // run.
-        val idle = damage == 0 && forceRedraw == false && drewOnce
-        // A frame that clears and then draws is a frame the user can see
-        // change; one that is skipped is not. Logging both, with the damage
-        // that decided it, is how "the screen flickers" is separated from "the
-        // screen is redrawn every frame".
-        if (framesLogged < FRAME_LOG_LIMIT) {
-            framesLogged += 1
-            Log.i(
-                TAG,
-                "frame ${if (idle) "skipped" else "drawn"}: damage=$damage " +
-                    "force=$forceRedraw drew=$drewOnce",
-            )
-        }
-        if (idle) {
-            // Nothing changed: the picture on screen is the right one, and
-            // clearing it would take it away to put back what was there. This
-            // is the blink — a cursor toggle asks for a redraw twice a second —
-            // and it is why the terminal flickered: the clear ran, the draw was
-            // skipped, and the screen went to the background colour for one
-            // frame on every blink.
-            onFrame(false)
-            return
-        }
-        forceRedraw = false
-        drewOnce = true
-
-        // The clear belongs immediately before the draw, not before the
-        // decision to draw. Alacritty's order (`display/mod.rs`) is `clear`
-        // then `draw_cells`, and the pair is what leaves a frame that can be
-        // shown; a clear on its own is a frame with nothing on it.
         val background = ambientTint ?: Palette.background
         GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         // The atlas is uploaded after the build, not before it: a glyph the
-        // build had to rasterise is in the atlas by now, and the texture has
-        // to carry it before the frame draws it. Uploaded before the build,
-        // the frame after a size change would draw the previous size's masks.
+        // build had to rasterise is in the atlas by now, and the texture has to
+        // carry it before the frame draws it.
         if (atlas.dirty) {
             uploadAtlas()
         }
 
-        // Every rebuilt frame goes up whole: the buffers are STREAM_DRAW and
-        // the records were just rewritten in place. Skipping this and drawing
-        // anyway would put the previous frame's cells on screen under the new
-        // one — which is what a terminal that "stutters and then catches up"
-        // is doing.
         uploadStreams()
         val uploadEndNanos = System.nanoTime()
 
         drawBackgrounds()
         drawForegrounds()
 
-        if (records.coloredCells > 0) {
-            Log.i(TAG, "frame: ${records.coloredCells} coloured cells, " +
-                "${records.foregroundCount} glyphs, bg ${Integer.toHexString(Palette.background)}")
-        }
-
+        val drawnAt = System.nanoTime()
         stats.record(
             startedNanos,
             pumpEndNanos,
             buildEndNanos,
             uploadEndNanos,
-            System.nanoTime(),
+            drawnAt,
             records.foregroundCount,
+        )
+        frameCount += 1
+        report = FrameReport(
+            frames = frameCount,
+            frameMillis = (drawnAt - startedNanos) / 1_000_000f,
+            buildMillis = (buildEndNanos - pumpEndNanos) / 1_000_000f,
+            drawMillis = (drawnAt - uploadEndNanos) / 1_000_000f,
+            columns = columns,
+            rows = rows,
+            glyphs = records.foregroundCount,
+            coloredCells = records.coloredCells,
+            atlasPercent = atlas.usedPercent(),
+            damage = damage,
+            background = ambientTint ?: Palette.background,
+            gl = glVersion,
         )
         onFrame(true)
     }
@@ -688,9 +647,6 @@ internal class TerminalRenderer(
 
     private companion object {
         const val TAG = "DroshLab"
-        /** How many frames the start-up log covers. */
-        const val FRAME_LOG_LIMIT = 24
-
         const val MIN_COLUMNS = 2
         const val MIN_ROWS = 1
         const val FLOAT_BYTES = 4

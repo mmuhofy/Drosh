@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.GuestCommand
+import dev.drosh.terminal.engine.render.TerminalRenderer
 import dev.drosh.terminal.session.EnginePane
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
@@ -452,8 +453,29 @@ fun EnginePaneHost(
      * split has two of them.
      */
     val zoomSizeSp = remember { mutableStateOf(0f) }
+
+    /**
+     * Whether the frame overlay is showing.
+     *
+     * Toggled by Ctrl+Shift+D, which the terminal's own key handling raises:
+     * the key arrives in the view, the overlay is drawn here.
+     */
+    var showDebugOverlay by remember { mutableStateOf(false) }
+    var frameReport by remember { mutableStateOf<TerminalRenderer.FrameReport?>(null) }
+
+    LaunchedEffect(pane, showDebugOverlay) {
+        if (!showDebugOverlay) {
+            frameReport = null
+            return@LaunchedEffect
+        }
+        while (true) {
+            frameReport = pane.frameReport
+            delay(250)
+        }
+    }
     LaunchedEffect(pane) {
         pane.zoomListener = { sp -> zoomSizeSp.value = sp }
+        pane.debugOverlayListener = { on -> showDebugOverlay = on }
     }
 
     /**
@@ -629,6 +651,16 @@ fun EnginePaneHost(
             frame
         },
         )
+
+        // The frame's own numbers, when the user asked for them.
+        if (showDebugOverlay) {
+            TerminalDebugOverlay(
+                report = frameReport,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+            )
+        }
 
         // The pinch's own feedback: the size it has reached, while it moves.
         // Anchored to the middle of the pane rather than to the fingers, since

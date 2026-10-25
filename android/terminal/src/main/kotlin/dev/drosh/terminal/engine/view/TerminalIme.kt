@@ -33,6 +33,17 @@ internal class TerminalIme(private val view: TerminalView) {
      * plain printable key — the text path already carries those.
      */
     private fun handleHardwareKey(keyCode: Int, event: KeyEvent): Boolean {
+        // Ctrl+Shift+D toggles the host's frame overlay, and is taken before
+        // anything is sent to the shell: 0x04 is EOF, and a terminal that exits
+        // because the user asked for a number is a terminal nobody debugs
+        // twice.
+        if (keyCode == KeyEvent.KEYCODE_D &&
+            event.isCtrlPressed && event.isShiftPressed
+        ) {
+            view.toggleDebugOverlay()
+            return true
+        }
+
         val named = AndroidKeys.named(keyCode)
         if (named != null) {
             val mods = AndroidKeys.mods(event, view.stickyCtrl)

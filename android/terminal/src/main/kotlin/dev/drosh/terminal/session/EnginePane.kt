@@ -104,6 +104,22 @@ class EnginePane(context: Context) {
             view.zoomListener = value
         }
 
+    /**
+     * The last frame's numbers, for the host's debug overlay.
+     *
+     * Forwarded from the view rather than copied: the overlay wants the frame
+     * that is on screen now, not the one that was there when it asked.
+     */
+    val frameReport: dev.drosh.terminal.engine.render.TerminalRenderer.FrameReport?
+        get() = view.frameReport
+
+    /** Whether the user asked for the frame overlay (Ctrl+Shift+D in the view). */
+    var debugOverlayListener: ((Boolean) -> Unit)?
+        get() = view.debugOverlayListener
+        set(value) {
+            view.debugOverlayListener = value
+        }
+
     /** Where the host learns from the session (title, bell, exit, marks). */
     var listener: TerminalView.Listener? = null
         set(value) {

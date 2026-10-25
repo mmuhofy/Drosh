@@ -192,6 +192,19 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
         }
     }
 
+    /**
+     * How much of the atlas is in use, as a percentage.
+     *
+     * For the debug overlay: an atlas that climbs through a pinch and never
+     * comes back down is the signature of masks being kept for sizes nothing
+     * draws any more.
+     */
+    fun usedPercent(): Int {
+        if (size <= 0) return 0
+        val used = shelfY + shelfHeight
+        return (used * 100 / size).coerceIn(0, 100)
+    }
+
     /** Reserve the one opaque texel the solid quads sample. */
     private fun reserveSolid() {
         val block = reserve(SOLID, SOLID)
