@@ -445,6 +445,18 @@ fun EnginePaneHost(
     val paneHeightPx = remember { mutableStateOf(0) }
 
     /**
+     * The size a pinch has reached, or 0 when none is in progress.
+     *
+     * Shown as a chip over the terminal while the fingers move. Held here
+     * rather than in the screen because the pinch belongs to this pane, and a
+     * split has two of them.
+     */
+    val zoomSizeSp = remember { mutableStateOf(0f) }
+    LaunchedEffect(pane) {
+        pane.view.zoomListener = { sp -> zoomSizeSp.value = sp }
+    }
+
+    /**
      * What the engine reports about itself, refreshed a second after the start.
      *
      * The three numbers are read from the engine's own state, and the state is
@@ -617,6 +629,18 @@ fun EnginePaneHost(
             frame
         },
         )
+
+        // The pinch's own feedback: the size it has reached, while it moves.
+        // Anchored to the middle of the pane rather than to the fingers, since
+        // two fingers cover whatever sits under them.
+        if (zoomSizeSp.value > 0f) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                TerminalZoomChip(textSizeSp = zoomSizeSp.value)
+            }
+        }
 
         // The reason, over the terminal rather than instead of it. A
         // translucent ground, because the surface underneath is the

@@ -153,6 +153,10 @@ internal class TerminalGestures(private val view: TerminalView) {
 
                     val base = if (zoomBaseSp > 0f) zoomBaseSp else view.textSizeSp
                     view.zoomTo(base * zoomScaleFactor, focusY)
+                    // The chip reads the size the pinch has reached. Reported
+                    // after the change, so the number it shows is the one on
+                    // screen rather than the one it is about to be.
+                    view.onZoomProgress(view.textSizeSp)
                     return true
                 }
 

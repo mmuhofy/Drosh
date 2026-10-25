@@ -1,3 +1,9 @@
+// Ported from: the vendored terminal's `TerminalZoomChip` (Iris/Drosh before the
+// Rust migration).
+// Adapted for Drosh — dev.drosh
+// Changes: package moved, and the state now carries only the size — the chip
+// sits at a fixed place rather than following the fingers, because a chip under
+// two fingers is a chip the fingers are covering.
 package dev.drosh.ui.terminal
 
 import androidx.compose.animation.core.animateFloatAsState
@@ -25,30 +31,31 @@ import java.util.Locale
 /**
  * The size chip shown while the terminal is being pinched.
  *
- * A pinch moves the font under the fingers, which means the thing being read
- * grows or shrinks with no visible control — the gesture is invisible by the
- * time the user looks up. The chip is that feedback: it names the number the
- * gesture has reached, which is also the only way to find the size again after
- * letting go.
+ * A pinch moves the font under the fingers, so the thing being read grows or
+ * shrinks with nothing to name the number it reached. The chip is that name —
+ * and the only way to find the size again after letting go.
  *
- * It fades rather than disappearing so it does not blink on every 0.1sp step,
- * and the caller keeps it alive briefly after the gesture ends (see
- * [ZoomChipState]) so the size is still readable when the fingers are gone.
+ * It fades rather than disappearing, so it does not blink on every 0.1sp step,
+ * and the caller keeps it briefly after the gesture ends so the final size is
+ * still readable when the fingers are gone.
  *
  * Not interactive and never focusable, so it cannot intercept a touch meant for
- * the terminal underneath: Compose hit-testing only consumes where a gesture
- * modifier sits, and this has none.
+ * the terminal underneath.
  */
 @Composable
 fun TerminalZoomChip(
-    state: ZoomChipState,
+    textSizeSp: Float,
     modifier: Modifier = Modifier,
 ) {
     val alpha by animateFloatAsState(
-        targetValue = if (state.visible) 1f else 0f,
-        animationSpec = tween(durationMillis = if (state.visible) 90 else 320),
+        targetValue = if (textSizeSp > 0f) 1f else 0f,
+        animationSpec = tween(durationMillis = if (textSizeSp > 0f) 90 else 320),
         label = "zoomChipAlpha",
     )
+
+    if (alpha <= 0f) {
+        return
+    }
 
     Box(
         modifier = modifier
@@ -59,41 +66,13 @@ fun TerminalZoomChip(
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
-            // US locale explicitly: this chip sits over a terminal, and a Turkish or
-            // German locale would print "14,3sp" — and in a locale where the
-            // separator is a comma, "14,3" reads as fourteen-point-three to a
-            // Turkish user and as fourteen comma three to a German one, while
-            // the value it reports is neither. The terminal's own number is
-            // the sp setting, not prose, so it keeps one format everywhere.
-            text = String.format(Locale.US, "%.1fsp", state.textSizeSp),
+            // US locale explicitly: a Turkish or German locale would print
+            // "14,3sp", and the terminal's own size is a number, not prose.
+            text = String.format(Locale.US, "%.1fsp", textSizeSp),
             color = DroshText,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = FontFamily.Monospace,
-        )
-    }
-}
-
-/**
- * What the chip shows, and whether it is showing.
- *
- * Held as one value rather than three so a per-frame update is a single
- * snapshot: two fingers move faster than a frame, and a chip that took the
- * size from one state and the position from another would lag behind the
- * gesture in a way that reads as a rendering bug.
- */
-data class ZoomChipState(
-    val textSizeSp: Float,
-    val focusX: Float,
-    val focusY: Float,
-    val visible: Boolean,
-) {
-    companion object {
-        val Hidden = ZoomChipState(
-            textSizeSp = 0f,
-            focusX = 0f,
-            focusY = 0f,
-            visible = false,
         )
     }
 }

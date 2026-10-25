@@ -652,8 +652,24 @@ class TerminalView(context: Context) : FrameLayout(context) {
      */
     internal var zoomEndListener: (sp: Float) -> Unit = {}
 
+    /**
+     * Told the size while a pinch is in progress, and 0 when it ends.
+     *
+     * The chip is drawn by the host, but the size is the view's: only the font
+     * stack knows what the fingers have reached. A callback rather than a
+     * flow, because the host already runs on the UI thread and the pinch is a
+     * gesture, not a piece of state anything else collects.
+     */
+    internal var zoomListener: (sp: Float) -> Unit = {}
+
     /** Forwarded from the gesture recogniser, which owns the pinch's lifetime. */
-    internal fun onZoomEnd(sp: Float) = zoomEndListener.invoke(sp)
+    internal fun onZoomEnd(sp: Float) {
+        zoomEndListener.invoke(sp)
+        zoomListener.invoke(0f)
+    }
+
+    /** Forwarded for every frame of a pinch. */
+    internal fun onZoomProgress(sp: Float) = zoomListener.invoke(sp)
 
     /**
      * The scale from sp to pixels.

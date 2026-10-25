@@ -416,8 +416,16 @@ impl Session {
         let max_total = max_rows as f32 * cell;
         let total = total.clamp(0.0, max_total);
 
-        let rows = (total / cell).floor() as usize;
-        let remainder = total - rows as f32 * cell;
+        // At either end the remainder is zero by definition.
+        //
+        // At the live edge there is no row above to be part-way into, and at
+        // the oldest row there is no older row to slide toward. Keeping a
+        // fraction at a limit is what let a drag "move" past the end: the grid
+        // shifted by a few pixels under a finger that had nothing left to
+        // reveal.
+        let at_end = total <= 0.0 || total >= max_total;
+        let rows = if at_end { (total / cell).round() as usize } else { (total / cell).floor() as usize };
+        let remainder = if at_end { 0.0 } else { total - rows as f32 * cell };
 
         let previous_rows = self.rows_above_edge.load(Ordering::Relaxed);
         let previous_remainder = f32::from_bits(self.sub_line_px.load(Ordering::Relaxed));
