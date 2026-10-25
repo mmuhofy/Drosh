@@ -381,7 +381,7 @@ impl Session {
         // without saying which one the user meant, and the absolute position
         // is what a keyboard scroll is about.
         self.rows_above_edge.store(after, Ordering::Relaxed);
-        self.sub_line_px.store(0, Ordering::Relaxed);
+        self.sub_line_px.store(0f32.to_bits(), Ordering::Relaxed);
         let _ = before;
         Ok(())
     }
@@ -405,7 +405,7 @@ impl Session {
             return false;
         }
 
-        let total = self.sub_line_px.load(Ordering::Relaxed)
+        let total = f32::from_bits(self.sub_line_px.load(Ordering::Relaxed))
             + self.rows_above_edge.load(Ordering::Relaxed) as f32 * cell
             + delta_pixels;
 
@@ -420,13 +420,13 @@ impl Session {
         let remainder = total - rows as f32 * cell;
 
         let previous_rows = self.rows_above_edge.load(Ordering::Relaxed);
-        let previous_remainder = self.sub_line_px.load(Ordering::Relaxed);
+        let previous_remainder = f32::from_bits(self.sub_line_px.load(Ordering::Relaxed));
         if rows == previous_rows && (remainder - previous_remainder).abs() < 0.01 {
             return false;
         }
 
         self.rows_above_edge.store(rows, Ordering::Relaxed);
-        self.sub_line_px.store(remainder, Ordering::Relaxed);
+        self.sub_line_px.store(remainder.to_bits(), Ordering::Relaxed);
         if rows != previous_rows {
             // `rows_above_edge` counts *up* into the history; the engine's
             // `scroll_display` takes a signed delta on its own scale.
@@ -446,7 +446,7 @@ impl Session {
     /// The sub-line part of the scroll, in pixels. The renderer shifts the grid
     /// by this so a drag follows the finger between rows.
     pub fn sub_line_pixels(&self) -> f32 {
-        self.sub_line_px.load(Ordering::Relaxed)
+        f32::from_bits(self.sub_line_px.load(Ordering::Relaxed))
     }
 
     /// Whole rows the viewport sits above the live edge.
@@ -474,8 +474,7 @@ impl Session {
     pub fn state(&self) -> [i32; snapshot::STATE_LEN] {
         let mut out = [0i32; snapshot::STATE_LEN];
         snapshot::write_state(&self.term.lock(), &mut out);
-        out[snapshot::state_index::SUB_LINE_PX] =
-            self.sub_line_px.load(Ordering::Relaxed) as i32;
+        out[snapshot::state_index::SUB_LINE_PX] = self.sub_line_pixels() as i32;
         out
     }
 
