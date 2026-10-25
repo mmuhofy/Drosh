@@ -21,6 +21,7 @@ pub mod tint;
 pub mod transcript;
 pub mod url;
 
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
