@@ -234,8 +234,12 @@ internal class TerminalRenderer(
         }
 
         fontSize = size
-        drewOnce = false
-        forceRedraw = true
+        // Nothing is invalidated here. The frame that follows is drawn because
+        // the grid changed — `updateGrid` reports the new size when it differs —
+        // and a size that produces the same grid changes nothing on screen.
+        // Resetting `forceRedraw`/`drewOnce` here, as an earlier version did,
+        // made every font-size call a full redraw of a screen that had not
+        // changed. The atlas still needs the new generation, and that is all.
         // The atlas keeps the previous size's masks as well as this one's: a
         // pinch changes size every frame, and throwing the masks away each time
         // re-rasterised every character on the frame after it — the text shook
@@ -252,10 +256,6 @@ internal class TerminalRenderer(
         // kept in step here, at the moment the size changes, rather than a
         // frame later.
         updateGrid()
-        // The session resize travels to the UI thread; the next frame waits for
-        // it (`session.columns != columns` is a refused frame, and a refused
-        // frame now keeps the last picture rather than clearing).
-        onGridChanged?.invoke(columns, rows, fontSize)
     }
 
     /**
@@ -282,10 +282,24 @@ internal class TerminalRenderer(
             return
         }
 
-        columns = (width / metrics.width).toInt().coerceAtLeast(MIN_COLUMNS)
-        rows = (height / metrics.height).toInt().coerceAtLeast(MIN_ROWS)
+        val nextColumns = (width / metrics.width).toInt().coerceAtLeast(MIN_COLUMNS)
+        val nextRows = (height / metrics.height).toInt().coerceAtLeast(MIN_ROWS)
+
+        // Report a grid the session does not already have, and nothing else.
+        //
+        // This used to fire on every call, including the ones where neither the
+        // size nor the cell had changed — and it is called from `setFontSize`,
+        // which the host calls on every recomposition through
+        // `applyAppearance`. The result was a resize posted to the UI thread and
+        // a redraw requested several times a second on an idle terminal, which
+        // is what made the picture blink.
+        val changed = nextColumns != columns || nextRows != rows
+        columns = nextColumns
+        rows = nextRows
         records.resize(columns, rows)
-        onGridChanged?.invoke(columns, rows, fontSize)
+        if (changed) {
+            onGridChanged?.invoke(columns, rows, fontSize)
+        }
     }
 
     override fun onDrawFrame(gl: GL10?) {
