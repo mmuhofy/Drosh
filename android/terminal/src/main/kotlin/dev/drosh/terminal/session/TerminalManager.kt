@@ -959,7 +959,15 @@ class TerminalManager(
             return
         }
         if (_focusedPane.value == slot) {
-            pane.focus()
+            // Already this pane's. Asking the view for the focus again is what
+            // made a tap recurse to a stack overflow: the view's focus listener
+            // calls back into here, so "give it the focus" here and "it got the
+            // focus" there feed each other with no state change to stop them.
+            // Asking only when the view does not have it breaks the cycle: once
+            // it has it, the next call is a no-op.
+            if (!pane.hasViewFocus()) {
+                pane.focus()
+            }
             return
         }
         // The engine pane that had the focus is told that it lost it.
@@ -975,7 +983,11 @@ class TerminalManager(
         publishAltBufferState()
         publishActiveId()
         pane.notifyFocus(true)
-        pane.focus()
+        // The focus was just taken from another pane, so the view does not have
+        // it yet; asking here is what moves the keyboard over.
+        if (!pane.hasViewFocus()) {
+            pane.focus()
+        }
     }
 
     /**
@@ -1261,7 +1273,9 @@ class TerminalManager(
         if (slot == focusedPane.value && pane.state == EnginePaneState.RUNNING) {
             activateEnginePane(pane)
             pane.notifyFocus(true)
-            pane.focus()
+            if (!pane.hasViewFocus()) {
+                pane.focus()
+            }
         }
     }
 

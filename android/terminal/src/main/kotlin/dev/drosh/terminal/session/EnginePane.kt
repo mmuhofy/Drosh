@@ -279,9 +279,22 @@ class EnginePane(context: Context) {
     fun setCustomFont(bytes: ByteArray?): Boolean = view.setCustomFont(bytes)
 
     fun focus() {
-        view.requestFocus()
-        imeTarget.requestFocus()
+        if (!view.hasFocus()) {
+            view.requestFocus()
+        }
+        if (!imeTarget.hasFocus()) {
+            imeTarget.requestFocus()
+        }
     }
+
+    /**
+     * Whether the engine's view already holds the keyboard focus.
+     *
+     * Asked before [focus], because the view's focus listener reports back
+     * into the manager: without the check, "the pane got the focus" and "make
+     * the pane focused" call each other until the stack runs out.
+     */
+    fun hasViewFocus(): Boolean = view.hasFocus() || imeTarget.hasFocus()
 
     /**
      * Tells the session that this pane has (or has not) the focus.

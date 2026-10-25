@@ -602,12 +602,18 @@ fun EnginePaneHost(
             // the view, so the target is watched as well — otherwise a tap in
             // the second pane of a split would move the keyboard there and
             // leave the app's focus where it was.
-            pane.view.setOnFocusChangeListener { _, hasFocus ->
+            //
+            // Both listeners go through [reportFocus], which is guarded: the
+            // manager answers a focus report by asking the pane for the focus,
+            // and a listener that reported that back would be a loop. The
+            // manager's own answer already refuses to re-ask a view that has
+            // the focus; this is the second lock on the same door, because a
+            // stack overflow here is a crash the user sees as the app closing.
+            val reportFocus: (Boolean) -> Unit = { hasFocus ->
                 if (hasFocus) terminalManager.focusPane(paneSlot)
             }
-            pane.imeTarget.setOnFocusChangeListener { _, hasFocus ->
-                if (hasFocus) terminalManager.focusPane(paneSlot)
-            }
+            pane.view.setOnFocusChangeListener { _, hasFocus -> reportFocus(hasFocus) }
+            pane.imeTarget.setOnFocusChangeListener { _, hasFocus -> reportFocus(hasFocus) }
             frame
         },
         )
