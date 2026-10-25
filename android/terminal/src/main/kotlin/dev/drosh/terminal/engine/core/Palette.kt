@@ -180,8 +180,23 @@ internal object Palette {
         else -> defaultColor
     }
 
+    /**
+     * A palette index, as the xterm 256-colour table defines it.
+     *
+     * The first sixteen are the ANSI colours, and they are **not** the
+     * application's theme here on purpose: a program that asked for
+     * `ESC[48;5;4]` asked for colour 4 of the terminal's palette, and drawing
+     * the user's "blue" instead is drawing a different colour than the one it
+     * picked. nano's menu bar, vim's status line and every TUI that paints a
+     * block do exactly that, and with a dark theme whose blue is near-black
+     * those blocks vanished into the background.
+     *
+     * The theme still owns the *named* colours — the default foreground, the
+     * default background, the cursor — which is where a user's palette is
+     * meant to apply.
+     */
     private fun indexed(index: Int): Int = when {
-        index < 16 -> application(index) ?: ANSI[index]
+        index < 16 -> ANSI[index]
         index < 232 -> {
             val cube = index - 16
             rgb(level(cube / 36), level((cube % 36) / 6), level(cube % 6))

@@ -374,6 +374,7 @@ internal class TerminalRenderer(
             damage = damage,
             background = ambientTint ?: Palette.background,
             gl = glVersion,
+            samples = records.colouredSamples.toList(),
         )
         onFrame(true)
     }

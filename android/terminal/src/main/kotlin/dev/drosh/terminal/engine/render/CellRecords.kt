@@ -41,6 +41,16 @@ internal class CellRecords(columns: Int, rows: Int) {
     var coloredCells = 0
         private set
 
+    /**
+     * The first few coloured cells, as the engine encoded them and as they came
+     * out after resolution.
+     *
+     * `coloredCells` says how many; this says which colours. A block that is
+     * drawn but indistinguishable from the background has the same count as a
+     * block that is missing, and only the values tell them apart.
+     */
+    val colouredSamples = ArrayList<String>(SAMPLES)
+
     var columns = columns
         private set
 
@@ -143,6 +153,7 @@ internal class CellRecords(columns: Int, rows: Int) {
         foregrounds.clear()
         foregroundCount = 0
         coloredCells = 0
+        colouredSamples.clear()
 
         for (row in 0 until rows) {
             for (column in 0 until columns) {
@@ -183,6 +194,9 @@ internal class CellRecords(columns: Int, rows: Int) {
                 // tell "the program did not send one" from "we did not draw
                 // one", which are the same picture and opposite bugs.
                 if ((background and 0xffffff) != (Palette.background and 0xffffff)) {
+                    if (colouredSamples.size < SAMPLES) {
+                        colouredSamples += describeBackground(bgEncoded, background)
+                    }
                     coloredCells += 1
                 }
 
@@ -407,6 +421,24 @@ internal class CellRecords(columns: Int, rows: Int) {
         foregrounds.put(0xff.toByte())
     }
 
+    /**
+     * A coloured cell's background, as `raw→#hex`.
+     *
+     * The raw value is the wire encoding: its top two bits are the tag — named,
+     * indexed or a literal RGB — so the sample says whether a program asked for
+     * an ANSI colour, a palette index, or an exact value.
+     */
+    private fun describeBackground(encoded: Int, resolved: Int): String {
+        val tag = when (encoded ushr NativeCore.COLOR_TAG_SHIFT) {
+            NativeCore.COLOR_TAG_NAMED -> "n"
+            NativeCore.COLOR_TAG_INDEXED -> "i"
+            else -> "s"
+        }
+        val payload = encoded and NativeCore.COLOR_VALUE_MASK
+        return tag + payload + "→#" +
+            (resolved and 0xffffff).toString(16).padStart(6, '0')
+    }
+
     /** `0xAARRGGBB`, which is the order the background shader unpacks. */
     private fun pack(color: Int): Int = (0xff shl 24) or (color and 0xffffff)
 
@@ -424,6 +456,9 @@ internal class CellRecords(columns: Int, rows: Int) {
     companion object {
         /** Packed colour: four bytes. */
         const val BACKGROUND_BYTES = 4
+
+        /** How many coloured cells the overlay describes. */
+        const val SAMPLES = 5
 
         /**
          * Atlas rect (8) + in-cell offset (4) + grid position (4) + colour (4) +

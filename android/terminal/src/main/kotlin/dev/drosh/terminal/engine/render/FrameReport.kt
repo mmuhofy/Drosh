@@ -26,4 +26,6 @@ data class FrameReport(
     val damage: Int,
     val background: Int,
     val gl: String,
+    /** The first few coloured backgrounds, as `raw→#hex`. */
+    val samples: List<String> = emptyList(),
 )
