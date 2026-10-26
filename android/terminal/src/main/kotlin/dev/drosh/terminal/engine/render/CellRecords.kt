@@ -439,7 +439,7 @@ internal class CellRecords(columns: Int, rows: Int) {
             (resolved and 0xffffff).toString(16).padStart(6, '0')
     }
 
-    /** `0xAARRGGBB`: alpha first, which is the order the background pass unpacks. */
+    /** `0xAARRGGBB`, which is the order the background shader unpacks. */
     private fun pack(color: Int): Int = (0xff shl 24) or (color and 0xffffff)
 
     private fun clampShort(value: Float): Int = value.toInt().coerceIn(-32768, 32767)

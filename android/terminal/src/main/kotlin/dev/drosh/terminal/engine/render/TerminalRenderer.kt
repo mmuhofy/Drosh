@@ -129,17 +129,21 @@ internal class TerminalRenderer(
 
     private var frameCount = 0
 
-    private var cellProgram = 0
-    private var cellVao = 0
-    private var cellVbo = 0
-    private var glyphVao = 0
-    private var glyphVbo = 0
+    private var backgroundProgram = 0
+    private var foregroundProgram = 0
+    private var backgroundVao = 0
+    private var backgroundVbo = 0
+    private var foregroundVao = 0
+    private var foregroundVbo = 0
     private var texture = 0
 
-    private var cellProjection = 0
-    private var cellSize = 0
-    private var cellAtlasSize = 0
-    private var cellPass = 0
+    private var backgroundProjection = 0
+    private var backgroundCellSize = 0
+    private var backgroundColumns = 0
+    private var foregroundProjection = 0
+    private var foregroundCellSize = 0
+    private var foregroundAtlasSize = 0
+    private var foregroundAtlas = 0
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         glVersion = GLES20.glGetString(GLES20.GL_VERSION) ?: "unknown"
@@ -147,15 +151,19 @@ internal class TerminalRenderer(
         // recreated below, so the first frame after this draws in full.
         Log.i(TAG, "GL version: $glVersion")
 
-        cellProgram = buildProgram(CELL_VERTEX, CELL_FRAGMENT)
-        if (cellProgram == 0) {
+        backgroundProgram = buildProgram(BACKGROUND_VERTEX, BACKGROUND_FRAGMENT)
+        foregroundProgram = buildProgram(FOREGROUND_VERTEX, FOREGROUND_FRAGMENT)
+        if (backgroundProgram == 0 || foregroundProgram == 0) {
             return
         }
 
-        cellProjection = GLES20.glGetUniformLocation(cellProgram, "uProjection")
-        cellSize = GLES20.glGetUniformLocation(cellProgram, "uCellSize")
-        cellAtlasSize = GLES20.glGetUniformLocation(cellProgram, "uAtlasSize")
-        cellPass = GLES20.glGetUniformLocation(cellProgram, "uPass")
+        backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
+        backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
+        backgroundColumns = GLES20.glGetUniformLocation(backgroundProgram, "uColumns")
+        foregroundProjection = GLES20.glGetUniformLocation(foregroundProgram, "uProjection")
+        foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
+        foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
+        foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
 
         // The atlas belongs to the context that filled it. A new context means
         // the texture this renderer will bind has never been given a byte, and
@@ -171,8 +179,8 @@ internal class TerminalRenderer(
         // glyphs one JNI call at a time (device run 2).
         atlas.warmUp(fontPx, false)
 
-        buildCellObjects()
-        buildGlyphObjects()
+        buildBackgroundObjects()
+        buildForegroundObjects()
 
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glEnable(GLES20.GL_BLEND)
@@ -279,7 +287,7 @@ internal class TerminalRenderer(
         val startedNanos = System.nanoTime()
 
         val cells = session.cells
-        if (cells == null || cellProgram == 0) {
+        if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
             return
         }
         if (session.columns != columns || session.rows != rows) {
@@ -344,7 +352,8 @@ internal class TerminalRenderer(
         uploadStreams()
         val uploadEndNanos = System.nanoTime()
 
-        drawCells()
+        drawBackgrounds()
+        drawForegrounds()
 
         val drawnAt = System.nanoTime()
         stats.record(
@@ -381,7 +390,7 @@ internal class TerminalRenderer(
      * bookkeeping that would avoid it.
      */
     private fun uploadStreams() {
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, cellVbo)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundVbo)
         GLES20.glBufferData(
             GLES20.GL_ARRAY_BUFFER,
             columns * rows * CellRecords.BACKGROUND_BYTES,
@@ -389,7 +398,7 @@ internal class TerminalRenderer(
             GLES20.GL_STREAM_DRAW,
         )
 
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, glyphVbo)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundVbo)
         GLES20.glBufferData(
             GLES20.GL_ARRAY_BUFFER,
             records.foregroundCount * CellRecords.RECORD_BYTES,
@@ -398,79 +407,74 @@ internal class TerminalRenderer(
         )
     }
 
-    /**
-     * Both passes over the same instance stream.
-     *
-     * Pass 0 fills every cell's background, pass 1 draws the glyphs on top.
-     * The stream is the cells themselves, so a cell that carries a colour the
-     * program chose is drawn in it — which is what alacritty does and what two
-     * separate buffers failed to guarantee here.
-     */
-    private fun drawCells() {
-        val backgroundInstances = columns * rows
-        if (backgroundInstances > 0) {
-            GLES20.glUseProgram(cellProgram)
-            // The whole screen moves as one: the projection's y origin carries
-            // the sub-line offset, in the same clip units the scale uses.
-            GLES20.glUniform4f(
-                cellProjection,
-                -1f,
-                1f + scrollOffsetPx * 2f / height.coerceAtLeast(1),
-                2f / width,
-                -2f / height.coerceAtLeast(1),
-            )
-            GLES20.glUniform2f(cellSize, metrics.width, metrics.height)
-            GLES20.glUniform2f(cellAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
-            GLES20.glUniform1i(cellPass, 0)
-            GLES30.glBindVertexArray(cellVao)
-            GLES30.glDrawArraysInstanced(
-                GLES30.GL_TRIANGLE_STRIP,
-                0,
-                QUAD_VERTICES,
-                backgroundInstances,
-            )
-
-            if (frameCount < 200) {
-                val first = records.backgroundBytes.getInt(0)
-                backgroundProbe = "bgdraw " + backgroundInstances +
-                    " first=#" + Integer.toHexString(first) +
-                    " err=" + GLES20.glGetError()
-            }
-        }
-
-        val instances = records.foregroundCount
+    private fun drawBackgrounds() {
+        val instances = columns * rows
         if (instances == 0) {
-            GLES30.glBindVertexArray(0)
             return
         }
 
-        GLES20.glUseProgram(cellProgram)
-        GLES20.glUniform1i(cellPass, 1)
+        GLES20.glUseProgram(backgroundProgram)
+        // The whole screen moves as one: the projection's y origin carries the
+        // sub-line offset, in the same clip units the scale uses.
+        GLES20.glUniform4f(
+            backgroundProjection,
+            -1f,
+            1f + scrollOffsetPx * 2f / height.coerceAtLeast(1),
+            2f / width,
+            -2f / height.coerceAtLeast(1),
+        )
+        GLES20.glUniform2f(backgroundCellSize, metrics.width, metrics.height)
+        GLES20.glUniform1i(backgroundColumns, columns)
+        GLES30.glBindVertexArray(backgroundVao)
+        GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES, instances)
+        GLES30.glBindVertexArray(0)
+
+        // What the pass was actually given: the instance count, the first
+        // record as the GPU will read it, and the error GL reported. A block
+        // that is in the records but not on the screen is one of these three.
+        if (frameCount < 200) {
+            val first = records.backgroundBytes.getInt(0)
+            val error = GLES20.glGetError()
+            backgroundProbe = "bgdraw " + instances +
+                " first=#" + Integer.toHexString(first) +
+                " err=" + error
+        }
+    }
+
+    private fun drawForegrounds() {
+        val instances = records.foregroundCount
+        if (instances == 0) {
+            return
+        }
+
+        GLES20.glUseProgram(foregroundProgram)
+        GLES20.glUniform4f(
+            foregroundProjection,
+            -1f,
+            1f + scrollOffsetPx * 2f / height.coerceAtLeast(1),
+            2f / width,
+            -2f / height.coerceAtLeast(1),
+        )
+        GLES20.glUniform2f(foregroundCellSize, metrics.width, metrics.height)
+        GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(cellProgram, "uAtlas"), 0)
-        GLES30.glBindVertexArray(glyphVao)
+        GLES20.glUniform1i(GLES20.glGetUniformLocation(foregroundProgram, "uAtlas"), 0)
+        GLES30.glBindVertexArray(foregroundVao)
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES, instances)
         GLES30.glBindVertexArray(0)
     }
 
-    /**
-     * One VAO binding both streams.
-     *
-     * The background records are per cell; the foreground records are the
-     * glyphs those cells ask for. Both are instance attributes with divisor 1,
-     * and there is no dummy attribute: every attribute the program declares is
-     * fed, which is the one thing some drivers insist on.
-     */
-    private fun buildCellObjects() {
+    /** One `uint` colour per cell, fetched once per instance. */
+    private fun buildBackgroundObjects() {
         val buffers = IntArray(2)
         GLES30.glGenVertexArrays(1, buffers, 0)
-        cellVao = buffers[0]
+        backgroundVao = buffers[0]
         GLES20.glGenBuffers(1, buffers, 0)
-        cellVbo = buffers[0]
+        backgroundVbo = buffers[0]
 
-        GLES30.glBindVertexArray(cellVao)
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, cellVbo)
+        GLES30.glBindVertexArray(backgroundVao)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundVbo)
         GLES30.glEnableVertexAttribArray(ATTRIB_BACKGROUND_COLOR)
         GLES30.glVertexAttribIPointer(
             ATTRIB_BACKGROUND_COLOR,
@@ -480,36 +484,79 @@ internal class TerminalRenderer(
             0,
         )
         GLES30.glVertexAttribDivisor(ATTRIB_BACKGROUND_COLOR, 1)
+        bindDummyAttribute(ATTRIB_DUMMY_BACKGROUND)
         GLES30.glBindVertexArray(0)
     }
 
-    /** The ~24-byte record per drawn glyph, all of it per instance. */
-    private fun buildGlyphObjects() {
+    /** The ~24-byte record per drawn thing, all of it per instance. */
+    private fun buildForegroundObjects() {
         val buffers = IntArray(2)
         GLES30.glGenVertexArrays(1, buffers, 0)
-        glyphVao = buffers[0]
+        foregroundVao = buffers[0]
         GLES20.glGenBuffers(1, buffers, 0)
-        glyphVbo = buffers[0]
+        foregroundVbo = buffers[0]
 
-        GLES30.glBindVertexArray(glyphVao)
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, glyphVbo)
+        GLES30.glBindVertexArray(foregroundVao)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundVbo)
 
         val stride = CellRecords.RECORD_BYTES
+        GLES30.glEnableVertexAttribArray(ATTRIB_ATLAS_RECT)
+        GLES30.glVertexAttribIPointer(ATTRIB_ATLAS_RECT, 2, GLES30.GL_UNSIGNED_SHORT, stride, 0)
+        GLES30.glEnableVertexAttribArray(ATTRIB_GLYPH_SIZE)
+        GLES30.glVertexAttribIPointer(ATTRIB_GLYPH_SIZE, 2, GLES30.GL_UNSIGNED_SHORT, stride, 4)
+        GLES30.glEnableVertexAttribArray(ATTRIB_OFFSET)
+        GLES30.glVertexAttribIPointer(ATTRIB_OFFSET, 2, GLES30.GL_SHORT, stride, 8)
         GLES30.glEnableVertexAttribArray(ATTRIB_GRID_POS)
         GLES30.glVertexAttribIPointer(ATTRIB_GRID_POS, 2, GLES30.GL_UNSIGNED_SHORT, stride, 12)
         GLES30.glEnableVertexAttribArray(ATTRIB_COLOR)
-        GLES30.glVertexAttribPointer(ATTRIB_COLOR, 4, GLES30.GL_UNSIGNED_BYTE, true, stride, 16)
-        GLES30.glEnableVertexAttribArray(ATTRIB_GLYPH)
-        GLES30.glVertexAttribIPointer(ATTRIB_GLYPH, 4, GLES30.GL_UNSIGNED_SHORT, stride, 0)
-        GLES30.glEnableVertexAttribArray(ATTRIB_OFFSET)
-        GLES30.glVertexAttribIPointer(ATTRIB_OFFSET, 2, GLES30.GL_SHORT, stride, 8)
+        GLES30.glVertexAttribPointer(
+            ATTRIB_COLOR,
+            4,
+            GLES30.GL_UNSIGNED_BYTE,
+            true,
+            stride,
+            16,
+        )
         GLES30.glEnableVertexAttribArray(ATTRIB_FLAGS)
         GLES30.glVertexAttribIPointer(ATTRIB_FLAGS, 1, GLES30.GL_UNSIGNED_SHORT, stride, 20)
 
-        for (attribute in ATTRIB_GRID_POS..ATTRIB_FLAGS) {
+        for (attribute in ATTRIB_ATLAS_RECT..ATTRIB_FLAGS) {
             GLES30.glVertexAttribDivisor(attribute, 1)
         }
+        bindDummyAttribute(ATTRIB_DUMMY_FOREGROUND)
         GLES30.glBindVertexArray(0)
+    }
+
+    /**
+     * A four-vertex buffer at a location the shaders ignore.
+     *
+     * Some drivers refuse a draw where every enabled attribute is per-instance;
+     * one dummy attribute with divisor 0 costs 16 bytes and removes the question.
+     */
+    private fun bindDummyAttribute(location: Int) {
+        val buffers = IntArray(1)
+        GLES20.glGenBuffers(1, buffers, 0)
+
+        val vertices = ByteBuffer
+            .allocateDirect(QUAD_VERTICES * 2 * FLOAT_BYTES)
+            .order(ByteOrder.nativeOrder())
+            .asFloatBuffer()
+        for (vertex in 0 until QUAD_VERTICES) {
+            vertices.put(vertex.toFloat())
+            vertices.put(0f)
+        }
+        vertices.flip()
+
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, buffers[0])
+        GLES20.glBufferData(
+            GLES20.GL_ARRAY_BUFFER,
+            QUAD_VERTICES * 2 * FLOAT_BYTES,
+            vertices,
+            GLES20.GL_STATIC_DRAW,
+        )
+        GLES30.glEnableVertexAttribArray(location)
+        GLES30.glVertexAttribPointer(location, 2, GLES20.GL_FLOAT, false, 2 * FLOAT_BYTES, 0)
+        GLES30.glVertexAttribDivisor(location, 0)
     }
 
     /** The atlas is a single-channel texture; the shader tints its coverage. */
@@ -600,100 +647,102 @@ internal class TerminalRenderer(
         const val FLOAT_BYTES = 4
         const val QUAD_VERTICES = 4
 
-        /** The background pass: one `uint` colour per cell. */
         const val ATTRIB_BACKGROUND_COLOR = 0
+        const val ATTRIB_DUMMY_BACKGROUND = 1
 
-        /** The glyph pass: grid position, colour, atlas rect, offset, flags. */
-        const val ATTRIB_GRID_POS = 0
-        const val ATTRIB_COLOR = 1
-        const val ATTRIB_GLYPH = 2
-        const val ATTRIB_OFFSET = 3
-        const val ATTRIB_FLAGS = 4
+        const val ATTRIB_ATLAS_RECT = 0
+        const val ATTRIB_GLYPH_SIZE = 1
+        const val ATTRIB_OFFSET = 2
+        const val ATTRIB_GRID_POS = 3
+        const val ATTRIB_COLOR = 4
+        const val ATTRIB_FLAGS = 5
+        const val ATTRIB_DUMMY_FOREGROUND = 6
 
-        /**
-         * Both passes, one program.
-         *
-         * This is alacritty's shape (`res/glsl3/text.v.glsl`): the vertex
-         * stream carries the grid position and *both* colours, and
-         * `renderingPass` decides which quad the shader builds — the cell's
-         * background, or the glyph inside it. Two programs over two streams
-         * was the earlier layout, and it needed a dummy attribute and an
-         * instance-id-derived position to work at all; the driver was entitled
-         * to ignore the second stream, and on this device it did.
-         */
-        val CELL_VERTEX = """
+        val BACKGROUND_VERTEX = """
             #version 300 es
-            // Per instance, one record per drawn cell.
-            layout(location = 0) in uvec2 aGridPos;
-            // Per instance, a normalised u8x4 colour.
-            layout(location = 1) in vec4 aColor;
-            layout(location = 2) in vec4 aBackgroundColor;
-            // Glyph: atlas rect (x, y, w, h), in-cell offset, flags.
-            layout(location = 3) in uvec4 aGlyph;
-            layout(location = 4) in ivec2 aOffset;
-            layout(location = 5) in uint aFlags;
+            layout(location = 0) in uint aColor;
+            uniform vec4 uProjection;
+            uniform vec2 uCellSize;
+            uniform int uColumns;
+            out vec4 vColor;
+            void main() {
+                int column = gl_InstanceID % uColumns;
+                int row = gl_InstanceID / uColumns;
+                vec2 corner = vec2(
+                    float(gl_VertexID == 1 || gl_VertexID == 3),
+                    float(gl_VertexID == 2 || gl_VertexID == 3)
+                );
+                vec2 cell = vec2(float(column), float(row)) * uCellSize;
+                gl_Position = vec4(uProjection.xy + uProjection.zw * (cell + corner * uCellSize), 0.0, 1.0);
+                // The record is `0xAARRGGBB` in the CPU's Int, which is
+                // little-endian on the wire: the shader sees it as a uint whose
+                // low byte is the blue channel.
+                vColor = vec4(
+                    float((aColor >> 16) & 0xffu),
+                    float((aColor >> 8) & 0xffu),
+                    float(aColor & 0xffu),
+                    1.0
+                ) / 255.0;
+            }
+        """.trimIndent()
 
+        val BACKGROUND_FRAGMENT = """
+            #version 300 es
+            precision mediump float;
+            in vec4 vColor;
+            out vec4 fragColor;
+            void main() {
+                fragColor = vColor;
+            }
+        """.trimIndent()
+
+        val FOREGROUND_VERTEX = """
+            #version 300 es
+            layout(location = 0) in uvec2 aAtlasRect;
+            layout(location = 1) in uvec2 aGlyphSize;
+            layout(location = 2) in ivec2 aOffset;
+            layout(location = 3) in uvec2 aGridPos;
+            layout(location = 4) in vec4 aColor;
+            layout(location = 5) in uint aFlags;
             uniform vec4 uProjection;
             uniform vec2 uCellSize;
             uniform vec2 uAtlasSize;
-            uniform int uPass;
-
             out vec2 vTexCoord;
             out vec4 vColor;
-            out vec4 vBackground;
-
             void main() {
                 vec2 corner = vec2(
                     float(gl_VertexID == 1 || gl_VertexID == 3),
                     float(gl_VertexID == 2 || gl_VertexID == 3)
                 );
+                vec2 size = vec2(aGlyphSize);
+                // The record's offset is *inside* the cell; the cell origin comes
+                // from the grid position. Both together, once.
                 vec2 cell = vec2(aGridPos) * uCellSize;
-
+                gl_Position = vec4(
+                    uProjection.xy + uProjection.zw * (cell + vec2(aOffset) + corner * size),
+                    0.0,
+                    1.0
+                );
+                // A solid quad is a fill, not a glyph: its width/height are pixels,
+                // so walking the UV with them would sample across the atlas.
+                vTexCoord = (aFlags & 1u) != 0u
+                    ? (vec2(aAtlasRect) + 0.5) / uAtlasSize
+                    : (vec2(aAtlasRect) + corner * size) / uAtlasSize;
                 vColor = aColor;
-                vBackground = aBackgroundColor;
-
-                if (uPass == 0) {
-                    // The cell's own quad. A background is a fill, not a glyph.
-                    gl_Position = vec4(
-                        uProjection.xy + uProjection.zw * (cell + corner * uCellSize),
-                        0.0,
-                        1.0
-                    );
-                    vTexCoord = vec2(0.0);
-                } else {
-                    vec2 size = vec2(aGlyph.zw);
-                    gl_Position = vec4(
-                        uProjection.xy + uProjection.zw * (cell + vec2(aOffset) + corner * size),
-                        0.0,
-                        1.0
-                    );
-                    // A solid quad samples one texel: walking the UV with its
-                    // pixel size would smear across the atlas.
-                    vTexCoord = (aFlags & 1u) != 0u
-                        ? (vec2(aGlyph.xy) + 0.5) / uAtlasSize
-                        : (vec2(aGlyph.xy) + corner * size) / uAtlasSize;
-                }
             }
         """.trimIndent()
 
-        val CELL_FRAGMENT = """
+        val FOREGROUND_FRAGMENT = """
             #version 300 es
             precision mediump float;
+            // Single channel (GL_R8): the glyph coverage the Rust stack rasterised.
             uniform sampler2D uAtlas;
-            uniform int uPass;
             in vec2 vTexCoord;
             in vec4 vColor;
-            in vec4 vBackground;
             out vec4 fragColor;
             void main() {
-                if (uPass == 0) {
-                    fragColor = vec4(vBackground.rgb, 1.0);
-                } else {
-                    // Single channel (GL_R8): the glyph coverage the Rust
-                    // stack rasterised.
-                    float coverage = texture(uAtlas, vTexCoord).r;
-                    fragColor = vec4(vColor.rgb, vColor.a * coverage);
-                }
+                float coverage = texture(uAtlas, vTexCoord).r;
+                fragColor = vec4(vColor.rgb, vColor.a * coverage);
             }
         """.trimIndent()
     }
