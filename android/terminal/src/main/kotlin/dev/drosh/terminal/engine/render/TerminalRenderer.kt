@@ -289,10 +289,20 @@ internal class TerminalRenderer(
             return
         }
         if (session.columns != columns || session.rows != rows) {
-            // The session has not caught up with the grid yet. Returning without
-            // clearing leaves the previous frame on screen, which is a terminal
-            // rather than the background colour.
-            return
+            // The grid the renderer laid out and the session's are not the same
+            // one. That is a frame the build cannot read — the cell buffer is
+            // sized for the session — so the session is brought to the grid
+            // here rather than waited for.
+            //
+            // Waiting was the earlier behaviour, and it is what a pinch showed:
+            // the size reported a new grid, the session kept the old one, every
+            // frame was refused, and the picture on screen stayed at whatever
+            // was there before the fingers landed.
+            session.resize(columns, rows, metrics.width.toInt(), metrics.height.toInt())
+            if (session.columns != columns || session.rows != rows) {
+                // The engine refused the size; the frame still cannot be built.
+                return
+            }
         }
 
         // One frame, in alacritty's order (`display/mod.rs`): clear the whole

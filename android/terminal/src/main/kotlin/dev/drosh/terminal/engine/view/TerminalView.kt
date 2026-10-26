@@ -216,21 +216,23 @@ class TerminalView(context: Context) : FrameLayout(context) {
             if (drawn) displayedFrameCount += 1 else refusedFrameCount += 1
         }
         created.onGridChanged = { columns, rows, size ->
-            // The renderer reports from the GL thread; the session is only ever
-            // touched from the UI thread. The size travels with the grid: the
-            // session is resized with the cell the grid was laid out for.
+            // The session is resized **here**, on the GL thread, in the same
+            // breath as the report.
             //
-            // Posted, not run inline, and that is deliberate: a resize from the
-            // GL thread would race the parser. What it must not do is wait for
-            // the *next* frame to be requested — the frame that reported this
-            // is already drawing, so the request has to be made here or the
-            // surface sits on the refused frame until something else asks for
-            // a redraw.
-            post {
-                session.resize(columns, rows, size.metrics.width.toInt(), size.metrics.height.toInt())
-                surface?.requestRender()
-                applyAmbientTint()
-            }
+            // It used to be posted to the UI thread, and that one word is why a
+            // pinch showed the previous screen: the renderer laid its grid out
+            // for the new cell immediately, the session kept the old size until
+            // the post ran, and `onDrawFrame` refuses every frame where the two
+            // disagree. For the length of a pinch that is every frame — so the
+            // last good picture (whatever was on screen before the fingers
+            // landed) stayed up while the size changed behind it.
+            //
+            // `EngineSession` is built for this: the grid lives behind the
+            // engine's own mutex and its size fields are volatile, so a resize
+            // from the GL thread cannot tear the parser's view of the grid.
+            session.resize(columns, rows, size.metrics.width.toInt(), size.metrics.height.toInt())
+            surface?.requestRender()
+            post { applyAmbientTint() }
         }
         renderer = created
 
@@ -681,15 +683,6 @@ class TerminalView(context: Context) : FrameLayout(context) {
         if (spacingAfter <= 0f || !fontLoaded) {
             return
         }
-
-        // The grid must be laid out for the new cell before the size can be
-        // drawn, and the session resized to match. Both travel through the
-        // renderer, which owns the surface size; asking it here rather than
-        // waiting for the next `onSurfaceChanged` keeps the two in step — a
-        // session whose grid is still the old one draws the new size's glyphs
-        // into cells that no longer exist, which reads as a screen full of
-        // replacement characters.
-        surface?.queueEvent { renderer?.setFontSize(FontSize(fontPx, metrics)) }
 
         val rowUnderFocus = (focusY / spacingAfter).toInt()
         val target = (anchoredRow - rowUnderFocus)
