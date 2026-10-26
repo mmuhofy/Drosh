@@ -671,6 +671,10 @@ class TerminalView(context: Context) : FrameLayout(context) {
      * grid hold more rows, so the row the fingers were on can be one that no
      * longer exists, and the bottom of the screen is then empty rather than
      * wrong.
+     *
+     * This is the *committed* path — one reflow, at the end of a gesture. The
+     * live part of a pinch is [pinchTo], which draws the existing glyphs at a
+     * new scale and changes nothing else.
      */
     internal fun zoomTo(sp: Float, focusY: Float) {
         val spacingBefore = metrics.height
@@ -689,6 +693,22 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // The engine owns the clamp; asking for more than it has settles at its
         // own end, which is where a pinch that ran out of history belongs.
         session.scrollToOffset(target)
+        requestRender()
+    }
+
+    /**
+     * One frame of a live pinch: draw the picture at [scale] about the fingers.
+     *
+     * Nothing is measured, rasterised or reflowed here. The glyphs already in
+     * the atlas are drawn bigger or smaller by the projection, exactly as the
+     * vendored terminal scaled its canvas — which is why its zoom was
+     * continuous and this one used to step. The size the gesture has reached is
+     * only *reported* (for the chip); it is applied for real when the fingers
+     * lift, in [onZoomEnd].
+     */
+    internal fun pinchTo(scale: Float, focusX: Float, focusY: Float) {
+        lastPinchFocusY = focusY
+        surface?.queueEvent { renderer?.setPinch(scale, focusX, focusY) }
         requestRender()
     }
 
@@ -713,32 +733,36 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
     /** Forwarded from the gesture recogniser, which owns the pinch's lifetime. */
     internal fun onZoomEnd(sp: Float) {
-        // The pinch is over, so the grid can be brought up to the size the
-        // fingers settled on. It was held back while they moved — see
-        // `holdingGrid` — because a reflow per frame is what made the zoom
-        // step: the engine re-laid every row each time, and the result arrived
-        // a frame late.
-        holdingGrid = false
-        surface?.queueEvent { renderer?.commitPendingGrid() }
+        // The picture has been drawn scaled all through the gesture; now the
+        // real size is applied, once. This is the only frame of a pinch that
+        // measures, rasterises and reflows, and it happens after the fingers
+        // have stopped, so nothing is waiting on it.
+        surface?.queueEvent { renderer?.endPinch() }
+        if (sp != textSizeSp) {
+            zoomTo(sp, lastPinchFocusY)
+        }
         zoomEndListener.invoke(sp)
         zoomListener.invoke(0f)
+        requestRender()
     }
 
     /**
-     * True while a pinch is moving.
+     * Where the last pinch had its midpoint, in surface pixels.
      *
-     * While it is set the renderer keeps drawing at the grid it has: the glyph
-     * masks grow or shrink and the picture follows the fingers, and the engine's
-     * grid is resized once, when they lift. See [onZoomEnd].
+     * [onZoomEnd] has no event of its own — the detector reports the end
+     * without a focus — so the focus of the final move is kept for the commit
+     * to anchor on. A pinch that never moved keeps the middle of the screen,
+     * which is where it would have been.
      */
-    @Volatile
-    internal var holdingGrid: Boolean = false
-        set(value) {
-            field = value
-            surface?.queueEvent { renderer?.holdGrid = value }
-        }
+    private var lastPinchFocusY: Float = 0f
 
-    /** Forwarded for every frame of a pinch. */
+    /**
+     * The size a pinch has reached, reported for the chip only.
+     *
+     * The terminal is not at this size yet — it is drawing the old glyphs
+     * scaled — so this is the gesture's intent, not the view's state. It
+     * becomes the state when the fingers lift.
+     */
     internal fun onZoomProgress(sp: Float) = zoomListener.invoke(sp)
 
     /**

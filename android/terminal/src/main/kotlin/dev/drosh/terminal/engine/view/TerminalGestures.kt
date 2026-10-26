@@ -118,9 +118,6 @@ internal class TerminalGestures(private val view: TerminalView) {
                     zoomBaseSp = view.textSizeSp
                     zoomScaleFactor = 1f
                     zoomPassedDeadZone = false
-                    // The grid is held until the fingers lift; see
-                    // `TerminalView.onZoomEnd`.
-                    view.holdingGrid = true
                     // A long press that was already arming a word loses to the
                     // second finger: a pinch is not a selection, and the menu
                     // appearing over a zoom is the gesture being read as two.
@@ -154,22 +151,30 @@ internal class TerminalGestures(private val view: TerminalView) {
                         zoomPassedDeadZone = true
                     }
 
+                    // The live part of the pinch: the picture is drawn scaled
+                    // about the fingers, and nothing is re-measured or
+                    // rasterised. This is the whole of what makes a pinch
+                    // continuous — one uniform per frame instead of a full
+                    // atlas generation and grid rebuild.
+                    view.pinchTo(zoomScaleFactor, focusX, focusY)
+                    // The chip reads the size the pinch has reached.
                     val base = if (zoomBaseSp > 0f) zoomBaseSp else view.textSizeSp
-                    view.zoomTo(base * zoomScaleFactor, focusY)
-                    // The chip reads the size the pinch has reached. Reported
-                    // after the change, so the number it shows is the one on
-                    // screen rather than the one it is about to be.
-                    view.onZoomProgress(view.textSizeSp)
+                    view.onZoomProgress(
+                        (base * zoomScaleFactor).coerceIn(MIN_ZOOM_SP, MAX_ZOOM_SP),
+                    )
                     return true
                 }
 
                 override fun onScaleEnd() {
                     // The gesture is over: the dead zone is per-gesture, and
-                    // the size is now worth keeping.
+                    // the size is now worth applying for real.
+                    val base = if (zoomBaseSp > 0f) zoomBaseSp else view.textSizeSp
+                    val committed = (base * zoomScaleFactor).coerceIn(MIN_ZOOM_SP, MAX_ZOOM_SP)
+                    val zoomed = zoomPassedDeadZone
                     zoomScaleFactor = 1f
                     zoomBaseSp = 0f
                     zoomPassedDeadZone = false
-                    view.onZoomEnd(view.textSizeSp)
+                    view.onZoomEnd(if (zoomed) committed else view.textSizeSp)
                 }
             },
         )
@@ -262,10 +267,13 @@ internal class TerminalGestures(private val view: TerminalView) {
             return
         }
 
-        // GestureDetector reports distanceY as lastY - currentY, so dragging
-        // the finger down is negative — and that is the gesture for revealing
-        // older output. The engine takes the same sign: positive is "content
-        // moves down", which is what the history scroll is.
+        // GestureDetector reports distanceY as lastY - currentY: dragging the
+        // finger *up* (toward newer output) is positive, and dragging *down*
+        // (back into the history) is negative.
+        //
+        // The engine's `scroll_by_pixels` is the other way round on purpose —
+        // kitty's convention, where a positive delta moves the content down —
+        // so the sign is flipped once, here, and nowhere else.
         view.session.scrollByPixels(-distanceYPx, spacing.toInt())
         view.requestRender()
     }
@@ -481,6 +489,10 @@ internal class TerminalGestures(private val view: TerminalView) {
 
         /** The largest size change a single scale event may apply. */
         const val MAX_ZOOM_STEP = 1.5f
+
+        /** The same limits the app's zoom uses; the chip and the view must agree. */
+        const val MIN_ZOOM_SP = dev.drosh.domain.terminal.TerminalZoom.MIN_SP
+        const val MAX_ZOOM_SP = dev.drosh.domain.terminal.TerminalZoom.MAX_SP
 
         /**
          * How far a pinch must move, in log scale, before it is a zoom.

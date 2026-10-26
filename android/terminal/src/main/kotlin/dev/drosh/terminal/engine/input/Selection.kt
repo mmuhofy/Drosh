@@ -128,7 +128,7 @@ internal class Selection {
             charAt: (row: Int, column: Int) -> Char,
         ): IntArray {
             val start = charAt(row, column)
-            if (start == ' ' || ESCAPE_CHARS.indexOf(start) >= 0) {
+            if (start == ' ' || start == '\u0000' || ESCAPE_CHARS.indexOf(start) >= 0) {
                 return intArrayOf(row, column, row, column)
             }
 
@@ -146,6 +146,11 @@ internal class Selection {
         }
 
         fun isBoundary(character: Char): Boolean =
-            character == ' ' || ESCAPE_CHARS.indexOf(character) >= 0
+            // A blank cell's codepoint is 0, not a space. Treating it as part
+            // of a word made a double tap on empty space select the whole line
+            // — a solid inverted block across the screen, which is what read as
+            // "a second cursor everywhere".
+            character == ' ' || character == '\u0000' || character.code < 0x20 ||
+                ESCAPE_CHARS.indexOf(character) >= 0
     }
 }

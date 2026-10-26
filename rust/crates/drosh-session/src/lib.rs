@@ -434,14 +434,40 @@ impl Session {
             return false;
         }
 
+        // The engine first, then the atomics.
+        //
+        // The other order is a tear: `pump` reads the rows and the snapshot
+        // separately, so a frame arriving between "rows stored" and
+        // "scroll_display called" would draw the new row count over the old
+        // viewport — the picture jumping by a line and back, which is the
+        // shake a drag showed. Doing the engine's move first means the
+        // snapshot and the count always describe the same viewport.
+        if rows != previous_rows {
+            // Both counts run the same way: up into the history. So the delta
+            // is `rows - previous`, not the other way round — inverting it is
+            // what made a drag scroll the wrong way.
+            let delta = rows as i32 - previous_rows as i32;
+            let mut term = self.term.lock();
+            term.scroll_display(Scroll::Delta(delta));
+            let actual = term.grid().display_offset();
+            drop(term);
+
+            // The engine clamps to the history it actually has, which can be
+            // less than the count this side keeps. Taking its answer as the
+            // position is what stops a finger that pushed past the end from
+            // leaving the two out of step — the step that showed up as the
+            // viewport moving and then snapping back.
+            if actual != rows {
+                self.rows_above_edge.store(actual, Ordering::Relaxed);
+                if actual == 0 || actual >= max_rows {
+                    self.sub_line_px.store(0f32.to_bits(), Ordering::Relaxed);
+                }
+                return true;
+            }
+        }
+
         self.rows_above_edge.store(rows, Ordering::Relaxed);
         self.sub_line_px.store(remainder.to_bits(), Ordering::Relaxed);
-        if rows != previous_rows {
-            // `rows_above_edge` counts *up* into the history; the engine's
-            // `scroll_display` takes a signed delta on its own scale.
-            let delta = previous_rows as i32 - rows as i32;
-            self.term.lock().scroll_display(Scroll::Delta(delta));
-        }
         true
     }
 

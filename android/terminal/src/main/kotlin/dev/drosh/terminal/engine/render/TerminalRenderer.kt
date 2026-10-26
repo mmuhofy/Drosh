@@ -115,8 +115,80 @@ internal class TerminalRenderer(
      */
     private var scrollOffsetPx = 0f
 
+    /**
+     * A live pinch, as a scale over the picture already on screen.
+     *
+     * This is the vendored terminal's `canvas.scale` in GL: while two fingers
+     * move, nothing is re-measured, re-rasterised or reflowed — the existing
+     * glyphs are drawn bigger or smaller, which is one uniform and one draw
+     * call. The real size is applied once, when the fingers lift.
+     *
+     * That is what makes a pinch smooth. Rasterising at the new size every
+     * frame is a full atlas generation plus a full grid rebuild sixty times a
+     * second, and it is why the earlier version stepped: each frame's work
+     * arrived a frame late, so the picture lagged the fingers.
+     */
+    @Volatile
+    private var pinchScale = 1f
+
+    /** Where the fingers' midpoint sits, in surface pixels: the pinch's anchor. */
+    @Volatile
+    private var pinchFocusX = 0f
+
+    @Volatile
+    private var pinchFocusY = 0f
+
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
+
+    /**
+     * Draw the picture at a live pinch's scale, anchored at the fingers.
+     *
+     * Called on every frame of a pinch. Nothing else changes: the grid, the
+     * masks and the atlas all stay exactly as they are, and the shader's
+     * projection does the work — which is what the vendored terminal's
+     * `canvas.scale` did, and the reason its zoom felt continuous.
+     *
+     * [scale] is relative to the size the glyphs were rasterised at, so the
+     * caller computes it from the gesture's own origin and never from a size
+     * that has already been rounded.
+     */
+    fun setPinch(scale: Float, focusX: Float, focusY: Float) {
+        pinchScale = if (scale.isFinite() && scale > 0f) scale else 1f
+        pinchFocusX = focusX
+        pinchFocusY = focusY
+    }
+
+    /** The pinch ended: the next frame draws at the real size again. */
+    fun endPinch() {
+        pinchScale = 1f
+    }
+
+    /**
+     * The projection for one pass: clip-space origin and scale, with the
+     * pinch applied about its focus and the sub-line scroll folded in.
+     *
+     * The anchor is converted here rather than in the shader so the two
+     * passes cannot disagree about it.
+     */
+    private fun projection(out: FloatArray) {
+        val scale = pinchScale
+        // A point p maps to focus + (p - focus) * scale, in pixels. In clip
+        // space that is `clip * s + anchor * (1 - s)`.
+        val anchorX = -1f + 2f * pinchFocusX / width.coerceAtLeast(1)
+        val anchorY = 1f - 2f * pinchFocusY / height.coerceAtLeast(1)
+        // A positive sub-line offset means the content is part-way down the
+        // screen — the finger dragged back into the history. Clip y grows
+        // *upward*, so moving the content down means moving the origin down,
+        // which is a minus. It was a plus, and that is what made a drag scroll
+        // the wrong way: the remainder slid the grid up while the row beneath
+        // it stepped down, and the two read as a shake at every row boundary.
+        out[0] = -scale + anchorX * (1f - scale)
+        out[1] = (1f - scrollOffsetPx * 2f / height.coerceAtLeast(1)) * scale +
+            anchorY * (1f - scale)
+        out[2] = 2f * scale / width.coerceAtLeast(1)
+        out[3] = -2f * scale / height.coerceAtLeast(1)
+    }
 
     /** The last frame's numbers, or null before the first frame. */
     @Volatile
@@ -128,6 +200,9 @@ internal class TerminalRenderer(
     private var backgroundProbe: String = ""
 
     private var frameCount = 0
+
+    /** Scratch for [projection]; a frame builds it twice, and neither allocates. */
+    private val projectionScratch = FloatArray(4)
 
     private var backgroundProgram = 0
     private var foregroundProgram = 0
@@ -189,6 +264,11 @@ internal class TerminalRenderer(
         width = surfaceWidth
         height = surfaceHeight
         GLES20.glViewport(0, 0, width, height)
+        // A surface change is not a pinch. The keyboard opening mid-gesture
+        // resizes the surface, and a scale left over from it would draw the
+        // grid off the new bounds — the black rectangle that followed the
+        // keyboard up.
+        pinchScale = 1f
         // The surface is new, so nothing is on it: the next frame draws even if
         // the engine says nothing changed.
         updateGrid()
@@ -216,40 +296,11 @@ internal class TerminalRenderer(
         }
 
         fontSize = size
-        // The grid is what costs, not the font.
-        //
-        // `Term::resize` re-flows the whole grid — every row is re-linked and
-        // the cursor is pulled through it — and at sixty frames of a pinch that
-        // is sixty reflows of a screen that has not changed shape. Most steps of
-        // a pinch do not change the shape at all: a cell a fifth of a pixel
-        // wider leaves the columns and rows where they were.
-        //
-        // So: if the grid is the same, only the glyph masks change. The atlas
-        // takes the new generation and the next frame draws — no resize, no
-        // reflow, no new buffers.
-        val newColumns = (width / size.metrics.width).toInt().coerceAtLeast(MIN_COLUMNS)
-        val newRows = (height / size.metrics.height).toInt().coerceAtLeast(MIN_ROWS)
-        pendingGrid = newColumns to newRows
-
-        if (holdGrid) {
-            // A pinch is moving: the glyphs change size, the grid does not
-            // change shape. Drawing the new masks into the old cells is what
-            // makes the picture follow the fingers; the reflow waits for them
-            // to lift (`commitPendingGrid`).
-            forceCellRebuild()
-            atlas.beginSize(size.px)
-            return
-        }
-
-        if (newColumns == columns && newRows == rows) {
-            forceCellRebuild()
-            atlas.beginSize(size.px)
-            return
-        }
-
-        // The shape changed: the masks are the old size's, and the grid has to
-        // follow. Two generations of masks are kept, so a pinch that wanders
-        // back over a size it just left finds its glyphs again.
+        // The glyphs of the old size are now wrong, and the atlas has to be
+        // asked for masks of the new one. This runs once per committed size —
+        // at the end of a pinch, or when the setting changes — because a live
+        // pinch does not come through here at all: it scales the picture it
+        // already has (`setPinch`).
         forceCellRebuild()
         atlas.beginSize(size.px)
         // Lay the grid out **now**, and report it, before the next frame.
@@ -262,37 +313,6 @@ internal class TerminalRenderer(
         // kept in step here, at the moment the size changes, rather than a
         // frame later.
         updateGrid()
-    }
-
-    /**
-     * Whether a pinch is in progress and the grid must not be reflowed.
-     *
-     * Written from the UI thread, read on the GL thread; a plain volatile
-     * boolean is the whole handshake.
-     */
-    @Volatile
-    var holdGrid: Boolean = false
-
-    /** The grid a held pinch is heading for, applied by [commitPendingGrid]. */
-    private var pendingGrid: Pair<Int, Int>? = null
-
-    /**
-     * Apply the grid the pinch ended on.
-     *
-     * Called once, when the fingers lift. Everything the per-frame path
-     * deliberately skipped — laying the grid out, reporting it to the session —
-     * happens here, one time.
-     */
-    fun commitPendingGrid() {
-        val (columns, rows) = pendingGrid ?: return
-        pendingGrid = null
-        if (columns == this.columns && rows == this.rows) {
-            return
-        }
-        this.columns = columns
-        this.rows = rows
-        records.resize(columns, rows)
-        onGridChanged?.invoke(columns, rows, fontSize)
     }
 
     /**
@@ -358,17 +378,7 @@ internal class TerminalRenderer(
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
             return
         }
-        if (holdGrid) {
-            // A pinch is moving: the grid keeps the shape the session has, and
-            // the glyphs are the ones the new size rasterised. Nothing is
-            // resized until the fingers lift.
-            columns = session.columns
-            rows = session.rows
-            if (columns <= 0 || rows <= 0) {
-                return
-            }
-            records.resize(columns, rows)
-        } else if (session.columns != columns || session.rows != rows) {
+        if (session.columns != columns || session.rows != rows) {
             // The grid the renderer laid out and the session's are not the same
             // one. That is a frame the build cannot read — the cell buffer is
             // sized for the session — so the session is brought to the grid
@@ -502,14 +512,15 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(backgroundProgram)
-        // The whole screen moves as one: the projection's y origin carries the
-        // sub-line offset, in the same clip units the scale uses.
+        // The whole screen moves as one: the projection carries the sub-line
+        // scroll and, during a pinch, the scale about the fingers.
+        projection(projectionScratch)
         GLES20.glUniform4f(
             backgroundProjection,
-            -1f,
-            1f + scrollOffsetPx * 2f / height.coerceAtLeast(1),
-            2f / width,
-            -2f / height.coerceAtLeast(1),
+            projectionScratch[0],
+            projectionScratch[1],
+            projectionScratch[2],
+            projectionScratch[3],
         )
         GLES20.glUniform2f(backgroundCellSize, metrics.width, metrics.height)
         GLES30.glBindVertexArray(backgroundVao)
@@ -535,12 +546,13 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(foregroundProgram)
+        projection(projectionScratch)
         GLES20.glUniform4f(
             foregroundProjection,
-            -1f,
-            1f + scrollOffsetPx * 2f / height.coerceAtLeast(1),
-            2f / width,
-            -2f / height.coerceAtLeast(1),
+            projectionScratch[0],
+            projectionScratch[1],
+            projectionScratch[2],
+            projectionScratch[3],
         )
         GLES20.glUniform2f(foregroundCellSize, metrics.width, metrics.height)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
