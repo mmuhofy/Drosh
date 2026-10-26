@@ -55,6 +55,9 @@ fun TerminalDebugOverlay(
             "atlas " + report.atlasPercent + "%  bg #" +
                 (report.background and 0xffffff).toString(16).padStart(6, '0'),
         )
+        if (report.backgroundProbe.isNotEmpty()) {
+            Line(report.backgroundProbe)
+        }
         if (report.samples.isNotEmpty()) {
             Line("bgs " + report.samples.joinToString("  "))
         }

@@ -123,6 +123,10 @@ internal class TerminalRenderer(
     var report: FrameReport? = null
         private set
 
+    /** What the background pass was handed, for the overlay. */
+    @Volatile
+    private var backgroundProbe: String = ""
+
     private var frameCount = 0
 
     private var backgroundProgram = 0
@@ -375,6 +379,7 @@ internal class TerminalRenderer(
             background = ambientTint ?: Palette.background,
             gl = glVersion,
             samples = records.colouredSamples.toList(),
+            backgroundProbe = backgroundProbe,
         )
         onFrame(true)
     }
@@ -423,6 +428,17 @@ internal class TerminalRenderer(
         GLES30.glBindVertexArray(backgroundVao)
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES, instances)
         GLES30.glBindVertexArray(0)
+
+        // What the pass was actually given: the instance count, the first
+        // record as the GPU will read it, and the error GL reported. A block
+        // that is in the records but not on the screen is one of these three.
+        if (frameCount < 200) {
+            val first = records.backgroundBytes.getInt(0)
+            val error = GLES20.glGetError()
+            backgroundProbe = "bgdraw " + instances +
+                " first=#" + Integer.toHexString(first) +
+                " err=" + error
+        }
     }
 
     private fun drawForegrounds() {

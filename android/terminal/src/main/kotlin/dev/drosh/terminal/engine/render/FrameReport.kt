@@ -28,4 +28,6 @@ data class FrameReport(
     val gl: String,
     /** The first few coloured backgrounds, as `raw→#hex`. */
     val samples: List<String> = emptyList(),
+    /** What the background pass was handed: instances, first record, GL error. */
+    val backgroundProbe: String = "",
 )
