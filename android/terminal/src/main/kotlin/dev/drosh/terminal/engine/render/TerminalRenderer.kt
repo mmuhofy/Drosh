@@ -140,7 +140,6 @@ internal class TerminalRenderer(
     private var cellSize = 0
     private var cellAtlasSize = 0
     private var cellPass = 0
-    private var cellColumns = 0
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         glVersion = GLES20.glGetString(GLES20.GL_VERSION) ?: "unknown"
@@ -157,7 +156,6 @@ internal class TerminalRenderer(
         cellSize = GLES20.glGetUniformLocation(cellProgram, "uCellSize")
         cellAtlasSize = GLES20.glGetUniformLocation(cellProgram, "uAtlasSize")
         cellPass = GLES20.glGetUniformLocation(cellProgram, "uPass")
-        cellColumns = GLES20.glGetUniformLocation(cellProgram, "uColumns")
 
         // The atlas belongs to the context that filled it. A new context means
         // the texture this renderer will bind has never been given a byte, and
@@ -424,7 +422,6 @@ internal class TerminalRenderer(
             GLES20.glUniform2f(cellSize, metrics.width, metrics.height)
             GLES20.glUniform2f(cellAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
             GLES20.glUniform1i(cellPass, 0)
-            GLES20.glUniform1i(cellColumns, columns)
             GLES30.glBindVertexArray(cellVao)
             GLES30.glDrawArraysInstanced(
                 GLES30.GL_TRIANGLE_STRIP,
@@ -474,24 +471,15 @@ internal class TerminalRenderer(
 
         GLES30.glBindVertexArray(cellVao)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, cellVbo)
-        GLES30.glEnableVertexAttribArray(ATTRIB_BACKGROUND_C)
-        GLES30.glVertexAttribPointer(
-            ATTRIB_BACKGROUND_C,
-            4,
-            GLES30.GL_UNSIGNED_BYTE,
-            true,
+        GLES30.glEnableVertexAttribArray(ATTRIB_BACKGROUND_COLOR)
+        GLES30.glVertexAttribIPointer(
+            ATTRIB_BACKGROUND_COLOR,
+            1,
+            GLES30.GL_UNSIGNED_INT,
             CellRecords.BACKGROUND_BYTES,
             0,
         )
-        GLES30.glVertexAttribDivisor(ATTRIB_BACKGROUND_C, 1)
-
-        // Locations 0 and 1 belong to the glyph pass. In the background pass
-        // they are not read, but a disabled attribute is undefined, and this
-        // driver is one of the ones that cares. Constants are free.
-        GLES30.glDisableVertexAttribArray(ATTRIB_GRID_POS)
-        GLES30.glVertexAttribI4ui(ATTRIB_GRID_POS, 0, 0, 0, 0)
-        GLES30.glDisableVertexAttribArray(ATTRIB_COLOR)
-        GLES30.glVertexAttrib4f(ATTRIB_COLOR, 0f, 0f, 0f, 1f)
+        GLES30.glVertexAttribDivisor(ATTRIB_BACKGROUND_COLOR, 1)
         GLES30.glBindVertexArray(0)
     }
 
@@ -612,8 +600,8 @@ internal class TerminalRenderer(
         const val FLOAT_BYTES = 4
         const val QUAD_VERTICES = 4
 
-        /** The background pass: the cell's colour, as normalised `u8x4`. */
-        const val ATTRIB_BACKGROUND_C = 2
+        /** The background pass: one `uint` colour per cell. */
+        const val ATTRIB_BACKGROUND_COLOR = 0
 
         /** The glyph pass: grid position, colour, atlas rect, offset, flags. */
         const val ATTRIB_GRID_POS = 0
@@ -639,9 +627,6 @@ internal class TerminalRenderer(
             layout(location = 0) in uvec2 aGridPos;
             // Per instance, a normalised u8x4 colour.
             layout(location = 1) in vec4 aColor;
-            // The background stream binds its single colour at location 0, which
-            // the glyph stream uses for the grid position; one program, two
-            // streams, and the pass says which one is bound.
             layout(location = 2) in vec4 aBackgroundColor;
             // Glyph: atlas rect (x, y, w, h), in-cell offset, flags.
             layout(location = 3) in uvec4 aGlyph;
@@ -652,7 +637,6 @@ internal class TerminalRenderer(
             uniform vec2 uCellSize;
             uniform vec2 uAtlasSize;
             uniform int uPass;
-            uniform int uColumns;
 
             out vec2 vTexCoord;
             out vec4 vColor;
@@ -669,16 +653,9 @@ internal class TerminalRenderer(
                 vBackground = aBackgroundColor;
 
                 if (uPass == 0) {
-                    // The background stream carries one colour per cell and no
-                    // grid position — the cell *is* the instance, so its place
-                    // in the grid comes from the instance number, as it does in
-                    // alacritty's own two-stream version.
-                    vec2 bgCell = vec2(
-                        float(gl_InstanceID % uColumns),
-                        float(gl_InstanceID / uColumns)
-                    ) * uCellSize;
+                    // The cell's own quad. A background is a fill, not a glyph.
                     gl_Position = vec4(
-                        uProjection.xy + uProjection.zw * (bgCell + corner * uCellSize),
+                        uProjection.xy + uProjection.zw * (cell + corner * uCellSize),
                         0.0,
                         1.0
                     );
