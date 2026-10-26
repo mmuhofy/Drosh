@@ -115,12 +115,28 @@ internal object Palette {
     /** The cursor colour; alacritty's default is the foreground. */
     val cursor: Int get() = override(NAMED_CURSOR) ?: application(NAMED_CURSOR) ?: foreground
 
-    /** Resolve a wire color (see `bridge/cell.rs`) to `0xRRGGBB`. */
+    /**
+     * Resolve a wire colour (see `bridge/cell.rs`) to `0xRRGGBB`.
+     *
+     * The order is alacritty's: a palette colour is the palette's, and the
+     * application's table is what the palette *is*. The engine's own overrides
+     * (`OSC 4/10/11/12`) come first only for the colours those sequences are
+     * about — that is, for names, not for palette indices. Asking the override
+     * table first for a `Named(Background)` cell meant a program that had set
+     * `OSC 11` was drawn in its own choice for every default cell, which is
+     * how a whole screen can come out in the wrong colours.
+     */
     fun resolve(encoded: Int, defaultColor: Int): Int {
         val payload = encoded and NativeCore.COLOR_VALUE_MASK
         return when (encoded ushr NativeCore.COLOR_TAG_SHIFT) {
-            NativeCore.COLOR_TAG_NAMED -> override(payload) ?: named(payload, defaultColor)
-            NativeCore.COLOR_TAG_INDEXED -> override(payload) ?: indexed(payload)
+            NativeCore.COLOR_TAG_NAMED ->
+                if (payload < 16) {
+                    // The sixteen ANSI names: the palette's, never the theme's.
+                    application(payload) ?: ANSI[payload]
+                } else {
+                    override(payload) ?: named(payload, defaultColor)
+                }
+            NativeCore.COLOR_TAG_INDEXED -> indexed(payload)
             else -> payload
         }
     }
@@ -143,11 +159,22 @@ internal object Palette {
      * would not answer it (a cursor query whose colour was never set).
      */
     fun colorFor(index: Int): Int? {
-        val set = override(index)
-        if (index == NativeCore.COLOR_INDEX_CURSOR && set == null) {
+        // The cursor is answered only when the application set it, which is
+        // what xterm does; the engine answers that case itself.
+        if (index == NativeCore.COLOR_INDEX_CURSOR && override(index) == null) {
             return null
         }
-        return set ?: if (index < 256) indexed(index) else named(index, DEFAULT_FOREGROUND)
+        // The three primary slots are the *application's*, not the engine's:
+        // `OSC 11` asks "what is your background", and the answer is the
+        // terminal's own colour. Reading them out of the engine's override
+        // table first meant a program that had set one (nano sets both) was
+        // answered with its own choice instead of the terminal's.
+        return when (index) {
+            NAMED_FOREGROUND -> application(NAMED_FOREGROUND) ?: DEFAULT_FOREGROUND
+            NAMED_BACKGROUND -> application(NAMED_BACKGROUND) ?: DEFAULT_BACKGROUND
+            NAMED_CURSOR -> override(index) ?: cursor
+            else -> override(index) ?: if (index < 256) indexed(index) else named(index, DEFAULT_FOREGROUND)
+        }
     }
 
     /** The application's colour at an index, when it has a table. */
