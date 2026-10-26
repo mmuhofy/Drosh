@@ -216,14 +216,41 @@ internal class TerminalRenderer(
         }
 
         fontSize = size
-        // Nothing is invalidated here. The frame that follows is drawn because
-        // the grid changed — `updateGrid` reports the new size when it differs —
-        // and a size that produces the same grid changes nothing on screen.
-        // The atlas keeps the previous size's masks as well as this one's: a
-        // pinch changes size every frame, and throwing the masks away each time
-        // re-rasterised every character on the frame after it — the text shook
-        // during a pinch. Two generations are enough; the third drops the
-        // first.
+        // The grid is what costs, not the font.
+        //
+        // `Term::resize` re-flows the whole grid — every row is re-linked and
+        // the cursor is pulled through it — and at sixty frames of a pinch that
+        // is sixty reflows of a screen that has not changed shape. Most steps of
+        // a pinch do not change the shape at all: a cell a fifth of a pixel
+        // wider leaves the columns and rows where they were.
+        //
+        // So: if the grid is the same, only the glyph masks change. The atlas
+        // takes the new generation and the next frame draws — no resize, no
+        // reflow, no new buffers.
+        val newColumns = (width / size.metrics.width).toInt().coerceAtLeast(MIN_COLUMNS)
+        val newRows = (height / size.metrics.height).toInt().coerceAtLeast(MIN_ROWS)
+        pendingGrid = newColumns to newRows
+
+        if (holdGrid) {
+            // A pinch is moving: the glyphs change size, the grid does not
+            // change shape. Drawing the new masks into the old cells is what
+            // makes the picture follow the fingers; the reflow waits for them
+            // to lift (`commitPendingGrid`).
+            forceCellRebuild()
+            atlas.beginSize(size.px)
+            return
+        }
+
+        if (newColumns == columns && newRows == rows) {
+            forceCellRebuild()
+            atlas.beginSize(size.px)
+            return
+        }
+
+        // The shape changed: the masks are the old size's, and the grid has to
+        // follow. Two generations of masks are kept, so a pinch that wanders
+        // back over a size it just left finds its glyphs again.
+        forceCellRebuild()
         atlas.beginSize(size.px)
         // Lay the grid out **now**, and report it, before the next frame.
         //
@@ -235,6 +262,49 @@ internal class TerminalRenderer(
         // kept in step here, at the moment the size changes, rather than a
         // frame later.
         updateGrid()
+    }
+
+    /**
+     * Whether a pinch is in progress and the grid must not be reflowed.
+     *
+     * Written from the UI thread, read on the GL thread; a plain volatile
+     * boolean is the whole handshake.
+     */
+    @Volatile
+    var holdGrid: Boolean = false
+
+    /** The grid a held pinch is heading for, applied by [commitPendingGrid]. */
+    private var pendingGrid: Pair<Int, Int>? = null
+
+    /**
+     * Apply the grid the pinch ended on.
+     *
+     * Called once, when the fingers lift. Everything the per-frame path
+     * deliberately skipped — laying the grid out, reporting it to the session —
+     * happens here, one time.
+     */
+    fun commitPendingGrid() {
+        val (columns, rows) = pendingGrid ?: return
+        pendingGrid = null
+        if (columns == this.columns && rows == this.rows) {
+            return
+        }
+        this.columns = columns
+        this.rows = rows
+        records.resize(columns, rows)
+        onGridChanged?.invoke(columns, rows, fontSize)
+    }
+
+    /**
+     * Throw away the per-cell glyph cache.
+     *
+     * The cache keys a cell's glyph by codepoint and weight, not by size, so a
+     * new size leaves every entry holding a mask of the old one. The atlas
+     * already answers by size, but the cache in front of it would hand back the
+     * stale entry without asking.
+     */
+    private fun forceCellRebuild() {
+        records.invalidateCells()
     }
 
     /**
@@ -288,7 +358,17 @@ internal class TerminalRenderer(
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
             return
         }
-        if (session.columns != columns || session.rows != rows) {
+        if (holdGrid) {
+            // A pinch is moving: the grid keeps the shape the session has, and
+            // the glyphs are the ones the new size rasterised. Nothing is
+            // resized until the fingers lift.
+            columns = session.columns
+            rows = session.rows
+            if (columns <= 0 || rows <= 0) {
+                return
+            }
+            records.resize(columns, rows)
+        } else if (session.columns != columns || session.rows != rows) {
             // The grid the renderer laid out and the session's are not the same
             // one. That is a frame the build cannot read — the cell buffer is
             // sized for the session — so the session is brought to the grid

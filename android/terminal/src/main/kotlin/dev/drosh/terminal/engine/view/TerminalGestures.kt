@@ -118,6 +118,9 @@ internal class TerminalGestures(private val view: TerminalView) {
                     zoomBaseSp = view.textSizeSp
                     zoomScaleFactor = 1f
                     zoomPassedDeadZone = false
+                    // The grid is held until the fingers lift; see
+                    // `TerminalView.onZoomEnd`.
+                    view.holdingGrid = true
                     // A long press that was already arming a word loses to the
                     // second finger: a pinch is not a selection, and the menu
                     // appearing over a zoom is the gesture being read as two.

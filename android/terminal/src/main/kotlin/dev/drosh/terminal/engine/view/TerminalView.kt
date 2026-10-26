@@ -713,9 +713,30 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
     /** Forwarded from the gesture recogniser, which owns the pinch's lifetime. */
     internal fun onZoomEnd(sp: Float) {
+        // The pinch is over, so the grid can be brought up to the size the
+        // fingers settled on. It was held back while they moved — see
+        // `holdingGrid` — because a reflow per frame is what made the zoom
+        // step: the engine re-laid every row each time, and the result arrived
+        // a frame late.
+        holdingGrid = false
+        surface?.queueEvent { renderer?.commitPendingGrid() }
         zoomEndListener.invoke(sp)
         zoomListener.invoke(0f)
     }
+
+    /**
+     * True while a pinch is moving.
+     *
+     * While it is set the renderer keeps drawing at the grid it has: the glyph
+     * masks grow or shrink and the picture follows the fingers, and the engine's
+     * grid is resized once, when they lift. See [onZoomEnd].
+     */
+    @Volatile
+    internal var holdingGrid: Boolean = false
+        set(value) {
+            field = value
+            surface?.queueEvent { renderer?.holdGrid = value }
+        }
 
     /** Forwarded for every frame of a pinch. */
     internal fun onZoomProgress(sp: Float) = zoomListener.invoke(sp)

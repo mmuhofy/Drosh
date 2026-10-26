@@ -470,6 +470,17 @@ internal class CellRecords(columns: Int, rows: Int) {
 
     private fun clampShort(value: Float): Int = value.toInt().coerceIn(-32768, 32767)
 
+    /**
+     * Forget the glyph each cell was drawn with.
+     *
+     * The cache is keyed by codepoint and weight; a size change makes every
+     * entry stale without changing its key, so the whole thing goes.
+     */
+    fun invalidateCells() {
+        resetCellCache(columns, rows)
+        cachedFontPx = null
+    }
+
     private fun resetCellCache(newColumns: Int, newRows: Int) {
         val cells = newColumns * newRows
         cellCodepoints = IntArray(cells) { -1 }
