@@ -179,6 +179,21 @@ internal object NativeCore {
 
     external fun nativeState(id: Long, stateOut: IntArray): Int
 
+    /**
+     * One frame's cells and state, taken under a single lock.
+     *
+     * The two calls above take the engine's lock separately, so a scroll
+     * landing between them produced a frame whose cells belonged to one
+     * viewport and whose offset belonged to the next — a one-frame shift at
+     * every row boundary, which is what a drag looked like when it shook.
+     */
+    external fun nativeSnapshotAndState(
+        id: Long,
+        cells: java.nio.ByteBuffer,
+        damageOut: IntArray,
+        stateOut: IntArray,
+    ): Int
+
     external fun nativeColors(id: Long, out: IntArray): Int
 
     external fun nativePollWakeup(id: Long): Boolean

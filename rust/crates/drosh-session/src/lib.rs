@@ -434,23 +434,20 @@ impl Session {
             return false;
         }
 
-        // The engine first, then the atomics.
-        //
-        // The other order is a tear: `pump` reads the rows and the snapshot
-        // separately, so a frame arriving between "rows stored" and
-        // "scroll_display called" would draw the new row count over the old
-        // viewport — the picture jumping by a line and back, which is the
-        // shake a drag showed. Doing the engine's move first means the
-        // snapshot and the count always describe the same viewport.
+        // Everything that describes the viewport is written while the term's
+        // lock is held, and `take_snapshot`/`state` read it under the same
+        // lock. Without that, a frame landing between "the engine moved" and
+        // "the count was stored" drew the new cells with the old offset — one
+        // frame of the grid shifted by a line, then back: the shake a drag
+        // showed, and it was always there rather than only at the ends.
+        let mut term = self.term.lock();
         if rows != previous_rows {
             // Both counts run the same way: up into the history. So the delta
             // is `rows - previous`, not the other way round — inverting it is
             // what made a drag scroll the wrong way.
             let delta = rows as i32 - previous_rows as i32;
-            let mut term = self.term.lock();
             term.scroll_display(Scroll::Delta(delta));
             let actual = term.grid().display_offset();
-            drop(term);
 
             // The engine clamps to the history it actually has, which can be
             // less than the count this side keeps. Taking its answer as the
@@ -459,9 +456,10 @@ impl Session {
             // viewport moving and then snapping back.
             if actual != rows {
                 self.rows_above_edge.store(actual, Ordering::Relaxed);
-                if actual == 0 || actual >= max_rows {
-                    self.sub_line_px.store(0f32.to_bits(), Ordering::Relaxed);
-                }
+                self.sub_line_px.store(
+                    if actual == 0 || actual >= max_rows { 0f32 } else { remainder }.to_bits(),
+                    Ordering::Relaxed,
+                );
                 return true;
             }
         }
@@ -506,11 +504,47 @@ impl Session {
     }
 
     /// Snapshot the renderer state (size, cursor, modes).
+    ///
+    /// The sub-line offset is read while the term's lock is still held, in the
+    /// same critical section that reads the cursor and the display offset. The
+    /// two halves describe one viewport: reading the offset after releasing the
+    /// lock let a scroll land between them, and the frame then drew the cells
+    /// of one position with the offset of the next — a one-frame jolt at every
+    /// row boundary, which is what a drag looked like when it shook.
     pub fn state(&self) -> [i32; snapshot::STATE_LEN] {
         let mut out = [0i32; snapshot::STATE_LEN];
-        snapshot::write_state(&self.term.lock(), &mut out);
-        out[snapshot::state_index::SUB_LINE_PX] = self.sub_line_pixels() as i32;
+        let term = self.term.lock();
+        snapshot::write_state(&term, &mut out);
+        out[snapshot::state_index::SUB_LINE_PX] =
+            f32::from_bits(self.sub_line_px.load(Ordering::Relaxed)) as i32;
         out
+    }
+
+    /// Fill the cells *and* the state in one critical section.
+    ///
+    /// A frame needs both halves of one viewport: the cells as they were at a
+    /// scroll position, and the position itself. Two calls take the term's lock
+    /// twice, and a scroll landing in between produces a frame whose cells
+    /// belong to the previous row and whose offset belongs to the next — the
+    /// grid drawn a line out of place for one frame and then snapped back,
+    /// which is exactly what a drag looked like when it shook.
+    ///
+    /// The state is written after the snapshot so it describes the same lock
+    /// hold, and the sub-line offset is read inside it for the same reason.
+    pub fn take_snapshot_with_state(
+        &self,
+        buffer: &mut [u8],
+        state_out: &mut [i32; snapshot::STATE_LEN],
+    ) -> Result<i32, snapshot::SnapshotError> {
+        let mut term = self.term.lock();
+        let mut scratch = lock(&self.damage_scratch);
+        let mut damage = lock(&self.damage);
+
+        snapshot::take_snapshot(&mut term, buffer, &mut damage, &mut scratch)?;
+        snapshot::write_state(&term, state_out);
+        state_out[snapshot::state_index::SUB_LINE_PX] =
+            f32::from_bits(self.sub_line_px.load(Ordering::Relaxed)) as i32;
+        Ok(damage[0])
     }
 
     /// Take and clear the "something changed" flag.

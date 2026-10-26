@@ -235,12 +235,14 @@ class EngineSession(
             return NativeCore.INVALID_HANDLE
         }
 
-        val written = NativeCore.nativeSnapshot(current, buffer, damage)
+        // Cells and state in one lock hold: they describe one viewport, and
+        // reading them separately let a scroll land between the two calls —
+        // the cells of one position drawn with the offset of the next, which
+        // is the one-frame jolt a drag showed at every row boundary.
+        val written = NativeCore.nativeSnapshotAndState(current, buffer, damage, state)
         if (written != NativeCore.OK) {
             return NativeCore.IO_ERROR
         }
-
-        NativeCore.nativeState(current, state)
 
         // The table only changes when an application sets a colour, so the
         // fingerprint decides whether the 269-entry pull is worth doing.
