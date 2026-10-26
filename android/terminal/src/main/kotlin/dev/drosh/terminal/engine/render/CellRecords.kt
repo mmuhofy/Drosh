@@ -98,17 +98,18 @@ internal class CellRecords(columns: Int, rows: Int) {
     /**
      * Write one cell's background record.
      *
-     * `index` is the cell's place in the grid, which is what the shader turns
-     * into pixels.
+     * Written in grid order, one after another, so the buffer's position ends
+     * at the end of the records — which is what `flip()` needs to publish them.
+     * An absolute write (`putShort(at, …)`) leaves the position where it was,
+     * and a buffer that is flipped from position zero has no data in it at all.
      */
-    private fun putBackground(index: Int, column: Int, row: Int, color: Int) {
-        val at = index * BACKGROUND_BYTES
-        backgrounds.putShort(at, column.toShort())
-        backgrounds.putShort(at + 2, row.toShort())
-        backgrounds.put(at + 4, (color shr 16 and 0xff).toByte())
-        backgrounds.put(at + 5, (color shr 8 and 0xff).toByte())
-        backgrounds.put(at + 6, (color and 0xff).toByte())
-        backgrounds.put(at + 7, 0xff.toByte())
+    private fun putBackground(column: Int, row: Int, color: Int) {
+        backgrounds.putShort(column.toShort())
+        backgrounds.putShort(row.toShort())
+        backgrounds.put((color shr 16 and 0xff).toByte())
+        backgrounds.put((color shr 8 and 0xff).toByte())
+        backgrounds.put((color and 0xff).toByte())
+        backgrounds.put(0xff.toByte())
     }
 
     fun resize(newColumns: Int, newRows: Int) {
@@ -243,7 +244,7 @@ internal class CellRecords(columns: Int, rows: Int) {
                 // was why those programs looked like blank space with no
                 // colours at all.
                 if (hidden) {
-                    putBackground(cell, column, row, background)
+                    putBackground(column, row, background)
                     continue
                 }
 
@@ -251,7 +252,7 @@ internal class CellRecords(columns: Int, rows: Int) {
                 // background is already written and it draws nothing on top.
                 val spacer = flags and NativeCore.FLAG_WIDE_CHAR_SPACER != 0 ||
                     flags and NativeCore.FLAG_LEADING_WIDE_CHAR_SPACER != 0
-                putBackground(cell, column, row, background)
+                putBackground(column, row, background)
                 if (spacer) {
                     continue
                 }
