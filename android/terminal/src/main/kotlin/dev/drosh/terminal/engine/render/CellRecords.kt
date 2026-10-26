@@ -25,7 +25,16 @@ import java.nio.ByteOrder
  */
 internal class CellRecords(columns: Int, rows: Int) {
 
-    /** Packed `0xAARRGGBB` colour per cell, `columns * rows` entries. */
+    /**
+     * One 8-byte record per cell: its grid position and its colour.
+     *
+     * The position is stored rather than derived from `gl_InstanceID`. Deriving
+     * it in the shader needs `uColumns` and an assumption that instance `n` is
+     * cell `n` — true only while the buffer holds the whole grid in order, and
+     * silently wrong the moment anything else is drawn from it. Alacritty stores
+     * the position on the vertex (`gridCoords` in `res/glsl3/text.v.glsl`) for
+     * the same reason: a vertex that says where it is cannot be mislaid.
+     */
     private var backgrounds: ByteBuffer
 
     /** The foreground records; only the first [foregroundCount] are drawn. */
@@ -84,6 +93,22 @@ internal class CellRecords(columns: Int, rows: Int) {
         foregrounds = allocate(columns * rows * OVERDRAW * RECORD_BYTES)
         resetCellCache(columns, rows)
         shaper.resize(columns, rows)
+    }
+
+    /**
+     * Write one cell's background record.
+     *
+     * `index` is the cell's place in the grid, which is what the shader turns
+     * into pixels.
+     */
+    private fun putBackground(index: Int, column: Int, row: Int, color: Int) {
+        val at = index * BACKGROUND_BYTES
+        backgrounds.putShort(at, column.toShort())
+        backgrounds.putShort(at + 2, row.toShort())
+        backgrounds.put(at + 4, (color shr 16 and 0xff).toByte())
+        backgrounds.put(at + 5, (color shr 8 and 0xff).toByte())
+        backgrounds.put(at + 6, (color and 0xff).toByte())
+        backgrounds.put(at + 7, 0xff.toByte())
     }
 
     fun resize(newColumns: Int, newRows: Int) {
@@ -218,7 +243,7 @@ internal class CellRecords(columns: Int, rows: Int) {
                 // was why those programs looked like blank space with no
                 // colours at all.
                 if (hidden) {
-                    backgrounds.putInt(pack(background))
+                    putBackground(cell, column, row, background)
                     continue
                 }
 
@@ -226,7 +251,7 @@ internal class CellRecords(columns: Int, rows: Int) {
                 // background is already written and it draws nothing on top.
                 val spacer = flags and NativeCore.FLAG_WIDE_CHAR_SPACER != 0 ||
                     flags and NativeCore.FLAG_LEADING_WIDE_CHAR_SPACER != 0
-                backgrounds.putInt(pack(background))
+                putBackground(cell, column, row, background)
                 if (spacer) {
                     continue
                 }
@@ -455,7 +480,7 @@ internal class CellRecords(columns: Int, rows: Int) {
 
     companion object {
         /** Packed colour: four bytes. */
-        const val BACKGROUND_BYTES = 4
+        const val BACKGROUND_BYTES = 8
 
         /** How many coloured cells the overlay describes. */
         const val SAMPLES = 5

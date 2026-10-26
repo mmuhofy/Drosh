@@ -139,7 +139,6 @@ internal class TerminalRenderer(
 
     private var backgroundProjection = 0
     private var backgroundCellSize = 0
-    private var backgroundColumns = 0
     private var foregroundProjection = 0
     private var foregroundCellSize = 0
     private var foregroundAtlasSize = 0
@@ -159,7 +158,6 @@ internal class TerminalRenderer(
 
         backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
         backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
-        backgroundColumns = GLES20.glGetUniformLocation(backgroundProgram, "uColumns")
         foregroundProjection = GLES20.glGetUniformLocation(foregroundProgram, "uProjection")
         foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
         foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
@@ -424,7 +422,6 @@ internal class TerminalRenderer(
             -2f / height.coerceAtLeast(1),
         )
         GLES20.glUniform2f(backgroundCellSize, metrics.width, metrics.height)
-        GLES20.glUniform1i(backgroundColumns, columns)
         GLES30.glBindVertexArray(backgroundVao)
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES, instances)
         GLES30.glBindVertexArray(0)
@@ -475,14 +472,24 @@ internal class TerminalRenderer(
 
         GLES30.glBindVertexArray(backgroundVao)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundVbo)
-        GLES30.glEnableVertexAttribArray(ATTRIB_BACKGROUND_COLOR)
+        GLES30.glEnableVertexAttribArray(ATTRIB_BACKGROUND_POS)
         GLES30.glVertexAttribIPointer(
-            ATTRIB_BACKGROUND_COLOR,
-            1,
-            GLES30.GL_UNSIGNED_INT,
+            ATTRIB_BACKGROUND_POS,
+            2,
+            GLES30.GL_UNSIGNED_SHORT,
             CellRecords.BACKGROUND_BYTES,
             0,
         )
+        GLES30.glEnableVertexAttribArray(ATTRIB_BACKGROUND_COLOR)
+        GLES30.glVertexAttribPointer(
+            ATTRIB_BACKGROUND_COLOR,
+            4,
+            GLES30.GL_UNSIGNED_BYTE,
+            true,
+            CellRecords.BACKGROUND_BYTES,
+            4,
+        )
+        GLES30.glVertexAttribDivisor(ATTRIB_BACKGROUND_POS, 1)
         GLES30.glVertexAttribDivisor(ATTRIB_BACKGROUND_COLOR, 1)
         bindDummyAttribute(ATTRIB_DUMMY_BACKGROUND)
         GLES30.glBindVertexArray(0)
@@ -647,8 +654,9 @@ internal class TerminalRenderer(
         const val FLOAT_BYTES = 4
         const val QUAD_VERTICES = 4
 
-        const val ATTRIB_BACKGROUND_COLOR = 0
-        const val ATTRIB_DUMMY_BACKGROUND = 1
+        const val ATTRIB_BACKGROUND_POS = 0
+        const val ATTRIB_BACKGROUND_COLOR = 1
+        const val ATTRIB_DUMMY_BACKGROUND = 2
 
         const val ATTRIB_ATLAS_RECT = 0
         const val ATTRIB_GLYPH_SIZE = 1
@@ -660,29 +668,20 @@ internal class TerminalRenderer(
 
         val BACKGROUND_VERTEX = """
             #version 300 es
-            layout(location = 0) in uint aColor;
+            // The cell's place in the grid, and its colour.
+            layout(location = 0) in uvec2 aGridPos;
+            layout(location = 1) in vec4 aColor;
             uniform vec4 uProjection;
             uniform vec2 uCellSize;
-            uniform int uColumns;
             out vec4 vColor;
             void main() {
-                int column = gl_InstanceID % uColumns;
-                int row = gl_InstanceID / uColumns;
                 vec2 corner = vec2(
                     float(gl_VertexID == 1 || gl_VertexID == 3),
                     float(gl_VertexID == 2 || gl_VertexID == 3)
                 );
-                vec2 cell = vec2(float(column), float(row)) * uCellSize;
+                vec2 cell = vec2(aGridPos) * uCellSize;
                 gl_Position = vec4(uProjection.xy + uProjection.zw * (cell + corner * uCellSize), 0.0, 1.0);
-                // The record is `0xAARRGGBB` in the CPU's Int, which is
-                // little-endian on the wire: the shader sees it as a uint whose
-                // low byte is the blue channel.
-                vColor = vec4(
-                    float((aColor >> 16) & 0xffu),
-                    float((aColor >> 8) & 0xffu),
-                    float(aColor & 0xffu),
-                    1.0
-                ) / 255.0;
+                vColor = aColor;
             }
         """.trimIndent()
 
