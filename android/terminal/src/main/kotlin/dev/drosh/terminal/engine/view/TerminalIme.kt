@@ -21,7 +21,11 @@ internal class TerminalIme(private val view: TerminalView) {
             view.session.write(Encoder.text(text, Encoder.Mods(ctrl = view.stickyCtrl)))
             view.stickyCtrl = false
         }
-        onBackspace = { view.session.write(byteArrayOf(0x7f)) }
+        onBackspace = { count ->
+            // The IME may delete a whole word at once; each character it
+            // removed is one backspace on the session.
+            repeat(count) { view.session.write(byteArrayOf(0x7f)) }
+        }
         onKey = { keyCode, event -> handleHardwareKey(keyCode, event) }
     }
 
@@ -30,7 +34,9 @@ internal class TerminalIme(private val view: TerminalView) {
      * that reports keys instead of committing text.
      *
      * Returning `false` lets the IME handle it, which is what must happen for a
-     * plain printable key — the text path already carries those.
+     * plain printable key — the text path already carries those. The composition
+     * has already been flushed by [TerminalInputView] before this is called, so
+     * a key can never overtake text the user typed before it.
      */
     private fun handleHardwareKey(keyCode: Int, event: KeyEvent): Boolean {
         // Ctrl+Shift+D toggles the host's frame overlay, and is taken before
@@ -60,6 +66,16 @@ internal class TerminalIme(private val view: TerminalView) {
             val character = String(Character.toChars(codepoint))
             view.session.write(Encoder.text(character, AndroidKeys.mods(event, view.stickyCtrl)))
             view.stickyCtrl = false
+            return true
+        }
+
+        // A hardware keyboard's printable key: the IME path does not deliver
+        // text for it, so it has to be encoded here. Termux sends it the same
+        // way (`inputCodePoint` from the key handler). Without this a physical
+        // keyboard typed nothing at all.
+        if (codepoint != 0 && !event.isCtrlPressed && !event.isAltPressed) {
+            val character = String(Character.toChars(codepoint))
+            view.session.write(Encoder.text(character))
             return true
         }
 

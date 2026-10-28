@@ -6,7 +6,6 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import dev.drosh.terminal.engine.bench.FrameStats
 import dev.drosh.terminal.engine.core.EngineSession
-import dev.drosh.terminal.engine.core.NativeCore
 import dev.drosh.terminal.engine.input.Selection
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -107,88 +106,8 @@ internal class TerminalRenderer(
     var ligatures: Boolean = false
 
 
-    /**
-     * The sub-line part of the scroll for the frame being drawn, in pixels.
-     *
-     * Read from the session at the top of `onDrawFrame`; the engine owns the
-     * value, this is only the copy the two draw calls share.
-     */
-    private var scrollOffsetPx = 0f
-
-    /**
-     * A live pinch, as a scale over the picture already on screen.
-     *
-     * This is the vendored terminal's `canvas.scale` in GL: while two fingers
-     * move, nothing is re-measured, re-rasterised or reflowed — the existing
-     * glyphs are drawn bigger or smaller, which is one uniform and one draw
-     * call. The real size is applied once, when the fingers lift.
-     *
-     * That is what makes a pinch smooth. Rasterising at the new size every
-     * frame is a full atlas generation plus a full grid rebuild sixty times a
-     * second, and it is why the earlier version stepped: each frame's work
-     * arrived a frame late, so the picture lagged the fingers.
-     */
-    @Volatile
-    private var pinchScale = 1f
-
-    /** Where the fingers' midpoint sits, in surface pixels: the pinch's anchor. */
-    @Volatile
-    private var pinchFocusX = 0f
-
-    @Volatile
-    private var pinchFocusY = 0f
-
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
-
-    /**
-     * Draw the picture at a live pinch's scale, anchored at the fingers.
-     *
-     * Called on every frame of a pinch. Nothing else changes: the grid, the
-     * masks and the atlas all stay exactly as they are, and the shader's
-     * projection does the work — which is what the vendored terminal's
-     * `canvas.scale` did, and the reason its zoom felt continuous.
-     *
-     * [scale] is relative to the size the glyphs were rasterised at, so the
-     * caller computes it from the gesture's own origin and never from a size
-     * that has already been rounded.
-     */
-    fun setPinch(scale: Float, focusX: Float, focusY: Float) {
-        pinchScale = if (scale.isFinite() && scale > 0f) scale else 1f
-        pinchFocusX = focusX
-        pinchFocusY = focusY
-    }
-
-    /** The pinch ended: the next frame draws at the real size again. */
-    fun endPinch() {
-        pinchScale = 1f
-    }
-
-    /**
-     * The projection for one pass: clip-space origin and scale, with the
-     * pinch applied about its focus and the sub-line scroll folded in.
-     *
-     * The anchor is converted here rather than in the shader so the two
-     * passes cannot disagree about it.
-     */
-    private fun projection(out: FloatArray) {
-        val scale = pinchScale
-        // A point p maps to focus + (p - focus) * scale, in pixels. In clip
-        // space that is `clip * s + anchor * (1 - s)`.
-        val anchorX = -1f + 2f * pinchFocusX / width.coerceAtLeast(1)
-        val anchorY = 1f - 2f * pinchFocusY / height.coerceAtLeast(1)
-        // A positive sub-line offset means the content is part-way down the
-        // screen — the finger dragged back into the history. Clip y grows
-        // *upward*, so moving the content down means moving the origin down,
-        // which is a minus. It was a plus, and that is what made a drag scroll
-        // the wrong way: the remainder slid the grid up while the row beneath
-        // it stepped down, and the two read as a shake at every row boundary.
-        out[0] = -scale + anchorX * (1f - scale)
-        out[1] = (1f - scrollOffsetPx * 2f / height.coerceAtLeast(1)) * scale +
-            anchorY * (1f - scale)
-        out[2] = 2f * scale / width.coerceAtLeast(1)
-        out[3] = -2f * scale / height.coerceAtLeast(1)
-    }
 
     /** The last frame's numbers, or null before the first frame. */
     @Volatile
@@ -200,9 +119,6 @@ internal class TerminalRenderer(
     private var backgroundProbe: String = ""
 
     private var frameCount = 0
-
-    /** Scratch for [projection]; a frame builds it twice, and neither allocates. */
-    private val projectionScratch = FloatArray(4)
 
     private var backgroundProgram = 0
     private var foregroundProgram = 0
@@ -264,11 +180,6 @@ internal class TerminalRenderer(
         width = surfaceWidth
         height = surfaceHeight
         GLES20.glViewport(0, 0, width, height)
-        // A surface change is not a pinch. The keyboard opening mid-gesture
-        // resizes the surface, and a scale left over from it would draw the
-        // grid off the new bounds — the black rectangle that followed the
-        // keyboard up.
-        pinchScale = 1f
         // The surface is new, so nothing is on it: the next frame draws even if
         // the engine says nothing changed.
         updateGrid()
@@ -297,10 +208,11 @@ internal class TerminalRenderer(
 
         fontSize = size
         // The glyphs of the old size are now wrong, and the atlas has to be
-        // asked for masks of the new one. This runs once per committed size —
-        // at the end of a pinch, or when the setting changes — because a live
-        // pinch does not come through here at all: it scales the picture it
-        // already has (`setPinch`).
+        // asked for masks of the new one. A pinch comes through here on every
+        // frame that changes the size — which is what makes the terminal itself
+        // grow and shrink rather than a scaled picture of it, and what the
+        // vendored terminal did too (its `updateTextSize` re-measured and
+        // `updateSize` reflowed).
         forceCellRebuild()
         atlas.beginSize(size.px)
         // Lay the grid out **now**, and report it, before the next frame.
@@ -419,12 +331,7 @@ internal class TerminalRenderer(
             Palette.setOverrides(session.colors)
         }
 
-        // The sub-line part of the scroll, as the engine holds it (kitty's
-        // `pixel_scroll_offset_y`). Read from the same snapshot as the rows, so
-        // the grid and the offset cannot disagree.
-        scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat()
-
-        records.build(
+        val built = records.build(
             cells,
             session.stateArray,
             metrics,
@@ -434,6 +341,14 @@ internal class TerminalRenderer(
             fontPx,
             ligatures,
         )
+        if (!built) {
+            // The cell buffer does not hold this grid, so nothing was built.
+            // Uploading would read past the end of an empty buffer — the
+            // `remaining() < size` crash a program hit when it switched to the
+            // alternate screen. The session is resized at the top of the next
+            // frame and the picture is drawn then.
+            return
+        }
         val buildEndNanos = System.nanoTime()
 
         val background = ambientTint ?: Palette.background
@@ -488,6 +403,15 @@ internal class TerminalRenderer(
      * bookkeeping that would avoid it.
      */
     private fun uploadStreams() {
+        // A buffer with nothing in it is not uploaded at all: `glBufferData`
+        // takes the size from the caller and the bytes from the buffer, and a
+        // cleared buffer has no bytes — the `remaining() < size` exception.
+        // The build already refuses a frame it could not fill, so this is the
+        // second lock on the same door.
+        if (records.backgroundBytes.limit() <= 0 || records.foregroundBytes.limit() <= 0) {
+            return
+        }
+
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundVbo)
         GLES20.glBufferData(
             GLES20.GL_ARRAY_BUFFER,
@@ -512,15 +436,12 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(backgroundProgram)
-        // The whole screen moves as one: the projection carries the sub-line
-        // scroll and, during a pinch, the scale about the fingers.
-        projection(projectionScratch)
         GLES20.glUniform4f(
             backgroundProjection,
-            projectionScratch[0],
-            projectionScratch[1],
-            projectionScratch[2],
-            projectionScratch[3],
+            -1f,
+            1f,
+            2f / width.coerceAtLeast(1),
+            -2f / height.coerceAtLeast(1),
         )
         GLES20.glUniform2f(backgroundCellSize, metrics.width, metrics.height)
         GLES30.glBindVertexArray(backgroundVao)
@@ -546,13 +467,12 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(foregroundProgram)
-        projection(projectionScratch)
         GLES20.glUniform4f(
             foregroundProjection,
-            projectionScratch[0],
-            projectionScratch[1],
-            projectionScratch[2],
-            projectionScratch[3],
+            -1f,
+            1f,
+            2f / width.coerceAtLeast(1),
+            -2f / height.coerceAtLeast(1),
         )
         GLES20.glUniform2f(foregroundCellSize, metrics.width, metrics.height)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())

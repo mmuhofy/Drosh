@@ -337,33 +337,6 @@ class EngineSession(
     }
 
     /**
-     * Scroll by a finger distance, keeping the sub-line remainder.
-     *
-     * Kitty's model (`kitty/kitty/screen.c` — `scroll_by_pixels`): one
-     * absolute position in pixels, split into whole rows for the engine and a
-     * remainder for the renderer. The engine holds both, so a pan and the grid
-     * cannot disagree about where the viewport is — which is what made a drag
-     * step while the finger slid.
-     *
-     * `deltaPixels` is positive when the content should move down: the user
-     * dragging back into the history. [cellHeight] is a row's height in the
-     * same pixels.
-     *
-     * Returns the whole rows the viewport moved, negative toward the live edge.
-     */
-    fun scrollByPixels(deltaPixels: Float, cellHeight: Int): Int {
-        val current = handle
-        if (current == NO_HANDLE || cellHeight <= 0) {
-            return 0
-        }
-        return NativeCore.nativeScrollByPixels(current, deltaPixels, cellHeight)
-    }
-
-    /** The sub-line part of the scroll, in pixels, as the engine holds it. */
-    val subLinePixels: Int
-        get() = stateArray[NativeCore.STATE_SUB_LINE_PX]
-
-    /**
      * Put the viewport at `offset` rows above the live edge.
      *
      * [scroll] moves relative to where the viewport already is, which is what a

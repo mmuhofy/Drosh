@@ -29,7 +29,7 @@ pub const fn damage_out_len(rows: usize) -> usize {
 }
 
 /// Ints written by [`write_state`] into `state_out`.
-pub const STATE_LEN: usize = 9;
+pub const STATE_LEN: usize = 8;
 
 /// Frozen indices of the `state_out` array.
 pub mod state_index {
@@ -43,10 +43,6 @@ pub mod state_index {
     /// Fingerprint of the engine's dynamic colour table (see
     /// [`colors_fingerprint`]); Kotlin pulls the table when it changes.
     pub const COLORS: usize = 7;
-    /// The sub-line part of the scroll, in pixels — kitty's
-    /// `pixel_scroll_offset_y`. The renderer shifts the grid by this so a drag
-    /// follows the finger between rows.
-    pub const SUB_LINE_PX: usize = 8;
 }
 
 /// Cursor shapes on the wire.

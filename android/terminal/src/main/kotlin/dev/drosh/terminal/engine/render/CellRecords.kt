@@ -126,7 +126,15 @@ internal class CellRecords(columns: Int, rows: Int) {
         shaper.resize(newColumns, newRows)
     }
 
-    /** Rebuilt each frame: every record is written, so the buffers stay valid. */
+    /**
+     * Rebuilt each frame: every record is written, so the buffers stay valid.
+     *
+     * Returns false when the frame could not be built — the cell buffer does
+     * not hold the grid this instance is sized for. The caller must then skip
+     * the upload and the draw: the buffers were cleared and hold nothing, and
+     * uploading `columns * rows` bytes from a buffer with no bytes in it is the
+     * `remaining() < size` exception a program hit when it switched screens.
+     */
     fun build(
         cells: ByteBuffer,
         state: IntArray,
@@ -148,7 +156,7 @@ internal class CellRecords(columns: Int, rows: Int) {
             backgrounds.clear()
             foregrounds.clear()
             foregroundCount = 0
-            return
+            return false
         }
 
         if (cachedFontPx != fontPx) {
@@ -361,6 +369,7 @@ internal class CellRecords(columns: Int, rows: Int) {
 
         backgrounds.flip()
         foregrounds.flip()
+        return true
     }
 
     private fun glyphFor(
