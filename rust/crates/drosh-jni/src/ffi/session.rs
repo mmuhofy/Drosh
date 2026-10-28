@@ -1,7 +1,7 @@
 //! `native*` functions for the session lifecycle.
 
 use jni::objects::{JByteArray, JClass, JString};
-use jni::sys::{jfloat, jint, jlong};
+use jni::sys::{jint, jlong};
 use jni::JNIEnv;
 
 use crate::ffi::{
