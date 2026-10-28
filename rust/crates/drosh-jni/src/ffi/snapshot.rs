@@ -61,7 +61,9 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSnap
 /// the offset of the next, which is the one-frame jolt a drag showed. See
 /// `Session::take_snapshot_with_state`.
 #[no_mangle]
-pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSnapshotAndState<'local>(
+pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativeSnapshotAndState<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     id: jlong,

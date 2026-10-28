@@ -144,7 +144,7 @@ internal class CellRecords(columns: Int, rows: Int) {
         atlas: GlyphAtlas,
         fontPx: Float,
         ligatures: Boolean,
-    ) {
+    ): Boolean {
         // The buffer must hold the grid the caller asked for.
         //
         // A frame can arrive while the session is still resizing: the renderer

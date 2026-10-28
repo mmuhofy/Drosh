@@ -145,7 +145,7 @@ internal class TerminalInputView(context: Context) : View(context) {
      */
     private fun flush() {
         val buffer = editing ?: return
-        if (buffer.isEmpty) {
+        if (buffer.isEmpty()) {
             return
         }
 
