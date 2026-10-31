@@ -6,27 +6,33 @@ import dev.drosh.terminal.engine.input.Encoder
 import dev.drosh.terminal.engine.input.TerminalInputView
 
 /**
- * Wires the 1×1 [input] ([TerminalInputView]) — the soft keyboard and hardware
- * keys — to the session, honouring the armed [TerminalView.stickyCtrl] from an
- * external extra-keys row. Keeping the key handling here separates it from the
- * touch/gesture path in [TerminalGestures].
+ * Wires the keyboard to the session: the 1×1 [input] the IME talks to, and the
+ * hardware keys that reach the view directly.
+ *
+ * ## One path
+ *
+ * Everything that becomes bytes goes through [TerminalInputView.onBytes]. Text
+ * arrives there already decoded to codepoints, and keys arrive here as key
+ * codes that [Encoder] turns into sequences. There is no second place that
+ * writes to the session — which is what makes the ordering rule stateable at
+ * all: text is drained before a key is handled, so a key can never overtake the
+ * letters typed before it.
+ *
+ * The previous version had three writers (the IME's text path, the hardware-key
+ * path, and the view's own `onKeyDown`), each with its own idea of when to
+ * flush. That is what made "I pressed Enter and the previous letter appeared"
+ * possible: the letter was still in a buffer that nobody had told to empty.
  */
 internal class TerminalIme(private val view: TerminalView) {
 
     /** The focused text editor the IME talks to; 1×1 px so it stays out of sight. */
     val input: TerminalInputView = TerminalInputView(view.context).apply {
-        onText = { text ->
-            // A soft keyboard commits text; the row's armed Ctrl turns the first
-            // character into a control code, which is how a phone sends Ctrl+C.
-            view.session.write(Encoder.text(text, Encoder.Mods(ctrl = view.stickyCtrl)))
-            view.stickyCtrl = false
-        }
-        onBackspace = { count ->
-            // The IME may delete a whole word at once; each character it
-            // removed is one backspace on the session.
-            repeat(count) { view.session.write(byteArrayOf(0x7f)) }
-        }
+        onBytes = { bytes -> view.session.write(bytes) }
         onKey = { keyCode, event -> handleHardwareKey(keyCode, event) }
+        stickyCtrl = { view.stickyCtrl }
+        stickyAlt = { view.stickyAlt }
+        appCursor = { view.appCursor() }
+        onActivity = { view.onInputActivity() }
     }
 
     /**
@@ -34,47 +40,50 @@ internal class TerminalIme(private val view: TerminalView) {
      * that reports keys instead of committing text.
      *
      * Returning `false` lets the IME handle it, which is what must happen for a
-     * plain printable key — the text path already carries those. The composition
-     * has already been flushed by [TerminalInputView] before this is called, so
-     * a key can never overtake text the user typed before it.
+     * plain printable key — the text path already carries those, and encoding
+     * them twice would type every letter twice.
      */
     private fun handleHardwareKey(keyCode: Int, event: KeyEvent): Boolean {
         // Ctrl+Shift+D toggles the host's frame overlay, and is taken before
         // anything is sent to the shell: 0x04 is EOF, and a terminal that exits
-        // because the user asked for a number is a terminal nobody debugs
-        // twice.
-        if (keyCode == KeyEvent.KEYCODE_D &&
-            event.isCtrlPressed && event.isShiftPressed
-        ) {
+        // because the user asked for a number is a terminal nobody debugs twice.
+        if (keyCode == KeyEvent.KEYCODE_D && event.isCtrlPressed && event.isShiftPressed) {
             view.toggleDebugOverlay()
             return true
         }
 
+        // A named key: the encoder owns the sequence, including the DECCKM form
+        // of the cursor keys — vim asks for `ESC O A` and would print `A` for
+        // `ESC [ A`.
         val named = AndroidKeys.named(keyCode)
         if (named != null) {
-            val mods = AndroidKeys.mods(event, view.stickyCtrl)
+            val mods = AndroidKeys.mods(event, view.stickyCtrl, view.stickyAlt)
             Encoder.sequence(named, mods, view.appCursor())?.let(view.session::write)
-            view.stickyCtrl = false
+            view.clearSticky()
             return true
         }
 
-        // A printable key while Ctrl (or Alt) is held: Ctrl+C has to become 0x03
-        // even though the character would normally travel as text.
-        val armed = view.stickyCtrl || event.isAltPressed
-        val codepoint = event.unicodeChar
-        if (armed && codepoint != 0) {
-            val character = String(Character.toChars(codepoint))
-            view.session.write(Encoder.text(character, AndroidKeys.mods(event, view.stickyCtrl)))
-            view.stickyCtrl = false
-            return true
+        // A printable key with Ctrl or Alt held. The character would normally
+        // travel as text, but Ctrl+C has to become 0x03 — and the IME will not
+        // do that for a hardware keyboard.
+        val armed = view.stickyCtrl || view.stickyAlt || event.isCtrlPressed || event.isAltPressed
+        if (armed) {
+            val codePoint = event.unicodeChar
+            if (codePoint != 0) {
+                val character = String(Character.toChars(codePoint))
+                val mods = AndroidKeys.mods(event, view.stickyCtrl, view.stickyAlt)
+                view.session.write(Encoder.text(character, mods))
+                view.clearSticky()
+                return true
+            }
         }
 
-        // A hardware keyboard's printable key: the IME path does not deliver
-        // text for it, so it has to be encoded here. Termux sends it the same
-        // way (`inputCodePoint` from the key handler). Without this a physical
-        // keyboard typed nothing at all.
-        if (codepoint != 0 && !event.isCtrlPressed && !event.isAltPressed) {
-            val character = String(Character.toChars(codepoint))
+        // A plain printable key from a hardware keyboard: the IME does not
+        // deliver text for one, so it has to be encoded here. Without this a
+        // physical keyboard typed nothing at all.
+        val codePoint = event.unicodeChar
+        if (codePoint != 0) {
+            val character = String(Character.toChars(codePoint))
             view.session.write(Encoder.text(character))
             return true
         }

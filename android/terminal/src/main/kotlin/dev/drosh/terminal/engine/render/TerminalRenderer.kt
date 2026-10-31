@@ -7,32 +7,43 @@ import android.util.Log
 import dev.drosh.terminal.engine.bench.FrameStats
 import dev.drosh.terminal.engine.core.EngineSession
 import dev.drosh.terminal.engine.core.NativeCore
+import dev.drosh.terminal.engine.core.Palette
 import dev.drosh.terminal.engine.input.Selection
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
-import dev.drosh.terminal.engine.core.Palette
 
 /**
- * The renderer, reshaped after reading alacritty's GLES2 path and Ghostty's cell
- * shader (PLAN.md decision history, 2026-10-16 — the sources are named there):
+ * The renderer.
  *
- * - **one instance per cell**, and the quad is built in the vertex shader from
- *   `gl_VertexID`, so no vertex carries a position — the record *is* the cell,
- *   which is what took Ghostty's per-cell cost down to ~20 bytes;
- * - **two passes over two streams**: a dense background colour per cell (the
- *   shader derives the cell from `gl_InstanceID`, so backgrounds store no
- *   position either) and a compact list of foreground records;
- * - both buffers are streamed per frame (`GL_STREAM_DRAW`, orphaning the old
- *   storage), which is three buffer updates and two draw calls for a whole
- *   screen — against up to five quads × six vertices × eight floats per cell
- *   before, which is where the device captures found the frame time;
- * - the glyph atlas is a single channel; the fragment shader tints it.
+ * ## One frame, in alacritty's order
  *
- * GL ES 3.0 as decided in D3 (instancing and `glVertexAttribDivisor` are why);
- * the test device reports 3.2. A driver that refuses a draw with no per-vertex
- * attribute is covered by a dummy four-vertex buffer bound at a free location.
+ * `display/mod.rs`: clear the surface, build every cell, draw. Nothing here is
+ * conditional — no damage check, no scissor, no "nothing changed" shortcut.
+ * Each of those was tried and each was wrong in its own way: a scissor left the
+ * undamaged rows on a ground that was never repainted; the idle check cleared
+ * the surface and then declined to draw on it. A terminal is a few thousand
+ * cells and a phone's GPU fills them in well under a millisecond.
+ *
+ * ## One size, in alacritty's shape
+ *
+ * [size] is the only description of how big anything is. The surface, the cell
+ * and the grid are derived from it, so they cannot drift apart — see
+ * [SizeInfo]. Six independent fields used to hold those facts, written from
+ * four places, and every screen bug of the past weeks was one of them being one
+ * update behind.
+ *
+ * ## The pinch scales the cells, not the projection
+ *
+ * A pinch changes [SizeInfo.pinchScale], which multiplies the cell step and the
+ * glyph size — the same thing the vendored terminal's `canvas.scale` did. The
+ * projection stays a plain pixel-to-clip map, so the scale is applied exactly
+ * once. Scaling the projection instead multiplied with a step that already
+ * carried the surface width, and that is what made the zoom jump.
+ *
+ * Nothing is re-measured, re-rasterised or reflowed during a gesture. The size
+ * is applied once, when the fingers lift.
  */
 internal class TerminalRenderer(
     private val session: EngineSession,
@@ -80,11 +91,15 @@ internal class TerminalRenderer(
     var glVersion: String = "unknown"
         private set
 
-    private var records = CellRecords(MIN_COLUMNS, MIN_ROWS)
-    private var columns = 0
-    private var rows = 0
-    private var width = 0
-    private var height = 0
+    private var records = CellRecords(SizeInfo.MIN_COLUMNS, SizeInfo.MIN_ROWS)
+
+    /**
+     * Everything about the size, in one value.
+     *
+     * GL-thread state: the view hands changes over with `queueEvent`, and the
+     * frame reads this while it draws.
+     */
+    private var size = SizeInfo.empty(initialFontSize.metrics.width, initialFontSize.metrics.height)
 
     /**
      * The cell geometry the frame is drawn with.
@@ -111,124 +126,29 @@ internal class TerminalRenderer(
      * Whether the font's ligatures are used.
      *
      * The application's setting: the font decides what a ligature is, and
-     * this only says whether to ask it.
+     * this only asks it.
      */
     var ligatures: Boolean = false
 
-
     /**
-     * The sub-line part of the scroll for the frame being drawn, in pixels.
+     * The grid the session currently has, as the renderer last applied it.
      *
-     * Read from the session at the top of `onDrawFrame`, in the same lock hold
-     * as the cells it describes — which is the whole reason this is safe. When
-     * the two were read separately a frame could draw one position's cells with
-     * the next position's offset, and that one-frame shift was the shake a drag
-     * showed at every row boundary.
+     * Kept apart from [size] because they are allowed to differ for the length
+     * of an animation: the picture is drawn at [size] while the session is
+     * still at [appliedColumns]/[appliedRows]. The reflow happens once, when
+     * the surface stops.
      */
-    private var scrollOffsetPx = 0f
-
-    /**
-     * The cell *step* the grid is drawn with, in pixels.
-     *
-     * [metrics] is the cell the font measured — the size a glyph is rasterised
-     * at — and this is how far apart the cells are placed. The two differ by
-     * less than a pixel: a surface is not a whole number of cells wide, and
-     * `floor(width / cellWidth)` columns leave the remainder as a dead strip on
-     * the right (and the same at the bottom). Spreading that remainder across
-     * the columns instead makes the grid fill the surface exactly, which is
-     * what every terminal does and why none of them has a gap at the edge.
-     *
-     * The stretch is always < 1 cell / columns, so a glyph is never visibly
-     * distorted; what it removes is a strip of background that belonged to no
-     * cell.
-     */
-    private var cellStepX = 0f
-    private var cellStepY = 0f
-
-    /**
-     * A live pinch: the scale the glyphs are drawn at, over a grid that does
-     * not change.
-     *
-     * This is the vendored terminal's `canvas.scale` and Termux's model in
-     * fact, not in spirit: while two fingers move, the terminal is *drawn*
-     * bigger or smaller and nothing else happens. No measurement, no
-     * rasterisation, no `Term::resize`, no reflow — one uniform and one draw
-     * call per frame, which is what makes a pinch continuous.
-     *
-     * The alternative — resizing the font every frame — was tried and is what
-     * made the zoom step. A pinch reports a size every frame, and every size
-     * change is a reflow of every row in the engine: at sixty frames that is
-     * sixty reflows of a screen whose text is being rewrapped while the user
-     * watches. Even with the size quantised to a tenth of a sp the grid jumps
-     * from one shape to the next, because a shape is a whole number of cells.
-     *
-     * The real size is applied once, when the fingers lift — see
-     * [commitZoom]. One reflow, at a moment when nobody is looking at a moving
-     * picture.
-     */
-    private var pinchScale = 1f
-
-    /** Where the pinch is anchored, in surface pixels. */
-    private var pinchFocusX = 0f
-    private var pinchFocusY = 0f
-
-
-    /**
-     * Draw the picture at a live pinch's scale, about the fingers.
-     *
-     * Called on every frame of a pinch. Nothing else changes: the grid, the
-     * glyph masks and the atlas all stay exactly as they are.
-     */
-    fun setPinch(scale: Float, focusX: Float, focusY: Float) {
-        pinchScale = if (scale.isFinite() && scale > 0f) scale else 1f
-        pinchFocusX = focusX
-        pinchFocusY = focusY
-    }
-
-    /**
-     * End a pinch: apply the size the fingers reached, once.
-     *
-     * This is the only frame of a gesture that measures, rasterises and
-     * reflows, and it happens after the fingers have stopped, so nothing is
-     * waiting on it.
-     */
-    fun commitZoom(size: FontSize) {
-        pinchScale = 1f
-        setFontSize(size)
-    }
-
-    /**
-     * The projection for one pass: clip-space origin and scale, with the pinch
-     * applied about its focus and the sub-line scroll folded in.
-     *
-     * The anchor is converted here rather than in the shader so the two passes
-     * cannot disagree about it.
-     */
-    private fun projection(out: FloatArray) {
-        val scale = pinchScale
-        // A point p maps to focus + (p - focus) * scale, in pixels. In clip
-        // space that is `clip * s + anchor * (1 - s)`.
-        val anchorX = -1f + 2f * pinchFocusX / width.coerceAtLeast(1)
-        val anchorY = 1f - 2f * pinchFocusY / height.coerceAtLeast(1)
-        out[0] = -scale + anchorX * (1f - scale)
-        out[1] = (1f - scrollOffsetPx * 2f / height.coerceAtLeast(1)) * scale +
-            anchorY * (1f - scale)
-        out[2] = 2f * scale / width.coerceAtLeast(1)
-        out[3] = -2f * scale / height.coerceAtLeast(1)
-    }
-
-    /** Scratch for [projection]; a frame builds it twice, and neither allocates. */
-    private val projectionScratch = FloatArray(4)
+    private var appliedColumns = 0
+    private var appliedRows = 0
 
     /**
      * The grid a moving surface is heading for, and when it last moved.
      *
-     * A sidebar sliding in, a keyboard rising, a split being dragged: the
-     * surface changes size on every animation frame, and each change is a
-     * `Term::resize` — which re-wraps every line of the grid. Eighteen reflows
-     * over three hundred milliseconds is text that rewraps and un-rewraps while
-     * the user watches, and that is the jitter. The grid is held at its current
-     * shape until the surface has stopped moving, then applied once.
+     * A sidebar sliding in, a keyboard rising: the surface changes size on
+     * every animation frame, and each change would be a `Term::resize` — every
+     * row re-wrapped, eighteen times in three hundred milliseconds, while the
+     * user watches. That is the flicker. The grid is held at its current shape
+     * until the surface has stopped, then applied once.
      */
     private var pendingGrid: Pair<Int, Int>? = null
     private var lastResizeNanos = 0L
@@ -240,10 +160,6 @@ internal class TerminalRenderer(
     @Volatile
     var report: FrameReport? = null
         private set
-
-    /** What the background pass was handed, for the overlay. */
-    @Volatile
-    private var backgroundProbe: String = ""
 
     private var frameCount = 0
 
@@ -257,15 +173,20 @@ internal class TerminalRenderer(
 
     private var backgroundProjection = 0
     private var backgroundCellSize = 0
+    private var backgroundScale = 0
     private var foregroundProjection = 0
     private var foregroundCellSize = 0
+    private var foregroundScale = 0
     private var foregroundAtlasSize = 0
     private var foregroundAtlas = 0
 
+    /** Scratch for the projection; a frame builds it twice, and neither allocates. */
+    private val projectionScratch = FloatArray(4)
+
+    // --- lifecycle ---------------------------------------------------------
+
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         glVersion = GLES20.glGetString(GLES20.GL_VERSION) ?: "unknown"
-        // A fresh context has no glyphs in it: the atlas and every buffer are
-        // recreated below, so the first frame after this draws in full.
         Log.i(TAG, "GL version: $glVersion")
 
         backgroundProgram = buildProgram(BACKGROUND_VERTEX, BACKGROUND_FRAGMENT)
@@ -276,8 +197,10 @@ internal class TerminalRenderer(
 
         backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
         backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
+        backgroundScale = GLES20.glGetUniformLocation(backgroundProgram, "uScale")
         foregroundProjection = GLES20.glGetUniformLocation(foregroundProgram, "uProjection")
         foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
+        foregroundScale = GLES20.glGetUniformLocation(foregroundProgram, "uScale")
         foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
         foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
 
@@ -286,8 +209,8 @@ internal class TerminalRenderer(
         // the atlas's own caches still describe the old one — including its
         // `dirty` flag, which says "nothing changed since the last upload".
         // Without this reset every glyph drew as an empty mask: the frame was
-        // a grid of backgrounds with no text on it, which is exactly what the
-        // screen showed after every pause.
+        // a grid of backgrounds with no text on it, which is what the screen
+        // showed after every pause.
         atlas.reset()
         buildTexture()
 
@@ -304,166 +227,140 @@ internal class TerminalRenderer(
     }
 
     override fun onSurfaceChanged(gl: GL10?, surfaceWidth: Int, surfaceHeight: Int) {
-        width = surfaceWidth
-        height = surfaceHeight
-        GLES20.glViewport(0, 0, width, height)
+        GLES20.glViewport(0, 0, surfaceWidth, surfaceHeight)
+        size = size.withSurface(surfaceWidth, surfaceHeight)
 
-        // The cell step follows the surface immediately; the *grid* does not.
+        // The surface is new, so nothing is on it: the next frame draws even if
+        // the engine says nothing changed.
         //
-        // A keyboard rising is sixty surface changes in three hundred
-        // milliseconds, and every one of them would be a `Term::resize` — every
-        // row re-wrapped, eighteen times, while the user watches. That is the
-        // flicker. So the step is recomputed now (the picture fills the new
-        // bounds at once, no black strip) and the reflow waits for the surface
-        // to stop, which `settleGrid` applies.
-        //
-        // The surface and the grid therefore disagree for the length of the
-        // animation, and that is deliberate: `onDrawFrame` draws at the
-        // session's shape and lets the step stretch it, which is exactly what
-        // a terminal does when it is resized and the program has not redrawn
-        // yet.
-        updateGrid(holdWhileMoving = true)
+        // The grid is *not* reflowed here. A keyboard rising is sixty surface
+        // changes in three hundred milliseconds and each would be a
+        // `Term::resize`; the grid waits for the surface to stop and
+        // `settleGrid` applies it once. Until then the picture is drawn at
+        // [size] — the new bounds, stretched — which is what a terminal does
+        // while the program has not redrawn yet.
+        planGrid()
     }
 
+    // --- size --------------------------------------------------------------
+
     /**
-     * Draw the terminal at another size.
+     * Draw the terminal at another cell size.
      *
-     * The cell is re-measured by the caller — the font stack is the only
-     * thing that knows how wide a cell is — and the grid is laid out again:
-     * a bigger cell means fewer columns and fewer rows.
-     *
-     * Called on the GL thread, because the frame reads this state; the view
-     * hands the request over with `queueEvent`.
+     * The cell is re-measured by the caller — the font stack is the only thing
+     * that knows how wide a cell is. Called on the GL thread; the view hands
+     * the request over with `queueEvent`.
      */
-    fun setFontSize(size: FontSize) {
-        if (size.px <= 0f || size.metrics.width <= 0f || size.metrics.height <= 0f) {
+    fun setFontSize(next: FontSize) {
+        if (next.px <= 0f || next.metrics.width <= 0f || next.metrics.height <= 0f) {
             return
         }
-        if (size.px == fontSize.px && size.metrics == fontSize.metrics) {
-            // The same size and the same cell again: the grid is already laid
-            // out for it. The metrics are compared too, because a font can
-            // change without the pixel size changing.
+        if (next.px == fontSize.px && next.metrics == fontSize.metrics) {
             return
         }
 
-        fontSize = size
-        // The atlas and the per-cell cache key themselves by the size a mask
-        // was *rasterised* at — the pixel size rounded — so a pinch that moves
-        // a tenth of a pixel asks for masks that are already there. Nothing is
-        // thrown away here on purpose: clearing the cache on every frame of a
-        // pinch is what made the text shake.
-        atlas.beginSize(size.px)
-        // Lay the grid out **now**, and report it, before the next frame.
-        //
-        // `onDrawFrame` builds the cell records for the session's grid, and
-        // that build reads a buffer sized for the columns and rows of the
-        // frame. A renderer whose grid was laid out for one size while the
-        // session still held another was reading past the end of its own cell
-        // buffer — the index out of bounds a fast pinch produced. The two are
-        // kept in step here, at the moment the size changes, rather than a
-        // frame later.
-        //
-        // Not held: a pinch is the size changing, so the reflow is the thing
-        // the user is looking at.
-        updateGrid(holdWhileMoving = false)
+        fontSize = next
+        // The masks of the old size are wrong, and the atlas has to be asked for
+        // the new one. Nothing is thrown away: the atlas and the per-cell cache
+        // key themselves by the size a mask was *rasterised* at, so a gesture
+        // that moves a tenth of a pixel asks for masks that are already there.
+        atlas.beginSize(next.px)
+        size = size.withCell(next.metrics.width, next.metrics.height)
+
+        // A committed size is the thing the user asked to see, so the grid is
+        // laid out now rather than waiting for the surface to settle.
+        planGrid(holdWhileMoving = false)
+        applyPendingGrid()
     }
 
-    /**
-     * Drop the atlas's masks.
-     *
-     * The font changed: every mask in the atlas was drawn from the old face,
-     * and a mask of the wrong face is the wrong mask.
-     */
+    /** Drop the atlas's masks. The font changed, and a mask of the wrong face is the wrong mask. */
     fun invalidateAtlas() {
         atlas.reset()
     }
 
     /**
-     * Lay the grid out for the current surface and cell size, and report it.
+     * A live pinch: draw at [scale] about the fingers.
      *
-     * The report is how a layout change reaches the session: the renderer
-     * knows the surface size, the session is only ever touched from the UI
-     * thread.
+     * Nothing is measured, rasterised or reflowed. The step and the glyph size
+     * carry the scale, which is what makes a pinch continuous instead of
+     * stepping from one grid shape to the next.
+     */
+    fun setPinch(scale: Float, focusX: Float, focusY: Float) {
+        size = size.copy(
+            pinchScale = if (scale.isFinite() && scale > 0f) scale else 1f,
+            pinchFocusX = focusX,
+            pinchFocusY = focusY,
+        )
+    }
+
+    /**
+     * End a pinch: apply the size the fingers reached, once.
+     *
+     * The only frame of a gesture that measures, rasterises and reflows, and it
+     * happens after the fingers have stopped.
+     */
+    fun commitZoom(next: FontSize) {
+        size = size.copy(pinchScale = 1f, pinchFocusX = 0f, pinchFocusY = 0f)
+        setFontSize(next)
+    }
+
+    // --- grid --------------------------------------------------------------
+
+    /**
+     * Work out the grid the surface asks for, and apply or hold it.
      *
      * [holdWhileMoving] is false for a font change and true for a surface
-     * change, and the difference is the whole point. A pinch *is* the size
-     * changing, so its reflow must happen on the frame that asked for it — that
-     * is what makes the terminal grow. A sidebar sliding or a keyboard rising
-     * is the *surface* changing while the size the user chose stays the same,
-     * and reflowing on every frame of that animation rewraps the text eighteen
-     * times in three hundred milliseconds. That is the jitter.
+     * change, and the difference is the point: a pinch *is* the size changing,
+     * so its reflow must happen on the frame that asked for it. A sidebar
+     * sliding is the *surface* changing while the size the user chose stays the
+     * same, and reflowing on every frame of that rewraps the text eighteen
+     * times.
      */
-    private fun updateGrid(holdWhileMoving: Boolean = true) {
-        if (width <= 0 || height <= 0) {
-            // No surface yet: `onSurfaceChanged` lays the grid out when there
-            // is one.
+    private fun planGrid(holdWhileMoving: Boolean = true) {
+        if (size.width <= 0 || size.height <= 0) {
             return
         }
 
-        val nextColumns = (width / metrics.width).toInt().coerceAtLeast(MIN_COLUMNS)
-        val nextRows = (height / metrics.height).toInt().coerceAtLeast(MIN_ROWS)
-
-        // Report a grid the session does not already have, and nothing else.
-        //
-        // This used to fire on every call, including the ones where neither the
-        // size nor the cell had changed — and it is called from `setFontSize`,
-        // which the host calls on every recomposition through
-        // `applyAppearance`. The result was a resize posted to the UI thread and
-        // a redraw requested several times a second on an idle terminal, which
-        // is what made the picture blink.
-        if (nextColumns == columns && nextRows == rows) {
-            // Same shape: only the step changes, which is free.
-            cellStepX = width.toFloat() / columns
-            cellStepY = height.toFloat() / rows
+        val columns = size.columns
+        val rows = size.rows
+        if (columns == appliedColumns && rows == appliedRows) {
             pendingGrid = null
             return
         }
 
-        // The shape changed. If it changed again a moment ago the surface is
-        // still moving — a sidebar sliding, a keyboard rising — and reflowing
-        // the grid on every frame of that animation is the jitter: each frame
-        // rewraps the text and the next one rewraps it back.
-        //
-        // So the target is recorded and the grid is left alone until the
-        // surface has been still for a frame or two. The step still follows the
-        // surface, so the picture fills the new bounds immediately; only the
-        // reflow waits.
         val now = System.nanoTime()
         val moving = holdWhileMoving &&
             lastResizeNanos != 0L && now - lastResizeNanos < RESIZE_SETTLE_NANOS
         lastResizeNanos = now
 
         if (moving) {
-            // The step is computed from the grid that is *drawn*, not from the
-            // grid that is coming. Mixing them — new step over the old cell
-            // count — is a picture that stops short of the surface on one axis
-            // and overruns the other, which is the strip of nothing at the
-            // edge that made a keyboard opening look broken.
-            cellStepX = width.toFloat() / columns.coerceAtLeast(MIN_COLUMNS)
-            cellStepY = height.toFloat() / rows.coerceAtLeast(MIN_ROWS)
-            pendingGrid = nextColumns to nextRows
-            // Nothing else will ask for a frame once the animation stops, so
-            // the host is asked to schedule the settle.
+            pendingGrid = columns to rows
+            // Nothing else asks for a frame once the animation stops, so the
+            // host is asked to schedule the settle.
             onGridHeld?.invoke()
             return
         }
 
-        cellStepX = width.toFloat() / nextColumns
-        cellStepY = height.toFloat() / nextRows
-
-        pendingGrid = null
-        applyGrid(nextColumns, nextRows)
+        pendingGrid = columns to rows
+        applyPendingGrid()
     }
 
     /**
-     * Lay the grid out and tell the session.
+     * Apply the grid the surface is asking for.
      *
-     * Separate from [updateGrid] because a moving surface records its target
-     * and applies it later, once the animation has stopped.
+     * Called from the settle, and directly when a size is committed. The
+     * session is told here and nowhere else, so the grid and the session's
+     * shape move together.
      */
-    private fun applyGrid(nextColumns: Int, nextRows: Int) {
-        columns = nextColumns
-        rows = nextRows
+    private fun applyPendingGrid() {
+        val (columns, rows) = pendingGrid ?: return
+        pendingGrid = null
+        if (columns == appliedColumns && rows == appliedRows) {
+            return
+        }
+
+        appliedColumns = columns
+        appliedRows = rows
         records.resize(columns, rows)
         onGridChanged?.invoke(columns, rows, fontSize)
     }
@@ -475,88 +372,59 @@ internal class TerminalRenderer(
      * going to stay at.
      */
     fun settleGrid() {
-        val (nextColumns, nextRows) = pendingGrid ?: return
-        // Still moving: the animation has not finished, and applying the grid
-        // now is the reflow that would be undone by the next frame.
+        if (pendingGrid == null) {
+            return
+        }
         if (lastResizeNanos != 0L &&
             System.nanoTime() - lastResizeNanos < RESIZE_SETTLE_NANOS
         ) {
             return
         }
-        pendingGrid = null
-        if (nextColumns == columns && nextRows == rows) {
-            // The shape came back to what is already drawn: only the step has
-            // to catch up with the surface, and the frame that follows does it.
-            cellStepX = width.toFloat() / columns.coerceAtLeast(MIN_COLUMNS)
-            cellStepY = height.toFloat() / rows.coerceAtLeast(MIN_ROWS)
-            return
-        }
-        applyGrid(nextColumns, nextRows)
+        applyPendingGrid()
     }
+
+    // --- frame -------------------------------------------------------------
 
     override fun onDrawFrame(gl: GL10?) {
         val startedNanos = System.nanoTime()
 
-        // A surface that has stopped moving gets its grid now. Every frame
-        // checks, because the frame loop runs whether or not anything changed;
-        // the check is a field read when nothing is pending.
         settleGrid()
 
         val cells = session.cells
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
             return
         }
-        if (session.columns != columns || session.rows != rows) {
-            // The grid the renderer laid out and the session's are not the same
-            // one. That is a frame the build cannot read — the cell buffer is
-            // sized for the session — so the session is brought to the grid
-            // here rather than waited for.
-            //
-            // Waiting was the earlier behaviour, and it is what a pinch showed:
-            // the size reported a new grid, the session kept the old one, every
-            // frame was refused, and the picture on screen stayed at whatever
-            // was there before the fingers landed.
-            session.resize(columns, rows, metrics.width.toInt(), metrics.height.toInt())
-            if (session.columns != columns || session.rows != rows) {
-                // The engine refused the size, so the cells this frame would
-                // read are not the ones it is sized for. The surface is still
-                // cleared, because a stale picture over a resized surface is a
-                // smear rather than a terminal — and a request is made so the
-                // frame is retried rather than waiting for output that may
-                // never come.
-                val fallback = ambientTint ?: Palette.background
-                GLES20.glClearColor(
-                    channel(fallback, 16),
-                    channel(fallback, 8),
-                    channel(fallback, 0),
-                    1f,
-                )
-                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+
+        // The session's shape and the grid being drawn must agree: the cell
+        // buffer is sized for the session. They can differ for the length of an
+        // animation, and then the session is brought to the grid here rather
+        // than waited for.
+        if (session.columns != appliedColumns || session.rows != appliedRows) {
+            session.resize(
+                appliedColumns,
+                appliedRows,
+                metrics.width.toInt(),
+                metrics.height.toInt(),
+            )
+            if (session.columns != appliedColumns || session.rows != appliedRows) {
+                // The engine refused the size. Clear rather than leave a stale
+                // picture over a resized surface, and ask for another frame
+                // instead of waiting for output that may never come.
+                clearToBackground()
                 onGridHeld?.invoke()
                 return
             }
         }
 
-        // One frame, in alacritty's order (`display/mod.rs`): clear the whole
-        // surface, build every cell, draw. Nothing here is conditional — no
-        // damage check, no scissor, no "nothing changed" shortcut.
-        //
-        // Every one of those was tried and each was wrong in its own way: a
-        // scissor left the undamaged rows on a ground that was never repainted;
-        // the idle check cleared the surface and then declined to draw on it;
-        // the force flag made every recomposition a full redraw. A terminal is
-        // a few thousand cells, and a phone's GPU fills them in well under a
-        // millisecond. Correctness first; the numbers come from the overlay and
-        // the work is only optimised once they say it needs to be.
         val damage = session.pump()
         if (damage < 0) {
             return
         }
         val pumpEndNanos = System.nanoTime()
 
-        // The sub-line part of the scroll, from the same snapshot as the cells
-        // above: one lock hold, one position.
-        scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat()
+        // The sub-line part of the scroll, from the same snapshot as the cells:
+        // one lock hold, one position.
+        size = size.copy(scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat())
 
         // `pump` refreshed the engine's colour table; install it only when the
         // engine says it changed.
@@ -579,15 +447,12 @@ internal class TerminalRenderer(
             // The cell buffer does not hold this grid, so nothing was built.
             // Uploading would read past the end of an empty buffer — the
             // `remaining() < size` crash a program hit when it switched to the
-            // alternate screen. The session is resized at the top of the next
-            // frame and the picture is drawn then.
+            // alternate screen.
             return
         }
         val buildEndNanos = System.nanoTime()
 
-        val background = ambientTint ?: Palette.background
-        GLES20.glClearColor(channel(background, 16), channel(background, 8), channel(background, 0), 1f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        clearToBackground()
 
         // The atlas is uploaded after the build, not before it: a glyph the
         // build had to rasterise is in the atlas by now, and the texture has to
@@ -617,8 +482,8 @@ internal class TerminalRenderer(
             frameMillis = (drawnAt - startedNanos) / 1_000_000f,
             buildMillis = (buildEndNanos - pumpEndNanos) / 1_000_000f,
             drawMillis = (drawnAt - uploadEndNanos) / 1_000_000f,
-            columns = columns,
-            rows = rows,
+            columns = appliedColumns,
+            rows = appliedRows,
             glyphs = records.foregroundCount,
             coloredCells = records.coloredCells,
             atlasPercent = atlas.usedPercent(),
@@ -626,22 +491,35 @@ internal class TerminalRenderer(
             background = ambientTint ?: Palette.background,
             gl = glVersion,
             samples = records.colouredSamples.toList(),
-            backgroundProbe = backgroundProbe,
+            pinchScale = size.pinchScale,
+            cellStepX = size.stepX,
+            cellStepY = size.stepY,
+            surfaceWidth = size.width,
+            surfaceHeight = size.height,
         )
         onFrame(true)
     }
 
+    private fun clearToBackground() {
+        val background = ambientTint ?: Palette.background
+        GLES20.glClearColor(
+            channel(background, 16),
+            channel(background, 8),
+            channel(background, 0),
+            1f,
+        )
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+    }
+
     /**
-     * Both streams go up whole, with the old storage orphaned: a sub-range update
-     * cannot be orphaned, and at these sizes one upload is cheaper than the
-     * bookkeeping that would avoid it.
+     * Both streams go up whole, with the old storage orphaned: a sub-range
+     * update cannot be orphaned, and at these sizes one upload is cheaper than
+     * the bookkeeping that would avoid it.
      */
     private fun uploadStreams() {
         // A buffer with nothing in it is not uploaded at all: `glBufferData`
         // takes the size from the caller and the bytes from the buffer, and a
-        // cleared buffer has no bytes — the `remaining() < size` exception.
-        // The build already refuses a frame it could not fill, so this is the
-        // second lock on the same door.
+        // cleared buffer has no bytes.
         if (records.backgroundBytes.limit() <= 0 || records.foregroundBytes.limit() <= 0) {
             return
         }
@@ -649,7 +527,7 @@ internal class TerminalRenderer(
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundVbo)
         GLES20.glBufferData(
             GLES20.GL_ARRAY_BUFFER,
-            columns * rows * CellRecords.BACKGROUND_BYTES,
+            appliedColumns * appliedRows * CellRecords.BACKGROUND_BYTES,
             records.backgroundBytes,
             GLES20.GL_STREAM_DRAW,
         )
@@ -664,13 +542,13 @@ internal class TerminalRenderer(
     }
 
     private fun drawBackgrounds() {
-        val instances = columns * rows
+        val instances = appliedColumns * appliedRows
         if (instances == 0) {
             return
         }
 
         GLES20.glUseProgram(backgroundProgram)
-        projection(projectionScratch)
+        size.projection(projectionScratch)
         GLES20.glUniform4f(
             backgroundProjection,
             projectionScratch[0],
@@ -678,21 +556,19 @@ internal class TerminalRenderer(
             projectionScratch[2],
             projectionScratch[3],
         )
-        GLES20.glUniform2f(backgroundCellSize, cellStepX, cellStepY)
+        // The step *without* the pinch, and the pinch as its own uniform: the
+        // shader multiplies them, so the scale is applied once and to the cell
+        // origin and the cell size alike.
+        GLES20.glUniform2f(
+            backgroundCellSize,
+            size.width.toFloat() / appliedColumns.coerceAtLeast(1),
+            size.height.toFloat() / appliedRows.coerceAtLeast(1),
+        )
+        GLES20.glUniform1f(backgroundScale, size.pinchScale)
+
         GLES30.glBindVertexArray(backgroundVao)
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES, instances)
         GLES30.glBindVertexArray(0)
-
-        // What the pass was actually given: the instance count, the first
-        // record as the GPU will read it, and the error GL reported. A block
-        // that is in the records but not on the screen is one of these three.
-        if (frameCount < 200) {
-            val first = records.backgroundBytes.getInt(0)
-            val error = GLES20.glGetError()
-            backgroundProbe = "bgdraw " + instances +
-                " first=#" + Integer.toHexString(first) +
-                " err=" + error
-        }
     }
 
     private fun drawForegrounds() {
@@ -702,7 +578,7 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(foregroundProgram)
-        projection(projectionScratch)
+        size.projection(projectionScratch)
         GLES20.glUniform4f(
             foregroundProjection,
             projectionScratch[0],
@@ -710,15 +586,22 @@ internal class TerminalRenderer(
             projectionScratch[2],
             projectionScratch[3],
         )
-        GLES20.glUniform2f(foregroundCellSize, cellStepX, cellStepY)
+        GLES20.glUniform2f(
+            foregroundCellSize,
+            size.width.toFloat() / appliedColumns.coerceAtLeast(1),
+            size.height.toFloat() / appliedRows.coerceAtLeast(1),
+        )
+        GLES20.glUniform1f(foregroundScale, size.pinchScale)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(foregroundProgram, "uAtlas"), 0)
+        GLES20.glUniform1i(foregroundAtlas, 0)
         GLES30.glBindVertexArray(foregroundVao)
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES, instances)
         GLES30.glBindVertexArray(0)
     }
+
+    // --- GL objects --------------------------------------------------------
 
     /** One `uint` colour per cell, fetched once per instance. */
     private fun buildBackgroundObjects() {
@@ -796,7 +679,8 @@ internal class TerminalRenderer(
      * A four-vertex buffer at a location the shaders ignore.
      *
      * Some drivers refuse a draw where every enabled attribute is per-instance;
-     * one dummy attribute with divisor 0 costs 16 bytes and removes the question.
+     * one dummy attribute with divisor 0 costs 16 bytes and removes the
+     * question.
      */
     private fun bindDummyAttribute(location: Int) {
         val buffers = IntArray(1)
@@ -828,25 +712,19 @@ internal class TerminalRenderer(
     private fun buildTexture() {
         val textures = IntArray(1)
         GLES20.glGenTextures(1, textures, 0)
-        // The field is filled before the first upload: the upload binds the
-        // texture itself, and a texture that has not been named yet is not
-        // the one the atlas belongs to.
         texture = textures[0]
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-        // One byte per row is not a multiple of four: without this, rows would be
-        // read with padding and every glyph would shear.
+        // One byte per row is not a multiple of four: without this, rows would
+        // be read with padding and every glyph would shear.
         GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
         uploadAtlas()
     }
 
     private fun uploadAtlas() {
-        // The texture is bound here rather than left to the caller: the
-        // upload happens between two draw calls, and the binding is what
-        // tells `glTexImage2D` which texture it fills.
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         GLES30.glTexImage2D(
             GLES20.GL_TEXTURE_2D,
@@ -907,8 +785,6 @@ internal class TerminalRenderer(
 
     private companion object {
         const val TAG = "DroshLab"
-        const val MIN_COLUMNS = 2
-        const val MIN_ROWS = 1
         const val FLOAT_BYTES = 4
         const val QUAD_VERTICES = 4
 
@@ -934,21 +810,30 @@ internal class TerminalRenderer(
         const val ATTRIB_FLAGS = 5
         const val ATTRIB_DUMMY_FOREGROUND = 6
 
+        /**
+         * The cell quad.
+         *
+         * `uCellSize` is the step the cells are placed at, in pixels, and
+         * `uScale` is the pinch. They are separate uniforms so the scale is
+         * applied once: the cell origin, the cell size and the glyph inside it
+         * all multiply by the same number.
+         */
         val BACKGROUND_VERTEX = """
             #version 300 es
-            // The cell's place in the grid, and its colour.
             layout(location = 0) in uvec2 aGridPos;
             layout(location = 1) in vec4 aColor;
             uniform vec4 uProjection;
             uniform vec2 uCellSize;
+            uniform float uScale;
             out vec4 vColor;
             void main() {
                 vec2 corner = vec2(
                     float(gl_VertexID == 1 || gl_VertexID == 3),
                     float(gl_VertexID == 2 || gl_VertexID == 3)
                 );
-                vec2 cell = vec2(aGridPos) * uCellSize;
-                gl_Position = vec4(uProjection.xy + uProjection.zw * (cell + corner * uCellSize), 0.0, 1.0);
+                vec2 step = uCellSize * uScale;
+                vec2 cell = vec2(aGridPos) * step;
+                gl_Position = vec4(uProjection.xy + uProjection.zw * (cell + corner * step), 0.0, 1.0);
                 vColor = aColor;
             }
         """.trimIndent()
@@ -963,6 +848,14 @@ internal class TerminalRenderer(
             }
         """.trimIndent()
 
+        /**
+         * The glyph quad.
+         *
+         * The record's `aOffset` and `aGlyphSize` are in pixels *at the size the
+         * mask was rasterised* — they describe the glyph, not the cell. So they
+         * scale with `uScale` too, exactly as the cell step does; a pinch that
+         * grew the cells but not the letters would be a grid of empty boxes.
+         */
         val FOREGROUND_VERTEX = """
             #version 300 es
             layout(location = 0) in uvec2 aAtlasRect;
@@ -973,6 +866,7 @@ internal class TerminalRenderer(
             layout(location = 5) in uint aFlags;
             uniform vec4 uProjection;
             uniform vec2 uCellSize;
+            uniform float uScale;
             uniform vec2 uAtlasSize;
             out vec2 vTexCoord;
             out vec4 vColor;
@@ -981,20 +875,20 @@ internal class TerminalRenderer(
                     float(gl_VertexID == 1 || gl_VertexID == 3),
                     float(gl_VertexID == 2 || gl_VertexID == 3)
                 );
-                vec2 size = vec2(aGlyphSize);
-                // The record's offset is *inside* the cell; the cell origin comes
-                // from the grid position. Both together, once.
-                vec2 cell = vec2(aGridPos) * uCellSize;
+                vec2 step = uCellSize * uScale;
+                vec2 size = vec2(aGlyphSize) * uScale;
+                vec2 offset = vec2(aOffset) * uScale;
+                vec2 cell = vec2(aGridPos) * step;
                 gl_Position = vec4(
-                    uProjection.xy + uProjection.zw * (cell + vec2(aOffset) + corner * size),
+                    uProjection.xy + uProjection.zw * (cell + offset + corner * size),
                     0.0,
                     1.0
                 );
-                // A solid quad is a fill, not a glyph: its width/height are pixels,
-                // so walking the UV with them would sample across the atlas.
+                // The UV walks the *atlas* texels, which do not scale: a solid
+                // quad samples one texel, a glyph samples its own rectangle.
                 vTexCoord = (aFlags & 1u) != 0u
                     ? (vec2(aAtlasRect) + 0.5) / uAtlasSize
-                    : (vec2(aAtlasRect) + corner * size) / uAtlasSize;
+                    : (vec2(aAtlasRect) + corner * vec2(aGlyphSize)) / uAtlasSize;
                 vColor = aColor;
             }
         """.trimIndent()

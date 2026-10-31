@@ -40,12 +40,16 @@ internal object AndroidKeys {
     }
 
     /**
-     * The modifiers of a key event, with the extra-keys row's sticky Ctrl added
-     * in (a phone has no Ctrl key of its own).
+     * The modifiers of a key event, with the extra-keys row's sticky Ctrl and
+     * Alt added in (a phone has neither key of its own).
      */
-    fun mods(event: KeyEvent, stickyCtrl: Boolean): Encoder.Mods = Encoder.Mods(
+    fun mods(
+        event: KeyEvent,
+        stickyCtrl: Boolean,
+        stickyAlt: Boolean = false,
+    ): Encoder.Mods = Encoder.Mods(
         ctrl = stickyCtrl || event.isCtrlPressed,
-        alt = event.isAltPressed,
+        alt = stickyAlt || event.isAltPressed,
         shift = event.isShiftPressed,
     )
 }

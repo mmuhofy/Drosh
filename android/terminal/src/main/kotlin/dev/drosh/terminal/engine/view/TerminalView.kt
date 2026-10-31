@@ -130,6 +130,32 @@ class TerminalView(context: Context) : FrameLayout(context) {
     @Volatile
     internal var stickyCtrl: Boolean = false
 
+    /** The armed Alt of an external extra-keys row. */
+    @Volatile
+    internal var stickyAlt: Boolean = false
+
+    /**
+     * Both modifiers are one-shot: the next character consumes them.
+     *
+     * Called after anything was sent, so a Ctrl armed for one key does not
+     * silently turn the next word into control codes.
+     */
+    internal fun clearSticky() {
+        stickyCtrl = false
+        stickyAlt = false
+    }
+
+    /**
+     * Something was typed: show the cursor again.
+     *
+     * A blinking cursor that stays hidden while the user types is a terminal
+     * that looks frozen; Termux resets the blink on every keystroke for the
+     * same reason.
+     */
+    internal fun onInputActivity() {
+        renderer?.cursorVisible = true
+    }
+
     /** Frame timings; [frameStatsSummary] exposes them for a debug surface. */
     private val stats = FrameStats()
 
@@ -674,7 +700,11 @@ class TerminalView(context: Context) : FrameLayout(context) {
         metrics = measured.metrics
         fontPx = measured.px
 
-        surface?.queueEvent { renderer?.setFontSize(measured) }
+        // The pinch is over: the picture has been drawn scaled and the real
+        // size is applied now, once. `commitZoom` clears the scale, so the
+        // frame that follows is the terminal at its new size rather than the
+        // old one stretched.
+        surface?.queueEvent { renderer?.commitZoom(measured) }
     }
 
     /**
@@ -688,6 +718,10 @@ class TerminalView(context: Context) : FrameLayout(context) {
      *
      * The size the gesture will settle on is [commitZoom]'s job, once, when the
      * fingers lift; nothing about it is applied here.
+     *
+     * The scale is carried by the renderer's cell step, not by its projection:
+     * scaling the projection multiplies with a step that already contains the
+     * surface width, which is what made an earlier attempt jump.
      */
     internal fun pinchTo(scale: Float, focusX: Float, focusY: Float) {
         lastPinchFocusY = focusY
@@ -882,7 +916,10 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
         // The atlas holds the masks of the font that was there before; every
         // one of them is wrong now.
-        surface?.queueEvent { renderer?.setFontSize(FontSize(fontPx, metrics)) }
+        surface?.queueEvent {
+            renderer?.invalidateAtlas()
+            renderer?.commitZoom(FontSize(fontPx, metrics))
+        }
         Log.i(
             TAG,
             "font: the custom face, cell ${metrics.width}x${metrics.height}px at ${fontPx}px",

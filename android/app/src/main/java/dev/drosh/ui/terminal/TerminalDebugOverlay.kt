@@ -51,13 +51,20 @@ fun TerminalDebugOverlay(
         )
         Line("grid ${report.columns}x${report.rows}  damage ${report.damage}")
         Line("glyphs ${report.glyphs}  coloured ${report.coloredCells}")
+        // The pinch's own numbers: the scale the frame was drawn at, the step
+        // it was drawn with, and the surface it was drawn on. A zoom that
+        // reports `scale 1.0` on every frame is a zoom that never reached the
+        // renderer, which is a different bug from a zoom that draws at the
+        // wrong size.
+        Line(
+            "scale " + one(report.pinchScale) +
+                "  step " + one(report.cellStepX) + "x" + one(report.cellStepY) +
+                "  surface ${report.surfaceWidth}x${report.surfaceHeight}",
+        )
         Line(
             "atlas " + report.atlasPercent + "%  bg #" +
                 (report.background and 0xffffff).toString(16).padStart(6, '0'),
         )
-        if (report.backgroundProbe.isNotEmpty()) {
-            Line(report.backgroundProbe)
-        }
         if (report.samples.isNotEmpty()) {
             Line("bgs " + report.samples.joinToString("  "))
         }
