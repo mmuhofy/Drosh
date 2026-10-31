@@ -21,6 +21,7 @@ pub mod tint;
 pub mod transcript;
 pub mod url;
 
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
@@ -157,6 +158,20 @@ pub struct Session {
     /// so the session keeps one of its own.
     config: Mutex<Config>,
     worker: Mutex<Option<JoinHandle<()>>>,
+    /// Whole rows the viewport sits above the live edge, kept beside the
+    /// sub-line remainder so the two always describe one position.
+    ///
+    /// The engine's own `display_offset` is authoritative and is read back
+    /// after every move — this copy exists only so the pixel total can be
+    /// reconstructed without holding the term's lock on the input thread.
+    rows_above_edge: AtomicUsize,
+    /// The sub-line part of the position, in pixels, as `f32` bits.
+    ///
+    /// This is what makes a drag follow the finger between rows instead of
+    /// stepping one line at a time. It is *not* a second description of the
+    /// viewport: `rows_above_edge` and this are one number, split into a whole
+    /// part the engine understands and a remainder the renderer draws.
+    sub_line_px: AtomicU32,
 }
 
 impl Session {
@@ -244,6 +259,8 @@ impl Session {
             output,
             config: Mutex::new(term_config),
             worker: Mutex::new(Some(worker)),
+            rows_above_edge: AtomicUsize::new(0),
+            sub_line_px: AtomicU32::new(0),
         })
     }
 
@@ -285,6 +302,8 @@ impl Session {
             output: Arc::new(Mutex::new(OutputLog::new(DEFAULT_MAX_LINES))),
             config: Mutex::new(term_config),
             worker: Mutex::new(None),
+            rows_above_edge: AtomicUsize::new(0),
+            sub_line_px: AtomicU32::new(0),
         })
     }
 
@@ -346,6 +365,18 @@ impl Session {
         }
         lock(&self.damage).resize(snapshot::damage_out_len(size.rows()), 0);
 
+        // A resized grid is a new viewport, so the old sub-line remainder no
+        // longer describes it — but the *row* the user was reading is worth
+        // keeping, and `Term::resize` has already clamped it to what the new
+        // history holds. Adopting its answer is what stops a sidebar opening
+        // from throwing the reader back to the live edge.
+        let offset = {
+            let term = self.term.lock();
+            term.grid().display_offset()
+        };
+        self.rows_above_edge.store(offset, Ordering::Relaxed);
+        self.sub_line_px.store(0f32.to_bits(), Ordering::Relaxed);
+
         if let Some(sender) = lock(&self.sender).as_ref() {
             sender.send(Msg::Resize(window_size)).map_err(io_error)?;
         }
@@ -375,7 +406,113 @@ impl Session {
         // actually changed.
         let mut term = self.term.lock();
         term.scroll_display(Scroll::Delta(delta));
+        let after = term.grid().display_offset();
+        drop(term);
+
+        // A whole-row move has no remainder: the two cannot be added without
+        // saying which one the user meant, and a wheel notch or a PageUp is
+        // about rows.
+        self.rows_above_edge.store(after, Ordering::Relaxed);
+        self.sub_line_px.store(0f32.to_bits(), Ordering::Relaxed);
         Ok(())
+    }
+
+    /// Scroll by a finger distance, keeping the sub-line remainder.
+    ///
+    /// The viewport is one position, expressed as a pixel total above the live
+    /// edge. That total is split into whole rows for the engine and a
+    /// remainder the renderer shifts the grid by, so a drag follows the finger
+    /// between rows instead of stepping a line at a time.
+    ///
+    /// ## Why this is safe now
+    ///
+    /// Two things used to make this shake and bounce, and both were fixed
+    /// elsewhere rather than by removing the feature:
+    ///
+    /// - **The shake** was a tear: the cells and the state were read under two
+    ///   separate locks, so a frame could draw one position's cells with the
+    ///   next position's offset. `take_snapshot_with_state` now reads both in
+    ///   one critical section.
+    /// - **The bounce** was the count and the engine disagreeing: this side
+    ///   kept `rows` while `scroll_display` clamped to the history it actually
+    ///   had, so a finger at the end kept moving the remainder while the grid
+    ///   stayed put. The engine's answer is read back and adopted below.
+    ///
+    /// `delta_pixels` is positive when the content should move down — the user
+    /// dragging back into the history. `cell_height` is a row's height in the
+    /// same pixels.
+    ///
+    /// Returns whether anything moved.
+    pub fn scroll_by_pixels(&self, delta_pixels: f32, cell_height: u16) -> bool {
+        let cell = f32::from(cell_height);
+        if cell <= 0.0 || delta_pixels == 0.0 || !delta_pixels.is_finite() {
+            return false;
+        }
+
+        let total = f32::from_bits(self.sub_line_px.load(Ordering::Relaxed))
+            + self.rows_above_edge.load(Ordering::Relaxed) as f32 * cell
+            + delta_pixels;
+
+        let max_rows = self.history_rows();
+        let max_total = max_rows as f32 * cell;
+        let total = total.clamp(0.0, max_total);
+
+        // At either end the remainder is zero by definition: there is no row
+        // above the live edge to be part-way into, and no older row to slide
+        // toward. Keeping a fraction at a limit is what let a drag "move" past
+        // the end under a finger that had nothing left to reveal.
+        let at_end = total <= 0.0 || total >= max_total;
+        let rows =
+            if at_end { (total / cell).round() as usize } else { (total / cell).floor() as usize };
+        let remainder = if at_end { 0.0 } else { total - rows as f32 * cell };
+
+        let previous_rows = self.rows_above_edge.load(Ordering::Relaxed);
+        let previous_remainder = f32::from_bits(self.sub_line_px.load(Ordering::Relaxed));
+        if rows == previous_rows && (remainder - previous_remainder).abs() < 0.01 {
+            return false;
+        }
+
+        // The engine moves first, inside the same lock the snapshot reads the
+        // cells under, so the two can never describe different positions.
+        let mut term = self.term.lock();
+        if rows != previous_rows {
+            // Both counts run the same way — up into the history — so the
+            // delta is `rows - previous`.
+            term.scroll_display(Scroll::Delta(rows as i32 - previous_rows as i32));
+        }
+
+        // Adopt the engine's answer. It clamps to the history it really has,
+        // which can be less than this side counted: taking its number as the
+        // position is what stops a finger past the end from leaving the grid
+        // and the remainder out of step.
+        let actual = term.grid().display_offset();
+        drop(term);
+
+        self.rows_above_edge.store(actual, Ordering::Relaxed);
+        // A clamped move has no remainder to draw: the viewport is on a row,
+        // and a fraction there would be a fraction of a row that is not shown.
+        self.sub_line_px.store(
+            if actual == rows { remainder } else { 0.0 }.to_bits(),
+            Ordering::Relaxed,
+        );
+        true
+    }
+
+    /// How many rows of history the viewport can move through.
+    fn history_rows(&self) -> usize {
+        let term = self.term.lock();
+        let grid = term.grid();
+        grid.total_lines().saturating_sub(grid.screen_lines())
+    }
+
+    /// The sub-line part of the scroll, in pixels.
+    pub fn sub_line_pixels(&self) -> f32 {
+        f32::from_bits(self.sub_line_px.load(Ordering::Relaxed))
+    }
+
+    /// Whole rows the viewport sits above the live edge.
+    pub fn rows_above_edge(&self) -> usize {
+        self.rows_above_edge.load(Ordering::Relaxed)
     }
 
     /// Fill `buffer` with the damaged cells and return `damage[0]`:
@@ -394,10 +531,13 @@ impl Session {
         f(&lock(&self.damage))
     }
 
-    /// Snapshot the renderer state (size, cursor, modes).
+    /// Snapshot the renderer state (size, cursor, modes, sub-line offset).
     pub fn state(&self) -> [i32; snapshot::STATE_LEN] {
         let mut out = [0i32; snapshot::STATE_LEN];
-        snapshot::write_state(&self.term.lock(), &mut out);
+        let term = self.term.lock();
+        snapshot::write_state(&term, &mut out);
+        out[snapshot::state_index::SUB_LINE_PX] =
+            f32::from_bits(self.sub_line_px.load(Ordering::Relaxed)) as i32;
         out
     }
 
@@ -423,6 +563,10 @@ impl Session {
 
         snapshot::take_snapshot(&mut term, buffer, &mut damage, &mut scratch)?;
         snapshot::write_state(&term, state_out);
+        // Read while the term's lock is still held, so the offset and the cells
+        // it describes are the same position.
+        state_out[snapshot::state_index::SUB_LINE_PX] =
+            f32::from_bits(self.sub_line_px.load(Ordering::Relaxed)) as i32;
         Ok(damage[0])
     }
 

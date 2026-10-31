@@ -6,6 +6,7 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import dev.drosh.terminal.engine.bench.FrameStats
 import dev.drosh.terminal.engine.core.EngineSession
+import dev.drosh.terminal.engine.core.NativeCore
 import dev.drosh.terminal.engine.input.Selection
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -59,6 +60,15 @@ internal class TerminalRenderer(
      */
     var onGridChanged: ((columns: Int, rows: Int, fontSize: FontSize) -> Unit)? = null
 
+    /**
+     * A grid is being held back while the surface moves; ask for a settle.
+     *
+     * The surface is drawn on demand (`RENDERMODE_WHEN_DIRTY`), so when an
+     * animation ends there is no next frame to notice the surface stopped. The
+     * host schedules one instead — see `TerminalView`.
+     */
+    var onGridHeld: (() -> Unit)? = null
+
     /** Last GL failure, read and cleared by the activity. */
     @Volatile
     var lastGlError: String? = null
@@ -105,6 +115,48 @@ internal class TerminalRenderer(
      */
     var ligatures: Boolean = false
 
+
+    /**
+     * The sub-line part of the scroll for the frame being drawn, in pixels.
+     *
+     * Read from the session at the top of `onDrawFrame`, in the same lock hold
+     * as the cells it describes — which is the whole reason this is safe. When
+     * the two were read separately a frame could draw one position's cells with
+     * the next position's offset, and that one-frame shift was the shake a drag
+     * showed at every row boundary.
+     */
+    private var scrollOffsetPx = 0f
+
+    /**
+     * The cell *step* the grid is drawn with, in pixels.
+     *
+     * [metrics] is the cell the font measured — the size a glyph is rasterised
+     * at — and this is how far apart the cells are placed. The two differ by
+     * less than a pixel: a surface is not a whole number of cells wide, and
+     * `floor(width / cellWidth)` columns leave the remainder as a dead strip on
+     * the right (and the same at the bottom). Spreading that remainder across
+     * the columns instead makes the grid fill the surface exactly, which is
+     * what every terminal does and why none of them has a gap at the edge.
+     *
+     * The stretch is always < 1 cell / columns, so a glyph is never visibly
+     * distorted; what it removes is a strip of background that belonged to no
+     * cell.
+     */
+    private var cellStepX = 0f
+    private var cellStepY = 0f
+
+    /**
+     * The grid a moving surface is heading for, and when it last moved.
+     *
+     * A sidebar sliding in, a keyboard rising, a split being dragged: the
+     * surface changes size on every animation frame, and each change is a
+     * `Term::resize` — which re-wraps every line of the grid. Eighteen reflows
+     * over three hundred milliseconds is text that rewraps and un-rewraps while
+     * the user watches, and that is the jitter. The grid is held at its current
+     * shape until the surface has stopped moving, then applied once.
+     */
+    private var pendingGrid: Pair<Int, Int>? = null
+    private var lastResizeNanos = 0L
 
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
@@ -207,13 +259,11 @@ internal class TerminalRenderer(
         }
 
         fontSize = size
-        // The glyphs of the old size are now wrong, and the atlas has to be
-        // asked for masks of the new one. A pinch comes through here on every
-        // frame that changes the size — which is what makes the terminal itself
-        // grow and shrink rather than a scaled picture of it, and what the
-        // vendored terminal did too (its `updateTextSize` re-measured and
-        // `updateSize` reflowed).
-        forceCellRebuild()
+        // The atlas and the per-cell cache key themselves by the size a mask
+        // was *rasterised* at — the pixel size rounded — so a pinch that moves
+        // a tenth of a pixel asks for masks that are already there. Nothing is
+        // thrown away here on purpose: clearing the cache on every frame of a
+        // pinch is what made the text shake.
         atlas.beginSize(size.px)
         // Lay the grid out **now**, and report it, before the next frame.
         //
@@ -224,19 +274,10 @@ internal class TerminalRenderer(
         // buffer — the index out of bounds a fast pinch produced. The two are
         // kept in step here, at the moment the size changes, rather than a
         // frame later.
-        updateGrid()
-    }
-
-    /**
-     * Throw away the per-cell glyph cache.
-     *
-     * The cache keys a cell's glyph by codepoint and weight, not by size, so a
-     * new size leaves every entry holding a mask of the old one. The atlas
-     * already answers by size, but the cache in front of it would hand back the
-     * stale entry without asking.
-     */
-    private fun forceCellRebuild() {
-        records.invalidateCells()
+        //
+        // Not held: a pinch is the size changing, so the reflow is the thing
+        // the user is looking at.
+        updateGrid(holdWhileMoving = false)
     }
 
     /**
@@ -255,8 +296,16 @@ internal class TerminalRenderer(
      * The report is how a layout change reaches the session: the renderer
      * knows the surface size, the session is only ever touched from the UI
      * thread.
+     *
+     * [holdWhileMoving] is false for a font change and true for a surface
+     * change, and the difference is the whole point. A pinch *is* the size
+     * changing, so its reflow must happen on the frame that asked for it — that
+     * is what makes the terminal grow. A sidebar sliding or a keyboard rising
+     * is the *surface* changing while the size the user chose stays the same,
+     * and reflowing on every frame of that animation rewraps the text eighteen
+     * times in three hundred milliseconds. That is the jitter.
      */
-    private fun updateGrid() {
+    private fun updateGrid(holdWhileMoving: Boolean = true) {
         if (width <= 0 || height <= 0) {
             // No surface yet: `onSurfaceChanged` lays the grid out when there
             // is one.
@@ -274,17 +323,85 @@ internal class TerminalRenderer(
         // `applyAppearance`. The result was a resize posted to the UI thread and
         // a redraw requested several times a second on an idle terminal, which
         // is what made the picture blink.
-        val changed = nextColumns != columns || nextRows != rows
+        if (nextColumns == columns && nextRows == rows) {
+            // Same shape: only the step changes, which is free.
+            cellStepX = width.toFloat() / columns
+            cellStepY = height.toFloat() / rows
+            pendingGrid = null
+            return
+        }
+
+        // The shape changed. If it changed again a moment ago the surface is
+        // still moving — a sidebar sliding, a keyboard rising — and reflowing
+        // the grid on every frame of that animation is the jitter: each frame
+        // rewraps the text and the next one rewraps it back.
+        //
+        // So the target is recorded and the grid is left alone until the
+        // surface has been still for a frame or two. The step still follows the
+        // surface, so the picture fills the new bounds immediately; only the
+        // reflow waits.
+        val now = System.nanoTime()
+        val moving = holdWhileMoving &&
+            lastResizeNanos != 0L && now - lastResizeNanos < RESIZE_SETTLE_NANOS
+        lastResizeNanos = now
+
+        cellStepX = width.toFloat() / nextColumns
+        cellStepY = height.toFloat() / nextRows
+
+        if (moving) {
+            pendingGrid = nextColumns to nextRows
+            // Nothing else will ask for a frame once the animation stops, so
+            // the host is asked to schedule the settle.
+            onGridHeld?.invoke()
+            return
+        }
+
+        pendingGrid = null
+        applyGrid(nextColumns, nextRows)
+    }
+
+    /**
+     * Lay the grid out and tell the session.
+     *
+     * Separate from [updateGrid] because a moving surface records its target
+     * and applies it later, once the animation has stopped.
+     */
+    private fun applyGrid(nextColumns: Int, nextRows: Int) {
         columns = nextColumns
         rows = nextRows
         records.resize(columns, rows)
-        if (changed) {
-            onGridChanged?.invoke(columns, rows, fontSize)
+        onGridChanged?.invoke(columns, rows, fontSize)
+    }
+
+    /**
+     * Apply a grid that was held back while the surface moved.
+     *
+     * Called once the surface has been still long enough to be the size it is
+     * going to stay at.
+     */
+    fun settleGrid() {
+        val (nextColumns, nextRows) = pendingGrid ?: return
+        // Still moving: the animation has not finished, and applying the grid
+        // now is the reflow that would be undone by the next frame.
+        if (lastResizeNanos != 0L &&
+            System.nanoTime() - lastResizeNanos < RESIZE_SETTLE_NANOS
+        ) {
+            return
         }
+        pendingGrid = null
+        if (nextColumns == columns && nextRows == rows) {
+            return
+        }
+        applyGrid(nextColumns, nextRows)
     }
 
     override fun onDrawFrame(gl: GL10?) {
         val startedNanos = System.nanoTime()
+
+        // A surface that has stopped moving gets its grid now. Every frame
+        // checks, because the frame loop runs whether or not anything changed;
+        // the check is a field read when nothing is pending.
+        settleGrid()
 
         val cells = session.cells
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
@@ -323,6 +440,10 @@ internal class TerminalRenderer(
             return
         }
         val pumpEndNanos = System.nanoTime()
+
+        // The sub-line part of the scroll, from the same snapshot as the cells
+        // above: one lock hold, one position.
+        scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat()
 
         // `pump` refreshed the engine's colour table; install it only when the
         // engine says it changed.
@@ -439,11 +560,11 @@ internal class TerminalRenderer(
         GLES20.glUniform4f(
             backgroundProjection,
             -1f,
-            1f,
+            1f - scrollOffsetPx * 2f / height.coerceAtLeast(1),
             2f / width.coerceAtLeast(1),
             -2f / height.coerceAtLeast(1),
         )
-        GLES20.glUniform2f(backgroundCellSize, metrics.width, metrics.height)
+        GLES20.glUniform2f(backgroundCellSize, cellStepX, cellStepY)
         GLES30.glBindVertexArray(backgroundVao)
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES, instances)
         GLES30.glBindVertexArray(0)
@@ -470,11 +591,11 @@ internal class TerminalRenderer(
         GLES20.glUniform4f(
             foregroundProjection,
             -1f,
-            1f,
+            1f - scrollOffsetPx * 2f / height.coerceAtLeast(1),
             2f / width.coerceAtLeast(1),
             -2f / height.coerceAtLeast(1),
         )
-        GLES20.glUniform2f(foregroundCellSize, metrics.width, metrics.height)
+        GLES20.glUniform2f(foregroundCellSize, cellStepX, cellStepY)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
@@ -675,6 +796,16 @@ internal class TerminalRenderer(
         const val MIN_ROWS = 1
         const val FLOAT_BYTES = 4
         const val QUAD_VERTICES = 4
+
+        /**
+         * How long the surface must be still before the grid reflows.
+         *
+         * Long enough to cover two frames of a slide (a sidebar, a keyboard),
+         * short enough that a settled surface is laid out before the user can
+         * see it. The animation itself is sixty frames; this is the difference
+         * between one reflow and eighteen.
+         */
+        const val RESIZE_SETTLE_NANOS = 48_000_000L
 
         const val ATTRIB_BACKGROUND_POS = 0
         const val ATTRIB_BACKGROUND_COLOR = 1

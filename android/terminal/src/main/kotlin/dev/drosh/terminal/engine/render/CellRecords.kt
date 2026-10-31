@@ -159,9 +159,15 @@ internal class CellRecords(columns: Int, rows: Int) {
             return false
         }
 
-        if (cachedFontPx != fontPx) {
+        // The cache is keyed by the size a mask was rasterised at, which is
+        // the size rounded to a whole pixel (see `GlyphAtlas.rasterSize`). A
+        // pinch asks for a new float every frame; comparing the raw float threw
+        // the whole per-cell cache away on every one of those frames, and every
+        // cell then re-looked-up its glyph — the other half of the shake.
+        val rasterPx = if (fontPx <= 0f) 0f else kotlin.math.round(fontPx)
+        if (cachedFontPx != rasterPx) {
             resetCellCache(columns, rows)
-            cachedFontPx = fontPx
+            cachedFontPx = rasterPx
         }
 
         // The ligatures, when the application wants them. A row is shaped
@@ -478,17 +484,6 @@ internal class CellRecords(columns: Int, rows: Int) {
     private fun pack(color: Int): Int = (0xff shl 24) or (color and 0xffffff)
 
     private fun clampShort(value: Float): Int = value.toInt().coerceIn(-32768, 32767)
-
-    /**
-     * Forget the glyph each cell was drawn with.
-     *
-     * The cache is keyed by codepoint and weight; a size change makes every
-     * entry stale without changing its key, so the whole thing goes.
-     */
-    fun invalidateCells() {
-        resetCellCache(columns, rows)
-        cachedFontPx = null
-    }
 
     private fun resetCellCache(newColumns: Int, newRows: Int) {
         val cells = newColumns * newRows

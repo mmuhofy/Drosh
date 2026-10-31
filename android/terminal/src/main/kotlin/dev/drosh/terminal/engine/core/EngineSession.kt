@@ -337,6 +337,31 @@ class EngineSession(
     }
 
     /**
+     * Scroll by a finger distance, keeping the sub-line remainder.
+     *
+     * The engine holds the whole position — whole rows for the grid and a
+     * remainder the renderer shifts by — so a pan and the picture cannot
+     * disagree about where the viewport is.
+     *
+     * `deltaPixels` is positive when the content should move down: the user
+     * dragging back into the history. [cellHeight] is a row's height in the
+     * same pixels.
+     *
+     * Returns the whole rows the viewport moved, negative toward the live edge.
+     */
+    fun scrollByPixels(deltaPixels: Float, cellHeight: Int): Int {
+        val current = handle
+        if (current == NO_HANDLE || cellHeight <= 0) {
+            return 0
+        }
+        return NativeCore.nativeScrollByPixels(current, deltaPixels, cellHeight)
+    }
+
+    /** The sub-line part of the scroll, in pixels, as the engine holds it. */
+    val subLinePixels: Int
+        get() = stateArray[NativeCore.STATE_SUB_LINE_PX]
+
+    /**
      * Put the viewport at `offset` rows above the live edge.
      *
      * [scroll] moves relative to where the viewport already is, which is what a

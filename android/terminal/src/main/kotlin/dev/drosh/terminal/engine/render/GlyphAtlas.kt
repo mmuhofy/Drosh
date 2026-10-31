@@ -174,8 +174,16 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
         }
         // A pinch moves through a hair's width of sizes, not thirty: treating
         // each as a new generation threw away the masks the next frame was
-        // about to ask for again. Half a pixel is finer than a cell can show.
-        if (currentPx > 0f && kotlin.math.abs(px - currentPx) < 0.5f) {
+        // about to ask for again.
+        //
+        // The threshold is a *whole pixel*, not half of one. A glyph mask is an
+        // integer grid of coverage: a mask rasterised at 14.0 px and one at
+        // 14.4 px differ by sub-texel amounts that the atlas cannot represent
+        // differently — they land on the same shelves with the same shapes. So
+        // a size change under a pixel is the same masks, and re-rasterising
+        // them is work that produces no visible difference, on every frame of
+        // a pinch. That was the remaining shake: not the grid, the masks.
+        if (currentPx > 0f && kotlin.math.abs(px - currentPx) < 1.0f) {
             return
         }
         previousPx = currentPx
@@ -244,11 +252,12 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
      * time it is asked for at this size.
      */
     fun glyph(codepoint: Int, bold: Boolean, px: Float): GlyphEntry? {
-        val key = key(codepoint, bold, px)
+        val size = rasterSize(px)
+        val key = key(codepoint, bold, size)
         entries[key]?.let { return it }
-        if (px == previousPx) previousEntries[key]?.let { return it }
+        if (size == previousPx) previousEntries[key]?.let { return it }
 
-        val entry = rasterize(codepoint, bold, px)
+        val entry = rasterize(codepoint, bold, size)
         entries[key] = entry
         return entry
     }
@@ -261,11 +270,12 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
      * ligature has no codepoint of its own.
      */
     fun glyphById(glyphId: Int, bold: Boolean, px: Float): GlyphEntry? {
-        val key = shapedKey(glyphId, bold, px)
+        val size = rasterSize(px)
+        val key = shapedKey(glyphId, bold, size)
         shapedEntries[key]?.let { return it }
-        if (px == previousPx) previousShaped[key]?.let { return it }
+        if (size == previousPx) previousShaped[key]?.let { return it }
 
-        val entry = rasterizeGlyph(glyphId, bold, px)
+        val entry = rasterizeGlyph(glyphId, bold, size)
         shapedEntries[key] = entry
         return entry
     }
@@ -414,6 +424,26 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
     /**
      * The shaped path's key: the glyph id, the weight and the pixel size.
      */
+    /**
+     * The size a mask is rasterised at: the pixel size rounded to a whole pixel.
+     *
+     * This is the difference between a smooth pinch and a shaking one. A pinch
+     * asks for a new size every frame, and a size is a float — so keying the
+     * cache by its bits meant *every frame was a cache miss* and every glyph on
+     * screen was re-rasterised, thirty times a second, for sizes that differ by
+     * a tenth of a pixel and look identical.
+     *
+     * A mask is an integer grid of coverage: 14.0 and 14.4 produce the same
+     * shapes on the same texels. Rounding to the pixel collapses the whole
+     * pinch into a handful of real sizes, and each is rasterised once.
+     *
+     * The cell still grows smoothly: the cell step comes from the measured
+     * metrics, not from this, so the grid follows the fingers even when the
+     * masks are a pixel out of date.
+     */
+    private fun rasterSize(px: Float): Float =
+        if (px <= 0f) 0f else kotlin.math.round(px)
+
     private fun shapedKey(glyphId: Int, bold: Boolean, px: Float): Long {
         val sizeBits = px.toBits().toLong() and 0x7FFFFFFFL
         val boldBit = if (bold) 1L else 0L

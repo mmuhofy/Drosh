@@ -234,6 +234,15 @@ class TerminalView(context: Context) : FrameLayout(context) {
             surface?.requestRender()
             post { applyAmbientTint() }
         }
+        // A held grid has to be applied once the surface stops moving, and the
+        // surface only draws when asked. So the host asks: one post, a settle
+        // window later, and the renderer applies the grid it recorded.
+        created.onGridHeld = {
+            postDelayed(GRID_SETTLE_DELAY_MS) {
+                surface?.queueEvent { renderer?.settleGrid() }
+                surface?.requestRender()
+            }
+        }
         renderer = created
 
         val gl = GLSurfaceView(context).apply {
@@ -1014,6 +1023,15 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
         /** The grid a zoomed size is rounded to, in sp (the vendored value). */
         const val ZOOM_STEP_SP = 0.1f
+
+        /**
+         * How long after a held resize the settle is asked for.
+         *
+         * The renderer holds a reflow while the surface is moving; this is the
+         * "it has stopped" that follows. Longer than the renderer's own window
+         * so the two cannot disagree about whether the animation is over.
+         */
+        const val GRID_SETTLE_DELAY_MS = 64L
 
         /** The faces bundled in the engine module (one font, everywhere identical). */
         const val REGULAR_FONT = "fonts/JetBrainsMono-Regular.ttf"
