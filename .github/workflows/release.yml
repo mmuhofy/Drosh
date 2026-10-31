@@ -106,15 +106,14 @@ jobs:
         working-directory: android
         run: sha256sum app/build/outputs/apk/release/app-arm64-v8a-release.apk > app/build/outputs/apk/release/drosh-release-arm64-v8a-release.apk.sha256
 
-      - name: Upload release APK + SHA-256
-        uses: actions/upload-artifact@v4
-        with:
-          name: drosh-release-arm64-v8a-apk
-          path: |
-            android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
-            android/app/build/outputs/apk/release/drosh-release-arm64-v8a-release.apk.sha256
-          if-no-files-found: warn
-          retention-days: 30
+      # No artifact upload here.
+      #
+      # The release itself is the delivery: the next step attaches the APK and
+      # its checksum to the tag's GitHub Release, which is where a release
+      # belongs. `upload-artifact` was a second copy in a storage bucket with a
+      # quota, and when that quota ran out the release build failed *after*
+      # producing a perfectly good APK — for a reason that had nothing to do
+      # with the release.
 
       - name: Extract release notes from CHANGELOG (tag push)
         if: startsWith(github.ref, 'refs/tags/v')
