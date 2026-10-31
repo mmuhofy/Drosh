@@ -133,7 +133,7 @@ internal class TerminalInputView(context: Context) : View(context) {
                 // that many backspaces on the session. The stock Samsung
                 // keyboard with "auto check spelling" sends `leftLength > 1`
                 // when the user holds the key.
-                repeat(beforeLength) { send(byteArrayOf(DEL)) }
+                repeat(beforeLength) { send(byteArrayOf(DEL.toByte())) }
                 return true
             }
 
@@ -169,7 +169,7 @@ internal class TerminalInputView(context: Context) : View(context) {
      */
     private fun drain() {
         val buffer = connectionEditable ?: return
-        if (buffer.isEmpty) {
+        if (buffer.isEmpty()) {
             return
         }
 
