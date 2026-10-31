@@ -238,10 +238,13 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // surface only draws when asked. So the host asks: one post, a settle
         // window later, and the renderer applies the grid it recorded.
         created.onGridHeld = {
-            postDelayed(GRID_SETTLE_DELAY_MS) {
-                surface?.queueEvent { renderer?.settleGrid() }
-                surface?.requestRender()
-            }
+            postDelayed(
+                {
+                    surface?.queueEvent { renderer?.settleGrid() }
+                    surface?.requestRender()
+                },
+                GRID_SETTLE_DELAY_MS,
+            )
         }
         renderer = created
 
