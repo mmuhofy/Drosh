@@ -11,11 +11,6 @@ concurrency:
   group: build-debug-${{ github.ref }}
   cancel-in-progress: true
 
-# Writing the debug APK to a release needs to create a release and upload to
-# it. Everything else in this workflow is read-only.
-permissions:
-  contents: write
-
 env:
   CARGO_TERM_COLOR: always
   # Pinned NDK (r28c): the Rust engine is linked with its clang.
@@ -61,35 +56,15 @@ jobs:
       - name: Clippy for Android target (deny warnings)
         run: cargo clippy --workspace --target aarch64-linux-android -- -D warnings
 
-  debug:
-    # The engine's cdylib is built in this same job rather than handed over as
-    # an artifact.
-    #
-    # It used to be two jobs: one cross-compiled `libdrosh_core.so` and uploaded
-    # it, the next downloaded it and assembled the APK. That is the tidier
-    # shape, and it stopped working — artifact storage has a quota, and when the
-    # quota is hit `upload-artifact` fails and the APK job is skipped entirely.
-    # A build that cannot run because a *storage* limit was reached is a build
-    # that reports the wrong thing: nothing about the code changed, and the only
-    # way to find out is to read the upload step's log.
-    #
-    # One job has no artifact in the middle. The .so goes from cargo's output
-    # straight into `jniLibs` and then into the APK.
-    name: Debug APK
-    needs: rust-core
+  rust-build:
+    # Cross-compiles the engine's cdylib for arm64-v8a and hands it to the
+    # debug job as an artifact — the .so is never committed to git.
+    name: libdrosh_core.so (aarch64)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Full history, because the build derives its versionCode from the
-          # commit count (AndroidApplicationConventionPlugin). The default is
-          # fetch-depth: 1, which would make every CI build the same version —
-          # and an equal versionCode is exactly what lets an older APK install
-          # over a newer one and downgrade the database out from under Room.
-          fetch-depth: 0
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -119,13 +94,40 @@ jobs:
           export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
           export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
           cargo build --release --target aarch64-linux-android --manifest-path rust/Cargo.toml
-
-          # Straight into the app's native library folder: no artifact, no
-          # download step, nothing to lose to a storage quota.
-          mkdir -p android/terminal/src/main/jniLibs/arm64-v8a
+          mkdir -p "$RUNNER_TEMP/engine-jni"
           cp rust/target/aarch64-linux-android/release/libdrosh_core.so \
-            android/terminal/src/main/jniLibs/arm64-v8a/
-          ls -l android/terminal/src/main/jniLibs/arm64-v8a/
+            "$RUNNER_TEMP/engine-jni/"
+          ls -l "$RUNNER_TEMP/engine-jni/"
+
+      - name: Upload the core
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-core-so
+          path: ${{ runner.temp }}/engine-jni/libdrosh_core.so
+          if-no-files-found: error
+
+  debug:
+    name: Debug APK
+    needs: rust-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history, because the build derives its versionCode from the
+          # commit count (AndroidApplicationConventionPlugin). The default is
+          # fetch-depth: 1, which would make every CI build the same version —
+          # and an equal versionCode is exactly what lets an older APK install
+          # over a newer one and downgrade the database out from under Room.
+          fetch-depth: 0
+
+      - name: Fetch the cross-built Rust core
+        uses: actions/download-artifact@v4
+        with:
+          name: engine-core-so
+          path: android/terminal/src/main/jniLibs/arm64-v8a
 
       # chroot-ng — the guest runtime — is not in this repository. It is built
       # and published by its own project, and the APK carries the published
@@ -179,6 +181,14 @@ jobs:
             exit 1
           fi
 
+      - name: Upload Room schema on mismatch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schema-mismatch
+          path: android/data/schemas
+          if-no-files-found: warn
+
       # An APK without the .so starts and dies on System.loadLibrary; fail
       # here instead of on the device.
       - name: Check the APK carries the engine core
@@ -190,40 +200,10 @@ jobs:
           unzip -l "$APK" | grep -q "assets/libchrootng.so"
           echo "$APK contains libchrootng.so"
 
-      # The APK is published as a release asset, not an artifact.
-      #
-      # Artifact storage has a quota and it does run out; when it does, every
-      # upload fails and the build that produces the thing the user installs is
-      # the one that disappears. Release assets are a different budget and a
-      # different lifetime, and the tag is fixed, so each build replaces the
-      # same three files rather than accumulating one per run.
-      #
-      # `main-latest` is a moving pre-release: it is not a version anybody
-      # should pin, it is the newest build off `main`, which is what a device
-      # test wants.
-      - name: Publish the debug APK as a release asset
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
-          cp "$APK" drosh-debug-arm64-v8a.apk
-          sha256sum drosh-debug-arm64-v8a.apk > drosh-debug-arm64-v8a.apk.sha256
-
-          TAG=main-latest
-          # Create the moving release once; afterwards only its assets change.
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
-            gh release create "$TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --prerelease \
-              --title "Latest debug build (main)" \
-              --notes "The newest debug APK built from main. Not a version to pin: it is replaced on every push."
-
-          gh release upload "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber \
-            drosh-debug-arm64-v8a.apk \
-            drosh-debug-arm64-v8a.apk.sha256
-
-          echo "Published to https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: drosh-debug-arm64-v8a-apk
+          path: android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+          if-no-files-found: warn
+          retention-days: 14
