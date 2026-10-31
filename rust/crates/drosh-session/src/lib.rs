@@ -491,10 +491,8 @@ impl Session {
         self.rows_above_edge.store(actual, Ordering::Relaxed);
         // A clamped move has no remainder to draw: the viewport is on a row,
         // and a fraction there would be a fraction of a row that is not shown.
-        self.sub_line_px.store(
-            if actual == rows { remainder } else { 0.0 }.to_bits(),
-            Ordering::Relaxed,
-        );
+        self.sub_line_px
+            .store(if actual == rows { remainder } else { 0.0 }.to_bits(), Ordering::Relaxed);
         true
     }
 
