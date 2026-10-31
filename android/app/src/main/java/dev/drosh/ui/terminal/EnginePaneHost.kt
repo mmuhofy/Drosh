@@ -329,6 +329,17 @@ fun EnginePaneHost(
      *
      * The engine re-measures its cell and lays the grid out around it, so
      * this is the same gesture the vendored view gets from `setTextSize`.
+     *
+     * Only a *setting* change comes through here. A pinch does not: it calls
+     * `zoomTo` on the view directly, frame by frame, and reports the size it
+     * reached through `zoomListener` — which feeds the chip, not this. Reading
+     * `fontSizeSp` here during a gesture would fight the gesture, because the
+     * reported size and the applied size would each be one frame behind the
+     * other and the grid would reflow twice for every step.
+     *
+     * The guard is that the effect is keyed on the *setting*, not on the live
+     * size: `key` stays put while the fingers move, so the effect does not
+     * re-run.
      */
     LaunchedEffect(fontSizeSp) {
         pane.view.setTextSize(fontSizeSp)

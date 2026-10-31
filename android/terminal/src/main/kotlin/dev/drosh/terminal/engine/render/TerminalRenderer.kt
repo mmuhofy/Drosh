@@ -146,6 +146,81 @@ internal class TerminalRenderer(
     private var cellStepY = 0f
 
     /**
+     * A live pinch: the scale the glyphs are drawn at, over a grid that does
+     * not change.
+     *
+     * This is the vendored terminal's `canvas.scale` and Termux's model in
+     * fact, not in spirit: while two fingers move, the terminal is *drawn*
+     * bigger or smaller and nothing else happens. No measurement, no
+     * rasterisation, no `Term::resize`, no reflow — one uniform and one draw
+     * call per frame, which is what makes a pinch continuous.
+     *
+     * The alternative — resizing the font every frame — was tried and is what
+     * made the zoom step. A pinch reports a size every frame, and every size
+     * change is a reflow of every row in the engine: at sixty frames that is
+     * sixty reflows of a screen whose text is being rewrapped while the user
+     * watches. Even with the size quantised to a tenth of a sp the grid jumps
+     * from one shape to the next, because a shape is a whole number of cells.
+     *
+     * The real size is applied once, when the fingers lift — see
+     * [commitZoom]. One reflow, at a moment when nobody is looking at a moving
+     * picture.
+     */
+    private var pinchScale = 1f
+
+    /** Where the pinch is anchored, in surface pixels. */
+    private var pinchFocusX = 0f
+    private var pinchFocusY = 0f
+
+
+    /**
+     * Draw the picture at a live pinch's scale, about the fingers.
+     *
+     * Called on every frame of a pinch. Nothing else changes: the grid, the
+     * glyph masks and the atlas all stay exactly as they are.
+     */
+    fun setPinch(scale: Float, focusX: Float, focusY: Float) {
+        pinchScale = if (scale.isFinite() && scale > 0f) scale else 1f
+        pinchFocusX = focusX
+        pinchFocusY = focusY
+    }
+
+    /**
+     * End a pinch: apply the size the fingers reached, once.
+     *
+     * This is the only frame of a gesture that measures, rasterises and
+     * reflows, and it happens after the fingers have stopped, so nothing is
+     * waiting on it.
+     */
+    fun commitZoom(size: FontSize) {
+        pinchScale = 1f
+        setFontSize(size)
+    }
+
+    /**
+     * The projection for one pass: clip-space origin and scale, with the pinch
+     * applied about its focus and the sub-line scroll folded in.
+     *
+     * The anchor is converted here rather than in the shader so the two passes
+     * cannot disagree about it.
+     */
+    private fun projection(out: FloatArray) {
+        val scale = pinchScale
+        // A point p maps to focus + (p - focus) * scale, in pixels. In clip
+        // space that is `clip * s + anchor * (1 - s)`.
+        val anchorX = -1f + 2f * pinchFocusX / width.coerceAtLeast(1)
+        val anchorY = 1f - 2f * pinchFocusY / height.coerceAtLeast(1)
+        out[0] = -scale + anchorX * (1f - scale)
+        out[1] = (1f - scrollOffsetPx * 2f / height.coerceAtLeast(1)) * scale +
+            anchorY * (1f - scale)
+        out[2] = 2f * scale / width.coerceAtLeast(1)
+        out[3] = -2f * scale / height.coerceAtLeast(1)
+    }
+
+    /** Scratch for [projection]; a frame builds it twice, and neither allocates. */
+    private val projectionScratch = FloatArray(4)
+
+    /**
      * The grid a moving surface is heading for, and when it last moved.
      *
      * A sidebar sliding in, a keyboard rising, a split being dragged: the
@@ -232,9 +307,22 @@ internal class TerminalRenderer(
         width = surfaceWidth
         height = surfaceHeight
         GLES20.glViewport(0, 0, width, height)
-        // The surface is new, so nothing is on it: the next frame draws even if
-        // the engine says nothing changed.
-        updateGrid()
+
+        // The cell step follows the surface immediately; the *grid* does not.
+        //
+        // A keyboard rising is sixty surface changes in three hundred
+        // milliseconds, and every one of them would be a `Term::resize` — every
+        // row re-wrapped, eighteen times, while the user watches. That is the
+        // flicker. So the step is recomputed now (the picture fills the new
+        // bounds at once, no black strip) and the reflow waits for the surface
+        // to stop, which `settleGrid` applies.
+        //
+        // The surface and the grid therefore disagree for the length of the
+        // animation, and that is deliberate: `onDrawFrame` draws at the
+        // session's shape and lets the step stretch it, which is exactly what
+        // a terminal does when it is resized and the program has not redrawn
+        // yet.
+        updateGrid(holdWhileMoving = true)
     }
 
     /**
@@ -345,16 +433,23 @@ internal class TerminalRenderer(
             lastResizeNanos != 0L && now - lastResizeNanos < RESIZE_SETTLE_NANOS
         lastResizeNanos = now
 
-        cellStepX = width.toFloat() / nextColumns
-        cellStepY = height.toFloat() / nextRows
-
         if (moving) {
+            // The step is computed from the grid that is *drawn*, not from the
+            // grid that is coming. Mixing them — new step over the old cell
+            // count — is a picture that stops short of the surface on one axis
+            // and overruns the other, which is the strip of nothing at the
+            // edge that made a keyboard opening look broken.
+            cellStepX = width.toFloat() / columns.coerceAtLeast(MIN_COLUMNS)
+            cellStepY = height.toFloat() / rows.coerceAtLeast(MIN_ROWS)
             pendingGrid = nextColumns to nextRows
             // Nothing else will ask for a frame once the animation stops, so
             // the host is asked to schedule the settle.
             onGridHeld?.invoke()
             return
         }
+
+        cellStepX = width.toFloat() / nextColumns
+        cellStepY = height.toFloat() / nextRows
 
         pendingGrid = null
         applyGrid(nextColumns, nextRows)
@@ -390,6 +485,10 @@ internal class TerminalRenderer(
         }
         pendingGrid = null
         if (nextColumns == columns && nextRows == rows) {
+            // The shape came back to what is already drawn: only the step has
+            // to catch up with the surface, and the frame that follows does it.
+            cellStepX = width.toFloat() / columns.coerceAtLeast(MIN_COLUMNS)
+            cellStepY = height.toFloat() / rows.coerceAtLeast(MIN_ROWS)
             return
         }
         applyGrid(nextColumns, nextRows)
@@ -419,7 +518,21 @@ internal class TerminalRenderer(
             // was there before the fingers landed.
             session.resize(columns, rows, metrics.width.toInt(), metrics.height.toInt())
             if (session.columns != columns || session.rows != rows) {
-                // The engine refused the size; the frame still cannot be built.
+                // The engine refused the size, so the cells this frame would
+                // read are not the ones it is sized for. The surface is still
+                // cleared, because a stale picture over a resized surface is a
+                // smear rather than a terminal — and a request is made so the
+                // frame is retried rather than waiting for output that may
+                // never come.
+                val fallback = ambientTint ?: Palette.background
+                GLES20.glClearColor(
+                    channel(fallback, 16),
+                    channel(fallback, 8),
+                    channel(fallback, 0),
+                    1f,
+                )
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+                onGridHeld?.invoke()
                 return
             }
         }
@@ -557,12 +670,13 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(backgroundProgram)
+        projection(projectionScratch)
         GLES20.glUniform4f(
             backgroundProjection,
-            -1f,
-            1f - scrollOffsetPx * 2f / height.coerceAtLeast(1),
-            2f / width.coerceAtLeast(1),
-            -2f / height.coerceAtLeast(1),
+            projectionScratch[0],
+            projectionScratch[1],
+            projectionScratch[2],
+            projectionScratch[3],
         )
         GLES20.glUniform2f(backgroundCellSize, cellStepX, cellStepY)
         GLES30.glBindVertexArray(backgroundVao)
@@ -588,12 +702,13 @@ internal class TerminalRenderer(
         }
 
         GLES20.glUseProgram(foregroundProgram)
+        projection(projectionScratch)
         GLES20.glUniform4f(
             foregroundProjection,
-            -1f,
-            1f - scrollOffsetPx * 2f / height.coerceAtLeast(1),
-            2f / width.coerceAtLeast(1),
-            -2f / height.coerceAtLeast(1),
+            projectionScratch[0],
+            projectionScratch[1],
+            projectionScratch[2],
+            projectionScratch[3],
         )
         GLES20.glUniform2f(foregroundCellSize, cellStepX, cellStepY)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())

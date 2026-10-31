@@ -629,7 +629,15 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // The blink is the frame loop's business, and it asks the view.
         frameLoop.blinkIntervalMillis = config.cursorBlinkMs.toLong()
 
-        setTextSize(config.textSizeSp)
+        // The size is deliberately **not** set here.
+        //
+        // `config.textSizeSp` is the size a session *opens* at — the setting —
+        // and this function runs on every recomposition. Setting it here meant
+        // every appearance update dragged the live size back to the stored one,
+        // which during a pinch is the size the gesture started from: the zoom
+        // stepped instead of flowing, because each frame's new size was
+        // overwritten by the setting a moment later. The host sets the size
+        // once, through `setTextSize`, and a pinch owns it after that.
         requestRender()
     }
 
@@ -670,38 +678,36 @@ class TerminalView(context: Context) : FrameLayout(context) {
     }
 
     /**
-     * Zoom to [sp], keeping the line under `focusY` where it is.
+     * One frame of a live pinch: draw the picture at [scale] about the fingers.
      *
-     * The vendored terminal's `zoomTo`, unchanged in behaviour: the row under
-     * the fingers is remembered as an *absolute* history row before the size
-     * changes — a viewport-relative row does not survive the reflow, an
-     * absolute one does — and put back under them afterwards. Without it a
-     * pinch drags the output out from under the finger, and the further into
-     * the scrollback the user is, the further it goes.
+     * Nothing is measured, rasterised or reflowed. The glyphs already in the
+     * atlas are drawn bigger or smaller by the projection — the vendored
+     * terminal's `canvas.scale`, which is also what Termux does — and that is
+     * why a pinch is continuous instead of stepping from one grid shape to the
+     * next.
      *
-     * The row is clamped to what the history still has: zooming out makes the
-     * grid hold more rows, so the row the fingers were on can be one that no
-     * longer exists, and the bottom of the screen is then empty rather than
-     * wrong.
-     *
-     * Called on every frame of a pinch that changes the size, which is what
-     * makes the terminal itself grow and shrink — the vendored terminal did the
-     * same (`updateTextSize` + `updateSize`). The cost is one measurement and
-     * one reflow per *tenth of a sp*, not per touch event: [quantiseTextSize]
-     * collapses the float tail, and a gesture that hovers over the same size
-     * does nothing at all.
+     * The size the gesture will settle on is [commitZoom]'s job, once, when the
+     * fingers lift; nothing about it is applied here.
      */
-    internal fun zoomTo(sp: Float, focusY: Float) {
-        // Rounded to the tenth-of-a-sp grid first, exactly as the vendored
-        // terminal did (`quantiseTextSize`): a pinch reports a float with a
-        // tail, and an unrounded size would be stored as one thing and drawn
-        // as another. Rounding also means a gesture that wanders over the same
-        // tenth twice asks for the same size twice, so the second frame is a
-        // comparison and nothing more.
+    internal fun pinchTo(scale: Float, focusX: Float, focusY: Float) {
+        lastPinchFocusY = focusY
+        surface?.queueEvent { renderer?.setPinch(scale, focusX, focusY) }
+        requestRender()
+    }
+
+    /**
+     * The pinch is over: apply the size the fingers reached, once.
+     *
+     * This is the only frame of a gesture that measures, rasterises and
+     * reflows. It happens after the fingers have stopped, so the one expensive
+     * frame is not one the user is watching.
+     */
+    internal fun commitZoom(sp: Float) {
         val target = quantiseTextSize(sp)
-        if (target == textSizeSp) {
-            // Nothing to measure, nothing to reflow: the dead zone can re-test
-            // this every frame for free.
+        val measured = FontSize.measure(spToPx(target))
+        if (measured == null) {
+            Log.e(TAG, "the font stack produced no metrics at $target sp; keeping ${textSizeSp} sp")
+            surface?.queueEvent { renderer?.setPinch(1f, 0f, 0f) }
             return
         }
 
@@ -711,22 +717,44 @@ class TerminalView(context: Context) : FrameLayout(context) {
         val spacingBefore = metrics.height
         val offsetBefore = session.stateArray[NativeCore.STATE_DISPLAY_OFFSET]
         val anchoredRow =
-            offsetBefore + if (spacingBefore > 0f) (focusY / spacingBefore).toInt() else 0
+            offsetBefore + if (spacingBefore > 0f) (lastPinchFocusY / spacingBefore).toInt() else 0
 
-        setTextSize(target)
-
-        val spacingAfter = metrics.height
-        if (spacingAfter <= 0f || !fontLoaded) {
-            return
-        }
+        requestedTextSizeSp = target
+        metrics = measured.metrics
+        fontPx = measured.px
+        surface?.queueEvent { renderer?.commitZoom(measured) }
 
         // Put that row back under the fingers. The engine clamps to what the
         // history still has, so zooming out — which makes the grid hold more
         // rows — settles at the oldest row rather than asking for one that no
         // longer exists.
-        val rowUnderFocus = (focusY / spacingAfter).toInt()
-        session.scrollToOffset(anchoredRow - rowUnderFocus)
+        val spacingAfter = metrics.height
+        if (spacingAfter > 0f && fontLoaded) {
+            val rowUnderFocus = (lastPinchFocusY / spacingAfter).toInt()
+            session.scrollToOffset(anchoredRow - rowUnderFocus)
+        }
         requestRender()
+    }
+
+    /**
+     * Where the last pinch had its midpoint, in surface pixels.
+     *
+     * [commitZoom] has no event of its own — the detector reports the end
+     * without a focus — so the focus of the final move is kept for the commit
+     * to anchor on.
+     */
+    private var lastPinchFocusY: Float = 0f
+
+    /**
+     * Zoom to [sp] as a whole gesture (a double tap, a settings change).
+     *
+     * A pinch does not come through here: it draws a scaled picture and calls
+     * [commitZoom] once. This is for the callers that want the size applied
+     * immediately, with the reading position kept under [focusY].
+     */
+    internal fun zoomTo(sp: Float, focusY: Float) {
+        lastPinchFocusY = focusY
+        commitZoom(sp)
     }
 
     /**
@@ -764,10 +792,12 @@ class TerminalView(context: Context) : FrameLayout(context) {
 
     /** Forwarded from the gesture recogniser, which owns the pinch's lifetime. */
     internal fun onZoomEnd(sp: Float) {
-        // The terminal has been drawn at every size the fingers passed through,
-        // so there is nothing left to apply — only to report, so the host can
-        // remember it.
-        zoomEndListener.invoke(sp)
+        // The picture has been drawn scaled all through the gesture; now the
+        // real size is applied, once. This is the only frame of a pinch that
+        // measures, rasterises and reflows, and it happens after the fingers
+        // have stopped, so nothing is waiting on it.
+        commitZoom(sp)
+        zoomEndListener.invoke(textSizeSp)
         zoomListener.invoke(0f)
         requestRender()
     }

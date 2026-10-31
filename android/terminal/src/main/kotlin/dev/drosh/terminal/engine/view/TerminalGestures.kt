@@ -151,29 +151,31 @@ internal class TerminalGestures(private val view: TerminalView) {
                         zoomPassedDeadZone = true
                     }
 
-                    // The terminal itself is resized, every frame the size
-                    // actually changes — the vendored terminal's model, and the
-                    // reason its zoom was continuous: the text grew, the grid
-                    // reflowed, and the row under the fingers stayed put.
-                    //
-                    // `zoomTo` rounds to a tenth of a sp and returns at once
-                    // when the size is one it already drew, so a frame that
-                    // does not change the size costs a comparison.
+                    // The picture is drawn scaled about the fingers. The
+                    // grid does not change, nothing is re-measured, and no
+                    // row is reflowed — which is the whole reason this is
+                    // continuous rather than stepping from one grid shape to
+                    // the next. The size the gesture has reached is only
+                    // remembered; it is applied once, in `onScaleEnd`.
                     val base = if (zoomBaseSp > 0f) zoomBaseSp else view.textSizeSp
                     val target = (base * zoomScaleFactor).coerceIn(MIN_ZOOM_SP, MAX_ZOOM_SP)
-                    view.zoomTo(target, focusY)
+                    view.pinchTo(zoomScaleFactor, focusX, focusY)
                     // The chip reads the size the pinch has reached.
-                    view.onZoomProgress(view.textSizeSp)
+                    view.onZoomProgress(target)
                     return true
                 }
 
                 override fun onScaleEnd() {
-                    // The gesture is over: the dead zone is per-gesture, and
-                    // the size is worth reporting once so the host can keep it.
+                    // The gesture is over. One reflow, now that nothing is
+                    // moving: this is the only frame of a pinch that measures,
+                    // rasterises and resizes the grid.
+                    val base = if (zoomBaseSp > 0f) zoomBaseSp else view.textSizeSp
+                    val target = (base * zoomScaleFactor).coerceIn(MIN_ZOOM_SP, MAX_ZOOM_SP)
+                    val zoomed = zoomPassedDeadZone
                     zoomScaleFactor = 1f
                     zoomBaseSp = 0f
                     zoomPassedDeadZone = false
-                    view.onZoomEnd(view.textSizeSp)
+                    view.onZoomEnd(if (zoomed) target else view.textSizeSp)
                 }
             },
         )
