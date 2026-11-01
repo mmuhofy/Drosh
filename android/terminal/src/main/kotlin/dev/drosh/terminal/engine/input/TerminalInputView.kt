@@ -2,6 +2,7 @@ package dev.drosh.terminal.engine.input
 
 import android.content.Context
 import android.text.InputType
+import android.text.SpannableStringBuilder
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.BaseInputConnection
@@ -11,50 +12,51 @@ import android.view.inputmethod.InputConnection
 /**
  * The keyboard's end of the terminal.
  *
- * ## The model: Termux's, which is the one that survives real keyboards
+ * ## The problem this file exists to solve
  *
- * `TerminalView.onCreateInputConnection` in termux-app, kept close to the
- * original because every deviation from it has been a bug here:
+ * A terminal is not a text field. An IME is built for one: it composes a word,
+ * shows candidates, and rewrites what it already sent when the user picks a
+ * different one. A shell has no such thing — once a byte reaches the PTY it is
+ * typed, and there is no taking it back. Every bug this file has had came from
+ * pretending otherwise.
  *
- * 1. **`TYPE_NULL`** — the IME is told the field takes no text, so it offers no
- *    suggestions, no autocorrect, and no word to replace. A terminal has no use
- *    for a spell-checker over shell commands, and a keyboard that "fixes" `ls`
- *    to `is` is a keyboard fighting the user.
+ * The symptoms were: pressing Enter showed the *previous* letters afterwards;
+ * the letters arrived one at a time, out of order; and backspace sometimes
+ * deleted twice.
  *
- * 2. **No `IME_ACTION_NONE`.** Termux's own note: it makes newlines impossible
- *    on some on-screen keyboards (Android TV's, for one). A terminal that cannot
- *    send Enter is not a terminal.
+ * ## The model
  *
- * 3. **One buffer, drained on every path.** The `Editable` is written by the IME
- *    and read back in one place, [sendToTerminal]. A commit sends it, a finished
- *    composition sends it, and it is emptied either way — so text cannot be sent
- *    twice and cannot be left behind.
+ * **Composing is a word being built, and a terminal does not want to see it.**
+ * So:
  *
- * 4. **`setComposingText` is not overridden.** Composed text accumulates in the
- *    buffer and goes out when the word is committed. That is right for a
- *    terminal: the user typing `merhaba` does not want `m`, `me`, `mer` to
- *    appear and be deleted; the shell sees the word when it is a word. A
- *    predictive keyboard that commits a letter at a time still works — each
- *    commit is one letter.
+ * - `setComposingText` stores the word and sends **nothing**. The user typing
+ *   `merhaba` should not see `m`, `me`, `mer` appear and be deleted as the
+ *   keyboard revises its guess.
+ * - `commitText` sends the word **once** and clears it. That is the moment the
+ *   user accepted it.
+ * - `finishComposingText` sends whatever is still composing — a keyboard that
+ *   finished a word without committing it (a physical keyboard, or an IME that
+ *   reports keys) has still typed it.
+ * - `sendKeyEvent` sends the composition **first**, then the key. This is the
+ *   ordering rule and the only place it has to be stated: Enter can never
+ *   overtake the letters typed before it.
  *
- * 5. **`\n` becomes `\r`.** The AOSP keyboard and its descendants send `\n` as
- *    *text* when Enter is pressed, not as a key event. A terminal expects CR:
- *    the tty's `ICRNL` turns it into a newline for the shell, and a raw-mode
- *    program expects CR. Without this, Enter on those keyboards does nothing —
- *    which is exactly the "I pressed Enter and nothing happened" this file was
- *    rewritten for.
+ * Termux's `TerminalView` and Rin's `TerminalSurface` both do a version of
+ * this; the difference here is that the composition is *dropped* rather than
+ * sent as it grows, because a shell cannot un-type a character and the
+ * flicker of watching a keyboard revise itself is worse than a word appearing
+ * at once.
  *
- * 6. **A control character is Ctrl.** Some keyboards (penti and others) send
- *    Ctrl+letter as the control character itself rather than as a modified
- *    letter. Reading `codePoint <= 31` as "Ctrl is held" is what makes those
- *    keyboards work.
+ * ## Two details that are not obvious
  *
- * ## What this class does not do
+ * **`\n` is `\r`.** The AOSP keyboard sends `\n` as *text* when Enter is
+ * pressed, not as a key event. A terminal expects CR: the tty's `ICRNL` turns
+ * it into a newline for the shell, and a raw-mode program expects CR. Without
+ * this, Enter on those keyboards does nothing at all.
  *
- * It does not encode escape sequences. That is [Encoder]'s job — arrows,
- * function keys, the DECCKM form of the cursor keys — and this only decides
- * *which* codepoint or which named key arrived. Keeping the two apart is what
- * lets the encoder be tested on its own.
+ * **A control character is Ctrl.** Some keyboards (`penti` and others) send
+ * Ctrl+letter as the control byte rather than as a modified letter. Reading
+ * `codePoint <= 0x1f` as "Ctrl is held" is what makes those keyboards work.
  */
 internal class TerminalInputView(context: Context) : View(context) {
 
@@ -64,17 +66,10 @@ internal class TerminalInputView(context: Context) : View(context) {
     /** A key that arrived as a key event; `true` when it was handled. */
     var onKey: ((Int, KeyEvent) -> Boolean)? = null
 
-    /**
-     * Whether Ctrl is armed from the extra-keys row.
-     *
-     * A phone has no Ctrl key, so the row arms one; every path that produces a
-     * character asks here.
-     */
+    /** Whether Ctrl is armed from the extra-keys row. */
     var stickyCtrl: () -> Boolean = { false }
 
-    /**
-     * Whether Alt is armed from the extra-keys row.
-     */
+    /** Whether Alt is armed from the extra-keys row. */
     var stickyAlt: () -> Boolean = { false }
 
     /** Whether the terminal asked for application cursor keys (`DECCKM`). */
@@ -82,6 +77,16 @@ internal class TerminalInputView(context: Context) : View(context) {
 
     /** Called after anything is sent, so the cursor can be shown again. */
     var onActivity: () -> Unit = {}
+
+    /**
+     * The word the keyboard is building, and has not committed.
+     *
+     * Owned here rather than read back from the connection: `BaseInputConnection`'s
+     * `editable` getter re-resolves through the view, and this view is not an
+     * `Editable`, so the answer is not the object the IME wrote. Holding it is
+     * the only reliable read.
+     */
+    private val composing = SpannableStringBuilder()
 
     init {
         isFocusable = true
@@ -94,56 +99,72 @@ internal class TerminalInputView(context: Context) : View(context) {
     override fun onCheckIsTextEditor(): Boolean = true
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
+        // `TYPE_NULL`: the IME is told the field takes no text, so it offers no
+        // suggestions and no autocorrect. A terminal has no use for a
+        // spell-checker over shell commands.
         outAttrs.inputType = InputType.TYPE_NULL
-        // No fullscreen editor: the terminal draws its own screen, and a
-        // fullscreen IME would cover it with an editor the user cannot use.
-        // `IME_ACTION_NONE` is deliberately absent — see the class comment.
+        // `IME_ACTION_NONE` is deliberately absent: Termux's own note says it
+        // makes newlines impossible on some on-screen keyboards (Android TV's,
+        // for one), and a terminal that cannot send Enter is not a terminal.
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or
             EditorInfo.IME_FLAG_NO_FULLSCREEN
 
-        // The buffer the IME writes into, owned here.
-        //
-        // `BaseInputConnection(this, true)` builds one of its own and the
-        // `editable` getter re-resolves it through the view — which is not an
-        // `Editable`, so the answer is not the object the IME wrote. Holding it
-        // makes [drain] read exactly what the keyboard put in.
-        val buffer = android.text.SpannableStringBuilder()
-        connectionEditable = buffer
-
         return object : BaseInputConnection(this@TerminalInputView, false) {
-            override fun getEditable(): android.text.Editable = buffer
+
+            /**
+             * The buffer the IME writes into.
+             *
+             * The same object as [composing], so what the keyboard wrote and
+             * what this sends are never two different things.
+             */
+            override fun getEditable(): android.text.Editable = composing
+
+            override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                // Held, not sent. The keyboard may still replace it — a swipe,
+                // an autocorrect, a candidate list — and a shell cannot take a
+                // character back once it has it.
+                composing.clear()
+                if (!text.isNullOrEmpty()) {
+                    composing.append(text)
+                }
+                return true
+            }
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                super.commitText(text, newCursorPosition)
-                // The whole buffer, not just this commit: the base class appends
-                // to it, and a composition that was never finished is in there
-                // too.
-                drain()
+                // The word the user accepted. Sent once, and the buffer is
+                // emptied so the next commit does not send it again.
+                if (!text.isNullOrEmpty()) {
+                    sendText(text.toString())
+                }
+                composing.clear()
                 return true
             }
 
             override fun finishComposingText(): Boolean {
-                super.finishComposingText()
-                drain()
+                // A composition that ended without a commit is still text the
+                // user typed — a physical keyboard, or an IME that reports keys
+                // rather than commits. Sending it here is what keeps it from
+                // being silently dropped.
+                flushComposing()
                 return true
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 // Everything before the cursor was already sent, so a delete is
-                // that many backspaces on the session. The stock Samsung
-                // keyboard with "auto check spelling" sends `leftLength > 1`
-                // when the user holds the key.
-                repeat(beforeLength) { send(byteArrayOf(DEL.toByte())) }
+                // that many backspaces. The stock Samsung keyboard with "auto
+                // check spelling" sends `beforeLength > 1` when the user holds
+                // the key.
+                composing.clear()
+                repeat(beforeLength) { send(byteArrayOf(DEL)) }
                 return true
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {
                 if (event.action == KeyEvent.ACTION_DOWN) {
-                    // Whatever the IME composed but has not committed goes out
-                    // first, so a key can never overtake the text typed before
-                    // it. This is the ordering rule, and it is the only place
-                    // it has to be stated.
-                    drain()
+                    // The ordering rule. A composition still open when a key
+                    // arrives would otherwise be sent *after* the key — Enter,
+                    // then the letters that were already typed.
+                    flushComposing()
                     if (onKey?.invoke(event.keyCode, event) == true) {
                         return true
                     }
@@ -155,54 +176,33 @@ internal class TerminalInputView(context: Context) : View(context) {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         // A hardware keyboard reaches the view directly, not through the input
-        // connection, so the composition is drained here too.
-        drain()
+        // connection, so the composition is flushed here too.
+        flushComposing()
         return if (onKey?.invoke(keyCode, event) == true) true else super.onKeyDown(keyCode, event)
     }
 
     /**
-     * Send everything the IME has put in the buffer, and empty it.
+     * Send whatever is composing, and empty it.
      *
-     * The one place text leaves this view. `Editable` is read as codepoints, not
-     * chars, so a surrogate pair is one character and a combining mark stays
-     * attached to what it modifies.
+     * The one place a pending word leaves this view. Called before any key, and
+     * when a composition ends without a commit.
      */
-    private fun drain() {
-        val buffer = connectionEditable ?: return
-        if (buffer.isEmpty()) {
+    private fun flushComposing() {
+        if (composing.isEmpty()) {
             return
         }
-
-        val text = buffer.toString()
-        buffer.clear()
-        if (text.isNotEmpty()) {
-            sendToTerminal(text)
-        }
+        val text = composing.toString()
+        composing.clear()
+        sendText(text)
     }
 
     /**
-     * The buffer the IME writes into.
+     * Text the IME produced: codepoints, one at a time.
      *
-     * Held rather than asked for: `BaseInputConnection.editable` re-resolves
-     * through the view, and this view is not an `Editable`, so the answer is not
-     * the object the IME wrote. Keeping the object the connection was built
-     * with is the only reliable read.
+     * Termux's `sendTextToTerminal`, with the two cases it exists for — a
+     * control character is Ctrl, and a newline is a CR.
      */
-    private var connectionEditable: android.text.Editable? = null
-
-    /**
-     * Text the IME committed or finished composing: codepoints, one at a time.
-     *
-     * Termux's `sendTextToTerminal`, with the two cases it exists for:
-     *
-     * - a **control character** means the keyboard is reporting Ctrl itself
-     *   (`penti` and friends), so it is read as Ctrl+letter rather than as the
-     *   raw byte;
-     * - a **newline** is a CR: the AOSP keyboard sends `\n` for Enter as text,
-     *   and a terminal that writes `\n` to a raw-mode program is a program that
-     *   does not see a line.
-     */
-    private fun sendToTerminal(text: String) {
+    private fun sendText(text: String) {
         var index = 0
         while (index < text.length) {
             val codePoint = text.codePointAt(index)
@@ -231,36 +231,31 @@ internal class TerminalInputView(context: Context) : View(context) {
     /**
      * One codepoint to the session, as bytes.
      *
-     * Ctrl is the ASCII definition (`code & 0x1f`), Alt is an ESC prefix — the
-     * same two rules [Encoder] documents.
+     * Ctrl is the ASCII definition (`code & 0x1f`); Alt is an ESC prefix, which
+     * is how readline gets Alt+B and Alt+F.
      */
     private fun sendCodePoint(codePoint: Int, ctrl: Boolean) {
-        if (codePoint < 0) {
+        if (codePoint < 0 || codePoint > 0x10ffff) {
             return
         }
 
         val alt = stickyAlt()
         if (ctrl) {
-            val character = if (codePoint in 0..0x10ffff) {
-                String(Character.toChars(codePoint))
-            } else {
-                return
-            }
-            Encoder.text(character, Encoder.Mods(ctrl = true, alt = alt)).let(::send)
+            val character = String(Character.toChars(codePoint))
+            send(Encoder.text(character, Encoder.Mods(ctrl = true, alt = alt)))
             return
         }
 
-        // A printable character. Alt is an ESC prefix, which is how readline
-        // gets Alt+B and Alt+F.
         if (alt) {
-            send(byteArrayOf(ESC.toByte()))
+            send(byteArrayOf(ESC))
         }
-        val bytes = if (codePoint < 0x80) {
-            byteArrayOf(codePoint.toByte())
-        } else {
-            String(Character.toChars(codePoint)).toByteArray(Charsets.UTF_8)
-        }
-        send(bytes)
+        send(
+            if (codePoint < 0x80) {
+                byteArrayOf(codePoint.toByte())
+            } else {
+                String(Character.toChars(codePoint)).toByteArray(Charsets.UTF_8)
+            },
+        )
     }
 
     private fun send(bytes: ByteArray) {
@@ -272,7 +267,7 @@ internal class TerminalInputView(context: Context) : View(context) {
     }
 
     private companion object {
-        const val ESC = 0x1b
-        const val DEL = 0x7f
+        const val ESC: Byte = 0x1b
+        const val DEL: Byte = 0x7f
     }
 }

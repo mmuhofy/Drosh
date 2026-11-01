@@ -71,15 +71,6 @@ internal class TerminalRenderer(
      */
     var onGridChanged: ((columns: Int, rows: Int, fontSize: FontSize) -> Unit)? = null
 
-    /**
-     * A grid is being held back while the surface moves; ask for a settle.
-     *
-     * The surface is drawn on demand (`RENDERMODE_WHEN_DIRTY`), so when an
-     * animation ends there is no next frame to notice the surface stopped. The
-     * host schedules one instead — see `TerminalView`.
-     */
-    var onGridHeld: (() -> Unit)? = null
-
     /** Last GL failure, read and cleared by the activity. */
     @Volatile
     var lastGlError: String? = null
@@ -140,18 +131,6 @@ internal class TerminalRenderer(
      */
     private var appliedColumns = 0
     private var appliedRows = 0
-
-    /**
-     * The grid a moving surface is heading for, and when it last moved.
-     *
-     * A sidebar sliding in, a keyboard rising: the surface changes size on
-     * every animation frame, and each change would be a `Term::resize` — every
-     * row re-wrapped, eighteen times in three hundred milliseconds, while the
-     * user watches. That is the flicker. The grid is held at its current shape
-     * until the surface has stopped, then applied once.
-     */
-    private var pendingGrid: Pair<Int, Int>? = null
-    private var lastResizeNanos = 0L
 
     /** The `session.colorsStamp` whose table is currently installed. */
     private var appliedColorsStamp = 0
@@ -230,15 +209,18 @@ internal class TerminalRenderer(
         GLES20.glViewport(0, 0, surfaceWidth, surfaceHeight)
         size = size.withSurface(surfaceWidth, surfaceHeight)
 
-        // The surface is new, so nothing is on it: the next frame draws even if
-        // the engine says nothing changed.
+        // The grid follows the surface on the same frame, always.
         //
-        // The grid is *not* reflowed here. A keyboard rising is sixty surface
-        // changes in three hundred milliseconds and each would be a
-        // `Term::resize`; the grid waits for the surface to stop and
-        // `settleGrid` applies it once. Until then the picture is drawn at
-        // [size] — the new bounds, stretched — which is what a terminal does
-        // while the program has not redrawn yet.
+        // Holding it — which an earlier version did to avoid reflowing on every
+        // frame of a keyboard animation — meant the cells were drawn at the new
+        // step over the old row count. The text did not move with the surface:
+        // rows overlapped and columns ran past the edge, which is the "text
+        // inside itself" a keyboard opening produced.
+        //
+        // One reflow per frame of an animation is the cheaper of the two
+        // problems: the engine re-wraps a few thousand cells, which is a
+        // fraction of a millisecond, and the alternative is a picture that is
+        // visibly wrong for three hundred milliseconds.
         planGrid()
     }
 
@@ -269,8 +251,7 @@ internal class TerminalRenderer(
 
         // A committed size is the thing the user asked to see, so the grid is
         // laid out now rather than waiting for the surface to settle.
-        planGrid(holdWhileMoving = false)
-        applyPendingGrid()
+        planGrid()
     }
 
     /** Drop the atlas's masks. The font changed, and a mask of the wrong face is the wrong mask. */
@@ -307,88 +288,42 @@ internal class TerminalRenderer(
     // --- grid --------------------------------------------------------------
 
     /**
-     * Work out the grid the surface asks for, and apply or hold it.
+     * Work out the grid the surface asks for and apply it.
      *
-     * [holdWhileMoving] is false for a font change and true for a surface
-     * change, and the difference is the point: a pinch *is* the size changing,
-     * so its reflow must happen on the frame that asked for it. A sidebar
-     * sliding is the *surface* changing while the size the user chose stays the
-     * same, and reflowing on every frame of that rewraps the text eighteen
-     * times.
+     * Applied immediately, always. An earlier version held the reflow while the
+     * surface was moving — a keyboard rising is sixty surface changes in three
+     * hundred milliseconds, and each is a `Term::resize` — but holding it left
+     * the cells drawn at the new step over the old row count, which is text
+     * overlapping itself. A reflow of a few thousand cells is a fraction of a
+     * millisecond; a picture that is wrong for three hundred is not.
      */
-    private fun planGrid(holdWhileMoving: Boolean = true) {
+    private fun planGrid() {
         if (size.width <= 0 || size.height <= 0) {
             return
         }
-
-        val columns = size.columns
-        val rows = size.rows
-        if (columns == appliedColumns && rows == appliedRows) {
-            pendingGrid = null
-            return
-        }
-
-        val now = System.nanoTime()
-        val moving = holdWhileMoving &&
-            lastResizeNanos != 0L && now - lastResizeNanos < RESIZE_SETTLE_NANOS
-        lastResizeNanos = now
-
-        if (moving) {
-            pendingGrid = columns to rows
-            // Nothing else asks for a frame once the animation stops, so the
-            // host is asked to schedule the settle.
-            onGridHeld?.invoke()
-            return
-        }
-
-        pendingGrid = columns to rows
-        applyPendingGrid()
+        applyGrid(size.columns, size.rows)
     }
 
     /**
-     * Apply the grid the surface is asking for.
+     * Lay the grid out and tell the session.
      *
-     * Called from the settle, and directly when a size is committed. The
-     * session is told here and nowhere else, so the grid and the session's
-     * shape move together.
+     * The one place the session learns its shape, so the grid and the session
+     * cannot disagree.
      */
-    private fun applyPendingGrid() {
-        val (columns, rows) = pendingGrid ?: return
-        pendingGrid = null
+    private fun applyGrid(columns: Int, rows: Int) {
         if (columns == appliedColumns && rows == appliedRows) {
             return
         }
-
         appliedColumns = columns
         appliedRows = rows
         records.resize(columns, rows)
         onGridChanged?.invoke(columns, rows, fontSize)
     }
 
-    /**
-     * Apply a grid that was held back while the surface moved.
-     *
-     * Called once the surface has been still long enough to be the size it is
-     * going to stay at.
-     */
-    fun settleGrid() {
-        if (pendingGrid == null) {
-            return
-        }
-        if (lastResizeNanos != 0L &&
-            System.nanoTime() - lastResizeNanos < RESIZE_SETTLE_NANOS
-        ) {
-            return
-        }
-        applyPendingGrid()
-    }
-
     // --- frame -------------------------------------------------------------
 
     override fun onDrawFrame(gl: GL10?) {
         val startedNanos = System.nanoTime()
-
-        settleGrid()
 
         val cells = session.cells
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
@@ -411,7 +346,6 @@ internal class TerminalRenderer(
                 // picture over a resized surface, and ask for another frame
                 // instead of waiting for output that may never come.
                 clearToBackground()
-                onGridHeld?.invoke()
                 return
             }
         }
@@ -787,16 +721,6 @@ internal class TerminalRenderer(
         const val TAG = "DroshLab"
         const val FLOAT_BYTES = 4
         const val QUAD_VERTICES = 4
-
-        /**
-         * How long the surface must be still before the grid reflows.
-         *
-         * Long enough to cover two frames of a slide (a sidebar, a keyboard),
-         * short enough that a settled surface is laid out before the user can
-         * see it. The animation itself is sixty frames; this is the difference
-         * between one reflow and eighteen.
-         */
-        const val RESIZE_SETTLE_NANOS = 48_000_000L
 
         const val ATTRIB_BACKGROUND_POS = 0
         const val ATTRIB_BACKGROUND_COLOR = 1

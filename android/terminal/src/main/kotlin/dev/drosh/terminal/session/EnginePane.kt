@@ -69,6 +69,36 @@ class EnginePane(context: Context) {
         this.persistentId = persistentId
         this.sessionName = name
     }
+
+    /**
+     * Point this pane at another session.
+     *
+     * A pane is one view and one session at a time, and switching sessions
+     * rebinds the view rather than building a new one: the GL surface, the
+     * atlas and the glyph cache are the expensive things, and a new pane per
+     * switch would throw all of them away and rebuild them behind a black
+     * rectangle.
+     *
+     * The old session is closed first. It is not stopped-and-kept: the engine
+     * holds a process and a PTY per session, and a switch that left the old
+     * one alive would leak both.
+     */
+    fun rebind(persistentId: String, name: String) {
+        if (this.persistentId == persistentId) {
+            // The same session: nothing to rebind, and closing a live one to
+            // reopen it would lose its output.
+            this.sessionName = name
+            return
+        }
+
+        // The old session goes first, so its exit event cannot arrive while
+        // the new one is starting and be reported against the wrong id.
+        if (state.canStop) {
+            session.close()
+            state = state.stopped()
+        }
+        bindIdentity(persistentId, name)
+    }
     /**
      * The engine's own controller, which owns the view and the session.
      *

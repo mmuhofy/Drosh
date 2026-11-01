@@ -233,7 +233,20 @@ fun EnginePaneHost(
         }
     }
 
-    LaunchedEffect(pane) {
+    // Keyed on the session identity as well as the pane.
+    //
+    // A pane is one view and one session, and switching to another session
+    // rebinds the same pane to a different one. Keying on `pane` alone meant
+    // the effect never re-ran: the new session was registered with the manager
+    // but never started, so the screen kept drawing the old one — a terminal
+    // that ignored every session switch.
+    LaunchedEffect(pane, sessionId) {
+        // A new session id means the pane is being pointed somewhere else.
+        // The old session is closed and the view rebound before anything is
+        // started, so the switch cannot leave two sessions alive or report an
+        // exit against the wrong one.
+        pane.rebind(sessionId, sessionName)
+
         // The start step, as the screen can read it. Every branch below writes
         // here *and* to the log: a device whose log is unreachable still shows
         // which step the session reached, and that is the difference between a
