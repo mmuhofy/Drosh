@@ -210,7 +210,7 @@ internal class TerminalInputView(context: Context) : View(context) {
 
             var point = codePoint
             var ctrl = false
-            if (point <= 0x1f && point != ESC) {
+            if (point <= 0x1f && point != ESC.toInt()) {
                 // The keyboard sent a control character: it is reporting a
                 // modifier, not a character.
                 point = if (point == '\n'.code) '\r'.code else point
