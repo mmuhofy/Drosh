@@ -465,7 +465,6 @@ fun EnginePaneHost(
      */
     val zoomSizeSp = remember { mutableStateOf(0f) }
 
-    /**
     LaunchedEffect(pane) {
         pane.zoomListener = { sp -> zoomSizeSp.value = sp }
     }
