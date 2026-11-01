@@ -1440,6 +1440,36 @@ class TerminalManager(
         engineSessions.find { it.persistentId == persistentId }?.session
 
     /**
+     * The last [maxLines] lines a session printed, oldest first.
+     *
+     * ## Why the tail, and not the whole transcript
+     *
+     * The session grid draws a thumbnail of every session: a handful of lines at
+     * a fraction of the terminal's size. The whole transcript is four thousand
+     * lines of JNI traffic per session per tick, and none of it after the last
+     * screenful would be drawn. Reading the tail is the difference between a
+     * cheap poll and a second copy of every session's output.
+     *
+     * ## Why it is allowed to be empty
+     *
+     * A session with no process behind it — never started, or exited — has
+     * nothing to read, and an empty list is the honest answer. So is a session
+     * whose engine handle has gone: the engine keeps its copy with the session,
+     * and the copy dies with it.
+     *
+     * Blocking: this is a JNI read of the engine's transcript. Callers on the UI
+     * thread must not call it; the preview ticker runs it off the main thread.
+     */
+    fun transcriptTail(persistentId: String, maxLines: Int): List<String> {
+        if (maxLines <= 0) return emptyList()
+        val session = engineSessionById(persistentId) ?: return emptyList()
+        if (!session.isAlive) return emptyList()
+        val lines = session.transcript()
+        if (lines.size <= maxLines) return lines
+        return lines.subList(lines.size - maxLines, lines.size)
+    }
+
+    /**
      * Reverse lookup: positional index → persistent id.
      */
     fun getIdForIndex(index: Int): String? =

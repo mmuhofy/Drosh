@@ -315,7 +315,14 @@ fun TerminalTopBar(
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenAgent: () -> Unit,
+    /**
+     * Opens the session grid.
+     *
+     * This slot used to open the agent screen. The agent is reachable from the
+     * drawer's navigation instead, and the grid is the control the row is
+     * missing: switching sessions is what the top of a terminal is for.
+     */
+    onOpenSessions: () -> Unit,
     /** True while a second pane is open. */
     isSplit: Boolean = false,
     /** True when that second pane is floating rather than docked. */
@@ -490,13 +497,13 @@ fun TerminalTopBar(
                     GlassPillButton(
                         backdrop = backdrop,
                         terminalBounds = terminalBounds,
-                        drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
-                        contentDescription = stringResource(dev.drosh.ui.R.string.agent_title),
+                        icon = DroshIcons.SessionGrid,
+                        contentDescription = stringResource(dev.drosh.ui.R.string.topbar_sessions),
                         width = PILL_WIDTH,
                         height = rowHeight,
                         iconSize = pillIconSize,
                         ownSurface = false,
-                        onClick = { onOpenAgent() },
+                        onClick = onOpenSessions,
                     )
 
                     GlassPillButton(

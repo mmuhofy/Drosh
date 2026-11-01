@@ -102,6 +102,8 @@ object DroshIcons {
     val File: ImageVector get() = LucideIcons.File
     val Image: ImageVector get() = LucideIcons.Image
     val Cursor: ImageVector get() = CursorVector
+    /** Four tiles: the session switcher. */
+    val SessionGrid: ImageVector get() = GridVector
     val ShieldCheck: ImageVector get() = LucideIcons.ShieldCheck
     val Check: ImageVector get() = LucideIcons.Check
     val ClipboardPaste: ImageVector get() = LucideIcons.ClipboardPaste
@@ -192,3 +194,62 @@ private val CursorVector: ImageVector = ImageVector.Builder(
     },
     fill = SolidColor(Color.Black),
 ).build()
+
+/**
+ * A two-by-two grid of rounded tiles: the session switcher's own glyph.
+ *
+ * Drawn here rather than pulled from lucide for the same reason as the cursor
+ * above: the row's other glyphs are 24x24 outlines, and a grid of four tiles
+ * reads as "many sessions" at 22dp in a way that a list or a stack does not.
+ * The tiles are deliberately equal and inset, so the mark looks like a
+ * switcher rather than a window frame.
+ */
+private val GridVector: ImageVector = ImageVector.Builder(
+    name = "DroshSessionGrid",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    // Four tiles at 3..10 and 13..20, two units apart: a grid, not a cross.
+    addPath(
+        pathData = PathData {
+            moveTo(4.5f, 3f)
+            horizontalLineTo(10.5f)
+            verticalLineTo(9f)
+            horizontalLineTo(4.5f)
+            close()
+        },
+        fill = SolidColor(Color.Black),
+    )
+    addPath(
+        pathData = PathData {
+            moveTo(13.5f, 3f)
+            horizontalLineTo(19.5f)
+            verticalLineTo(9f)
+            horizontalLineTo(13.5f)
+            close()
+        },
+        fill = SolidColor(Color.Black),
+    )
+    addPath(
+        pathData = PathData {
+            moveTo(4.5f, 12f)
+            horizontalLineTo(10.5f)
+            verticalLineTo(18f)
+            horizontalLineTo(4.5f)
+            close()
+        },
+        fill = SolidColor(Color.Black),
+    )
+    addPath(
+        pathData = PathData {
+            moveTo(13.5f, 12f)
+            horizontalLineTo(19.5f)
+            verticalLineTo(18f)
+            horizontalLineTo(13.5f)
+            close()
+        },
+        fill = SolidColor(Color.Black),
+    )
+}.build()

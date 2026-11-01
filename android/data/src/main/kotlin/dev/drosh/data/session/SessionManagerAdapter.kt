@@ -111,9 +111,51 @@ class SessionManagerAdapter @Inject constructor(
             while (true) {
                 delay(SNAPSHOT_TICK_MS)
                 ensureSessionExists()
-                // Live snapshot capture is deferred until TerminalBuffer API is stable.
-                // TODO: Implement captureLiveSnapshot() using emulator.getScreen()
+                captureLivePreviews()
             }
+        }
+    }
+
+    /**
+     * Publishes each live session's last few lines, for the session grid.
+     *
+     * ## What this is for
+     *
+     * The grid draws every session as a card with a thumbnail of its output. A
+     * card whose thumbnail is blank is a card the user cannot recognise, and the
+     * session's name alone does not say what it is doing — two shells called
+     * "Default" look identical until one of them shows a build running.
+     *
+     * ## Why the tail, and why a tick
+     *
+     * [TerminalManager.transcriptTail] is a JNI read, so it runs here, off the
+     * main thread, once per [SNAPSHOT_TICK_MS]. Reading the whole transcript for
+     * every session on every frame would be a second copy of every session's
+     * output; the thumbnail only ever draws a screenful at a fraction of the
+     * size, so the tail is all of it that can be seen.
+     *
+     * ## Why it writes through the repository
+     *
+     * [SessionSnapshot.liveSnapshotLines] is what the grid reads, and the
+     * repository is what fills it. Writing to the flow directly would put a
+     * second source of truth beside the snapshot the rest of the app already
+     * watches.
+     *
+     * A session that has gone quiet still gets written on every tick. The
+     * repository's map is keyed by id and the value is compared by the flow's
+     * own distinctness, so an unchanged preview costs a map write and no
+     * emission.
+     */
+    private suspend fun captureLivePreviews() {
+        val liveIds = withContext(Dispatchers.Main.immediate) {
+            terminalManager.liveSessionIds()
+        }
+        if (liveIds.isEmpty()) return
+
+        for (id in liveIds) {
+            val lines = terminalManager.transcriptTail(id, PREVIEW_LINES)
+            if (lines.isEmpty()) continue
+            sessionRepository.updateLivePreview(id, lines)
         }
     }
 
@@ -296,5 +338,15 @@ class SessionManagerAdapter @Inject constructor(
 
     private companion object {
         const val SNAPSHOT_TICK_MS = 500L
+
+        /**
+         * How many lines of a session's output a card's thumbnail holds.
+         *
+         * Enough to fill the thumbnail at its size and no more: the card is a
+         * couple of hundred dp tall and draws its preview at a fraction of the
+         * terminal's font, so a screenful is the most that can be seen. Reading
+         * further back would be JNI traffic for lines that are never drawn.
+         */
+        const val PREVIEW_LINES = 24
     }
 }

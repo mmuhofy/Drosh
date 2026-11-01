@@ -79,6 +79,7 @@ import dev.drosh.ui.DroshIcons
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -101,6 +102,8 @@ import dev.drosh.ui.input.FlatKeyBar
 import dev.drosh.ui.input.InputBarViewModel
 import dev.drosh.ui.pane.PaneLayoutViewModel
 import dev.drosh.ui.pane.SplitPaneHost
+import dev.drosh.domain.session.SessionState
+import dev.drosh.ui.session.SessionGrid
 import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.session.SessionSidebar
 import dev.drosh.ui.session.SessionSwitcherViewModel
@@ -382,6 +385,16 @@ private fun ReadyScreen(
         }
     }
     var sidebarOpen by remember { mutableStateOf(false) }
+
+    /**
+     * Whether the session grid is showing.
+     *
+     * A full-screen overlay rather than a sheet: the grid *is* the terminal
+     * switcher, and it wants the whole screen for its cards. It is not a
+     * dialog either — it has no dismiss button of its own, because choosing a
+     * card is the dismissal.
+     */
+    var sessionsGridOpen by remember { mutableStateOf(false) }
     val sidebarPush = rememberSidebarPushState(sidebarOpen)
     /**
      * The session the drawer is carrying, or null.
@@ -1136,7 +1149,10 @@ private fun ReadyScreen(
                     }
                 },
                 onOpenSettings = onOpenSettings,
-                onOpenAgent = onOpenAgent,
+                onOpenSessions = {
+                    hideKeyboard()
+                    sessionsGridOpen = true
+                },
         )
 
         // Slider overlay trigger — BackHandler kalıyor, SessionSidebar
@@ -1191,6 +1207,49 @@ private fun ReadyScreen(
                 kind = findState?.kind,
                 matchText = findState?.activeText,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
+            )
+        }
+
+        // The session grid, over everything.
+        //
+        // Drawn before the drawer in the Box, so a drawer opened from inside the
+        // grid (there is no such path today, but the nav rows are the reason
+        // this could change) still wins. It is a sibling of the terminal rather
+        // than a sheet because it wants the whole screen for its cards.
+        if (sessionsGridOpen) {
+            BackHandler { sessionsGridOpen = false }
+
+            SessionGrid(
+                sessions = sessions,
+                activeId = activeId,
+                onOpen = { id ->
+                    sessionSwitcherViewModel.activate(id)
+                    sessionsGridOpen = false
+                },
+                onClose = { id -> sessionSwitcherViewModel.delete(id) },
+                onNewSession = {
+                    sessionSwitcherViewModel.createNew("shell")
+                    sessionsGridOpen = false
+                },
+                onCloseAll = {
+                    // Every live session closed at once. The exit dialog owns
+                    // what happens when the last one goes, so this only has to
+                    // ask for the closes.
+                    sessions
+                        .filter { it.state != SessionState.Closed }
+                        .forEach { sessionSwitcherViewModel.delete(it.id) }
+                },
+                onGroupSessions = { anchor, partner ->
+                    // The same call the drawer's drop makes, and the same one the
+                    // row menu makes: a split is a pair, and the terminal owns
+                    // which pane each session lands in.
+                    paneLayoutViewModel.openSplit(partner, anchor)
+                    sessionsGridOpen = false
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(DroshSurface)
+                    .zIndex(3f),
             )
         }
 

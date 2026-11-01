@@ -153,6 +153,11 @@ class SessionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateLivePreview(id: String, lines: List<String>) {
+        // A preview that has not changed is not an update. The grid's ticker
+        // writes every live session on every tick, and an unconditional map
+        // write would rebuild the snapshot list — and with it every card — once
+        // per session per tick for output nobody can see change.
+        if (_livePreviews.value[id] == lines) return
         _livePreviews.update { current ->
             current + (id to lines)
         }
