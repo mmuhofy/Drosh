@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -42,29 +41,23 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawOutline
-import dev.drosh.ui.topbar.BLUR_SUPPORTED
 import androidx.compose.material3.ripple
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
-import kotlin.math.roundToInt
 import dev.drosh.theme.DroshBackground
-import dev.drosh.theme.DroshPrimary
-import dev.drosh.theme.DroshSurface
 import dev.drosh.ui.DroshDropdownMenu
+import dev.drosh.ui.DroshMenuDensity
 import dev.drosh.ui.DroshMenuItem
-import dev.drosh.theme.DroshText
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.session.SessionSwitcherViewModel
 
@@ -132,39 +125,19 @@ private const val CHROME_ANIMATION_MILLIS = 220
 private const val CHROME_COLLAPSE_DELAY_MILLIS = 70
 
 /**
- * Over the blurred slice, so the terminal shows through as a smudge rather
- * than as glyphs.
+ * The pill's fill, opaque.
  *
- * Deliberately light. At 0.72 this read as a grey box with a hint of terminal in
- * it, because 72% of the pill's area was a solid surface and only 28% was the
- * glass the user is supposed to be looking through. The prototype's own pill is
- * `rgba(255,255,255,0.08)` -- nearly nothing -- because its blur is doing the
- * work. Here the fill only has to lift the pill off the terminal a little.
+ * The pills used to be glass: a blurred slice of the terminal behind them plus a
+ * 28% tint. That read as frosted glass on a device that could blur and as a
+ * smudge on one that could not, and either way the button's silhouette depended
+ * on what the terminal happened to be printing. An opaque surface is the same
+ * control over any output.
+ *
+ * Dark rather than themed: the row floats over the terminal, and the terminal is
+ * dark in every theme, so the button is dark in every theme too. See
+ * [PILL_CONTENT] for why its content is light.
  */
-private const val PILL_SURFACE_ALPHA = 0.28f
-
-/**
- * The tint where the platform cannot blur, so the text has to be hidden by
- * opacity instead.
- *
- * `Modifier.blur` is a no-op below API 31 -- there is no fallback, just no blur --
- * so a 28% tint there leaves the terminal's text behind the pill perfectly
- * readable. This tint does not depend on the blur for anything.
- */
-private const val PILL_SURFACE_ALPHA_UNBLURRED = 0.88f
-
-/**
- * The hairline around and between pills. The prototype's `rgba(255,255,255,.14)`.
- *
- * A plain colour rather than a token: `DroshSurfaceHigh` is a composable getter
- * over `LocalDroshColors`, and a top-level `val` cannot call one -- the border
- * would be read at class-load time, before any composition existed.
- *
- * Carried on the surface it belongs to: a button drawing its own border inside a
- * group that already has one would double it to 2dp, which reads as a seam rather
- * than as an edge.
- */
-private val PILL_BORDER = Color.White.copy(alpha = 0.14f)
+private val PILL_SURFACE = Color(0xFF2A2A2C)
 
 /**
  * The row's own colour for its text and its icons.
@@ -176,7 +149,7 @@ private val PILL_BORDER = Color.White.copy(alpha = 0.14f)
  */
 private val PILL_CONTENT = Color(0xFFF2F2F2)
 
-/** Thickness of the glass edge. Visible stroke width, measured inside the shape. */
+/** Thickness of the pill's edge. Visible stroke width, measured inside the shape. */
 private val PILL_EDGE_WIDTH = 1.dp
 
 /**
@@ -196,22 +169,22 @@ private val PILL_EDGE_STOPS = arrayOf(
 )
 
 /**
- * A fake liquid-glass edge: a diagonal gradient stroke that follows [shape] exactly.
+ * The pill's edge: a diagonal gradient stroke that follows [shape] exactly.
  *
  * The old edge drew two arcs of the ellipse inscribed in the node's bounds. On a
- * square pill that is the outline; on the 88x44 right-hand pair it is not -- an
+ * square pill that is the outline; on the 88x44 right-hand pair it was not -- an
  * ellipse has no straight top and bottom, so the arcs drifted off the capsule's
- * edge and got cut by the clip, which is the broken border on the two right
- * buttons.
+ * edge and got cut by the clip, which is the broken border the two right buttons
+ * used to have. The pair is two circles now, but the stroke is still the shape's
+ * own outline rather than an inscribed ellipse, so it cannot disagree with the
+ * clip whatever shape a pill is given.
  *
- * Here the stroke is the shape's own outline, so it cannot disagree with the clip.
- * It is drawn at double width and clipped to the shape, which leaves exactly
- * [width] of it inside -- no inset arithmetic, and it works for any [Shape], the
- * half-capsules of the joined pair included.
+ * Drawn at double width and clipped to the shape, which leaves exactly [width]
+ * of it inside -- no inset arithmetic, and it works for any [Shape].
  *
  * Drawn after the content so nothing opaque inside can cover it.
  */
-private fun Modifier.liquidGlassBorder(shape: Shape, width: Dp = PILL_EDGE_WIDTH): Modifier =
+private fun Modifier.pillEdge(shape: Shape, width: Dp = PILL_EDGE_WIDTH): Modifier =
     this
         .clip(shape)
         .drawWithCache {
@@ -230,36 +203,8 @@ private fun Modifier.liquidGlassBorder(shape: Shape, width: Dp = PILL_EDGE_WIDTH
             }
         }
 
-/** The full capsule, and the two halves of the joined pair. */
+/** The full capsule. Every pill in the row is one of these. */
 private val PILL_SHAPE = RoundedCornerShape(percent = 50)
-private val PILL_START_SHAPE = RoundedCornerShape(
-    topStartPercent = 50, topEndPercent = 0, bottomEndPercent = 0, bottomStartPercent = 50,
-)
-private val PILL_END_SHAPE = RoundedCornerShape(
-    topStartPercent = 0, topEndPercent = 50, bottomEndPercent = 50, bottomStartPercent = 0,
-)
-
-/**
- * Where a pill sits inside the sampled terminal strip.
- *
- * A plain mutable holder on purpose. This is written during layout and read
- * during draw, and routing it through Compose state makes layout invalidate
- * itself: onGloballyPositioned wrote state, which re-ran layout, which called
- * it again, and the leftmost buttons visibly climbed the screen during a
- * scroll.
- */
-private class PillSlice {
-    var pillBounds: Rect? = null
-
-    fun offsetIn(terminal: Rect?): IntOffset {
-        val p = pillBounds ?: return IntOffset.Zero
-        if (terminal == null) return IntOffset.Zero
-        return IntOffset(
-            (p.left - terminal.left).roundToInt(),
-            (p.top - terminal.top).roundToInt(),
-        )
-    }
-}
 
 /**
  * A pill's width, equal to its height, so the buttons read as full circles.
@@ -269,20 +214,6 @@ private class PillSlice {
  * name of the thing implies.
  */
 private const val PILL_WIDTH_DP = 44
-
-/**
- * How hard the pill's backdrop is blurred.
- *
- * 22dp was not enough: the glyphs behind a button were still legible as shapes,
- * which is the opposite of frosted glass. 34dp was not enough either. Past 44dp
- * the radius equals the pill's own height, so nothing resolves and what shows
- * through is the terminal's colour and brightness rather than its contents.
- *
- * Applied through Modifier.blur, so this is a real RenderEffect on a real layer --
- * and where BLUR_SUPPORTED is false there is no blur at all and the tint has to
- * carry the whole job.
- */
-private val PILL_BLUR_RADIUS = 44.dp
 
 /**
  * The system status bar's height, whether or not it is currently showing.
@@ -509,7 +440,7 @@ fun TerminalTopBar(
                     onClick = onOpenSidebar,
                 )
 
-                // Same glass as the buttons: backdrop, tint and edge.
+                // The same opaque surface and edge as the buttons.
                 GlassSurface(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
@@ -532,28 +463,22 @@ fun TerminalTopBar(
             Spacer(Modifier.weight(1f))
 
 
-            // ── Right: the joined pair ────────────────────────────────────────
+            // ── Right: two circles, side by side ──────────────────────────────
             // Same Row as the left group rather than a sibling Box aligned by
             // hand. Two separate parents let the clusters settle on different
             // baselines whenever their content differed in height, which is why
             // the left and right buttons looked vertically offset.
             //
-            // Agent and more are one surface with a hairline between them, not two
-            // pills with a gap. Two floating controls a hand's width apart on the
-            // same side of the screen read as two unrelated actions; touching
-            // circles read as one group with two things in it, and the divider
-            // says where one ends.
+            // They used to be one capsule split in half, with a hairline seam.
+            // Two discs with a gap say the same thing — two actions, one group —
+            // without a seam that had to be drawn inside a shared border, and
+            // without the half-capsule clips that made each half's ripple and
+            // edge disagree about where the group ended.
             Row(
-                modifier = Modifier
-                    .height(rowHeight)
-                    .clip(PILL_SHAPE)
-                    .liquidGlassBorder(PILL_SHAPE),
+                modifier = Modifier.height(rowHeight),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // Each half is clipped to its half of the capsule, not to a circle:
-                // two circles inside a capsule leave the backdrop, the ripple and
-                // the border disagreeing about where the group's edge is.
                 GlassPillButton(
                     backdrop = backdrop,
                     terminalBounds = terminalBounds,
@@ -562,25 +487,7 @@ fun TerminalTopBar(
                     width = PILL_WIDTH,
                     height = rowHeight,
                     iconSize = pillIconSize,
-                    ownSurface = false,
-                    shape = PILL_START_SHAPE,
                     onClick = { onOpenAgent() },
-                )
-
-                // The seam: a hairline that fades at both ends instead of a hard bar.
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(rowHeight - 12.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.Transparent,
-                                    Color.White.copy(alpha = 0.18f),
-                                    Color.Transparent,
-                                ),
-                            ),
-                        ),
                 )
 
                 GlassPillButton(
@@ -591,8 +498,6 @@ fun TerminalTopBar(
                     width = PILL_WIDTH,
                     height = rowHeight,
                     iconSize = pillIconSize,
-                    ownSurface = false,
-                    shape = PILL_END_SHAPE,
                     onClick = { moreExpanded = true },
                 )
             }
@@ -622,6 +527,7 @@ fun TerminalTopBar(
             MoreActionsDropdown(
                 expanded = moreExpanded,
                 onDismiss = { moreExpanded = false },
+                sessionName = activeName,
                 onFindInOutput = onFindInOutput,
                 onRefresh = onRefresh,
                 onToggleButtons = { buttonsHidden = !buttonsHidden },
@@ -636,11 +542,16 @@ fun TerminalTopBar(
  * Two entries, and both are about the output rather than about the app's
  * arrangement: refresh it, or find in it. Everything that acts on a second
  * pane moved to the drawer, where the pane it acts on is on screen.
+ *
+ * The session's name is the menu's title: these actions act on that terminal, and
+ * a menu that does not say which one is a menu the user has to remember the
+ * context of.
  */
 @Composable
 private fun MoreActionsDropdown(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    sessionName: String?,
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
     onToggleButtons: () -> Unit,
@@ -648,6 +559,14 @@ private fun MoreActionsDropdown(
     DroshDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
+        title = sessionName?.takeIf { it.isNotBlank() } ?: "Drosh",
+        // The card the row opens, not a list hanging off an icon: bigger entries
+        // to land a finger on, and a width that holds a session name.
+        density = DroshMenuDensity.Comfortable,
+        // Further below the button than the default: the menu is a card, not a
+        // tooltip hanging off the icon, and it should clear the row entirely
+        // rather than crowd the button that opened it.
+        offset = DpOffset(0.dp, 14.dp),
         items = buildList {
             // The split actions are gone from here. They live in the drawer,
             // beside the pair they act on — a control for a second pane that
@@ -675,12 +594,11 @@ private fun MoreActionsDropdown(
 }
 
 /**
- * iOS-style glass pill button.
+ * The row's pill button.
  *
- * Gerçek backdrop blur uygulamaz (Compose'da native karşılığı yok).
- * Bunun yerine yarı şeffaf surface + hafif highlight gradyanı ile
- * "buzlu cam" hissi simüle edilir. Basılınca hafif scale-down (spring,
- * bounce yok) ile dokunma geri bildirimi verir.
+ * An opaque disc with a gradient edge. It used to be frosted glass — a blurred
+ * slice of the terminal behind it — and the doc here claimed a press-scale that
+ * was never implemented; the ripple is the whole of the press feedback.
  */
 @Composable
 private fun GlassPillButton(
@@ -693,19 +611,11 @@ private fun GlassPillButton(
     width: Dp = PILL_WIDTH,
     height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
-    /**
-     * False when this button sits inside a group that already carries the surface.
-     *
-     * The backdrop and the icon are the button's own; the fill, the border and the
-     * press-scale are the group's, so several buttons in one surface do not each
-     * redraw a box inside it.
-     */
-    ownSurface: Boolean = true,
-    /** The button's clip. A half-capsule when it is one half of a joined pair. */
+    /** The button's clip. A full circle for every pill in the row. */
     shape: RoundedCornerShape = PILL_SHAPE,
 ) {
     GlassPillBody(
-        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds, ownSurface, shape,
+        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds, shape,
     ) { tint ->
         when {
             drawableRes != null -> Icon(
@@ -734,7 +644,6 @@ private fun GlassPillBody(
     iconSize: Dp = 22.dp,
     backdrop: ImageBitmap?,
     terminalBounds: Rect?,
-    ownSurface: Boolean,
     shape: RoundedCornerShape,
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
@@ -743,7 +652,6 @@ private fun GlassPillBody(
         terminalBounds = terminalBounds,
         shape = shape,
         modifier = Modifier.width(width).height(height),
-        ownSurface = ownSurface,
         onClick = onClick,
     ) {
         Box(
@@ -754,33 +662,33 @@ private fun GlassPillBody(
 }
 
 /**
- * One piece of glass: blurred terminal slice, tint, gradient edge, then content.
+ * One pill: opaque fill, gradient edge, then content.
  *
  * Shared by the buttons and the session-name pill so they cannot drift apart.
  * Clip comes before the ripple on purpose -- a bounded ripple is a rectangle, and
  * it is the clip ahead of it that keeps it inside the shape.
  *
- * [ownSurface] false: the tint and edge belong to a parent group; only the
- * backdrop slice and the content are drawn here.
+ * The fill is [PILL_SURFACE] rather than a blurred slice of the terminal: the
+ * pills are opaque, so nothing behind them can change how they read. [backdrop]
+ * and [terminalBounds] are still accepted because the row still samples the
+ * terminal for its own backdrop, and a caller should not have to know which of
+ * the row's pieces read it.
  */
 @Composable
 private fun GlassSurface(
-    backdrop: ImageBitmap?,
-    terminalBounds: Rect?,
+    @Suppress("UNUSED_PARAMETER") backdrop: ImageBitmap?,
+    @Suppress("UNUSED_PARAMETER") terminalBounds: Rect?,
     shape: RoundedCornerShape,
     modifier: Modifier = Modifier,
-    ownSurface: Boolean = true,
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    // Plain holder, not state: see PillSlice.
-    val slice = remember { PillSlice() }
     val interactionSource = remember { MutableInteractionSource() }
 
     Box(
         modifier = modifier
             .clip(shape)
-            .onGloballyPositioned { slice.pillBounds = it.boundsInRoot() }
+            .background(PILL_SURFACE)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -794,20 +702,11 @@ private fun GlassSurface(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        TerminalBackdropSlice(
-            backdrop = backdrop,
-            sourceOffset = { slice.offsetIn(terminalBounds) },
-            blurRadius = PILL_BLUR_RADIUS,
-            shape = shape,
-            modifier = Modifier.matchParentSize(),
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .pillEdge(shape),
         )
-        if (ownSurface) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .liquidGlassBorder(shape),
-            )
-        }
         content()
     }
 }

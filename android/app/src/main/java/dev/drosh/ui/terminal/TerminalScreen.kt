@@ -814,14 +814,16 @@ private fun ReadyScreen(
 
     // Only the classic path has a View to sample; the block engine is a
     // LazyColumn and the alt buffer is a TUI, neither of which needs this.
+    //
+    // Off, deliberately, and not deleted. The row's pills are opaque now, so
+    // nothing on screen reads the strip — but the capture draws the whole
+    // terminal view every 500ms, and paying that for a bitmap no one draws is
+    // the one thing this switch is for. Flip `active` back to `!immersive` to
+    // bring the glass back.
     val backdrop by rememberTerminalBackdrop(
         source = appearanceSource.value,
         stripHeight = TOP_BAR_BACKDROP_STRIP,
-        // Only while the pills float over output. Collapsed they sit in the band
-        // the status bar vacated, above the grid, so there is nothing behind them
-        // to take — and the capture draws the whole terminal to produce a slice
-        // nothing shows.
-        active = !immersive,
+        active = false,
     )
 
     val searchOverlayRef = remember {
