@@ -35,21 +35,27 @@ import dev.drosh.theme.DroshTextSecondary
 enum class DroshMenuItemStyle { Default, Destructive }
 
 /**
- * How much room each entry gets.
+ * How much room each entry gets, and what shape it presses in.
  *
  * [Compact] is the menu as a context list: it sits next to the thing it acts on
- * and should not push it around. [Comfortable] is the menu as a card — the row's
- * overflow — where the entries are the whole of what the user came for and a
- * finger has to land on one.
+ * and should not push it around. [Slim] is the row's overflow menu — narrower
+ * and taller, with a pill press shape, so it takes as little of the terminal as
+ * it can while a finger still has a full-height target.
  */
-enum class DroshMenuDensity { Compact, Comfortable }
+enum class DroshMenuDensity { Compact, Slim }
 
 private val MIN_MENU_WIDTH = 140.dp
 private val MAX_MENU_WIDTH = 280.dp
 
-/** The larger card a screen asks for with [DroshMenuDensity.Comfortable]. */
-private val COMFORTABLE_MENU_MIN_WIDTH = 200.dp
-private val COMFORTABLE_MENU_MAX_WIDTH = 320.dp
+/**
+ * The row's overflow menu, as a slim card.
+ *
+ * Narrower than the default card and taller per entry: the row's menu sits over
+ * a terminal the user is reading, so it takes as little of it as it can, and a
+ * finger still has a full-height target.
+ */
+private val SLIM_MENU_MIN_WIDTH = 196.dp
+private val SLIM_MENU_MAX_WIDTH = 206.dp
 
 /**
  * The menu's own corners.
@@ -59,6 +65,9 @@ private val COMFORTABLE_MENU_MAX_WIDTH = 320.dp
  */
 private val MENU_SHAPE = RoundedCornerShape(22.dp)
 
+/** The slim card's corners. A step in from [MENU_SHAPE] for its smaller frame. */
+private val SLIM_MENU_SHAPE = RoundedCornerShape(16.dp)
+
 /**
  * An entry's press shape.
  *
@@ -66,6 +75,9 @@ private val MENU_SHAPE = RoundedCornerShape(22.dp)
  * entry has, and a square ripple inside a soft card reads as a bug.
  */
 private val MENU_ITEM_SHAPE = RoundedCornerShape(14.dp)
+
+/** An entry's press shape in the slim card: a pill, the full height of its row. */
+private val SLIM_MENU_ITEM_SHAPE = RoundedCornerShape(percent = 50)
 
 data class DroshMenuItem(
     val label: String,
@@ -105,29 +117,31 @@ fun DroshDropdownMenu(
      * How much room each entry gets. See [DroshMenuDensity].
      *
      * Defaults to [DroshMenuDensity.Compact] so every existing caller keeps the
-     * menu it had; a screen that wants the larger card asks for it.
+     * menu it had; a screen that wants the slim card asks for it.
      */
     density: DroshMenuDensity = DroshMenuDensity.Compact,
 ) {
-    val comfortable = density == DroshMenuDensity.Comfortable
-    val horizontalPadding = if (comfortable) 18.dp else 14.dp
-    val verticalPadding = if (comfortable) 14.dp else 11.dp
-    val iconSize = if (comfortable) 20.dp else 17.dp
-    val iconGap = if (comfortable) 14.dp else 12.dp
-    val labelStyle =
-        if (comfortable) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
+    val slim = density == DroshMenuDensity.Slim
+    // The slim card's own numbers; the compact menu keeps the padding it had.
+    val horizontalPadding = 14.dp
+    val verticalPadding = if (slim) 9.dp else 11.dp
+    val iconSize = 17.dp
+    val iconGap = if (slim) 11.dp else 12.dp
+    val labelStyle = MaterialTheme.typography.bodyMedium
+    val itemShape = if (slim) SLIM_MENU_ITEM_SHAPE else MENU_ITEM_SHAPE
+    val itemMargin = if (slim) 5.dp else 0.dp
 
     DropdownMenu(
         expanded         = expanded,
         onDismissRequest = onDismissRequest,
         offset           = offset,
-        shape            = MENU_SHAPE,
+        shape            = if (slim) SLIM_MENU_SHAPE else MENU_SHAPE,
         containerColor   = DroshSurfaceVariant,
         modifier         = modifier
             .background(DroshSurfaceVariant)
             .widthIn(
-                min = if (comfortable) COMFORTABLE_MENU_MIN_WIDTH else MIN_MENU_WIDTH,
-                max = if (comfortable) COMFORTABLE_MENU_MAX_WIDTH else MAX_MENU_WIDTH,
+                min = if (slim) SLIM_MENU_MIN_WIDTH else MIN_MENU_WIDTH,
+                max = if (slim) SLIM_MENU_MAX_WIDTH else MAX_MENU_WIDTH,
             )
             // Applied last so a caller pinning a width wins over the min/max range.
             .then(if (width != null) Modifier.width(width) else Modifier),
@@ -143,10 +157,14 @@ fun DroshDropdownMenu(
                     .fillMaxWidth()
                     .padding(horizontal = horizontalPadding, vertical = 6.dp),
             )
-            HorizontalDivider(
-                color    = DroshOutline.copy(alpha = 0.35f),
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
+            // The slim card has no rule under its title: its first entry is a
+            // pill with a margin, which already separates the two.
+            if (!slim) {
+                HorizontalDivider(
+                    color    = DroshOutline.copy(alpha = 0.35f),
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
         }
 
         items.forEachIndexed { index, item ->
@@ -171,7 +189,8 @@ fun DroshDropdownMenu(
             Row(
                 modifier          = Modifier
                     .fillMaxWidth()
-                    .clip(MENU_ITEM_SHAPE)
+                    .padding(horizontal = itemMargin)
+                    .clip(itemShape)
                     .clickable(
                         onClick = {
                             if (item.enabled) {

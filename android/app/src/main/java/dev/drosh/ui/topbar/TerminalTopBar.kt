@@ -463,43 +463,54 @@ fun TerminalTopBar(
             Spacer(Modifier.weight(1f))
 
 
-            // ── Right: two circles, side by side ──────────────────────────────
+            // ── Right: one body, two discs ────────────────────────────────────
             // Same Row as the left group rather than a sibling Box aligned by
             // hand. Two separate parents let the clusters settle on different
             // baselines whenever their content differed in height, which is why
             // the left and right buttons looked vertically offset.
             //
-            // They used to be one capsule split in half, with a hairline seam.
-            // Two discs with a gap say the same thing — two actions, one group —
-            // without a seam that had to be drawn inside a shared border, and
-            // without the half-capsule clips that made each half's ripple and
-            // edge disagree about where the group ended.
-            Row(
-                modifier = Modifier.height(rowHeight),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            // One body, not two: the pair reads as a single control with two
+            // actions in it, and the body carries the fill and the gradient edge
+            // so the silhouette is one shape rather than two that happen to
+            // touch. Inside it each button is its own disc, so a press ripples
+            // inside its own circle instead of across the whole capsule. There
+            // is no divider: the two discs are the divider.
+            Box(
+                modifier = Modifier
+                    .height(rowHeight)
+                    .clip(PILL_SHAPE)
+                    .background(PILL_SURFACE)
+                    .pillEdge(PILL_SHAPE),
             ) {
-                GlassPillButton(
-                    backdrop = backdrop,
-                    terminalBounds = terminalBounds,
-                    drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
-                    contentDescription = stringResource(dev.drosh.ui.R.string.agent_title),
-                    width = PILL_WIDTH,
-                    height = rowHeight,
-                    iconSize = pillIconSize,
-                    onClick = { onOpenAgent() },
-                )
+                Row(
+                    modifier = Modifier.height(rowHeight),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(0.dp),
+                ) {
+                    GlassPillButton(
+                        backdrop = backdrop,
+                        terminalBounds = terminalBounds,
+                        drawableRes = dev.drosh.ui.R.drawable.ic_agent_head,
+                        contentDescription = stringResource(dev.drosh.ui.R.string.agent_title),
+                        width = PILL_WIDTH,
+                        height = rowHeight,
+                        iconSize = pillIconSize,
+                        ownSurface = false,
+                        onClick = { onOpenAgent() },
+                    )
 
-                GlassPillButton(
-                    backdrop = backdrop,
-                    terminalBounds = terminalBounds,
-                    icon = DroshIcons.EllipsisVertical,
-                    contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
-                    width = PILL_WIDTH,
-                    height = rowHeight,
-                    iconSize = pillIconSize,
-                    onClick = { moreExpanded = true },
-                )
+                    GlassPillButton(
+                        backdrop = backdrop,
+                        terminalBounds = terminalBounds,
+                        icon = DroshIcons.EllipsisVertical,
+                        contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
+                        width = PILL_WIDTH,
+                        height = rowHeight,
+                        iconSize = pillIconSize,
+                        ownSurface = false,
+                        onClick = { moreExpanded = true },
+                    )
+                }
             }
         }
         }
@@ -560,9 +571,9 @@ private fun MoreActionsDropdown(
         expanded = expanded,
         onDismissRequest = onDismiss,
         title = sessionName?.takeIf { it.isNotBlank() } ?: "Drosh",
-        // The card the row opens, not a list hanging off an icon: bigger entries
-        // to land a finger on, and a width that holds a session name.
-        density = DroshMenuDensity.Comfortable,
+        // The slim card: long and thin, so it covers as little of the terminal
+        // as it can, with each entry pressing in a pill.
+        density = DroshMenuDensity.Slim,
         // Further below the button than the default: the menu is a card, not a
         // tooltip hanging off the icon, and it should clear the row entirely
         // rather than crowd the button that opened it.
@@ -611,11 +622,22 @@ private fun GlassPillButton(
     width: Dp = PILL_WIDTH,
     height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
+    /**
+     * False when this button sits inside a body that already carries the fill
+     * and the edge.
+     *
+     * The two right-hand buttons are one body with two discs in it, so the fill
+     * and the silhouette belong to the body: drawing them again per button would
+     * stack two edges a hairline apart. The button keeps its own circular clip
+     * and its own ripple either way — that is what makes a press land in one
+     * circle rather than across the whole capsule.
+     */
+    ownSurface: Boolean = true,
     /** The button's clip. A full circle for every pill in the row. */
     shape: RoundedCornerShape = PILL_SHAPE,
 ) {
     GlassPillBody(
-        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds, shape,
+        contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds, ownSurface, shape,
     ) { tint ->
         when {
             drawableRes != null -> Icon(
@@ -644,6 +666,7 @@ private fun GlassPillBody(
     iconSize: Dp = 22.dp,
     backdrop: ImageBitmap?,
     terminalBounds: Rect?,
+    ownSurface: Boolean,
     shape: RoundedCornerShape,
     content: @Composable (androidx.compose.ui.graphics.Color) -> Unit,
 ) {
@@ -652,6 +675,7 @@ private fun GlassPillBody(
         terminalBounds = terminalBounds,
         shape = shape,
         modifier = Modifier.width(width).height(height),
+        ownSurface = ownSurface,
         onClick = onClick,
     ) {
         Box(
@@ -673,6 +697,9 @@ private fun GlassPillBody(
  * and [terminalBounds] are still accepted because the row still samples the
  * terminal for its own backdrop, and a caller should not have to know which of
  * the row's pieces read it.
+ *
+ * [ownSurface] false: the fill and the edge belong to a parent body; only the
+ * clip, the ripple and the content are drawn here.
  */
 @Composable
 private fun GlassSurface(
@@ -680,6 +707,7 @@ private fun GlassSurface(
     @Suppress("UNUSED_PARAMETER") terminalBounds: Rect?,
     shape: RoundedCornerShape,
     modifier: Modifier = Modifier,
+    ownSurface: Boolean = true,
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -688,7 +716,7 @@ private fun GlassSurface(
     Box(
         modifier = modifier
             .clip(shape)
-            .background(PILL_SURFACE)
+            .then(if (ownSurface) Modifier.background(PILL_SURFACE) else Modifier)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -702,11 +730,13 @@ private fun GlassSurface(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .pillEdge(shape),
-        )
+        if (ownSurface) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .pillEdge(shape),
+            )
+        }
         content()
     }
 }
