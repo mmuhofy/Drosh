@@ -80,31 +80,6 @@ class TerminalView(context: Context) : FrameLayout(context) {
     private var surface: GLSurfaceView? = null
     private var renderer: TerminalRenderer? = null
 
-    /**
-     * The last frame's numbers, for the host's debug overlay.
-     *
-     * Null before the first frame, and null when the font failed to load — in
-     * both cases there is nothing true to say.
-     */
-    val frameReport: FrameReport? get() = renderer?.report
-
-    /**
-     * Whether the host should draw the frame overlay.
-     *
-     * The terminal owns the key that toggles it (Ctrl+Shift+D, see
-     * `TerminalIme`), because that is where a hardware key arrives; the host
-     * owns the drawing, because the overlay is Compose.
-     */
-    var debugOverlayRequested: Boolean = false
-        private set
-
-    /** Told when [debugOverlayRequested] changed. */
-    var debugOverlayListener: ((Boolean) -> Unit)? = null
-
-    internal fun toggleDebugOverlay() {
-        debugOverlayRequested = !debugOverlayRequested
-        debugOverlayListener?.invoke(debugOverlayRequested)
-    }
 
     /** Cell geometry from the bundled font, filled in by [loadFont]. */
     internal lateinit var metrics: CellMetrics
@@ -329,25 +304,6 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // context preserved the surface keeps its contents, but a redraw is
         // still what puts them back after the window comes forward again.
         surface?.requestRender()
-    }
-
-    /**
-     * A hardware key, before it reaches the session.
-     *
-     * Ctrl+Shift+D toggles the frame overlay here rather than in the IME, so
-     * it fires whether the key came from a physical keyboard, the extra-keys
-     * row, or an IME that reported it as a key event — the overlay is a
-     * diagnosis, and a diagnosis reachable only from one kind of keyboard is
-     * one that is missing exactly when it is needed.
-     */
-    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
-        if (keyCode == android.view.KeyEvent.KEYCODE_D &&
-            event.isCtrlPressed && event.isShiftPressed
-        ) {
-            toggleDebugOverlay()
-            return true
-        }
-        return super.onKeyDown(keyCode, event)
     }
 
     override fun onDetachedFromWindow() {

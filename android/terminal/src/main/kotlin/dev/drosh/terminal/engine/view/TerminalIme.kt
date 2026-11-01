@@ -44,14 +44,6 @@ internal class TerminalIme(private val view: TerminalView) {
      * them twice would type every letter twice.
      */
     private fun handleHardwareKey(keyCode: Int, event: KeyEvent): Boolean {
-        // Ctrl+Shift+D toggles the host's frame overlay, and is taken before
-        // anything is sent to the shell: 0x04 is EOF, and a terminal that exits
-        // because the user asked for a number is a terminal nobody debugs twice.
-        if (keyCode == KeyEvent.KEYCODE_D && event.isCtrlPressed && event.isShiftPressed) {
-            view.toggleDebugOverlay()
-            return true
-        }
-
         // A named key: the encoder owns the sequence, including the DECCKM form
         // of the cursor keys — vim asks for `ESC O A` and would print `A` for
         // `ESC [ A`.

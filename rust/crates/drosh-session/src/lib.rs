@@ -357,23 +357,24 @@ impl Session {
             WindowSize { num_lines: size.rows, num_cols: size.columns, cell_width, cell_height };
 
         *lock(&self.size) = window_size;
-        {
-            // `Term::resize` marks everything damaged, so the next snapshot is
-            // a full redraw.
+        // The resize and the position it leaves behind, in one lock hold.
+        //
+        // `Term::resize` marks everything damaged, so the next snapshot is a
+        // full redraw, and it clamps the display offset to what the new history
+        // holds. Reading that offset in a second lock was a window in which a
+        // scroll could land between the resize and the read, leaving this side
+        // holding a row the grid no longer had — the viewport jumping when the
+        // keyboard opened.
+        let offset = {
             let mut term = self.term.lock();
             term.resize(size);
-        }
+            term.grid().display_offset()
+        };
         lock(&self.damage).resize(snapshot::damage_out_len(size.rows()), 0);
 
         // A resized grid is a new viewport, so the old sub-line remainder no
-        // longer describes it — but the *row* the user was reading is worth
-        // keeping, and `Term::resize` has already clamped it to what the new
-        // history holds. Adopting its answer is what stops a sidebar opening
-        // from throwing the reader back to the live edge.
-        let offset = {
-            let term = self.term.lock();
-            term.grid().display_offset()
-        };
+        // longer describes it. The *row* the user was reading is worth keeping,
+        // and it is the engine's answer that says where it is.
         self.rows_above_edge.store(offset, Ordering::Relaxed);
         self.sub_line_px.store(0f32.to_bits(), Ordering::Relaxed);
 
@@ -449,18 +450,31 @@ impl Session {
             return false;
         }
 
+        // One lock hold for the whole move.
+        //
+        // The atomics *are* the position, and `take_snapshot_with_state` reads
+        // them under this same lock. Writing them after releasing it left a
+        // window where the cells were at the new row and the remainder was
+        // still the old one — a frame drawn one line out of place, then
+        // corrected. That is the shake a drag showed at every row boundary,
+        // and it was never about the arithmetic.
+        let mut term = self.term.lock();
+
+        let max_rows = {
+            let grid = term.grid();
+            grid.total_lines().saturating_sub(grid.screen_lines())
+        };
+        let max_total = max_rows as f32 * cell;
+
         let total = f32::from_bits(self.sub_line_px.load(Ordering::Relaxed))
             + self.rows_above_edge.load(Ordering::Relaxed) as f32 * cell
             + delta_pixels;
-
-        let max_rows = self.history_rows();
-        let max_total = max_rows as f32 * cell;
         let total = total.clamp(0.0, max_total);
 
         // At either end the remainder is zero by definition: there is no row
         // above the live edge to be part-way into, and no older row to slide
-        // toward. Keeping a fraction at a limit is what let a drag "move" past
-        // the end under a finger that had nothing left to reveal.
+        // toward. A fraction kept at a limit is what let a drag "move" past the
+        // end under a finger that had nothing left to reveal.
         let at_end = total <= 0.0 || total >= max_total;
         let rows =
             if at_end { (total / cell).round() as usize } else { (total / cell).floor() as usize };
@@ -472,19 +486,16 @@ impl Session {
             return false;
         }
 
-        // The engine moves first, inside the same lock the snapshot reads the
-        // cells under, so the two can never describe different positions.
-        let mut term = self.term.lock();
         if rows != previous_rows {
             // Both counts run the same way — up into the history — so the
             // delta is `rows - previous`.
             term.scroll_display(Scroll::Delta(rows as i32 - previous_rows as i32));
         }
 
-        // Adopt the engine's answer. It clamps to the history it really has,
-        // which can be less than this side counted: taking its number as the
-        // position is what stops a finger past the end from leaving the grid
-        // and the remainder out of step.
+        // The engine clamps to the history it really has, which can be less
+        // than this side counted. Its answer is the position: taking it is what
+        // stops a finger past the end from leaving the grid and the remainder
+        // describing different viewports.
         let actual = term.grid().display_offset();
         drop(term);
 
@@ -494,13 +505,6 @@ impl Session {
         self.sub_line_px
             .store(if actual == rows { remainder } else { 0.0 }.to_bits(), Ordering::Relaxed);
         true
-    }
-
-    /// How many rows of history the viewport can move through.
-    fn history_rows(&self) -> usize {
-        let term = self.term.lock();
-        let grid = term.grid();
-        grid.total_lines().saturating_sub(grid.screen_lines())
     }
 
     /// The sub-line part of the scroll, in pixels.

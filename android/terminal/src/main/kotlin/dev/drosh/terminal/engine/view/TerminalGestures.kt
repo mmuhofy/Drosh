@@ -231,11 +231,6 @@ internal class TerminalGestures(private val view: TerminalView) {
     }
 
     /**
-     * A local scrollback step, or the arrow keys `?1007` asks for in the
-     * alternate screen (alacritty's `scroll_terminal`). The sequences are SS3
-     * regardless of DECCKM, matching alacritty's bytes.
-     */
-    /**
      * Scroll by a finger distance, smoothly.
      *
      * The engine holds the whole position — whole rows for the grid and a
