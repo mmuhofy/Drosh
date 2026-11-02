@@ -1,8 +1,30 @@
-<gradient xmlns:android="http://schemas.android.com/apk/res/android"
-    android:startX="0"
-    android:startY="0"
-    android:endX="108"
-    android:endY="108"
-    android:type="linear"
-    android:startColor="#1B2821"
-    android:endColor="#0B100D"/>
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Drosh launcher icon — background.
+
+  The artwork is a corner-to-corner gradient #1B2821 → #0B100D.
+
+  ## Why <shape> and not a bare <gradient>
+
+  A bare `<gradient>` root builds clean and then shows nothing: aapt2 accepts the
+  file, but at runtime `DrawableInflater.inflateFromTag` has no "gradient" case —
+  it maps "shape" to GradientDrawable and falls through to null for anything else,
+  so the adaptive icon's background inflates to nothing and the launcher draws an
+  empty tile.
+
+  `<shape>` is the drawable whose child is `<gradient>`; same colours, same angle,
+  and it actually inflates.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <gradient
+        android:startX="0"
+        android:startY="0"
+        android:endX="108"
+        android:endY="108"
+        android:type="linear"
+        android:startColor="#1B2821"
+        android:endColor="#0B100D" />
+
+</shape>

@@ -1,43 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Drosh launcher icon — foreground.
+
+  The artwork is unchanged: an Android head whose antennas read as a prompt, with
+  `>_` cut into it. Same paths, same colours, same proportions as authored.
+
+  ## The one thing added: a group that scales it to fit the mask
+
+  A launcher does not draw the 108dp canvas — it draws a mask over it, and the
+  safe area is a 66dp circle (radius 33 from 54,54). The artwork as authored
+  reaches 41.3 from the centre at the antenna tips, 34.0 at the head's sides and
+  35.4 at its bottom corners, so a circular launcher — the default on Pixel,
+  Samsung and most of the market — cut all three off and the mark looked like it
+  was falling out of the tile.
+
+  Scaling by 0.78 about the centre brings the farthest point to 32.2, inside the
+  circle with a small margin. The paths are not edited; the group is the whole
+  change. It also fixes the optical centring: the head's visual mass sits at
+  y≈51 while the canvas centres at 54, and scaling about the canvas centre keeps
+  that relationship rather than fighting it.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Antenler -->
-    <path
-        android:pathData="M42,37 C39,31 35,25 32,19"
-        android:strokeColor="#3DDC84"
-        android:strokeWidth="4.2"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"/>
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.78"
+        android:scaleY="0.78">
 
-    <path
-        android:pathData="M66,37 C69,31 73,25 76,19"
-        android:strokeColor="#3DDC84"
-        android:strokeWidth="4.2"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"/>
+        <!-- Antenler -->
+        <path
+            android:pathData="M42,37 C39,31 35,25 32,19"
+            android:strokeColor="#3DDC84"
+            android:strokeWidth="4.2"
+            android:strokeLineCap="round"
+            android:fillColor="@android:color/transparent"/>
 
-    <!-- Android kafa -->
-    <path
-        android:pathData="M20,55 A34,34 0,0 1,88 55 V70 A9,9 0,0 1,79 79 H29 A9,9 0,0 1,20 70 Z"
-        android:fillColor="#3DDC84"/>
+        <path
+            android:pathData="M66,37 C69,31 73,25 76,19"
+            android:strokeColor="#3DDC84"
+            android:strokeWidth="4.2"
+            android:strokeLineCap="round"
+            android:fillColor="@android:color/transparent"/>
 
-    <!-- Terminal prompt >_ -->
-    <path
-        android:pathData="M36,47 L48,57 L36,67"
-        android:strokeColor="#0B2115"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"/>
+        <!-- Android kafa -->
+        <path
+            android:pathData="M20,55 A34,34 0,0 1,88 55 V70 A9,9 0,0 1,79 79 H29 A9,9 0,0 1,20 70 Z"
+            android:fillColor="#3DDC84"/>
 
-    <path
-        android:pathData="M55,69 L72,69"
-        android:strokeColor="#0B2115"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"/>
+        <!-- Terminal prompt >_ -->
+        <path
+            android:pathData="M36,47 L48,57 L36,67"
+            android:strokeColor="#0B2115"
+            android:strokeWidth="5.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"/>
+
+        <path
+            android:pathData="M55,69 L72,69"
+            android:strokeColor="#0B2115"
+            android:strokeWidth="5.5"
+            android:strokeLineCap="round"
+            android:fillColor="@android:color/transparent"/>
+
+    </group>
 
 </vector>

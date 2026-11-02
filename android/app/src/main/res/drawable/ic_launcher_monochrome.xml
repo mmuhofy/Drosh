@@ -1,43 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Drosh launcher icon — monochrome layer (Android 13+ themed icons).
+
+  This layer is an alpha mask: Android ignores the colours and paints the themed
+  tint wherever a pixel is opaque. So the prompt must not be drawn *on top of* an
+  opaque head — it has to be a gap in it, or it disappears into the same alpha.
+
+  The head is therefore a ring, and the prompt sits inside the ring's interior.
+  The silhouette is the same Android head, so a themed icon still reads as Drosh
+  rather than as a generic outline.
+
+  The same 0.78 scale as the foreground keeps the two layers aligned exactly.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Antenler -->
-    <path
-        android:pathData="M42,37 C39,31 35,25 32,19"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4.2"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"/>
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.78"
+        android:scaleY="0.78">
 
-    <path
-        android:pathData="M66,37 C69,31 73,25 76,19"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4.2"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"/>
+        <!-- Antenler -->
+        <path
+            android:pathData="M42,37 C39,31 35,25 32,19"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4.2"
+            android:strokeLineCap="round"
+            android:fillColor="@android:color/transparent"/>
 
-    <!-- Android kafa -->
-    <path
-        android:pathData="M20,55 A34,34 0,0 1,88 55 V70 A9,9 0,0 1,79 79 H29 A9,9 0,0 1,20 70 Z"
-        android:fillColor="#FFFFFF"/>
+        <path
+            android:pathData="M66,37 C69,31 73,25 76,19"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4.2"
+            android:strokeLineCap="round"
+            android:fillColor="@android:color/transparent"/>
 
-    <!-- Terminal sembolü -->
-    <path
-        android:pathData="M36,47 L48,57 L36,67"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"/>
+        <!-- Head as an outline: opaque exactly where the colour layer is green. -->
+        <path
+            android:pathData="M20,55 A34,34 0,0 1,88 55 V70 A9,9 0,0 1,79 79 H29 A9,9 0,0 1,20 70 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5.5"
+            android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"/>
 
-    <path
-        android:pathData="M55,69 L72,69"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"/>
+        <!-- Prompt, inside the outline. -->
+        <path
+            android:pathData="M36,47 L48,57 L36,67"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"/>
+
+        <path
+            android:pathData="M55,69 L72,69"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5.5"
+            android:strokeLineCap="round"
+            android:fillColor="@android:color/transparent"/>
+
+    </group>
 
 </vector>
