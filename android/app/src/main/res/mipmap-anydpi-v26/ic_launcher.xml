@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Drosh launcher icon — adaptive icon.
+
+  Three vector layers, no PNGs. The previous version pointed at
+  @mipmap/ic_launcher_adaptive_back and _fore, which were raster placeholders
+  repeated at five densities (15 files) and had no monochrome layer at all — so
+  Android 13+ had nothing to tint and themed-icon users got the colour icon
+  inside a themed frame.
+
+  A vector background is legal here: <background> accepts any drawable, and
+  ic_launcher_background.xml is a vector carrying the gradient.
+-->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <background android:drawable="@mipmap/ic_launcher_adaptive_back"/>
-  <foreground android:drawable="@mipmap/ic_launcher_adaptive_fore"/>
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
 </adaptive-icon>

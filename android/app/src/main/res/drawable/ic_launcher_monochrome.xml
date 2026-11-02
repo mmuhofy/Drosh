@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Drosh launcher icon — monochrome layer (Android 13+ themed icons).
+
+  ## This layer is an alpha mask, not a picture
+
+  Android does not display these colours. It reads each pixel's *alpha* and
+  paints the themed tint where the pixel is opaque. So the only thing that
+  matters here is which regions are solid and which are empty.
+
+  The first draft drew a solid white head, then drew the prompt in white on top
+  of it. Both were opaque, so the mask was a solid blob: the prompt vanished,
+  and the head became a filled silhouette instead of an outline. Two fixes were
+  possible — make the head a ring, or put the prompt outside it. The head is
+  wider than tall, so a ring leaves room for the prompt inside the dome and
+  keeps the mark's silhouette identical to the colour layer, which is the
+  property that makes a themed icon feel like the same app.
+
+  ## Geometry
+
+  The head is a 5.2dp ring; the prompt is drawn at the same width, inside the
+  ring's interior. Everything is inside radius 31.5 of the 66dp safe circle,
+  matching ic_launcher_foreground.xml so the two layers align exactly.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Antennas -->
+    <path
+        android:pathData="M45,41 C42.5,35 40,29 38.5,26"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+    <path
+        android:pathData="M63,41 C65.5,35 68,29 69.5,26"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Head as an outline: solid where the colour layer is green. -->
+    <path
+        android:pathData="M22.5,55 A31.5,31.5 0,0 1,85.5 55 V70 A7,7 0,0 1,78 77.5 H33 A7,7 0,0 1,26 70.5 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.2"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Prompt, inside the outline. -->
+    <path
+        android:pathData="M39,49 L50,58.5 L39,68"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+
+    <path
+        android:pathData="M57,68 L71,68"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+</vector>

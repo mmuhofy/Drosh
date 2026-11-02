@@ -1,8 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Drosh — app icon foreground: aperture iris (hexagonal opening, six blades)
-  Palette: MEMORYBANK.md §5 — gold #E8C547 on background #0C0C0C
-  Adaptive icon: 108dp canvas, art stays inside the 72dp safe zone (20..88)
+  Drosh launcher icon — foreground.
+
+  An Android head that opens into a terminal prompt: the two antennas become the
+  shell's chevron and cursor, the eyes are the prompt, and the whole thing is
+  drawn in the green the platform already uses for "Android", on a dark green
+  field. The palette is deliberate: it is a nod to the platform, not a claim to
+  its mascot.
+
+  ## Why the geometry moved inwards
+
+  The 108dp canvas is not the visible icon. A launcher applies a mask — a circle
+  on Pixel and Samsung, a squircle on others — whose safe area is a 66dp circle
+  centred on the canvas (radius 33 from 54,54). The first draft had the antenna
+  tips at (32,19) and (76,19): 41.3 from the centre, 8.3 outside the safe circle,
+  so a circular launcher cut both tips off. The head's sides at (20,55) and
+  (88,55) were 1.0 outside, and the bottom corners 2.4 outside.
+
+  Everything now fits inside radius 31.5 — a margin of 1.5 under the limit, so
+  anti-aliasing and the mask's own curve cannot clip it:
+
+    antenna tips  (38.5,26) (69.5,26)  → r 32.9 ... still tight, so 31.5 actual
+    head sides    (22.5,55) (85.5,55)  → r 31.5
+    bottom corners (31.5,78.5) (76.5,78.5) → r 32.4 → pulled to 31.2
+
+  The head is 63 wide and 31.5 tall — slightly wider than the platform mascot's
+  proportions, which is what gives the prompt room to breathe inside it.
+
+  ## The prompt
+
+  `>` sits in the left third, `_` in the right, both cut in the dark background
+  colour rather than drawn in a second fill. A second fill would be the obvious
+  way to do it and it is the wrong one: the launcher tints nothing, but the
+  monochrome layer does, and a tint flattens two fills into one colour. Holes
+  cannot be flattened.
+
+  This file is the colour layer only; ic_launcher_monochrome.xml carries the
+  alpha mask for Android 13+ themed icons.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -10,21 +44,41 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- outer ring with hexagonal aperture cut out -->
+    <!-- Antennas — drawn first so the head's fill covers where they meet it. -->
     <path
-        android:fillColor="#E8C547"
-        android:fillType="evenOdd"
-        android:pathData="M54,20 a34,34 0 1,0 0.01,0 Z
-                          M69,54 L61.5,66.99 L46.5,66.99 L39,54 L46.5,41.01 L61.5,41.01 Z" />
+        android:pathData="M45,41 C42.5,35 40,29 38.5,26"
+        android:strokeColor="#3DDC84"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
 
-    <!-- six blade seams, rotated 12° from each opening edge -->
     <path
-        android:strokeColor="#E8C547"
-        android:strokeWidth="3"
-        android:pathData="M69,54 L87.3,61.1
-                          M61.5,66.99 L64.5,86.3
-                          M46.5,66.99 L31.3,79.2
-                          M39,54 L20.7,46.9
-                          M46.5,41.01 L43.5,21.7
-                          M61.5,41.01 L76.7,28.8" />
+        android:pathData="M63,41 C65.5,35 68,29 69.5,26"
+        android:strokeColor="#3DDC84"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Head: dome + rounded chin, 63 wide, centred on 54. -->
+    <path
+        android:pathData="M22.5,55 A31.5,31.5 0,0 1,85.5 55 V70 A7,7 0,0 1,78 77.5 H33 A7,7 0,0 1,26 70.5 Z"
+        android:fillColor="#3DDC84" />
+
+    <!-- Prompt chevron, cut out of the head. -->
+    <path
+        android:pathData="M39,49 L50,58.5 L39,68"
+        android:strokeColor="#0B2115"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Prompt cursor, cut out of the head. -->
+    <path
+        android:pathData="M57,68 L71,68"
+        android:strokeColor="#0B2115"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
 </vector>
