@@ -1,36 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
-  Drosh launcher icon — background.
-
-  A vector, not a <gradient> root: Android has no <gradient> drawable element,
-  and the first draft's file was `<gradient .../>` at the top level, which aapt2
-  rejects outright. A gradient lives either inside <shape> (a shape drawable,
-  which an adaptive icon's <background> does accept) or inside a vector's fill.
-
-  A vector is used here so the corner-to-corner angle is in the same 108dp
-  coordinate space as the foreground, and so the file can gain a shape later
-  without changing its type.
-
-  #1B2821 → #0B100D: the same dark green-black the foreground's prompt is cut
-  from, so the cut-outs read as holes in the head rather than as a second colour.
--->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <path android:pathData="M0,0 H108 V108 H0 Z">
-        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
-            <gradient
-                android:startX="0"
-                android:startY="0"
-                android:endX="108"
-                android:endY="108"
-                android:type="linear"
-                android:startColor="#1B2821"
-                android:endColor="#0B100D" />
-        </aapt:attr>
-    </path>
-
-</vector>
+<gradient xmlns:android="http://schemas.android.com/apk/res/android"
+    android:startX="0"
+    android:startY="0"
+    android:endX="108"
+    android:endY="108"
+    android:type="linear"
+    android:startColor="#1B2821"
+    android:endColor="#0B100D"/>
