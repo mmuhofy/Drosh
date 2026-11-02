@@ -29,8 +29,9 @@
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:scaleX="0.78"
-        android:scaleY="0.78">
+        android:translateY="-3.8"
+        android:scaleX="0.66"
+        android:scaleY="0.66">
 
         <!-- Antenler -->
         <path
