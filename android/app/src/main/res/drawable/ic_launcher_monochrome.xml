@@ -2,15 +2,13 @@
 <!--
   Drosh launcher icon — monochrome layer (Android 13+ themed icons).
 
-  This layer is an alpha mask: Android ignores the colours and paints the themed
-  tint wherever a pixel is opaque. So the prompt must not be drawn *on top of* an
-  opaque head — it has to be a gap in it, or it disappears into the same alpha.
+  This is an alpha mask: Android ignores these colours and paints the themed
+  tint where a pixel is opaque. So the head is a ring and the prompt is a gap
+  inside it — drawing a solid head and painting the prompt on top would make
+  one opaque blob, and the prompt would vanish.
 
-  The head is therefore a ring, and the prompt sits inside the ring's interior.
-  The silhouette is the same Android head, so a themed icon still reads as Drosh
-  rather than as a generic outline.
-
-  The same 0.78 scale as the foreground keeps the two layers aligned exactly.
+  Geometry matches ic_launcher_foreground.xml exactly, including the 0.79
+  scale, so a themed icon and a colour icon are the same mark.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -21,46 +19,46 @@
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:translateY="-3.8"
-        android:scaleX="0.66"
-        android:scaleY="0.66">
+        android:scaleX="0.79"
+        android:scaleY="0.79"
+        android:translateY="5.8">
 
-        <!-- Antenler -->
+        <!-- Antennas -->
         <path
-            android:pathData="M42,37 C39,31 35,25 32,19"
+            android:pathData="M45,41 C42.5,35 40,29 38.5,26"
             android:strokeColor="#FFFFFF"
             android:strokeWidth="4.2"
             android:strokeLineCap="round"
             android:fillColor="@android:color/transparent"/>
 
         <path
-            android:pathData="M66,37 C69,31 73,25 76,19"
+            android:pathData="M63,41 C65.5,35 68,29 69.5,26"
             android:strokeColor="#FFFFFF"
             android:strokeWidth="4.2"
             android:strokeLineCap="round"
             android:fillColor="@android:color/transparent"/>
 
-        <!-- Head as an outline: opaque exactly where the colour layer is green. -->
+        <!-- Head as an outline -->
         <path
-            android:pathData="M20,55 A34,34 0,0 1,88 55 V70 A9,9 0,0 1,79 79 H29 A9,9 0,0 1,20 70 Z"
+            android:pathData="M22.5,55 A31.5,31.5 0,0 1,85.5 55 V70 A7,7 0,0 1,78 77 H33 A7,7 0,0 1,26 70 Z"
             android:strokeColor="#FFFFFF"
-            android:strokeWidth="5.5"
+            android:strokeWidth="5.2"
             android:strokeLineJoin="round"
             android:fillColor="@android:color/transparent"/>
 
-        <!-- Prompt, inside the outline. -->
+        <!-- Eyes as the prompt, inside the outline -->
         <path
-            android:pathData="M36,47 L48,57 L36,67"
+            android:pathData="M38,49 L49,58.5 L38,68"
             android:strokeColor="#FFFFFF"
-            android:strokeWidth="5.5"
+            android:strokeWidth="5.2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"
             android:fillColor="@android:color/transparent"/>
 
         <path
-            android:pathData="M55,69 L72,69"
+            android:pathData="M57,62.5 L71,62.5"
             android:strokeColor="#FFFFFF"
-            android:strokeWidth="5.5"
+            android:strokeWidth="5.2"
             android:strokeLineCap="round"
             android:fillColor="@android:color/transparent"/>
 

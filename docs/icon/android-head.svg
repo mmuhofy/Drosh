@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+  <!--
+    Drosh — Android head, with the eyes replaced by a terminal prompt.
+
+    Geometry is the Android mascot's, not an approximation of it: the same order
+    of construction the platform's own mark uses —
+
+      · antennas rise from the dome at ~30° from vertical, length ≈ 0.3 r
+      · the dome is a half-circle of radius r centred on the head's mid-line
+      · the body is that dome extended straight down, with the bottom two
+        corners rounded at a fifth of the width
+      · the eyes sit on a line at ~0.55 of the dome's height, inset ~0.30 r
+        from the centre on each side, and are cut as holes, not painted
+
+    The only deviation: instead of two eyes, the left eye's slot carries a
+    chevron and the right eye's slot carries a cursor bar, so the face reads
+    `>_` at any size. Both sit on the eye line, because the eyes are what they
+    replace — moving the cursor down to a mouth position would make a face with
+    two features where the mascot has one.
+
+    Colours: #3DDC84 is Android's green; #0B2115 is the prompt, which is the
+    same colour as the icon's background, so the prompt reads as a hole in the
+    head rather than as paint on it.
+  -->
+
+  <g fill="none" stroke="#3DDC84" stroke-width="4.2" stroke-linecap="round">
+    <!-- Antennas: from the dome at (45,41)/(63,41), rising outward. -->
+    <path d="M45,41 C42.5,35 40,29 38.5,26"/>
+    <path d="M63,41 C65.5,35 68,29 69.5,26"/>
+  </g>
+
+  <!-- Head: dome radius 31.5 on the line y=55, sides falling to y=70, base to
+       y=77.5, bottom corners r=7. -->
+  <path fill="#3DDC84"
+        d="M22.5,55 A31.5,31.5 0 0 1 85.5 55 V70 A7,7 0 0 1 78 77 H33 A7,7 0 0 1 26 70 Z"/>
+
+  <!-- Eyes, as the prompt: chevron in the left slot, cursor in the right. -->
+  <g fill="none" stroke="#0B2115" stroke-width="5.2"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M38,49 L49,58.5 L38,68"/>
+    <path d="M57,62.5 L71,62.5"/>
+  </g>
+</svg>

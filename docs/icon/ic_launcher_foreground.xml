@@ -2,23 +2,33 @@
 <!--
   Drosh launcher icon — foreground.
 
-  The artwork is unchanged: an Android head whose antennas read as a prompt, with
-  `>_` cut into it. Same paths, same colours, same proportions as authored.
+  An Android head whose eyes are a terminal prompt. The geometry is the
+  mascot's, not an approximation: dome radius on the y=55 line, body
+  extended to a rounded base, antennas rising from the dome at the platform's
+  angle. Source of truth for the drawing is docs/icon/android-head.svg — this
+  file is that drawing as a vector.
 
-  ## The one thing added: a group that scales it to fit the mask
+  ## Why the eyes are `>_`
 
-  A launcher does not draw the 108dp canvas — it draws a mask over it, and the
-  safe area is a 66dp circle (radius 33 from 54,54). The artwork as authored
-  reaches 41.3 from the centre at the antenna tips, 34.0 at the head's sides and
-  35.4 at its bottom corners, so a circular launcher — the default on Pixel,
-  Samsung and most of the market — cut all three off and the mark looked like it
-  was falling out of the tile.
+  The Android head's eyes are the one feature that makes it a face. Replacing
+  them with a chevron and a cursor bar — on the eye line, in the eye slots —
+  keeps the face while saying what the app is: a shell waiting for a command.
+  Drawing the cursor lower, at a mouth position, would have given the head two
+  features where the mascot has one, and the face would stop reading as Android.
 
-  Scaling by 0.78 about the centre brings the farthest point to 32.2, inside the
-  circle with a small margin. The paths are not edited; the group is the whole
-  change. It also fixes the optical centring: the head's visual mass sits at
-  y≈51 while the canvas centres at 54, and scaling about the canvas centre keeps
-  that relationship rather than fighting it.
+  Both are cut in #0B2115 — the same colour as the icon's background — rather
+  than painted in a second green: the prompt reads as a hole in the head, and a
+  hole survives the monochrome tint that flattens two fills into one.
+
+  ## The group
+
+  108dp is the canvas, not the icon. A launcher draws a mask over it, and the
+  safe area is a circle of radius 33 about (54,54). As authored, the antenna
+  tips reach 41 from the centre and the base corners 35, so a circular launcher
+  cut them. The group scales the whole drawing to 0.79 — farthest point 31.5 —
+  and pivots on the drawing's own optical centre rather than the canvas centre,
+  because the head's mass sits above 54 and pivoting on 54 is what made an
+  earlier attempt read as "sitting too high".
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -29,43 +39,43 @@
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:translateY="-3.8"
-        android:scaleX="0.66"
-        android:scaleY="0.66">
+        android:scaleX="0.79"
+        android:scaleY="0.79"
+        android:translateY="5.8">
 
-        <!-- Antenler -->
+        <!-- Antennas -->
         <path
-            android:pathData="M42,37 C39,31 35,25 32,19"
+            android:pathData="M45,41 C42.5,35 40,29 38.5,26"
             android:strokeColor="#3DDC84"
             android:strokeWidth="4.2"
             android:strokeLineCap="round"
             android:fillColor="@android:color/transparent"/>
 
         <path
-            android:pathData="M66,37 C69,31 73,25 76,19"
+            android:pathData="M63,41 C65.5,35 68,29 69.5,26"
             android:strokeColor="#3DDC84"
             android:strokeWidth="4.2"
             android:strokeLineCap="round"
             android:fillColor="@android:color/transparent"/>
 
-        <!-- Android kafa -->
+        <!-- Head -->
         <path
-            android:pathData="M20,55 A34,34 0,0 1,88 55 V70 A9,9 0,0 1,79 79 H29 A9,9 0,0 1,20 70 Z"
+            android:pathData="M22.5,55 A31.5,31.5 0,0 1,85.5 55 V70 A7,7 0,0 1,78 77 H33 A7,7 0,0 1,26 70 Z"
             android:fillColor="#3DDC84"/>
 
-        <!-- Terminal prompt >_ -->
+        <!-- Eyes as the prompt -->
         <path
-            android:pathData="M36,47 L48,57 L36,67"
+            android:pathData="M38,49 L49,58.5 L38,68"
             android:strokeColor="#0B2115"
-            android:strokeWidth="5.5"
+            android:strokeWidth="5.2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"
             android:fillColor="@android:color/transparent"/>
 
         <path
-            android:pathData="M55,69 L72,69"
+            android:pathData="M57,62.5 L71,62.5"
             android:strokeColor="#0B2115"
-            android:strokeWidth="5.5"
+            android:strokeWidth="5.2"
             android:strokeLineCap="round"
             android:fillColor="@android:color/transparent"/>
 
