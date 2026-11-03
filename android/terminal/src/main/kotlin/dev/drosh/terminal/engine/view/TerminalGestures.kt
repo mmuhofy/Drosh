@@ -506,5 +506,15 @@ internal class TerminalGestures(private val view: TerminalView) {
          * either way, which a linear threshold cannot be.
          */
         const val ZOOM_DEAD_ZONE = 0.04
+
+        /**
+         * The strip at the bottom of the terminal that toggles the keyboard.
+         *
+         * About two rows of a default-sized cell: big enough to hit without
+         * aiming, small enough that it is not where the output is read. A tap
+         * anywhere else takes the focus but leaves the soft keyboard alone,
+         * because a terminal is read far more than it is typed into.
+         */
+        const val KEYBOARD_STRIP_PX = 180f
     }
 }
