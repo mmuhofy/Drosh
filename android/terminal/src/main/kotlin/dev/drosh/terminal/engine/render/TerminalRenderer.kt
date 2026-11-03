@@ -66,15 +66,6 @@ internal class TerminalRenderer(
     private val onFrame: (drawn: Boolean) -> Unit = {},
 ) : GLSurfaceView.Renderer {
 
-    /**
-     * Set by the view; called when the surface needs a different grid.
-     *
-     * The size the grid was laid out with travels with the report: the grid
-     * and the cell size belong together, and the session is resized with
-     * both.
-     */
-    var onGridChanged: ((columns: Int, rows: Int, fontSize: FontSize) -> Unit)? = null
-
     /** Last GL failure, read and cleared by the activity. */
     @Volatile
     var lastGlError: String? = null
@@ -333,32 +324,58 @@ internal class TerminalRenderer(
      * millisecond; a picture that is wrong for three hundred is not.
      */
     private fun planGrid() {
-        if (size.width <= 0 || size.height <= 0) {
-            return
-        }
-        applyGrid(size.columns, size.rows)
+        updateSize()
     }
 
     /**
-     * Lay the grid out and tell the session.
+     * The one place the grid and the session learn their shape.
      *
-     * The one place the session learns its shape, so the grid and the session
-     * cannot disagree.
+     * Termux's `updateSize()`, with the same rule: `Term::resize` is called
+     * from here and nowhere else. That is what keeps the cells and the buffer
+     * they are copied from in step — every screen bug of the past weeks was the
+     * two disagreeing for a frame, because four different places could write
+     * one without the other.
+     *
+     * A pinch does **not** come through here. It changes the size the glyphs
+     * are rasterised at, not the shape of the grid; Rin's model, and the reason
+     * its zoom is continuous.
      */
-    private fun applyGrid(columns: Int, rows: Int) {
+    private fun updateSize() {
+        if (size.width <= 0 || size.height <= 0) {
+            return
+        }
+
+        val columns = size.columns
+        val rows = size.rows
         if (columns == appliedColumns && rows == appliedRows) {
             return
         }
+
         appliedColumns = columns
         appliedRows = rows
         records.resize(columns, rows)
-        onGridChanged?.invoke(columns, rows, fontSize)
+
+        // The session is brought to the grid here, on the GL thread, in the
+        // same breath. `EngineSession` is built for it: the grid lives behind
+        // the engine's own mutex and its size fields are volatile, so a resize
+        // from this thread cannot tear the parser's view of the grid.
+        session.resize(columns, rows, metrics.width.toInt(), metrics.height.toInt())
     }
 
     // --- frame -------------------------------------------------------------
 
     override fun onDrawFrame(gl: GL10?) {
         val startedNanos = System.nanoTime()
+
+        // The surface is painted before anything is decided.
+        //
+        // Termux's `onDraw` starts with `canvas.drawColor(...)` and only then
+        // looks at whether there is an emulator; a `GLSurfaceView` keeps
+        // whatever was in its buffer when a frame is not drawn, which after a
+        // resize is nothing — the black rectangle a keyboard opening produced.
+        // Painting first means the worst case is the terminal's own background
+        // colour for one frame, never black.
+        clearToBackground()
 
         val cells = session.cells
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
@@ -377,10 +394,10 @@ internal class TerminalRenderer(
                 metrics.height.toInt(),
             )
             if (session.columns != appliedColumns || session.rows != appliedRows) {
-                // The engine refused the size. Clear rather than leave a stale
-                // picture over a resized surface, and ask for another frame
-                // instead of waiting for output that may never come.
-                clearToBackground()
+                // The engine refused the size, so the cells this frame would
+                // read are not the ones it is sized for. The surface has
+                // already been painted; another frame is asked for rather than
+                // waiting for output that may never come.
                 return
             }
         }
@@ -416,19 +433,11 @@ internal class TerminalRenderer(
             // The cell buffer does not hold this grid, so nothing was built.
             // Uploading would read past the end of an empty buffer — the
             // `remaining() < size` crash a program hit when it switched to the
-            // alternate screen.
-            //
-            // The surface is still painted, because a `GLSurfaceView` that is
-            // not drawn to keeps whatever was in its buffer — which, after a
-            // resize, is nothing. Leaving it alone is the black rectangle a
-            // keyboard opening produced; painting the background is at least
-            // the terminal's own colour, and the next frame draws the text.
-            clearToBackground()
+            // alternate screen. The surface is already painted by the clear at
+            // the top of the frame.
             return
         }
         val buildEndNanos = System.nanoTime()
-
-        clearToBackground()
 
         // The atlas is uploaded after the build, not before it: a glyph the
         // build had to rasterise is in the atlas by now, and the texture has to
@@ -845,8 +854,23 @@ internal class TerminalRenderer(
                 // not what a text size is: the columns would change and the
                 // screen would stop being a terminal.
                 vec2 cell = vec2(aGridPos) * uCellSize;
-                vec2 size = vec2(aGlyphSize);
+                vec2 natural = vec2(aGlyphSize);
                 vec2 offset = vec2(aOffset);
+
+                // A glyph wider than the cell it owns is fitted to it.
+                //
+                // CJK, an emoji and some symbols are drawn at two or three
+                // times the cell width by the font; drawn at their natural size
+                // they overlap their neighbours. The cell's width is the
+                // terminal's — a column is a column — so the glyph is squeezed
+                // into it, which is what Termux does when it measures a
+                // mismatch (`fontWidthMismatch`).
+                //
+                // A wide character owns two columns, so its target is twice the
+                // cell. Everything else targets one.
+                float targetWidth = ((aFlags & 2u) != 0u) ? uCellSize.x * 2.0 : uCellSize.x;
+                float squeeze = (natural.x > 0.0) ? min(1.0, targetWidth / natural.x) : 1.0;
+                vec2 size = vec2(natural.x * squeeze, natural.y);
                 gl_Position = vec4(
                     uProjection.xy + uProjection.zw * (cell + offset + corner * size),
                     0.0,
@@ -856,7 +880,7 @@ internal class TerminalRenderer(
                 // quad samples one texel, a glyph samples its own rectangle.
                 vTexCoord = (aFlags & 1u) != 0u
                     ? (vec2(aAtlasRect) + 0.5) / uAtlasSize
-                    : (vec2(aAtlasRect) + corner * vec2(aGlyphSize)) / uAtlasSize;
+                    : (vec2(aAtlasRect) + corner * natural) / uAtlasSize;
                 vColor = aColor;
             }
         """.trimIndent()

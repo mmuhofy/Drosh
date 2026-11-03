@@ -44,7 +44,7 @@ import kotlin.math.roundToInt
  * view derives the grid from its own width and the cell metrics
  * (`TerminalView.gridColumns()` / `gridRows()`), and the renderer reports the
  * grid again whenever the surface changes, which resizes the session to match
- * (`TerminalView`'s `onGridChanged`). The pane does not compute a size of its
+ * (`TerminalRenderer.updateSize`). The pane does not compute a size of its
  * own — a second rule for it would only be a second opinion, and the two
  * would disagree the first time the cell size changed.
  */

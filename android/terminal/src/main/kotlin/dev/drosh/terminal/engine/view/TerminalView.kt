@@ -216,25 +216,9 @@ class TerminalView(context: Context) : FrameLayout(context) {
             // way.
             if (drawn) displayedFrameCount += 1 else refusedFrameCount += 1
         }
-        created.onGridChanged = { columns, rows, size ->
-            // The session is resized **here**, on the GL thread, in the same
-            // breath as the report.
-            //
-            // It used to be posted to the UI thread, and that one word is why a
-            // pinch showed the previous screen: the renderer laid its grid out
-            // for the new cell immediately, the session kept the old size until
-            // the post ran, and `onDrawFrame` refuses every frame where the two
-            // disagree. For the length of a pinch that is every frame — so the
-            // last good picture (whatever was on screen before the fingers
-            // landed) stayed up while the size changed behind it.
-            //
-            // `EngineSession` is built for this: the grid lives behind the
-            // engine's own mutex and its size fields are volatile, so a resize
-            // from the GL thread cannot tear the parser's view of the grid.
-            session.resize(columns, rows, size.metrics.width.toInt(), size.metrics.height.toInt())
-            surface?.requestRender()
-            post { applyAmbientTint() }
-        }
+        // The renderer resizes the session itself, in the same lock hold as
+        // its own grid — see `TerminalRenderer.updateSize`. There is no
+        // callback, and therefore no window in which the two disagree.
         renderer = created
 
         val gl = GLSurfaceView(context).apply {
@@ -320,7 +304,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
     // --- session control ---------------------------------------------------
 
     /**
-     * Start a PTY session sized to the view. The renderer's [TerminalRenderer.onGridChanged]
+     * Start a PTY session sized to the view. The renderer's `updateSize`
      * keeps the grid in step with the actual surface size afterwards.
      */
     fun start(

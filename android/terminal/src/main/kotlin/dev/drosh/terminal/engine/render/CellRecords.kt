@@ -266,6 +266,9 @@ internal class CellRecords(columns: Int, rows: Int) {
                 // background is already written and it draws nothing on top.
                 val spacer = flags and NativeCore.FLAG_WIDE_CHAR_SPACER != 0 ||
                     flags and NativeCore.FLAG_LEADING_WIDE_CHAR_SPACER != 0
+                // The cell *before* a spacer is the one that draws the glyph,
+                // and it owns two columns.
+                val wide = flags and NativeCore.FLAG_WIDE_CHAR != 0
                 putBackground(column, row, background)
                 if (spacer) {
                     continue
@@ -300,6 +303,17 @@ internal class CellRecords(columns: Int, rows: Int) {
                         // cell origin here as well doubled it — every column
                         // landed two cells to the right, which read as letter
                         // spacing on the device.
+                        //
+                        // A character the font draws wider than the cell it
+                        // occupies — CJK, an emoji, some symbols — is fitted to
+                        // that cell by the shader, which knows both the glyph's
+                        // size and the cell's. Termux does the same
+                        // (`fontWidthMismatch`): the alternative is a glyph
+                        // that overlaps its neighbour.
+                        //
+                        // The record says whether it owns one column or two;
+                        // the shader compares that with the glyph's natural
+                        // width and squeezes.
                         writeGlyph(
                             entry,
                             entry.left.toFloat(),
@@ -307,6 +321,7 @@ internal class CellRecords(columns: Int, rows: Int) {
                             column,
                             row,
                             foreground,
+                            wide = wide,
                         )
                     }
                 }
@@ -404,6 +419,7 @@ internal class CellRecords(columns: Int, rows: Int) {
         column: Int,
         row: Int,
         color: Int,
+        wide: Boolean = false,
     ) {
         if (foregroundCount >= capacity) {
             return
@@ -418,7 +434,8 @@ internal class CellRecords(columns: Int, rows: Int) {
         foregrounds.putShort(column.toShort())
         foregrounds.putShort(row.toShort())
         putColor(color)
-        foregrounds.putShort(FLAG_NONE.toShort())
+        // Bit 0 is "solid quad"; bit 1 is "this glyph owns two columns".
+        foregrounds.putShort((if (wide) FLAG_WIDE else FLAG_NONE).toShort())
         foregrounds.putShort(0)
         foregroundCount += 1
     }
@@ -515,6 +532,10 @@ internal class CellRecords(columns: Int, rows: Int) {
 
         /** Record flag: the quad is a solid fill and samples one atlas texel. */
         const val FLAG_SOLID = 1
+
+        /** Record flag: the glyph belongs to a wide character and owns two columns. */
+        const val FLAG_WIDE = 2
+
         const val FLAG_NONE = 0
 
         private fun allocate(bytes: Int): ByteBuffer =
