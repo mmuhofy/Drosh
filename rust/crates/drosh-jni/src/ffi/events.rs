@@ -12,7 +12,14 @@ use jni::JNIEnv;
 use crate::ffi::session_or;
 use drosh_bridge::events::SessionEvent;
 
-/// Was there a `Wakeup` since the last call?
+/// Is there output the screen has not drawn yet?
+///
+/// **Peeked, not taken.** The flag is cleared by the snapshot, after the cells
+/// have actually been copied. Consuming it here meant a frame that then failed
+/// to draw — a resize in flight, a buffer too small — dropped the notification,
+/// and the screen stayed one update behind until the next keystroke set the
+/// flag again. That is the "I have to tap the screen before it catches up" a
+/// device showed.
 ///
 /// An unknown handle answers `false`: a stale handle must not make the render
 /// loop spin.
@@ -23,7 +30,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_core_NativeCore_nativePoll
     id: jlong,
 ) -> jboolean {
     match session_or(id) {
-        Ok(session) => u8::from(session.poll_wakeup()),
+        Ok(session) => u8::from(session.has_output()),
         Err(_) => 0,
     }
 }

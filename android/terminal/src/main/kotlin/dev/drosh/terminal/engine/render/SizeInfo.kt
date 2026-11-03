@@ -36,11 +36,12 @@ package dev.drosh.terminal.engine.render
  *
  * ## The pinch lives here too
  *
- * [pinchScale] is the live gesture, and it is folded into [stepX]/[stepY] —
- * never into the projection. That is the whole trick: scaling the projection
- * scales the pixel-to-clip transform, and the cell step is already expressed
- * in pixels, so the two would multiply. Scaling the step scales the cells
- * once, and the projection stays a plain pixel-to-clip map.
+ * [pinchScale] is the live gesture, and it is **not** folded into [stepX] or
+ * [stepY]. A pinch changes the size of the *text*, not of the grid: the cells
+ * stay where they are and the glyphs inside them grow. Scaling the step as
+ * well would change how many columns fit, which is a different terminal rather
+ * than a bigger one — the whole screen would zoom like an image, and the text
+ * would stop lining up with the cursor.
  */
 internal data class SizeInfo(
     /** The surface, in pixels. */
@@ -64,26 +65,24 @@ internal data class SizeInfo(
     val rows: Int get() = maxOf((height / cellHeight).toInt(), MIN_ROWS)
 
     /**
-     * How far apart cells are placed, in pixels, with the pinch applied.
+     * How far apart cells are placed, in pixels.
      *
-     * The surface divided by the cells that fit in it — so the grid ends
-     * exactly on the edge — times the gesture's scale.
+     * The surface divided by the cells that fit in it, so the grid ends exactly
+     * on the edge. The pinch is deliberately absent: see the class comment.
      */
     val stepX: Float
-        get() = width.toFloat() / columns * pinchScale
+        get() = width.toFloat() / columns
 
     val stepY: Float
-        get() = height.toFloat() / rows * pinchScale
+        get() = height.toFloat() / rows
 
     /**
-     * The projection, as `(x0, y0, sx, sy)` for
-     * `clip = xy + zw * pixel`.
+     * The projection, as `(x0, y0, sx, sy)` for `clip = xy + zw * pixel`.
      *
-     * A plain pixel-to-clip map with the pinch's *anchor* folded in: a point
-     * `p` is drawn at `focus + (p - focus) * scale`, and moving the origin by
-     * `focus * (1 - scale)` is that shift without touching the scale itself.
-     * The scale is carried by [stepX]/[stepY]; putting it here as well is the
-     * double application that made a pinch jump.
+     * A plain pixel-to-clip map, with no scale in it at all. The pinch lives in
+     * the glyph size the shader applies, not here: scaling the projection would
+     * zoom the whole surface — grid, cursor, everything — which is an image
+     * zoom rather than a text size.
      *
      * Clip y grows upward, so a pixel offset downward — the scroll — is a
      * subtraction.
@@ -91,11 +90,9 @@ internal data class SizeInfo(
     fun projection(out: FloatArray) {
         val w = width.coerceAtLeast(1).toFloat()
         val h = height.coerceAtLeast(1).toFloat()
-        val anchorX = 2f * pinchFocusX / w
-        val anchorY = 2f * pinchFocusY / h
 
-        out[0] = -1f + anchorX * (1f - pinchScale)
-        out[1] = 1f - anchorY * (1f - pinchScale) - 2f * scrollOffsetPx / h
+        out[0] = -1f
+        out[1] = 1f - 2f * scrollOffsetPx / h
         out[2] = 2f / w
         out[3] = -2f / h
     }

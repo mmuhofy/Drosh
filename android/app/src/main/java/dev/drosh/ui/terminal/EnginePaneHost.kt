@@ -364,10 +364,12 @@ fun EnginePaneHost(
      * of colours and the theme is that table's source.
      */
     LaunchedEffect(appearance) {
+        // The palette, the cursor and the blink. **Not** the text size: that is
+        // the user's own, set once below and owned by a pinch afterwards.
+        // Setting it here dragged the live size back to the stored one on every
+        // recomposition, which during a zoom is the size the gesture started
+        // from.
         pane.view.applyAppearance(appearance)
-        // The size is the user's own, not the setting's: the configuration
-        // carries the size a session opens at, and a zoom is not that.
-        pane.view.setTextSize(fontSizeSp)
     }
 
     /**

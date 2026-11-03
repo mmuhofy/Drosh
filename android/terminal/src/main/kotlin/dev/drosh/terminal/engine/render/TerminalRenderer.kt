@@ -34,16 +34,20 @@ import javax.microedition.khronos.opengles.GL10
  * four places, and every screen bug of the past weeks was one of them being one
  * update behind.
  *
- * ## The pinch scales the cells, not the projection
+ * ## The pinch scales the text, not the grid
  *
- * A pinch changes [SizeInfo.pinchScale], which multiplies the cell step and the
- * glyph size — the same thing the vendored terminal's `canvas.scale` did. The
- * projection stays a plain pixel-to-clip map, so the scale is applied exactly
- * once. Scaling the projection instead multiplied with a step that already
- * carried the surface width, and that is what made the zoom jump.
+ * A pinch changes [SizeInfo.pinchScale], and the glyph shader multiplies the
+ * glyph's own size and offset by it. The cells stay where they are and the
+ * projection is a plain pixel-to-clip map: the letters grow inside the cells
+ * they already occupy.
  *
- * Nothing is re-measured, re-rasterised or reflowed during a gesture. The size
- * is applied once, when the fingers lift.
+ * Scaling the cell step as well — which an earlier version did — zooms the
+ * whole picture like an image: fewer columns fit, the cursor stops lining up,
+ * and the terminal is a different size rather than a bigger one. Scaling the
+ * projection has the same fault twice over.
+ *
+ * Nothing is re-measured, re-rasterised or reflowed during a gesture. The real
+ * size is applied once, when the fingers lift.
  */
 internal class TerminalRenderer(
     private val session: EngineSession,
@@ -152,7 +156,6 @@ internal class TerminalRenderer(
 
     private var backgroundProjection = 0
     private var backgroundCellSize = 0
-    private var backgroundScale = 0
     private var foregroundProjection = 0
     private var foregroundCellSize = 0
     private var foregroundScale = 0
@@ -176,7 +179,6 @@ internal class TerminalRenderer(
 
         backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
         backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
-        backgroundScale = GLES20.glGetUniformLocation(backgroundProgram, "uScale")
         foregroundProjection = GLES20.glGetUniformLocation(foregroundProgram, "uProjection")
         foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
         foregroundScale = GLES20.glGetUniformLocation(foregroundProgram, "uScale")
@@ -224,6 +226,7 @@ internal class TerminalRenderer(
         planGrid()
     }
 
+
     // --- size --------------------------------------------------------------
 
     /**
@@ -260,11 +263,13 @@ internal class TerminalRenderer(
     }
 
     /**
-     * A live pinch: draw at [scale] about the fingers.
+     * A live pinch: draw the glyphs at [scale] inside the cells they already
+     * occupy.
      *
-     * Nothing is measured, rasterised or reflowed. The step and the glyph size
-     * carry the scale, which is what makes a pinch continuous instead of
-     * stepping from one grid shape to the next.
+     * The grid does not move and no row is reflowed, so the picture stays
+     * continuous; only the letters change size. That is what a text size is —
+     * zooming the cells as well would change how many columns fit, which is a
+     * different terminal rather than a bigger one.
      */
     fun setPinch(scale: Float, focusX: Float, focusY: Float) {
         size = size.copy(
@@ -382,6 +387,13 @@ internal class TerminalRenderer(
             // Uploading would read past the end of an empty buffer — the
             // `remaining() < size` crash a program hit when it switched to the
             // alternate screen.
+            //
+            // The surface is still painted, because a `GLSurfaceView` that is
+            // not drawn to keeps whatever was in its buffer — which, after a
+            // resize, is nothing. Leaving it alone is the black rectangle a
+            // keyboard opening produced; painting the background is at least
+            // the terminal's own colour, and the next frame draws the text.
+            clearToBackground()
             return
         }
         val buildEndNanos = System.nanoTime()
@@ -498,7 +510,6 @@ internal class TerminalRenderer(
             size.width.toFloat() / appliedColumns.coerceAtLeast(1),
             size.height.toFloat() / appliedRows.coerceAtLeast(1),
         )
-        GLES20.glUniform1f(backgroundScale, size.pinchScale)
 
         GLES30.glBindVertexArray(backgroundVao)
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES, instances)
@@ -737,10 +748,9 @@ internal class TerminalRenderer(
         /**
          * The cell quad.
          *
-         * `uCellSize` is the step the cells are placed at, in pixels, and
-         * `uScale` is the pinch. They are separate uniforms so the scale is
-         * applied once: the cell origin, the cell size and the glyph inside it
-         * all multiply by the same number.
+         * `uCellSize` is the step the cells are placed at, in pixels. There is
+         * no scale here: a pinch changes the *text* size, not the grid, and
+         * zooming the cells would change how many fit on the screen.
          */
         val BACKGROUND_VERTEX = """
             #version 300 es
@@ -748,16 +758,18 @@ internal class TerminalRenderer(
             layout(location = 1) in vec4 aColor;
             uniform vec4 uProjection;
             uniform vec2 uCellSize;
-            uniform float uScale;
             out vec4 vColor;
             void main() {
                 vec2 corner = vec2(
                     float(gl_VertexID == 1 || gl_VertexID == 3),
                     float(gl_VertexID == 2 || gl_VertexID == 3)
                 );
-                vec2 step = uCellSize * uScale;
-                vec2 cell = vec2(aGridPos) * step;
-                gl_Position = vec4(uProjection.xy + uProjection.zw * (cell + corner * step), 0.0, 1.0);
+                vec2 cell = vec2(aGridPos) * uCellSize;
+                gl_Position = vec4(
+                    uProjection.xy + uProjection.zw * (cell + corner * uCellSize),
+                    0.0,
+                    1.0
+                );
                 vColor = aColor;
             }
         """.trimIndent()
@@ -777,8 +789,8 @@ internal class TerminalRenderer(
          *
          * The record's `aOffset` and `aGlyphSize` are in pixels *at the size the
          * mask was rasterised* — they describe the glyph, not the cell. So they
-         * scale with `uScale` too, exactly as the cell step does; a pinch that
-         * grew the cells but not the letters would be a grid of empty boxes.
+         * carry the pinch, and the cell does not: the letters grow inside the
+         * cell they already occupy, which is what "make the text bigger" means.
          */
         val FOREGROUND_VERTEX = """
             #version 300 es
@@ -799,10 +811,13 @@ internal class TerminalRenderer(
                     float(gl_VertexID == 1 || gl_VertexID == 3),
                     float(gl_VertexID == 2 || gl_VertexID == 3)
                 );
-                vec2 step = uCellSize * uScale;
+                // The cell is where it is; only what is drawn inside it grows.
+                // Scaling the step as well would zoom the whole grid, which is
+                // not what a text size is: the columns would change and the
+                // screen would stop being a terminal.
+                vec2 cell = vec2(aGridPos) * uCellSize;
                 vec2 size = vec2(aGlyphSize) * uScale;
                 vec2 offset = vec2(aOffset) * uScale;
-                vec2 cell = vec2(aGridPos) * step;
                 gl_Position = vec4(
                     uProjection.xy + uProjection.zw * (cell + offset + corner * size),
                     0.0,

@@ -276,7 +276,7 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // No surface means the font failed to load; there is nothing to
         // resume, and [startError] says why.
         surface?.onResume() ?: return
-        frameLoop.poll = { session.pollWakeup() }
+        frameLoop.poll = { session.hasOutput() }
         frameLoop.start()
         // Numbers from this session only: a resume is a fresh start.
         stats.reset()

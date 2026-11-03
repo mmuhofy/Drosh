@@ -389,6 +389,18 @@ class EngineSession(
         return current != NO_HANDLE && NativeCore.nativePollWakeup(current)
     }
 
+    /**
+     * Whether the engine has output the screen has not drawn yet.
+     *
+     * **Peeked, not taken.** The wakeup flag is cleared by the snapshot, after
+     * the cells have actually been copied — so a frame either draws the change
+     * or asks again.
+     */
+    fun hasOutput(): Boolean {
+        val current = handle
+        return current != NO_HANDLE && NativeCore.nativePollWakeup(current)
+    }
+
     /** Low-frequency engine events (title, bell, exit, …), one record per entry. */
     fun drainEvents(): List<String> {
         val current = handle

@@ -154,6 +154,17 @@ impl EventQueue {
         self.wakeup.swap(false, Ordering::AcqRel)
     }
 
+    /// Whether there is a wakeup pending, without clearing it.
+    ///
+    /// The poll used to consume the flag, so a frame that then failed to draw
+    /// dropped the notification and the screen stayed one update behind until
+    /// the next keystroke. Reading it here and clearing it in the snapshot —
+    /// after the cells have actually been copied — is what makes a frame
+    /// either draw the change or ask again.
+    pub fn has_wakeup(&self) -> bool {
+        self.wakeup.load(Ordering::Acquire)
+    }
+
     /// Append an event, keeping the queue bounded.
     pub fn push(&self, event: SessionEvent) {
         let mut events = self.lock();

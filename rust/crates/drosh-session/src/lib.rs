@@ -569,12 +569,20 @@ impl Session {
         // it describes are the same position.
         state_out[snapshot::state_index::SUB_LINE_PX] =
             f32::from_bits(self.sub_line_px.load(Ordering::Relaxed)) as i32;
+
+        // The change is in the caller's buffer now, so the notification has
+        // been honoured. Clearing it here rather than in the poll is what stops
+        // a frame that failed to draw from silently dropping it.
+        self.events.take_wakeup();
         Ok(damage[0])
     }
 
-    /// Take and clear the "something changed" flag.
-    pub fn poll_wakeup(&self) -> bool {
-        self.events.take_wakeup()
+    /// Whether there is output the screen has not drawn yet.
+    ///
+    /// Peeked, not taken: see [`Session::take_snapshot_with_state`], which is
+    /// where the flag is cleared.
+    pub fn has_output(&self) -> bool {
+        self.events.has_wakeup()
     }
 
     /// Remove and return every queued event.
