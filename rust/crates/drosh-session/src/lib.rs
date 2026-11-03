@@ -719,7 +719,7 @@ impl Session {
         let above = self.with_term(|term| {
             let grid = term.grid();
             let cursor_line = grid.cursor.point.line.0;
-            let rows = i32::from(term.screen_lines());
+            let rows = term.screen_lines() as i32;
             let history = grid.history_size() as i32;
             // The live bottom edge is history rows up from the grid's own
             // origin; the cursor sits `rows - 1 - line` above that edge.
