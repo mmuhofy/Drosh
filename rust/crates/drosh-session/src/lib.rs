@@ -731,8 +731,9 @@ impl Session {
             return;
         }
         marks.push(above);
-        if marks.len() > PROMPT_MARKS_CAP {
-            marks.drain(..marks.len() - PROMPT_MARKS_CAP);
+        let excess = marks.len().saturating_sub(PROMPT_MARKS_CAP);
+        if excess > 0 {
+            marks.drain(..excess);
         }
     }
 
