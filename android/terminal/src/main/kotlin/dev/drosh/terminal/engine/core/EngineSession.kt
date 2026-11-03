@@ -214,11 +214,25 @@ class EngineSession(
     private fun allocate(columns: Int, rows: Int) {
         this.columns = columns
         this.rows = rows
+        // One extra line above the viewport. The sub-line scroll shifts the
+        // whole grid by the remainder, and the shift reveals the line above —
+        // the core writes it as the buffer's first line. Without it the
+        // revealed strip is whatever the surface had, which is the band of the
+        // wrong colour a scroll left at the top of the screen.
         cellBuffer = ByteBuffer
-            .allocateDirect(columns * rows * NativeCore.CELL_BYTES)
+            .allocateDirect(columns * (rows + 1) * NativeCore.CELL_BYTES)
             .order(ByteOrder.LITTLE_ENDIAN)
         damage = IntArray(NativeCore.damageLength(rows))
     }
+
+    /**
+     * The sub-line part of the scroll, in pixels, as the engine holds it.
+     *
+     * It travels with the cell snapshot — one lock hold — so the shift the
+     * renderer draws describes exactly the cells it draws.
+     */
+    val subLinePixels: Int
+        get() = stateArray[NativeCore.STATE_SUB_LINE_PX]
 
     /**
      * Let the core write the damaged cells into [cells]; returns the damage

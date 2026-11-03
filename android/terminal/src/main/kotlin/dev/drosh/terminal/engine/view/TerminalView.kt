@@ -719,8 +719,14 @@ class TerminalView(context: Context) : FrameLayout(context) {
      */
     internal fun pinchTo(scale: Float, focusX: Float, focusY: Float) {
         lastPinchFocusY = focusY
-        surface?.queueEvent { renderer?.setPinch(scale, focusX, focusY) }
-        requestRender()
+        // The render is requested *after* the scale is set, and on the same
+        // thread: `requestRender` from the UI thread could run before the
+        // queued `setPinch`, and the frame would draw the previous scale — the
+        // preview that did not move while the fingers did.
+        surface?.queueEvent {
+            renderer?.setPinch(scale, focusX, focusY)
+            surface?.requestRender()
+        }
     }
 
     /**

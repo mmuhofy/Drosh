@@ -443,8 +443,12 @@ impl Session {
         let rows = (total / cell).trunc();
         if rows == 0.0 {
             // Not a whole row yet: the fraction is kept for the next event, so
-            // a slow drag still advances a row every few frames.
+            // a slow drag still advances a row every few frames. The frame is
+            // still asked for — the shift the renderer draws *is* the
+            // remainder, and without a wakeup a slow drag would move nothing
+            // until it crossed a whole row.
             self.scroll_remainder.store(total.to_bits(), Ordering::Relaxed);
+            self.events.set_wakeup();
             return false;
         }
 
@@ -524,6 +528,11 @@ impl Session {
 
         snapshot::take_snapshot(&mut term, buffer, &mut damage, &mut scratch)?;
         snapshot::write_state(&term, state_out);
+        // The sub-line remainder travels with the same lock hold: the cells
+        // were copied at the position the remainder describes, so the shift the
+        // renderer draws belongs to this snapshot and to no other.
+        state_out[snapshot::state_index::SUB_LINE_PX] =
+            f32::from_bits(self.scroll_remainder.load(Ordering::Relaxed)) as i32;
 
         // The change is in the caller's buffer now, so the notification has
         // been honoured. Clearing it here rather than in the poll is what stops

@@ -154,6 +154,27 @@ internal class TerminalRenderer(
 
     private var frameCount = 0
 
+    /** Whether a complete picture has been drawn since the surface was created. */
+    private var paintedFrame = false
+
+    /**
+     * Draw the records already built, whatever they were built from.
+     *
+     * A frame that cannot pump or build — a resize in flight, a session still
+     * starting — must still fill the buffer it is given: the swap happens
+     * regardless, and a buffer filled with only the clear colour is the
+     * one-frame wipe the screen showed on every state change.
+     */
+    private fun redrawLast() {
+        if (!paintedFrame) {
+            return
+        }
+        uploadStreams()
+        drawBackgrounds()
+        drawForegrounds()
+        paintedFrame = true
+    }
+
     /**
      * When the grid may be reflowed after a surface change, or 0 when none is
      * pending.
@@ -214,6 +235,9 @@ internal class TerminalRenderer(
         // showed after every pause.
         atlas.reset()
         buildTexture()
+        // A new surface has nothing on it: the first frame must clear, not
+        // "redraw the last picture" of a surface that no longer exists.
+        paintedFrame = false
 
         // No ASCII warm-up here.
         //
@@ -366,7 +390,10 @@ internal class TerminalRenderer(
 
         appliedColumns = columns
         appliedRows = rows
-        records.resize(columns, rows)
+        // One extra record row: the snapshot's first line is the line *above*
+        // the viewport, and the sub-line shift reveals part of it. It is drawn
+        // at grid row -1 by the build; see `CellRecords.build`.
+        records.resize(columns, rows + 1)
 
         // The session is brought to the grid here, on the GL thread, in the
         // same breath. `EngineSession` is built for it: the grid lives behind
@@ -388,7 +415,12 @@ internal class TerminalRenderer(
         // resize is nothing — the black rectangle a keyboard opening produced.
         // Painting first means the worst case is the terminal's own background
         // colour for one frame, never black.
-        clearToBackground()
+        // The clear happens only when nothing has been painted yet: a fresh
+        // surface must not show garbage. After that, a frame that cannot build
+        // redraws the last picture instead — see `redrawLast`.
+        if (!paintedFrame) {
+            clearToBackground()
+        }
 
         // A surface that has stopped moving gets its grid now. Every frame
         // checks, because the frame loop runs whether or not anything changed;
@@ -425,9 +457,16 @@ internal class TerminalRenderer(
 
         val damage = session.pump()
         if (damage < 0) {
+            redrawLast()
             return
         }
         val pumpEndNanos = System.nanoTime()
+
+        // The sub-line shift travels with the cells: one lock hold, one
+        // position. A positive remainder moves the grid down — the user
+        // dragging back into the history — and the snapshot's extra first line
+        // fills the strip that reveals at the top.
+        size = size.copy(scrollOffsetPx = session.subLinePixels.toFloat())
 
         // `pump` refreshed the engine's colour table; install it only when the
         // engine says it changed.
@@ -450,8 +489,12 @@ internal class TerminalRenderer(
             // The cell buffer does not hold this grid, so nothing was built.
             // Uploading would read past the end of an empty buffer — the
             // `remaining() < size` crash a program hit when it switched to the
-            // alternate screen. The surface is already painted by the clear at
-            // the top of the frame.
+            // alternate screen. The last picture is drawn again rather than
+            // leaving the background this frame cleared: a `GLSurfaceView`
+            // swaps buffers whether or not anything was drawn, and a frame
+            // that draws only the clear colour is the flash — the screen
+            // wiping and coming back — that an Enter or a scroll produced.
+            redrawLast()
             return
         }
         val buildEndNanos = System.nanoTime()
@@ -835,7 +878,14 @@ internal class TerminalRenderer(
                     float(gl_VertexID == 1 || gl_VertexID == 3),
                     float(gl_VertexID == 2 || gl_VertexID == 3)
                 );
-                vec2 cell = vec2(aGridPos) * uCellSize;
+                // The grid row is signed: the snapshot's extra line above the
+                // viewport is stored as row -1 (0xFFFF in the u16 record), and
+                // the sub-line shift reveals part of it at the top.
+                int gridRow = int(aGridPos.y);
+                if (gridRow > 32767) {
+                    gridRow -= 65536;
+                }
+                vec2 cell = vec2(float(aGridPos.x), float(gridRow)) * uCellSize;
                 gl_Position = vec4(
                     uProjection.xy + uProjection.zw * (cell + corner * uCellSize),
                     0.0,
@@ -890,7 +940,11 @@ internal class TerminalRenderer(
                 // Scaling the step as well would zoom the whole grid, which is
                 // not what a text size is: the columns would change and the
                 // screen would stop being a terminal.
-                vec2 cell = vec2(aGridPos) * uCellSize;
+                int gridRow = int(aGridPos.y);
+                if (gridRow > 32767) {
+                    gridRow -= 65536;
+                }
+                vec2 cell = vec2(float(aGridPos.x), float(gridRow)) * uCellSize;
                 vec2 natural = vec2(aGlyphSize);
 
                 // The glyph grows about its own baseline origin, not about the
@@ -932,9 +986,15 @@ internal class TerminalRenderer(
                 );
                 // The UV walks the *atlas* texels, which do not scale: a solid
                 // quad samples one texel, a glyph samples its own rectangle.
+                //
+                // Inset by half a texel: `GL_LINEAR` blends the four texels
+                // around every sample, and at a rectangle's edge those include
+                // the *neighbouring* glyph's. The blend is faint but it is a
+                // line — the faint outline at the letter edges. Half a texel in
+                // keeps every sample inside the glyph's own texels.
                 vTexCoord = (aFlags & 1u) != 0u
                     ? (vec2(aAtlasRect) + 0.5) / uAtlasSize
-                    : (vec2(aAtlasRect) + corner * natural) / uAtlasSize;
+                    : (vec2(aAtlasRect) + 0.5 + corner * max(natural - 1.0, vec2(0.0))) / uAtlasSize;
                 vColor = aColor;
             }
         """.trimIndent()

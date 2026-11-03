@@ -173,8 +173,11 @@ internal class CellRecords(columns: Int, rows: Int) {
         // The ligatures, when the application wants them. A row is shaped
         // again only when its text changed, so this is a hash per row and a
         // JNI call for the rows that moved.
+        // The shaper works on *viewport* rows; the buffer's lines are one
+        // ahead of them, because its first line is the one above the viewport
+        // (see the class comment on the snapshot). `lineOffset` is that gap.
         if (ligatures) {
-            shaper.shape(cells, columns, rows, fontPx)
+            shaper.shape(cells, columns, rows - 1, fontPx, lineOffset = 1)
         }
 
         val cursorRow = state[NativeCore.STATE_CURSOR_ROW]
@@ -195,9 +198,54 @@ internal class CellRecords(columns: Int, rows: Int) {
         coloredCells = 0
         colouredSamples.clear()
 
-        for (row in 0 until rows) {
+        // The line above the viewport: drawn at grid row -1, where the
+        // sub-line shift reveals it. It belongs to no selection, no cursor and
+        // no shaping — it is one partial row of scrollback peeking in.
+        for (column in 0 until columns) {
+            val at = column * NativeCore.CELL_BYTES
+            val codepoint = cells.getInt(at + NativeCore.CELL_OFFSET_CODEPOINT)
+            val fgEncoded = cells.getInt(at + NativeCore.CELL_OFFSET_FG)
+            val bgEncoded = cells.getInt(at + NativeCore.CELL_OFFSET_BG)
+            val flags = cells.getShort(at + NativeCore.CELL_OFFSET_FLAGS).toInt() and 0xffff
+
+            var foreground = Palette.resolve(fgEncoded, Palette.DEFAULT_FOREGROUND)
+            var background = Palette.resolve(bgEncoded, Palette.DEFAULT_BACKGROUND)
+            if (flags and NativeCore.FLAG_INVERSE != 0) {
+                val swap = foreground
+                foreground = background
+                background = swap
+            }
+            putBackground(column, -1, background)
+            val aboveSpacer = flags and NativeCore.FLAG_WIDE_CHAR_SPACER != 0 ||
+                flags and NativeCore.FLAG_LEADING_WIDE_CHAR_SPACER != 0
+            if (!aboveSpacer && codepoint != ' '.code) {
+                // Cache slots `0 until columns` belong to this line: the main
+                // loop starts at buffer line 1, so they are otherwise unused.
+                val entry = glyphFor(
+                    column,
+                    codepoint,
+                    flags and NativeCore.FLAG_BOLD != 0,
+                    atlas,
+                    fontPx,
+                )
+                if (entry != null && !entry.isBlank) {
+                    writeGlyph(
+                        entry,
+                        entry.left.toFloat(),
+                        metrics.ascent - entry.top,
+                        column,
+                        -1,
+                        foreground,
+                    )
+                }
+            }
+        }
+
+        // The viewport itself: buffer line `b` is viewport row `b - 1`.
+        for (bufferRow in 1 until rows) {
+            val row = bufferRow - 1
             for (column in 0 until columns) {
-                val cell = row * columns + column
+                val cell = bufferRow * columns + column
                 val at = cell * NativeCore.CELL_BYTES
                 val codepoint = cells.getInt(at + NativeCore.CELL_OFFSET_CODEPOINT)
                 val fgEncoded = cells.getInt(at + NativeCore.CELL_OFFSET_FG)

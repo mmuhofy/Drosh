@@ -29,7 +29,7 @@ pub const fn damage_out_len(rows: usize) -> usize {
 }
 
 /// Ints written by [`write_state`] into `state_out`.
-pub const STATE_LEN: usize = 8;
+pub const STATE_LEN: usize = 9;
 
 /// Frozen indices of the `state_out` array.
 pub mod state_index {
@@ -40,6 +40,10 @@ pub mod state_index {
     pub const CURSOR_SHAPE: usize = 4;
     pub const DISPLAY_OFFSET: usize = 5;
     pub const MODE_BITS: usize = 6;
+    /// The sub-line part of the scroll position, in pixels, as `f32` bits.
+    /// The renderer shifts the whole grid by it; the extra line above the
+    /// viewport fills the strip the shift reveals.
+    pub const SUB_LINE_PX: usize = 8;
     /// Fingerprint of the engine's dynamic colour table (see
     /// [`colors_fingerprint`]); Kotlin pulls the table when it changes.
     pub const COLORS: usize = 7;
@@ -142,7 +146,21 @@ pub fn take_snapshot<T>(
         return Err(SnapshotError::InvalidGrid);
     }
 
-    let needed = columns * rows * CELL_BYTES;
+    // One extra line above the viewport.
+    //
+    // A sub-line scroll shifts the whole grid by the remainder, and a shift
+    // reveals content on the side it came from: scrolled up, the line *above*
+    // the viewport peeks in at the top. Without that line in the buffer the
+    // revealed strip is unpainted — a band of whatever the surface's clear
+    // colour is, changing size as the remainder moved. That is the strip of
+    // the wrong colour a scroll produced.
+    //
+    // The buffer holds `rows + 1` lines for this: the viewport plus the one
+    // above it. The line is always written, whether or not the renderer shifts
+    // — a frame that has no shift to draw still reads the buffer whole.
+    let with_extra = rows + 1;
+
+    let needed = columns * with_extra * CELL_BYTES;
     if buffer.len() < needed {
         return Err(SnapshotError::BufferTooSmall { needed, got: buffer.len() });
     }
@@ -177,9 +195,38 @@ pub fn take_snapshot<T>(
         }
     }
 
+    // The extra line is written *first*, at grid line `-(offset + 1)` — the one
+    // above the viewport. It is written every frame regardless of damage,
+    // because the renderer shifts the whole grid by the remainder and needs the
+    // line above to be there whether or not the viewport itself moved.
+    //
+    // At the live edge there is no line above: the buffer's first line is the
+    // viewport's own first line, written twice — the renderer then has no shift
+    // to draw and the duplicate is harmless.
+    // At the live edge there is no line above — `Line(-1)` would index outside
+    // the grid — and there is no shift to draw either (the remainder is
+    // dropped when the viewport cannot move), so the viewport's own first line
+    // is written there as a harmless duplicate.
+    let above = if offset > 0 {
+        Line(-(offset as i32) - 1)
+    } else {
+        Line(0)
+    };
+    {
+        let grid = term.grid();
+        let grid_row = &grid[above];
+        for column in 0..columns {
+            let at = column * CELL_BYTES;
+            CellRecord::from_cell(&grid_row[Column(column)])
+                .encode_into(&mut buffer[at..at + CELL_BYTES]);
+        }
+    }
+
+    // The viewport's own lines follow, shifted by one line in the buffer: row
+    // `r` lives at buffer row `r + 1`.
     if full {
         for row in 0..rows {
-            write_row(term.grid(), offset, row, columns, 0, columns - 1, buffer);
+            write_row(term.grid(), offset, row + 1, columns, 0, columns - 1, buffer);
         }
         damage_out[0] = DAMAGE_FULL;
     } else {
@@ -192,7 +239,7 @@ pub fn take_snapshot<T>(
 
             let right = bounds.right.min(columns - 1);
             let left = bounds.left.min(right);
-            write_row(term.grid(), offset, row, columns, left, right, buffer);
+            write_row(term.grid(), offset, row + 1, columns, left, right, buffer);
 
             let base = 1 + count * DAMAGE_STRIDE;
             damage_out[base] = row as i32;

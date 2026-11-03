@@ -55,6 +55,17 @@ internal data class SizeInfo(
     /** Where the pinch is anchored, in surface pixels. */
     val pinchFocusX: Float = 0f,
     val pinchFocusY: Float = 0f,
+    /**
+     * The sub-line part of the scroll position, in pixels.
+     *
+     * The whole grid is drawn shifted by this, so a drag follows the finger
+     * between rows instead of stepping a line at a time. The snapshot carries
+     * one extra line above the viewport — its first line — and that line fills
+     * the strip the shift reveals. Without it the shift exposed a band of
+     * unpainted cells at the top, which is why this was removed once before:
+     * the shift was there, the line was not.
+     */
+    val scrollOffsetPx: Float = 0f,
 ) {
     /** Columns that fit: a whole number of cells, rounded down. */
     val columns: Int get() = maxOf((width / cellWidth).toInt(), MIN_COLUMNS)
@@ -82,19 +93,16 @@ internal data class SizeInfo(
      * zoom the whole surface — grid, cursor, everything — which is an image
      * zoom rather than a text size.
      *
-     * There is no scroll term. The viewport moves in whole rows — the engine's
-     * `Scroll::Delta`, the same thing Termux and alacritty do — so the grid
-     * that is drawn *is* the position. Shifting it by a sub-line remainder left
-     * a strip of nothing at the top of the screen, a band of the wrong colour
-     * where the shift exposed unpainted cells, and a picture that changed size
-     * as the remainder grew and shrank.
+     * The scroll term moves the grid by the sub-line remainder. Clip y grows
+     * upward, so a positive remainder — the content moving down, the user
+     * dragging back into the history — is a subtraction.
      */
     fun projection(out: FloatArray) {
         val w = width.coerceAtLeast(1).toFloat()
         val h = height.coerceAtLeast(1).toFloat()
 
         out[0] = -1f
-        out[1] = 1f
+        out[1] = 1f - 2f * scrollOffsetPx / h
         out[2] = 2f / w
         out[3] = -2f / h
     }

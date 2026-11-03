@@ -79,7 +79,13 @@ internal class RowShaper {
      * The rows are shaped in order and each one is keyed by its own text, so
      * a frame that changed one line shapes one line.
      */
-    fun shape(cells: ByteBuffer, columns: Int, rows: Int, fontPx: Float) {
+    fun shape(
+        cells: ByteBuffer,
+        columns: Int,
+        rows: Int,
+        fontPx: Float,
+        lineOffset: Int = 0,
+    ) {
         // The cache is sized by the grid the caller is about to read, every
         // time — not only when it grew. A buffer that shrank and then grew
         // again (a pinch in, a pinch out) had arrays from the old shape, and
@@ -89,12 +95,14 @@ internal class RowShaper {
             resize(columns, rows)
         }
         for (row in 0 until rows) {
-            val key = rowKey(row, cells, columns, fontPx)
+            val key = rowKey(row + lineOffset, cells, columns, fontPx)
             if (keys[row] == key) {
                 continue
             }
             keys[row] = key
-            shapeRow(row, cells, columns, fontPx)
+            // The buffer line is `row + lineOffset`; the shaped results are
+            // stored under the *viewport* row, which is what the build queries.
+            shapeRow(row + lineOffset, row, cells, columns, fontPx)
         }
     }
 
@@ -155,8 +163,8 @@ internal class RowShaper {
     /**
      * Shape one row and record the ligatures in it.
      */
-    private fun shapeRow(row: Int, cells: ByteBuffer, columns: Int, fontPx: Float) {
-        val base = row * columns * NativeCore.CELL_BYTES
+    private fun shapeRow(line: Int, row: Int, cells: ByteBuffer, columns: Int, fontPx: Float) {
+        val base = line * columns * NativeCore.CELL_BYTES
         if (base < 0 || base + columns * NativeCore.CELL_BYTES > cells.limit()) {
             return
         }
