@@ -120,13 +120,15 @@ fn undersized_buffers_are_rejected() {
     let mut scratch = Vec::new();
 
     let mut damage = vec![0i32; damage_out_len(ROWS)];
-    let mut too_small = vec![0u8; COLUMNS * ROWS * CELL_BYTES - 1];
+    // The snapshot needs the extra line above the viewport as well, so a
+    // buffer of exactly the viewport is already too small.
+    let mut too_small = vec![0u8; COLUMNS * (ROWS + 1) * CELL_BYTES - 1];
     assert!(matches!(
         take_snapshot(&mut term, &mut too_small, &mut damage, &mut scratch),
         Err(SnapshotError::BufferTooSmall { .. })
     ));
 
-    let mut buffer = vec![0u8; COLUMNS * ROWS * CELL_BYTES];
+    let mut buffer = vec![0u8; COLUMNS * (ROWS + 1) * CELL_BYTES];
     let mut too_few = vec![0i32; 1];
     assert!(matches!(
         take_snapshot(&mut term, &mut buffer, &mut too_few, &mut scratch),
