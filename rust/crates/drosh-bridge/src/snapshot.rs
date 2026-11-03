@@ -200,18 +200,11 @@ pub fn take_snapshot<T>(
     // because the renderer shifts the whole grid by the remainder and needs the
     // line above to be there whether or not the viewport itself moved.
     //
-    // At the live edge there is no line above: the buffer's first line is the
-    // viewport's own first line, written twice — the renderer then has no shift
-    // to draw and the duplicate is harmless.
     // At the live edge there is no line above — `Line(-1)` would index outside
     // the grid — and there is no shift to draw either (the remainder is
     // dropped when the viewport cannot move), so the viewport's own first line
     // is written there as a harmless duplicate.
-    let above = if offset > 0 {
-        Line(-(offset as i32) - 1)
-    } else {
-        Line(0)
-    };
+    let above = if offset > 0 { Line(-(offset as i32) - 1) } else { Line(0) };
     {
         let grid = term.grid();
         let grid_row = &grid[above];
