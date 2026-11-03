@@ -67,6 +67,10 @@ fun PromptScrollbar(
 
     var dragging by remember { mutableStateOf(false) }
 
+    // The theme's gold is a composable read; the canvas draw is not, so it is
+    // resolved once here and carried into the draw.
+    val dotColor = DroshPrimary
+
     // The engine's state is written by the frame loop, not by anyone here, so
     // it is sampled: a poll every fourth of a second is invisible next to the
     // picture itself, and a flow through the frame loop would wake compose
@@ -178,7 +182,7 @@ fun PromptScrollbar(
                 val y = ((1f - fraction) * size.height)
                     .coerceIn(MIN_THUMB_PX * 0.5f, size.height - MIN_THUMB_PX * 0.5f)
                 drawCircle(
-                    color = DotColor,
+                    color = dotColor,
                     radius = size.width * 0.16f,
                     center = Offset(size.width - trackWidth * 0.5f, y),
                 )
@@ -201,5 +205,3 @@ private const val MIN_THUMB_PX = 48f
 private val TrackColor = Color(0x33888888)
 
 private val ThumbColor = Color(0x66AAAAAA)
-
-private val DotColor = DroshPrimary

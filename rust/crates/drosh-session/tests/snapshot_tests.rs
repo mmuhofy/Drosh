@@ -40,11 +40,14 @@ fn snapshot(term: &mut Term<VoidListener>, buffer: &mut [u8], damage: &mut [i32]
 }
 
 fn new_buffers(columns: usize, rows: usize) -> (Vec<u8>, Vec<i32>) {
-    (vec![0u8; columns * rows * CELL_BYTES], vec![0i32; damage_out_len(rows)])
+    // One extra line above the viewport: the snapshot's first line is the one
+    // the sub-line scroll reveals, and the viewport's own lines follow it.
+    (vec![0u8; columns * (rows + 1) * CELL_BYTES], vec![0i32; damage_out_len(rows)])
 }
 
 fn record(buffer: &[u8], columns: usize, row: usize, column: usize) -> CellRecord {
-    let at = (row * columns + column) * CELL_BYTES;
+    // Buffer line `r + 1` is viewport row `r`; line 0 is the extra line above.
+    let at = ((row + 1) * columns + column) * CELL_BYTES;
     CellRecord::decode(&buffer[at..at + CELL_BYTES]).expect("record")
 }
 
