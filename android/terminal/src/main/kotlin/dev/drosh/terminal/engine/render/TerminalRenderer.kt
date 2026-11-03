@@ -104,11 +104,24 @@ internal class TerminalRenderer(
      */
     private var fontSize = initialFontSize
 
-    /** The cell geometry, at the size the glyphs are rasterised at. */
+    /**
+     * The cell geometry, at the size the glyphs are rasterised at.
+     *
+     * The *committed* cell — the one the grid is laid out with. A pinch changes
+     * the size the glyphs are drawn at, not the cell they sit in: the columns
+     * belong to the terminal, not to the font.
+     */
     private val metrics: CellMetrics get() = fontSize.metrics
 
-    /** Pixel size the glyphs are rasterised at. */
-    private val fontPx: Float get() = fontSize.px
+    /**
+     * Pixel size the glyphs are rasterised at.
+     *
+     * The committed size, times the live pinch. A pinch re-rasterises at the
+     * size the fingers have reached rather than scaling a bitmap, because a
+     * scaled bitmap doubles its strokes: the text grew bolder as it grew, which
+     * is a blurry font rather than a large one.
+     */
+    private val fontPx: Float get() = fontSize.px * size.pinchScale
 
     /**
      * Ambient tint from Rust (0xRRGGBB), applied as the clear colour so the
@@ -158,7 +171,6 @@ internal class TerminalRenderer(
     private var backgroundCellSize = 0
     private var foregroundProjection = 0
     private var foregroundCellSize = 0
-    private var foregroundScale = 0
     private var foregroundAtlasSize = 0
     private var foregroundAtlas = 0
 
@@ -181,7 +193,6 @@ internal class TerminalRenderer(
         backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
         foregroundProjection = GLES20.glGetUniformLocation(foregroundProgram, "uProjection")
         foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
-        foregroundScale = GLES20.glGetUniformLocation(foregroundProgram, "uScale")
         foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
         foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
 
@@ -195,9 +206,14 @@ internal class TerminalRenderer(
         atlas.reset()
         buildTexture()
 
-        // Rasterise ASCII before the first frame: a burst should not pay for
-        // glyphs one JNI call at a time (device run 2).
-        atlas.warmUp(fontPx, false)
+        // No ASCII warm-up here.
+        //
+        // It rasterised ninety-five glyphs on the GL thread before the first
+        // frame could be drawn, and `onSurfaceCreated` runs again whenever the
+        // surface is recreated — which a keyboard opening does. The cost was
+        // visible: a black rectangle for as long as the warm-up took, then the
+        // terminal appearing. The glyphs are cached per size anyway, so the
+        // first frame after a context loss pays for only what is on screen.
 
         buildBackgroundObjects()
         buildForegroundObjects()
@@ -263,17 +279,31 @@ internal class TerminalRenderer(
     }
 
     /**
-     * A live pinch: draw the glyphs at [scale] inside the cells they already
-     * occupy.
+     * A live pinch: rasterise the glyphs at the size the fingers have reached,
+     * inside the cells they already occupy.
      *
-     * The grid does not move and no row is reflowed, so the picture stays
-     * continuous; only the letters change size. That is what a text size is —
-     * zooming the cells as well would change how many columns fit, which is a
-     * different terminal rather than a bigger one.
+     * **The glyphs are re-rasterised, not scaled.** A bitmap scaled up by
+     * nearest-neighbour doubles its strokes — a pinch made the text bolder the
+     * more it grew, which is not a bigger font but a blurrier one. Rasterising
+     * at the new size is the same cost per glyph as any other size change, and
+     * the atlas already caches by size, so a gesture that passes through a size
+     * twice pays for it once.
+     *
+     * The grid does not move: the cell keeps its size and its place, and the
+     * letters grow inside it. That is what "make the text bigger" means — the
+     * columns are the terminal's, not the font's.
      */
     fun setPinch(scale: Float, focusX: Float, focusY: Float) {
+        val safe = if (scale.isFinite() && scale > 0f) scale else 1f
+        // The size the masks are rasterised at, scaled. `atlas.beginSize` keys
+        // its generations by this, so a gesture that wanders back over a size it
+        // just left finds its glyphs again.
+        val pinchPx = fontSize.px * safe
+        if (pinchPx > 0f) {
+            atlas.beginSize(pinchPx)
+        }
         size = size.copy(
-            pinchScale = if (scale.isFinite() && scale > 0f) scale else 1f,
+            pinchScale = safe,
             pinchFocusX = focusX,
             pinchFocusY = focusY,
         )
@@ -536,7 +566,6 @@ internal class TerminalRenderer(
             size.width.toFloat() / appliedColumns.coerceAtLeast(1),
             size.height.toFloat() / appliedRows.coerceAtLeast(1),
         )
-        GLES20.glUniform1f(foregroundScale, size.pinchScale)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
@@ -788,9 +817,10 @@ internal class TerminalRenderer(
          * The glyph quad.
          *
          * The record's `aOffset` and `aGlyphSize` are in pixels *at the size the
-         * mask was rasterised* — they describe the glyph, not the cell. So they
-         * carry the pinch, and the cell does not: the letters grow inside the
-         * cell they already occupy, which is what "make the text bigger" means.
+         * mask was rasterised* — they describe the glyph, not the cell. A pinch
+         * re-rasterises at the new size rather than scaling these, because a
+         * scaled bitmap doubles its strokes: the text grew bolder as it grew
+         * bigger, which is a blurry font rather than a large one.
          */
         val FOREGROUND_VERTEX = """
             #version 300 es
@@ -802,7 +832,6 @@ internal class TerminalRenderer(
             layout(location = 5) in uint aFlags;
             uniform vec4 uProjection;
             uniform vec2 uCellSize;
-            uniform float uScale;
             uniform vec2 uAtlasSize;
             out vec2 vTexCoord;
             out vec4 vColor;
@@ -816,8 +845,8 @@ internal class TerminalRenderer(
                 // not what a text size is: the columns would change and the
                 // screen would stop being a terminal.
                 vec2 cell = vec2(aGridPos) * uCellSize;
-                vec2 size = vec2(aGlyphSize) * uScale;
-                vec2 offset = vec2(aOffset) * uScale;
+                vec2 size = vec2(aGlyphSize);
+                vec2 offset = vec2(aOffset);
                 gl_Position = vec4(
                     uProjection.xy + uProjection.zw * (cell + offset + corner * size),
                     0.0,
