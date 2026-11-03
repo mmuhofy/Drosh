@@ -32,11 +32,15 @@ fn fed_text_reaches_the_grid_and_the_state() {
     assert_eq!(state[state_index::COLUMNS], COLUMNS as i32);
     assert_eq!(state[state_index::CURSOR_COL], 2);
 
-    let mut buffer = vec![0u8; COLUMNS * ROWS * CELL_BYTES];
+    // One extra line above the viewport: the snapshot's first line is the one
+    // the sub-line scroll reveals, and the viewport's own lines follow it.
+    let mut buffer = vec![0u8; COLUMNS * (ROWS + 1) * CELL_BYTES];
     session.take_snapshot(&mut buffer).expect("snapshot");
-    // The cell record starts with a little-endian u32 codepoint.
-    assert_eq!(buffer[0], u32::from(b'h') as u8);
-    assert_eq!(buffer[CELL_BYTES], u32::from(b'i') as u8);
+    // The cell record starts with a little-endian u32 codepoint; the buffer's
+    // first line is the line above the viewport, so the fed text is in line 1.
+    let live_edge = COLUMNS * CELL_BYTES;
+    assert_eq!(buffer[live_edge], u32::from(b'h') as u8);
+    assert_eq!(buffer[live_edge + CELL_BYTES], u32::from(b'i') as u8);
 
     manager::close(id).expect("close");
 }

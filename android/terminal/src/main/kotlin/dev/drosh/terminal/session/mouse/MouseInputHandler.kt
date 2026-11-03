@@ -249,7 +249,7 @@ object MouseInputHandler {
         val session = view.session
         if (tracking(view)) {
             // a real mouse report; the running app decides what a click means
-            val modes = session.modes()
+            val modes = view.modes()
             Mouse.report(button, true, col, row, modes)?.let(session::write)
             Mouse.report(button, false, col, row, modes)?.let(session::write)
             view.requestRender()
