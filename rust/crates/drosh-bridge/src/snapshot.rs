@@ -216,10 +216,13 @@ pub fn take_snapshot<T>(
     }
 
     // The viewport's own lines follow, shifted by one line in the buffer: row
-    // `r` lives at buffer row `r + 1`.
+    // `r` lives at buffer row `r + 1`. The rows themselves stay viewport rows
+    // — `write_row` indexes the grid with them — only the destination slice is
+    // shifted past the extra line.
+    let viewport = &mut buffer[columns * CELL_BYTES..];
     if full {
         for row in 0..rows {
-            write_row(term.grid(), offset, row + 1, columns, 0, columns - 1, buffer);
+            write_row(term.grid(), offset, row, columns, 0, columns - 1, viewport);
         }
         damage_out[0] = DAMAGE_FULL;
     } else {
@@ -232,7 +235,7 @@ pub fn take_snapshot<T>(
 
             let right = bounds.right.min(columns - 1);
             let left = bounds.left.min(right);
-            write_row(term.grid(), offset, row + 1, columns, left, right, buffer);
+            write_row(term.grid(), offset, row, columns, left, right, viewport);
 
             let base = 1 + count * DAMAGE_STRIDE;
             damage_out[base] = row as i32;
