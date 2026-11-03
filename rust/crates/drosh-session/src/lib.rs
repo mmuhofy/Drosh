@@ -106,6 +106,12 @@ pub struct SessionConfig {
     pub cursor_shape: CursorShape,
 }
 
+/// The most prompt marks one session remembers.
+///
+/// The scrollbar's dots are a few hundred at most before the oldest stops
+/// being worth a byte each; a week of prompts is not memory.
+pub const PROMPT_MARKS_CAP: usize = 512;
+
 /// What can go wrong around a session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionError {
@@ -767,7 +773,7 @@ impl Session {
             let line = alacritty_terminal::index::Line(row);
             let column = alacritty_terminal::index::Column(column.max(0) as usize);
             let grid = term.grid();
-            if line.0 < -(grid.history_size() as i32) || line.0 >= i32::from(term.screen_lines()) {
+            if line.0 < -(grid.history_size() as i32) || line.0 >= term.screen_lines() as i32 {
                 return None;
             }
             grid[line][column].hyperlink().map(|link| link.uri().to_owned())
