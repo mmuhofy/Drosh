@@ -9,7 +9,7 @@ use jni::objects::{JClass, JIntArray, JString};
 use jni::sys::{jint, jlong};
 use jni::JNIEnv;
 
-use crate::ffi::{fail, session_or, write_int_array, ErrorCode};
+use crate::ffi::{fail, session_or, write_int_array, ErrorCode, FfiResult};
 
 /// The URI of the hyperlink at viewport (`row`, `column`), or an empty string.
 #[no_mangle]
