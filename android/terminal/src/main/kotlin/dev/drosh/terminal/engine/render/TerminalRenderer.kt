@@ -114,11 +114,16 @@ internal class TerminalRenderer(
     private val fontPx: Float get() = fontSize.px
 
     /**
-     * Ambient tint from Rust (0xRRGGBB), applied as the clear colour so the
-     * terminal and its chrome read as one surface. `null` falls back to the
-     * palette default (an `OSC 11` override still wins when set).
+     * The terminal's own background, as the palette resolves it (0xRRGGBB).
+     *
+     * This is the clear colour, and it is the *terminal's* background — the one
+     * `OSC 11` sets, or the theme's. It is not the average of what the program
+     * has drawn: that average changes as the grid changes, so scrolling, a
+     * resize or a full-screen program repainting turned the whole surface a
+     * different colour. The chrome is tinted from the average elsewhere; the
+     * terminal's own ground is one colour and stays one colour.
      */
-    var ambientTint: Int? = null
+    var backgroundOverride: Int? = null
 
     /**
      * Whether the font's ligatures are used.
@@ -485,7 +490,7 @@ internal class TerminalRenderer(
             coloredCells = records.coloredCells,
             atlasPercent = atlas.usedPercent(),
             damage = damage,
-            background = ambientTint ?: Palette.background,
+            background = backgroundOverride ?: Palette.background,
             gl = glVersion,
             samples = records.colouredSamples.toList(),
             pinchScale = size.pinchScale,
@@ -498,7 +503,7 @@ internal class TerminalRenderer(
     }
 
     private fun clearToBackground() {
-        val background = ambientTint ?: Palette.background
+        val background = backgroundOverride ?: Palette.background
         GLES20.glClearColor(
             channel(background, 16),
             channel(background, 8),
@@ -887,7 +892,16 @@ internal class TerminalRenderer(
                 // screen would stop being a terminal.
                 vec2 cell = vec2(aGridPos) * uCellSize;
                 vec2 natural = vec2(aGlyphSize);
-                vec2 offset = vec2(aOffset) * uScale;
+
+                // The glyph grows about its own baseline origin, not about the
+                // cell's corner.
+                //
+                // Scaling the in-cell offset as well moved the glyph *and* its
+                // position, so the letters drifted apart as they grew — the
+                // gaps widened with the font. The offset is where the glyph
+                // sits inside its cell, and that does not change when the font
+                // does: the pen position is the cell's.
+                vec2 offset = vec2(aOffset);
 
                 // A glyph wider than the cell it owns is fitted to it.
                 //
@@ -902,9 +916,17 @@ internal class TerminalRenderer(
                 // cell. Everything else targets one.
                 float targetWidth = uCellSize.x * float(max(aSpan, 1u));
                 float squeeze = (natural.x > 0.0) ? min(1.0, targetWidth / natural.x) : 1.0;
-                vec2 size = vec2(natural.x * squeeze, natural.y) * uScale;
+
+                // A pinch changes the *text* size, so the glyph grows by the
+                // scale and the cell does not. The glyph's centre stays where
+                // the cell puts it: growing from the top-left corner would push
+                // every letter down and right as it got bigger, which reads as
+                // the spacing changing rather than the type growing.
+                vec2 naturalSize = vec2(natural.x * squeeze, natural.y);
+                vec2 size = naturalSize * uScale;
+                vec2 grow = (size - naturalSize) * 0.5;
                 gl_Position = vec4(
-                    uProjection.xy + uProjection.zw * (cell + offset + corner * size),
+                    uProjection.xy + uProjection.zw * (cell + offset - grow + corner * size),
                     0.0,
                     1.0
                 );

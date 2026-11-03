@@ -254,10 +254,37 @@ internal class RowShaper {
                 continue
             }
             val firstCell = cellOfEntry[entry]
-            val lastCell = cellOfEntry[(nextEntry - 1).coerceIn(entry, end - 1)]
+            val lastEntry = (nextEntry - 1).coerceIn(entry, end - 1)
+            val lastCell = cellOfEntry[lastEntry]
             if (lastCell <= firstCell) {
                 continue
             }
+
+            // A run of the *same* character is not a ligature.
+            //
+            // `-----`, `=====`, `.....` — a font may shape a repeated run into
+            // one long glyph, and in a terminal that glyph then has to be
+            // fitted across however many cells the run covers. It never lines
+            // up: the dashes are not evenly spaced, the run looks like one
+            // character, and a cursor placed anywhere in it sits on the wrong
+            // dash. A terminal's cell is a character, and a run of them is a
+            // run of cells.
+            //
+            // The rule is the character's, not the count's: if every entry in
+            // the glyph's cluster is the same codepoint, the cells keep drawing
+            // themselves.
+            var allSame = true
+            val firstCodePoint = codepointOfEntry[entry]
+            for (index2 in entry..lastEntry) {
+                if (codepointOfEntry[index2] != firstCodePoint) {
+                    allSame = false
+                    break
+                }
+            }
+            if (allSame) {
+                continue
+            }
+
             glyphIds[row * columns + firstCell] = shaped[index * 2]
             for (coveredColumn in firstCell + 1..lastCell) {
                 covered[row * columns + coveredColumn] = true

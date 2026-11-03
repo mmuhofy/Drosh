@@ -7,6 +7,7 @@ import android.opengl.GLSurfaceView
 import android.util.Base64
 import android.util.Log
 import android.view.inputmethod.InputMethodManager
+import android.os.Build
 import android.widget.FrameLayout
 import dev.drosh.terminal.engine.bench.FrameStats
 import dev.drosh.terminal.engine.core.EngineSession
@@ -433,13 +434,17 @@ class TerminalView(context: Context) : FrameLayout(context) {
         return if (NativeCore.nativeAmbientTint(session.handle, out) == NativeCore.OK) out else IntArray(0)
     }
 
-    /** Push the ambient tint into the renderer so the clear colour matches the program. */
+    /**
+     * The chrome's tint, for the host.
+     *
+     * Deliberately *not* pushed into the renderer. It is the average of what the
+     * program has drawn, which changes as the grid changes — scrolling, a
+     * resize, a full-screen program repainting. Using it as the terminal's clear
+     * colour made the whole surface change colour while the fingers moved. The
+     * chrome may follow the average; the terminal's own ground does not.
+     */
     internal fun applyAmbientTint() {
-        val target = renderer ?: return
-        val tint = ambientTint()
-        if (tint.size == 3) {
-            target.ambientTint = (tint[0] and 0xff shl 16) or (tint[1] and 0xff shl 8) or (tint[2] and 0xff)
-        }
+        // Nothing to apply: the renderer clears to the palette's background.
     }
 
     /** One log line of frame timings, for a debug surface the host may show. */
@@ -476,22 +481,50 @@ class TerminalView(context: Context) : FrameLayout(context) {
     /**
      * Show the soft keyboard if it is hidden, hide it if it is showing.
      *
-     * The bottom strip's own gesture. The IME is the system's, so whether it is
-     * up is a question for the window insets rather than for the view; the
-     * window is asked directly.
+     * **Focus is not the question.** The IME target always has the focus — it
+     * is the view's own editor — so asking `hasFocus()` answered "yes" whether
+     * the keyboard was up or down, and every tap on the strip tried to hide a
+     * keyboard that was not there.
+     *
+     * What answers the question is the IME's own visibility, which the window
+     * reports through `WindowInsets.Type.ime()`. The hide request needs the
+     * window token; without it the manager drops the request silently.
      */
     internal fun toggleKeyboard() {
         val manager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        if (ime.input.hasFocus()) {
-            // Focused: a hide request. The window token is what the manager
-            // needs; without it the request is silently dropped.
+        if (keyboardVisible()) {
             val token = ime.input.windowToken
             if (token != null) {
                 manager.hideSoftInputFromWindow(token, 0)
             }
+            // The editor keeps the focus: a hardware keyboard still types, and
+            // the next tap on the strip finds a hidden IME rather than a lost
+            // one.
         } else {
-            focusInput(showKeyboard = true)
+            ime.input.requestFocus()
+            manager.showSoftInput(ime.input, InputMethodManager.SHOW_IMPLICIT)
         }
+    }
+
+    /**
+     * Whether the soft keyboard is on screen.
+     *
+     * Asked of the window rather than of the view: the IME is the system's, and
+     * the only thing that knows whether it is showing is the inset it occupies.
+     */
+    private fun keyboardVisible(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val insets = rootWindowInsets
+            if (insets != null) {
+                return insets.isVisible(android.view.WindowInsets.Type.ime())
+            }
+        }
+        // Before 30 — or with no insets yet — the window's visible frame says
+        // how much of it the IME has taken.
+        val rect = android.graphics.Rect()
+        (context as? android.app.Activity)?.window?.decorView?.getWindowVisibleDisplayFrame(rect)
+        val screenHeight = resources.displayMetrics.heightPixels
+        return rect.bottom > 0 && screenHeight - rect.bottom > screenHeight * 0.15
     }
 
     /** Copy the selection to the platform clipboard; false when nothing is selected. */

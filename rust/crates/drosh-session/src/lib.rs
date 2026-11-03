@@ -455,9 +455,20 @@ impl Session {
 
         let delta = rows as i32;
         let mut term = self.term.lock();
+        let before = term.grid().display_offset();
         term.scroll_display(Scroll::Delta(delta));
         let actual = term.grid().display_offset();
         drop(term);
+
+        // At either end of the history the remainder is dropped: the viewport
+        // cannot move, so pixels kept "for the next row" would be pixels spent
+        // on a row that does not exist — the drag would keep accumulating and
+        // then jump when the finger reversed. Alacritty does the same
+        // (`accumulated_scroll` is clamped to what the terminal accepted).
+        if actual == before {
+            self.scroll_remainder.store(0f32.to_bits(), Ordering::Relaxed);
+        }
+
         self.rows_above_edge.store(actual, Ordering::Relaxed);
         true
     }
