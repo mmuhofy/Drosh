@@ -16,12 +16,33 @@ internal object SelectionText {
     const val MAX_CHARS = 262_144
 
     fun extract(cells: ByteBuffer, columns: Int, selection: Selection): String {
-        if (selection.isEmpty) {
+        if (selection.isEmpty || columns <= 0) {
+            return ""
+        }
+
+        // The buffer is the session's, and the selection is the view's — and
+        // after a resize the two disagree for a frame: the selection still
+        // names rows and columns of the grid that was there before. Reading a
+        // cell past the end is an `IndexOutOfBoundsException` in the middle of
+        // a recomposition, which is the crash a large font produced.
+        //
+        // The buffer is the authority: a selection clipped to what it actually
+        // holds is a selection of the visible cells, which is what the user can
+        // see anyway.
+        val available = cells.limit() / NativeCore.CELL_BYTES
+        if (available <= 0) {
+            return ""
+        }
+        val rows = available / columns
+        if (rows <= 0) {
             return ""
         }
 
         val builder = StringBuilder()
         for (row in selection.rows) {
+            if (row >= rows) {
+                break
+            }
             val first = if (row == selection.firstRow) selection.firstColumn else 0
             val last = if (row == selection.lastRow) selection.lastColumn else columns - 1
             if (row != selection.firstRow) {
@@ -35,6 +56,9 @@ internal object SelectionText {
                 }
 
                 val at = (row * columns + column) * NativeCore.CELL_BYTES
+                if (at < 0 || at + NativeCore.CELL_BYTES > cells.limit()) {
+                    continue
+                }
                 val flags = cells.getShort(at + NativeCore.CELL_OFFSET_FLAGS).toInt() and 0xffff
                 // A wide character's second cell is a spacer: it has no
                 // character of its own, so copying it would duplicate.

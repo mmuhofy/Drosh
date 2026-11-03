@@ -357,10 +357,6 @@ class EngineSession(
         return NativeCore.nativeScrollByPixels(current, deltaPixels, cellHeight)
     }
 
-    /** The sub-line part of the scroll, in pixels, as the engine holds it. */
-    val subLinePixels: Int
-        get() = stateArray[NativeCore.STATE_SUB_LINE_PX]
-
     /**
      * Put the viewport at `offset` rows above the live edge.
      *

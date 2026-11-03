@@ -260,7 +260,10 @@ class TerminalView(context: Context) : FrameLayout(context) {
         // No surface means the font failed to load; there is nothing to
         // resume, and [startError] says why.
         surface?.onResume() ?: return
-        frameLoop.poll = { session.hasOutput() }
+        // A pending settle counts as output: the surface has stopped moving and
+        // the grid has not caught up yet. Without this the frame loop sees a
+        // quiet session and never asks for the frame that applies the grid.
+        frameLoop.poll = { session.hasOutput() || renderer?.settlePending == true }
         frameLoop.start()
         // Numbers from this session only: a resume is a fresh start.
         stats.reset()
@@ -454,11 +457,41 @@ class TerminalView(context: Context) : FrameLayout(context) {
     }
 
 
-    /** Focus the IME target and open the soft keyboard. */
-    internal fun focusInput() {
+    /**
+     * Focus the IME target.
+     *
+     * [showKeyboard] is false for a tap over the output: the focus is what a
+     * hardware keyboard needs, and the soft one is opened only from the strip
+     * at the bottom of the screen — see `TerminalGestures`.
+     */
+    internal fun focusInput(showKeyboard: Boolean = true) {
         ime.input.requestFocus()
+        if (!showKeyboard) {
+            return
+        }
         val manager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         manager.showSoftInput(ime.input, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    /**
+     * Show the soft keyboard if it is hidden, hide it if it is showing.
+     *
+     * The bottom strip's own gesture. The IME is the system's, so whether it is
+     * up is a question for the window insets rather than for the view; the
+     * window is asked directly.
+     */
+    internal fun toggleKeyboard() {
+        val manager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        if (ime.input.hasFocus()) {
+            // Focused: a hide request. The window token is what the manager
+            // needs; without it the request is silently dropped.
+            val token = ime.input.windowToken
+            if (token != null) {
+                manager.hideSoftInputFromWindow(token, 0)
+            }
+        } else {
+            focusInput(showKeyboard = true)
+        }
     }
 
     /** Copy the selection to the platform clipboard; false when nothing is selected. */

@@ -286,6 +286,12 @@ internal class CellRecords(columns: Int, rows: Int) {
                 if (shapedId != 0) {
                     val entry = atlas.glyphById(shapedId, bold, fontPx)
                     if (entry != null && !entry.isBlank) {
+                        // A ligature is one glyph for several cells. Its mask
+                        // is as wide as the characters it replaced, so it is
+                        // fitted to the cells it actually covers — squeezing it
+                        // into one would run the strokes together, and letting
+                        // it keep its natural width would push it over the
+                        // neighbour.
                         writeGlyph(
                             entry,
                             entry.left.toFloat(),
@@ -293,6 +299,7 @@ internal class CellRecords(columns: Int, rows: Int) {
                             column,
                             row,
                             foreground,
+                            span = shaper.spanOf(row, column, columns),
                         )
                     }
                 } else if (!coveredByLigature && codepoint != ' '.code) {
@@ -321,7 +328,7 @@ internal class CellRecords(columns: Int, rows: Int) {
                             column,
                             row,
                             foreground,
-                            wide = wide,
+                            span = if (wide) 2 else 1,
                         )
                     }
                 }
@@ -419,7 +426,7 @@ internal class CellRecords(columns: Int, rows: Int) {
         column: Int,
         row: Int,
         color: Int,
-        wide: Boolean = false,
+        span: Int = 1,
     ) {
         if (foregroundCount >= capacity) {
             return
@@ -434,9 +441,12 @@ internal class CellRecords(columns: Int, rows: Int) {
         foregrounds.putShort(column.toShort())
         foregrounds.putShort(row.toShort())
         putColor(color)
-        // Bit 0 is "solid quad"; bit 1 is "this glyph owns two columns".
-        foregrounds.putShort((if (wide) FLAG_WIDE else FLAG_NONE).toShort())
-        foregrounds.putShort(0)
+        // Bit 0 is "solid quad". The record's last `u16` is the number of cells
+        // this glyph occupies: 1 for a normal character, 2 for a wide one, and
+        // as many as the ligature replaced. The shader fits the glyph to that
+        // many cells instead of one.
+        foregrounds.putShort(FLAG_NONE.toShort())
+        foregrounds.putShort(span.coerceIn(1, MAX_SPAN).toShort())
         foregroundCount += 1
     }
 
@@ -520,7 +530,7 @@ internal class CellRecords(columns: Int, rows: Int) {
 
         /**
          * Atlas rect (8) + in-cell offset (4) + grid position (4) + colour (4) +
-         * flags (2) + padding (2) — the shape Ghostty's cell shader reads.
+         * flags (2) + span (2) — the number of cells the glyph occupies.
          */
         const val RECORD_BYTES = 24
 
@@ -533,8 +543,8 @@ internal class CellRecords(columns: Int, rows: Int) {
         /** Record flag: the quad is a solid fill and samples one atlas texel. */
         const val FLAG_SOLID = 1
 
-        /** Record flag: the glyph belongs to a wide character and owns two columns. */
-        const val FLAG_WIDE = 2
+        /** The most cells one glyph can be fitted to. */
+        const val MAX_SPAN = 8
 
         const val FLAG_NONE = 0
 

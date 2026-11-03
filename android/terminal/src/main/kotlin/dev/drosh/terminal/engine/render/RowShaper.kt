@@ -105,6 +105,27 @@ internal class RowShaper {
     fun isCovered(row: Int, column: Int, columns: Int): Boolean = covered[row * columns + column]
 
     /**
+     * How many cells the ligature starting at this cell covers, or 1.
+     *
+     * A ligature is one glyph for several characters, and it is drawn once over
+     * the cells it replaces. Its mask is as wide as the characters were, so
+     * without this the shader would squeeze it into a single cell and the
+     * strokes would run together; with it, the glyph is fitted to the cells it
+     * actually occupies.
+     */
+    fun spanOf(row: Int, column: Int, columns: Int): Int {
+        val base = row * columns
+        if (glyphIds[base + column] == 0) {
+            return 1
+        }
+        var span = 1
+        while (column + span < columns && covered[base + column + span]) {
+            span += 1
+        }
+        return span
+    }
+
+    /**
      * The row's key: its characters, their weights and the size they are
      * rasterised at.
      *

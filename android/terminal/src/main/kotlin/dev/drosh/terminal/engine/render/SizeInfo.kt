@@ -55,8 +55,6 @@ internal data class SizeInfo(
     /** Where the pinch is anchored, in surface pixels. */
     val pinchFocusX: Float = 0f,
     val pinchFocusY: Float = 0f,
-    /** The sub-line scroll, in pixels. */
-    val scrollOffsetPx: Float = 0f,
 ) {
     /** Columns that fit: a whole number of cells, rounded down. */
     val columns: Int get() = maxOf((width / cellWidth).toInt(), MIN_COLUMNS)
@@ -84,15 +82,19 @@ internal data class SizeInfo(
      * zoom the whole surface — grid, cursor, everything — which is an image
      * zoom rather than a text size.
      *
-     * Clip y grows upward, so a pixel offset downward — the scroll — is a
-     * subtraction.
+     * There is no scroll term. The viewport moves in whole rows — the engine's
+     * `Scroll::Delta`, the same thing Termux and alacritty do — so the grid
+     * that is drawn *is* the position. Shifting it by a sub-line remainder left
+     * a strip of nothing at the top of the screen, a band of the wrong colour
+     * where the shift exposed unpainted cells, and a picture that changed size
+     * as the remainder grew and shrank.
      */
     fun projection(out: FloatArray) {
         val w = width.coerceAtLeast(1).toFloat()
         val h = height.coerceAtLeast(1).toFloat()
 
         out[0] = -1f
-        out[1] = 1f - 2f * scrollOffsetPx / h
+        out[1] = 1f
         out[2] = 2f / w
         out[3] = -2f / h
     }

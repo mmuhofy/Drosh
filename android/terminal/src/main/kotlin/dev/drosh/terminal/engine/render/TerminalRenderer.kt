@@ -107,12 +107,11 @@ internal class TerminalRenderer(
     /**
      * Pixel size the glyphs are rasterised at.
      *
-     * The committed size, times the live pinch. A pinch re-rasterises at the
-     * size the fingers have reached rather than scaling a bitmap, because a
-     * scaled bitmap doubles its strokes: the text grew bolder as it grew, which
-     * is a blurry font rather than a large one.
+     * The committed size, and only that: the atlas holds masks of it, and a
+     * pinch scales them in the shader rather than re-rasterising. See
+     * [setPinch].
      */
-    private val fontPx: Float get() = fontSize.px * size.pinchScale
+    private val fontPx: Float get() = fontSize.px
 
     /**
      * Ambient tint from Rust (0xRRGGBB), applied as the clear colour so the
@@ -150,6 +149,18 @@ internal class TerminalRenderer(
 
     private var frameCount = 0
 
+    /**
+     * When the grid may be reflowed after a surface change, or 0 when none is
+     * pending.
+     *
+     * See [onSurfaceChanged]: a moving surface defers the reflow, and the next
+     * frame after this instant applies it once.
+     */
+    private var settleAtNanos = 0L
+
+    /** Whether a surface change is waiting for the grid to catch up. */
+    val settlePending: Boolean get() = settleAtNanos != 0L
+
     private var backgroundProgram = 0
     private var foregroundProgram = 0
     private var backgroundVao = 0
@@ -162,6 +173,7 @@ internal class TerminalRenderer(
     private var backgroundCellSize = 0
     private var foregroundProjection = 0
     private var foregroundCellSize = 0
+    private var foregroundScale = 0
     private var foregroundAtlasSize = 0
     private var foregroundAtlas = 0
 
@@ -184,6 +196,7 @@ internal class TerminalRenderer(
         backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
         foregroundProjection = GLES20.glGetUniformLocation(foregroundProgram, "uProjection")
         foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
+        foregroundScale = GLES20.glGetUniformLocation(foregroundProgram, "uScale")
         foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
         foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
 
@@ -218,19 +231,20 @@ internal class TerminalRenderer(
         GLES20.glViewport(0, 0, surfaceWidth, surfaceHeight)
         size = size.withSurface(surfaceWidth, surfaceHeight)
 
-        // The grid follows the surface on the same frame, always.
+        // The *drawing* follows the surface at once; the *grid* waits until the
+        // surface stops moving.
         //
-        // Holding it — which an earlier version did to avoid reflowing on every
-        // frame of a keyboard animation — meant the cells were drawn at the new
-        // step over the old row count. The text did not move with the surface:
-        // rows overlapped and columns ran past the edge, which is the "text
-        // inside itself" a keyboard opening produced.
+        // A keyboard rising is sixty surface changes in three hundred
+        // milliseconds, and each one re-wraps every row of the engine's grid.
+        // Doing that sixty times is what made the terminal stutter and flash
+        // while the keyboard animated. Doing it once, at the end, is
+        // imperceptible.
         //
-        // One reflow per frame of an animation is the cheaper of the two
-        // problems: the engine re-wraps a few thousand cells, which is a
-        // fraction of a millisecond, and the alternative is a picture that is
-        // visibly wrong for three hundred milliseconds.
-        planGrid()
+        // The picture is correct in between: the step comes from the surface
+        // and the row count from the grid, so the cells are stretched to the new
+        // bounds rather than drawn at the old ones — which is what a terminal
+        // does while a program has not redrawn yet.
+        settleAtNanos = System.nanoTime() + RESIZE_SETTLE_NANOS
     }
 
 
@@ -270,31 +284,25 @@ internal class TerminalRenderer(
     }
 
     /**
-     * A live pinch: rasterise the glyphs at the size the fingers have reached,
-     * inside the cells they already occupy.
+     * A live pinch: draw the glyphs at [scale] inside the cells they occupy.
      *
-     * **The glyphs are re-rasterised, not scaled.** A bitmap scaled up by
-     * nearest-neighbour doubles its strokes — a pinch made the text bolder the
-     * more it grew, which is not a bigger font but a blurrier one. Rasterising
-     * at the new size is the same cost per glyph as any other size change, and
-     * the atlas already caches by size, so a gesture that passes through a size
-     * twice pays for it once.
+     * **Nothing is rasterised during the gesture.** An earlier version called
+     * `atlas.beginSize` on every frame, which opened a new atlas generation
+     * sixty times a second: every glyph on screen was re-rasterised from
+     * scratch, the atlas was re-uploaded whole, and the masks landed on
+     * different shelves — the text thickened and shook while the fingers moved.
      *
-     * The grid does not move: the cell keeps its size and its place, and the
-     * letters grow inside it. That is what "make the text bigger" means — the
-     * columns are the terminal's, not the font's.
+     * So the glyphs already in the atlas are drawn bigger or smaller by the
+     * shader, which is what the vendored terminal's `canvas.scale` did and what
+     * Rin does. The real size is applied once, in `commitZoom`.
+     *
+     * The grid does not move either: the cell keeps its size and its place, and
+     * the letters grow inside it. That is what "make the text bigger" means —
+     * the columns are the terminal's, not the font's.
      */
     fun setPinch(scale: Float, focusX: Float, focusY: Float) {
-        val safe = if (scale.isFinite() && scale > 0f) scale else 1f
-        // The size the masks are rasterised at, scaled. `atlas.beginSize` keys
-        // its generations by this, so a gesture that wanders back over a size it
-        // just left finds its glyphs again.
-        val pinchPx = fontSize.px * safe
-        if (pinchPx > 0f) {
-            atlas.beginSize(pinchPx)
-        }
         size = size.copy(
-            pinchScale = safe,
+            pinchScale = if (scale.isFinite() && scale > 0f) scale else 1f,
             pinchFocusX = focusX,
             pinchFocusY = focusY,
         )
@@ -377,6 +385,14 @@ internal class TerminalRenderer(
         // colour for one frame, never black.
         clearToBackground()
 
+        // A surface that has stopped moving gets its grid now. Every frame
+        // checks, because the frame loop runs whether or not anything changed;
+        // the check is a field read when nothing is pending.
+        if (settleAtNanos != 0L && System.nanoTime() >= settleAtNanos) {
+            settleAtNanos = 0L
+            planGrid()
+        }
+
         val cells = session.cells
         if (cells == null || backgroundProgram == 0 || foregroundProgram == 0) {
             return
@@ -407,10 +423,6 @@ internal class TerminalRenderer(
             return
         }
         val pumpEndNanos = System.nanoTime()
-
-        // The sub-line part of the scroll, from the same snapshot as the cells:
-        // one lock hold, one position.
-        size = size.copy(scrollOffsetPx = session.stateArray[NativeCore.STATE_SUB_LINE_PX].toFloat())
 
         // `pump` refreshed the engine's colour table; install it only when the
         // engine says it changed.
@@ -575,6 +587,7 @@ internal class TerminalRenderer(
             size.width.toFloat() / appliedColumns.coerceAtLeast(1),
             size.height.toFloat() / appliedRows.coerceAtLeast(1),
         )
+        GLES20.glUniform1f(foregroundScale, size.pinchScale)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
@@ -650,8 +663,10 @@ internal class TerminalRenderer(
         )
         GLES30.glEnableVertexAttribArray(ATTRIB_FLAGS)
         GLES30.glVertexAttribIPointer(ATTRIB_FLAGS, 1, GLES30.GL_UNSIGNED_SHORT, stride, 20)
+        GLES30.glEnableVertexAttribArray(ATTRIB_SPAN)
+        GLES30.glVertexAttribIPointer(ATTRIB_SPAN, 1, GLES30.GL_UNSIGNED_SHORT, stride, 22)
 
-        for (attribute in ATTRIB_ATLAS_RECT..ATTRIB_FLAGS) {
+        for (attribute in ATTRIB_ATLAS_RECT..ATTRIB_SPAN) {
             GLES30.glVertexAttribDivisor(attribute, 1)
         }
         bindDummyAttribute(ATTRIB_DUMMY_FOREGROUND)
@@ -697,8 +712,12 @@ internal class TerminalRenderer(
         GLES20.glGenTextures(1, textures, 0)
         texture = textures[0]
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST)
+        // Linear, not nearest: a mask drawn at another size — a pinch, a
+        // fractional cell step — is interpolated rather than pixel-doubled.
+        // Nearest doubled every stroke, which is the text that grew bolder as
+        // it grew bigger.
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
         // One byte per row is not a multiple of four: without this, rows would
@@ -771,6 +790,14 @@ internal class TerminalRenderer(
         const val FLOAT_BYTES = 4
         const val QUAD_VERTICES = 4
 
+        /**
+         * How long the surface must be still before the grid reflows.
+         *
+         * Long enough to cover two frames of a slide, short enough that a
+         * settled surface is laid out before the user can see it.
+         */
+        const val RESIZE_SETTLE_NANOS = 48_000_000L
+
         const val ATTRIB_BACKGROUND_POS = 0
         const val ATTRIB_BACKGROUND_COLOR = 1
         const val ATTRIB_DUMMY_BACKGROUND = 2
@@ -781,7 +808,8 @@ internal class TerminalRenderer(
         const val ATTRIB_GRID_POS = 3
         const val ATTRIB_COLOR = 4
         const val ATTRIB_FLAGS = 5
-        const val ATTRIB_DUMMY_FOREGROUND = 6
+        const val ATTRIB_SPAN = 6
+        const val ATTRIB_DUMMY_FOREGROUND = 7
 
         /**
          * The cell quad.
@@ -839,8 +867,12 @@ internal class TerminalRenderer(
             layout(location = 3) in uvec2 aGridPos;
             layout(location = 4) in vec4 aColor;
             layout(location = 5) in uint aFlags;
+            // The number of cells this glyph occupies: 1, 2 for a wide
+            // character, more for a ligature.
+            layout(location = 6) in uint aSpan;
             uniform vec4 uProjection;
             uniform vec2 uCellSize;
+            uniform float uScale;
             uniform vec2 uAtlasSize;
             out vec2 vTexCoord;
             out vec4 vColor;
@@ -855,7 +887,7 @@ internal class TerminalRenderer(
                 // screen would stop being a terminal.
                 vec2 cell = vec2(aGridPos) * uCellSize;
                 vec2 natural = vec2(aGlyphSize);
-                vec2 offset = vec2(aOffset);
+                vec2 offset = vec2(aOffset) * uScale;
 
                 // A glyph wider than the cell it owns is fitted to it.
                 //
@@ -868,9 +900,9 @@ internal class TerminalRenderer(
                 //
                 // A wide character owns two columns, so its target is twice the
                 // cell. Everything else targets one.
-                float targetWidth = ((aFlags & 2u) != 0u) ? uCellSize.x * 2.0 : uCellSize.x;
+                float targetWidth = uCellSize.x * float(max(aSpan, 1u));
                 float squeeze = (natural.x > 0.0) ? min(1.0, targetWidth / natural.x) : 1.0;
-                vec2 size = vec2(natural.x * squeeze, natural.y);
+                vec2 size = vec2(natural.x * squeeze, natural.y) * uScale;
                 gl_Position = vec4(
                     uProjection.xy + uProjection.zw * (cell + offset + corner * size),
                     0.0,

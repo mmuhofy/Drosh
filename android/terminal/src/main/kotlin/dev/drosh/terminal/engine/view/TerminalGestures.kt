@@ -60,7 +60,20 @@ internal class TerminalGestures(private val view: TerminalView) {
                         view.selectionOverlay.clear()
                         return true
                     }
-                    view.focusInput()
+
+                    // The bottom strip is the keyboard's own: a tap there
+                    // toggles it. The rest of the screen never opens the
+                    // keyboard, because a terminal is read far more than it is
+                    // typed into and a stray tap over the output should not
+                    // cover it with a keyboard.
+                    if (event.y >= view.height - KEYBOARD_STRIP_PX) {
+                        view.toggleKeyboard()
+                        return true
+                    }
+
+                    // Anywhere else: take the focus, so the terminal hears the
+                    // hardware keyboard, but leave the soft one alone.
+                    view.focusInput(showKeyboard = false)
                     return true
                 }
 
