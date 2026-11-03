@@ -99,6 +99,9 @@ class TerminalView(context: Context) : FrameLayout(context) {
     /** False when the bundled font failed to load; the view is dead without it. */
     private var fontLoaded = false
 
+    /** Whether the font has been measured and the metrics are safe to read. */
+    internal val hasCellMetrics: Boolean get() = fontLoaded
+
 
     private var exited = false
 
@@ -460,6 +463,20 @@ class TerminalView(context: Context) : FrameLayout(context) {
     internal fun requestRender() {
         surface?.requestRender()
     }
+
+    /** A private command from the IME; `true` when the mouse pad consumed it. */
+    internal fun onPrivateCommand(action: String?, data: android.os.Bundle?): Boolean =
+        dev.drosh.terminal.session.mouse.MouseInputHandler.handleCommand(action, data)
+
+    /**
+     * Called when the user long-presses a cell that carries an `OSC 8`
+     * hyperlink. The URI is the cell's own; the host decides what to do.
+     */
+    var onHyperlink: ((String) -> Unit)? = null
+
+    /** The URI of the hyperlink at viewport (`row`, `column`), or null. */
+    internal fun hyperlinkAt(row: Int, column: Int): String? =
+        if (!session.isAlive) null else session.hyperlinkAt(row, column)
 
 
     /**

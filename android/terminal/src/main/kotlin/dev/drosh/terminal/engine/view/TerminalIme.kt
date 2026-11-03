@@ -48,6 +48,7 @@ internal class TerminalIme(private val view: TerminalView) {
         stickyAlt = { view.stickyAlt }
         appCursor = { view.appCursor() }
         onActivity = { view.onInputActivity() }
+        onPrivateCommand = { action, data -> view.onPrivateCommand(action, data) }
     }
 
     /**

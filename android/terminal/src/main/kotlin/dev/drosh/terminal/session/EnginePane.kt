@@ -134,6 +134,16 @@ class EnginePane(context: Context) {
             view.zoomListener = value
         }
 
+    /**
+     * Told when the user long-presses a cell that carries an `OSC 8`
+     * hyperlink. The URI is the cell's own; the host opens it.
+     */
+    var onHyperlink: ((String) -> Unit)?
+        get() = view.onHyperlink
+        set(value) {
+            view.onHyperlink = value
+        }
+
     /** Where the host learns from the session (title, bell, exit, marks). */
     var listener: TerminalView.Listener? = null
         set(value) {
@@ -442,6 +452,25 @@ class EnginePane(context: Context) {
      */
     fun scrollOffset(): Int =
         if (!session.isAlive) 0 else session.stateArray[NativeCore.STATE_DISPLAY_OFFSET]
+
+    /** The URI of the hyperlink at viewport (`row`, `column`), or null. */
+    fun hyperlinkAt(row: Int, column: Int): String? =
+        if (!session.isAlive) null else session.hyperlinkAt(row, column)
+
+    /** The rows a prompt started on, oldest first, as rows above the live edge. */
+    fun promptRows(): IntArray =
+        if (!session.isAlive) IntArray(0) else session.promptRows()
+
+    /** How much history there is above the viewport, in rows. */
+    fun historySize(): Int =
+        if (!session.isAlive) 0 else session.historySize()
+
+    /** Scroll so [offset] rows of history sit above the viewport. */
+    fun scrollTo(offset: Int) {
+        if (!session.isAlive) return
+        session.scrollTo(offset)
+        view.requestRender()
+    }
 
     /** Is a program (the alternate screen) on screen rather than a shell? */
     fun isAltBufferActive(): Boolean =

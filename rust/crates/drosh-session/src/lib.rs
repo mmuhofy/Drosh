@@ -36,7 +36,7 @@ use alacritty_terminal::vte::ansi::{CursorShape, CursorStyle, Processor, Rgb, St
 use crate::block::{BlockPhase, BlockTracker};
 use crate::transcript::{OutputLog, TranscriptHit, DEFAULT_MAX_LINES};
 use drosh_bridge::events::{
-    EventProxy, EventQueue, SessionEvent, Terminator, DEFAULT_QUEUE_CAPACITY,
+    EventProxy, EventQueue, SessionEvent, ShellMark, Terminator, DEFAULT_QUEUE_CAPACITY,
 };
 use drosh_bridge::snapshot;
 use drosh_pty::{LocalPty, PtyConfig};
@@ -148,6 +148,15 @@ pub struct Session {
     parser: Mutex<Processor<StdSyncHandler>>,
     /// Where the shell is in its cycle, as the OSC 133 marks report it.
     blocks: Mutex<BlockTracker>,
+
+    /// Absolute rows where a prompt started (`OSC 133 ; A`), as the distance
+    /// above the live bottom edge.
+    ///
+    /// The scrollbar's dots. A row recorded as "N above the edge" stays the
+    /// same row as the history grows, so a prompt a thousand lines up is still
+    /// a thousand lines up after an hour of output. Capped: a week of prompts
+    /// is not memory.
+    prompt_marks: Mutex<Vec<u32>>,
     /// The last lines the session printed, for a session log.
     output: Arc<Mutex<OutputLog>>,
     /// The term's configuration, kept so it can be changed while it runs.
@@ -256,6 +265,7 @@ impl Session {
             damage_scratch: Mutex::new(Vec::new()),
             parser: Mutex::new(Processor::new()),
             blocks: Mutex::new(BlockTracker::new()),
+            prompt_marks: Mutex::new(Vec::new()),
             output,
             config: Mutex::new(term_config),
             worker: Mutex::new(Some(worker)),
@@ -299,6 +309,7 @@ impl Session {
             damage_scratch: Mutex::new(Vec::new()),
             parser: Mutex::new(Processor::new()),
             blocks: Mutex::new(BlockTracker::new()),
+            prompt_marks: Mutex::new(Vec::new()),
             output: Arc::new(Mutex::new(OutputLog::new(DEFAULT_MAX_LINES))),
             config: Mutex::new(term_config),
             worker: Mutex::new(None),
@@ -589,6 +600,9 @@ impl Session {
                     // working directory, so the engine does not have to diff the
                     // transcript to find the boundaries.
                     self.blocks.lock().unwrap_or_else(|e| e.into_inner()).observe(&mark);
+                    if mark == ShellMark::PromptStart {
+                        self.record_prompt_mark();
+                    }
                     pending.push(SessionEvent::ShellMark(mark));
                 }
                 other => pending.push(other),
@@ -689,6 +703,77 @@ impl Session {
     }
 
     /// Average background colour of the visible grid, if any cell sets one.
+    /// Record where a prompt starts, for the scrollbar's dots.
+    ///
+    /// The OSC 133 mark arrives while the cursor sits on the prompt's first
+    /// line, so the cursor's own position is the marker. It is stored as the
+    /// distance above the live bottom edge — the one number that keeps
+    /// pointing at the same row while the history grows.
+    fn record_prompt_mark(&self) {
+        let above = self.with_term(|term| {
+            let grid = term.grid();
+            let cursor_line = grid.cursor.point.line.0;
+            let rows = i32::from(term.screen_lines());
+            let history = grid.history_size() as i32;
+            // The live bottom edge is history rows up from the grid's own
+            // origin; the cursor sits `rows - 1 - line` above that edge.
+            (history + (rows - 1 - cursor_line)).max(0) as u32
+        });
+
+        let mut marks = self.prompt_marks.lock().unwrap_or_else(|e| e.into_inner());
+        if marks.last() == Some(&above) {
+            return;
+        }
+        marks.push(above);
+        if marks.len() > PROMPT_MARKS_CAP {
+            marks.drain(..marks.len() - PROMPT_MARKS_CAP);
+        }
+    }
+
+    /// The rows a prompt started on, oldest first, as the distance above the
+    /// live bottom edge. The scrollbar maps these into dots.
+    pub fn prompt_marks(&self) -> Vec<u32> {
+        self.prompt_marks.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// How much history there is above the viewport, in rows.
+    pub fn history_size(&self) -> usize {
+        self.with_term(|term| term.grid().history_size())
+    }
+
+    /// Scroll so [offset] rows of history sit above the viewport.
+    ///
+    /// The scrollbar's drag: an absolute position, not a delta. There is no
+    /// absolute form in `alacritty_terminal` 0.26's `Scroll`, so the delta
+    /// between the current offset and the target is what is sent — the engine
+    /// clamps it to the history there is either way. Returns the offset the
+    /// engine actually took.
+    pub fn scroll_to(&self, offset: i32) -> usize {
+        let mut term = self.term.lock();
+        let current = term.grid().display_offset();
+        term.scroll_display(Scroll::Delta(offset - current as i32));
+        let actual = term.grid().display_offset();
+        drop(term);
+        self.rows_above_edge.store(actual, Ordering::Relaxed);
+        // The viewport moved without output arriving: the frame loop must draw
+        // it, or the picture stays where it was until the next byte.
+        self.events.set_wakeup();
+        actual
+    }
+
+    /// The URI of the hyperlink a cell belongs to (`OSC 8`), if it carries one.
+    pub fn hyperlink_at(&self, row: i32, column: i32) -> Option<String> {
+        self.with_term(|term| {
+            let line = alacritty_terminal::index::Line(row);
+            let column = alacritty_terminal::index::Column(column.max(0) as usize);
+            let grid = term.grid();
+            if line.0 < -(grid.history_size() as i32) || line.0 >= i32::from(term.screen_lines()) {
+                return None;
+            }
+            grid[line][column].hyperlink().map(|link| link.uri().to_owned())
+        })
+    }
+
     pub fn ambient_tint(&self) -> Option<[u8; 3]> {
         self.with_term(|term| crate::tint::ambient_tint(term))
     }

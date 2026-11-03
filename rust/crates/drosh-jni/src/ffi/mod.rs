@@ -13,6 +13,7 @@ pub mod cells;
 pub mod colors;
 pub mod events;
 pub mod font;
+pub mod hyperlink;
 pub mod search;
 pub mod selection;
 pub mod session;

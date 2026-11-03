@@ -58,6 +58,10 @@ pub mod flags {
     pub const UNDERCURL: u16 = 1 << 12;
     pub const DOTTED_UNDERLINE: u16 = 1 << 13;
     pub const DASHED_UNDERLINE: u16 = 1 << 14;
+    /// `OSC 8` — the cell is part of a hyperlink. The URI itself is not
+    /// carried per cell (it can be megabytes across a wrapped line); Kotlin
+    /// asks for it with `nativeHyperlinkAt` when the user taps the cell.
+    pub const HYPERLINK: u16 = 1 << 15;
 }
 
 /// Engine flag → wire flag. Combined engine flags (`BOLD_ITALIC`,
@@ -81,6 +85,17 @@ const FLAG_TABLE: &[(Flags, u16)] = &[
     (Flags::DASHED_UNDERLINE, flags::DASHED_UNDERLINE),
 ];
 
+/// The flag that does not come from `Flags` at all: a cell carrying a
+/// hyperlink (`OSC 8`). Set after the table, because the table is only for
+/// the engine's own bit layout.
+fn encode_cell_flags(cell: &Cell) -> u16 {
+    let mut flags = encode_flags(cell.flags);
+    if cell.hyperlink().is_some() {
+        flags |= flags::HYPERLINK;
+    }
+    flags
+}
+
 /// One grid cell in wire format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CellRecord {
@@ -101,7 +116,7 @@ impl CellRecord {
             codepoint: cell.c as u32,
             fg: encode_color(cell.fg),
             bg: encode_color(cell.bg),
-            flags: encode_flags(cell.flags),
+            flags: encode_cell_flags(cell),
             reserved: 0,
         }
     }

@@ -381,7 +381,12 @@ internal class CellRecords(columns: Int, rows: Int) {
                     }
                 }
 
-                if (flags and NativeCore.FLAG_ANY_UNDERLINE != 0) {
+                // A hyperlink (`OSC 8`) is underlined even when the program
+                // sent no style: the underline is what tells the finger this
+                // cell opens something. `ls --hyperlink` draws no style at all.
+                if (flags and NativeCore.FLAG_ANY_UNDERLINE != 0 ||
+                    flags and NativeCore.FLAG_HYPERLINK != 0
+                ) {
                     writeRect(
                         0f,
                         metrics.ascent + metrics.underline,

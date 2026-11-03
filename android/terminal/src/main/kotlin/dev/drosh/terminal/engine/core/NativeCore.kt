@@ -58,6 +58,9 @@ internal object NativeCore {
     const val FLAG_UNDERCURL = 1 shl 12
     const val FLAG_DOTTED_UNDERLINE = 1 shl 13
     const val FLAG_DASHED_UNDERLINE = 1 shl 14
+
+    /** `OSC 8` — the cell is part of a hyperlink; ask [nativeHyperlinkAt] for the URI. */
+    const val FLAG_HYPERLINK = 1 shl 15
     const val FLAG_ANY_UNDERLINE = FLAG_UNDERLINE or FLAG_DOUBLE_UNDERLINE or FLAG_UNDERCURL or
         FLAG_DOTTED_UNDERLINE or FLAG_DASHED_UNDERLINE
 
@@ -269,6 +272,18 @@ internal object NativeCore {
 
     /** Fill `out` (length 3) with the ambient tint `[r, g, b]` (ffi::tint). */
     external fun nativeAmbientTint(id: Long, out: IntArray): Int
+
+    /** The URI of the hyperlink at viewport (`row`, `column`), or an empty string. */
+    external fun nativeHyperlinkAt(id: Long, row: Int, column: Int): String
+
+    /** Fills [out] with the rows a prompt started on; returns the count written. */
+    external fun nativePromptRows(id: Long, out: IntArray): Int
+
+    /** Scroll so [offset] rows of history sit above the viewport; returns the offset taken. */
+    external fun nativeScrollTo(id: Long, offset: Int): Int
+
+    /** How much history there is above the viewport, in rows. */
+    external fun nativeHistorySize(id: Long): Int
 
     /**
      * The colours of the cells in a rectangle of the visible grid (ffi::cells).

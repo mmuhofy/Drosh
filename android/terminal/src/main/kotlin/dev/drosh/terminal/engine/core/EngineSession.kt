@@ -225,6 +225,41 @@ class EngineSession(
         damage = IntArray(NativeCore.damageLength(rows))
     }
 
+    /** The URI of the hyperlink a cell belongs to, or null when it carries none. */
+    fun hyperlinkAt(row: Int, column: Int): String? {
+        val current = handle
+        if (current == NO_HANDLE || row < 0 || column < 0) {
+            return null
+        }
+        return NativeCore.nativeHyperlinkAt(current, row, column).takeIf { it.isNotEmpty() }
+    }
+
+    /** The rows a prompt started on, oldest first, as rows above the live edge. */
+    fun promptRows(): IntArray {
+        val current = handle
+        if (current == NO_HANDLE) {
+            return IntArray(0)
+        }
+        val out = IntArray(256)
+        val count = NativeCore.nativePromptRows(current, out)
+        return if (count < 0) IntArray(0) else out.copyOf(count)
+    }
+
+    /** How much history there is above the viewport, in rows. */
+    fun historySize(): Int {
+        val current = handle
+        return if (current == NO_HANDLE) 0 else NativeCore.nativeHistorySize(current)
+    }
+
+    /** Scroll so [offset] rows of history sit above the viewport. */
+    fun scrollTo(offset: Int) {
+        val current = handle
+        if (current == NO_HANDLE) {
+            return
+        }
+        NativeCore.nativeScrollTo(current, offset)
+    }
+
     /**
      * The sub-line part of the scroll, in pixels, as the engine holds it.
      *

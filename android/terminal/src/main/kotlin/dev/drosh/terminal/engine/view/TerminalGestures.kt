@@ -78,9 +78,19 @@ internal class TerminalGestures(private val view: TerminalView) {
                 }
 
                 override fun onLongPress(event: MotionEvent) {
+                    // A link wins over a word: the underline said "this opens
+                    // something", and a long press on it is how the user asks
+                    // for that. Word selection stays for every other cell.
+                    val row = cellRow(event.y)
+                    val column = cellColumn(event.x)
+                    val uri = view.hyperlinkAt(row, column)
+                    if (uri != null) {
+                        view.onHyperlink?.invoke(uri)
+                        return
+                    }
                     // The mobile convention: a long press picks a word, and
                     // dragging from there extends the selection.
-                    view.selectionOverlay.selectWord(cellRow(event.y), cellColumn(event.x))
+                    view.selectionOverlay.selectWord(row, column)
                     draggingSelection = true
                 }
 

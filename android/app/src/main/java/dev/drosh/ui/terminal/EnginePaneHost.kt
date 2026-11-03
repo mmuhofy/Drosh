@@ -530,6 +530,91 @@ fun EnginePaneHost(
     }.orEmpty()
 
     /**
+     * The mouse pointer the Drosh Keyboard mouse pad drives.
+     *
+     * Created in the view's factory — it must be over the terminal and under
+     * the terminal's own touch handling — and handed to the handler while
+     * this pane has the focus: the pad writes through the focused input
+     * connection, so only the focused pane can ever receive its events.
+     */
+    val pointerView = remember { mutableStateOf<android.widget.ImageView?>(null) }
+
+    DisposableEffect(pointerView.value, focusedPane, pane) {
+        val view = pointerView.value ?: return@DisposableEffect onDispose { }
+        if (focusedPane == paneSlot) {
+            dev.drosh.terminal.session.mouse.MouseInputHandler.attach(pane.view, view)
+        } else {
+            dev.drosh.terminal.session.mouse.MouseInputHandler.detach()
+        }
+        onDispose {
+            dev.drosh.terminal.session.mouse.MouseInputHandler.detach()
+        }
+    }
+
+    /**
+     * The `OSC 8` link the user long-pressed, when they did.
+     *
+     * A dialog, not an immediate open: a URI is a place, and places are
+     * confirmed before the system is asked to go there.
+     */
+    val pendingLink = remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(pane) {
+        pane.onHyperlink = { uri -> pendingLink.value = uri }
+    }
+
+    pendingLink.value?.let { uri ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingLink.value = null },
+            title = {
+                Text(
+                    text = stringResource(R.string.terminal_open_link_title),
+                    fontFamily = LocalFontSet.current.sans,
+                )
+            },
+            text = {
+                Text(
+                    text = uri,
+                    fontFamily = LocalFontSet.current.mono,
+                    fontSize = 12.sp,
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        pendingLink.value = null
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(uri),
+                                ),
+                            )
+                        }.onFailure {
+                            Log.w(TAG, "the link could not be opened: $uri", it)
+                        }
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.terminal_open_link_open),
+                        fontFamily = LocalFontSet.current.sans,
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { pendingLink.value = null },
+                ) {
+                    Text(
+                        text = stringResource(R.string.terminal_open_link_cancel),
+                        fontFamily = LocalFontSet.current.sans,
+                    )
+                }
+            },
+        )
+    }
+
+    /**
      * The pane goes away with the composition.
      *
      * The manager is told first — it is the one that publishes the focus and
@@ -654,6 +739,20 @@ fun EnginePaneHost(
             }
             pane.view.setOnFocusChangeListener { _, hasFocus -> reportFocus(hasFocus) }
             pane.imeTarget.setOnFocusChangeListener { _, hasFocus -> reportFocus(hasFocus) }
+
+            // The mouse pad's pointer: hidden until the pad opens it, sized
+            // and positioned by the handler from the renderer's cell metrics.
+            val pointerSize = (22f * ctx.resources.displayMetrics.density).toInt()
+            val pointer = android.widget.ImageView(ctx).apply {
+                setImageResource(dev.drosh.R.drawable.ic_mouse_pointer)
+                visibility = android.view.View.GONE
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    pointerSize,
+                    pointerSize,
+                )
+            }
+            pointerView.value = pointer
+            frame.addView(pointer)
             frame
         },
         )
@@ -669,6 +768,13 @@ fun EnginePaneHost(
                 TerminalZoomChip(textSizeSp = zoomSizeSp.value)
             }
         }
+
+        // The scrollbar, when there is something to scroll to. Over the
+        // terminal's edge, out of the text's way.
+        PromptScrollbar(
+            pane = pane,
+            modifier = Modifier.align(Alignment.CenterEnd),
+        )
 
         // The reason, over the terminal rather than instead of it. A
         // translucent ground, because the surface underneath is the

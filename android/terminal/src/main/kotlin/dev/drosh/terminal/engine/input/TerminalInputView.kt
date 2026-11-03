@@ -79,6 +79,16 @@ internal class TerminalInputView(context: Context) : View(context) {
     var onActivity: () -> Unit = {}
 
     /**
+     * A private command from the IME — the one app-specific channel an input
+     * method has.
+     *
+     * Drosh Keyboard's mouse pad sends its deltas and clicks through it
+     * (`performPrivateCommand("dev.drosh.MOUSE", bundle)`); anything else is
+     * passed to the platform, which ignores what it does not know.
+     */
+    var onPrivateCommand: ((action: String?, data: android.os.Bundle?) -> Boolean)? = null
+
+    /**
      * The word the keyboard is building, and has not committed.
      *
      * Owned here rather than read back from the connection: `BaseInputConnection`'s
@@ -157,6 +167,13 @@ internal class TerminalInputView(context: Context) : View(context) {
                 composing.clear()
                 repeat(beforeLength) { send(byteArrayOf(DEL)) }
                 return true
+            }
+
+            override fun performPrivateCommand(action: String?, data: android.os.Bundle?): Boolean {
+                if (onPrivateCommand?.invoke(action, data) == true) {
+                    return true
+                }
+                return super.performPrivateCommand(action, data)
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {
