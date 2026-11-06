@@ -55,6 +55,12 @@ jobs:
         with:
           version: ${{ env.ZIG_VERSION }}
 
+      # The release's SONAME is libghostty-vt.so.0; the APK ships the file as
+      # libghostty-vt.so and Android resolves DT_NEEDED by file name. patchelf
+      # rewrites it to the name the APK uses.
+      - name: Install patchelf
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
+
       - name: Install pinned NDK
         run: |
           set -euo pipefail
@@ -76,6 +82,17 @@ jobs:
         env:
           GHOSTTY_VT_ABIS: ${{ matrix.abi }}
         run: ./tools/fetch-ghostty-vt.sh
+
+      # The engine, executed rather than merely linked. qemu-user runs the
+      # aarch64 library on the x86 runner, so a broken ABI or a wrong symbol is
+      # a red build in seconds instead of a device session in minutes.
+      - name: Install the aarch64 smoke-test toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu qemu-user
+
+      - name: Smoke-test libghostty-vt under qemu
+        run: ./tools/smoke-ghostty-vt.sh ${{ matrix.abi }}
 
       - name: Build libdrosh.so
         working-directory: native
@@ -122,6 +139,13 @@ jobs:
           # statically absorbed the engine — which would ship two copies of it.
           readelf -d "$so" | grep -q "libghostty-vt.so" || {
             echo "::error::libdrosh.so does not link libghostty-vt.so"
+            exit 1
+          }
+          # The engine's own SONAME has to be the name the APK ships, or the
+          # linker will look for a file that is not there.
+          engine="native/ghostty/lib/${{ matrix.abi }}/libghostty-vt.so"
+          readelf -d "$engine" | grep -q "SONAME.*libghostty-vt.so\]" || {
+            echo "::error::libghostty-vt.so still carries its upstream soname"
             exit 1
           }
 

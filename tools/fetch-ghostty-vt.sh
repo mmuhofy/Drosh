@@ -86,6 +86,24 @@ for abi in $GHOSTTY_VT_ABIS; do
   echo "  fetching $name"
   curl -fsSL "$BASE/$name" -o "$out"
   verify "$out" "$name"
+
+  # The release's SONAME is `libghostty-vt.so.0`, but an APK ships the file as
+  # `libghostty-vt.so` and Android's linker resolves DT_NEEDED by file name.
+  # Left alone, `libdrosh.so` would ask for a file the APK does not contain and
+  # the app would fail to start with a link error naming a library that is
+  # visibly present.
+  #
+  # The fix is to rewrite both sides to the name the APK uses: the engine's own
+  # SONAME, and the DT_NEEDED entry in everything that links it. The bytes are
+  # checked again afterwards, because the checksum above only covers what the
+  # release published.
+  if command -v patchelf >/dev/null; then
+    patchelf --set-soname libghostty-vt.so "$out"
+    info "soname set to libghostty-vt.so"
+  else
+    echo "patchelf is required to set the soname" >&2
+    exit 1
+  fi
 done
 
 # --- provenance -------------------------------------------------------------
