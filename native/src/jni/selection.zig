@@ -389,8 +389,10 @@ fn viewportBounds(
             point.value.coordinate.x = column;
             point.value.coordinate.y = row;
 
+            // The predicate takes the selection by pointer, like every other
+            // call that reads one.
             var contained: bool = false;
-            if (c.ghostty_terminal_selection_contains(terminal, selection, point, &contained) !=
+            if (c.ghostty_terminal_selection_contains(terminal, &selection, point, &contained) !=
                 ghostty.SUCCESS)
             {
                 continue;
