@@ -110,7 +110,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSearch(
     var needle = c.GhosttyString{ .ptr = text.ptr, .len = text.len };
     if (c.ghostty_search_set(
         search,
-        c.GHOSTTY_SEARCH_OPTION_NEEDLE,
+        c.GHOSTTY_SEARCH_OPT_NEEDLE,
         @ptrCast(&needle),
     ) != ghostty.SUCCESS) {
         return -1;
@@ -235,7 +235,9 @@ fn format(
 ) jni.jstring {
     var options = std.mem.zeroes(c.GhosttyTerminalSelectionFormatOptions);
     options.size = @sizeOf(c.GhosttyTerminalSelectionFormatOptions);
-    options.selection = selection;
+    // The options take a pointer, and it must outlive the call.
+    var snapshot = selection;
+    options.selection = &snapshot;
 
     var out_ptr: ?[*]u8 = null;
     var out_len: usize = 0;
