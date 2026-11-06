@@ -43,6 +43,7 @@ pub const Index = struct {
     pub const GetByteArrayRegion = 200;
     pub const SetByteArrayRegion = 208;
     pub const NewByteArray = 176;
+    pub const NewIntArray = 175;
     pub const GetStringUTFChars = 169;
     pub const ReleaseStringUTFChars = 170;
     pub const ThrowNew = 14;

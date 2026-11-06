@@ -183,6 +183,96 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSearch(
     return @intCast(written);
 }
 
+/// Search, returning an `int[]` of `(row, column, length)` triples.
+///
+/// The JNI entry point in `session.zig` delegates here so the search code has
+/// one home; this is the shape the Kotlin side calls.
+pub fn searchInto(
+    env: jni.JNIEnv,
+    handle: jni.jlong,
+    query: jni.jstring,
+    limit: jni.jint,
+) jni.jintArray {
+    const session = Session.fromHandle(handle) orelse return null;
+    if (query == null or limit <= 0) return null;
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const text = readString(env, query, arena.allocator()) catch return null;
+    if (text.len == 0) return null;
+
+    var search: c.GhosttySearch = null;
+    if (c.ghostty_search_new(null, &search, session.terminal) != ghostty.SUCCESS) return null;
+    defer c.ghostty_search_free(search);
+
+    var needle = c.GhosttyString{ .ptr = text.ptr, .len = text.len };
+    if (c.ghostty_search_set(search, c.GHOSTTY_SEARCH_OPT_NEEDLE, @ptrCast(&needle)) !=
+        ghostty.SUCCESS)
+    {
+        return null;
+    }
+    if (c.ghostty_search_run(search) != ghostty.SUCCESS) return null;
+
+    var total: usize = 0;
+    if (c.ghostty_search_get(search, c.GHOSTTY_SEARCH_DATA_TOTAL_MATCHES, @ptrCast(&total)) !=
+        ghostty.SUCCESS or total == 0)
+    {
+        return null;
+    }
+
+    const wanted = @min(total, @as(usize, @intCast(limit)));
+    const selection_slice = allocator.alloc(c.GhosttySelection, wanted) catch return null;
+    defer allocator.free(selection_slice);
+
+    var matches = std.mem.zeroes(c.GhosttySelectionBuffer);
+    matches.cap = wanted;
+    matches.ptr = selection_slice.ptr;
+
+    if (c.ghostty_search_get(
+        search,
+        c.GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES,
+        @ptrCast(&matches),
+    ) != ghostty.SUCCESS) {
+        return null;
+    }
+
+    var columns: u16 = 0;
+    var rows: u16 = 0;
+    _ = c.ghostty_terminal_get(session.terminal, c.GHOSTTY_TERMINAL_DATA_COLS, @ptrCast(&columns));
+    _ = c.ghostty_terminal_get(session.terminal, c.GHOSTTY_TERMINAL_DATA_ROWS, @ptrCast(&rows));
+
+    const triples = allocator.alloc(i32, wanted * 3) catch return null;
+    defer allocator.free(triples);
+
+    var written: usize = 0;
+    for (selection_slice[0..matches.len]) |selection| {
+        const bounds = viewportBounds(session.terminal, selection, columns, rows) orelse continue;
+        if (written >= wanted) break;
+        triples[written * 3] = bounds.row;
+        triples[written * 3 + 1] = bounds.column;
+        triples[written * 3 + 2] = bounds.length;
+        written += 1;
+    }
+    if (written == 0) return null;
+
+    const new_array = jni.call(
+        env,
+        *const fn (jni.JNIEnv, jni.jsize) callconv(.c) jni.jintArray,
+        jni.Index.NewIntArray,
+    );
+    const array = new_array(env, @intCast(written * 3));
+    if (array == null) return null;
+
+    const set_region = jni.call(
+        env,
+        *const fn (jni.JNIEnv, jni.jintArray, jni.jsize, jni.jsize, [*]const i32) callconv(.c) void,
+        jni.Index.SetIntArrayRegion,
+    );
+    set_region(env, array, 0, @intCast(written * 3), triples.ptr);
+    return array;
+}
+
 // --- helpers ----------------------------------------------------------------
 
 const SelectionKind = enum { word, line };

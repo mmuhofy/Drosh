@@ -72,6 +72,44 @@ object NativeSession {
         return nativeWorkingDirectory(handle)
     }
 
+    /**
+     * The scrollbar's position: `(history rows, viewport offset)`.
+     *
+     * The engine reports both as one struct; splitting it here keeps the caller
+     * from needing to know that.
+     */
+    fun scrollbar(handle: Long): Pair<Int, Int>? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        val values = nativeScrollbar(handle)
+        if (values.size < 2) return null
+        return values[0] to values[1]
+    }
+
+    /** True when the alternate screen is on: a program, not a shell. */
+    fun alternateScreen(handle: Long): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeAlternateScreen(handle)
+    }
+
+    /** The engine's mode bits. */
+    fun modes(handle: Long): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return 0
+        return nativeModes(handle)
+    }
+
+    /** Search the grid; results are `(row, column, length)` triples. */
+    fun search(handle: Long, query: String, limit: Int): List<Triple<Int, Int, Int>> {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return emptyList()
+        val raw = nativeSearch(handle, query, limit)
+        val out = ArrayList<Triple<Int, Int, Int>>(raw.size / 3)
+        var index = 0
+        while (index + 2 < raw.size) {
+            out.add(Triple(raw[index], raw[index + 1], raw[index + 2]))
+            index += 3
+        }
+        return out
+    }
+
     /** Scrolls the viewport. `tag` is one of the `SCROLL_*` constants. */
     fun scroll(handle: Long, tag: Int, amount: Int): Int {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
@@ -101,6 +139,10 @@ object NativeSession {
     ): Int
     private external fun nativeFrame(handle: Long): ByteArray?
     private external fun nativeScroll(handle: Long, tag: Int, amount: Int): Int
+    private external fun nativeScrollbar(handle: Long): IntArray
+    private external fun nativeAlternateScreen(handle: Long): Boolean
+    private external fun nativeModes(handle: Long): Int
+    private external fun nativeSearch(handle: Long, query: String, limit: Int): IntArray
     private external fun nativeShellPhase(handle: Long): Int
     private external fun nativeWorkingDirectory(handle: Long): String
 }

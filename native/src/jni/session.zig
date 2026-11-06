@@ -91,6 +91,105 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeWrite(
     return 0;
 }
 
+/// The scrollbar: `[history rows, viewport offset]`.
+export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeScrollbar(
+    env: jni.JNIEnv,
+    _: jni.jclass,
+    handle: jni.jlong,
+) jni.jintArray {
+    const session = Session.fromHandle(handle) orelse return null;
+
+    var scrollbar = std.mem.zeroes(c.GhosttyTerminalScrollbar);
+    if (c.ghostty_terminal_get(
+        session.terminal,
+        c.GHOSTTY_TERMINAL_DATA_SCROLLBAR,
+        @ptrCast(&scrollbar),
+    ) != ghostty.SUCCESS) {
+        return null;
+    }
+
+    const values = [2]i32{
+        @intCast(scrollbar.total),
+        @intCast(scrollbar.offset),
+    };
+
+    const new_array = jni.call(
+        env,
+        *const fn (jni.JNIEnv, jni.jsize) callconv(.c) jni.jintArray,
+        jni.Index.NewIntArray,
+    );
+    const array = new_array(env, 2);
+    if (array == null) return null;
+
+    const set_region = jni.call(
+        env,
+        *const fn (jni.JNIEnv, jni.jintArray, jni.jsize, jni.jsize, [*]const i32) callconv(.c) void,
+        jni.Index.SetIntArrayRegion,
+    );
+    set_region(env, array, 0, 2, &values);
+    return array;
+}
+
+/// True when the alternate screen is on.
+export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeAlternateScreen(
+    _: jni.JNIEnv,
+    _: jni.jclass,
+    handle: jni.jlong,
+) jni.jboolean {
+    const session = Session.fromHandle(handle) orelse return jni.JNI_FALSE;
+    var screen: c.GhosttyTerminalScreen = c.GHOSTTY_TERMINAL_SCREEN_PRIMARY;
+    if (c.ghostty_terminal_get(
+        session.terminal,
+        c.GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN,
+        @ptrCast(&screen),
+    ) != ghostty.SUCCESS) {
+        return jni.JNI_FALSE;
+    }
+    return if (screen == c.GHOSTTY_TERMINAL_SCREEN_ALTERNATE) jni.JNI_TRUE else jni.JNI_FALSE;
+}
+
+/// The engine's input-relevant flags, as one integer.
+///
+/// The C API does not expose a mode bitfield; it exposes the two flags an
+/// embedder acts on, so they are packed here into the shape the host expects:
+/// bit 0 mouse tracking, bit 1 kitty keyboard.
+export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeModes(
+    _: jni.JNIEnv,
+    _: jni.jclass,
+    handle: jni.jlong,
+) jni.jint {
+    const session = Session.fromHandle(handle) orelse return -1;
+
+    var mouse: bool = false;
+    var kitty: u8 = 0;
+    _ = c.ghostty_terminal_get(
+        session.terminal,
+        c.GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING,
+        @ptrCast(&mouse),
+    );
+    _ = c.ghostty_terminal_get(
+        session.terminal,
+        c.GHOSTTY_TERMINAL_DATA_KITTY_KEYBOARD_FLAGS,
+        @ptrCast(&kitty),
+    );
+
+    var bits: i32 = 0;
+    if (mouse) bits |= 1;
+    if (kitty != 0) bits |= 2;
+    return bits;
+}
+
+/// Search the grid; returns `(row, column, length)` triples.
+export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSearch(
+    env: jni.JNIEnv,
+    _: jni.jclass,
+    handle: jni.jlong,
+    query: jni.jstring,
+    limit: jni.jint,
+) jni.jintArray {
+    return @import("selection.zig").searchInto(env, handle, query, limit);
+}
+
 /// The shell's phase, as its `OSC 133` marks report it.
 export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeShellPhase(
     _: jni.JNIEnv,
