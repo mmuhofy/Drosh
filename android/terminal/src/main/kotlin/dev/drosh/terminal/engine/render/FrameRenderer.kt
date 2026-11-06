@@ -329,7 +329,7 @@ internal class FrameRenderer {
             0,
             atlas.size,
             atlas.size,
-            GLES20.GL_RED,
+            GLES30.GL_RED,
             GLES20.GL_UNSIGNED_BYTE,
             atlas.directPixels(),
         )
@@ -351,11 +351,11 @@ internal class FrameRenderer {
         GLES20.glTexImage2D(
             GLES20.GL_TEXTURE_2D,
             0,
-            GLES20.GL_RED,
+            GLES30.GL_R8,
             atlas.size,
             atlas.size,
             0,
-            GLES20.GL_RED,
+            GLES30.GL_RED,
             GLES20.GL_UNSIGNED_BYTE,
             null,
         )

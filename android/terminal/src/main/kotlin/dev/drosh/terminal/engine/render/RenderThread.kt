@@ -1,7 +1,6 @@
 package dev.drosh.terminal.engine.render
 
 import android.util.Log
-import android.view.Surface
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -52,7 +51,11 @@ class RenderThread(
     /** Something the loop has to apply before the next frame. */
     sealed interface Command {
         /** The window surface changed. Null when it went away. */
-        data class Surface(val surface: Surface?, val width: Int, val height: Int) : Command
+        data class Surface(
+            val surface: android.view.Surface?,
+            val width: Int,
+            val height: Int,
+        ) : Command
 
         /** The font's cell size changed. */
         data class Cell(val width: Float, val height: Float) : Command

@@ -91,9 +91,13 @@ internal class GlyphAtlas(val size: Int = ATLAS_SIZE) {
     /** Direct copy of [pixels], refreshed on demand for the texture upload. */
     private val texture = ByteBuffer.allocateDirect(size * size)
 
-    /** Set when [pixels] changed and the texture has to be re-uploaded. */
+    /**
+     * Set when [pixels] changed and the texture has to be re-uploaded.
+     *
+     * Settable by the renderer: it is the one that uploads and therefore the
+     * one that knows the texture is current again.
+     */
     var dirty = true
-        private set
 
     /** Codepoints the font had no glyph for, so the UI can say so once. */
     var substituted = 0
