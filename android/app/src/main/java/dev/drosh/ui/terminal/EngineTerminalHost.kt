@@ -126,10 +126,14 @@ fun EngineTerminalHost(
      */
     // The engine the app is configured to run. Both are in the APK; the flag
     // picks one, and the host is written once against TerminalEngine.
-    val pane: TerminalEngine = remember {
-        when (EngineSelection.current()) {
-            EngineSelection.EngineKind.GHOSTTY -> GhosttyTerminal(context)
-            EngineSelection.EngineKind.LEGACY -> EngineTerminal(context)
+    // The engine is chosen once per pane, from the setting the host was given:
+    // a pane cannot swap an engine underneath itself, because a view is bound
+    // to the context that created it.
+    val pane: TerminalEngine = remember(appearance.ghosttyEngine) {
+        if (appearance.ghosttyEngine) {
+            GhosttyTerminal(context)
+        } else {
+            EngineTerminal(context)
         }
     }
 

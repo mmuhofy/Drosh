@@ -48,6 +48,7 @@ internal object DroshSettingsToml {
         with(settings.terminal) {
             putString("terminal", "mode", mode.tomlName())
             putString("terminal", "guest_isolation", guestIsolation.name)
+            putBoolean("terminal", "ghostty_engine", ghosttyEngine)
             putFloat("terminal", "default_font_size_sp", defaultFontSizeSp)
             putString("terminal", "cursor_style", cursorStyle.tomlName())
             putInt("terminal", "cursor_blink_ms", cursorBlinkMs)
@@ -154,6 +155,9 @@ internal object DroshSettingsToml {
                 guestIsolation = GuestIsolation.fromName(
                     document.getStringOrNull("terminal", "guest_isolation"),
                 ) ?: base.terminal.guestIsolation,
+                ghosttyEngine = document.getBoolean(
+                    "terminal", "ghostty_engine", base.terminal.ghosttyEngine,
+                ),
                 defaultFontSizeSp = document.getFloat(
                     "terminal", "default_font_size_sp", base.terminal.defaultFontSizeSp,
                 ),

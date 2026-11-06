@@ -95,6 +95,15 @@ data class TerminalSettings(
      * the one the app is known to work on, and the setting is what lets the
      * engine be tried without a rebuild.
      */
+    /**
+     * Which engine draws the terminal.
+     *
+     * Off is the Rust engine: it has been on a device. On is the Ghostty
+     * engine, which is complete but has never drawn a frame on hardware, so it
+     * is a switch rather than a default — a user who turns it on can turn it
+     * off, and a build that ships it can do the same in one line.
+     */
+    val ghosttyEngine: Boolean = false,
     /** The size a session opens at. A pinch moves the session, not this. */
     val defaultFontSizeSp: Float = TerminalZoom.DEFAULT_SP,
     val cursorStyle: CursorStyle = CursorStyle.Block,

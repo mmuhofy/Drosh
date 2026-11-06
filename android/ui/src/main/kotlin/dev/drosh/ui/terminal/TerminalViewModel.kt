@@ -130,6 +130,7 @@ class TerminalViewModel @Inject constructor(
                 ligatures = settings.terminal.ligatures,
                 textSizeSp = settings.terminal.defaultFontSizeSp,
                 fontPack = settings.appearance.fontPack,
+                ghosttyEngine = settings.terminal.ghosttyEngine,
             )
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalConfig())
