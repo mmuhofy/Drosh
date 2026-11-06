@@ -39,7 +39,13 @@ class SshSessionLauncherImpl @Inject constructor(
         val pane = EngineTerminal(context)
         val sessionId = "ssh_${UUID.randomUUID()}"
 
-        pane.attachExisting(handle, DEFAULT_COLS, DEFAULT_ROWS, DEFAULT_CELL_WIDTH, DEFAULT_CELL_HEIGHT)
+        pane.attachExisting(
+            handle,
+            DEFAULT_COLS,
+            DEFAULT_ROWS,
+            DEFAULT_CELL_WIDTH.toFloat(),
+            DEFAULT_CELL_HEIGHT.toFloat(),
+        )
 
         terminalManager.addEngineTabWithId(sessionId, host.name, pane)
 
