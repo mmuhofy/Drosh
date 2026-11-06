@@ -102,7 +102,7 @@ class RenderThread(
     var frameSource: (() -> dev.drosh.terminal.engine.protocol.Frame?)? = null
 
     /** The renderer's own GL state, created on the loop thread. */
-    private var renderer: TerminalRenderer? = null
+    private var renderer: FrameRenderer? = null
 
     /** True while the loop is running. */
     val isRunning: Boolean
@@ -208,7 +208,7 @@ class RenderThread(
                 frameSource?.let { _ ->
                     onGridChange?.invoke(change.columns, change.rows)
                 }
-                renderer?.onGridChanged(change.columns, change.rows, change.size)
+                renderer?.onGridChanged(change.size)
                 layout.onGridApplied(change.columns, change.rows)
                 dirty = true
                 surfaceChanged = true
@@ -244,7 +244,7 @@ class RenderThread(
     private fun drawFrame() {
         val started = System.nanoTime()
 
-        val current = renderer ?: TerminalRenderer().also {
+        val current = renderer ?: FrameRenderer().also {
             it.create()
             it.onSizeChanged(layout.size)
             renderer = it
