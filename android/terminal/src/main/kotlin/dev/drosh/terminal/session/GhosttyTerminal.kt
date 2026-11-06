@@ -108,6 +108,10 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         cellWidth: Float,
         cellHeight: Float,
     ): Boolean {
+        // A PTY has to know its size before the child runs, or the first prompt
+        // wraps at 80 columns and is resized a moment later.
+        val columns = if (columns > 0) columns else DEFAULT_COLUMNS
+        val rows = if (rows > 0) rows else DEFAULT_ROWS
         if (!state.canStart) {
             Log.w(TAG, "start refused: the terminal is $state")
             return false
@@ -117,8 +121,8 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
             return false
         }
 
-        this.cellWidth = cellWidth
-        this.cellHeight = cellHeight
+        this.cellWidth = if (cellWidth > 0f) cellWidth else 1f
+        this.cellHeight = if (cellHeight > 0f) cellHeight else 1f
 
         val session = NativeSession.create(columns, rows)
         if (session == 0L) {
@@ -133,8 +137,8 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
             cwd = launch.cwd ?: "",
             columns = columns,
             rows = rows,
-            cellWidth = cellWidth.toInt(),
-            cellHeight = cellHeight.toInt(),
+            cellWidth = this.cellWidth.toInt(),
+            cellHeight = this.cellHeight.toInt(),
         )
 
         if (pty == 0L) {
@@ -145,7 +149,7 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
         sessionHandle = session
         ptyHandle = pty
-        view.attach(session, pty, cellWidth, cellHeight)
+        view.attach(session, pty, this.cellWidth, this.cellHeight)
         state = state.started()
         return true
     }
@@ -341,5 +345,9 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     private companion object {
         const val TAG = "GhosttyTerminal"
         const val FIND_LIMIT = 200
+
+        /** The grid a PTY starts with when the caller has not measured one. */
+        const val DEFAULT_COLUMNS = 80
+        const val DEFAULT_ROWS = 24
     }
 }

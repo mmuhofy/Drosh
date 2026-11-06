@@ -58,11 +58,9 @@ class EngineTerminal(context: Context) : TerminalEngine {
      * close or restore, so it would exist outside the session system.
      */
     override var persistentId: String = ""
-        private set
 
     /** The user-visible name of the session this pane runs. */
     override var sessionName: String = ""
-        private set
 
     /** Bind this pane to a persistent session identity. */
     override fun bindIdentity(persistentId: String, name: String) {
@@ -265,6 +263,8 @@ class EngineTerminal(context: Context) : TerminalEngine {
         cellWidth: Float,
         cellHeight: Float,
     ): Boolean {
+        // This engine measures its own view and derives the grid from it; the
+        // caller's numbers are for an engine that cannot.
         if (!state.canStart) {
             Log.w(TAG, "start refused: the pane is $state")
             return false
@@ -488,13 +488,22 @@ class EngineTerminal(context: Context) : TerminalEngine {
     }
 
     /** Select the word under (row, col). */
-    override fun selectWord(row: Int, col: Int): Boolean = controller.selectWord(row, col)
+    override fun selectWord(row: Int, col: Int): Boolean {
+        controller.selectWord(row, col)
+        return hasSelection()
+    }
 
     /** Select the whole line containing (row, col). */
-    override fun selectLine(row: Int, col: Int): Boolean = controller.selectLine(row, col)
+    override fun selectLine(row: Int, col: Int): Boolean {
+        controller.selectLine(row, col)
+        return hasSelection()
+    }
 
     /** Select the entire visible grid. */
-    override fun selectAll(): Boolean = controller.selectAll()
+    override fun selectAll(): Boolean {
+        controller.selectAll()
+        return hasSelection()
+    }
 
     /** Clear the selection. */
     override fun clearSelection() = controller.clearSelection()

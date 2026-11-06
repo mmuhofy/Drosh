@@ -40,13 +40,20 @@ interface TerminalEngine {
 
     // --- lifecycle ---------------------------------------------------------
 
-    /** Start a session that runs [command] inside the guest. */
+    /**
+     * Start a session that runs [command] inside the guest.
+     *
+     * The dimensions are what the *caller* believes the grid is. An engine that
+     * measures its own view — the old one does — ignores them; an engine that
+     * needs them before the child runs — the new one does, because a PTY has to
+     * know its size before the first prompt — uses them.
+     */
     fun start(
         command: dev.drosh.linux.GuestCommand,
-        columns: Int,
-        rows: Int,
-        cellWidth: Float,
-        cellHeight: Float,
+        columns: Int = 0,
+        rows: Int = 0,
+        cellWidth: Float = 0f,
+        cellHeight: Float = 0f,
     ): Boolean
 
     /** Attach a grid that already exists, with no local process. */
