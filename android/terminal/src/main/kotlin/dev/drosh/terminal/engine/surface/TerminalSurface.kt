@@ -226,7 +226,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     // AOSP keyboards send Enter as text, not as a key event. A
                     // terminal wants CR: the tty's ICRNL turns it into a
                     // newline for the shell.
-                    send(text.toString().replace('\n', '\r'))
+                    send(text.toString().replace('\n', '\r').toByteArray(Charsets.UTF_8))
                 }
                 return true
             }
