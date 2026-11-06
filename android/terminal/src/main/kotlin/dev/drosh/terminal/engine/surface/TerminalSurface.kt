@@ -5,6 +5,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import dev.drosh.terminal.engine.layout.SizeInfo
 import dev.drosh.terminal.engine.native.NativePty
+import dev.drosh.terminal.engine.native.NativeSelection
 import dev.drosh.terminal.engine.native.NativeSession
 import dev.drosh.terminal.engine.protocol.Frame
 import dev.drosh.terminal.engine.render.RenderThread

@@ -32,4 +32,13 @@ enum class EngineTerminalState {
 
     /** The state after the pane was released. Releasing twice is harmless. */
     fun released(): EngineTerminalState = RELEASED
+
+    /**
+     * The state after the child exited on its own.
+     *
+     * A session that ended is not a session that was stopped: the pane keeps
+     * what the child last drew on screen, and starting again is a new session
+     * in the same pane.
+     */
+    fun exited(): EngineTerminalState = if (this == RUNNING) IDLE else this
 }

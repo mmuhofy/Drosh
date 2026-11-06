@@ -123,10 +123,7 @@ class GhosttyTerminal(context: Context) {
         val launch = EngineLaunch.from(command)
         val pty = NativePty.spawn(
             argv = listOf(launch.program) + launch.args,
-            environment = launch.env.associate { entry ->
-                val at = entry.indexOf('=')
-                if (at < 0) entry to "" else entry.substring(0, at) to entry.substring(at + 1)
-            },
+            environment = launch.env.toMap(),
             cwd = launch.cwd,
             columns = columns,
             rows = rows,

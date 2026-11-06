@@ -1,0 +1,43 @@
+package dev.drosh.terminal.engine.native
+
+/**
+ * Selection, as the engine's API expresses it.
+ *
+ * ## Why the engine answers
+ *
+ * Word and line boundaries depend on the semantic escape characters the engine
+ * was configured with and on the cell widths it computed. A second
+ * implementation would disagree with what the renderer highlights, and the
+ * disagreement shows as a selection that copies one word and highlights two.
+ *
+ * ## Snapshot, not state
+ *
+ * The engine's selection is a snapshot the caller owns, not a "current
+ * selection" on the terminal. Each call here takes a position and returns the
+ * text for that selection, which is why there is no "extend" — a drag re-asks
+ * with a new range rather than growing a selection in place.
+ */
+object NativeSelection {
+
+    /** The word under a viewport cell, or "". */
+    fun selectWord(handle: Long, row: Int, column: Int): String {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
+        return nativeSelectWord(handle, row, column)
+    }
+
+    /** The line under a viewport cell, or "". */
+    fun selectLine(handle: Long, row: Int, column: Int): String {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
+        return nativeSelectLine(handle, row, column)
+    }
+
+    /** Everything the engine holds, or "". */
+    fun selectAll(handle: Long): String {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
+        return nativeSelectAll(handle)
+    }
+
+    private external fun nativeSelectWord(handle: Long, row: Int, column: Int): String
+    private external fun nativeSelectLine(handle: Long, row: Int, column: Int): String
+    private external fun nativeSelectAll(handle: Long): String
+}
