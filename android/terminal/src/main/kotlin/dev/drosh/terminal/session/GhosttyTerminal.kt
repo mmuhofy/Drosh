@@ -51,6 +51,15 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override var state: EngineTerminalState = EngineTerminalState.IDLE
         private set
 
+    /**
+     * Why the last start failed, or null when it did not.
+     *
+     * A start fails in four places — the state, the library load, the grid, the
+     * process — and "did not start" is not an answer to any of them.
+     */
+    var lastError: String? = null
+        private set
+
     /** The persistent id of the session this terminal runs. */
     override var persistentId: String = ""
 
@@ -112,12 +121,15 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         // wraps at 80 columns and is resized a moment later.
         val columns = if (columns > 0) columns else DEFAULT_COLUMNS
         val rows = if (rows > 0) rows else DEFAULT_ROWS
+        lastError = null
         if (!state.canStart) {
-            Log.w(TAG, "start refused: the terminal is $state")
+            lastError = "the terminal is $state"
+            Log.w(TAG, "start refused: $lastError")
             return false
         }
         if (!NativeLibraries.ensureLoaded()) {
-            Log.e(TAG, "the engine did not load: ${NativeLibraries.failure}")
+            lastError = "the libraries did not load: ${NativeLibraries.failure ?: "no reason"}"
+            Log.e(TAG, lastError)
             return false
         }
 
@@ -126,7 +138,8 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
         val session = NativeSession.create(columns, rows)
         if (session == 0L) {
-            Log.e(TAG, "the grid could not be created")
+            lastError = "the grid could not be created (${columns}x$rows)"
+            Log.e(TAG, lastError)
             return false
         }
 
@@ -142,7 +155,8 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         )
 
         if (pty == 0L) {
-            Log.e(TAG, "the process could not be started")
+            lastError = "the process could not be started (${launch.program})"
+            Log.e(TAG, lastError)
             NativeSession.free(session)
             return false
         }

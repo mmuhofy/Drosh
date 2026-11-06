@@ -106,12 +106,72 @@ jobs:
           path: ${{ runner.temp }}/engine-jni/libdrosh_core.so
           if-no-files-found: error
 
+  native-build:
+    # libdrosh.so — the Zig half that drives libghostty-vt. The APK needs it in
+    # jniLibs next to the engine, and it is built here rather than downloaded so
+    # the APK and the native library are always the same commit.
+    name: libdrosh.so (arm64-v8a)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+
+      - name: Install patchelf and the NDK
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq patchelf
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+
+      - name: Fetch and verify libghostty-vt
+        run: ./tools/fetch-ghostty-vt.sh
+
+      - name: Build libdrosh.so
+        working-directory: native
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          export ANDROID_NDK_HOME="$NDK"
+          SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+          LIBC_TXT="$RUNNER_TEMP/libc-aarch64-26.txt"
+          cat > "$LIBC_TXT" <<EOF
+          include_dir=$SYSROOT/usr/include
+          sys_include_dir=$SYSROOT/usr/include/aarch64-linux-android
+          crt_dir=$SYSROOT/usr/lib/aarch64-linux-android/26
+          msvc_lib_dir=
+          kernel32_lib_dir=
+          gcc_dir=
+          EOF
+          zig build \
+            -Dtarget=aarch64-linux-android.26 \
+            -Doptimize=ReleaseFast \
+            -Dcpu=baseline \
+            -Dghostty-abi=arm64-v8a \
+            -Dndk-sysroot="$SYSROOT" \
+            -Dndk-lib="$SYSROOT/usr/lib/aarch64-linux-android/26" \
+            -Dndk-libc-file="$LIBC_TXT" \
+            --prefix "$RUNNER_TEMP/out"
+
+      - name: Upload the library
+        uses: actions/upload-artifact@v4
+        with:
+          name: drosh-so
+          path: ${{ runner.temp }}/out/lib/libdrosh.so
+          if-no-files-found: error
+
   debug:
     name: Debug APK
     # The native job is not a dependency yet: the new engine is not wired into
     # the app, so the APK still ships the Rust core. It runs alongside to keep
     # the Ghostty path compiling from the first commit.
-    needs: rust-build
+    needs: [rust-build, native-build]
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -140,12 +200,26 @@ jobs:
           GHOSTTY_VT_ABIS: arm64-v8a
         run: ./tools/fetch-ghostty-vt.sh
 
+      - name: Fetch our own native half
+        uses: actions/download-artifact@v4
+        with:
+          name: drosh-so
+          path: android/terminal/src/main/jniLibs/arm64-v8a
+
       - name: Stage libghostty-vt into jniLibs
         run: |
           set -euo pipefail
           dest=android/terminal/src/main/jniLibs/arm64-v8a
           mkdir -p "$dest"
           cp native/ghostty/lib/arm64-v8a/libghostty-vt.so "$dest/"
+          # The engine must be there, and it must be the name the linker asks
+          # for: libdrosh.so names it in DT_NEEDED.
+          test -f "$dest/libghostty-vt.so"
+          test -f "$dest/libdrosh.so"
+          readelf -d "$dest/libdrosh.so" | grep -q "libghostty-vt.so" || {
+            echo "::error::libdrosh.so does not link libghostty-vt.so"
+            exit 1
+          }
           ls -l "$dest"
 
       # chroot-ng — the guest runtime — is not in this repository. It is built

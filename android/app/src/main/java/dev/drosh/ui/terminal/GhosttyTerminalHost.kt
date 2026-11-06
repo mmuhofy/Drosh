@@ -93,7 +93,7 @@ fun GhosttyTerminalHost(
             }
         }
 
-        status = if (started) null else "the session did not start"
+        status = if (started) null else "start failed: ${pane.lastError ?: "no reason"}"
     }
 
     // The engine's own report, for a build that has to be diagnosed on a phone.
