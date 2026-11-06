@@ -3,18 +3,18 @@ package dev.drosh.terminal.session
 import dev.drosh.terminal.engine.core.EngineSession
 
 /**
- * A wrapper that bundles a live [EnginePane] with its persistent
+ * A wrapper that bundles a live [EngineTerminal] with its persistent
  * metadata (id, name, shell pid).
  *
  * The Rust-engine counterpart of [DroshSession]: where [DroshSession]
  * wraps a vendored terminal session, this wraps an
- * [EnginePane] that owns its own [EngineSession] and view.
+ * [EngineTerminal] that owns its own [EngineSession] and view.
  *
  * Ported from: mmuhofy/IrisCode — terminal/TerminalManager.kt
  * Adapted for Drosh — dev.drosh
  */
 class EngineDroshSession(
-    var enginePane: EnginePane? = null,
+    var enginePane: EngineTerminal? = null,
     val persistentId: String,
     var name: String,
     var pid: Int = 0,

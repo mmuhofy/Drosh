@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import dev.drosh.theme.DroshPrimary
-import dev.drosh.terminal.session.EnginePane
+import dev.drosh.terminal.session.EngineTerminal
 import kotlinx.coroutines.delay
 
 /**
@@ -47,7 +47,7 @@ import kotlinx.coroutines.delay
  */
 @Composable
 fun PromptScrollbar(
-    pane: EnginePane,
+    pane: EngineTerminal,
     modifier: Modifier = Modifier,
 ) {
     /** The viewport's position, in rows above the live edge. */

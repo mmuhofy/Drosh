@@ -3,7 +3,7 @@ package dev.drosh.terminal.session.input
 import dev.drosh.terminal.engine.core.NativeCore
 import dev.drosh.terminal.engine.input.AndroidKeys
 import dev.drosh.terminal.engine.input.Encoder
-import dev.drosh.terminal.session.EnginePane
+import dev.drosh.terminal.session.EngineTerminal
 
 /**
  * The Rust engine's writer.
@@ -18,7 +18,7 @@ import dev.drosh.terminal.session.EnginePane
  * that asked for the `ESC O` forms — vim does — gets them, and one that did
  * not gets the `ESC [` forms.
  */
-class EngineTerminalWriter(private val pane: EnginePane) : TerminalWriter {
+class EngineTerminalWriter(private val pane: EngineTerminal) : TerminalWriter {
 
     override fun writeChar(char: Char, mods: InputModifiers) {
         val bytes = Encoder.text(char.toString(), encoderMods(mods))

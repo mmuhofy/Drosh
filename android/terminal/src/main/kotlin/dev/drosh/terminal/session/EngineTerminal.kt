@@ -24,7 +24,7 @@ import kotlin.math.roundToInt
  * starts it itself. A host that has to know that difference ends up with two
  * shapes of "a terminal", and the difference leaks into the product: a pane is
  * either something a session is attached to, or something that is a session.
- * This type is the seam — the host holds an [EnginePane], starts it with a
+ * This type is the seam — the host holds an [EngineTerminal], starts it with a
  * guest command, and never learns that the engine owns the session underneath.
  *
  * ## What it adds to the engine's own surface
@@ -48,7 +48,7 @@ import kotlin.math.roundToInt
  * own — a second rule for it would only be a second opinion, and the two
  * would disagree the first time the cell size changed.
  */
-class EnginePane(context: Context) {
+class EngineTerminal(context: Context) {
     /**
      * The persistent id of the session this pane runs, or "" when the pane
      * has not been bound to a session yet.
@@ -209,7 +209,7 @@ class EnginePane(context: Context) {
     }
 
     /** Where the pane is in its lifecycle. */
-    var state: EnginePaneState = EnginePaneState.IDLE
+    var state: EngineTerminalState = EngineTerminalState.IDLE
         private set
 
     init {
@@ -294,7 +294,7 @@ class EnginePane(context: Context) {
      * lives in the native core, and this is the only thing that closes it.
      */
     fun release() {
-        if (state == EnginePaneState.RELEASED) {
+        if (state == EngineTerminalState.RELEASED) {
             return
         }
         controller.release()
@@ -506,7 +506,7 @@ class EnginePane(context: Context) {
     fun colors(): IntArray = session.colors.copyOf()
 
     private companion object {
-        const val TAG = "EnginePane"
+        const val TAG = "EngineTerminal"
 
         /** How many hits a single find returns when the host asks for none. */
         const val FIND_LIMIT = 200

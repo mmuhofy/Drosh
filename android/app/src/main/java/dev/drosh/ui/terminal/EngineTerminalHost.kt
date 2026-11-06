@@ -31,7 +31,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.GuestCommand
-import dev.drosh.terminal.session.EnginePane
+import dev.drosh.terminal.session.EngineTerminal
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
@@ -48,11 +48,11 @@ import kotlinx.coroutines.withContext
  *
  * The engine's terminal is not a view the app attaches to a session: the
  * engine's view *owns* its session and starts it itself. So the app cannot
- * host it the way it hosts the vendored one — it holds an [EnginePane], tells
+ * host it the way it hosts the vendored one — it holds an [EngineTerminal], tells
  * it which guest command to run, and puts the pane's own view into the
  * layout.
  *
- * The manager is told about the pane ([TerminalManager.registerEnginePane])
+ * The manager is told about the pane ([TerminalManager.registerEngineTerminal])
  * so that the app's own flows — the focus, the selection, the scroll
  * position, the clipboard — answer for it exactly as they do for a vendored
  * pane. The app does not keep a second opinion about any of them.
@@ -73,7 +73,7 @@ import kotlinx.coroutines.withContext
  * opaque. The font-size setting does reach the engine.
  */
 @Composable
-fun EnginePaneHost(
+fun EngineTerminalHost(
     paneSlot: PaneSlot,
     terminalManager: TerminalManager,
     /**
@@ -121,7 +121,7 @@ fun EnginePaneHost(
      * recomposition would be a shell that never lived long enough to say
      * anything.
      */
-    val pane = remember { EnginePane(context) }
+    val pane = remember { EngineTerminal(context) }
 
     /**
      * The exit code of the session, when it ended.
@@ -328,7 +328,7 @@ fun EnginePaneHost(
         // terminal could run on screen and the app still had no session it
         // could name, list, restore or close. It is what made a working
         // terminal look like a screen that had never been built.
-        terminalManager.registerEnginePane(
+        terminalManager.registerEngineTerminal(
             paneSlot,
             pane,
             persistentId = sessionId,
@@ -627,7 +627,7 @@ fun EnginePaneHost(
      */
     DisposableEffect(paneSlot) {
         onDispose {
-            terminalManager.unregisterEnginePane(paneSlot)
+            terminalManager.unregisterEngineTerminal(paneSlot)
             pane.release()
         }
     }
@@ -831,7 +831,7 @@ private data class EngineSnapshot(
 private const val ENGINE_SNAPSHOT_POLLS = 20
 private const val ENGINE_SNAPSHOT_INTERVAL_MS = 150L
 
-private const val TAG = "EnginePaneHost"
+private const val TAG = "EngineTerminalHost"
 
 /**
  * A font file's bytes, read through the content resolver.

@@ -625,7 +625,7 @@ private fun ReadyScreen(
      * there yet.
      */
     fun findSource(): TerminalFindSource? {
-        val enginePane = terminalManager.focusedEnginePane()
+        val enginePane = terminalManager.focusedEngineTerminal()
         return if (enginePane != null) EngineFindSource(enginePane.session) else null
     }
 
@@ -812,7 +812,7 @@ private fun ReadyScreen(
             if (!hasSelection) {
                 null
             } else {
-                terminalManager.focusedEnginePane()?.selectionText()?.takeIf { it.isNotEmpty() }
+                terminalManager.focusedEngineTerminal()?.selectionText()?.takeIf { it.isNotEmpty() }
             }
         }
     }
@@ -845,7 +845,7 @@ private fun ReadyScreen(
 
     fun showKeyboard() {
         try {
-            val engine = terminalManager.focusedEnginePane()
+            val engine = terminalManager.focusedEngineTerminal()
             if (engine != null) {
                 engine.focus()
                 val imm = engine.imeTarget.context.getSystemService(
@@ -863,7 +863,7 @@ private fun ReadyScreen(
 
     fun hideKeyboard() {
         try {
-            val engine = terminalManager.focusedEnginePane()
+            val engine = terminalManager.focusedEngineTerminal()
             if (engine != null) {
                 val imm = engine.imeTarget.context.getSystemService(
                     Context.INPUT_METHOD_SERVICE,
@@ -902,7 +902,7 @@ private fun ReadyScreen(
      */
     LaunchedEffect(Unit) {
         repeat(30) {
-            if (terminalManager.focusedEnginePane() != null) {
+            if (terminalManager.focusedEngineTerminal() != null) {
                 showKeyboard()
                 return@LaunchedEffect
             }
@@ -1137,7 +1137,7 @@ private fun ReadyScreen(
                     // The engine's terminal owns its session, so the refresh
                     // restarts that session; the vendored path restarts the
                     // session the manager owns.
-                    val engine = terminalManager.focusedEnginePane()
+                    val engine = terminalManager.focusedEngineTerminal()
                     if (engine != null) {
                         val command = terminalManager.guestCommand()
                         if (command != null) {
@@ -1725,9 +1725,9 @@ private fun TerminalPaneBody(
              *
              * The pane runs on the Rust engine. The engine owns its
              * session and its view, so the app hosts a pane instead of
-             * a view — see `EnginePaneHost`.
+             * a view — see `EngineTerminalHost`.
              */
-            EnginePaneHost(
+            EngineTerminalHost(
                 paneSlot = paneSlot,
                 terminalManager = terminalManager,
                 // The session this pane is *for*. Without it the manager never
