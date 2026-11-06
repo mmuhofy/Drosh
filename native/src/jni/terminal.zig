@@ -67,7 +67,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeFree(
 /// library parses all of it. The caller passes the raw PTY bytes.
 export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeWrite(
     env: jni.JNIEnv,
-    _class: jni.jclass,
+    _: jni.jclass,
     handle: jni.jlong,
     data: jni.jbyteArray,
     length: jni.jint,
