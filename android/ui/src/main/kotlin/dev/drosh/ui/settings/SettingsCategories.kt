@@ -501,7 +501,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_terminal),
-            items = 7,
+            items = 8,
         ) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -608,6 +608,22 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
 
                 // The last one: what the terminal does with new output while
                 // the user is reading something further up.
+                7 -> SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_terminal_engine),
+                    icon = DroshIcons.SquareTerminal,
+                    supporting = stringResource(R.string.settings_terminal_engine_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.terminal.ghosttyEngine,
+                        onCheckedChange = { on ->
+                            onUpdate {
+                                it.copy(terminal = it.terminal.copy(ghosttyEngine = on))
+                            }
+                        },
+                    )
+                }
+
                 6 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_terminal_keep_position),

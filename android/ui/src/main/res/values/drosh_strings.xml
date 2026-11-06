@@ -242,6 +242,8 @@
     <string name="setup_theme_builtin">Built in</string>
     <string name="terminal_delete_last_session_title">Delete the last session?</string>
     <string name="terminal_engine_session_exited">The terminal\'s session ended (exit %1$d).</string>
+    <string name="settings_terminal_engine">Ghostty engine</string>
+    <string name="settings_terminal_engine_desc">Draws the terminal with the Ghostty core. New panes only; a pane keeps the engine it started with. Sessions on it do not appear in the sidebar yet.</string>
     <string name="terminal_open_link_title">Open link?</string>
     <string name="terminal_open_link_open">Open</string>
     <string name="terminal_open_link_cancel">Cancel</string>

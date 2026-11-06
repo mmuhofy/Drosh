@@ -1727,7 +1727,18 @@ private fun TerminalPaneBody(
              * session and its view, so the app hosts a pane instead of
              * a view — see `EngineTerminalHost`.
              */
-            EngineTerminalHost(
+            if (terminalConfig.ghosttyEngine) {
+                // The new engine, behind its own switch: same pane, same
+                // session slot, a host that does not need the old engine's
+                // shape.
+                GhosttyTerminalHost(
+                    paneSlot = paneSlot,
+                    terminalManager = terminalManager,
+                    sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
+                    fontSizeSp = fontSizeSp,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else EngineTerminalHost(
                 paneSlot = paneSlot,
                 terminalManager = terminalManager,
                 // The session this pane is *for*. Without it the manager never
