@@ -2,7 +2,7 @@
     .name = .drosh,
     .version = "0.1.0",
     .minimum_zig_version = "0.16.0",
-    .fingerprint = 0x9c1f4a7b2d3e5a61,
+    .fingerprint = 0x6f5601c5fec09619,
     .dependencies = .{},
     .paths = .{
         "build.zig",
