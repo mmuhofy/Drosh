@@ -174,8 +174,18 @@ class RenderThread(
                         if (command.surface == null) {
                             egl.detach()
                         } else if (egl.attach(command.surface)) {
-                            layout.onSurface(command.width, command.height, now)
-                            surfaceChanged = true
+                            // The command's size is what the caller believed.
+                            // A surface created before the view was laid out
+                            // reports 0x0, and a grid of 0x0 is a grid of two
+                            // columns and one row — which resizes the session
+                            // and throws its contents away. EGL knows the real
+                            // size; ask it.
+                            val (width, height) = egl.surfaceSize()
+                                ?: (command.width to command.height)
+                            if (width > 0 && height > 0) {
+                                layout.onSurface(width, height, now)
+                                surfaceChanged = true
+                            }
                         }
                     }
 

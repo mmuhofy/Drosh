@@ -107,6 +107,12 @@ class LayoutMachine(
      * is deferred. Returns the size the caller should draw with.
      */
     fun onSurface(width: Int, height: Int, now: Long): SizeInfo {
+        // A surface that reports no size is a surface that has not been laid
+        // out yet. Recording it would compute a grid of two columns, and the
+        // reflow that followed would resize the session and throw its contents
+        // away.
+        if (width <= 0 || height <= 0) return size
+
         val next = size.withSurface(width, height)
         current = State.Changing(
             size = next,
