@@ -21,8 +21,7 @@ const allocator = @import("../alloc.zig").allocator;
 
 /// A session handle as a pointer. Zero is null and never dereferenced.
 inline fn fromHandle(handle: jni.jlong) ?*Session {
-    if (handle <= 0) return null;
-    return @ptrFromInt(@as(usize, @intCast(handle)));
+    return Session.fromHandle(handle);
 }
 
 inline fn toHandle(session: ?*Session) jni.jlong {

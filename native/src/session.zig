@@ -9,6 +9,7 @@ const std = @import("std");
 const ghostty = @import("ghostty.zig");
 const c = ghostty.c;
 const frame = @import("frame.zig");
+const input = @import("jni/input.zig");
 
 const allocator = @import("alloc.zig").allocator;
 
@@ -16,6 +17,8 @@ const allocator = @import("alloc.zig").allocator;
 pub const Session = struct {
     terminal: ghostty.Terminal,
     frames: frame.FrameSource,
+    /// The key encoder, created on the first key and kept after that.
+    keys: input.KeyEncoder = .{},
 
     pub fn create(columns: u16, rows: u16) !*Session {
         var terminal: ghostty.Terminal = null;
@@ -33,9 +36,16 @@ pub const Session = struct {
     }
 
     pub fn destroy(self: *Session) void {
+        self.keys.destroy();
         self.frames.destroy();
         c.ghostty_terminal_free(self.terminal);
         allocator.destroy(self);
+    }
+
+    /// A session handle as a pointer. Zero is null and never dereferenced.
+    pub fn fromHandle(handle: i64) ?*Session {
+        if (handle <= 0) return null;
+        return @ptrFromInt(@as(usize, @intCast(handle)));
     }
 
     /// The next frame, or null when the grid is empty.

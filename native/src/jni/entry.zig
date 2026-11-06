@@ -11,5 +11,6 @@ comptime {
     _ = @import("terminal.zig");
     _ = @import("session.zig");
     _ = @import("pty.zig");
+    _ = @import("input.zig");
     _ = @import("smoke.zig");
 }
