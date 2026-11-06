@@ -31,7 +31,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.GuestCommand
+import dev.drosh.terminal.session.EngineSelection
 import dev.drosh.terminal.session.EngineTerminal
+import dev.drosh.terminal.session.GhosttyTerminal
+import dev.drosh.terminal.session.TerminalEngine
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
@@ -121,7 +124,14 @@ fun EngineTerminalHost(
      * recomposition would be a shell that never lived long enough to say
      * anything.
      */
-    val pane = remember { EngineTerminal(context) }
+    // The engine the app is configured to run. Both are in the APK; the flag
+    // picks one, and the host is written once against TerminalEngine.
+    val pane: TerminalEngine = remember {
+        when (EngineSelection.current()) {
+            EngineSelection.EngineKind.GHOSTTY -> GhosttyTerminal(context)
+            EngineSelection.EngineKind.LEGACY -> EngineTerminal(context)
+        }
+    }
 
     /**
      * The exit code of the session, when it ended.

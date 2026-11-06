@@ -32,10 +32,10 @@ import dev.drosh.terminal.engine.surface.TerminalSurface
  * both exist. The surface gets both because a resize has to reach the process
  * and a frame comes from the grid.
  */
-class GhosttyTerminal(context: Context) {
+class GhosttyTerminal(context: Context) : TerminalEngine {
 
     /** The view, as the host sees it. */
-    val view: TerminalSurface = TerminalSurface(context)
+    override val view: TerminalSurface = TerminalSurface(context)
 
     /** The grid. Zero until [start]. */
     @Volatile
@@ -48,14 +48,14 @@ class GhosttyTerminal(context: Context) {
         private set
 
     /** Where the pane is in its lifecycle. */
-    var state: EngineTerminalState = EngineTerminalState.IDLE
+    override var state: EngineTerminalState = EngineTerminalState.IDLE
         private set
 
     /** The persistent id of the session this terminal runs. */
-    var persistentId: String = ""
+    override var persistentId: String = ""
 
     /** The name the sidebar shows. */
-    var sessionName: String = ""
+    override var sessionName: String = ""
 
     /** Told when the child exits, with its status. */
     var onSessionExited: ((Int) -> Unit)? = null
@@ -77,12 +77,12 @@ class GhosttyTerminal(context: Context) {
 
     // --- identity ----------------------------------------------------------
 
-    fun bindIdentity(persistentId: String, name: String) {
+    override fun bindIdentity(persistentId: String, name: String) {
         this.persistentId = persistentId
         this.sessionName = name
     }
 
-    fun rebind(persistentId: String, name: String) {
+    override fun rebind(persistentId: String, name: String) {
         if (this.persistentId == persistentId) {
             this.sessionName = name
             return
@@ -101,7 +101,13 @@ class GhosttyTerminal(context: Context) {
      * before the child runs, or the first prompt wraps at 80 columns and is
      * resized a moment later.
      */
-    fun start(command: GuestCommand, columns: Int, rows: Int, cellWidthPx: Float, cellHeightPx: Float): Boolean {
+    override fun start(
+        command: GuestCommand,
+        columns: Int,
+        rows: Int,
+        cellWidth: Float,
+        cellHeight: Float,
+    ): Boolean {
         if (!state.canStart) {
             Log.w(TAG, "start refused: the terminal is $state")
             return false
@@ -111,8 +117,8 @@ class GhosttyTerminal(context: Context) {
             return false
         }
 
-        cellWidth = cellWidthPx
-        cellHeight = cellHeightPx
+        this.cellWidth = cellWidth
+        this.cellHeight = cellHeight
 
         val session = NativeSession.create(columns, rows)
         if (session == 0L) {
@@ -127,8 +133,8 @@ class GhosttyTerminal(context: Context) {
             cwd = launch.cwd ?: "",
             columns = columns,
             rows = rows,
-            cellWidth = cellWidthPx.toInt(),
-            cellHeight = cellHeightPx.toInt(),
+            cellWidth = cellWidth.toInt(),
+            cellHeight = cellHeight.toInt(),
         )
 
         if (pty == 0L) {
@@ -139,7 +145,7 @@ class GhosttyTerminal(context: Context) {
 
         sessionHandle = session
         ptyHandle = pty
-        view.attach(session, pty, cellWidthPx, cellHeightPx)
+        view.attach(session, pty, cellWidth, cellHeight)
         state = state.started()
         return true
     }
@@ -150,22 +156,28 @@ class GhosttyTerminal(context: Context) {
      * An SSH session is bridged: the bytes come from the transport rather than
      * a local child, so there is no PTY. The caller feeds the grid itself.
      */
-    fun attachExisting(handle: Long, columns: Int, rows: Int, cellWidthPx: Float, cellHeightPx: Float): Boolean {
+    override fun attachExisting(
+        handle: Long,
+        columns: Int,
+        rows: Int,
+        cellWidth: Float,
+        cellHeight: Float,
+    ): Boolean {
         if (!state.canStart) return false
         if (!NativeLibraries.ensureLoaded()) return false
 
-        cellWidth = cellWidthPx
-        cellHeight = cellHeightPx
+        this.cellWidth = cellWidth
+        this.cellHeight = cellHeight
 
         sessionHandle = handle
         ptyHandle = 0
-        view.attach(handle, 0, cellWidthPx, cellHeightPx)
+        view.attach(handle, 0, cellWidth, cellHeight)
         state = state.started()
         return true
     }
 
     /** Feed bytes to the grid. Used by a bridged session's transport. */
-    fun feed(bytes: ByteArray, length: Int = bytes.size) {
+    override fun feed(bytes: ByteArray, length: Int) {
         val session = sessionHandle
         if (session == 0L) return
         NativeSession.write(session, bytes, length)
@@ -173,12 +185,12 @@ class GhosttyTerminal(context: Context) {
     }
 
     /** Write bytes to the child. Used by the keyboard and the paste path. */
-    fun write(bytes: ByteArray) {
+    override fun write(bytes: ByteArray) {
         view.write(bytes)
     }
 
     /** Stop the session, keeping the view alive. */
-    fun stop() {
+    override fun stop() {
         if (!state.canStop) return
 
         val pty = ptyHandle
@@ -191,7 +203,7 @@ class GhosttyTerminal(context: Context) {
     }
 
     /** Release: the session is closed and the view is dead. */
-    fun release() {
+    override fun release() {
         if (state == EngineTerminalState.RELEASED) return
 
         stop()
@@ -207,44 +219,44 @@ class GhosttyTerminal(context: Context) {
     // --- appearance --------------------------------------------------------
 
     /** The font's cell changed: the grid has to reflow. */
-    fun setCell(width: Float, height: Float) {
+    override fun setCell(width: Float, height: Float) {
         cellWidth = width
         cellHeight = height
         view.setCell(width, height)
     }
 
-    fun setTextSize(sp: Float) {
+    override fun setTextSize(sp: Float) {
         // The font stack measures; this class only carries the result.
     }
 
-    fun applyAppearance(config: dev.drosh.domain.settings.TerminalConfig) {
+    override fun applyAppearance(config: dev.drosh.domain.settings.TerminalConfig) {
         // Colours are the engine's: the palette comes from the frame.
     }
 
-    fun setCustomFont(bytes: ByteArray?): Boolean = false
+    override fun setCustomFont(bytes: ByteArray?): Boolean = false
 
     // --- input -------------------------------------------------------------
 
     /** The IME target. The surface is its own editor. */
-    val imeTarget: View get() = view
+    override val imeTarget: View get() = view
 
-    fun focus() {
+    override fun focus() {
         view.requestFocus()
     }
 
-    fun hasViewFocus(): Boolean = view.hasFocus()
+    override fun hasViewFocus(): Boolean = view.hasFocus()
 
-    fun onHostResume() {}
+    override fun onHostResume() {}
 
-    fun onHostPause() {}
+    override fun onHostPause() {}
 
     // --- host queries ------------------------------------------------------
 
     /** The rows a prompt started on, as rows above the live edge. */
-    fun promptRows(): IntArray = IntArray(0)
+    override fun promptRows(): IntArray = IntArray(0)
 
     /** How much history there is above the viewport, in rows. */
-    fun historySize(): Int {
+    override fun historySize(): Int {
         val session = sessionHandle
         if (session == 0L) return 0
         val scrollbar = NativeSession.scrollbar(session)
@@ -252,14 +264,14 @@ class GhosttyTerminal(context: Context) {
     }
 
     /** The viewport's position, in rows above the live edge. */
-    fun scrollOffset(): Int {
+    override fun scrollOffset(): Int {
         val session = sessionHandle
         if (session == 0L) return 0
         return NativeSession.scrollbar(session)?.second ?: 0
     }
 
     /** Scroll so [offset] rows of history sit above the viewport. */
-    fun scrollTo(offset: Int) {
+    override fun scrollTo(offset: Int) {
         val session = sessionHandle
         if (session == 0L) return
         NativeSession.scroll(session, NativeSession.SCROLL_ROW, offset)
@@ -267,28 +279,28 @@ class GhosttyTerminal(context: Context) {
     }
 
     /** The shell's phase, as its `OSC 133` marks report it. */
-    fun shellPhase(): dev.drosh.terminal.engine.shell.Phase {
+    override fun shellPhase(): dev.drosh.terminal.engine.shell.Phase {
         val session = sessionHandle
         if (session == 0L) return dev.drosh.terminal.engine.shell.Phase.UNKNOWN
         return dev.drosh.terminal.engine.shell.Phase.of(NativeSession.shellPhase(session))
     }
 
     /** The working directory the shell last reported. */
-    fun workingDirectory(): String {
+    override fun workingDirectory(): String {
         val session = sessionHandle
         if (session == 0L) return ""
         return NativeSession.workingDirectory(session)
     }
 
     /** True when the alternate screen is on: a program, not a shell. */
-    fun isAltBufferActive(): Boolean {
+    override fun isAltBufferActive(): Boolean {
         val session = sessionHandle
         if (session == 0L) return false
         return NativeSession.alternateScreen(session)
     }
 
     /** The engine's mode bits, or 0. */
-    fun modes(): Int {
+    override fun modes(): Int {
         val session = sessionHandle
         if (session == 0L) return 0
         return NativeSession.modes(session)
@@ -296,35 +308,35 @@ class GhosttyTerminal(context: Context) {
 
     // --- selection ---------------------------------------------------------
 
-    fun selectionText(): String = view.selectedText()
+    override fun selectionText(): String = view.selectedText()
 
-    fun hasSelection(): Boolean = view.hasSelection()
+    override fun hasSelection(): Boolean = view.hasSelection()
 
-    fun copySelection(): Boolean = view.copySelection()
+    override fun copySelection(): Boolean = view.copySelection()
 
-    fun selectWord(row: Int, col: Int): Boolean = view.selectWord(row, col)
+    override fun selectWord(row: Int, col: Int): Boolean = view.selectWord(row, col)
 
-    fun selectLine(row: Int, col: Int): Boolean = view.selectLine(row, col)
+    override fun selectLine(row: Int, col: Int): Boolean = view.selectLine(row, col)
 
-    fun selectAll(): Boolean = view.selectAll()
+    override fun selectAll(): Boolean = view.selectAll()
 
-    fun clearSelection() = view.clearSelection()
+    override fun clearSelection() = view.clearSelection()
 
-    fun selectionBounds(): Rect? = view.selectionBounds()
+    override fun selectionBounds(): Rect? = view.selectionBounds()
 
     // --- find --------------------------------------------------------------
 
-    fun find(query: String, limit: Int = FIND_LIMIT): List<Triple<Int, Int, Int>> {
+    override fun find(query: String, limit: Int): List<Triple<Int, Int, Int>> {
         val session = sessionHandle
         if (session == 0L) return emptyList()
         return NativeSession.search(session, query, limit)
     }
 
     /** Not carried by this engine: the grid does not hand out its bytes. */
-    fun transcript(): List<String> = emptyList()
+    override fun transcript(): List<String> = emptyList()
 
     /** Not carried by this engine: `OSC 8` has no C API surface yet. */
-    fun hyperlinkAt(row: Int, column: Int): String? = null
+    override fun hyperlinkAt(row: Int, column: Int): String? = null
 
     private companion object {
         const val TAG = "GhosttyTerminal"

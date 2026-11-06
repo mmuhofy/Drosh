@@ -48,7 +48,7 @@ import kotlin.math.roundToInt
  * own — a second rule for it would only be a second opinion, and the two
  * would disagree the first time the cell size changed.
  */
-class EngineTerminal(context: Context) {
+class EngineTerminal(context: Context) : TerminalEngine {
     /**
      * The persistent id of the session this pane runs, or "" when the pane
      * has not been bound to a session yet.
@@ -57,15 +57,15 @@ class EngineTerminal(context: Context) {
      * that was started without an id is a pane the app cannot reconcile,
      * close or restore, so it would exist outside the session system.
      */
-    var persistentId: String = ""
+    override var persistentId: String = ""
         private set
 
     /** The user-visible name of the session this pane runs. */
-    var sessionName: String = ""
+    override var sessionName: String = ""
         private set
 
     /** Bind this pane to a persistent session identity. */
-    fun bindIdentity(persistentId: String, name: String) {
+    override fun bindIdentity(persistentId: String, name: String) {
         this.persistentId = persistentId
         this.sessionName = name
     }
@@ -83,7 +83,7 @@ class EngineTerminal(context: Context) {
      * holds a process and a PTY per session, and a switch that left the old
      * one alive would leak both.
      */
-    fun rebind(persistentId: String, name: String) {
+    override fun rebind(persistentId: String, name: String) {
         if (this.persistentId == persistentId) {
             // The same session: nothing to rebind, and closing a live one to
             // reopen it would lose its output.
@@ -114,13 +114,13 @@ class EngineTerminal(context: Context) {
     private val controller = TerminalController(context)
 
     /** The engine's view: what the host puts into its layout. */
-    val view: TerminalView get() = controller.view
+    override val view: TerminalView get() = controller.view
 
     /** The engine's session behind [view]. */
     val session: EngineSession get() = controller.session
 
     /** The IME's focus target; the host keeps it in the hierarchy (1×1 px). */
-    val imeTarget: View get() = controller.imeTarget
+    override val imeTarget: View get() = controller.imeTarget
 
     /**
      * The size a pinch has reached, or 0 when none is in progress.
@@ -209,7 +209,7 @@ class EngineTerminal(context: Context) {
     }
 
     /** Where the pane is in its lifecycle. */
-    var state: EngineTerminalState = EngineTerminalState.IDLE
+    override var state: EngineTerminalState = EngineTerminalState.IDLE
         private set
 
     init {
@@ -231,13 +231,19 @@ class EngineTerminal(context: Context) {
      * Returns false when the pane cannot start — it is already running or it
      * was released.
      */
-    fun attachExisting(handle: Long, columns: Int, rows: Int, cellWidth: Int, cellHeight: Int): Boolean {
+    override fun attachExisting(
+        handle: Long,
+        columns: Int,
+        rows: Int,
+        cellWidth: Float,
+        cellHeight: Float,
+    ): Boolean {
         if (!state.canStart) {
             Log.w(TAG, "attachExisting refused: the pane is $state")
             return false
         }
 
-        session.attachExistingHandle(handle, columns, rows, cellWidth, cellHeight)
+        session.attachExistingHandle(handle, columns, rows, cellWidth.toInt(), cellHeight.toInt())
         state = state.started()
         return true
     }
@@ -252,7 +258,13 @@ class EngineTerminal(context: Context) {
      * Returns false when the pane cannot start — it is already running, it was
      * released, or the engine refused the session.
      */
-    fun start(command: GuestCommand): Boolean {
+    override fun start(
+        command: GuestCommand,
+        columns: Int,
+        rows: Int,
+        cellWidth: Float,
+        cellHeight: Float,
+    ): Boolean {
         if (!state.canStart) {
             Log.w(TAG, "start refused: the pane is $state")
             return false
@@ -279,7 +291,7 @@ class EngineTerminal(context: Context) {
      *
      * The engine's view stays; the pane can be started again afterwards.
      */
-    fun stop() {
+    override fun stop() {
         if (!state.canStop) {
             return
         }
@@ -293,7 +305,7 @@ class EngineTerminal(context: Context) {
      * This is what the host calls when it is done with the pane. The session
      * lives in the native core, and this is the only thing that closes it.
      */
-    fun release() {
+    override fun release() {
         if (state == EngineTerminalState.RELEASED) {
             return
         }
@@ -302,10 +314,10 @@ class EngineTerminal(context: Context) {
     }
 
     /** The host's resume: the surface and the frame pump come back. */
-    fun onHostResume() = controller.onHostResume()
+    override fun onHostResume() = controller.onHostResume()
 
     /** The host's pause: the surface sleeps and the frame pump stops. */
-    fun onHostPause() = controller.onHostPause()
+    override fun onHostPause() = controller.onHostPause()
 
     // --- focus -------------------------------------------------------------
 
@@ -328,9 +340,9 @@ class EngineTerminal(context: Context) {
      * The bytes are the font file itself; `null` goes back to the bundled
      * face. A font that cannot be used leaves the terminal as it was.
      */
-    fun setCustomFont(bytes: ByteArray?): Boolean = view.setCustomFont(bytes)
+    override fun setCustomFont(bytes: ByteArray?): Boolean = view.setCustomFont(bytes)
 
-    fun focus() {
+    override fun focus() {
         if (!view.hasFocus()) {
             view.requestFocus()
         }
@@ -346,7 +358,7 @@ class EngineTerminal(context: Context) {
      * into the manager: without the check, "the pane got the focus" and "make
      * the pane focused" call each other until the stack runs out.
      */
-    fun hasViewFocus(): Boolean = view.hasFocus() || imeTarget.hasFocus()
+    override fun hasViewFocus(): Boolean = view.hasFocus() || imeTarget.hasFocus()
 
     /**
      * Tells the session that this pane has (or has not) the focus.
@@ -360,6 +372,52 @@ class EngineTerminal(context: Context) {
      * knows about, and a split has two panes in one window — so this is the
      * pane's own report.
      */
+    /** Feed bytes to the grid; a bridged session's transport calls this. */
+    override fun feed(bytes: ByteArray, length: Int) {
+        session.feed(bytes)
+    }
+
+    /** Write bytes to the child. */
+    override fun write(bytes: ByteArray) {
+        session.write(bytes)
+    }
+
+    /** The font's cell changed: the grid has to reflow. */
+    override fun setCell(width: Float, height: Float) {
+        view.setTextSize(view.textSizeSp)
+    }
+
+    override fun setTextSize(sp: Float) {
+        view.setTextSize(sp)
+    }
+
+    override fun applyAppearance(config: dev.drosh.domain.settings.TerminalConfig) {
+        view.applyAppearance(config)
+    }
+
+    /**
+     * The shell's phase, as its `OSC 133` marks report it.
+     *
+     * The Rust engine tracks the marks on its PTY path; the phase codes are the
+     * same, so the host reads one enum whichever engine it holds.
+     */
+    override fun shellPhase(): dev.drosh.terminal.engine.shell.Phase =
+        when (session.blockState().phase) {
+            dev.drosh.terminal.engine.core.BlockState.PHASE_PROMPT ->
+                dev.drosh.terminal.engine.shell.Phase.PROMPT
+            dev.drosh.terminal.engine.core.BlockState.PHASE_TYPING ->
+                dev.drosh.terminal.engine.shell.Phase.TYPING
+            dev.drosh.terminal.engine.core.BlockState.PHASE_RUNNING ->
+                dev.drosh.terminal.engine.shell.Phase.RUNNING
+            dev.drosh.terminal.engine.core.BlockState.PHASE_FINISHED ->
+                dev.drosh.terminal.engine.shell.Phase.FINISHED
+            else -> dev.drosh.terminal.engine.shell.Phase.UNKNOWN
+        }
+
+    /** The working directory the shell last reported. */
+    override fun workingDirectory(): String =
+        session.blockState().workingDirectory ?: ""
+
     fun notifyFocus(focused: Boolean) {
         if (modes() and NativeCore.MODE_FOCUS_IN_OUT == 0) {
             return
@@ -370,7 +428,7 @@ class EngineTerminal(context: Context) {
     // --- clipboard ---------------------------------------------------------
 
     /** Copy the selection to the clipboard; false when nothing is selected. */
-    fun copySelection(): Boolean = controller.copySelection()
+    override fun copySelection(): Boolean = controller.copySelection()
 
     /** Paste from the clipboard, bracketed when the shell asked for it. */
     fun pasteClipboard() = controller.pasteClipboard()
@@ -386,10 +444,10 @@ class EngineTerminal(context: Context) {
      * different thing: the engine's view never sets it, so it is always
      * empty. Reading the overlay is what makes the two agree.
      */
-    fun selectionText(): String = view.selectionOverlay.copyText()
+    override fun selectionText(): String = view.selectionOverlay.copyText()
 
     /** Is there a selection in this pane? */
-    fun hasSelection(): Boolean = !view.selectionOverlay.isEmpty
+    override fun hasSelection(): Boolean = !view.selectionOverlay.isEmpty
 
     /**
      * The selected region in view pixels, or null when nothing is selected.
@@ -407,7 +465,7 @@ class EngineTerminal(context: Context) {
      * size safe to read: a session can only exist if the font was loaded,
      * because the engine refuses to start without it.
      */
-    fun selectionBounds(): Rect? {
+    override fun selectionBounds(): Rect? {
         if (!session.isAlive) {
             return null
         }
@@ -430,16 +488,16 @@ class EngineTerminal(context: Context) {
     }
 
     /** Select the word under (row, col). */
-    fun selectWord(row: Int, col: Int) = controller.selectWord(row, col)
+    override fun selectWord(row: Int, col: Int): Boolean = controller.selectWord(row, col)
 
     /** Select the whole line containing (row, col). */
-    fun selectLine(row: Int, col: Int) = controller.selectLine(row, col)
+    override fun selectLine(row: Int, col: Int): Boolean = controller.selectLine(row, col)
 
     /** Select the entire visible grid. */
-    fun selectAll() = controller.selectAll()
+    override fun selectAll(): Boolean = controller.selectAll()
 
     /** Clear the selection. */
-    fun clearSelection() = controller.clearSelection()
+    override fun clearSelection() = controller.clearSelection()
 
     // --- the viewport ------------------------------------------------------
 
@@ -450,48 +508,48 @@ class EngineTerminal(context: Context) {
      * viewport sits above the last line. The engine's own number: the state
      * array reports the display offset with every frame the engine draws.
      */
-    fun scrollOffset(): Int =
+    override fun scrollOffset(): Int =
         if (!session.isAlive) 0 else session.stateArray[NativeCore.STATE_DISPLAY_OFFSET]
 
     /** The URI of the hyperlink at viewport (`row`, `column`), or null. */
-    fun hyperlinkAt(row: Int, column: Int): String? =
+    override fun hyperlinkAt(row: Int, column: Int): String? =
         if (!session.isAlive) null else session.hyperlinkAt(row, column)
 
     /** The rows a prompt started on, oldest first, as rows above the live edge. */
-    fun promptRows(): IntArray =
+    override fun promptRows(): IntArray =
         if (!session.isAlive) IntArray(0) else session.promptRows()
 
     /** How much history there is above the viewport, in rows. */
-    fun historySize(): Int =
+    override fun historySize(): Int =
         if (!session.isAlive) 0 else session.historySize()
 
     /** Scroll so [offset] rows of history sit above the viewport. */
-    fun scrollTo(offset: Int) {
+    override fun scrollTo(offset: Int) {
         if (!session.isAlive) return
         session.scrollTo(offset)
         view.requestRender()
     }
 
     /** Is a program (the alternate screen) on screen rather than a shell? */
-    fun isAltBufferActive(): Boolean =
+    override fun isAltBufferActive(): Boolean =
         modes() and NativeCore.MODE_ALT_SCREEN != 0
 
     // --- find --------------------------------------------------------------
 
     /** Find [query] in the visible grid; each result is `row, col, len`. */
-    fun find(query: String, limit: Int = FIND_LIMIT): List<Triple<Int, Int, Int>> =
+    override fun find(query: String, limit: Int): List<Triple<Int, Int, Int>> =
         controller.find(query, limit)
 
     // --- what the engine knows ---------------------------------------------
 
     /** The engine's mode bits (0 when there is no live session). */
-    fun modes(): Int = controller.modes()
+    override fun modes(): Int = controller.modes()
 
     /** The average background colour of the grid as `[r, g, b]`, or empty. */
     fun ambientTint(): IntArray = controller.ambientTint()
 
     /** The last lines the session printed, oldest first. */
-    fun transcript(): List<String> = session.transcript()
+    override fun transcript(): List<String> = session.transcript()
 
     /** Where the shell is in its cycle, as the engine's OSC 133 marks report it. */
     fun blockState(): BlockState = session.blockState()
