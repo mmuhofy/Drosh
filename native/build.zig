@@ -61,7 +61,7 @@ pub fn build(b: *std.Build) void {
     });
 
     if (libc_file) |file| {
-        lib.root_module.libc_file = file;
+        lib.libc_file = file;
     }
 
     lib.root_module.addIncludePath(b.path("ghostty/include"));
@@ -98,7 +98,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     if (libc_file) |file| {
-        tests.root_module.libc_file = file;
+        tests.libc_file = file;
     }
 
     tests.root_module.addIncludePath(b.path("ghostty/include"));
