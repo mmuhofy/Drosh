@@ -20,10 +20,19 @@ pub fn build(b: *std.Build) void {
 
     // The NDK sysroot, for liblog. Zig does not know where the NDK lives, and
     // a system library the platform provides has to be found by path.
+    //
+    // Two paths rather than one: the headers live under `<sysroot>/usr/include`
+    // and the libraries under `<sysroot>/usr/lib/<triple>/<api>`, and deriving
+    // the second from the first means guessing the triple Zig was given.
     const sysroot = b.option(
         []const u8,
         "ndk-sysroot",
-        "NDK sysroot for the target (the directory holding usr/lib/<triple>)",
+        "NDK sysroot root (the directory holding usr/include)",
+    );
+    const ndk_lib = b.option(
+        []const u8,
+        "ndk-lib",
+        "NDK library directory for the target (holding liblog.so)",
     );
 
     const root = b.path("src/main.zig");
@@ -51,8 +60,12 @@ pub fn build(b: *std.Build) void {
 
     // Android's liblog, from the NDK sysroot when one is given.
     if (sysroot) |path| {
+        lib.root_module.addSystemIncludePath(.{
+            .cwd_relative = b.pathJoin(&.{ path, "usr", "include" }),
+        });
+    }
+    if (ndk_lib) |path| {
         lib.root_module.addLibraryPath(.{ .cwd_relative = path });
-        lib.root_module.addSystemIncludePath(.{ .cwd_relative = path ++ "/usr/include" });
     }
     lib.root_module.linkSystemLibrary("log", .{});
 
@@ -74,8 +87,12 @@ pub fn build(b: *std.Build) void {
     tests.root_module.addLibraryPath(b.path(b.fmt("ghostty/lib/{s}", .{abi})));
     tests.root_module.linkSystemLibrary("ghostty-vt", .{});
     if (sysroot) |path| {
+        tests.root_module.addSystemIncludePath(.{
+            .cwd_relative = b.pathJoin(&.{ path, "usr", "include" }),
+        });
+    }
+    if (ndk_lib) |path| {
         tests.root_module.addLibraryPath(.{ .cwd_relative = path });
-        tests.root_module.addSystemIncludePath(.{ .cwd_relative = path ++ "/usr/include" });
     }
     tests.root_module.linkSystemLibrary("log", .{});
 

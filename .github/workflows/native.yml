@@ -88,7 +88,8 @@ jobs:
             -Doptimize=ReleaseFast \
             -Dcpu=baseline \
             -Dghostty-abi=${{ matrix.abi }} \
-            -Dndk-sysroot="$SYSROOT/usr/lib/aarch64-linux-android/26" \
+            -Dndk-sysroot="$SYSROOT" \
+            -Dndk-lib="$SYSROOT/usr/lib/aarch64-linux-android/26" \
             --prefix "$RUNNER_TEMP/out"
 
       - name: Check the library links the engine, not a copy of it
