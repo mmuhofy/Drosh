@@ -139,10 +139,15 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSearch(
     var results = allocator.alloc(i32, wanted * 3) catch return -1;
     defer allocator.free(results);
 
+    // `GhosttySelectionBuffer.ptr` is a C pointer, not a slice: the struct is
+    // the engine's, so it is filled with a raw allocation and freed with the
+    // same length the allocator was given.
+    const selection_slice = allocator.alloc(c.GhosttySelection, wanted) catch return -1;
+    defer allocator.free(selection_slice);
+
     var matches = std.mem.zeroes(c.GhosttySelectionBuffer);
     matches.cap = wanted;
-    matches.ptr = allocator.alloc(c.GhosttySelection, wanted) catch return -1;
-    defer allocator.free(matches.ptr[0..wanted]);
+    matches.ptr = selection_slice.ptr;
 
     if (c.ghostty_search_get(
         search,
@@ -158,7 +163,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSearch(
     _ = c.ghostty_terminal_get(session.terminal, c.GHOSTTY_TERMINAL_DATA_ROWS, @ptrCast(&rows));
 
     var written: usize = 0;
-    for (matches.ptr[0..matches.len]) |selection| {
+    for (selection_slice[0..matches.len]) |selection| {
         const bounds = viewportBounds(session.terminal, selection, columns, rows) orelse continue;
         if (written >= wanted) break;
         results[written * 3] = bounds.row;
