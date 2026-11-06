@@ -62,7 +62,7 @@ fun GhosttyTerminalHost(
 
     val pane = remember { GhosttyTerminal(context) }
 
-    var status by remember { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf<String?>("preparing") }
 
     // The guest is started once. It is a fork, a rootfs and an exec, so it does
     // not belong on the main thread.
@@ -93,7 +93,19 @@ fun GhosttyTerminalHost(
             }
         }
 
-        status = if (started) null else "start failed: ${pane.lastError ?: "no reason"}"
+        if (!started) {
+            status = "start failed: ${pane.lastError ?: "no reason"}"
+            return@LaunchedEffect
+        }
+
+        // The session runs; keep the counters up until the screen has something
+        // on it. A black frame with zero bytes read is a different bug from one
+        // with four thousand, and the difference is one line here.
+        while (pane.view.bytesRead == 0L && status != null) {
+            status = "waiting: 0 bytes, ${pane.view.framesDrawn} frames"
+            kotlinx.coroutines.delay(500)
+        }
+        status = null
     }
 
     // The engine's own report, for a build that has to be diagnosed on a phone.

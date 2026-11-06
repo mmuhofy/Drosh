@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import dev.drosh.terminal.engine.layout.SizeInfo
+import dev.drosh.terminal.engine.native.NativeInput
 import dev.drosh.terminal.engine.native.NativePty
 import dev.drosh.terminal.engine.native.NativeSelection
 import dev.drosh.terminal.engine.native.NativeSession
@@ -64,6 +65,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     /** The read buffer, reused. */
     private val readBuffer = ByteArray(64 * 1024)
 
+    /** The key encoder's output, reused. */
+    private val keyBuffer = ByteArray(256)
+
     /**
      * The render loop.
      *
@@ -71,7 +75,27 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * without a surface draws into nothing, and a surface without a loop is a
      * black rectangle.
      */
-    private val renderThread = RenderThread()
+    private val renderThread = RenderThread { timing ->
+        if (timing.swapped) {
+            framesDrawn += 1
+            lastCellsDrawn = timing.cellsDrawn
+        }
+    }
+
+    /** Cells the last drawn frame carried. */
+    @Volatile
+    var lastCellsDrawn: Int = 0
+        private set
+
+    /** Bytes the child has produced since the session started. */
+    @Volatile
+    var bytesRead: Long = 0
+        private set
+
+    /** Frames the loop drew. */
+    @Volatile
+    var framesDrawn: Int = 0
+        private set
 
     /** Told when the child exits, with its status. */
     var onExit: ((Int) -> Unit)? = null
@@ -171,6 +195,104 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val session = sessionHandle
         if (session == 0L) return
         NativeSession.scroll(session, NativeSession.SCROLL_DELTA, rows)
+        renderThread.invalidate()
+    }
+
+    // --- keyboard ----------------------------------------------------------
+    //
+    // A terminal is not a text field, and an IME is built for one: it composes a
+    // word, shows candidates, and rewrites what it already sent. A shell has no
+    // such thing — once a byte reaches the PTY it is typed. So the connection
+    // below sends what was committed and nothing else.
+
+    init {
+        isFocusable = true
+        isFocusableInTouchMode = true
+    }
+
+    override fun onCheckIsTextEditor(): Boolean = true
+
+    override fun onCreateInputConnection(outAttrs: android.view.inputmethod.EditorInfo): android.view.inputmethod.InputConnection {
+        // TYPE_NULL: the IME offers no suggestions and no autocorrect. A
+        // terminal has no use for a spell-checker over shell commands.
+        outAttrs.inputType = android.text.InputType.TYPE_NULL
+        outAttrs.imeOptions = android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+            android.view.inputmethod.EditorInfo.IME_FLAG_NO_FULLSCREEN
+
+        return object : android.view.inputmethod.BaseInputConnection(this@TerminalSurface, false) {
+
+            override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                if (!text.isNullOrEmpty()) {
+                    // AOSP keyboards send Enter as text, not as a key event. A
+                    // terminal wants CR: the tty's ICRNL turns it into a
+                    // newline for the shell.
+                    send(text.toString().replace('\n', '\r'))
+                }
+                return true
+            }
+
+            override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                // Held, not sent: the keyboard may still replace it, and a shell
+                // cannot take a character back.
+                return true
+            }
+
+            override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+                repeat(beforeLength) { send(byteArrayOf(DEL)) }
+                return true
+            }
+
+            override fun sendKeyEvent(event: android.view.KeyEvent): Boolean {
+                if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                    sendKey(event)
+                    return true
+                }
+                return true
+            }
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        sendKey(event)
+        return true
+    }
+
+    /**
+     * Encode one key through the engine.
+     *
+     * The engine owns the rules: `DECCKM`'s `ESC O A` versus `ESC [ A`, the
+     * kitty protocol's form, whether a modifier is a parameter or a prefix. The
+     * Android key code is the only thing translated here.
+     */
+    private fun sendKey(event: android.view.KeyEvent) {
+        val session = sessionHandle
+        if (session == 0L) return
+
+        val text = event.unicodeChar
+            .takeIf { it != 0 }
+            ?.let { String(Character.toChars(it)) }
+            .orEmpty()
+
+        val written = NativeInput.encode(
+            handle = session,
+            keyCode = event.keyCode,
+            metaState = event.metaState,
+            action = when (event.action) {
+                android.view.KeyEvent.ACTION_DOWN -> NativeInput.ACTION_PRESS
+                android.view.KeyEvent.ACTION_UP -> NativeInput.ACTION_RELEASE
+                else -> NativeInput.ACTION_PRESS
+            },
+            utf8 = text,
+            out = keyBuffer,
+        )
+        if (written > 0) {
+            write(keyBuffer.copyOf(written))
+        }
+    }
+
+    /** Send bytes from the IME straight to the child. */
+    private fun send(bytes: ByteArray) {
+        write(bytes)
         renderThread.invalidate()
     }
 
@@ -302,6 +424,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 val read = NativePty.read(pty, readBuffer)
                 when {
                     read > 0 -> {
+                        bytesRead += read
                         // Straight into the parser: the engine owns the grid,
                         // and a copy on this side would be a second opinion.
                         val session = sessionHandle
@@ -338,6 +461,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     private companion object {
+        /** DEL (0x7f), what a terminal expects for backspace. */
+        const val DEL: Byte = 0x7f
+
         /** How long the reader waits when the child has nothing to say. */
         const val IDLE_SLEEP_MS = 8L
 

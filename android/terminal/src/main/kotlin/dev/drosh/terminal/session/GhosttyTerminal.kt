@@ -266,6 +266,9 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
     override fun focus() {
         view.requestFocus()
+        val manager = view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+            as? android.view.inputmethod.InputMethodManager ?: return
+        manager.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
     }
 
     override fun hasViewFocus(): Boolean = view.hasFocus()
