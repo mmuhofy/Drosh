@@ -195,7 +195,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeEncodeKey(
     utf8: jni.jstring,
     out: jni.jbyteArray,
 ) jni.jint {
-    const session = @import("../session.zig").fromHandle(handle) orelse return -1;
+    const session = @import("../session.zig").Session.fromHandle(handle) orelse return -1;
     if (out == null) return -1;
 
     var arena = std.heap.ArenaAllocator.init(allocator);
