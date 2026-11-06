@@ -180,8 +180,18 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         NativePty.write(pty, bytes)
     }
 
-    /** Ask for a redraw. */
-    fun invalidate() = renderThread.invalidate()
+    /**
+     * Ask for a redraw.
+     *
+     * `View.invalidate()` already means "redraw me" — it schedules the
+     * platform's own draw pass, which a `SurfaceView` does not use. Overriding
+     * it keeps the meaning and points it at the loop that does the drawing, so
+     * a caller that invalidates the view gets a frame rather than nothing.
+     */
+    override fun invalidate() {
+        super.invalidate()
+        renderThread.invalidate()
+    }
 
     // --- the frame ----------------------------------------------------------
 
