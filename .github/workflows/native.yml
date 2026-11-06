@@ -87,6 +87,20 @@ jobs:
           # libc", which reads like a Zig bug and is a missing environment.
           export ANDROID_NDK_HOME="$NDK"
           SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+
+          # Zig needs a libc description for an android target and cannot
+          # derive one. The NDK ships the generator; the file it writes names
+          # the sysroot's headers and libraries for the exact API level.
+          LIBC_TXT="$RUNNER_TEMP/libc-aarch64-26.txt"
+          cat > "$LIBC_TXT" <<EOF
+          include_dir=$SYSROOT/usr/include
+          sys_include_dir=$SYSROOT/usr/include/aarch64-linux-android
+          crt_dir=$SYSROOT/usr/lib/aarch64-linux-android/26
+          msvc_lib_dir=
+          kernel32_lib_dir=
+          gcc_dir=
+          EOF
+
           zig build \
             -Dtarget=aarch64-linux-android.26 \
             -Doptimize=ReleaseFast \
@@ -94,6 +108,7 @@ jobs:
             -Dghostty-abi=${{ matrix.abi }} \
             -Dndk-sysroot="$SYSROOT" \
             -Dndk-lib="$SYSROOT/usr/lib/aarch64-linux-android/26" \
+            -Dndk-libc-file="$LIBC_TXT" \
             --prefix "$RUNNER_TEMP/out"
 
       - name: Check the library links the engine, not a copy of it
