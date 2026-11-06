@@ -123,13 +123,17 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         val rows = if (rows > 0) rows else DEFAULT_ROWS
         lastError = null
         if (!state.canStart) {
-            lastError = "the terminal is $state"
-            Log.w(TAG, "start refused: $lastError")
+            // A nullable property cannot be handed to Log; the local is the
+            // same string the caller will see.
+            val reason = "the terminal is $state"
+            lastError = reason
+            Log.w(TAG, "start refused: $reason")
             return false
         }
         if (!NativeLibraries.ensureLoaded()) {
-            lastError = "the libraries did not load: ${NativeLibraries.failure ?: "no reason"}"
-            Log.e(TAG, lastError)
+            val reason = "the libraries did not load: ${NativeLibraries.failure ?: "no reason"}"
+            lastError = reason
+            Log.e(TAG, reason)
             return false
         }
 
@@ -138,8 +142,9 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
         val session = NativeSession.create(columns, rows)
         if (session == 0L) {
-            lastError = "the grid could not be created (${columns}x$rows)"
-            Log.e(TAG, lastError)
+            val reason = "the grid could not be created (${columns}x$rows)"
+            lastError = reason
+            Log.e(TAG, reason)
             return false
         }
 
@@ -155,8 +160,9 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         )
 
         if (pty == 0L) {
-            lastError = "the process could not be started (${launch.program})"
-            Log.e(TAG, lastError)
+            val reason = "the process could not be started (${launch.program})"
+            lastError = reason
+            Log.e(TAG, reason)
             NativeSession.free(session)
             return false
         }
