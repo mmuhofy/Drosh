@@ -30,8 +30,8 @@ inline fn toHandle(terminal: ghostty.Terminal) jni.jlong {
 ///
 /// Returns the handle, or 0 on failure.
 export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeCreate(
-    _env: jni.JNIEnv,
-    _class: jni.jclass,
+    _: jni.JNIEnv,
+    _: jni.jclass,
     columns: jni.jint,
     rows: jni.jint,
 ) jni.jlong {
@@ -52,8 +52,8 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeCreate(
 
 /// Destroy a terminal. A zero handle is a no-op, so a double free is safe.
 export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeFree(
-    _env: jni.JNIEnv,
-    _class: jni.jclass,
+    _: jni.JNIEnv,
+    _: jni.jclass,
     handle: jni.jlong,
 ) void {
     const terminal = fromHandle(handle);
@@ -103,8 +103,8 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeWrite(
 
 /// Resize the grid and tell the terminal how large a cell is.
 export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeResize(
-    _env: jni.JNIEnv,
-    _class: jni.jclass,
+    _: jni.JNIEnv,
+    _: jni.jclass,
     handle: jni.jlong,
     columns: jni.jint,
     rows: jni.jint,
@@ -129,8 +129,8 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeResize(
 /// The result is widened into a long so one function covers every 16- and
 /// 32-bit field: the caller says which field and reads the low bits.
 export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeGet(
-    _env: jni.JNIEnv,
-    _class: jni.jclass,
+    _: jni.JNIEnv,
+    _: jni.jclass,
     handle: jni.jlong,
     field: jni.jint,
 ) jni.jlong {
@@ -140,11 +140,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeGet(
     // Every field this exposes is at most 32 bits wide; the widest is the
     // scrollbar's, which is a struct and is read through its own call below.
     var value: u64 = 0;
-    const result = c.ghostty_terminal_get(
-        terminal,
-        @enumFromInt(@as(c_uint, @intCast(field))),
-        @ptrCast(&value),
-    );
+    const result = c.ghostty_terminal_get(terminal, @intCast(field), @ptrCast(&value));
     if (result != ghostty.SUCCESS) return -1;
     return @intCast(value);
 }
@@ -154,8 +150,8 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeGet(
 /// `tag` is a `GhosttyTerminalScrollViewportTag`; `amount` is the row delta
 /// for `DELTA` and the absolute row for `ROW`, and ignored for the others.
 export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeScroll(
-    _env: jni.JNIEnv,
-    _class: jni.jclass,
+    _: jni.JNIEnv,
+    _: jni.jclass,
     handle: jni.jlong,
     tag: jni.jint,
     amount: jni.jint,
@@ -164,10 +160,10 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeScroll(
     if (terminal == null) return -1;
 
     var behavior = std.mem.zeroes(c.GhosttyTerminalScrollViewport);
-    behavior.tag = @enumFromInt(@as(c_uint, @intCast(tag)));
-    if (behavior.tag == c.GHOSTTY_SCROLL_VIEWPORT_DELTA) {
+    behavior.tag = @intCast(tag);
+    if (tag == c.GHOSTTY_SCROLL_VIEWPORT_DELTA) {
         behavior.value.delta = amount;
-    } else if (behavior.tag == c.GHOSTTY_SCROLL_VIEWPORT_ROW) {
+    } else if (tag == c.GHOSTTY_SCROLL_VIEWPORT_ROW) {
         behavior.value.row = if (amount > 0) @intCast(amount) else 0;
     }
 
