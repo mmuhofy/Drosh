@@ -20,6 +20,7 @@ const builtin = @import("builtin");
 pub const ghostty = @import("ghostty.zig");
 pub const frame = @import("frame.zig");
 pub const session = @import("session.zig");
+pub const pty = @import("pty.zig");
 
 comptime {
     _ = @import("jni/entry.zig");

@@ -77,6 +77,10 @@ pub fn build(b: *std.Build) void {
         lib.root_module.addSystemIncludePath(.{
             .cwd_relative = b.pathJoin(&.{ path, "usr", "include" }),
         });
+        // `pty.h` is bionic's own, and it lives beside the platform headers.
+        lib.root_module.addSystemIncludePath(.{
+            .cwd_relative = b.pathJoin(&.{ path, "usr", "include", "aarch64-linux-android" }),
+        });
     }
     if (ndk_lib) |path| {
         lib.root_module.addLibraryPath(.{ .cwd_relative = path });
