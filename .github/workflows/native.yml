@@ -82,10 +82,13 @@ jobs:
         run: |
           set -euo pipefail
           NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
           zig build \
             -Dtarget=aarch64-linux-android.26 \
             -Doptimize=ReleaseFast \
             -Dcpu=baseline \
+            -Dghostty-abi=${{ matrix.abi }} \
+            -Dndk-sysroot="$SYSROOT/usr/lib/aarch64-linux-android/26" \
             --prefix "$RUNNER_TEMP/out"
 
       - name: Check the library links the engine, not a copy of it
