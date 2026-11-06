@@ -51,7 +51,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSmoke_nativeSelfTest(
         jni.Index.NewStringUTF,
     );
 
-    const allocator = @import("../main.zig").allocator;
+    const allocator = @import("../alloc.zig").allocator;
     const z = allocator.dupeZ(u8, report.text()) catch return null;
     defer allocator.free(z);
     return new_string(env, z.ptr);

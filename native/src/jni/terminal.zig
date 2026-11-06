@@ -12,7 +12,7 @@ const ghostty = @import("../ghostty.zig");
 const c = ghostty.c;
 const jni = @import("types.zig");
 
-const allocator = @import("../main.zig").allocator;
+const allocator = @import("../alloc.zig").allocator;
 
 /// A handle as a pointer. Zero is null and never dereferenced.
 inline fn fromHandle(handle: jni.jlong) ghostty.Terminal {

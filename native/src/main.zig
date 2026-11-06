@@ -26,12 +26,7 @@ comptime {
     _ = @import("jni/entry.zig");
 }
 
-/// The allocator every allocation in this library goes through.
-///
-/// A single c_allocator: the library is called from Java, its lifetime is the
-/// process's, and a general-purpose allocator's bookkeeping would buy nothing
-/// for buffers that are allocated once and freed at exit.
-pub const allocator = std.heap.c_allocator;
+pub const allocator = @import("alloc.zig").allocator;
 
 test {
     std.testing.refAllDecls(@This());

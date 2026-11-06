@@ -50,11 +50,10 @@
 //! rectangle with a colour and a glyph; it does not decide what a colour means.
 
 const std = @import("std");
-const ghostty = @import("../ghostty.zig");
+const ghostty = @import("ghostty.zig");
 const c = ghostty.c;
-const jni = @import("types.zig");
 
-const allocator = @import("../main.zig").allocator;
+const allocator = @import("alloc.zig").allocator;
 
 // --- the wire format -------------------------------------------------------
 

@@ -10,7 +10,7 @@ const std = @import("std");
 const jni = @import("types.zig");
 const pty = @import("../pty.zig");
 
-const allocator = @import("../main.zig").allocator;
+const allocator = @import("../alloc.zig").allocator;
 
 inline fn fromHandle(handle: jni.jlong) ?*pty.Pty {
     if (handle <= 0) return null;

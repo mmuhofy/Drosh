@@ -17,7 +17,7 @@ const c = ghostty.c;
 const Session = @import("../session.zig").Session;
 const frame = @import("../frame.zig");
 
-const allocator = @import("../main.zig").allocator;
+const allocator = @import("../alloc.zig").allocator;
 
 /// A session handle as a pointer. Zero is null and never dereferenced.
 inline fn fromHandle(handle: jni.jlong) ?*Session {

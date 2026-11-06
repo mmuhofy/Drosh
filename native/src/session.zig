@@ -10,7 +10,7 @@ const ghostty = @import("ghostty.zig");
 const c = ghostty.c;
 const frame = @import("frame.zig");
 
-const allocator = @import("main.zig").allocator;
+const allocator = @import("alloc.zig").allocator;
 
 /// One session: a terminal and everything needed to draw it.
 pub const Session = struct {
