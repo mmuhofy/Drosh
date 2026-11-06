@@ -134,6 +134,20 @@ class LayoutMachineTest {
     }
 
     @Test
+    fun `a surface before a cell lays nothing out`() {
+        val machine = machine()
+        machine.onSurface(1080, 2400, now = 0)
+        // The one-pixel default would be a thousand columns; nothing is laid out
+        // until a real cell exists.
+        assertEquals(2, machine.appliedColumns)
+        assertEquals(1, machine.appliedRows)
+
+        machine.onCell(10f, 20f, now = 0)
+        assertEquals(108, machine.appliedColumns)
+        assertEquals(120, machine.appliedRows)
+    }
+
+    @Test
     fun `a zero-sized surface still yields a drawable grid`() {
         val machine = machine()
         machine.onSurface(0, 0, now = 0)

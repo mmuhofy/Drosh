@@ -62,6 +62,26 @@ fun GhosttyTerminalHost(
 
     val pane = remember { GhosttyTerminal(context) }
 
+    // The cell, measured in Kotlin rather than asked of a font stack.
+    //
+    // The old engine measured through its own native shaper; this one has no
+    // business depending on a library that is on its way out, and a monospace
+    // cell is a `Paint` call. The measure is exact for the width — a terminal's
+    // font is monospace by definition — and the font's own line spacing for the
+    // height, which is what every terminal uses.
+    val cell = remember(fontSizeSp, context) {
+        val density = context.resources.displayMetrics.scaledDensity
+        val paint = android.graphics.Paint().apply {
+            typeface = android.graphics.Typeface.MONOSPACE
+            textSize = fontSizeSp * density
+            isAntiAlias = true
+        }
+        CellMetrics(
+            width = paint.measureText("M").coerceAtLeast(1f),
+            height = paint.fontSpacing.coerceAtLeast(1f),
+        )
+    }
+
     var status by remember { mutableStateOf<String?>("preparing") }
 
     // The guest is started once. It is a fork, a rootfs and an exec, so it does
@@ -84,8 +104,8 @@ fun GhosttyTerminalHost(
                     command = guest,
                     columns = DEFAULT_COLUMNS,
                     rows = DEFAULT_ROWS,
-                    cellWidth = 0f,
-                    cellHeight = 0f,
+                    cellWidth = cell.width,
+                    cellHeight = cell.height,
                 )
             }.getOrElse { error ->
                 Log.e(TAG, "the engine refused the session", error)
@@ -140,12 +160,12 @@ fun GhosttyTerminalHost(
                         android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                         android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                     )
-                    pane.view.setCell(fontSizeSp, fontSizeSp * LINE_HEIGHT_RATIO)
+                    pane.view.setCell(cell.width, cell.height)
                     addView(pane.view)
                 }
             },
             update = { _ ->
-                pane.setCell(fontSizeSp, fontSizeSp * LINE_HEIGHT_RATIO)
+                pane.setCell(cell.width, cell.height)
             },
         )
 
@@ -165,9 +185,9 @@ fun GhosttyTerminalHost(
 
 private const val TAG = "GhosttyTerminalHost"
 
+/** The cell a font measured, in pixels. */
+private data class CellMetrics(val width: Float, val height: Float)
+
 /** The grid a PTY starts with before the surface has been measured. */
 private const val DEFAULT_COLUMNS = 100
 private const val DEFAULT_ROWS = 30
-
-/** A terminal's line box, as a multiple of the font size. */
-private const val LINE_HEIGHT_RATIO = 1.25f

@@ -74,6 +74,17 @@ class LayoutMachine(
 
     private var current: State = State.Idle(SizeInfo())
 
+    /**
+     * Whether a cell has ever been measured.
+     *
+     * A surface can arrive before the font has: the view is created and laid out
+     * before the font stack has answered. A grid computed against the default
+     * one-pixel cell is a grid of a thousand columns, and the reflow that
+     * followed would allocate a frame buffer for it. Until a real cell exists,
+     * the surface is recorded but not laid out.
+     */
+    private var hasCell: Boolean = false
+
     /** The state, for a diagnostic surface. */
     val state: State get() = current
 
@@ -112,6 +123,7 @@ class LayoutMachine(
         // reflow that followed would resize the session and throw its contents
         // away.
         if (width <= 0 || height <= 0) return size
+        if (!hasCell) return size
 
         val next = size.withSurface(width, height)
         current = State.Changing(
@@ -131,6 +143,8 @@ class LayoutMachine(
      * there is no animation to wait out.
      */
     fun onCell(cellWidth: Float, cellHeight: Float, now: Long): SizeInfo {
+        if (cellWidth <= 0f || cellHeight <= 0f) return size
+        hasCell = true
         val next = size.withCell(cellWidth, cellHeight)
         current = State.Settled(
             size = next,

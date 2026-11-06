@@ -162,6 +162,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         ptyHandle = pty
         cellWidth = cellWidthPx
         cellHeight = cellHeightPx
+        // The cell first, the surface second: a surface laid out against the
+        // default one-pixel cell is a grid of a thousand columns.
+        renderThread.post(RenderThread.Command.Cell(cellWidthPx, cellHeightPx))
         renderThread.invalidate()
         startReading()
     }
