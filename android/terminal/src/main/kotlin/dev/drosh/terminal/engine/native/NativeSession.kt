@@ -55,6 +55,23 @@ object NativeSession {
         return Frame.parse(nativeFrame(handle))
     }
 
+    /**
+     * The shell's phase, as its `OSC 133` marks report it.
+     *
+     * 0 unknown, 1 prompt, 2 typing, 3 running, 4 finished. A shell that has
+     * not opted in stays at 0, and the UI must not assume otherwise.
+     */
+    fun shellPhase(handle: Long): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeShellPhase(handle)
+    }
+
+    /** The working directory the shell last reported, or "". */
+    fun workingDirectory(handle: Long): String {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
+        return nativeWorkingDirectory(handle)
+    }
+
     /** Scrolls the viewport. `tag` is one of the `SCROLL_*` constants. */
     fun scroll(handle: Long, tag: Int, amount: Int): Int {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
@@ -84,4 +101,6 @@ object NativeSession {
     ): Int
     private external fun nativeFrame(handle: Long): ByteArray?
     private external fun nativeScroll(handle: Long, tag: Int, amount: Int): Int
+    private external fun nativeShellPhase(handle: Long): Int
+    private external fun nativeWorkingDirectory(handle: Long): String
 }

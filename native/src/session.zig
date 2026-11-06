@@ -10,6 +10,7 @@ const ghostty = @import("ghostty.zig");
 const c = ghostty.c;
 const frame = @import("frame.zig");
 const input = @import("jni/input.zig");
+const shell = @import("shell.zig");
 
 const allocator = @import("alloc.zig").allocator;
 
@@ -19,6 +20,10 @@ pub const Session = struct {
     frames: frame.FrameSource,
     /// The key encoder, created on the first key and kept after that.
     keys: input.KeyEncoder = .{},
+
+    /// The shell-integration scanner. It observes the PTY's bytes on their way
+    /// to the parser and keeps the few facts the UI needs.
+    shell: shell.Scanner = .{},
 
     pub fn create(columns: u16, rows: u16) !*Session {
         var terminal: ghostty.Terminal = null;

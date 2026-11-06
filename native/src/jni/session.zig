@@ -84,8 +84,50 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeWrite(
     );
     get_region(env, data, 0, @intCast(length), buffer.ptr);
 
+    // The shell's marks are scanned first: the tap observes the bytes and
+    // never changes them, so the parser sees exactly what the child wrote.
+    _ = session.shell.scan(buffer);
     c_vt_write(session, buffer);
     return 0;
+}
+
+/// The shell's phase, as its `OSC 133` marks report it.
+export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeShellPhase(
+    _: jni.JNIEnv,
+    _: jni.jclass,
+    handle: jni.jlong,
+) jni.jint {
+    const session = Session.fromHandle(handle) orelse return -1;
+    return @intCast(@intFromEnum(session.shell.phase));
+}
+
+/// The working directory the shell last reported, or an empty string.
+export fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeWorkingDirectory(
+    env: jni.JNIEnv,
+    _: jni.jclass,
+    handle: jni.jlong,
+) jni.jstring {
+    const session = Session.fromHandle(handle) orelse return emptyString(env);
+    const directory = session.shell.currentDirectory() orelse return emptyString(env);
+
+    const z = allocator.dupeZ(u8, directory) catch return emptyString(env);
+    defer allocator.free(z);
+
+    const new_string = jni.call(
+        env,
+        *const fn (jni.JNIEnv, [*:0]const u8) callconv(.c) jni.jstring,
+        jni.Index.NewStringUTF,
+    );
+    return new_string(env, z.ptr);
+}
+
+fn emptyString(env: jni.JNIEnv) jni.jstring {
+    const new_string = jni.call(
+        env,
+        *const fn (jni.JNIEnv, [*:0]const u8) callconv(.c) jni.jstring,
+        jni.Index.NewStringUTF,
+    );
+    return new_string(env, "");
 }
 
 /// Resize the grid and record the cell size.
