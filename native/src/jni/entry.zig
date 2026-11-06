@@ -9,5 +9,6 @@ const std = @import("std");
 
 comptime {
     _ = @import("terminal.zig");
+    _ = @import("session.zig");
     _ = @import("smoke.zig");
 }
