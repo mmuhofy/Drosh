@@ -57,7 +57,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectAll(
 ) jni.jstring {
     const session = Session.fromHandle(handle) orelse return emptyString(env);
 
-    var selection: c.GhosttySelection = null;
+    var selection = std.mem.zeroes(c.GhosttySelection);
     if (c.ghostty_terminal_select_all(session.terminal, &selection) != ghostty.SUCCESS) {
         return emptyString(env);
     }
@@ -102,7 +102,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSearch(
     if (text.len == 0) return 0;
 
     var search: c.GhosttySearch = null;
-    if (c.ghostty_search_new(null, &search) != ghostty.SUCCESS) return -1;
+    if (c.ghostty_search_new(null, &search, session.terminal) != ghostty.SUCCESS) return -1;
     defer c.ghostty_search_free(search);
 
     // The needle is copied by the engine, so the arena's bytes only have to
@@ -116,7 +116,9 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSearch(
         return -1;
     }
 
-    if (c.ghostty_search_run(search, session.terminal) != ghostty.SUCCESS) {
+    // `run` feeds from the terminal the search was created against; there is
+    // no separate terminal argument.
+    if (c.ghostty_search_run(search) != ghostty.SUCCESS) {
         return -1;
     }
 
@@ -200,12 +202,12 @@ fn withSelection(
     point.value.coordinate.x = @intCast(column);
     point.value.coordinate.y = @intCast(row);
 
-    var ref: c.GhosttyGridRef = null;
+    var ref = std.mem.zeroes(c.GhosttyGridRef);
     if (c.ghostty_terminal_grid_ref(session.terminal, point, &ref) != ghostty.SUCCESS) {
         return emptyString(env);
     }
 
-    var selection: c.GhosttySelection = null;
+    var selection = std.mem.zeroes(c.GhosttySelection);
     const result = switch (kind) {
         .word => blk: {
             var options = std.mem.zeroes(c.GhosttyTerminalSelectWordOptions);
@@ -221,7 +223,7 @@ fn withSelection(
         },
     };
 
-    if (result != ghostty.SUCCESS or selection == null) return emptyString(env);
+    if (result != ghostty.SUCCESS) return emptyString(env);
     return format(env, session.terminal, selection);
 }
 
