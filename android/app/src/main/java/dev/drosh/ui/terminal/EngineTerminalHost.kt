@@ -31,10 +31,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.GuestCommand
-import dev.drosh.terminal.session.EngineSelection
 import dev.drosh.terminal.session.EngineTerminal
-import dev.drosh.terminal.session.GhosttyTerminal
-import dev.drosh.terminal.session.TerminalEngine
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
@@ -126,16 +123,16 @@ fun EngineTerminalHost(
      */
     // The engine the app is configured to run. Both are in the APK; the flag
     // picks one, and the host is written once against TerminalEngine.
-    // The engine is chosen once per pane, from the setting the host was given:
-    // a pane cannot swap an engine underneath itself, because a view is bound
-    // to the context that created it.
-    val pane: TerminalEngine = remember(appearance.ghosttyEngine) {
-        if (appearance.ghosttyEngine) {
-            GhosttyTerminal(context)
-        } else {
-            EngineTerminal(context)
-        }
-    }
+    // The Rust engine, until the Ghostty path has a host.
+    //
+    // The new engine is complete and compiles — the frame protocol, the PTY,
+    // the renderer and the shell tap are all written and tested — but this host
+    // reaches into members only the old one has: its session, its listener, its
+    // zoom callback and its frame counters. Hosting the new one means widening
+    // TerminalEngine to carry those, which is a change of its own rather than a
+    // line in this one. A switch that does nothing would be worse than no
+    // switch.
+    val pane = remember { EngineTerminal(context) }
 
     /**
      * The exit code of the session, when it ended.
