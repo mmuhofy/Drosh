@@ -31,12 +31,12 @@ pub fn build(b: *std.Build) void {
     // shipped next to this library in the APK's jniLibs and loaded by the
     // system linker by name.
     lib.root_module.addLibraryPath(b.path("ghostty/lib"));
-    lib.linkSystemLibrary("ghostty-vt");
+    lib.root_module.linkSystemLibrary("ghostty-vt", .{});
 
     // The JVM's own symbols are resolved at runtime by the process, so the
     // link is deliberately lazy — but Android's linker still wants liblog for
     // the log calls the JNI layer makes.
-    lib.linkSystemLibrary("log");
+    lib.root_module.linkSystemLibrary("log", .{});
 
     b.installArtifact(lib);
 
@@ -51,8 +51,8 @@ pub fn build(b: *std.Build) void {
     });
     tests.root_module.addIncludePath(b.path("ghostty/include"));
     tests.root_module.addLibraryPath(b.path("ghostty/lib"));
-    tests.linkSystemLibrary("ghostty-vt");
-    tests.linkSystemLibrary("log");
+    tests.root_module.linkSystemLibrary("ghostty-vt", .{});
+    tests.root_module.linkSystemLibrary("log", .{});
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run the native tests");
