@@ -82,6 +82,10 @@ jobs:
         run: |
           set -euo pipefail
           NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          # Zig looks for the NDK here when it has to supply bionic for an
+          # android target. Without it the build fails with "unable to provide
+          # libc", which reads like a Zig bug and is a missing environment.
+          export ANDROID_NDK_HOME="$NDK"
           SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
           zig build \
             -Dtarget=aarch64-linux-android.26 \
