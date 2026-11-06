@@ -1,11 +1,19 @@
 //! The pseudoterminal and the child process on the far end of it.
 //!
-//! Taken from Ghostty's `src/pty.zig` and `src/pty.c` (MIT), reduced to what
-//! Android needs. The structure is Ghostty's on purpose: `openpty` + a
-//! `posix_spawn`-shaped fork/exec is the part of a terminal that is easy to get
-//! subtly wrong — a missing `setsid` leaves the shell in the app's process
-//! group, so a Ctrl+C kills the app instead of the command, and a missing
-//! `TIOCSCTTY` leaves `^Z` doing nothing.
+//! Taken from Ghostty's `src/pty.zig` (MIT), reduced to what Android needs. The
+//! structure is Ghostty's on purpose: `forkpty` + `setsid` + `TIOCSCTTY` is the
+//! part of a terminal that is easy to get subtly wrong — a missing `setsid`
+//! leaves the shell in the app's process group, so a Ctrl+C kills the app
+//! instead of the command, and a missing `TIOCSCTTY` leaves `^Z` doing nothing.
+//!
+//! ## Why the libc functions are declared here
+//!
+//! `@cImport` of the NDK's `<pty.h>`/`<termios.h>` does not translate: bionic's
+//! headers carry C23 `_Nullable` specifiers and a `bits/ioctl.h` that redefines
+//! `ioctl` with a different prototype, and translate-c rejects both. The
+//! declarations below are the same functions with the same signatures, written
+//! out — six of them, which is a smaller surface than the headers and one that
+//! can be read.
 //!
 //! ## What is different from Ghostty
 //!
@@ -14,29 +22,64 @@
 //! - **No Windows.** Android is the only target.
 //! - **The child is a guest launcher**, not a shell: the caller passes argv and
 //!   envp, and the launcher decides what to exec inside the rootfs.
-//!
-//! ## Android specifics
-//!
-//! `forkpty` and `openpty` are in bionic since API 23 (see `pty.h`), so no
-//! hand-rolled `posix_openpt`/`grantpt`/`unlockpt` is needed. The one thing
-//! bionic does *not* do for us is `fork` safety across a JVM: the child must
-//! only call async-signal-safe functions before `exec`, which is why the exec
-//! path below touches nothing but `dup2`, `close`, `ioctl` and `execvp`.
 
 const std = @import("std");
-const builtin = @import("builtin");
 const posix = std.posix;
 
-const c = @cImport({
-    @cInclude("pty.h");
-    @cInclude("termios.h");
-    @cInclude("unistd.h");
-    @cInclude("sys/ioctl.h");
-    @cInclude("sys/wait.h");
-    @cInclude("signal.h");
-    @cInclude("fcntl.h");
-    @cInclude("errno.h");
-});
+// --- libc, declared ---------------------------------------------------------
+
+const c = struct {
+    pub const winsize = extern struct {
+        ws_row: u16,
+        ws_col: u16,
+        ws_xpixel: u16,
+        ws_ypixel: u16,
+    };
+
+    pub extern "c" fn forkpty(
+        amaster: *c_int,
+        name: ?[*]u8,
+        termp: ?*const anyopaque,
+        winp: ?*const winsize,
+    ) c_int;
+
+    pub extern "c" fn ioctl(fd: c_int, request: c_ulong, ...) c_int;
+    pub extern "c" fn fcntl(fd: c_int, cmd: c_int, ...) c_int;
+    pub extern "c" fn read(fd: c_int, buf: [*]u8, count: usize) isize;
+    pub extern "c" fn write(fd: c_int, buf: [*]const u8, count: usize) isize;
+    pub extern "c" fn close(fd: c_int) c_int;
+    pub extern "c" fn waitpid(pid: c_int, status: *c_int, options: c_int) c_int;
+    pub extern "c" fn kill(pid: c_int, sig: c_int) c_int;
+    pub extern "c" fn execve(path: [*:0]const u8, argv: [*:null]const ?[*:0]const u8, envp: [*:null]const ?[*:0]const u8) c_int;
+    pub extern "c" fn chdir(path: [*:0]const u8) c_int;
+    pub extern "c" fn _exit(status: c_int) noreturn;
+
+    // fcntl commands and flags.
+    pub const F_GETFL: c_int = 3;
+    pub const F_SETFL: c_int = 4;
+    pub const O_NONBLOCK: c_int = 0o4000;
+
+    // ioctl requests.
+    pub const TIOCSWINSZ: c_ulong = 0x5414;
+    pub const TIOCGWINSZ: c_ulong = 0x5413;
+
+    // waitpid options and status decoding.
+    pub const WNOHANG: c_int = 1;
+    pub fn WIFEXITED(status: c_int) bool {
+        return (status & 0x7f) == 0;
+    }
+    pub fn WEXITSTATUS(status: c_int) c_int {
+        return (status >> 8) & 0xff;
+    }
+    pub fn WIFSIGNALED(status: c_int) bool {
+        return ((status & 0x7f) + 1) >> 1 > 0;
+    }
+    pub fn WTERMSIG(status: c_int) c_int {
+        return status & 0x7f;
+    }
+
+    pub const SIGKILL: c_int = 9;
+};
 
 /// The window size, in cells and pixels.
 ///
@@ -69,33 +112,41 @@ pub const Pty = struct {
     /// The size last set, so a resize to the same size is free.
     size: Winsize = .{},
 
-    /// True while the master is open and the child has not been reaped.
+    /// True while the master is open.
     pub fn isAlive(self: *const Pty) bool {
         return self.master >= 0;
     }
 
     /// Open a pseudoterminal and fork the child into it.
     ///
-    /// `argv` must be null-terminated; `envp` likewise. The child execs
-    /// `argv[0]` immediately after the terminal is set up.
+    /// `argv` and `envp` must be null-terminated. The child execs `argv[0]`
+    /// immediately after the terminal is set up.
     pub fn spawn(
         argv: []const [*:0]const u8,
         envp: []const [*:0]const u8,
         size: Winsize,
         cwd: ?[*:0]const u8,
+        arena: std.mem.Allocator,
     ) PtyError!Pty {
         if (argv.len == 0) return error.ExecFailed;
 
-        // `forkpty` returns 0 in the child, the pid in the parent, -1 on
-        // failure. It does the openpty, the setsid and the TIOCSCTTY.
+        // `execve` wants a null-terminated vector of pointers. The arena owns
+        // it, and the child only needs it until it execs.
+        const argv_z = arena.allocSentinel(?[*:0]const u8, argv.len, null) catch return error.ExecFailed;
+        for (argv, 0..) |arg, index| argv_z[index] = arg;
+        const envp_z = arena.allocSentinel(?[*:0]const u8, envp.len, null) catch return error.ExecFailed;
+        for (envp, 0..) |entry, index| envp_z[index] = entry;
+
         var master: c_int = -1;
-        var winsize = c.struct_winsize{
+        var winsize = c.winsize{
             .ws_row = size.rows,
             .ws_col = size.cols,
             .ws_xpixel = size.xpixel,
             .ws_ypixel = size.ypixel,
         };
 
+        // `forkpty` returns 0 in the child, the pid in the parent, -1 on
+        // failure. It does the openpty, the setsid and the TIOCSCTTY.
         const pid = c.forkpty(&master, null, null, &winsize);
         if (pid < 0) return error.ForkFailed;
 
@@ -104,9 +155,11 @@ pub const Pty = struct {
             //
             // Only async-signal-safe calls from here to exec. The JVM may have
             // had other threads mid-allocation when this forked, so anything
-            // that takes a lock in libc can deadlock the child forever.
-            childExec(argv, envp, cwd);
-            // childExec only returns on failure.
+            // that takes a libc lock can deadlock the child forever.
+            if (cwd) |dir| {
+                _ = c.chdir(dir);
+            }
+            _ = c.execve(argv[0], argv_z.ptr, envp_z.ptr);
             c._exit(127);
         }
 
@@ -154,8 +207,8 @@ pub const Pty = struct {
             switch (posix.errno(n)) {
                 // No data right now.
                 .AGAIN => return 0,
-                // The child is gone and the slave side closed. That is a
-                // clean end, not a failure; the session reports the exit.
+                // The child is gone and the slave side closed. That is a clean
+                // end, not a failure; the session reports the exit.
                 .IO => return 0,
                 .INTR => continue,
                 else => return error.ReadFailed,
@@ -166,8 +219,8 @@ pub const Pty = struct {
     /// Write all of `bytes`, or fail.
     ///
     /// A partial write is retried rather than truncated: a truncated escape
-    /// sequence leaves the terminal's parser mid-state and the next byte is
-    /// read as its continuation.
+    /// sequence leaves the parser mid-state and the next byte is read as its
+    /// continuation.
     pub fn write(self: *Pty, bytes: []const u8) PtyError!void {
         if (self.master < 0) return error.NotOpen;
 
@@ -180,9 +233,7 @@ pub const Pty = struct {
             }
             if (n < 0) {
                 switch (posix.errno(n)) {
-                    .AGAIN => continue,
-                    .INTR => continue,
-                    .IO => return error.WriteFailed,
+                    .AGAIN, .INTR => continue,
                     else => return error.WriteFailed,
                 }
             }
@@ -203,7 +254,7 @@ pub const Pty = struct {
             return;
         }
 
-        const winsize = c.struct_winsize{
+        const winsize = c.winsize{
             .ws_row = size.rows,
             .ws_col = size.cols,
             .ws_xpixel = size.xpixel,
@@ -229,21 +280,3 @@ pub const Pty = struct {
         return 0;
     }
 };
-
-/// Set up the terminal and exec. Only async-signal-safe calls.
-fn childExec(
-    argv: []const [*:0]const u8,
-    envp: []const [*:0]const u8,
-    cwd: ?[*:0]const u8,
-) void {
-    // The slave is already the controlling terminal and stdin/stdout/stderr —
-    // forkpty did that. What is left is the working directory and the exec.
-
-    if (cwd) |dir| {
-        _ = c.chdir(dir);
-    }
-
-    // `execvpe` is not in bionic. `execve` takes the path as given, which is
-    // what the caller passes: the guest launcher's absolute path.
-    _ = c.execve(argv[0], @ptrCast(argv.ptr), @ptrCast(envp.ptr));
-}

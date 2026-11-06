@@ -64,7 +64,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativePty_nativeSpawn(
     const cwd_z: ?[*:0]const u8 = if (cwd.len == 0) null else cwd.ptr;
 
     const created = allocator.create(pty.Pty) catch return 0;
-    created.* = pty.Pty.spawn(argv, envp, size, cwd_z) catch {
+    created.* = pty.Pty.spawn(argv, envp, size, cwd_z, arena_alloc) catch {
         allocator.destroy(created);
         return 0;
     };
@@ -220,18 +220,23 @@ fn splitLines(
     text: [:0]const u8,
     arena: std.mem.Allocator,
 ) ![]const [*:0]const u8 {
-    var list = std.ArrayListUnmanaged([*:0]const u8){};
-    errdefer list.deinit(arena);
-
-    if (text.len == 0) {
-        return list.toOwnedSlice(arena);
-    }
-
+    // Count first, then fill: a fixed slice is cheaper than a growing list and
+    // the count is one pass over a string that is already in memory.
+    var count: usize = 0;
     var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        if (line.len != 0) count += 1;
+    }
+    if (count == 0) return &.{};
+
+    const out = try arena.alloc([*:0]const u8, count);
+    var index: usize = 0;
+    it = std.mem.splitScalar(u8, text, '\n');
     while (it.next()) |line| {
         if (line.len == 0) continue;
         const copy = try arena.dupeZ(u8, line);
-        try list.append(arena, copy.ptr);
+        out[index] = copy.ptr;
+        index += 1;
     }
-    return list.toOwnedSlice(arena);
+    return out;
 }

@@ -210,7 +210,7 @@ pub const FrameSource = struct {
         writeU16(header, 28, (if (cursor_visible) CURSOR_VISIBLE else 0) |
             (if (cursor_blinking) CURSOR_BLINKING else 0));
 
-        var dirty: c.GhosttyRenderStateDirty = c.GHOSTTY_RENDER_STATE_DIRTY_NONE;
+        var dirty: c.GhosttyRenderStateDirty = c.GHOSTTY_RENDER_STATE_DIRTY_FALSE;
         _ = c.ghostty_render_state_get(self.state, c.GHOSTTY_RENDER_STATE_DATA_DIRTY, @ptrCast(&dirty));
         writeU16(header, 30, switch (dirty) {
             c.GHOSTTY_RENDER_STATE_DIRTY_FULL => DIRTY_FULL,

@@ -77,7 +77,8 @@ pub fn build(b: *std.Build) void {
         lib.root_module.addSystemIncludePath(.{
             .cwd_relative = b.pathJoin(&.{ path, "usr", "include" }),
         });
-        // `pty.h` is bionic's own, and it lives beside the platform headers.
+        // bionic's platform headers (the ones `@cImport` of <stdio.h> and
+        // friends needs) live beside the sysroot's own.
         lib.root_module.addSystemIncludePath(.{
             .cwd_relative = b.pathJoin(&.{ path, "usr", "include", "aarch64-linux-android" }),
         });
