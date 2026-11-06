@@ -26,11 +26,11 @@ command -v "$QEMU" >/dev/null || { echo "$QEMU is required" >&2; exit 1; }
 ENGINE="$NATIVE/ghostty/lib/$ABI/libghostty-vt.so"
 test -f "$ENGINE" || { echo "missing $ENGINE — run tools/fetch-ghostty-vt.sh" >&2; exit 1; }
 
-# The sysroot the aarch64 binary needs. qemu-user resolves the interpreter and
-# the shared libraries through -L.
-SYSROOT="${SMOKE_SYSROOT:-/usr/aarch64-linux-gnu}"
-test -d "$SYSROOT" || {
-  echo "no aarch64 sysroot at $SYSROOT (install gcc-aarch64-linux-gnu)" >&2
+# Where qemu-user finds the aarch64 interpreter and libc. The cross compiler
+# already knows its own sysroot for linking; this is only for running.
+QEMU_PREFIX="${SMOKE_SYSROOT:-/usr/aarch64-linux-gnu}"
+test -d "$QEMU_PREFIX" || {
+  echo "no aarch64 sysroot at $QEMU_PREFIX (install libc6-dev-arm64-cross)" >&2
   exit 1
 }
 
@@ -117,9 +117,10 @@ EOF
 CC="${CC:-aarch64-linux-gnu-gcc}"
 command -v "$CC" >/dev/null || { echo "$CC is required" >&2; exit 1; }
 
+# No --sysroot: the cross compiler's own sysroot is correct for linking, and
+# pointing at the host directory breaks the absolute paths ld records.
 "$CC" \
   -O1 \
-  --sysroot="$SYSROOT" \
   -I "$NATIVE/ghostty/include" \
   "$WORK/smoke.c" \
   -L "$NATIVE/ghostty/lib/$ABI" \
@@ -129,6 +130,7 @@ command -v "$CC" >/dev/null || { echo "$CC is required" >&2; exit 1; }
 echo "--- running under $QEMU"
 # LD_LIBRARY_PATH inside qemu is the *guest* path; -L supplies the host
 # sysroot for the interpreter and libc.
-QEMU_LD_PREFIX="$SYSROOT" \
-LD_LIBRARY_PATH="$NATIVE/ghostty/lib/$ABI" \
-  "$QEMU" -L "$SYSROOT" -E LD_LIBRARY_PATH="$NATIVE/ghostty/lib/$ABI" "$WORK/smoke"
+"$QEMU" \
+  -L "$QEMU_PREFIX" \
+  -E LD_LIBRARY_PATH="$NATIVE/ghostty/lib/$ABI" \
+  "$WORK/smoke"
