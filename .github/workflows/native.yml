@@ -1,0 +1,110 @@
+name: Native
+
+# Builds libdrosh.so — the Drosh terminal's native half.
+#
+# The library is Zig, because the VT engine it drives (libghostty-vt) is Zig and
+# the PTY code it carries comes from Ghostty. libghostty-vt itself is NOT built
+# here: it is somebody else's build, downloaded and verified by
+# tools/fetch-ghostty-vt.sh.
+#
+# No local builds on dev boxes — this workflow is the only gate.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "tools/fetch-ghostty-vt.sh"
+      - ".github/workflows/native.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "tools/fetch-ghostty-vt.sh"
+      - ".github/workflows/native.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ZIG_VERSION: "0.16.0"
+  NDK_VERSION: "28.2.13676358"
+  GHOSTTY_VT_VERSION: "v1.4.0"
+
+jobs:
+  native:
+    name: libdrosh.so (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # arm64-v8a is the only ABI the debug APK ships today. The other two
+        # are built when the app grows a release that carries them.
+        abi: [arm64-v8a]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: Install pinned NDK
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+
+      # The library is somebody else's build: downloaded once, cached, and
+      # verified every time it is fetched. The cache restores the verified
+      # bytes so a normal run does not touch the network.
+      - name: Cache libghostty-vt
+        id: ghostty-cache
+        uses: actions/cache@v4
+        with:
+          path: native/ghostty
+          key: ghostty-vt-${{ env.GHOSTTY_VT_VERSION }}-${{ matrix.abi }}-${{ hashFiles('tools/fetch-ghostty-vt.sh') }}
+
+      - name: Fetch and verify libghostty-vt
+        if: steps.ghostty-cache.outputs.cache-hit != 'true'
+        env:
+          GHOSTTY_VT_ABIS: ${{ matrix.abi }}
+        run: ./tools/fetch-ghostty-vt.sh
+
+      - name: Build libdrosh.so
+        working-directory: native
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          zig build \
+            -Dtarget=aarch64-linux-android.26 \
+            -Doptimize=ReleaseFast \
+            -Dcpu=baseline \
+            --prefix "$RUNNER_TEMP/out"
+
+      - name: Check the library links the engine, not a copy of it
+        run: |
+          set -euo pipefail
+          so="$RUNNER_TEMP/out/lib/libdrosh.so"
+          test -f "$so"
+          echo "--- NEEDED"
+          readelf -d "$so" | grep -E "NEEDED|SONAME"
+          # A library that does not name libghostty-vt.so is a library that
+          # statically absorbed the engine — which would ship two copies of it.
+          readelf -d "$so" | grep -q "libghostty-vt.so" || {
+            echo "::error::libdrosh.so does not link libghostty-vt.so"
+            exit 1
+          }
+
+      - name: Upload the library
+        uses: actions/upload-artifact@v4
+        with:
+          name: drosh-so-${{ matrix.abi }}
+          path: ${{ runner.temp }}/out/lib/libdrosh.so
+          if-no-files-found: error

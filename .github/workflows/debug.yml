@@ -108,6 +108,9 @@ jobs:
 
   debug:
     name: Debug APK
+    # The native job is not a dependency yet: the new engine is not wired into
+    # the app, so the APK still ships the Rust core. It runs alongside to keep
+    # the Ghostty path compiling from the first commit.
     needs: rust-build
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -128,6 +131,22 @@ jobs:
         with:
           name: engine-core-so
           path: android/terminal/src/main/jniLibs/arm64-v8a
+
+      # The Ghostty engine and the new native half. They are not used by the
+      # app yet; carrying them now means the packaging path is proven before
+      # the renderer is rewritten on top of it.
+      - name: Fetch libghostty-vt
+        env:
+          GHOSTTY_VT_ABIS: arm64-v8a
+        run: ./tools/fetch-ghostty-vt.sh
+
+      - name: Stage libghostty-vt into jniLibs
+        run: |
+          set -euo pipefail
+          dest=android/terminal/src/main/jniLibs/arm64-v8a
+          mkdir -p "$dest"
+          cp native/ghostty/lib/arm64-v8a/libghostty-vt.so "$dest/"
+          ls -l "$dest"
 
       # chroot-ng — the guest runtime — is not in this repository. It is built
       # and published by its own project, and the APK carries the published

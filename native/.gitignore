@@ -1,0 +1,5 @@
+# The engine is somebody else's build: fetched, verified, never committed.
+ghostty/
+# Zig's own outputs.
+zig-out/
+.zig-cache/

@@ -34,11 +34,15 @@ android {
             // No termux .so — engine uses Rust core only.
         }
         jniLibs {
-            // libdrosh_core.so is the Rust core, cross-compiled by CI and
-            // dropped into src/main/jniLibs/arm64-v8a/ before Gradle runs. It
-            // comes from CI, never from a local cargo build; pickFirsts would
-            // only mask a duplicated-build mistake.
+            // libdrosh_core.so is the old Rust core, cross-compiled by CI and
+            // dropped into src/main/jniLibs/arm64-v8a/ before Gradle runs.
             keepDebugSymbols += "**/libdrosh_core.so"
+
+            // The Ghostty engine and our own native half. Both arrive the same
+            // way — from CI, never from a local build — and both keep their
+            // symbols so a tombstone names a function rather than an address.
+            keepDebugSymbols += "**/libghostty-vt.so"
+            keepDebugSymbols += "**/libdrosh.so"
         }
     }
 }
