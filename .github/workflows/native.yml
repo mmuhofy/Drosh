@@ -83,16 +83,17 @@ jobs:
           GHOSTTY_VT_ABIS: ${{ matrix.abi }}
         run: ./tools/fetch-ghostty-vt.sh
 
-      # The engine, executed rather than merely linked. qemu-user runs the
-      # aarch64 library on the x86 runner, so a broken ABI or a wrong symbol is
-      # a red build in seconds instead of a device session in minutes.
-      - name: Install the aarch64 smoke-test toolchain
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user
-
-      - name: Smoke-test libghostty-vt under qemu
-        run: ./tools/smoke-ghostty-vt.sh ${{ matrix.abi }}
+      # The engine cannot be executed on this runner.
+      #
+      # libghostty-vt.so is linked against Android's bionic (its symbols carry
+      # `@LIBC` version tags), so a glibc host cannot link it, let alone run
+      # it under qemu-user. Executing it needs an Android userspace: the
+      # instrumentation test on a device or emulator is the only honest
+      # execution, and that is what the APK's smoke screen is for.
+      #
+      # What IS checked here is everything short of execution: the bytes match
+      # the release, the soname is the name the APK ships, and libdrosh.so
+      # names the engine in DT_NEEDED rather than absorbing it.
 
       - name: Build libdrosh.so
         working-directory: native
