@@ -1,0 +1,176 @@
+package dev.drosh.terminal.engine.layout
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * The layout machine, on a clock we control.
+ *
+ * Every one of these cases was a device bug: text drawn inside itself while a
+ * keyboard opened, a pinch that reflowed sixty times a second, a grid that
+ * never caught up because nobody asked again. They are all numbers now.
+ */
+class LayoutMachineTest {
+
+    private fun machine() = LayoutMachine(settleMillis = 48L)
+
+    @Test
+    fun `a surface change defers the grid`() {
+        val machine = machine()
+        machine.onSurface(800, 600, now = 0)
+        machine.onCell(10f, 20f, now = 0)
+        // The cell change settles immediately, so the grid is 80x30.
+        assertEquals(80, machine.appliedColumns)
+        assertEquals(30, machine.appliedRows)
+
+        val size = machine.onSurface(800, 400, now = 100)
+        // Drawing follows the surface at once…
+        assertEquals(800, size.width)
+        assertEquals(400, size.height)
+        // …but the grid is still the old shape.
+        assertEquals(80, machine.appliedColumns)
+        assertEquals(30, machine.appliedRows)
+        assertTrue(machine.settlePending)
+    }
+
+    @Test
+    fun `the grid settles once the surface stops`() {
+        val machine = machine()
+        machine.onSurface(800, 600, now = 0)
+        machine.onCell(10f, 20f, now = 0)
+
+        machine.onSurface(800, 400, now = 100)
+        assertNull("still moving", machine.poll(now = 120))
+
+        val change = machine.poll(now = 200)
+        assertNotNull(change)
+        requireNotNull(change)
+        assertEquals(80, change.columns)
+        assertEquals(20, change.rows)
+        assertEquals(20, machine.appliedRows)
+        assertFalse(machine.settlePending)
+    }
+
+    @Test
+    fun `an animation reflows once, not sixty times`() {
+        val machine = machine()
+        machine.onSurface(800, 600, now = 0)
+        machine.onCell(10f, 20f, now = 0)
+
+        // A keyboard rising: a surface change every 16 ms for 300 ms.
+        var changes = 0
+        var now = 0L
+        while (now < 300) {
+            machine.onSurface(800, 600 - (now / 4).toInt(), now)
+            if (machine.poll(now) != null) changes += 1
+            now += 16
+        }
+        assertEquals("no reflow while the surface moves", 0, changes)
+
+        val change = machine.poll(now = now + 100)
+        assertNotNull("one reflow after it stops", change)
+        assertEquals(1, changes + 1)
+    }
+
+    @Test
+    fun `a pinch does not touch the grid`() {
+        val machine = machine()
+        machine.onSurface(800, 600, now = 0)
+        machine.onCell(10f, 20f, now = 0)
+
+        val before = machine.appliedColumns to machine.appliedRows
+
+        // A pinch in sixty steps.
+        for (step in 1..60) {
+            val size = machine.onPinch(1f + step / 100f, 400f, 300f)
+            assertEquals(1f + step / 100f, size.pinchScale, 0.0001f)
+            assertNull("a pinch never reflows", machine.poll(now = step.toLong() * 16))
+        }
+
+        assertEquals(before, machine.appliedColumns to machine.appliedRows)
+    }
+
+    @Test
+    fun `committing a pinch lays the grid out at once`() {
+        val machine = machine()
+        machine.onSurface(800, 600, now = 0)
+        machine.onCell(10f, 20f, now = 0)
+
+        val size = machine.onCell(12f, 24f, now = 1000)
+        assertEquals(1f, size.pinchScale)
+
+        val change = machine.poll(now = 1000)
+        assertNotNull("a committed size reflows immediately", change)
+        requireNotNull(change)
+        assertEquals(66, change.columns) // 800 / 12
+        assertEquals(25, change.rows) // 600 / 24
+    }
+
+    @Test
+    fun `a scroll offset is drawing only`() {
+        val machine = machine()
+        machine.onSurface(800, 600, now = 0)
+        machine.onCell(10f, 20f, now = 0)
+
+        machine.onScrollOffset(7.5f)
+        assertEquals(7.5f, machine.size.scrollOffsetPx, 0.0001f)
+        assertNull(machine.poll(now = 500))
+    }
+
+    @Test
+    fun `a grid change to the same shape is not reported`() {
+        val machine = machine()
+        machine.onSurface(800, 600, now = 0)
+        machine.onCell(10f, 20f, now = 0)
+
+        // The surface moves and comes back to the same shape.
+        machine.onSurface(800, 400, now = 100)
+        machine.onSurface(800, 600, now = 200)
+        assertNull("nothing changed", machine.poll(now = 400))
+    }
+
+    @Test
+    fun `a zero-sized surface still yields a drawable grid`() {
+        val machine = machine()
+        machine.onSurface(0, 0, now = 0)
+        machine.onCell(10f, 20f, now = 0)
+
+        assertEquals(2, machine.appliedColumns)
+        assertEquals(1, machine.appliedRows)
+        assertTrue(machine.size.stepX > 0f)
+        assertTrue(machine.size.stepY > 0f)
+    }
+
+    @Test
+    fun `the projection carries the scroll and no pinch`() {
+        val size = SizeInfo(
+            width = 800,
+            height = 600,
+            cellWidth = 10f,
+            cellHeight = 20f,
+            pinchScale = 2f,
+            scrollOffsetPx = 10f,
+        )
+        val out = FloatArray(4)
+        size.projection(out)
+
+        assertEquals(-1f, out[0], 0.0001f)
+        // 1 - 2*10/600
+        assertEquals(1f - 20f / 600f, out[1], 0.0001f)
+        assertEquals(2f / 800f, out[2], 0.0001f)
+        assertEquals(-2f / 600f, out[3], 0.0001f)
+    }
+
+    @Test
+    fun `the step divides the surface exactly`() {
+        val size = SizeInfo(width = 801, height = 601, cellWidth = 10f, cellHeight = 20f)
+        assertEquals(80, size.columns)
+        assertEquals(30, size.rows)
+        assertEquals(801f / 80f, size.stepX, 0.0001f)
+        assertEquals(601f / 30f, size.stepY, 0.0001f)
+    }
+}
