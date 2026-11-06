@@ -12,11 +12,23 @@ const ghostty = @import("../ghostty.zig");
 const c = ghostty.c;
 const jni = @import("types.zig");
 
+const allocator = @import("../main.zig").allocator;
+
+/// A handle as a pointer. Zero is null and never dereferenced.
+inline fn fromHandle(handle: jni.jlong) ghostty.Terminal {
+    if (handle <= 0) return null;
+    return @ptrFromInt(@as(usize, @intCast(handle)));
+}
+
+/// A pointer as a handle.
+inline fn toHandle(terminal: ghostty.Terminal) jni.jlong {
+    if (terminal == null) return 0;
+    return @intCast(@intFromPtr(terminal));
+}
+
 /// Create a terminal with `columns` x `rows` cells.
 ///
-/// Returns the handle, or 0 on failure. A zero handle is the only failure the
-/// caller can see, so the reason is logged rather than returned: the caller
-/// cannot do anything different for "out of memory" than for "invalid size".
+/// Returns the handle, or 0 on failure.
 export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeCreate(
     _env: jni.JNIEnv,
     _class: jni.jclass,
@@ -34,10 +46,8 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeCreate(
         @intCast(columns),
         @intCast(rows),
     );
-    if (result != ghostty.SUCCESS or terminal == null) {
-        return 0;
-    }
-    return @intFromPtr(terminal);
+    if (result != ghostty.SUCCESS) return 0;
+    return toHandle(terminal);
 }
 
 /// Destroy a terminal. A zero handle is a no-op, so a double free is safe.
@@ -46,8 +56,9 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeFree(
     _class: jni.jclass,
     handle: jni.jlong,
 ) void {
-    if (handle == 0) return;
-    c.ghostty_terminal_free(@ptrFromInt(@as(usize, @intCast(handle))));
+    const terminal = fromHandle(handle);
+    if (terminal == null) return;
+    c.ghostty_terminal_free(terminal);
 }
 
 /// Feed a byte stream to the parser.
@@ -61,31 +72,30 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeWrite(
     data: jni.jbyteArray,
     length: jni.jint,
 ) jni.jint {
-    if (handle == 0 or data == null or length < 0) return -1;
+    const terminal = fromHandle(handle);
+    if (terminal == null or data == null or length < 0) return -1;
 
-    const terminal: ghostty.Terminal = @ptrFromInt(@as(usize, @intCast(handle)));
-
-    // The bytes are copied into a stack buffer for small writes and a heap
-    // buffer for large ones. A frame's worth of output is usually a few
-    // hundred bytes; a `cat` of a large file is not.
+    // A frame's worth of output is usually a few hundred bytes; a `cat` of a
+    // large file is not. Small writes stay on the stack.
     var stack: [4096]u8 = undefined;
     var heap: ?[]u8 = null;
-    defer if (heap) |slice| @import("../main.zig").allocator.free(slice);
+    defer if (heap) |slice| allocator.free(slice);
 
-    const buffer: []u8 = if (@as(usize, @intCast(length)) <= stack.len)
-        stack[0..@intCast(length)]
+    const wanted: usize = @intCast(length);
+    const buffer: []u8 = if (wanted <= stack.len)
+        stack[0..wanted]
     else blk: {
-        const slice = @import("../main.zig").allocator.alloc(u8, @intCast(length)) catch return -2;
+        const slice = allocator.alloc(u8, wanted) catch return -2;
         heap = slice;
         break :blk slice;
     };
 
     const get_region = jni.call(
         env,
-        *const fn (jni.JNIEnv, jni.jbyteArray, jni.jsize, jni.jsize, [*]jni.jbyte) callconv(.c) void,
+        *const fn (jni.JNIEnv, jni.jbyteArray, jni.jsize, jni.jsize, [*]u8) callconv(.c) void,
         jni.Index.GetByteArrayRegion,
     );
-    get_region(env, data, 0, @intCast(length), @ptrCast(buffer.ptr));
+    get_region(env, data, 0, @intCast(length), buffer.ptr);
 
     c.ghostty_terminal_vt_write(terminal, buffer.ptr, buffer.len);
     return 0;
@@ -101,8 +111,9 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeResize(
     cell_width: jni.jint,
     cell_height: jni.jint,
 ) jni.jint {
-    if (handle == 0 or columns <= 0 or rows <= 0) return -1;
-    const terminal: ghostty.Terminal = @ptrFromInt(@as(usize, @intCast(handle)));
+    const terminal = fromHandle(handle);
+    if (terminal == null or columns <= 0 or rows <= 0) return -1;
+
     const result = c.ghostty_terminal_resize(
         terminal,
         @intCast(columns),
@@ -115,7 +126,7 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeResize(
 
 /// Read one of the terminal's own numbers (`COLS`, `ROWS`, `SCROLLBAR`, …).
 ///
-/// The result is packed into a long so one function covers every 16- and
+/// The result is widened into a long so one function covers every 16- and
 /// 32-bit field: the caller says which field and reads the low bits.
 export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeGet(
     _env: jni.JNIEnv,
@@ -123,12 +134,19 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeGet(
     handle: jni.jlong,
     field: jni.jint,
 ) jni.jlong {
-    if (handle == 0) return -1;
-    const terminal: ghostty.Terminal = @ptrFromInt(@as(usize, @intCast(handle)));
+    const terminal = fromHandle(handle);
+    if (terminal == null) return -1;
 
+    // Every field this exposes is at most 32 bits wide; the widest is the
+    // scrollbar's, which is a struct and is read through its own call below.
     var value: u64 = 0;
-    const result = c.ghostty_terminal_get(terminal, @enumFromInt(field), &value);
-    return if (result == ghostty.SUCCESS) @intCast(value) else -1;
+    const result = c.ghostty_terminal_get(
+        terminal,
+        @enumFromInt(@as(c_uint, @intCast(field))),
+        @ptrCast(&value),
+    );
+    if (result != ghostty.SUCCESS) return -1;
+    return @intCast(value);
 }
 
 /// Scroll the viewport.
@@ -142,12 +160,11 @@ export fn Java_dev_drosh_terminal_engine_native_NativeTerminal_nativeScroll(
     tag: jni.jint,
     amount: jni.jint,
 ) jni.jint {
-    if (handle == 0) return -1;
-    const terminal: ghostty.Terminal = @ptrFromInt(@as(usize, @intCast(handle)));
+    const terminal = fromHandle(handle);
+    if (terminal == null) return -1;
 
-    var behavior: c.GhosttyTerminalScrollViewport = undefined;
-    behavior.tag = @enumFromInt(tag);
-    behavior.value = std.mem.zeroes(c.GhosttyTerminalScrollViewportValue);
+    var behavior = std.mem.zeroes(c.GhosttyTerminalScrollViewport);
+    behavior.tag = @enumFromInt(@as(c_uint, @intCast(tag)));
     if (behavior.tag == c.GHOSTTY_SCROLL_VIEWPORT_DELTA) {
         behavior.value.delta = amount;
     } else if (behavior.tag == c.GHOSTTY_SCROLL_VIEWPORT_ROW) {

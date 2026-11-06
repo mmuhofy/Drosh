@@ -5,11 +5,8 @@
 //! fed a byte stream, and read back as cells — on the device, with the ABI we
 //! ship. If it cannot, everything above it is speculation.
 //!
-//! The test is deliberately small and deliberately end-to-end: create a
-//! terminal, write `hi`, update a render state, walk the rows, read the two
-//! cells, and compare. It returns a human-readable report rather than a bool,
-//! because a failure has to say *which* step failed on a device whose log may
-//! be the only channel out.
+//! The test returns a report rather than a bool, because a failure has to say
+//! *which* step failed on a device whose log may be the only channel out.
 
 const std = @import("std");
 const ghostty = @import("../ghostty.zig");
@@ -20,18 +17,18 @@ const allocator = @import("../main.zig").allocator;
 
 /// Run the whole pipeline and return a report.
 ///
-/// Returns a Java string. A failure is reported *in* the string, not as a
-/// thrown exception: this function exists to be read on a device, and an
-/// exception would lose the step that failed.
+/// A failure is reported *in* the string, not as a thrown exception: this
+/// function exists to be read on a device, and an exception would lose the
+/// step that failed.
 export fn Java_dev_drosh_terminal_engine_native_NativeSmoke_nativeSelfTest(
     env: jni.JNIEnv,
     _class: jni.jclass,
 ) jni.jstring {
-    var report = std.ArrayList(u8).init(allocator);
-    defer report.deinit();
+    var report = std.ArrayList(u8).empty;
+    defer report.deinit(allocator);
 
-    run(&report) catch |err| {
-        report.writer().print("FAIL: unexpected error {s}", .{@errorName(err)}) catch {};
+    run(allocator, &report) catch |err| {
+        report.writer(allocator).print("FAIL: unexpected error {s}", .{@errorName(err)}) catch {};
     };
 
     const new_string = jni.call(
@@ -45,17 +42,17 @@ export fn Java_dev_drosh_terminal_engine_native_NativeSmoke_nativeSelfTest(
     return new_string(env, z.ptr);
 }
 
-fn run(report: *std.ArrayList(u8)) !void {
-    const w = report.writer();
+fn run(alloc: std.mem.Allocator, report: *std.ArrayList(u8)) !void {
+    const w = report.writer(alloc);
 
     // --- 1. the library answers -------------------------------------------
-    var version: c.GhosttyString = undefined;
-    if (c.ghostty_build_info(c.GHOSTTY_BUILD_INFO_VERSION_STRING, &version) == ghostty.SUCCESS) {
-        try w.print("ghostty-vt: {s}\n", .{span(version)});
-    } else {
-        try w.print("FAIL: ghostty_build_info\n", .{});
+    var version: c.GhosttyString = std.mem.zeroes(c.GhosttyString);
+    const info = c.ghostty_build_info(c.GHOSTTY_BUILD_INFO_VERSION_STRING, @ptrCast(&version));
+    if (info != ghostty.SUCCESS) {
+        try w.print("FAIL: ghostty_build_info -> {d}\n", .{info});
         return;
     }
+    try w.print("ghostty-vt: {s}\n", .{span(version)});
 
     // --- 2. a terminal can be created -------------------------------------
     var terminal: ghostty.Terminal = null;
@@ -88,8 +85,8 @@ fn run(report: *std.ArrayList(u8)) !void {
 
     var cols: u16 = 0;
     var rows: u16 = 0;
-    _ = c.ghostty_render_state_get(state, c.GHOSTTY_RENDER_STATE_DATA_COLS, &cols);
-    _ = c.ghostty_render_state_get(state, c.GHOSTTY_RENDER_STATE_DATA_ROWS, &rows);
+    _ = c.ghostty_render_state_get(state, c.GHOSTTY_RENDER_STATE_DATA_COLS, @ptrCast(&cols));
+    _ = c.ghostty_render_state_get(state, c.GHOSTTY_RENDER_STATE_DATA_ROWS, @ptrCast(&rows));
     try w.print("grid: {d}x{d}\n", .{ cols, rows });
 
     // --- 5. the cells can be read back ------------------------------------
@@ -108,13 +105,13 @@ fn run(report: *std.ArrayList(u8)) !void {
     defer c.ghostty_render_state_row_cells_free(cells);
 
     // The iterator is fed by the render state, not by the terminal.
-    const iterator_bound = c.ghostty_render_state_get(
+    const bound = c.ghostty_render_state_get(
         state,
         c.GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR,
         @ptrCast(&iterator),
     );
-    if (iterator_bound != ghostty.SUCCESS) {
-        try w.print("FAIL: bind row iterator -> {d}\n", .{iterator_bound});
+    if (bound != ghostty.SUCCESS) {
+        try w.print("FAIL: bind row iterator -> {d}\n", .{bound});
         return;
     }
 
@@ -123,13 +120,12 @@ fn run(report: *std.ArrayList(u8)) !void {
         return;
     }
 
-    const row_cells = c.ghostty_render_state_row_get(
+    if (c.ghostty_render_state_row_get(
         iterator,
         c.GHOSTTY_RENDER_STATE_ROW_DATA_CELLS,
         @ptrCast(&cells),
-    );
-    if (row_cells != ghostty.SUCCESS) {
-        try w.print("FAIL: row_get(cells) -> {d}\n", .{row_cells});
+    ) != ghostty.SUCCESS) {
+        try w.print("FAIL: row_get(cells)\n", .{});
         return;
     }
 
@@ -154,7 +150,10 @@ fn run(report: *std.ArrayList(u8)) !void {
         @ptrCast(&i),
     );
 
-    try w.print("cells: '{c}' '{c}'\n", .{ @as(u8, @truncate(h)), @as(u8, @truncate(i)) });
+    try w.print("cells: '{c}' '{c}'\n", .{
+        @as(u8, @truncate(h)),
+        @as(u8, @truncate(i)),
+    });
     if (h == 'h' and i == 'i') {
         try w.print("PASS\n", .{});
     } else {
