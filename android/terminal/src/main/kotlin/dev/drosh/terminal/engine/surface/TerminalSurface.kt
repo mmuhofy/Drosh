@@ -181,6 +181,74 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         NativePty.write(pty, bytes)
     }
 
+    // --- selection ---------------------------------------------------------
+    //
+    // Selection lives in the engine: the word boundaries are its semantic
+    // rules and the cell widths are its own. What is kept here is the *text*
+    // and the bounds, because the clipboard and the handles are the platform's.
+
+    @Volatile
+    private var selected: String = ""
+
+    @Volatile
+    private var selectionRect: android.graphics.Rect? = null
+
+    /** The selected text, or "". */
+    fun selectedText(): String = selected
+
+    /** True when something is selected. */
+    fun hasSelection(): Boolean = selected.isNotEmpty()
+
+    /** The selection's bounds in pixels, or null. */
+    fun selectionBounds(): android.graphics.Rect? = selectionRect
+
+    /** Select the word under a cell; returns true when something was selected. */
+    fun selectWord(row: Int, column: Int): Boolean = applySelection(row, column, word = true)
+
+    /** Select the line under a cell. */
+    fun selectLine(row: Int, column: Int): Boolean = applySelection(row, column, word = false)
+
+    /** Select everything the engine holds. */
+    fun selectAll(): Boolean {
+        val session = sessionHandle
+        if (session == 0L) return false
+        selected = NativeSelection.selectAll(session)
+        selectionRect = null
+        renderThread.invalidate()
+        return selected.isNotEmpty()
+    }
+
+    /** Clear the selection. */
+    fun clearSelection() {
+        selected = ""
+        selectionRect = null
+        renderThread.invalidate()
+    }
+
+    /** Copy the selection to the clipboard; true when there was something. */
+    fun copySelection(): Boolean {
+        if (selected.isEmpty()) return false
+        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+            ?: return false
+        clipboard.setPrimaryClip(
+            android.content.ClipData.newPlainText("terminal", selected),
+        )
+        return true
+    }
+
+    private fun applySelection(row: Int, column: Int, word: Boolean): Boolean {
+        val session = sessionHandle
+        if (session == 0L) return false
+        selected = if (word) {
+            NativeSelection.selectWord(session, row, column)
+        } else {
+            NativeSelection.selectLine(session, row, column)
+        }
+        selectionRect = null
+        renderThread.invalidate()
+        return selected.isNotEmpty()
+    }
+
     /**
      * Ask for a redraw.
      *

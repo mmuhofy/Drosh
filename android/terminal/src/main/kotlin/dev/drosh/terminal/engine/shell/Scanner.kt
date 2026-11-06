@@ -71,8 +71,9 @@ class Scanner {
         // across two reads is still found.
         var index = 0
         while (index < chunk.size) {
-            val start = chunk.indexOf(ESC.toByte(), index)
-            if (start < 0) break
+            var start = index
+            while (start < chunk.size && chunk[start] != ESC.toByte()) start += 1
+            if (start >= chunk.size) break
             index = start
 
             val consumed = tryMark(chunk, index, out)

@@ -124,7 +124,7 @@ class GhosttyTerminal(context: Context) {
         val pty = NativePty.spawn(
             argv = listOf(launch.program) + launch.args,
             environment = launch.env.toMap(),
-            cwd = launch.cwd,
+            cwd = launch.cwd ?: "",
             columns = columns,
             rows = rows,
             cellWidth = cellWidthPx.toInt(),
