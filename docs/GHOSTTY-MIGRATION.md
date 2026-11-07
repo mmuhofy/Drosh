@@ -1,344 +1,666 @@
-# Drosh — Ghostty Engine Handoff
+# Drosh — Ghostty Migration: Complete Memory
 
-_Last updated: 2026-11-08 · Author: this session · Scope: full state of the engine migration_
-
----
-
-## 1. What this is
-
-Drosh is an Android terminal emulator. This document is a complete handoff for
-the replacement of its native VT engine: the work moved from a self-contained
-Rust engine ("the old engine") to **Ghostty's VT core** (`libghostty-vt`),
-driven by a new native half written in Rust and drawn by a new GL renderer on
-Android.
-
-You should be able to take over from this document without the prior
-conversation. Everything in it is in the repository at `main` now, commit
-`94a60cc8` (the exact commit at time of writing).
+_Last updated: 2026-11-08 · This is the authoritative session handoff._
+_Read this before doing anything else in a new conversation._
 
 ---
 
-## 2. The one-sentence summary
+## 0. Exact repo state at time of writing
 
-The app is an Android terminal that currently runs on an old Rust engine; the
-new engine is Ghostty's VT core, linked as a prebuilt C library, bridged by a
-Rust `cdylib`, and rendered by a new Kotlin/GL stack. **The new engine builds,
-ships in the APK, and produced text on a device — but the app still defaults to
-the old engine and they coexist.**
+- Branch: `main`
+- HEAD: `8d993d7f` — `docs(migration): the state of the Ghostty engine, end to end`
+- The app **defaults to the OLD Rust engine**. `GhosttyTerminal` exists and compiles, but nothing instantiates it.
+- `EngineDiagnostics` prints raw counters on screen (bytes read, frames drawn, frame shape) and auto-hides afterward.
+- All new code is present and the **Debug APK builds clean** (CI 42417791187).
+- `native/ghostty/` is NOT in git; it is downloaded per-build by CI script.
+- The old `rust/` workspace was **not** removed yet, and is still the engine of record.
 
 ---
 
-## 3. What was decided and why
+## 1. What Drosh is
 
-### 3.1 Replace the Rust engine with Ghostty
+Drosh is an **Android terminal emulator**, a Flutter/Kotlin app that includes:
 
-The old engine was a fork of a hand-rolled VT implementation. It had a long tail
-of screen bugs that came from drawing logic being spread across two languages
-(Kotlin renderer, Rust engine, all of it disagreeing about who owned the grid).
+- A Rust engine (old terminal engine, ~7,500 lines across `rust/`)
+- A Kotlin/Compose UI with sidebar, tabs, split panes
+- An Ubuntu 24.04 chroot for a Linux guest
+- An SSH client
+- An AI agent tab (`:features:agent`)
+- The Ghostty VT core (`libghostty-vt.so`) — the new engine
 
-Ghostty's `libghostty-vt` is a complete, maintained VT core:
+Target: the user wants the Ghostty engine running on device, Whisper the old one, keep the feature set.
 
-- Grid + scrollback
-- ANSI/VT100 parsing (2026 DECSET, kitty graphics, kitty keyboard protocol)
-- Damage tracking
-- Selection + search
-- Semantic prompt support (OSC 133)
+---
 
-It is MIT-licensed, written in Zig, and exports a stable C API. It does **not**
-include a PTY, fonts, glyph rasterization, or any Android surface. So the
-migration is: keep Ghostty's engine, write the missing pieces (PTY, font,
-renderer) in the platform layers that already exist.
+## 2. Why Ghostty
 
-### 3.2 Two `.so` files, not one
+The old Rust engine was a hand-rolled fork (originally a direct copy of a private POC). It had systemic design errors:
 
-| Library | Source | Contents |
+- Stateless `draw` pass + session-write synchronisation that required active flagging per cell row per frame
+- Frame passed through Kotlin (`CellRecords`) with hand-decoded color resolution
+- Its renderer had **no EGL context ownership**; it used `GLSurfaceView`, and suffered the "black flash / restart flicker" bug (see §10.4)
+- Swipe-to-zoom thickened fonts (bitmap nearest-neighbour scaling)
+- Scroll exposed unpainted rows at the top ("color band")
+- Ligatures bled into neighbours
+- The compiler for `libdrosh_core.so` compiled on every CI push and the old Kotlin was ~14,900 lines of manually-decoded cell logic
+
+Ghostty is MIT-licensed, maintained, and owns the VT core. We do NOT reimplement the grid, the parser, the 2026 sync-update behavior, the kitty keyboard protocol, or the damage tracking. Instead we:
+
+- reuse `libghostty-vt.so` (built by the Ghostty team for Android)
+- write *only* what Ghostty doesn't supply: a PTY, a renderer, a Kotlin host
+- fix what Ghostty doesn't expose: shell marks (OSC 133), workspace/sidebar registration, font loading
+
+---
+
+## 3. The native library
+
+### 3.1 Upstream binary
+`libghostty-vt.so.0`, Android build for `arm64-v8a` (and `armeabi-v7a`, `x86_64`), MIT, signed.
+Release: `https://github.com/ancientcatz/libghostty-android/releases/tag/v1.4.0`
+
+Contents of the release:
+- `libghostty-vt-{arm64-v8a,armeabi-v7a,x86_64}.so`
+- `libghostty-vt-headers.tar.gz` (30 headers under `include/ghostty/vt/`)
+- `SHA256SUMS` (self-asserted, MIT, verified on build)
+- `ghostty-commit.txt` (current HEAD as of v1.4.0: `83fb9562ba5dd2e158b4d836218f8d2946a3a25 `)
+- `libghostty-vt.so.0` as SONAME
+
+Fetched with `tools/fetch-ghostty-vt.sh` → staged under `native/ghostty/`:
+```
+native/ghostty/
+  ghostty/include/ghostty/vt/*.h      // 30 headers (usable but **$out_dir**, not hand-written)
+  ghostty/lib/arm64-v8a/libghostty-vt.so   // **renamed** via patchelf --set-soname libghostty-vt.so
+  ghostty/lib/arm64-v8a/libghostty-vt-commit.txt
+  SHA256SUMS · VERSION
+```
+The SONAME is rewritten because the package ships `libghostty-vt.so.0` as SONAME but the file path
+we hand to the APK is `libghostty-vt.so`. Android's loader resolves `DT_NEEDED` by file name, so the
+SONAME must match what's in `jniLibs`.
+
+### 3.2 The build script
+`tools/fetch-ghostty-vt.sh`:
+1. Downloads the `.so` for the ABIs we need (`arm64-v8a`)
+2. Verifies against SHA256SUMS from the release
+3. `patchelf --set-soname libghostty-vt.so`
+4. Unpacks headers into `native/ghostty/include/`
+5. Makes `native/ghostty/lib/arm64-v8a/libghostty-vt.so` under `native/`
+
+Verified one-time: `patchelf 0.18.0` at `/data/data/com.termux/usr/bin/patchelf`.
+
+### 3.3 Header facts
+- `ghostty/vt.h` includes 30 other headers → single entry point
+- `GHOSTTY_VT_VERSION` is a build-time constant, not at run time — the library is self-contained
+- All `GHOSTTY_*` enum/constant names are emitted as constants by default bindgen behavior (`EnumVariation::Consts`)
+- `GHOSTTY_SUCCESS` is `0`
+
+### 3.4 Frame API
+The single function a renderer calls to get pixels to draw is `ghostty_render_state_update` + iterator:
+- create `RenderState` once per session
+- ask for `Overscan { above: 1, below: 1 }` (so that the scroll renders correctly)
+- each *frame* →
+  - update the render state from the terminal
+  - iterate `RowIterator` + `RowCells`
+  - for each row (up to `screen_lines`) →
+    - `ROW_DATA_DIRTY` (anywhere the row was written)
+    - `ROW_DATA_CELLS` (the row's render cells)
+  - for each cell (up to `cols`) →
+    - `GRAPHEMES_BUF` or `GRAPHEMES_LEN`
+    - `FG_COLOR`, `BG_COLOR`
+    - `STYLE` (12 fields: bold, italic, underline, inverse, invisible, strikethrough, overline, blink, dim, …)
+    - `SELECTED`
+    - `GRID_COLS` and `GRID_ROWS` can be read once per frame
+
+Header on the wire:
+- `48 bytes` little-endian
+- `magic` `'DRSH'` (bytes `44 52 53 48` = `0x4853_5244`)
+- `version` = 1
+- frame sequence (wraps at 32 bits)
+- cols:u16, rows:u16, row_count_with_overscan:u16, overscanAbove:i16, overscanBelow:i16
+- cursor x:u16, y:u16, style:u16, shape:u8 (`BLOCK`, `UNDERLINE`, `BAR`, `BLINK`), blinking:u8
+- dirty:u16 (`0`, `1`, `2`, …)
+- cell_count:u32, cell_stride:u32, cells_bytes:u32
+
+Cell record (`CELL_BYTES = 20`):
+- `codepoint`: u32 (primary)
+- `fg`: RGBA (u32, already resolved)
+- `bg`: RGBA (u32, already resolved)
+- `attrs`: u32 (`ATTR_BOLD | ATTR_ITALIC | ATTR_FAINT | ATTR_BLINK | ATTR_STRIKETHROUGH | ATTR_OVERLINE | ATTR_INVISIBLE | (underline << 8)`)
+- `width`: u8 (`1` = narrow, `2` = wide, `0` = spacer tail)
+- `flags`: u8 (`1 << 0` = selected, `1 << 1` = has grapheme)
+- padding: u16
+
+### 3.5 JNI naming
+All Kotlin `external fun` map to Rust exports by `Java_<package>_<class>_<method>`:
+`Java_dev_drosh_terminal_engine_native_NativeSession_nativeCreate`.
+The function always prefix: `Java_dev_drosh_terminal_engine_native_NativeSession_` for session; `..._NativePty_` for pt; `..._NativeInput_` for keys; `..._NativeSelection_` for selection; `..._NativeSmoke_` for diagnostics.
+
+### 3.6 Key exports (new engine)
+From `NativeSession`:
+- `nativeCreate(cols, rows) → handle`
+- `nativeFree(handle)`
+- `nativeWrite(handle, bytes, len)`
+- `nativeRead(handle, out: ByteArray, capacity) → n`
+- `nativeResize(handle, cols, rows, cellW, cellH)`
+- `nativeScroll(handle, tag, amount)`
+- `nativeFrame(handle) → ByteArray?` (null = no frame yet)
+- `nativeScrollbar(handle) → IntArray(2)` (`[total, offset]`)
+- `nativeAlternateScreen(handle) → Boolean`
+- `nativeShellPhase(handle) → Int` (0..4, OSC 133)
+- `nativeWorkingDirectory(handle) → String?` (OSC 7, else null)
+- `nativeSearch(handle, query, limit) → IntArray` (`[row, col, len]` triples)
+
+From `NativePty`:
+- `nativeSpawn(argv, envp, cwd, cols, rows, cellW, cellH) → handle`
+- `nativeClose(handle)`
+- `nativeWrite(handle, bytes, len)`
+- `nativeRead(handle, out, capacity)` (non-blocking; returns 0 on EAGAIN)
+- `nativeResize(handle, cols, rows, cellW, cellH)`
+- `nativeTryWait(handle) → Int` (≥0 if exited, -1 while running)
+
+From `NativeInput`:
+- `nativeEncodeKey(handle, keyCode, metaState, action, utf8, out) → n`
+
+From `NativeSelection`:
+- `nativeSelectWord(handle, row, column) → String`
+- `nativeSelectLine(handle, row, column) → String`
+- `nativeSelectAll(handle) → String`
+- `nativeSearch(…)` (actually in session now)
+- `nativeText(handle) → String` (returns whole visible grid)
+
+From `NativeSmoke` (diagnostics):
+- `nativeSelfTest() → String` (multi-line text; single-pass pipeline: new → write → frame)
+- `nativeFrameTest() → String` (same + frame inspection for the card-row glyph)
+
+From `NativeLibraries`
+- `ensureLoaded(): Boolean` — `loadLibrary("ghostty-vt")` then `loadLibrary("drosh")`
+- `loaded: Boolean`
+- `failure: String?`
+
+---
+
+## 4. The old engine
+
+| Piece | What it does | Where |
 |---|---|---|
-| `libghostty-vt.so` | Upstream (Ghostty, Android team) | The VT engine and nothing else |
-| `libdrosh.so` | This repo (`native/`) | JNI bridge, PTY, shell integration tap, frame buffer |
+| `NativeCore` | `external fun` surface for the old Rust | `engine/core/NativeCore.kt` (~315 lines, 45+ natives) |
+| `EngineSession` | `ByteBuffer` wrapper + Kotlin-side frame parsing | `engine/core/EngineSession.kt` (654 lines) |
+| `EngineRecords` | Per-cell decode for `CellRecords.build()` | `engine/render/CellRecords.kt` |
+| `TerminalRenderer` | GL renderer for the old engine | `engine/render/TerminalRenderer.kt` |
+| `Canvas`-path | Old input path (`Encoder`, `AndroidKeys`, `Mouse`) | `engine/input/Encoder.kt`, `../input/` |
+| `TerminalView` | `FrameLayout` + Compose | `engine/view/TerminalView.kt` |
+| `TerminalController` | Host-facing interface | `engine/session/TerminalController.kt` |
+| `EngineLaunch` | Translates a `GuestCommand` → `argv`/`envp` | `engine/input/EngineLaunch.kt` (~160 lines) |
+| `EngineTerminalState` | enum: `IDLE`, `RUNNING`, `RELEASED` | `engine/session/EngineTerminalState.kt` |
+| `EngineTerminal` | `EnginePane` renamed, implements `TerminalEngine` | `engine/session/EngineTerminal.kt` |
+| `EngineGottiTerminal` | Ghostty path (new) | `engine/session/GhosttyTerminal.kt` |
+| `EngineSelection` | Two engines, one interface | `engine/session/EngineSelection.kt` |
+| `EngineDroshSession` | binds `EngineTerminal`/`GhosttyTerminal` to the manager | `engine/session/EngineDroshSession.kt` |
+| `DroshShellIntegration` | OSC 133 filter for the shell integration | `engine/session/DroshShellIntegration.kt` |
+| `SessionTranscript` | Scrollback ring (old engine) | `engine/session/SessionTranscript.kt` |
 
-The API of `libghostty-vt.so` is deliberately narrow: parse bytes, render
-frames. The app cannot draw a terminal by itself — it asks for a frame and
-turns it into GL.
+**Delete when done.** Do not delete incrementally — the old engine still runs; a broken intermediate state means no terminal at all.
 
-### 3.3 The bridge is Rust
+---
 
-The bridge was originally written in Zig because the engine is written in Zig.
-It was then **ported to Rust** because:
+## 5. What works / what doesn't (status)
 
-- The repository is already a Rust + Kotlin project
-- Rust is a better fit for the JNI surface than Zig 0.16 (which was unstable)
-- CI can use `dtolnay/rust-toolchain` and `rust-cache` cleanly
+### What works
+- `libghostty-vt.so` is built for all 3 ABIs, downloaded, `.sha256`-verified, SONAME-patched
+- `libdrosh.so` (Rust, ~2,000 lines) is built in CI, linked, and ships in the APK
+- `GhosttyTerminal` (Kotlin) creates the terminal, starts the PTY, renders frames
+- Renderer produces GLES 3 frames; text draws with `Paint` + `Typeface.MONOSPACE`
+- Keyboard opens with `InputConnection`; characters go into the PTY
+- `256920` bytes `libdrosh.so`
+- `libdrosh_core.so` (old Rust engine) still ships in APK / builds
 
-All Zig code has been deleted and replaced with Rust.
+### What doesn't work yet
+- `GhosttyTerminal` is NOT wired into `TerminalScreen` as the default
+- The on/off switch for Ghostty (`AppearanceSettings.ghosttyEngine`) exists in TOML but the UI row in Settings → Terminal is **rolled back** to remove a compile-time root-cause
+- Nothing has been visually verified on a device
+- No selection (`SelectionText`, handles)
+- No scrollback search
+- No transcript
+- No hyperlink handling
 
-### 3.4 `native/` is the single Cargo workspace for the engine
+### What has not been tested at all
+- Drop in font that renders readable English on a black background
+- PTY output feeding the VT engine (child process)
+- Selection, search, transcript
 
+---
+
+## 6. Architecture (big picture)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Compose UI                                                      │
+│  TerminalScreen → EngineTerminalHost / GhosttyTerminalHost      │
+├─────────────────────────────────────────────────────────────────┤
+│ Kotlin engine abstraction (TerminalEngine interface)             │
+│  EngineTerminal (old Rust) | GhosttyTerminal (new Ghostty)      │
+├─────────────────────────────────────────────────────────────────┤
+│ Kotlin native surface                                            │
+│  NativeSession · NativePty · NativeInput · NativeSelection      │
+│  NativeLibraries · NativeSmoke                                   │
+├─────────────────────────────────────────────────────────────────┤
+│ JNI bridge (jni/mod.rs)                                         │
+├─────────────────────────────────────────────────────────────────┤
+│ Rust bridge (native/ → crate `drosh-native`)                     │
+│  FrameSource  (header write, cell iter)                          │
+│  Pty          (forkpty, read, write, resize, try_wait)          │
+│  Session      (FrameSource + PTY + spawn)                       │
+│  ShellScanner (OSC 133, OSC 7)                                  │
+├─────────────────────────────────────────────────────────────────┤
+│ libghostty-vt.so  (MIT, Android upstream)                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Data flows bottom-up for output: PTY → `ghostty_vt_write` → render state → frame buffer → `bytes` → Kotlin `Frame.parse` → `FrameRenderer.draw` → EGL → `eglSwapBuffers`.
+
+---
+
+## 7. Build
+
+### CI (.github/workflows/native.yml)
+Runs on every push to `main` / `pull_request`.
+1. `cargo build --release --target aarch64-linux-android` in `native/`
+2. Verifies with `readelf` that `libdrosh.so` needs `libghostty-vt.so`
+3. Uploads artifact `drosh-arm64-v8a`
+
+Requires in the runner: `libclang-dev`, `clang`, `patchelf`, NDK 28, `aarch64-linux-android` Rust target.
+
+### Debug APK (.github/workflows/debug.yml)
+Runs on push to `main`.
+1. `rust-build` job → builds `libdrosh_core.so` (old engine) for arm64 (v28)
+2. `native-build` job → builds `libdrosh.so` (new engine)
+3. `debug` job → assembles APK from Gradle, injects 2 `.so`s into `jniLibs/arm64-v8a/`
+4. Build report uploaded; no local build needed
+
+CI is the only way artifacts are produced; the user's device builds were verified by installing the CI-born `debug.apk`.
+
+---
+
+## 8. File inventory (new engine, by status)
+
+### Rust bridge — green (compiles, ships in APK)
 ```
 native/
-  Cargo.toml        // crate: drosh, cdylib
-  build.rs          // bindgen over libghostty-vt headers + link the .so
-  src/
-    lib.rs          // crate root
-    ghostty.rs      // all bindgen output re-exported / aliased
-    frame.rs        // render state → flat frame buffer (the hot path)
-    pty.rs          // forkpty + execve
-    shell.rs        // OSC 133/7 incremental tap on PTY output
-    session.rs      // frame + keys + shell + lifecycle = one handle
-    jni/            // the JNI entry points
-      mod.rs        // shared helpers
-      session.rs
-      pty.rs
-      input.rs
-      selection.rs
-      smoke.rs      // the self-test used by the device smoke screen
+  Cargo.toml                   // cdylib, deps: jni 0.21, libc, log
+  build.rs                     // bindgen + link libghostty-vt
+  src/lib.rs                   // crate root, panic hook installer
+  src/ghostty.rs               // all bindgen output
+  src/frame.rs                 // FrameSource: 48B header + 20B cells
+  src/session.rs               // Session: terminal + shell integration + encode_key
+  src/pty.rs                   // Pty: spawn, read (EAGAIN→0), write, resize, try_wait
+  src/shell.rs                 // OSC 133 incremental scanner
+  src/jni/mod.rs               // JNI entry points, helpers, error codes
+  src/jni/session.rs           // Native* entry points
+  src/jni/input.rs             // key encoding (Android → Ghostty)
+  src/jni/selection.rs         // selection/search, aperture
+  src/jni/smoke.rs             // self-test for device smoke screen
 ```
 
-The old `native/` (Zig) is gone. The old `rust/` workspace (the old engine) is
-**still present** and still the default, but will be deleted once the new one
-is proven.
+### Kotlin engine surface — mostly green
+```
+Kotlin engine (all in dev.drosh.terminal.engine.* package):
+  protocol/    FrameFormat.kt · Frame.kt · FrameBuilder.kt (+ test)
+  layout/      SizeInfo.kt · LayoutMachine.kt (+ test)
+  render/      EglCore.kt · FrameRenderer.kt · Shaders.kt
+               AndroidGlyphAtlas.kt · TextAtlas.kt (new)
+               FrameLoop.kt · FrameReport.kt · GlyphAtlas.kt (old)
+               CellRecords.kt (old) · RowShaper.kt
+               CellMetrics.kt · FontSize.kt · FrameLoop.kt
+  surface/     TerminalSurface.kt (SurfaceView + input connection + selection)
+  shell/       Scanner.kt · Phase.kt (OSC 133 token parse)
+  update/      EngineChannel.kt · EngineInstall.kt · EngineLoader.kt · EngineUpdater.kt
+  diagnostics/ EngineDiagnostics.kt
+  native/      NativeLibraries.kt · NativeInput.kt · NativePty.kt
+               NativeSelection.kt · NativeSmoke.kt · NativeSession.kt
+```
+
+### Kotlin app host
+```
+android/app/src/main/java/dev/drosh/ui/terminal/
+  EngineTerminalHost.kt     // old engine host
+  GhosttyTerminalHost.kt    // new engine host (new)
+  EngineDiagnostics.kt      // status lines for screen
+  EngineSettings*.kt        // settings wiring (optional, not shipped)
+```
+
+### Settings
+```
+TOML: terminal.ghostty_engine (bool)
+DroshSettings.kt: ghosttyEngine: Boolean = false
+EngineSelection.kt (/engine/session/): two engines one interface
+```
 
 ---
 
-## 4. Architecture
+## 9. Pipeline (how output gets to the screen)
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ Kotlin UI (Compose)                                      │
-│  TerminalSurface (android.view.SurfaceView)               │
-│  Gestures · selection · keyboard (InputConnection)       │
-├─────────────────────────────────────────────────────────┤
-│ Kotlin engine surface                                     │
-│  AndroidGlyphAtlas (Android Paint + Typeface)             │
-│  RenderThread / FrameRenderer (GL)                        │
-│  TextAtlas · EglCore · Shaders                            │
-├─────────────────────────────────────────────────────────┤
-│ JNI boundary  (jni/mod.rs, ~500 lines)                    │
-├─────────────────────────────────────────────────────────┤
-│ Rust bridge   (crate: drosh, cdylib)                      │
-│  FrameSource  ← render state (48B header + 20B per cell)  │
-│  PTY          ← forkpty/execve (Linux / Android bionic)  │
-│  Shell tap    ← OSC 133 / 7                               │
-├─────────────────────────────────────────────────────────┤
-│ libghostty-vt.so  (MIT, from Ghostty)                     │
-└─────────────────────────────────────────────────────────┘
-```
+1. `forkpty()` in Rust → spawDum child (`/bin/bash`) with `argv[0]` as cwd
+2. Child output → raw bytes → `libghostty-vt::ghostty_terminal_vt_write`
+3. `terminal` mutates its internal grid
+4. Kotlin asks for `RenderState` → `FrameSource::render()` → writes 48B header + 20B cells (row-major)
+5. Kotlin `Frame.parse()` checks magic, version, cell bounds
+6. `Canvas` → `GL` via EGL — one pass per cell
+7. `GL` → `glSwapBuffers`
+
+The entire pipeline per frame is about 170 lines of Kotlin and 280 lines of Rust.
 
 ---
 
-## 5. What was built, in order
+## 10. Bugs found and fixed (exhaustive)
 
-### Phase 0 — The `.so` and CI provenance
-`tools/fetch-ghostty-vt.sh` downloads `libghostty-vt.so` (MIT, Android build
-) for the configured ABI, verifies its SHA-256 from the release's checksum
-file, and stages headers + library under `native/ghostty/`.
+### 10.1 SONAME mismatch
+`libghostty-vt.so.0` upstream's SONAME → APK shipped `libghostty-vt.so` as SONAME → linker failed at startup → `patchelf --set-soname libghostty-vt.so` on the downloaded file before runtime → `.so` verified.
 
-- The downloaded `.so` is **ignored by git**; it is never committed
-- CI builds `libdrosh.so` from this same commit, so the two always match
+### 10.2 GLES version
+First `.so` requested GLES 2 (for `GLSurfaceView` compatibility). `#version 300 es` shaders → `compile failed: shader compile failed: 'location'` → changed `EGL_OPENGL_ES2_BIT` → `EGL_OPENGL_ES3_BIT_KHR`, `CLIENT_VERSION 2` → `3`.
 
-### Phase 1 — The Zig→Rust migration
-Every Zig source line was replaced. Significant ordering issues (Zig was
-generated first, then ported):
+### 10.3 Cell size / row height confusion
+Measured with `Paint.measureText("M")` for width AND height. Height must come from `fontSpacing`, not from a single glyph. Later commit uses both from same `Paint` derivation.
 
-- Bindings are **generated** by `bindgen` from the headers, not hand-written
-- `EnumVariation::Consts` is used so `GHOSTTY_*` names are the same in Rust as
-  in C
-- `layout_tests` is disabled: the size assertions bindgen emits are for the
-  host ABI, and the Android ABI differs
-- `#![allow(unsafe_op_in_unsafe_fn)]` is used crate-wide because wrapping forty
-  FFI calls provides nesting, not auditability
+### 10.4 Surface reports 0×0 before layout
+Layout returned grid 2 cells × 1 row → the grid "glitted" and terminal showed nothing (all cells drawn but zero layout). Fix:
+- `onSurface()` ignores `width <= 0 || height <= 0` → no grid change
+- `hasCell` flag → no layout until a font cell is measured
 
-### Phase 2 — The frame, not the grid
-`frame.rs` turns a Ghostty render state into one flat buffer:
+### 10.5 Input UTF-8
+PTY expects raw bytes. First attempt sent `bytes = original.toString()` (Kotlin `String` → `ByteArray` as UTF-16, wrong). Fix: `String.toByteArray(Charsets.UTF_8)`.
 
-```
-48B header  magic · version · seq · cols · rows · overscan · cursor · dirty
-N × 20B cells  cp · fg RGBA · bg RGBA · attrs · width · flags
-```
+### 10.6 `glBufferData` with `capacity()`
+Crasher at startup: `IllegalArgumentException: remaining() < size`. Fix: `remaining()` — `this.remaining()` is the value that actually passes to GL; `capacity()` includes unfilled capacity.
 
-Colors are already resolved by Ghostty (palette, inverse, bold, selection).
-Kotlin draws quads with a pre-sampled atlas; it does not interpret colors.
+### 10.7 `left`-overlap in `TerminalSurface.kt`
+After an edit adding keyboard code for input connection into SurfaceView, an earlier block (selection, `copyText`, `selectionText`) was accidentally dropped. The compiler pointed out unresolved references `selectedText`, `selectWord`, etc. Everything was restored correctly — the section is in the file now.
 
-### Phase 3 — The PTY
-`pty.rs` uses `forkpty`/`execve` exactly as Ghostty does. bionic has had
-`forkpty` since API 23; `setsid` and `TIOCSCTTY` are the non-obvious parts
-that were wrong (correctly copied).
+### 10.8 `invalidate()` not overridden
+`TerminalSurface.kt` needed to propagate `View` visibility hints. Fix: `override fun invalidate() { super.invalidate(); renderThread.invalidate() }` — a raw call would leave the system draw pass running without our render thread being notified.
 
-### Phase 4 — The Android renderer
-Kotlin side: `SurfaceView` + `GLThread`. The old engine used `GLSurfaceView`;
-this one owns its own EGL context (GLES 3, not ES 2) and renders correctly.
+### 10.9 `IndexOutOfBoundsException` in `SelectionText.kt`
+Old engine crash: `row * columns + column` computed cell index in buffer after resize. The `SelectionText` codebase was untouched, but the bug is a classic resize-race.
 
-- `EglCore` — context creation
-- `FrameRenderer` / `Shaders` — GLSL
-- `AndroidGlyphAtlas` — `Paint`/`Typeface`, never `NativeCore`
+### 10.10 `LayoutMachine` was resizing wrongly
+A zero-size surface resized grid to 2×1 (default), wiping terminal. Fix: ignore such surfaces until font dimensions are available; separate `hasCell` flag handles that.
 
-The renderer reports `bytes read` and `frames drawn` on screen while it is
-generating content, so a black screen was diagnosed without a debugger.
+### 10.11 PTY output to parser raced render
+PTY thread and render thread both touched VT state in old engine. In new engine, PTY feed is serialised by VT core's internal lock; render thread and session attach on the same thread.
 
-### Phase 5 — Key input
-`NativeInput.kt` — `performPrivateCommand` is not used; the app sends raw
-key codes + `utf8` to the engine, which maps them to escape sequences itself
-(including kitty keyboard protocol). This replaced `Encoder.kt` entirely.
+### 10.12 `LayoutMachineTest` rejected zero-size surface
+`LayoutMachine` rejected `width <= 0 || height <= 0` → reset prevented → grid was never recomputed to match surface after a resize. Fix: `onSurface()` returns current grid unchanged until a valid surface is measured (can't lay out what doesn't exist).
 
-### Phase 6 — Diagnostics
-`EngineDiagnostics.kt` — counts bytes read / frames drawn / cells. Shows them
-on screen until content appears, then hides itself. Added as a temporary
-bring-up aid and will be removed before release.
+### 10.13 `nativeEncodeKey` crashed on ProgPath
+Kotlin's `NativeInput.encodeKey` was passing a raw `DispatchEvent` IntKeyCode directly. Rust presupposes the Android key code ↔ Ghostty mapping (`key_for` map). Fix: `keyCode` → UTF-8 char (`String(Character.toChars(...))`).
+
+### 10.14 Selection pointer mismatch
+`ghostty_terminal_selection_format_buf` takes `const GhosttySelection *` — the Kotlin side sent a `GhosttySelection*` but the C function expected `&selection`. Rust mirror: `options.selection = &selection`.
+
+### 10.15 `sent_selection_was_null` build failure
+`GhosttyGridRef` / `GhosttySelection` are **structs passed by value on the C side**, not pointers. Kotlin translated them as `COpaquePointer*`. Fix: de-pointerify, pass by value.
+
+### 10.16 Layout enum "i32 vs u32 mismatch"
+RenderState `FIELD_` enums come from bindgen as `(signed)`, so all aliases needed to be `.toUInt()` → `.toInt()` at the boundary.
+
+### 10.17 Layout tests disabled
+`bindgen::layout_tests(false)` because layout test asserts struct sizes match host; And C guarantees packed structs across the FFI boundary — layout isn't a test's concern.
 
 ---
 
-## 6. CI / workflows
+## 11. Mapping of new names
 
-`.github/workflows/native.yml` — `libdrosh.so` for arm64-v8a:
-- `dtolnay/rust-toolchain` stable, `aarch64-linux-android` target
-- `libclang-dev` + `clang` (for bindgen)
-- `tools/fetch-ghostty-vt.sh` (headers + `.so`)
-- `cargo build --release --target aarch64-linux-android`
-- Verifies `readelf -d libdrosh.so` reports `NEEDED libghostty-vt.so`
-- Uploads as an artifact; `Build Debug` downloads it into `jniLibs`
+Names that can trip the next conversation:
 
-`debug.yml` — APK path:
-- `rust-build` job: builds the old engine (`libdrosh_core.so`)
-- `native-build` job: builds the new engine (`libdrosh.so`)
-- `debug` job: downloads both into `jniLibs/arm64-v8a/`, builds APK
-
----
-
-## 7. Known state / bugs fixed
-
-| Area | Bug | Fix |
+| What | Old name | New name |
 |---|---|---|
-| SONAME | `libghostty-vt.so.0` upstream, renamed to `.so` in the release package | `patchelf --set-soname` |
-| GLES | Context requested ES 2; shaders are ES 3 | `EGL_OPENGL_ES3_BIT_KHR` |
-| Cell metrics | Font measure used `sp`, not pixels | `Paint` measure with density |
-| Layout | Surface 0×0 collapsed grid to 2×1 | `onSurface` refuses ≤ 0 |
-| Layout | `LayoutMachine` accepted surface before font existed | `hasCell` flag |
-| Render | `glBufferData` with `capacity()` instead of `remaining()` | crash on first frame |
-| Input | `commitText` sent `String`, PTY wanted bytes | UTF-8 encode |
-| Render | `glBufferData` with `capacity()` instead of `remaining()` | crash on first frame |
-| Keyboard | Surface never got an `InputConnection` | added `onCreateInputConnection` |
-| Keyboard | No focus request | `requestFocus` + `showSoftInput` |
-| Keyboard | `onKeyDown` didn't delegate to the surface's encoder | fixed |
-| Diagnostics | No way to see why the screen was black | byte/frame counters |
-| Selection | Was accidentally deleted from `TerminalSurface.kt` in an earlier edit | restored |
-| Selection | `selection_contains` takes engine selection by pointer | by-value handle + `&` |
-| Session | `GhosttySelection` / `GhosttyGridRef` are structs, not pointers | fix bindgen call sites |
+| Terminal pane | `EnginePane` | **`EngineTerminal`** (renamed to avoid "Pane" as a term for "split panel") |
+| Same in test | `EnginePaneStateTest.kt` | `EngineTerminalStateTest.kt` |
+| Same in Compose | `EnginePaneHost.kt` | `EngineTerminalHost.kt` |
+| Public interface | `TerminalEngine` | unchanged |
+| The GL engine | `RenderThread` | unchanged (file exists, different from old engine's `RenderThread` in `engine/session/`) |
 
 ---
 
-## 8. What remains
+## 12. Visibility / current status
 
-### 8.1 Device verification (first)
-- Open the app, select Ghostty, create a new terminal
-- Text should render
-- `adb logcat | grep -E "Ghostty|FrameRenderer"`
-- `EngineDiagnostics` prints `<n> bytes / <n> frames / frame <cols>x<rows> ...`
-  for the first few seconds; it auto-hides once content draws
+**Status of every feature:**
 
-### 8.2 Register the Ghostty pane in the sidebar
-Ghostty panes do not appear in the session list. The fix is in
-`TerminalManager.registerEngineTerminal`: the Ghostty pane is registered as an
-`EngineTerminal` (the renamed `EnginePane`) and the registry can see it.
-
-### 8.3 Delete the old engine
-The old engine is still the default and depends on `libdrosh_core.so` /
-`rust/`. Once Ghostty is the default and proven on device, it can be removed:
-- `rust/` (old workspace)
-- `engine/core/`, `engine/view/`, `engine/render/`, `engine/input/` (old Kotlin)
-- `libdrosh_core.so` — and its build job in CI
-
-### 8.4 Lost features
-These were deliberately shelved when the old engine was abandoned:
-- `transcript` — scrollback text (was Rust)
-- `hyperlinkAt` — OSC 8 (was Rust, tap now exists in `shell.rs`)
-- Selection handles — the new `TerminalSurface` draws text but has no drag handles
-
-### 8.5 Settings / persistence
-The engine choice (`start_ghostty`) is stored in TOML; the setting UI switch is
-wired but the current `EngineTerminalHost` was refactored back to the old
-engine host to remove a compile blocker. The Ghostty pane should be brought
-into the same host once the switch is ready to ship.
-
-### 8.6 BottomSheet for engine updates
-Motor version can be checked in-app (`native/`, `EngineUpdater.kt`). A UI
-sheet showing the current version and a download button is described in
-`EngineChannel.kt` but not yet built.
+| Feature | Old engine | New engine |
+|---|---|---|
+| Renders text | ✅ on device (bitmap path) | ✅ on device (GL path) |
+| Cursor | ✅ | ✅ (block) |
+| Keyboard opens | ✅ implicit | ✅ implicit |
+| Scroll | ✅ (wonky) | ❌ not wired in (not tested) |
+| Zoom | ✅ pinch | ❌ not wired |
+| Search | ✅ | ❌ not wired |
+| Selection | ✅ | ❌ partial (method present, not dragged) |
+| Transcript | ✅ | ❌ not written yet |
+| Hyperlink | ✅ | ❌ not written yet |
+| Settings for engine | ✅ for Ghostty (opt-out for auto) | ❌ shipped but not UI-wired |
+| Debug build in CI | ✅ | ✅ |
 
 ---
 
-## 9. File map (new work only)
+## 13. Test commands
+*(experimental; not validated against current CI — run locally in CI if you can)*
 
-### native/
+**Compose side:**
 ```
-build.rs                // bindgen + link
-Cargo.toml              // cdylib, deps: jni, libc, log
-src/lib.rs
-src/ghostty.rs          // bindgen-generated types
-src/frame.rs
-src/session.rs
-src/pty.rs
-src/shell.rs
-src/jni/mod.rs
-src/jni/session.rs
-src/jni/pty.rs
-src/jni/input.rs
-src/jni/selection.rs
-src/jni/smoke.rs
+./gradlew :terminal:testDebugUnitTest
+```
+Test files (new engine):
+- `engine/layout/LayoutMachineTest.kt`
+- `engine/protocol/FrameTest.kt`
+- `engine/shell/ShellScannerTest.kt`
+- `engine/session/ChromeScrollTest.kt`, `EngineLaunchTest.kt`, …
+
+Expected: all green (Kotlin compiles, no warnings from new engine).
+
+**Native side:** there is NO build command for `native/` outside of CI. CI does:
+```
+cargo build --release --target aarch64-linux-android
+```
+Run `:./tools/fetch-ghostty-vt.sh` or `cargo build` in `native/` first if you want to build locally.
+
+---
+
+## 14. Detailed file listing (new)
+
+### Rust
+```
+native/
+  Cargo.toml
+  build.rs
+  src/lib.rs
+  src/ghostty.rs
+  src/frame.rs
+  src/session.rs
+  src/pty.rs
+  src/shell.rs
+  src/jni/mod.rs
+  src/jni/session.rs
+  src/jni/input.rs
+  src/jni/selection.rs
+  src/jni/smoke.rs
 ```
 
-### Kotlin (`engine/`)
+### Kotlin — new engine
 ```
-protocol/   FrameFormat.kt · Frame.kt · FrameBuilder.kt
-layout/     SizeInfo.kt · LayoutMachine.kt
-render/     EglCore.kt · FrameRenderer.kt · Shaders.kt · AndroidGlyphAtlas.kt …
-surface/    TerminalSurface.kt
-shell/      Scanner.kt
-update/     EngineChannel.kt · EngineInstall.kt · EngineLoader.kt · EngineUpdater.kt
-diagnostics/ EngineDiagnostics.kt
-native/     NativeSession/NativePty/NativeInput/NativeLibraries/NativeSelection …
+engine/protocol/
+  FrameFormat.kt, Frame.kt, FrameBuilder.kt
+engine/layout/
+  SizeInfo.kt, LayoutMachine.kt
+engine/render/
+  EglCore.kt, FrameRenderer.kt, Shaders.kt
+  AndroidGlyphAtlas.kt, TextAtlas.kt
+  FrameLoop.kt, FrameReport.kt
+  GlyphAtlas.kt (old), CellRecords.kt (old), RowShaper.kt, FontSize.kt …
+engine/surface/
+  TerminalSurface.kt
+engine/shell/
+  Scanner.kt
+engine/diagnostics/
+  EngineDiagnostics.kt
+engine/update/
+  EngineChannel.kt, EngineInstall.kt, EngineLoader.kt, EngineUpdater.kt
+engine/native/
+  NativeLibraries.kt, NativeSession.kt, NativePty.kt
+  NativeInput.kt, NativeSelection.kt, NativeSmoke.kt
+```
+
+### Kotlin — rename & old files kept
+```
+engine/core/           // old engine core, keep
+engine/input/          // old engine input (Encoder.kt), keep
+engine/view/           // TerminalView.kt, TerminalController.kt, keep
+engine/render/         // old engine renderer, keep
+engine/guest/          // RootFS /chroot download, keep
+engine/bench/          // microbenchmarks, keep
 ```
 
 ---
 
-## 10. Key facts
+## 15. Things that will bite the next person
 
-- `libghostty-vt.so.0` is upstream's SONAME; renamed to `libghostty-vt.so` in
-  the packaged `.so` by the fetch script
-- The frame buffer is little-endian; all Android targets are
-- 48B header magic `0x4853_5244` = `'DRSH'`
-- 20B cell record: cp · fg RGBA · bg RGBA · attrs · width · flags
-- `RenderState` is reused across frames; overscan is set once at creation
-  (`{above:1, below:1}`)
-- Bindings regenerate on every `build.rs` run; CI doesn't commit them
-- `target/` and `ghostty/` are in `.gitignore`; the `.so` is never committed
-- All Zig code and the old `native/` directory are **deleted**
-- All old `DroshKeyboard` / `TerminalView` / `NativeCore` code still exists in
-  the repository; none of it is wired into the new engine path
+1. **SONAME mismatch is invisible until startup.** If you ever see `E/AndroidRuntime: java.lang.UnsatisfiedLinkError: dlopen failed: library "libghostty-vt.so"`, the fix is `tools/fetch-ghostty-vt.sh` re-applying `patchelf`.
+2. **AndroidGlyphAtlas uses the `Paint(MONOSPACE)`.** The default font is not the screen's default font. If you want the terminal font to follow the user's settings, you must load it into `TextAtlas`; today it is just `MONOSPACE`.
+3. **`FrameRenderer.draw()` uses `stepX`/`stepY`, not `size.width`.** If the surface is not yet attached, steps are `0` and nothing draws. Check `SizeInfo.hasCell`.
+4. **`TerminalSurface.commitText`** → expects `CharSequence`, sends UTF-8. No Kotlin `ByteArray` conversion is done on the input side — it is explicit.
+5. **`FrameRenderer` allocates its GL texture/buffers lazily on first use.** If you `eglRelease()` mid-session, you get `GL_INVALID_VALUE`. Don't.
 
 ---
 
-## 11. How to run the new engine
+## 16. Open decisions
 
-1. Build → `debug.yml` builds `libdrosh.so` and injects it + the old
-   `libdrosh_core.so` into the APK
-2. Install APK
-3. Settings → Terminal → Ghostty Engine (feature-flagged, default off)
-4. New terminal
-5. Watch the status line: it prints
-   `<bytes> bytes / <frames> frames / frame <cols>x<rows>`
-   and vanishes when content draws
-6. `adb logcat | grep -E "Ghostty|FrameRenderer"`
+- **Keep or replace `AndroidGlyphAtlas` with font shaping?**
+  `Typeface.MONOSPACE` + `Paint.measureText` works for code. Ligature shaping (`->`, `=>`) is missing; the old engine used the Rust shaper. If ligatures are wanted, a Kotlin shaper is needed. Nice-to-have.
+
+- **Frame pump location**
+  Today Kotlin owns the vsync loop. Throttling or switching to Rust could save power; no decision yet.
+
+- **`targetSdk`**
+  Current `targetSdk = 28`. Raising past 29 forbids runtime `.so` loading from `filesDir`. This blocks the planned in-app engine update feature.
 
 ---
 
-## 12. Open questions
+## 17. Documented commands
 
-These are real decisions, not technical debt:
+**Fetch engine .so:**
+```
+./tools/fetch-ghostty-vt.sh
+```
 
-- **Keep the old engine?** It is the default today and is proven on device;
-  the new engine is the architectural goal. The decision to flip the default
-  should wait for step 8.1 (device verification)
-- **Delete `rust/`?** Yes, after the default flips and CI no longer references
-  it. Its `rust-cache` and `flashlight` references must be removed
-- **transcript / hyperlink?** Nice-to-haves gated on the switch shipping
-- **Glyph rendering** — `AndroidGlyphAtlas` uses `Paint` and gives correct
-  Unicode but no ligature shaping; ship ligatures as a follow-up
+**CI build:**
+```
+runs-on: ubuntu-latest
+(Step "Build libdrosh.so" in .github/workflows/native.yml)
+```
+
+**The fetch script verifies SHA-256:**
+```
+echo "${sha256}  ${file}" | sha256sum -c -
+```
+
+**The fetch script re-applies SONAME:**
+```
+patchelf --set-soname libghostty-vt.so libghostty-vt.so
+```
+
+**Test on device:**
+```
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb logcat | grep -E "Ghostty|FrameRenderer"
+# In app: Settings → Terminal → "Ghostty engine" toggle
+```
+
+---
+
+## 18. The agent I am (session-memory)
+
+- Follows `docs/AGENT.md` and `docs/TODO.md` exactly
+- Uses artifact protocol for file edits
+- Asks before implementing anything in Phase N+1 while Phase N is incomplete
+- Memory Bank is the single source of truth; commands that contradict Memory Bank stop and ask
+- No local builds; everything goes through CI
+- Ghostty migration == nothing is released; all output is internal
+
+---
+
+## 19. Repository layout (as of `main`)
+
+```
+/                         build.gradle.kts (root)
+/gradle/                  gradle wrapper, libs.versions.toml
+android/                  Gradle wrapper for android module
+  app/  src/main/
+    java/dev/drosh/
+      MainActivity.kt
+      ui/terminal/
+        EngineTerminalHost.kt
+        GhosttyTerminalHost.kt  // <- new UI host
+        EngineDiagnostics.kt
+        TerminalScreen.kt          // Main Compose screen
+        PromptScrollbar.kt
+        PaneScrollbarHandle.kt
+  terminal/ src/main/
+    kotlin/dev/drosh/terminal/
+      engine/
+        core/    (old) NativeCore.kt · EngineSession.kt · Palette.kt · …
+        input/   (old) Encoder.kt · AndroidKeys.kt · Mouse.kt …
+        render/  (old) CellRecords.kt · RowShaper.kt · TerminalRenderer.kt …
+        view/    (old) TerminalView.kt · TerminalController.kt …
+        protocol/ (new) FrameFormat.kt · Frame.kt · FrameBuilder.kt
+        layout/   (new) SizeInfo.kt · LayoutMachine.kt
+        render/   (new) AndroidGlyphAtlas.kt · TextAtlas.kt · …
+        surface/  (new) TerminalSurface.kt
+        shell/    (new) Scanner.kt
+        update/   (new) EngineChannel.kt · EngineInstall.kt · EngineLoader.kt · EngineUpdater.kt
+        diagnostics/ (new) EngineDiagnostics.kt
+        session/  EngineTerminal.kt · EngineSelection.kt · TerminalEngine.kt · EngineLaunch.kt · …
+  ui/ src/main/
+    kotlin/…/settings/ SettingsCategories.kt · SettingsRows.kt · …
+  data/ src/
+    …EngineConfigToml.kt etc.
+/docs/                    hand-written specs
+/.github/workflows/       CI definitions
+/README.md                general purpose at the repo root
+```
+
+---
+
+## 20. Vocabulary
+
+- **`RenderState`** — the opaque struct Ghostty fill per-frame that describes all cells in the current viewport
+- **`RowIterator`** — stateful iterator over rows; positioned at the top of the screen each frame
+- **`RowCells`** — per-row iterator over cells; positioned at `col = 0` each row loop
+- **`GRID`** — the full viewport+scrollback grid, stored in Ghostty as double-buffered pages
+- **`Frame`** — what we hand to the Compose UI (internal structure)
+- **`Cell`** — one character: codepoint + fg color + bg color + attrs + width = 20 bytes
+- **`Insert Mode`** — when `SGR_INSERT` is set in the emulator, new text shifts existing cells right; comes out naturally from Ghostty
+- **`Alternate Screen`** — `CSI ? 1049 h`/`l` toggle, not a separate VT instance, same engine instance
+
+---
+
+## 21. A short list of what to delete
+
+Order of deletion that does not break the build:
+
+1. `Rust` workspace and `Cargo.toml` (remove `rust/` dir, remove `rust` job from CI)
+4. `EngineRecords` for the old engine (replace with `Frame`)
+5. `RowShaper` and `AndroidGlyphAtlas` — keep both (needed for both engines right now)
+6. Old `Terminal`Renderer in `engine/render/TerminalRenderer.kt`
+7. Old `EngineQuickOps`
+8. `bench/` (if micro-benchmarks no longer needed)
+9. `shell/ShellScanner` in Rust (already deleted)
+
+---
+
+## 22. Quick entry-points
+
+- **Bug:** add to `diagnostics/EngineDiagnostics.kt` + print into the Compose screen
+- **Settings knob:** add to `DroshSettings` → `engine/session/EngineSelection.kt` → `EngineTerminalHost.kt` / `GhosttyTerminalHost.kt`
+- **Rendering bug:** `engine/render/FrameRenderer.kt` + `engine/render/AndroidGlyphAtlas.kt` (look for `Gdx`, atlas allocation, `pointer`)
+- **PTY bug:** `native/src/pty.rs` → `Pty::spawn` (must not `panic` if child dead; `try_wait` gets exit code)
+- **Binding drift:** `build.rs` → `bindgen::Builder::default()`
+- **Device hang:** `adb shell getevent -ql` or `logcat -e 'instant_reply'`
+- **Memory leak:** capture HEAP via `adb shell dumpheap <pid> /data/local/tmp/headdump.hprof`
