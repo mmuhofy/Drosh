@@ -66,6 +66,14 @@ fn main() {
         .allowlist_function("ghostty_.*")
         .allowlist_type("Ghostty.*")
         .allowlist_var("GHOSTTY_.*")
+        // C enums as constants, not as Rust enums.
+        //
+        // bindgen's default is to invent a Rust enum per C enum, which renames
+        // every variant and types every parameter that way. The engine's enums
+        // are plain integers in C — a value can be one the compiler never saw —
+        // and the constants keep the names the headers use, so the code reads
+        // like the API it calls.
+        .default_enum_style(bindgen::EnumVariation::Consts)
         // Layout assertions turn a moved field into a compile error instead of
         // a struct that reads the wrong bytes.
         .layout_tests(true)
