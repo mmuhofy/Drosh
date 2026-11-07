@@ -88,6 +88,18 @@ jobs:
           GHOSTTY_VT_ABIS: ${{ matrix.abi }}
         run: ./tools/fetch-ghostty-vt.sh
 
+      # A one-shot look at what bindgen actually produced: the names of the
+      # generated constants are the ABI's, and guessing them has cost more than
+      # reading them.
+      - name: Show the generated bindings
+        if: always()
+        run: |
+          set -euo pipefail
+          file=$(find native/target -name ghostty.rs -path '*out*' | head -1)
+          if [ -z "$file" ]; then echo "no generated bindings"; exit 0; fi
+          echo "=== generated at $file"
+          grep -nE "pub (mod|type|const) GhosttyRenderStateData|GHOSTTY_RENDER_STATE_DATA_COLS|GHOSTTY_BUILD_INFO_VERSION_STRING|pub const GHOSTTY_SUCCESS" "$file" | head -20
+
       - name: Build libdrosh.so
         working-directory: native
         env:
