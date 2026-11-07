@@ -89,7 +89,6 @@ Verified one-time: `patchelf 0.18.0` at `/data/data/com.termux/usr/bin/patchelf`
 
 ### 3.3 Header facts
 - `ghostty/vt.h` includes 30 other headers → single entry point
-- `GHOSTTY_VT_VERSION` is a build-time constant, not at run time — the library is self-contained
 - All `GHOSTTY_*` enum/constant names are emitted as constants by default bindgen behavior (`EnumVariation::Consts`)
 - `GHOSTTY_SUCCESS` is `0`
 
