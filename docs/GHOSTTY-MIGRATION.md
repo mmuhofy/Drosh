@@ -422,7 +422,7 @@ Names that can trip the next conversation:
 
 ## 12. Visibility / current status
 
-**Status of every feature:**
+**Status of every feature:**  *(verified only by CI build logs; not device-tested)*
 
 | Feature | Old engine | New engine |
 |---|---|---|
