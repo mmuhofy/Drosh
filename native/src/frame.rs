@@ -174,11 +174,7 @@ impl FrameSource {
             }
 
             let mut overscan = ghostty::GhosttyRenderStateOverscan { above: 0, below: 0 };
-            get(
-                self.state,
-                ghostty::GHOSTTY_RENDER_STATE_DATA_OVERSCAN,
-                &mut overscan,
-            );
+            render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_OVERSCAN, &mut overscan);
 
             let row_count =
                 u32::from(rows) + u32::from(overscan.above) + u32::from(overscan.below);

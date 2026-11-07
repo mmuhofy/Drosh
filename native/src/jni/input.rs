@@ -66,31 +66,34 @@ fn mods_for(meta: i32) -> ghostty::GhosttyMods {
     let mut mods: ghostty::GhosttyMods = 0;
     // META_SHIFT_ON = 0x1, META_ALT_ON = 0x2, META_CTRL_ON = 0x1000,
     // META_META_ON = 0x10000.
+    // The masks are `#define`s, so bindgen types them as `c_uint`; the modifier
+    // field is whatever the header typedef'd it as. Casting the mask, not the
+    // accumulated value, is what makes the widths agree.
     if meta & 0x1 != 0 {
-        mods |= ghostty::GHOSTTY_MODS_SHIFT;
+        mods |= ghostty::GHOSTTY_MODS_SHIFT as ghostty::GhosttyMods;
     }
     if meta & 0x2 != 0 {
-        mods |= ghostty::GHOSTTY_MODS_ALT;
+        mods |= ghostty::GHOSTTY_MODS_ALT as ghostty::GhosttyMods;
     }
     if meta & 0x1000 != 0 {
-        mods |= ghostty::GHOSTTY_MODS_CTRL;
+        mods |= ghostty::GHOSTTY_MODS_CTRL as ghostty::GhosttyMods;
     }
     if meta & 0x10000 != 0 {
-        mods |= ghostty::GHOSTTY_MODS_SUPER;
+        mods |= ghostty::GHOSTTY_MODS_SUPER as ghostty::GhosttyMods;
     }
     // META_ALT_RIGHT_ON = 0x20, META_SHIFT_RIGHT_ON = 0x40,
     // META_CTRL_RIGHT_ON = 0x2000, META_META_RIGHT_ON = 0x20000.
     if meta & 0x20 != 0 {
-        mods |= ghostty::GHOSTTY_MODS_ALT_SIDE;
+        mods |= ghostty::GHOSTTY_MODS_ALT_SIDE as ghostty::GhosttyMods;
     }
     if meta & 0x40 != 0 {
-        mods |= ghostty::GHOSTTY_MODS_SHIFT_SIDE;
+        mods |= ghostty::GHOSTTY_MODS_SHIFT_SIDE as ghostty::GhosttyMods;
     }
     if meta & 0x2000 != 0 {
-        mods |= ghostty::GHOSTTY_MODS_CTRL_SIDE;
+        mods |= ghostty::GHOSTTY_MODS_CTRL_SIDE as ghostty::GhosttyMods;
     }
     if meta & 0x20000 != 0 {
-        mods |= ghostty::GHOSTTY_MODS_SUPER_SIDE;
+        mods |= ghostty::GHOSTTY_MODS_SUPER_SIDE as ghostty::GhosttyMods;
     }
     mods
 }
