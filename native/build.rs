@@ -30,9 +30,26 @@ fn main() {
         );
     }
 
-    bindgen::Builder::default()
+    let mut builder = bindgen::Builder::default()
         .header(header.to_string_lossy())
-        .clang_arg(format!("-I{}", include.display()))
+        .clang_arg(format!("-I{}", include.display()));
+
+    // libclang does not know Debian's multiarch layout, so glibc's own headers
+    // (`bits/libc-header-start.h`) are not found without the architecture's
+    // include directory. The engine's headers include <stdint.h> and friends,
+    // which land there.
+    for candidate in [
+        "/usr/include/x86_64-linux-gnu",
+        "/usr/include/aarch64-linux-gnu",
+        "/usr/include/arm-linux-gnueabihf",
+    ] {
+        if std::path::Path::new(candidate).is_dir() {
+            builder = builder.clang_arg(format!("-I{candidate}"));
+            break;
+        }
+    }
+
+    builder
         // Only the engine's own surface: the rest of the C world it includes is
         // the platform's, and the platform's declarations are the libc crate's.
         .allowlist_function("ghostty_.*")
