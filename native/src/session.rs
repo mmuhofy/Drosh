@@ -193,7 +193,7 @@ impl Session {
     ) -> Vec<u8> {
         if self.keys.is_none() {
             let mut encoder = std::ptr::null_mut();
-            if !ghostty::ok(ghostty::ghostty_key_encoder_new(std::ptr::null(), &mut encoder)) {
+            if !ghostty::ok(unsafe { ghostty::ghostty_key_encoder_new(std::ptr::null(), &mut encoder) }) {
                 return Vec::new();
             }
             unsafe { ghostty::ghostty_key_encoder_setopt_from_terminal(encoder, self.terminal) };
@@ -203,7 +203,7 @@ impl Session {
         unsafe { ghostty::ghostty_key_encoder_setopt_from_terminal(encoder, self.terminal) };
 
         let mut event = std::ptr::null_mut();
-        if !ghostty::ok(ghostty::ghostty_key_event_new(std::ptr::null(), &mut event)) {
+        if !ghostty::ok(unsafe { ghostty::ghostty_key_event_new(std::ptr::null(), &mut event) }) {
             return Vec::new();
         }
 

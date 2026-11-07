@@ -110,24 +110,22 @@ pub struct FrameSource {
 impl FrameSource {
     pub fn new(terminal: ghostty::GhosttyTerminal) -> Result<Self, FrameError> {
         let mut state = std::ptr::null_mut();
-        if !ghostty::ok(ghostty::ghostty_render_state_new(std::ptr::null(), &mut state)) {
+        if !ghostty::ok(unsafe { ghostty::ghostty_render_state_new(std::ptr::null(), &mut state) }) {
             return Err(FrameError::UpdateFailed(-1));
         }
 
         let mut iterator = std::ptr::null_mut();
-        if !ghostty::ok(ghostty::ghostty_render_state_row_iterator_new(
-            std::ptr::null(),
-            &mut iterator,
-        )) {
+        if !ghostty::ok(unsafe {
+            ghostty::ghostty_render_state_row_iterator_new(std::ptr::null(), &mut iterator)
+        }) {
             unsafe { ghostty::ghostty_render_state_free(state) };
             return Err(FrameError::IteratorFailed(-1));
         }
 
         let mut cells = std::ptr::null_mut();
-        if !ghostty::ok(ghostty::ghostty_render_state_row_cells_new(
-            std::ptr::null(),
-            &mut cells,
-        )) {
+        if !ghostty::ok(unsafe {
+            ghostty::ghostty_render_state_row_cells_new(std::ptr::null(), &mut cells)
+        }) {
             unsafe {
                 ghostty::ghostty_render_state_row_iterator_free(iterator);
                 ghostty::ghostty_render_state_free(state);
