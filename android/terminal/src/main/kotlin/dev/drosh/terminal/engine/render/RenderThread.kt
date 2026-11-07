@@ -107,8 +107,12 @@ class RenderThread(
     /** The renderer's own GL state, created on the loop thread. */
     private var renderer: FrameRenderer? = null
 
-    /** Why the renderer came up empty, or null when it drew. */
-    @Volatile
+    /**
+     * Why the renderer came up empty, or null when it drew.
+     *
+     * No `@Volatile` of its own: it has no backing field, and `renderer` — the
+     * field it reads — is already volatile.
+     */
     val rendererFailure: String? get() = renderer?.failure
 
     /** True while the loop is running. */

@@ -395,8 +395,9 @@ internal class FrameRenderer {
         GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, status, 0)
         if (status[0] == 0) {
             val log = GLES20.glGetProgramInfoLog(program)
-            lastShaderError = "program link failed: $log"
-            android.util.Log.e(TAG, lastShaderError)
+            val message = "program link failed: $log"
+            lastShaderError = message
+            android.util.Log.e(TAG, message)
             GLES20.glDeleteProgram(program)
             return 0
         }
@@ -415,8 +416,9 @@ internal class FrameRenderer {
         GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
         if (status[0] == 0) {
             val log = GLES20.glGetShaderInfoLog(shader)
-            lastShaderError = "shader compile failed: $log"
-            android.util.Log.e(TAG, lastShaderError)
+            val message = "shader compile failed: $log"
+            lastShaderError = message
+            android.util.Log.e(TAG, message)
             GLES20.glDeleteShader(shader)
             return 0
         }
