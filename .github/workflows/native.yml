@@ -65,7 +65,7 @@ jobs:
       - name: Install libclang
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libclang-dev clang clang patchelf
+          sudo apt-get install -y -qq libclang-dev clang patchelf
 
       - name: Install pinned NDK
         run: |
