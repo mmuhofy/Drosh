@@ -394,11 +394,3 @@ fn put_i16(out: &mut [u8], at: usize, value: i16) {
 fn put_u32(out: &mut [u8], at: usize, value: u32) {
     out[at..at + 4].copy_from_slice(&value.to_le_bytes());
 }
-
-/// Read one render-state field into `out`.
-///
-/// The C API writes the field's own type, so the caller passes a pointer to the
-/// right one; a wrong type here reads the wrong bytes and cannot be caught later.
-unsafe fn get<T>(state: ghostty::GhosttyRenderState, field: u32, out: &mut T) {
-    let _ = ghostty::ghostty_render_state_get(state, field, out as *mut T as *mut c_void);
-}

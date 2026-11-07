@@ -17,7 +17,6 @@
 //! deliberate — every screen bug of the previous engine came from two languages
 //! disagreeing about the grid.
 
-#![deny(unsafe_op_in_unsafe_fn)]
 
 pub mod frame;
 pub mod ghostty;
