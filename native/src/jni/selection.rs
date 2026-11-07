@@ -76,7 +76,7 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
         point.value.coordinate.y = row as u32;
     }
 
-    let mut reference = std::ptr::null_mut();
+    let mut reference: ghostty::GhosttyGridRef = unsafe { std::mem::zeroed() };
     let result = unsafe {
         ghostty::ghostty_terminal_grid_ref(session.terminal(), point, &mut reference)
     };
@@ -84,7 +84,7 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
         return None;
     }
 
-    let mut selection = std::ptr::null_mut();
+    let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
     let result = unsafe {
         if word {
             let mut options: ghostty::GhosttyTerminalSelectWordOptions = std::mem::zeroed();
@@ -108,7 +108,7 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
 /// Everything the engine holds, as text.
 fn select_all(handle: jlong) -> Option<String> {
     let session = session_from(handle)?;
-    let mut selection = std::ptr::null_mut();
+    let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
     let result = unsafe { ghostty::ghostty_terminal_select_all(session.terminal(), &mut selection) };
     if !ghostty::ok(result) {
         return None;
@@ -193,7 +193,8 @@ pub fn search(session: &Session, query: &str, limit: usize) -> Vec<i32> {
     }
 
     let wanted = total.min(limit);
-    let mut selections = vec![std::ptr::null_mut(); wanted];
+    let mut selections: Vec<ghostty::GhosttySelection> =
+        vec![unsafe { std::mem::zeroed() }; wanted];
     let mut buffer = ghostty::GhosttySelectionBuffer {
         ptr: selections.as_mut_ptr(),
         cap: wanted,
@@ -210,10 +211,8 @@ pub fn search(session: &Session, query: &str, limit: usize) -> Vec<i32> {
         return Vec::new();
     }
 
-    let mut columns: u16 = 0;
-    let mut rows: u16 = 0;
-    let _ = session.get(ghostty::GHOSTTY_TERMINAL_DATA_COLS, &mut columns);
-    let _ = session.get(ghostty::GHOSTTY_TERMINAL_DATA_ROWS, &mut rows);
+    let columns = session.columns();
+    let rows = session.rows();
 
     let mut triples = Vec::with_capacity(buffer.len * 3);
     for index in 0..buffer.len {

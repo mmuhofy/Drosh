@@ -47,6 +47,17 @@ use std::ffi::c_void;
 
 use crate::ghostty;
 
+macro_rules! render_get {
+    ($state:expr, $field:expr, $out:expr) => {
+        ghostty::ghostty_render_state_get(
+            $state,
+            $field,
+            $out as *mut _ as *mut std::ffi::c_void,
+        )
+    };
+}
+
+
 pub const MAGIC: u32 = 0x4853_5244; // 'DRSH' little-endian
 pub const VERSION: u16 = 1;
 
@@ -156,8 +167,8 @@ impl FrameSource {
 
             let mut cols: u16 = 0;
             let mut rows: u16 = 0;
-            get(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_COLS, &mut cols);
-            get(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_ROWS, &mut rows);
+            render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_COLS, &mut cols);
+            render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_ROWS, &mut rows);
             if cols == 0 || rows == 0 {
                 return Err(FrameError::EmptyGrid);
             }
@@ -241,11 +252,11 @@ impl FrameSource {
         let mut cursor_style: u16 = 0;
         let mut cursor_visible = false;
         let mut cursor_blinking = false;
-        get(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X, &mut cursor_x);
-        get(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y, &mut cursor_y);
-        get(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE, &mut cursor_style);
-        get(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE, &mut cursor_visible);
-        get(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING, &mut cursor_blinking);
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X, &mut cursor_x);
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y, &mut cursor_y);
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE, &mut cursor_style);
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE, &mut cursor_visible);
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING, &mut cursor_blinking);
 
         put_u16(header, 22, cursor_x);
         put_u16(header, 24, cursor_y);
@@ -260,7 +271,7 @@ impl FrameSource {
         put_u16(header, 28, flags);
 
         let mut dirty = ghostty::GHOSTTY_RENDER_STATE_DIRTY_FALSE;
-        get(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_DIRTY, &mut dirty);
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_DIRTY, &mut dirty);
         let dirty_bits = match dirty {
             ghostty::GHOSTTY_RENDER_STATE_DIRTY_FULL => DIRTY_FULL,
             ghostty::GHOSTTY_RENDER_STATE_DIRTY_PARTIAL => DIRTY_PARTIAL,

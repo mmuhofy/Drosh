@@ -97,11 +97,84 @@ impl Session {
         self.shell.directory()
     }
 
-    /// Read one of the terminal's own numbers.
-    pub fn get<T>(&self, field: u32, out: &mut T) -> bool {
-        let result =
-            unsafe { ghostty::ghostty_terminal_get(self.terminal, field, out as *mut T as *mut c_void) };
-        ghostty::ok(result)
+    /// The scrollbar: total rows and the viewport's offset.
+    pub fn scrollbar(&self) -> Option<ghostty::GhosttyTerminalScrollbar> {
+        let mut value: ghostty::GhosttyTerminalScrollbar = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_SCROLLBAR,
+                &mut value as *mut _ as *mut c_void,
+            )
+        };
+        if ghostty::ok(result) {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    /// Which screen is active, as the engine's own tag.
+    pub fn active_screen(&self) -> u32 {
+        let mut value = ghostty::GHOSTTY_TERMINAL_SCREEN_PRIMARY;
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN,
+                &mut value as *mut _ as *mut c_void,
+            )
+        };
+        value
+    }
+
+    /// Whether the running program asked for mouse reports.
+    pub fn mouse_tracking(&self) -> bool {
+        let mut value = false;
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING,
+                &mut value as *mut _ as *mut c_void,
+            )
+        };
+        value
+    }
+
+    /// The kitty keyboard protocol's flags, or zero when it is off.
+    pub fn kitty_flags(&self) -> u8 {
+        let mut value: u8 = 0;
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_KITTY_KEYBOARD_FLAGS,
+                &mut value as *mut _ as *mut c_void,
+            )
+        };
+        value
+    }
+
+    pub fn columns(&self) -> u16 {
+        let mut value: u16 = 0;
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_COLS,
+                &mut value as *mut _ as *mut c_void,
+            )
+        };
+        value
+    }
+
+    pub fn rows(&self) -> u16 {
+        let mut value: u16 = 0;
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_ROWS,
+                &mut value as *mut _ as *mut c_void,
+            )
+        };
+        value
     }
 
     /// Encode one key event, and return the bytes.

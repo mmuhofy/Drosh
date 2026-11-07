@@ -134,14 +134,9 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     let Some(session) = session_from(handle) else {
         return std::ptr::null_mut();
     };
-    let mut scrollbar = ghostty::GhosttyTerminalScrollbar {
-        total: 0,
-        offset: 0,
-        len: 0,
-    };
-    if !session.get(ghostty::GHOSTTY_TERMINAL_DATA_SCROLLBAR, &mut scrollbar) {
+    let Some(scrollbar) = session.scrollbar() else {
         return std::ptr::null_mut();
-    }
+    };
     let values = [scrollbar.total as i32, scrollbar.offset as i32];
     new_int_array(&mut env, &values)
 }
@@ -156,11 +151,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     let Some(session) = session_from(handle) else {
         return 0;
     };
-    let mut screen: ghostty::GhosttyTerminalScreen = unsafe { std::mem::zeroed() };
-    if !session.get(ghostty::GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN, &mut screen) {
-        return 0;
-    }
-    if unsafe { super::get_enum(&screen) } == ghostty::GHOSTTY_TERMINAL_SCREEN_ALTERNATE as u32 {
+    if session.active_screen() == ghostty::GHOSTTY_TERMINAL_SCREEN_ALTERNATE {
         1
     } else {
         0
@@ -181,19 +172,11 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
         return -1;
     };
 
-    let mut mouse = false;
-    let mut kitty: u8 = 0;
-    let _ = session.get(ghostty::GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING, &mut mouse);
-    let _ = session.get(
-        ghostty::GHOSTTY_TERMINAL_DATA_KITTY_KEYBOARD_FLAGS,
-        &mut kitty,
-    );
-
     let mut bits = 0;
-    if mouse {
+    if session.mouse_tracking() {
         bits |= 1;
     }
-    if kitty != 0 {
+    if session.kitty_flags() != 0 {
         bits |= 2;
     }
     bits

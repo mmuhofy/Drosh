@@ -14,6 +14,17 @@ use super::{jstring};
 use super::new_string;
 use crate::ghostty;
 
+macro_rules! render_get {
+    ($state:expr, $field:expr, $out:expr) => {
+        ghostty::ghostty_render_state_get(
+            $state,
+            $field,
+            $out as *mut _ as *mut std::ffi::c_void,
+        )
+    };
+}
+
+
 /// Run the whole pipeline and return a report.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSmoke_nativeSelfTest(
@@ -77,8 +88,8 @@ fn run() -> String {
     let mut cols: u16 = 0;
     let mut rows: u16 = 0;
     unsafe {
-        get(state, ghostty::GHOSTTY_RENDER_STATE_DATA_COLS, &mut cols);
-        get(state, ghostty::GHOSTTY_RENDER_STATE_DATA_ROWS, &mut rows);
+        render_get!(state, ghostty::GHOSTTY_RENDER_STATE_DATA_COLS, &mut cols);
+        render_get!(state, ghostty::GHOSTTY_RENDER_STATE_DATA_ROWS, &mut rows);
     }
     report.push_str(&format!("grid: {cols}x{rows}\n"));
 
@@ -150,9 +161,6 @@ fn span(value: ghostty::GhosttyString) -> String {
     unsafe { String::from_utf8_lossy(std::slice::from_raw_parts(value.ptr, value.len)).into_owned() }
 }
 
-unsafe fn get<T>(state: ghostty::GhosttyRenderState, field: u32, out: &mut T) {
-    let _ = ghostty::ghostty_render_state_get(state, field, out as *mut T as *mut std::ffi::c_void);
-}
 
 #[allow(dead_code)]
 fn _unused(_: JString) {}
