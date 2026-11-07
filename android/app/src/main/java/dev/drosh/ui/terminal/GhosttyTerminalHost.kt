@@ -118,12 +118,19 @@ fun GhosttyTerminalHost(
             return@LaunchedEffect
         }
 
-        // The session runs; keep the counters up until the screen has something
-        // on it. A black frame with zero bytes read is a different bug from one
-        // with four thousand, and the difference is one line here.
-        while (pane.view.bytesRead == 0L && status != null) {
-            status = "waiting: 0 bytes, ${pane.view.framesDrawn} frames"
+        // The session runs; keep the counters up until frames are being drawn.
+        // Zero bytes is one bug, zero frames another, and a renderer that never
+        // came up is a third — and it is the only one whose cause is invisible.
+        var ticks = 0
+        while (pane.view.framesDrawn == 0 && ticks < STATUS_TICKS) {
+            val failure = pane.view.rendererFailure
+            status = if (failure != null) {
+                "renderer: $failure"
+            } else {
+                "waiting: ${pane.view.bytesRead} bytes, ${pane.view.framesDrawn} frames"
+            }
             kotlinx.coroutines.delay(500)
+            ticks += 1
         }
         status = null
     }
@@ -184,6 +191,9 @@ fun GhosttyTerminalHost(
 }
 
 private const val TAG = "GhosttyTerminalHost"
+
+/** How many half-seconds the status line stays up before it gets out of the way. */
+private const val STATUS_TICKS = 40
 
 /** The cell a font measured, in pixels. */
 private data class CellMetrics(val width: Float, val height: Float)

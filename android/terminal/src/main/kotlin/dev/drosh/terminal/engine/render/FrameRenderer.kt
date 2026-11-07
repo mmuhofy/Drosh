@@ -58,8 +58,19 @@ internal class FrameRenderer {
     private var cellWidth = 1f
     private var cellHeight = 1f
 
-    /** True once the programs compiled and the buffers exist. */
-    private var created = false
+    /**
+     * True once the programs compiled and the buffers exist.
+     *
+     * Public because a renderer that never came up draws nothing, and a surface
+     * that never swaps is a black rectangle — the same picture as a hundred
+     * other faults, and the only one whose cause is not on the screen.
+     */
+    var created = false
+        private set
+
+    /** Why [create] gave up, when it did. */
+    var failure: String? = null
+        private set
 
     private var backgrounds: ByteBuffer = ByteBuffer
         .allocateDirect(1024)
@@ -77,6 +88,7 @@ internal class FrameRenderer {
         backgroundProgram = buildProgram(Shaders.BACKGROUND_VERTEX, Shaders.BACKGROUND_FRAGMENT)
         foregroundProgram = buildProgram(Shaders.FOREGROUND_VERTEX, Shaders.FOREGROUND_FRAGMENT)
         if (backgroundProgram == 0 || foregroundProgram == 0) {
+            failure = lastShaderError ?: "the shaders did not compile"
             return
         }
 
@@ -382,12 +394,17 @@ internal class FrameRenderer {
         val status = IntArray(1)
         GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, status, 0)
         if (status[0] == 0) {
-            android.util.Log.e(TAG, "program link failed: ${GLES20.glGetProgramInfoLog(program)}")
+            val log = GLES20.glGetProgramInfoLog(program)
+            lastShaderError = "program link failed: $log"
+            android.util.Log.e(TAG, lastShaderError)
             GLES20.glDeleteProgram(program)
             return 0
         }
         return program
     }
+
+    /** The last compile or link failure, kept for the screen. */
+    private var lastShaderError: String? = null
 
     private fun compile(kind: Int, source: String): Int {
         val shader = GLES20.glCreateShader(kind)
@@ -397,7 +414,9 @@ internal class FrameRenderer {
         val status = IntArray(1)
         GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
         if (status[0] == 0) {
-            android.util.Log.e(TAG, "shader compile failed: ${GLES20.glGetShaderInfoLog(shader)}")
+            val log = GLES20.glGetShaderInfoLog(shader)
+            lastShaderError = "shader compile failed: $log"
+            android.util.Log.e(TAG, lastShaderError)
             GLES20.glDeleteShader(shader)
             return 0
         }

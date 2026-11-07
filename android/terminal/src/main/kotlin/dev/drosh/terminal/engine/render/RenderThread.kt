@@ -107,6 +107,10 @@ class RenderThread(
     /** The renderer's own GL state, created on the loop thread. */
     private var renderer: FrameRenderer? = null
 
+    /** Why the renderer came up empty, or null when it drew. */
+    @Volatile
+    val rendererFailure: String? get() = renderer?.failure
+
     /** True while the loop is running. */
     val isRunning: Boolean
         get() = running.get()

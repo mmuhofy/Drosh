@@ -80,10 +80,11 @@ class EglCore {
             // only cost memory.
             EGL14.EGL_DEPTH_SIZE, 0,
             EGL14.EGL_STENCIL_SIZE, 0,
-            // GLES 2 is the floor: every Android device that runs the app has
-            // it, and the renderer uses GLES 3 only for instanced draws, which
-            // it falls back from.
-            EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+            // GLES 3, not 2. The shaders are `#version 300 es` and the
+            // renderer draws with instanced arrays — a GLES 2 context compiles
+            // neither, so every frame would fail and the surface would stay
+            // black. Every device that runs this app has GLES 3.
+            EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
             EGL14.EGL_NONE,
         )
         val configs = arrayOfNulls<EGLConfig>(1)
@@ -97,7 +98,7 @@ class EglCore {
         config = configs[0]
 
         val contextAttributes = intArrayOf(
-            EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
+            EGL14.EGL_CONTEXT_CLIENT_VERSION, 3,
             EGL14.EGL_NONE,
         )
         context = EGL14.eglCreateContext(

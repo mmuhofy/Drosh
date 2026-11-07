@@ -82,6 +82,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         }
     }
 
+    /** Why the renderer is not drawing, when it is not. */
+    val rendererFailure: String? get() = renderThread.rendererFailure
+
     /** Cells the last drawn frame carried. */
     @Volatile
     var lastCellsDrawn: Int = 0
