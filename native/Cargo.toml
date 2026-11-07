@@ -1,0 +1,35 @@
+[package]
+name = "drosh-native"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0"
+publish = false
+description = "The Drosh terminal's native half: the Ghostty VT engine, driven."
+
+[lib]
+name = "drosh"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The JNI boundary. 0.21 is the version Android's ART is happiest with.
+jni = "=0.21"
+# forkpty, ioctl, waitpid: the PTY is a handful of libc calls, and the crate
+# that declares them correctly is the one the platform already ships.
+libc = "0.2"
+log = "0.4"
+
+[build-dependencies]
+# The engine's ABI is described by the headers that ship next to it. Generating
+# the bindings from those headers is what keeps the two sides from drifting;
+# hand-written `#[repr(C)]` structs would be right until the first upstream
+# field moved.
+bindgen = "0.71"
+
+[profile.release]
+# A panic across the JNI boundary is a process abort, and `panic = "abort"`
+# makes that explicit rather than accidental.
+panic = "abort"
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

@@ -2,10 +2,9 @@ name: Native
 
 # Builds libdrosh.so — the Drosh terminal's native half.
 #
-# The library is Zig, because the VT engine it drives (libghostty-vt) is Zig and
-# the PTY code it carries comes from Ghostty. libghostty-vt itself is NOT built
-# here: it is somebody else's build, downloaded and verified by
-# tools/fetch-ghostty-vt.sh.
+# The library is Rust. The VT engine it drives (libghostty-vt) is somebody
+# else's build: downloaded, verified, and linked as a dynamic dependency, so the
+# APK carries one copy of it and this repository compiles no Zig.
 #
 # No local builds on dev boxes — this workflow is the only gate.
 
@@ -29,8 +28,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ZIG_VERSION: "0.16.0"
-  NDK_VERSION: "28.2.13676358"
+  # Pinned NDK (r28c). The engine is built by its own project with r30; the
+  # API level and the two libc's agree, which is what matters for linking.
+  NDK_VERSION: 28.2.13676358
   GHOSTTY_VT_VERSION: "v1.4.0"
 
 jobs:
@@ -42,24 +42,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # arm64-v8a is the only ABI the debug APK ships today. The other two
-        # are built when the app grows a release that carries them.
         abi: [arm64-v8a]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Zig
-        uses: mlugg/setup-zig@v2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          version: ${{ env.ZIG_VERSION }}
+          targets: aarch64-linux-android
 
-      # The release's SONAME is libghostty-vt.so.0; the APK ships the file as
-      # libghostty-vt.so and Android resolves DT_NEEDED by file name. patchelf
-      # rewrites it to the name the APK uses.
-      - name: Install patchelf
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      # bindgen parses the engine's headers with libclang. Installing it is the
+      # price of generating the bindings from the headers rather than writing
+      # `#[repr(C)]` structs by hand — structs that would be right until the
+      # first upstream field moved.
+      - name: Install libclang
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libclang-dev patchelf
 
       - name: Install pinned NDK
         run: |
@@ -67,9 +73,8 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
 
-      # The library is somebody else's build: downloaded once, cached, and
-      # verified every time it is fetched. The cache restores the verified
-      # bytes so a normal run does not touch the network.
+      # The engine is somebody else's build: downloaded once, cached, and
+      # verified every time it is fetched.
       - name: Cache libghostty-vt
         id: ghostty-cache
         uses: actions/cache@v4
@@ -83,56 +88,23 @@ jobs:
           GHOSTTY_VT_ABIS: ${{ matrix.abi }}
         run: ./tools/fetch-ghostty-vt.sh
 
-      # The engine cannot be executed on this runner.
-      #
-      # libghostty-vt.so is linked against Android's bionic (its symbols carry
-      # `@LIBC` version tags), so a glibc host cannot link it, let alone run
-      # it under qemu-user. Executing it needs an Android userspace: the
-      # instrumentation test on a device or emulator is the only honest
-      # execution, and that is what the APK's smoke screen is for.
-      #
-      # What IS checked here is everything short of execution: the bytes match
-      # the release, the soname is the name the APK ships, and libdrosh.so
-      # names the engine in DT_NEEDED rather than absorbing it.
-
       - name: Build libdrosh.so
         working-directory: native
+        env:
+          DROSH_ABI: ${{ matrix.abi }}
         run: |
           set -euo pipefail
           NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
-          # Zig looks for the NDK here when it has to supply bionic for an
-          # android target. Without it the build fails with "unable to provide
-          # libc", which reads like a Zig bug and is a missing environment.
-          export ANDROID_NDK_HOME="$NDK"
-          SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-
-          # Zig needs a libc description for an android target and cannot
-          # derive one. The NDK ships the generator; the file it writes names
-          # the sysroot's headers and libraries for the exact API level.
-          LIBC_TXT="$RUNNER_TEMP/libc-aarch64-26.txt"
-          cat > "$LIBC_TXT" <<EOF
-          include_dir=$SYSROOT/usr/include
-          sys_include_dir=$SYSROOT/usr/include/aarch64-linux-android
-          crt_dir=$SYSROOT/usr/lib/aarch64-linux-android/26
-          msvc_lib_dir=
-          kernel32_lib_dir=
-          gcc_dir=
-          EOF
-
-          zig build \
-            -Dtarget=aarch64-linux-android.26 \
-            -Doptimize=ReleaseFast \
-            -Dcpu=baseline \
-            -Dghostty-abi=${{ matrix.abi }} \
-            -Dndk-sysroot="$SYSROOT" \
-            -Dndk-lib="$SYSROOT/usr/lib/aarch64-linux-android/26" \
-            -Dndk-libc-file="$LIBC_TXT" \
-            --prefix "$RUNNER_TEMP/out"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+          cargo build --release --target aarch64-linux-android
 
       - name: Check the library links the engine, not a copy of it
         run: |
           set -euo pipefail
-          so="$RUNNER_TEMP/out/lib/libdrosh.so"
+          so="native/target/aarch64-linux-android/release/libdrosh.so"
           test -f "$so"
           echo "--- NEEDED"
           readelf -d "$so" | grep -E "NEEDED|SONAME"
@@ -154,5 +126,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: drosh-so-${{ matrix.abi }}
-          path: ${{ runner.temp }}/out/lib/libdrosh.so
+          path: native/target/aarch64-linux-android/release/libdrosh.so
           if-no-files-found: error

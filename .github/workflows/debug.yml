@@ -107,7 +107,7 @@ jobs:
           if-no-files-found: error
 
   native-build:
-    # libdrosh.so — the Zig half that drives libghostty-vt. The APK needs it in
+    # libdrosh.so — the Rust half that drives libghostty-vt. The APK needs it in
     # jniLibs next to the engine, and it is built here rather than downloaded so
     # the APK and the native library are always the same commit.
     name: libdrosh.so (arm64-v8a)
@@ -117,16 +117,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Zig
-        uses: mlugg/setup-zig@v2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          version: "0.16.0"
+          targets: aarch64-linux-android
 
-      - name: Install patchelf and the NDK
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - name: Install libclang and patchelf
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libclang-dev patchelf
+
+      - name: Install pinned NDK
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq patchelf
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
 
@@ -135,35 +143,22 @@ jobs:
 
       - name: Build libdrosh.so
         working-directory: native
+        env:
+          DROSH_ABI: arm64-v8a
         run: |
           set -euo pipefail
           NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
-          export ANDROID_NDK_HOME="$NDK"
-          SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-          LIBC_TXT="$RUNNER_TEMP/libc-aarch64-26.txt"
-          cat > "$LIBC_TXT" <<EOF
-          include_dir=$SYSROOT/usr/include
-          sys_include_dir=$SYSROOT/usr/include/aarch64-linux-android
-          crt_dir=$SYSROOT/usr/lib/aarch64-linux-android/26
-          msvc_lib_dir=
-          kernel32_lib_dir=
-          gcc_dir=
-          EOF
-          zig build \
-            -Dtarget=aarch64-linux-android.26 \
-            -Doptimize=ReleaseFast \
-            -Dcpu=baseline \
-            -Dghostty-abi=arm64-v8a \
-            -Dndk-sysroot="$SYSROOT" \
-            -Dndk-lib="$SYSROOT/usr/lib/aarch64-linux-android/26" \
-            -Dndk-libc-file="$LIBC_TXT" \
-            --prefix "$RUNNER_TEMP/out"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+          cargo build --release --target aarch64-linux-android
 
       - name: Upload the library
         uses: actions/upload-artifact@v4
         with:
           name: drosh-so
-          path: ${{ runner.temp }}/out/lib/libdrosh.so
+          path: native/target/aarch64-linux-android/release/libdrosh.so
           if-no-files-found: error
 
   debug:

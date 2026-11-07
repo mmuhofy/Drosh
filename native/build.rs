@@ -1,0 +1,62 @@
+//! The build script: bindings for the engine, and the link to it.
+//!
+//! `libghostty-vt.so` is somebody else's build, fetched and verified by
+//! `tools/fetch-ghostty-vt.sh`. What this script needs from it is the header,
+//! which describes the ABI exactly, and the library, which is linked as a
+//! dynamic dependency so the APK carries one copy of the engine.
+//!
+//! The bindings are generated rather than written: a `#[repr(C)]` struct that
+//! is right until the first upstream field moves is a struct nobody can trust,
+//! and the headers are the only description that cannot drift.
+
+use std::path::PathBuf;
+
+fn main() {
+    let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+
+    // Which ABI's copy of the engine to link. The fetched release keeps one
+    // directory per ABI.
+    let abi = std::env::var("DROSH_ABI").unwrap_or_else(|_| "arm64-v8a".to_string());
+
+    let include = manifest.join("ghostty").join("include");
+    let lib = manifest.join("ghostty").join("lib").join(&abi);
+
+    let header = include.join("ghostty").join("vt.h");
+    if !header.exists() {
+        panic!(
+            "missing {}. Run tools/fetch-ghostty-vt.sh first.",
+            header.display()
+        );
+    }
+
+    bindgen::Builder::default()
+        .header(header.to_string_lossy())
+        .clang_arg(format!("-I{}", include.display()))
+        // Only the engine's own surface: the rest of the C world it includes is
+        // the platform's, and the platform's declarations are the libc crate's.
+        .allowlist_function("ghostty_.*")
+        .allowlist_type("Ghostty.*")
+        .allowlist_var("GHOSTTY_.*")
+        // Layout assertions turn a moved field into a compile error instead of
+        // a struct that reads the wrong bytes.
+        .layout_tests(true)
+        .derive_default(true)
+        .generate()
+        .expect("the engine's headers could not be translated")
+        .write_to_file(out.join("ghostty.rs"))
+        .expect("the bindings could not be written");
+
+    println!("cargo:rerun-if-changed={}", header.display());
+    println!("cargo:rerun-if-changed=build.rs");
+
+    // A dynamic dependency, not a static one: the APK ships `libghostty-vt.so`
+    // beside this library and the loader resolves it by soname.
+    println!("cargo:rustc-link-search=native={}", lib.display());
+    println!("cargo:rustc-link-lib=dylib=ghostty-vt");
+
+    // Android's log is called from the JNI layer; a build for the host has none.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        println!("cargo:rustc-link-lib=dylib=log");
+    }
+}
