@@ -115,6 +115,22 @@ class RenderThread(
      */
     val rendererFailure: String? get() = renderer?.failure
 
+    /**
+     * Told the shape of every frame the loop is about to draw.
+     *
+     * Set from the surface thread, called on the loop's. The numbers are the
+     * only thing that separates a screen drawing something invisible from one
+     * drawing nothing.
+     */
+    @Volatile
+    var onFrameShape: ((
+        columns: Int,
+        rows: Int,
+        cells: Int,
+        stepX: Float,
+        stepY: Float,
+    ) -> Unit)? = null
+
     /** True while the loop is running. */
     val isRunning: Boolean
         get() = running.get()

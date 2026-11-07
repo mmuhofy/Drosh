@@ -111,7 +111,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     var onGridChanged: ((columns: Int, rows: Int) -> Unit)? = null
 
     init {
-        renderThread.onFrameShape = { columns, rows, cells, stepX, stepY ->
+        renderThread.onFrameShape = { columns: Int, rows: Int, cells: Int, stepX: Float, stepY: Float ->
             lastFrameShape = "${columns}x$rows cells=$cells " +
                 "step=${"%.1f".format(stepX)}x${"%.1f".format(stepY)}"
         }
