@@ -171,6 +171,9 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         ptyHandle = pty
         view.attach(session, pty, this.cellWidth, this.cellHeight)
         state = state.started()
+        // A session nobody can type into is a session nobody can use; the
+        // keyboard is what the start was for.
+        view.post { view.requestFocus(); view.requestKeyboard() }
         return true
     }
 
@@ -266,9 +269,7 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
     override fun focus() {
         view.requestFocus()
-        val manager = view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-            as? android.view.inputmethod.InputMethodManager ?: return
-        manager.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        view.requestKeyboard()
     }
 
     override fun hasViewFocus(): Boolean = view.hasFocus()

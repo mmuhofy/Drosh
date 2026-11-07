@@ -216,6 +216,29 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         isFocusableInTouchMode = true
     }
 
+    /**
+     * A tap takes the keyboard.
+     *
+     * A terminal is read far more than it is typed into, but a tap on it is how
+     * the user says "I am working here", and that is the moment the keyboard
+     * belongs on screen. Not consumed: the terminal's own touch handling —
+     * scroll, selection — still sees it.
+     */
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.actionMasked == android.view.MotionEvent.ACTION_UP && !hasFocus()) {
+            requestFocus()
+            requestKeyboard()
+        }
+        return super.onTouchEvent(event)
+    }
+
+    /** Ask the IME to show, for a view that already has the focus. */
+    fun requestKeyboard() {
+        val manager = context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+            as? android.view.inputmethod.InputMethodManager ?: return
+        manager.showSoftInput(this, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }
+
     override fun onCheckIsTextEditor(): Boolean = true
 
     override fun onCreateInputConnection(outAttrs: android.view.inputmethod.EditorInfo): android.view.inputmethod.InputConnection {
