@@ -274,9 +274,13 @@ internal class FrameRenderer {
         GLES20.glUniform2f(backgroundCellSize, cellWidth, cellHeight)
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundBuffer)
+        // `remaining()`, not `capacity()`: the buffer was flipped, so its limit
+        // is what was written and its position is zero. Handing GL the capacity
+        // asks it to read past the data, which is the IllegalArgumentException
+        // that killed the loop.
         GLES20.glBufferData(
             GLES20.GL_ARRAY_BUFFER,
-            backgrounds.capacity(),
+            backgrounds.remaining(),
             backgrounds,
             GLES20.GL_DYNAMIC_DRAW,
         )
@@ -311,7 +315,7 @@ internal class FrameRenderer {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundBuffer)
         GLES20.glBufferData(
             GLES20.GL_ARRAY_BUFFER,
-            foregrounds.capacity(),
+            foregrounds.remaining(),
             foregrounds,
             GLES20.GL_DYNAMIC_DRAW,
         )
