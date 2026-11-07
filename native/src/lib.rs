@@ -17,6 +17,12 @@
 //! deliberate — every screen bug of the previous engine came from two languages
 //! disagreeing about the grid.
 
+// Every call into the engine happens inside a function that is `unsafe` because
+// that is what it does. Wrapping each of the forty calls in its own block adds
+// nesting, not audit surface, so the crate opts into the edition-2021 default.
+#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(non_snake_case)]
+#![allow(dead_code)]
 
 pub mod frame;
 pub mod ghostty;
