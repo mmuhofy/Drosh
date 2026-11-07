@@ -101,18 +101,6 @@ jobs:
           export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
           cargo build --release --target aarch64-linux-android
 
-      # A one-shot look at what bindgen actually produced: the names of the
-      # generated constants are the ABI's, and guessing them has cost more than
-      # reading them.
-      - name: Show the generated bindings
-        if: always()
-        run: |
-          set -euo pipefail
-          file=$(find native/target -name ghostty.rs -path '*out*' | head -1)
-          if [ -z "$file" ]; then echo "no generated bindings"; exit 0; fi
-          echo "=== generated at $file"
-          grep -nE "pub (mod|type|const) GhosttyRenderStateData|GHOSTTY_RENDER_STATE_DATA_COLS|GHOSTTY_BUILD_INFO_VERSION_STRING|pub const GHOSTTY_SUCCESS" "$file" | head -20
-
       - name: Check the library links the engine, not a copy of it
         run: |
           set -euo pipefail

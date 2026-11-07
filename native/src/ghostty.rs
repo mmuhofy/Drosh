@@ -10,10 +10,10 @@
 //!
 //! ## The re-exports
 //!
-//! bindgen emits a C enum as a Rust enum, so its variants live at
-//! `GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_COLS`. The names below are
-//! those variants under the names the headers use: the code then reads like the
-//! API it calls, and a variant that disappears upstream is a compile error here
+//! bindgen emits a C enum as a set of constants named `<EnumType>_<VARIANT>`,
+//! with the enum type itself an integer alias. The aliases below put every
+//! variant back under the name the header uses, so the code reads like the API
+//! it calls — and a variant that disappears upstream is a compile error here
 //! rather than a number that quietly changed meaning.
 
 #![allow(non_upper_case_globals)]
@@ -24,6 +24,10 @@
 include!(concat!(env!("OUT_DIR"), "/ghostty.rs"));
 
 /// The engine's success code.
+///
+/// A `#define` in the header; written out because it is the one value every
+/// call is compared against and a missing name there would be a missing
+/// constant at forty call sites.
 pub const SUCCESS: GhosttyResult = 0;
 
 /// True when a call succeeded.
@@ -31,126 +35,135 @@ pub fn ok(result: GhosttyResult) -> bool {
     result == SUCCESS
 }
 
-pub const GHOSTTY_BUILD_INFO_VERSION_STRING: GhosttyBuildInfo =
-    GhosttyBuildInfo::GHOSTTY_BUILD_INFO_VERSION_STRING;
+// --- the render state -------------------------------------------------------
 
 pub const GHOSTTY_RENDER_STATE_DATA_COLS: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_COLS;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLS;
 pub const GHOSTTY_RENDER_STATE_DATA_ROWS: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_ROWS;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROWS;
 pub const GHOSTTY_RENDER_STATE_DATA_OVERSCAN: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_OVERSCAN;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_OVERSCAN;
 pub const GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR;
 pub const GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X;
 pub const GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y;
 pub const GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE;
 pub const GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE;
 pub const GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING;
 pub const GHOSTTY_RENDER_STATE_DATA_DIRTY: GhosttyRenderStateData =
-    GhosttyRenderStateData::GHOSTTY_RENDER_STATE_DATA_DIRTY;
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY;
 
 pub const GHOSTTY_RENDER_STATE_OPTION_OVERSCAN: GhosttyRenderStateOption =
-    GhosttyRenderStateOption::GHOSTTY_RENDER_STATE_OPTION_OVERSCAN;
+    GhosttyRenderStateOption_GHOSTTY_RENDER_STATE_OPTION_OVERSCAN;
 
 pub const GHOSTTY_RENDER_STATE_ROW_DATA_CELLS: GhosttyRenderStateRowData =
-    GhosttyRenderStateRowData::GHOSTTY_RENDER_STATE_ROW_DATA_CELLS;
+    GhosttyRenderStateRowData_GHOSTTY_RENDER_STATE_ROW_DATA_CELLS;
 
 pub const GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF: GhosttyRenderStateRowCellsData =
-    GhosttyRenderStateRowCellsData::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF;
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF;
 pub const GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_LEN: GhosttyRenderStateRowCellsData =
-    GhosttyRenderStateRowCellsData::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_LEN;
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_LEN;
 pub const GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE: GhosttyRenderStateRowCellsData =
-    GhosttyRenderStateRowCellsData::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE;
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE;
 pub const GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_BG_COLOR: GhosttyRenderStateRowCellsData =
-    GhosttyRenderStateRowCellsData::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_BG_COLOR;
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_BG_COLOR;
 pub const GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR: GhosttyRenderStateRowCellsData =
-    GhosttyRenderStateRowCellsData::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR;
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR;
 pub const GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_SELECTED: GhosttyRenderStateRowCellsData =
-    GhosttyRenderStateRowCellsData::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_SELECTED;
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_SELECTED;
 
 pub const GHOSTTY_RENDER_STATE_DIRTY_FALSE: GhosttyRenderStateDirty =
-    GhosttyRenderStateDirty::GHOSTTY_RENDER_STATE_DIRTY_FALSE;
+    GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_FALSE;
 pub const GHOSTTY_RENDER_STATE_DIRTY_PARTIAL: GhosttyRenderStateDirty =
-    GhosttyRenderStateDirty::GHOSTTY_RENDER_STATE_DIRTY_PARTIAL;
+    GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_PARTIAL;
 pub const GHOSTTY_RENDER_STATE_DIRTY_FULL: GhosttyRenderStateDirty =
-    GhosttyRenderStateDirty::GHOSTTY_RENDER_STATE_DIRTY_FULL;
+    GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_FULL;
+
+// --- the terminal -----------------------------------------------------------
 
 pub const GHOSTTY_TERMINAL_DATA_COLS: GhosttyTerminalData =
-    GhosttyTerminalData::GHOSTTY_TERMINAL_DATA_COLS;
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLS;
 pub const GHOSTTY_TERMINAL_DATA_ROWS: GhosttyTerminalData =
-    GhosttyTerminalData::GHOSTTY_TERMINAL_DATA_ROWS;
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_ROWS;
 pub const GHOSTTY_TERMINAL_DATA_SCROLLBAR: GhosttyTerminalData =
-    GhosttyTerminalData::GHOSTTY_TERMINAL_DATA_SCROLLBAR;
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SCROLLBAR;
 pub const GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN: GhosttyTerminalData =
-    GhosttyTerminalData::GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN;
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN;
 pub const GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING: GhosttyTerminalData =
-    GhosttyTerminalData::GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING;
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING;
 pub const GHOSTTY_TERMINAL_DATA_KITTY_KEYBOARD_FLAGS: GhosttyTerminalData =
-    GhosttyTerminalData::GHOSTTY_TERMINAL_DATA_KITTY_KEYBOARD_FLAGS;
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_KITTY_KEYBOARD_FLAGS;
 
 pub const GHOSTTY_TERMINAL_SCREEN_PRIMARY: GhosttyTerminalScreen =
-    GhosttyTerminalScreen::GHOSTTY_TERMINAL_SCREEN_PRIMARY;
+    GhosttyTerminalScreen_GHOSTTY_TERMINAL_SCREEN_PRIMARY;
 pub const GHOSTTY_TERMINAL_SCREEN_ALTERNATE: GhosttyTerminalScreen =
-    GhosttyTerminalScreen::GHOSTTY_TERMINAL_SCREEN_ALTERNATE;
+    GhosttyTerminalScreen_GHOSTTY_TERMINAL_SCREEN_ALTERNATE;
 
 pub const GHOSTTY_POINT_TAG_VIEWPORT: GhosttyPointTag =
-    GhosttyPointTag::GHOSTTY_POINT_TAG_VIEWPORT;
+    GhosttyPointTag_GHOSTTY_POINT_TAG_VIEWPORT;
 
 pub const GHOSTTY_SCROLL_VIEWPORT_TOP: GhosttyTerminalScrollViewportTag =
-    GhosttyTerminalScrollViewportTag::GHOSTTY_SCROLL_VIEWPORT_TOP;
+    GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_TOP;
 pub const GHOSTTY_SCROLL_VIEWPORT_DELTA: GhosttyTerminalScrollViewportTag =
-    GhosttyTerminalScrollViewportTag::GHOSTTY_SCROLL_VIEWPORT_DELTA;
+    GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA;
 pub const GHOSTTY_SCROLL_VIEWPORT_ROW: GhosttyTerminalScrollViewportTag =
-    GhosttyTerminalScrollViewportTag::GHOSTTY_SCROLL_VIEWPORT_ROW;
+    GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_ROW;
+
+// --- search -----------------------------------------------------------------
 
 pub const GHOSTTY_SEARCH_OPT_NEEDLE: GhosttySearchOption =
-    GhosttySearchOption::GHOSTTY_SEARCH_OPT_NEEDLE;
+    GhosttySearchOption_GHOSTTY_SEARCH_OPT_NEEDLE;
 pub const GHOSTTY_SEARCH_DATA_TOTAL_MATCHES: GhosttySearchData =
-    GhosttySearchData::GHOSTTY_SEARCH_DATA_TOTAL_MATCHES;
+    GhosttySearchData_GHOSTTY_SEARCH_DATA_TOTAL_MATCHES;
 pub const GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES: GhosttySearchData =
-    GhosttySearchData::GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES;
+    GhosttySearchData_GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES;
 
-pub const GHOSTTY_KEY_ARROW_UP: GhosttyKey = GhosttyKey::GHOSTTY_KEY_ARROW_UP;
-pub const GHOSTTY_KEY_ARROW_DOWN: GhosttyKey = GhosttyKey::GHOSTTY_KEY_ARROW_DOWN;
-pub const GHOSTTY_KEY_ARROW_LEFT: GhosttyKey = GhosttyKey::GHOSTTY_KEY_ARROW_LEFT;
-pub const GHOSTTY_KEY_ARROW_RIGHT: GhosttyKey = GhosttyKey::GHOSTTY_KEY_ARROW_RIGHT;
-pub const GHOSTTY_KEY_ENTER: GhosttyKey = GhosttyKey::GHOSTTY_KEY_ENTER;
-pub const GHOSTTY_KEY_BACKSPACE: GhosttyKey = GhosttyKey::GHOSTTY_KEY_BACKSPACE;
-pub const GHOSTTY_KEY_ESCAPE: GhosttyKey = GhosttyKey::GHOSTTY_KEY_ESCAPE;
-pub const GHOSTTY_KEY_TAB: GhosttyKey = GhosttyKey::GHOSTTY_KEY_TAB;
-pub const GHOSTTY_KEY_HOME: GhosttyKey = GhosttyKey::GHOSTTY_KEY_HOME;
-pub const GHOSTTY_KEY_END: GhosttyKey = GhosttyKey::GHOSTTY_KEY_END;
-pub const GHOSTTY_KEY_PAGE_UP: GhosttyKey = GhosttyKey::GHOSTTY_KEY_PAGE_UP;
-pub const GHOSTTY_KEY_PAGE_DOWN: GhosttyKey = GhosttyKey::GHOSTTY_KEY_PAGE_DOWN;
-pub const GHOSTTY_KEY_INSERT: GhosttyKey = GhosttyKey::GHOSTTY_KEY_INSERT;
-pub const GHOSTTY_KEY_DELETE: GhosttyKey = GhosttyKey::GHOSTTY_KEY_DELETE;
-pub const GHOSTTY_KEY_F1: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F1;
-pub const GHOSTTY_KEY_F2: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F2;
-pub const GHOSTTY_KEY_F3: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F3;
-pub const GHOSTTY_KEY_F4: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F4;
-pub const GHOSTTY_KEY_F5: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F5;
-pub const GHOSTTY_KEY_F6: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F6;
-pub const GHOSTTY_KEY_F7: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F7;
-pub const GHOSTTY_KEY_F8: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F8;
-pub const GHOSTTY_KEY_F9: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F9;
-pub const GHOSTTY_KEY_F10: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F10;
-pub const GHOSTTY_KEY_F11: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F11;
-pub const GHOSTTY_KEY_F12: GhosttyKey = GhosttyKey::GHOSTTY_KEY_F12;
-pub const GHOSTTY_KEY_UNIDENTIFIED: GhosttyKey = GhosttyKey::GHOSTTY_KEY_UNIDENTIFIED;
+// --- keyboard ---------------------------------------------------------------
+
+pub const GHOSTTY_KEY_ARROW_UP: GhosttyKey = GhosttyKey_GHOSTTY_KEY_ARROW_UP;
+pub const GHOSTTY_KEY_ARROW_DOWN: GhosttyKey = GhosttyKey_GHOSTTY_KEY_ARROW_DOWN;
+pub const GHOSTTY_KEY_ARROW_LEFT: GhosttyKey = GhosttyKey_GHOSTTY_KEY_ARROW_LEFT;
+pub const GHOSTTY_KEY_ARROW_RIGHT: GhosttyKey = GhosttyKey_GHOSTTY_KEY_ARROW_RIGHT;
+pub const GHOSTTY_KEY_ENTER: GhosttyKey = GhosttyKey_GHOSTTY_KEY_ENTER;
+pub const GHOSTTY_KEY_BACKSPACE: GhosttyKey = GhosttyKey_GHOSTTY_KEY_BACKSPACE;
+pub const GHOSTTY_KEY_ESCAPE: GhosttyKey = GhosttyKey_GHOSTTY_KEY_ESCAPE;
+pub const GHOSTTY_KEY_TAB: GhosttyKey = GhosttyKey_GHOSTTY_KEY_TAB;
+pub const GHOSTTY_KEY_HOME: GhosttyKey = GhosttyKey_GHOSTTY_KEY_HOME;
+pub const GHOSTTY_KEY_END: GhosttyKey = GhosttyKey_GHOSTTY_KEY_END;
+pub const GHOSTTY_KEY_PAGE_UP: GhosttyKey = GhosttyKey_GHOSTTY_KEY_PAGE_UP;
+pub const GHOSTTY_KEY_PAGE_DOWN: GhosttyKey = GhosttyKey_GHOSTTY_KEY_PAGE_DOWN;
+pub const GHOSTTY_KEY_INSERT: GhosttyKey = GhosttyKey_GHOSTTY_KEY_INSERT;
+pub const GHOSTTY_KEY_DELETE: GhosttyKey = GhosttyKey_GHOSTTY_KEY_DELETE;
+pub const GHOSTTY_KEY_F1: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F1;
+pub const GHOSTTY_KEY_F2: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F2;
+pub const GHOSTTY_KEY_F3: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F3;
+pub const GHOSTTY_KEY_F4: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F4;
+pub const GHOSTTY_KEY_F5: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F5;
+pub const GHOSTTY_KEY_F6: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F6;
+pub const GHOSTTY_KEY_F7: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F7;
+pub const GHOSTTY_KEY_F8: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F8;
+pub const GHOSTTY_KEY_F9: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F9;
+pub const GHOSTTY_KEY_F10: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F10;
+pub const GHOSTTY_KEY_F11: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F11;
+pub const GHOSTTY_KEY_F12: GhosttyKey = GhosttyKey_GHOSTTY_KEY_F12;
+pub const GHOSTTY_KEY_UNIDENTIFIED: GhosttyKey = GhosttyKey_GHOSTTY_KEY_UNIDENTIFIED;
 
 pub const GHOSTTY_KEY_ACTION_PRESS: GhosttyKeyAction =
-    GhosttyKeyAction::GHOSTTY_KEY_ACTION_PRESS;
+    GhosttyKeyAction_GHOSTTY_KEY_ACTION_PRESS;
 pub const GHOSTTY_KEY_ACTION_RELEASE: GhosttyKeyAction =
-    GhosttyKeyAction::GHOSTTY_KEY_ACTION_RELEASE;
+    GhosttyKeyAction_GHOSTTY_KEY_ACTION_RELEASE;
 pub const GHOSTTY_KEY_ACTION_REPEAT: GhosttyKeyAction =
-    GhosttyKeyAction::GHOSTTY_KEY_ACTION_REPEAT;
+    GhosttyKeyAction_GHOSTTY_KEY_ACTION_REPEAT;
 
 // The modifiers are a block of `#define`s rather than an enum, so bindgen emits
-// them as plain constants and no alias is needed: `GHOSTTY_MODS_*` is already
-// the name the header uses.
+// them under the header's own names and no alias is needed.
+
+// --- build info -------------------------------------------------------------
+
+pub const GHOSTTY_BUILD_INFO_VERSION_STRING: GhosttyBuildInfo =
+    GhosttyBuildInfo_GHOSTTY_BUILD_INFO_VERSION_STRING;

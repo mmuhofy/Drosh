@@ -115,7 +115,7 @@ impl Session {
     }
 
     /// Which screen is active, as the engine's own tag.
-    pub fn active_screen(&self) -> u32 {
+    pub fn active_screen(&self) -> ghostty::GhosttyTerminalScreen {
         let mut value = ghostty::GHOSTTY_TERMINAL_SCREEN_PRIMARY;
         let _ = unsafe {
             ghostty::ghostty_terminal_get(
