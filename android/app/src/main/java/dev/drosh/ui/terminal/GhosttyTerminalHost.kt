@@ -121,13 +121,18 @@ fun GhosttyTerminalHost(
         // The session runs; keep the counters up until frames are being drawn.
         // Zero bytes is one bug, zero frames another, and a renderer that never
         // came up is a third — and it is the only one whose cause is invisible.
+        // The numbers stay up for a while whatever happens: a screen that is
+        // drawing something invisible and a screen that is drawing nothing look
+        // the same, and only these say which.
         var ticks = 0
-        while (pane.view.framesDrawn == 0 && ticks < STATUS_TICKS) {
+        while (ticks < STATUS_TICKS) {
             val failure = pane.view.rendererFailure
             status = if (failure != null) {
                 "renderer: $failure"
             } else {
-                "waiting: ${pane.view.bytesRead} bytes, ${pane.view.framesDrawn} frames"
+                "${pane.view.bytesRead} bytes\n" +
+                    "${pane.view.framesDrawn} frames\n" +
+                    "frame ${pane.view.lastFrameShape}"
             }
             kotlinx.coroutines.delay(500)
             ticks += 1

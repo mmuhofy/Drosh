@@ -272,6 +272,7 @@ class RenderThread(
         }
 
         val frame = frameSource?.invoke()
+        frame?.let { onFrameShape?.invoke(it.columns, it.rows, it.cellCount, layout.size.stepX, layout.size.stepY) }
         val cellsDrawn = current.draw(frame, layout.size)
 
         // Only a drawn frame is presented. A frame that drew nothing leaves

@@ -82,6 +82,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         }
     }
 
+    /** The last frame's shape, as the engine reported it. */
+    @Volatile
+    var lastFrameShape: String = "none"
+
     /** Why the renderer is not drawing, when it is not. */
     val rendererFailure: String? get() = renderThread.rendererFailure
 
@@ -107,6 +111,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     var onGridChanged: ((columns: Int, rows: Int) -> Unit)? = null
 
     init {
+        renderThread.onFrameShape = { columns, rows, cells, stepX, stepY ->
+            lastFrameShape = "${columns}x$rows cells=$cells " +
+                "step=${"%.1f".format(stepX)}x${"%.1f".format(stepY)}"
+        }
         holder.addCallback(this)
         // The surface draws its own pixels; the platform must not clear it to
         // the window background between frames.
@@ -115,8 +123,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         renderThread.frameSource = { frame() }
         renderThread.onGridChange = { columns, rows ->
-            // The grid and the PTY's idea of the window have to agree, or a
-            // program lays its output out for a shape the screen does not have.
+            // Three things have to agree about the shape: the grid drawn, the
+            // engine's own terminal, and the process. The engine's terminal is
+            // the one that decides where a line wraps, so a resize that missed
+            // it would lay the shell's output out for a shape the screen does
+            // not have.
+            val session = sessionHandle
+            if (session != 0L) {
+                NativeSession.resize(session, columns, rows, cellWidth.toInt(), cellHeight.toInt())
+            }
             val pty = ptyHandle
             if (pty != 0L) {
                 NativePty.resize(pty, columns, rows, cellWidth.toInt(), cellHeight.toInt())
