@@ -252,6 +252,13 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         view.setCell(width, height)
     }
 
+    /** The cell and the font's own size, when the caller knows both. */
+    fun setCell(width: Float, height: Float, fontPx: Float) {
+        cellWidth = width
+        cellHeight = height
+        view.setCell(width, height, fontPx)
+    }
+
     override fun setTextSize(sp: Float) {
         // The font stack measures; this class only carries the result.
     }

@@ -182,7 +182,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         cellHeight = cellHeightPx
         // The cell first, the surface second: a surface laid out against the
         // default one-pixel cell is a grid of a thousand columns.
-        renderThread.post(RenderThread.Command.Cell(cellWidthPx, cellHeightPx))
+        renderThread.post(RenderThread.Command.Cell(cellWidthPx, cellHeightPx, 0f))
         renderThread.invalidate()
         startReading()
     }
@@ -195,10 +195,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     /** Tell the loop the font's cell changed. */
-    fun setCell(width: Float, height: Float) {
+    fun setCell(width: Float, height: Float, fontPx: Float = 0f) {
         cellWidth = width
         cellHeight = height
-        renderThread.post(RenderThread.Command.Cell(width, height))
+        renderThread.post(RenderThread.Command.Cell(width, height, fontPx))
     }
 
     /** A live pinch. The grid does not move; the glyphs do. */

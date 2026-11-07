@@ -79,6 +79,9 @@ fun GhosttyTerminalHost(
         CellMetrics(
             width = paint.measureText("M").coerceAtLeast(1f),
             height = paint.fontSpacing.coerceAtLeast(1f),
+            // The font's own size, which is what a glyph is rasterised at. The
+            // cell's height is the line box and is about a fifth taller.
+            fontPx = paint.textSize,
         )
     }
 
@@ -172,12 +175,12 @@ fun GhosttyTerminalHost(
                         android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                         android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                     )
-                    pane.view.setCell(cell.width, cell.height)
+                    pane.view.setCell(cell.width, cell.height, cell.fontPx)
                     addView(pane.view)
                 }
             },
             update = { _ ->
-                pane.setCell(cell.width, cell.height)
+                pane.setCell(cell.width, cell.height, cell.fontPx)
             },
         )
 
@@ -201,7 +204,7 @@ private const val TAG = "GhosttyTerminalHost"
 private const val STATUS_TICKS = 40
 
 /** The cell a font measured, in pixels. */
-private data class CellMetrics(val width: Float, val height: Float)
+private data class CellMetrics(val width: Float, val height: Float, val fontPx: Float)
 
 /** The grid a PTY starts with before the surface has been measured. */
 private const val DEFAULT_COLUMNS = 100

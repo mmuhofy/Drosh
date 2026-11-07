@@ -52,11 +52,20 @@ internal class FrameRenderer {
     private var foregroundBuffer = 0
 
     /** The glyph masks. Owned by the loop thread. */
-    private val atlas = GlyphAtlas()
+    private val atlas = TextAtlas()
 
-    /** Cell size, in pixels, at the size the glyphs are rasterised. */
+    /** Cell size, in pixels — the line box, which is what a cell is drawn at. */
     private var cellWidth = 1f
     private var cellHeight = 1f
+
+    /**
+     * The font's own pixel size: what a glyph is rasterised at.
+     *
+     * The cell is the line box and is about a fifth taller than the font. Using
+     * the cell's height as the rasterisation size draws every glyph too big for
+     * the cell it sits in.
+     */
+    var fontPx: Float = 0f
 
     /**
      * True once the programs compiled and the buffers exist.
@@ -129,7 +138,9 @@ internal class FrameRenderer {
      * they were rasterised at.
      */
     fun onCellChanged() {
-        atlas.reset()
+        // A new size, not a new face: the masks are keyed by the size they were
+        // rasterised at, so nothing is thrown away.
+        atlas.beginSize(if (fontPx > 0f) fontPx else cellHeight)
     }
 
     /**
@@ -225,7 +236,7 @@ internal class FrameRenderer {
 
             val attributes = frame.attributes(index)
             val isBold = attributes and FrameFormat.ATTR_BOLD != 0
-            val entry = atlas.glyph(codepoint, isBold, cellHeight) ?: continue
+            val entry = atlas.glyph(codepoint, isBold, if (fontPx > 0f) fontPx else cellHeight) ?: continue
             if (entry.isBlank) continue
 
             val row = index / frame.columns - frame.overscanAbove

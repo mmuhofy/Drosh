@@ -1,0 +1,230 @@
+package dev.drosh.terminal.engine.render
+
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+/**
+ * One glyph's mask: where it sits in the atlas and how it sits on the line.
+ */
+internal class GlyphMask(
+    /** Atlas position of the mask's left column, in texels. */
+    val x: Int,
+    /** Atlas position of the mask's top row, in texels. */
+    val y: Int,
+    val width: Int,
+    val height: Int,
+    /**
+     * The mask's left edge relative to the pen, in pixels.
+     *
+     * A monospace cell's pen is its left edge, so this is usually zero; it is
+     * here because a font may overhang its advance and a glyph that hung
+     * outside its cell would be clipped by the next one.
+     */
+    val left: Int,
+    /** The mask's top edge relative to the cell's top, in pixels. */
+    val top: Int,
+) {
+    val isBlank: Boolean get() = width <= 0 || height <= 0
+}
+
+/**
+ * Glyphs, rasterised by Android and packed into one texture.
+ *
+ * ## Why its own
+ *
+ * The old atlas rasterised through the Rust core's font stack — a shaper, a
+ * rasteriser and a font loader that belong to an engine on its way out. The
+ * Ghostty path never loads a font into it, so every mask came back blank and
+ * the terminal drew backgrounds with no text on them.
+ *
+ * Android has a shaper and a rasteriser: `Paint` with a monospace typeface, and
+ * a `Bitmap` to draw into. For a terminal that is enough and it is the platform
+ * the app already runs on.
+ *
+ * ## The packing
+ *
+ * Shelves: fill a row left to right, then start the next below the tallest
+ * glyph in it. Simple, and a terminal's glyphs are all about the same height,
+ * so the rows pack almost perfectly.
+ *
+ * ## The format
+ *
+ * `ALPHA_8`: one byte per texel, the glyph's coverage. Colour lives in the
+ * vertex buffer, so a program changing its palette does not re-rasterise
+ * anything.
+ */
+internal class TextAtlas(
+    val size: Int = ATLAS_SIZE,
+) {
+
+    private val paint = Paint().apply {
+        typeface = Typeface.MONOSPACE
+        isAntiAlias = true
+        color = 0xFFFFFFFF.toInt()
+    }
+
+    private val boldPaint = Paint(paint).apply {
+        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+    }
+
+    /** The atlas, one byte per texel. */
+    private val pixels: ByteBuffer = ByteBuffer
+        .allocateDirect(size * size)
+        .order(ByteOrder.nativeOrder())
+
+    private val bitmap: Bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ALPHA_8)
+
+    /** Set when a mask was added and the texture has to be re-uploaded. */
+    var dirty = true
+
+    /** The size the current masks were rasterised at. */
+    private var rasterPx: Float = 0f
+
+    /** The shelf being filled, and where the next one starts. */
+    private var penX = 0
+    private var penY = 0
+    private var shelfHeight = 0
+
+    /** Masks, keyed by codepoint and weight. */
+    private val cache = HashMap<Long, GlyphMask?>(256)
+
+    /** How much of the atlas is in use, for a diagnostic surface. */
+    val usedPercent: Int
+        get() = if (size <= 0) 0 else (penY * 100) / size
+
+    /**
+     * Start a new generation at [px].
+     *
+     * A pinch changes the size the glyphs are rasterised at; masks of the old
+     * size are the wrong masks, and the cache is keyed by size so the ones the
+     * gesture wanders back over are still there.
+     */
+    fun beginSize(px: Float) {
+        val rounded = if (px <= 0f) 0f else kotlin.math.round(px)
+        if (rounded == rasterPx) return
+        rasterPx = rounded
+        paint.textSize = rounded
+        boldPaint.textSize = rounded
+    }
+
+    /** Drop every mask. The font changed, and a mask of the wrong face is the wrong mask. */
+    fun reset() {
+        cache.clear()
+        penX = 0
+        penY = 0
+        shelfHeight = 0
+        pixels.clear()
+        // A zeroed buffer is a transparent atlas, which is what "no glyphs"
+        // looks like; the re-upload below publishes it.
+        while (pixels.hasRemaining()) pixels.put(0)
+        pixels.clear()
+        dirty = true
+    }
+
+    /** The atlas bytes, for the texture upload. */
+    fun directPixels(): ByteBuffer = pixels
+
+    /**
+     * The mask for a codepoint at the current size, or null when the font has
+     * no glyph for it.
+     */
+    fun glyph(codepoint: Int, bold: Boolean, px: Float): GlyphMask? {
+        beginSize(px)
+        if (rasterPx <= 0f) return null
+
+        val key = (codepoint.toLong() shl 1) or (if (bold) 1L else 0L)
+        cache[key]?.let { return it }
+        if (cache.containsKey(key)) return null
+
+        val mask = rasterise(codepoint, bold)
+        cache[key] = mask
+        return mask
+    }
+
+    private fun rasterise(codepoint: Int, bold: Boolean): GlyphMask? {
+        if (codepoint <= 0 || codepoint > Character.MAX_CODE_POINT) return null
+
+        val text = String(Character.toChars(codepoint))
+        val p = if (bold) boldPaint else paint
+
+        val advance = p.measureText(text)
+        val metrics = p.fontMetrics
+        val width = kotlin.math.ceil(advance).toInt()
+        val height = kotlin.math.ceil(metrics.descent - metrics.ascent).toInt()
+        if (width <= 0 || height <= 0) return null
+
+        // A space is an advance and nothing else: reserving a mask for it would
+        // fill the atlas with blank rectangles.
+        if (text.isBlank()) {
+            return GlyphMask(x = 0, y = 0, width = 0, height = 0, left = 0, top = 0)
+        }
+
+        val slot = reserve(width, height) ?: return null
+
+        // Drawn on the CPU once: a terminal draws the same few hundred glyphs
+        // forever, and the atlas is the cache.
+        val canvas = Canvas(bitmap)
+        canvas.save()
+        canvas.clipRect(slot.x, slot.y, slot.x + width, slot.y + height)
+        canvas.drawText(text, slot.x.toFloat(), slot.y - metrics.ascent, p)
+        canvas.restore()
+
+        // Only the slot that was just drawn is copied out. Copying the whole
+        // bitmap would move four megabytes per new glyph, and a first frame can
+        // introduce forty.
+        val row = IntArray(width)
+        for (line in 0 until height) {
+            bitmap.getPixels(row, 0, width, slot.x, slot.y + line, width, 1)
+            val base = (slot.y + line) * size + slot.x
+            for (column in 0 until width) {
+                // ALPHA_8 comes back as ARGB with the coverage in alpha.
+                pixels.put(base + column, (row[column] ushr 24 and 0xff).toByte())
+            }
+        }
+        dirty = true
+
+        return GlyphMask(
+            x = slot.x,
+            y = slot.y,
+            width = width,
+            height = height,
+            left = 0,
+            top = (-metrics.ascent).toInt(),
+        )
+    }
+
+    /** A free rectangle, or null when the atlas is full. */
+    private fun reserve(width: Int, height: Int): Slot? {
+        if (width > size || height > size) return null
+
+        if (penX + width > size) {
+            // Next shelf.
+            penX = 0
+            penY += shelfHeight
+            shelfHeight = 0
+        }
+        if (penY + height > size) return null
+
+        val slot = Slot(penX, penY)
+        penX += width
+        if (height > shelfHeight) shelfHeight = height
+        return slot
+    }
+
+    private class Slot(val x: Int, val y: Int)
+
+    private companion object {
+        /**
+         * The atlas is square and one byte per texel.
+         *
+         * 2048² is four megabytes: enough for every glyph a terminal shows at
+         * any size it can be pinched to, and small enough to allocate on every
+         * device that runs the app.
+         */
+        const val ATLAS_SIZE = 2048
+    }
+}

@@ -57,8 +57,15 @@ class RenderThread(
             val height: Int,
         ) : Command
 
-        /** The font's cell size changed. */
-        data class Cell(val width: Float, val height: Float) : Command
+        /**
+         * The font's cell size changed.
+         *
+         * `fontPx` is the size the glyphs are rasterised at, which is the font's
+         * own size — not the cell's height, which is the line box and is about a
+         * fifth taller. Rasterising at the cell height draws every glyph too
+         * big for its cell.
+         */
+        data class Cell(val width: Float, val height: Float, val fontPx: Float) : Command
 
         /** A live pinch, in progress. */
         data class Pinch(val scale: Float, val focusX: Float, val focusY: Float) : Command
@@ -215,6 +222,7 @@ class RenderThread(
 
                     is Command.Cell -> {
                         layout.onCell(command.width, command.height, now)
+                        renderer?.fontPx = command.fontPx
                         cellChanged = true
                     }
 
