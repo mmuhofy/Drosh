@@ -34,6 +34,17 @@ fn main() {
         .header(header.to_string_lossy())
         .clang_arg(format!("-I{}", include.display()));
 
+    // A target triple, because libclang defaults to none and without one glibc's
+    // `gnu/stubs.h` takes its 32-bit branch — it wants `stubs-32.h`, which is
+    // not installed, and every include after it fails. The pipeline is the
+    // host's; the target the library is *built* for is Cargo's, not bindgen's.
+    let host_triple = match std::env::consts::ARCH {
+        "aarch64" => "aarch64-unknown-linux-gnu",
+        "arm" => "arm-unknown-linux-gnueabihf",
+        _ => "x86_64-unknown-linux-gnu",
+    };
+    builder = builder.clang_arg(format!("--target={host_triple}"));
+
     // libclang does not know Debian's multiarch layout, so glibc's own headers
     // (`bits/libc-header-start.h`) are not found without the architecture's
     // include directory. The engine's headers include <stdint.h> and friends,
