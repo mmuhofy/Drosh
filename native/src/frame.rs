@@ -364,6 +364,11 @@ impl FrameSource {
             &mut style as *mut _ as *mut c_void,
         );
 
+        // A cell carries its colours only when it was styled; otherwise the
+        // engine's effective default — override or its own theme default — is
+        // what Ghostty itself would paint.
+        let mut bg: ghostty::GhosttyColorRgb = self.default_bg;
+        let mut fg: ghostty::GhosttyColorRgb = self.default_fg;
         let bg_result = ghostty::ghostty_render_state_row_cells_get(
             self.cells,
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_BG_COLOR,
