@@ -85,6 +85,10 @@ class LayoutMachine(
      */
     private var hasCell: Boolean = false
 
+    /** True once the font has measured the cell — nothing worth drawing yet. */
+    val cellReady: Boolean
+        get() = hasCell
+
     /** The state, for a diagnostic surface. */
     val state: State get() = current
 

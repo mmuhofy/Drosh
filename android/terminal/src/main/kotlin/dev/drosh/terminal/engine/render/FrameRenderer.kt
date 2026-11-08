@@ -38,6 +38,7 @@ internal class FrameRenderer {
 
     private var backgroundProgram = 0
     private var foregroundProgram = 0
+    private var cursorProgram = 0
 
     private var backgroundProjection = 0
     private var backgroundCellSize = 0
@@ -46,6 +47,12 @@ internal class FrameRenderer {
     private var foregroundAtlasSize = 0
     private var foregroundAtlas = 0
     private var foregroundScale = 0
+    private var cursorProjection = 0
+    private var cursorCellSize = 0
+    private var cursorCell = 0
+    private var cursorStyle = 0
+    private var cursorColor = 0
+    private var cursorCellPx = 0
 
     private var atlasTexture = 0
     private var backgroundBuffer = 0
@@ -96,9 +103,18 @@ internal class FrameRenderer {
     fun create() {
         backgroundProgram = buildProgram(Shaders.BACKGROUND_VERTEX, Shaders.BACKGROUND_FRAGMENT)
         foregroundProgram = buildProgram(Shaders.FOREGROUND_VERTEX, Shaders.FOREGROUND_FRAGMENT)
+        cursorProgram = buildProgram(Shaders.CURSOR_VERTEX, Shaders.CURSOR_FRAGMENT)
         if (backgroundProgram == 0 || foregroundProgram == 0) {
             failure = lastShaderError ?: "the shaders did not compile"
             return
+        }
+        if (cursorProgram != 0) {
+            cursorProjection = GLES20.glGetUniformLocation(cursorProgram, "uProjection")
+            cursorCellSize = GLES20.glGetUniformLocation(cursorProgram, "uCellSize")
+            cursorCell = GLES20.glGetUniformLocation(cursorProgram, "uCell")
+            cursorStyle = GLES20.glGetUniformLocation(cursorProgram, "uStyle")
+            cursorColor = GLES20.glGetUniformLocation(cursorProgram, "uColor")
+            cursorCellPx = GLES20.glGetUniformLocation(cursorProgram, "uCellPx")
         }
 
         backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
@@ -125,6 +141,9 @@ internal class FrameRenderer {
         if (!created) return
         GLES20.glDeleteProgram(backgroundProgram)
         GLES20.glDeleteProgram(foregroundProgram)
+        if (cursorProgram != 0) {
+            GLES20.glDeleteProgram(cursorProgram)
+        }
         GLES20.glDeleteTextures(1, intArrayOf(atlasTexture), 0)
         GLES20.glDeleteBuffers(2, intArrayOf(backgroundBuffer, foregroundBuffer), 0)
         created = false
@@ -193,6 +212,7 @@ internal class FrameRenderer {
 
         drawBackgrounds(frame, size)
         drawForegrounds(frame, size, foregroundCount)
+        drawCursor(frame, size)
 
         return frame.cellCount
     }
@@ -205,6 +225,42 @@ internal class FrameRenderer {
      * The row is signed because the frame's overscan rows sit above the
      * viewport; the shader reinterprets the top half of the unsigned range.
      */
+    /**
+     * The cursor, if there is one.
+     *
+     * Ghostty resolves the cursor's geometry to a cell and reports a visual
+     * style; it does not paint it. The styles are 0 bar, 1 block, 2 underline
+     * and 3 hollow block — the last draws its border and nothing else.
+     *
+     * Drawn after the glyphs, so a block cursor occludes the cell the engine
+     * says it is sitting on, the way a terminal does.
+     */
+    private fun drawCursor(frame: Frame, size: SizeInfo) {
+        if (cursorProgram == 0) return
+        if (!frame.cursorVisible) return
+
+        val projection = FloatArray(4)
+        size.projection(projection)
+
+        // The engine reports the colour as bytes R,G,B,A in little-endian.
+        val argb = frame.cursorColor
+        val a = (argb ushr 24 and 0xff) / 255f
+        val b = (argb ushr 16 and 0xff) / 255f
+        val g = (argb ushr 8 and 0xff) / 255f
+        val r = (argb and 0xff) / 255f
+
+        GLES20.glUseProgram(cursorProgram)
+        GLES20.glUniform4fv(cursorProjection, 1, projection, 0)
+        GLES20.glUniform2f(cursorCellSize, cellWidth, cellHeight)
+        // Viewport-relative coordinates are the same rows text is drawn on.
+        GLES20.glUniform2i(cursorCell, frame.cursorColumn, frame.cursorRow)
+        GLES20.glUniform1i(cursorStyle, frame.cursorStyle)
+        GLES20.glUniform4f(cursorColor, r, g, b, a)
+        GLES20.glUniform2f(cursorCellPx, cellWidth, cellHeight)
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+    }
+
     private fun buildBackgrounds(frame: Frame, size: SizeInfo) {
         val bytes = frame.cellCount * BACKGROUND_BYTES
         if (backgrounds.capacity() < bytes) {

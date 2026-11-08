@@ -155,6 +155,59 @@ internal object Shaders {
      * colour in the atlas would multiply the memory by four and force a
      * re-rasterisation for every colour a program chose.
      */
+    /**
+     * The cursor quad.
+     *
+     * `uStyle` is the engine's visual style: 0 bar, 1 block, 2 underline,
+     * 3 hollow block. A block fills the cell; a bar is a left sliver; an
+     * underline a bottom strip; a hollow outline is all the ink on a transparent
+     * fill.
+     */
+    val CURSOR_VERTEX = """
+        #version 300 es
+        uniform vec4 uProjection;
+        uniform vec2 uCellSize;
+        uniform ivec2 uCell;
+        uniform int uStyle;
+        out vec2 vRegion;
+        void main() {
+            int id = gl_VertexID;
+            vec2 corner = vec2(float(id == 1 || id == 3), float(id == 2 || id == 3));
+            vec2 origin = vec2(uCell) * uCellSize;
+            vec2 lo = origin;
+            vec2 hi = origin + uCellSize;
+            if (uStyle == 0) {
+                hi.x = lo.x + uCellSize.x * 0.12;
+            } else if (uStyle == 2) {
+                lo.y = hi.y - uCellSize.y * 0.15;
+            }
+            vRegion = corner;
+            vec2 pos = mix(lo, hi, corner);
+            gl_Position = vec4(uProjection.xy + uProjection.zw * pos, 0.0, 1.0);
+        }
+    """.trimIndent()
+
+    val CURSOR_FRAGMENT = """
+        #version 300 es
+        precision mediump float;
+        in vec2 vRegion;
+        uniform vec4 uColor;
+        uniform int uStyle;
+        uniform vec2 uCellPx;
+        out vec4 fragColor;
+        void main() {
+            if (uStyle == 3) {
+                vec2 border = 1.5 / uCellPx;
+                bool onBorder = vRegion.x < border.x || vRegion.x > 1.0 - border.x
+                    || vRegion.y < border.y || vRegion.y > 1.0 - border.y;
+                if (!onBorder) {
+                    discard;
+                }
+            }
+            fragColor = uColor;
+        }
+    """.trimIndent()
+
     val FOREGROUND_FRAGMENT = """
         #version 300 es
         precision mediump float;

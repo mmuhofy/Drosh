@@ -263,7 +263,10 @@ class RenderThread(
                 renderer?.onSizeChanged(layout.size)
             }
 
-            if (dirty && egl.isReady && egl.windowSurface != null) {
+            // Never draw before the font has measured the cell: the surface
+            // arrives 0×0 and the grid would be two cells of nothing —
+            // exactly the black square at the origin the user reported.
+            if (dirty && egl.isReady && egl.windowSurface != null && layout.cellReady) {
                 dirty = false
                 drawFrame()
             }
