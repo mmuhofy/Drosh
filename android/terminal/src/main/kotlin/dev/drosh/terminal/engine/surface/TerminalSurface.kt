@@ -219,6 +219,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidate()
     }
 
+    /** The text the IME is composing, as it was last sent — the diff basis. */
+    private var composing = ""
+
     // --- keyboard ----------------------------------------------------------
     //
     // A terminal is not a text field, and an IME is built for one: it composes a
@@ -266,23 +269,50 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         return object : android.view.inputmethod.BaseInputConnection(this@TerminalSurface, false) {
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                if (!text.isNullOrEmpty()) {
-                    // AOSP keyboards send Enter as text, not as a key event. A
-                    // terminal wants CR: the tty's ICRNL turns it into a
-                    // newline for the shell.
-                    send(text.toString().replace('\n', '\r').toByteArray(Charsets.UTF_8))
+                val raw = text?.toString().orEmpty()
+                // The composing text this commit carries already went to the shell
+                // as it was typed; sending it again would double every character.
+                if (composing.isNotEmpty() && raw.startsWith(composing)) {
+                    val rest = raw.removePrefix(composing).replace('\n', '\r')
+                    if (rest.isNotEmpty()) {
+                        send(rest.toByteArray(Charsets.UTF_8))
+                    }
+                } else {
+                    // No prefix in common with what the shell holds — either the
+                    // IME discarded the composition, or it never committed one:
+                    // send everything, newline as CR like a terminal expects.
+                    send(raw.replace('\n', '\r').toByteArray(Charsets.UTF_8))
                 }
+                composing = ""
                 return true
             }
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                // Held, not sent: the keyboard may still replace it, and a shell
-                // cannot take a character back.
+                val next = text?.toString().orEmpty()
+                val common = composing.commonPrefixWith(next).length
+                // Backward deletion first — the shell cannot take a character back,
+                // so the tail that the IME erased is erased there too.
+                val removed = composing.substring(common)
+                repeat(removed.length) { send(byteArrayOf(DEL)) }
+                val added = next.substring(common)
+                if (added.isNotEmpty()) {
+                    send(added.toByteArray(Charsets.UTF_8))
+                }
+                composing = next
+                return true
+            }
+
+            override fun finishComposingText(): Boolean {
+                // Every byte for the composition has already been sent; this is
+                // only the IME telling us the underline is gone.
+                composing = ""
                 return true
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 repeat(beforeLength) { send(byteArrayOf(DEL)) }
+                // The composing buffer loses the same tail the shell lost.
+                composing = composing.dropLast(beforeLength)
                 return true
             }
 
