@@ -24,7 +24,7 @@
 //!  32  u32  cell_count
 //!  36  u32  cell_stride
 //!  40  u32  cells_bytes
-//!  44  u32  reserved
+//!  44  u32  cursorColor  bytes R,G,B,A little-endian
 //! ```
 //!
 //! Cells follow: `cell_count` records of `cell_stride` bytes, row-major.
@@ -257,6 +257,18 @@ impl FrameSource {
         }
     }
 
+    fn default_cursor(&self) -> ghostty::GhosttyColorRgb {
+        let mut cursor = ghostty::GhosttyColorRgb { r: 255, g: 255, b: 255 };
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_CURSOR,
+                &mut cursor as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+        cursor
+    }
+
     unsafe fn write_header(
         &mut self,
         cols: u16,
@@ -278,17 +290,24 @@ impl FrameSource {
         put_u32(header, 32, cell_count);
         put_u32(header, 36, CELL_BYTES as u32);
         put_u32(header, 40, cell_count * CELL_BYTES as u32);
+        let cursor = self.default_cursor();
+        put_u32(header, 44, rgba(cursor));
 
         let mut cursor_x: u16 = 0;
         let mut cursor_y: u16 = 0;
         let mut cursor_style: u16 = 0;
         let mut cursor_visible = false;
         let mut cursor_blinking = false;
+        let mut viewport_has_value = false;
         render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X, &mut cursor_x);
         render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y, &mut cursor_y);
         render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE, &mut cursor_style);
         render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE, &mut cursor_visible);
         render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING, &mut cursor_blinking);
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE, &mut viewport_has_value);
+        if !viewport_has_value {
+            cursor_visible = false;
+        }
 
         put_u16(header, 22, cursor_x);
         put_u16(header, 24, cursor_y);

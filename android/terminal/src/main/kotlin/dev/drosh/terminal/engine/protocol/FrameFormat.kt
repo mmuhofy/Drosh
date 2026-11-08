@@ -34,7 +34,7 @@ package dev.drosh.terminal.engine.protocol
  *  32  u32  cellCount
  *  36  u32  cellStride
  *  40  u32  cellsBytes
- *  44  u32  reserved
+ *  44  u32  cursorColor  bytes R,G,B,A little-endian
  * ```
  *
  * Cells follow, `cellCount` records of `cellStride` bytes:
@@ -82,6 +82,7 @@ object FrameFormat {
     const val OFFSET_CELL_COUNT = 32
     const val OFFSET_CELL_STRIDE = 36
     const val OFFSET_CELLS_BYTES = 40
+    const val OFFSET_CURSOR_COLOR = 44
 
     // --- cell offsets -----------------------------------------------------
 
