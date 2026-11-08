@@ -88,7 +88,14 @@ fun GhosttyTerminalHost(
         )
     }
 
+    var zoomSizeSp by remember { mutableStateOf(0f) }
     var status by remember { mutableStateOf<String?>("preparing") }
+
+    // The pinch reports its size live; the chip draws it. Same place and same shape
+    // as the other engine's host.
+    LaunchedEffect(pane) {
+        pane.view.zoomListener = { sp -> zoomSizeSp = sp }
+    }
 
     // The guest is started once. It is a fork, a rootfs and an exec, so it does
     // not belong on the main thread.
@@ -212,6 +219,16 @@ fun GhosttyTerminalHost(
                 pane.setCell(cell.width, cell.height, cell.fontPx)
             },
         )
+
+        if (zoomSizeSp > 0f) {
+            Text(
+                text = "%.1f sp".format(zoomSizeSp),
+                color = DroshTextSecondary,
+                fontFamily = LocalFontSet.current.sans,
+                fontSize = 12.sp,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+            )
+        }
 
         status?.let { message ->
             Text(

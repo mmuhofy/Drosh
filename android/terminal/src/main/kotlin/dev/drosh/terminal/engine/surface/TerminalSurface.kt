@@ -57,6 +57,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     @Volatile
     private var cellHeight = 1f
 
+    /** The font's own size, in pixels — what the glyphs are rasterised at. */
+    @Volatile
+    private var fontPx = 0f
+
     /** The reader thread, while a child is attached. */
     private var reader: Thread? = null
 
@@ -198,6 +202,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     fun setCell(width: Float, height: Float, fontPx: Float = 0f) {
         cellWidth = width
         cellHeight = height
+        if (fontPx > 0f) {
+            this.fontPx = fontPx
+        }
         renderThread.post(RenderThread.Command.Cell(width, height, fontPx))
     }
 
@@ -256,24 +263,107 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     /** Where the sub-line scroll remainder lives — whole rows go to the engine. */
     private var accumulatorPx = 0f
 
-    private val gestures = GestureDetector(
+    // The pinch, ported from the vendored engine: a dead zone in log-scale
+    // before any size changes, a clamped step per event, one reflow when the
+    // fingers lift — never during the gesture.
+    private var zoomBaseSp = 0f
+    private var zoomScaleFactor = 1f
+    private var zoomPassedDeadZone = false
+
+    /** The size the pinch has reached, live. 0 when no pinch is in progress. */
+    @Volatile
+    var zoomSizeSp = 0f
+        private set
+
+    /** Told the live size while a pinch moves, and 0 when it ends. */
+    var zoomListener: (sp: Float) -> Unit = {}
+
+    private val recognizer = dev.drosh.terminal.engine.view.GestureAndScaleRecognizer(
         context,
-        object : GestureDetector.OnGestureListener {
-            override fun onDown(e: MotionEvent): Boolean = true
-            override fun onShowPress(e: MotionEvent) {}
-            override fun onSingleTapUp(e: MotionEvent): Boolean {
+        object : dev.drosh.terminal.engine.view.GestureAndScaleRecognizer.Listener {
+            override fun onSingleTapUp(event: MotionEvent): Boolean {
                 if (!hasFocus()) {
                     requestFocus()
                     requestKeyboard()
                 }
                 return true
             }
-            override fun onLongPress(e: MotionEvent) {}
-            override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-                scrollPixels(-distanceY)
+
+            override fun onDoubleTap(event: MotionEvent): Boolean = false
+            override fun onLongPress(event: MotionEvent) {}
+
+            override fun onScroll(event: MotionEvent, dx: Float, dy: Float): Boolean {
+                // finger down → content down → the history; the engine takes
+                // negative rows as backwards through the scrollback.
+                scrollPixels(-dy)
                 return true
             }
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean = false
+
+            override fun onFling(
+                event: MotionEvent,
+                velocityX: Float,
+                velocityY: Float,
+            ): Boolean = false
+
+            override fun onScaleBegin() {
+                val density = resources.displayMetrics.scaledDensity.coerceAtLeast(1f)
+                zoomBaseSp = fontPx / density
+                if (zoomBaseSp <= 0f) zoomBaseSp = 14f
+                zoomScaleFactor = 1f
+                zoomPassedDeadZone = false
+            }
+
+            override fun onScale(focusX: Float, focusY: Float, scale: Float): Boolean {
+                val step = scale.coerceIn(
+                    1f / dev.drosh.domain.terminal.TerminalZoom.MAX_STEP_FACTOR,
+                    dev.drosh.domain.terminal.TerminalZoom.MAX_STEP_FACTOR,
+                )
+                zoomScaleFactor *= step
+
+                if (!zoomPassedDeadZone) {
+                    if (Math.abs(Math.log(zoomScaleFactor.toDouble())) < dev.drosh.domain.terminal.TerminalZoom.DEAD_ZONE) {
+                        return true
+                    }
+                    zoomPassedDeadZone = true
+                }
+
+                val target = (zoomBaseSp * zoomScaleFactor)
+                    .coerceIn(
+                        dev.drosh.domain.terminal.TerminalZoom.MIN_SP,
+                        dev.drosh.domain.terminal.TerminalZoom.MAX_SP,
+                    )
+                val pinch = target / zoomBaseSp
+                renderThread.post(RenderThread.Command.Pinch(pinch, focusX, focusY))
+                zoomSizeSp = target
+                zoomListener(target)
+                return true
+            }
+
+            override fun onScaleEnd() {
+                if (zoomPassedDeadZone) {
+                    val target = (zoomBaseSp * zoomScaleFactor)
+                        .coerceIn(
+                            dev.drosh.domain.terminal.TerminalZoom.MIN_SP,
+                            dev.drosh.domain.terminal.TerminalZoom.MAX_SP,
+                        )
+                    val density = resources.displayMetrics.scaledDensity.coerceAtLeast(1f)
+                    val cellPx = target * density
+                    // Re-measure at the final size: this is the only frame of a
+                    // pinch where the glyphs are rasterised again.
+                    setCell(
+                        cellWidth = cellWidth * (cellPx / fontPx.coerceAtLeast(1f)),
+                        cellHeight = cellHeight * (cellPx / fontPx.coerceAtLeast(1f)),
+                        fontPx = cellPx,
+                    )
+                } else {
+                    // Back at the origin: the picture eases back too.
+                    renderThread.post(RenderThread.Command.Pinch(1f, 0f, 0f))
+                }
+                zoomScaleFactor = 1f
+                zoomPassedDeadZone = false
+                zoomSizeSp = 0f
+                zoomListener(0f)
+            }
         },
     )
 
