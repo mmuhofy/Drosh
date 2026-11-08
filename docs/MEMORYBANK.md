@@ -9,6 +9,13 @@ _Last updated: 2026-11-08_
   the APK no longer ships `libdrosh_core.so`.
 - **The Ghostty VT core is the only engine.** `libghostty-vt.so` (MIT) driven by
   `libdrosh.so` (`native/`, the Rust JNI half).
+- **The manager is on the `TerminalEngine` interface.** `enginePanes` /
+  `EngineDroshSession` hold `TerminalEngine`; the old Rust engine's `.session` is
+  reached only through `as? EngineTerminal?` casts. The session grid's preview
+  ticker reads the interface's `transcript()`; the Ghostty pane answers with the
+  visible viewport (a fresh grid dump, overscan excluded).
+- **The Ghostty pane registers as a session** with `TerminalManager` — it shows
+  on the grid and gets live previews.
 - **The old engine's Kotlin stays as dead code** — `NativeCore`, `EngineSession`,
   `TerminalView` and friends — off the default path, to be ported or deleted
   deliberately, never bulk-deleted. `docs/GHOSTTY-MIGRATION.md` has the current

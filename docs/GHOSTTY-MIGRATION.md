@@ -11,10 +11,11 @@ _Read this before doing anything else in a new conversation._
 - **The old Rust engine is gone.** `rust/` was deleted (`refactor(terminal): remove the old Rust engine`) and the APK no longer ships `libdrosh_core.so`.
 - The app **defaults to the Ghostty engine** (`DroshSettings.ghosttyEngine = true`). `TerminalScreen` picks the host from that setting; the old host path remains compiled but off.
 - The old engine's Kotlin (`NativeCore`, `EngineSession`, `TerminalView`, …) stays as dead code, untouched.
+- **The manager is on the interface now.** `enginePanes` and `EngineDroshSession` hold `TerminalEngine`; the old engine's `.session` is reached only via `as? EngineTerminal?` casts, and the session grid's preview ticker (`transcriptTail`) reads `TerminalEngine.transcript()`, which the Ghostty pane answers with the visible viewport.
+- **The Ghostty pane registers as a session.** The host registers with `TerminalManager` after the guest starts — it shows on the grid, can be named, closed, restored, and gets live previews.
 - `EngineDiagnostics` prints raw counters on screen (bytes read, frames drawn, frame shape) and auto-hides afterward.
-- `libghostty-vt.so` (MIT) + `libdrosh.so` (Rust, this repo) ship in the APK via the `debug.yml` `native-build` job.
+- `libghostty-vt.so` (MIT) + `libdrosh.so` (Rust, this repo) ship in the APK via the `debug.yml` `native-build` job; the engine download goes through `gh` (API asset endpoint) because the browser download URL answers 504.
 - `native/ghostty/` is NOT in git; it is downloaded per-build by CI script.
-- CI on 2026-11-08 failed once for a transient 504 from the libghostty-vt asset host — unrelated to the deletion; rerun was triggered.
 
 ---
 

@@ -10,7 +10,10 @@ _Son güncelleme: 2026-11-08_
 - [x] `debug.yml`: `rust-core` ve `rust-build` job'ları kaldırıldı; `libdrosh_core.so` bekleme/assert'i gitti
 - [x] `release.yml`: `libdrosh_core.so` assert'i kaldırıldı
 - [x] `DroshSettings.ghosttyEngine` varsayılanı `true` — eski Kotlin (NativeCore, EngineSession, TerminalView …) ölü kod olarak duruyor, varsayılan yoldan erişilmiyor; taşınacak ya da ayrı commit'le silinecek dosyalar için `docs/GHOSTTY-MIGRATION.md`
-- [ ] Ghostty motorunu device'da tam doğrulama (sidebar kaydı, find, transcript, hyperlink)
+- [x] **Session grid registration** — `GhosttyTerminalHost` registers the pane with `TerminalManager` after the guest starts; the pane appears on the grid, closes, restores and is named like any session, and `TerminalManager` is on the `TerminalEngine` interface
+- [x] **Live preview** — the grid's thumbnail ticker (`transcriptTail`) reads `TerminalEngine.transcript()`; the Ghostty pane answers with the visible viewport (fresh dump, overscan excluded)
+- [ ] Ghostty motorunu device'da tam doğrulama (on-device render, keyboard, session close/restore, grid previews)
+- [ ] Extra-keys bar for the new engine — `focusedWriter()` returns null on the Ghostty path by design (`EngineTerminalWriter` is Rust-engine-specific); needs a writer that emits bytes through the native encoder
 - [ ] Eski motorun Kotlin parçalarını usulca yeni motora taşımak ya da silme sırasını belirlemek (view/ + input/ jest/mouse seçim kodu)
 
 ---
