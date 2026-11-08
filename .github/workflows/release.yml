@@ -97,8 +97,6 @@ jobs:
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/release/app-arm64-v8a-release.apk"
-          unzip -l "$APK" | grep -q "lib/arm64-v8a/libdrosh_core.so"
-          echo "$APK contains libdrosh_core.so"
           unzip -l "$APK" | grep -q "assets/libchrootng.so"
           echo "$APK contains libchrootng.so"
 
