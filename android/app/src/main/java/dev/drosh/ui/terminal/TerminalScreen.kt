@@ -626,7 +626,8 @@ private fun ReadyScreen(
      */
     fun findSource(): TerminalFindSource? {
         val enginePane = terminalManager.focusedEngineTerminal()
-        return if (enginePane != null) EngineFindSource(enginePane.session) else null
+        val oldEngineSession = (enginePane as? dev.drosh.terminal.session.EngineTerminal)?.session
+        return if (oldEngineSession != null) EngineFindSource(oldEngineSession) else null
     }
 
     /**

@@ -367,8 +367,18 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         return NativeSession.search(session, query, limit)
     }
 
-    /** Not carried by this engine: the grid does not hand out its bytes. */
-    override fun transcript(): List<String> = emptyList()
+    /**
+     * The last lines the session printed, oldest first.
+     *
+     * The visible viewport, taken from a fresh dump of the grid: the rows a
+     * thumbnail actually draws. Scrollback is not included — the grid does
+     * not hand it out, and a caller wanting history joins from the log.
+     */
+    override fun transcript(): List<String> {
+        val session = sessionHandle
+        if (session == 0L) return emptyList()
+        return dev.drosh.terminal.engine.native.NativeSession.frame(session)?.lines() ?: emptyList()
+    }
 
     /** Not carried by this engine: `OSC 8` has no C API surface yet. */
     override fun hyperlinkAt(row: Int, column: Int): String? = null

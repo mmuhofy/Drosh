@@ -20,10 +20,12 @@ import java.net.URLDecoder
  * the session side of that line.
  */
 class EngineShellStateSource(
-    private val session: EngineSession,
+    private val session: EngineSession?,
 ) : ShellStateSource {
 
-    override fun currentState(): ShellState? = session.blockState().toShellState()
+    // An engine with no marks to read answers nothing: the caller shows a
+    // neutral shell state rather than an invented one.
+    override fun currentState(): ShellState? = session?.blockState()?.toShellState()
 }
 
 /**

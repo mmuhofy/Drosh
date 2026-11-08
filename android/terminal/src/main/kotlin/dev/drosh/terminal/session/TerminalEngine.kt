@@ -3,14 +3,14 @@ package dev.drosh.terminal.session
 import android.view.View
 
 /**
- * A terminal, whichever engine draws it.
+ * A terminal — whichever engine draws it.
  *
  * ## Why this exists
  *
- * There are two engines in the APK. The old one is Rust and has been on a
- * device; the new one is Ghostty and has not. Both present the same host
- * surface, and the manager, the panes and the Compose screens are written once
- * against this interface rather than twice against two classes.
+ * Both engines in this tree present the same host surface, and the manager,
+ * the panes and the Compose screens are written once against this interface
+ * rather than twice against two classes. The old Rust engine is deleted; the
+ * engine driving the GL surface is the only one on the runtime path today.
  *
  * ## What is here and what is not
  *
@@ -158,4 +158,32 @@ interface TerminalEngine {
      * Null on an engine whose API does not expose `OSC 8` per cell.
      */
     fun hyperlinkAt(row: Int, column: Int): String?
+
+    /**
+     * The ambient tint of the session's palette as `[r, g, b]`, or empty.
+     *
+     * Empty on an engine whose palette the app cannot read; the tint bloom is
+     * then never applied.
+     */
+    fun ambientTint(): IntArray = IntArray(0)
+
+    /**
+     * The manager's focus advisory.
+     *
+     * The manager tells the pane when focus moves to or away from it, so a
+     * pane that needs to wake from a sleepy state can. A pane with no
+     * opinion has none.
+     */
+    fun notifyFocus(focused: Boolean) {}
+
+    /**
+     * The manager's selection listener — chrome feedback for "is there a
+     * selection".
+     *
+     * A pane that cannot report selection events keeps the default and never
+     * fires; the chrome simply never comes up.
+     */
+    var selectionListener: ((Boolean) -> Unit)?
+        get() = null
+        set(_) {}
 }

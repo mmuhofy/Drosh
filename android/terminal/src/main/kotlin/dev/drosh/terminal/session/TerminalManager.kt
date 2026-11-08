@@ -76,7 +76,7 @@ class TerminalManager(
     /**
      * The sessions the app knows about, by persistent id.
      *
-     * Each entry wraps an [EngineTerminal] with its persistent id and display
+     * Each entry wraps the engine pane with its persistent id and display
      * name. The pane itself is registered in [enginePanes] once the UI has
      * built it; this list is what the sidebar and the session reconciliation
      * read, so a session exists here from the moment its row is created.
@@ -109,7 +109,7 @@ class TerminalManager(
         // Command marks are per session, so the flow follows whichever pane has
         // focus — that is the one a keystroke is going to. The engine's session
         // is the only kind there is now.
-        val focusedEngineSession = enginePanes[focusedPane.value]?.session
+        val focusedEngineSession = (enginePanes[focusedPane.value] as? EngineTerminal)?.session
         commandState.bind(focusedEngineSession)
         // Same reasoning: `dedit` is a command, so it belongs to the session that
         // ran it — the focused one — not to whichever tab happens to be showing.
@@ -313,7 +313,7 @@ class TerminalManager(
      * was — nothing in it knows the engine exists — while a host that hosts
      * an engine pane gets the same two calls it has always used for a pane.
      */
-    private val enginePanes = LinkedHashMap<PaneSlot, EngineTerminal>()
+    private val enginePanes = LinkedHashMap<PaneSlot, TerminalEngine>()
 
     /**
      * The watch on the focused engine pane's viewport.
@@ -954,7 +954,7 @@ class TerminalManager(
      * Termux pane with no session cannot: there would be nothing to be
      * active about.
      */
-    private fun focusEngineTerminal(slot: PaneSlot, pane: EngineTerminal) {
+    private fun focusEngineTerminal(slot: PaneSlot, pane: TerminalEngine) {
         if (pane.state != EngineTerminalState.RUNNING) {
             return
         }
@@ -979,7 +979,7 @@ class TerminalManager(
         // The block engine reads the shell's state from the engine's marks
         // when the session runs on the engine; a vendored session has no
         // marks to read and the wire keeps inferring from the screen.
-        onBlockSessionChanged(null, EngineShellStateSource(pane.session))
+        onBlockSessionChanged(null, EngineShellStateSource((pane as? EngineTerminal)?.session))
         publishAltBufferState()
         publishActiveId()
         pane.notifyFocus(true)
@@ -1013,7 +1013,7 @@ class TerminalManager(
      * and the selection is published — but they come from the engine's own
      * numbers instead of from a view's callbacks.
      */
-    private fun activateEngineTerminal(pane: EngineTerminal) {
+    private fun activateEngineTerminal(pane: TerminalEngine) {
         // The engine's pane is the one that reports now.
         pane.selectionListener = { hasSelection ->
             publishEngineSelection(pane, hasSelection)
@@ -1030,7 +1030,7 @@ class TerminalManager(
      * selection menu is drawn once, over whichever pane has it, and the
      * bounds are in that pane's own pixels.
      */
-    private fun publishEngineSelection(pane: EngineTerminal, hasSelection: Boolean) {
+    private fun publishEngineSelection(pane: TerminalEngine, hasSelection: Boolean) {
         if (enginePanes[focusedPane.value] !== pane) return
         val bounds = if (hasSelection) pane.selectionBounds() else null
         // A rectangle has no equality of its own, so two rectangles with the
@@ -1066,7 +1066,7 @@ class TerminalManager(
      * with the sign the vendored view uses, so the rule below is the rule
      * the Termux path has always used.
      */
-    private fun publishEngineScroll(pane: EngineTerminal) {
+    private fun publishEngineScroll(pane: TerminalEngine) {
         if (enginePanes[focusedPane.value] !== pane) return
         val topRow = engineTopRow(pane.scrollOffset())
         val atEdge = chromeIsAtLiveEdge(topRow, _isAtLiveEdge.value)
@@ -1094,7 +1094,7 @@ class TerminalManager(
      * then this reads the same fact, a few times a second, and only while an
      * engine pane has the focus.
      */
-    private fun startEngineWatch(pane: EngineTerminal) {
+    private fun startEngineWatch(pane: TerminalEngine) {
         engineWatchJob?.cancel()
         engineWatchJob = managerScope.launch {
             try {
@@ -1117,9 +1117,15 @@ class TerminalManager(
                         val sessionId = pane.persistentId
                         if (sessionId.isNotEmpty()) {
                             val wire = blockEngineWire
-                            val session = pane.session
-                            withContext(Dispatchers.IO) {
-                                wire?.onEngineSessionTextChanged(session, sessionId)
+                            // The block engine reads the transcript of the old
+                            // engine's session object; the new one has none
+                            // until the transcript tap is wired, so it is a
+                            // no-op there rather than a `!!`.
+                            val session = (pane as? EngineTerminal)?.session
+                            if (session != null) {
+                                withContext(Dispatchers.IO) {
+                                    wire?.onEngineSessionTextChanged(session, sessionId)
+                                }
                             }
                         }
                     }
@@ -1160,13 +1166,13 @@ class TerminalManager(
      * The engine's pane owns its own session, so the manager does not track
      * one for it: the pane is the whole truth about that terminal.
      */
-    fun enginePaneFor(slot: PaneSlot): EngineTerminal? = enginePanes[slot]
+    fun enginePaneFor(slot: PaneSlot): TerminalEngine? = enginePanes[slot]
 
     /**
      * The engine-backed pane that has the focus, or null when a Termux pane
      * has it.
      */
-    fun focusedEngineTerminal(): EngineTerminal? = enginePanes[focusedPane.value]
+    fun focusedEngineTerminal(): TerminalEngine? = enginePanes[focusedPane.value]
 
     /**
      * Where the input of the focused terminal goes.
@@ -1186,7 +1192,7 @@ class TerminalManager(
      */
     fun focusedWriter(): TerminalWriter? {
         val engine = focusedEngineTerminal()
-        if (engine != null) {
+        if (engine is EngineTerminal) {
             return EngineTerminalWriter(engine)
         }
         return null
@@ -1228,7 +1234,7 @@ class TerminalManager(
      */
     fun registerEngineTerminal(
         slot: PaneSlot,
-        pane: EngineTerminal,
+        pane: TerminalEngine,
         persistentId: String = "",
         name: String = "",
     ) {
@@ -1462,9 +1468,10 @@ class TerminalManager(
      */
     fun transcriptTail(persistentId: String, maxLines: Int): List<String> {
         if (maxLines <= 0) return emptyList()
-        val session = engineSessionById(persistentId) ?: return emptyList()
-        if (!session.isAlive) return emptyList()
-        val lines = session.transcript()
+        val pane = engineSessions.find { it.persistentId == persistentId }
+            ?.enginePane ?: return emptyList()
+        val lines = pane.transcript()
+        if (lines.isEmpty()) return emptyList()
         if (lines.size <= maxLines) return lines
         return lines.subList(lines.size - maxLines, lines.size)
     }
@@ -1485,8 +1492,8 @@ class TerminalManager(
     fun addSshSession(
         persistentId: String,
         name: String,
-        pane: EngineTerminal,
-    ): EngineSession {
+        pane: TerminalEngine,
+    ): EngineSession? {
         pane.bindIdentity(persistentId, name)
 
         val existing = engineSessions.find { it.persistentId == persistentId }
@@ -1505,7 +1512,7 @@ class TerminalManager(
 
         registerEngineTerminal(focusedPane.value, pane, persistentId, name)
 
-        onBlockSessionChanged(persistentId, EngineShellStateSource(pane.session))
+        onBlockSessionChanged(persistentId, EngineShellStateSource((pane as? EngineTerminal)?.session))
 
         _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()
@@ -1514,7 +1521,7 @@ class TerminalManager(
         syncActiveTabIndex()
         publishAltBufferState()
         publishActiveId()
-        return pane.session
+        return (pane as? EngineTerminal)?.session
     }
 
     /**
@@ -1587,8 +1594,8 @@ class TerminalManager(
     fun addEngineTabWithId(
         persistentId: String,
         name: String,
-        pane: EngineTerminal,
-    ): EngineSession {
+        pane: TerminalEngine,
+    ): EngineSession? {
         pane.bindIdentity(persistentId, name)
 
         val existing = engineSessions.find { it.persistentId == persistentId }
@@ -1614,7 +1621,7 @@ class TerminalManager(
         _noSessionsLeft.value = false
 
         publishActiveId()
-        return pane.session
+        return (pane as? EngineTerminal)?.session
     }
 
     /**
@@ -1874,7 +1881,7 @@ class TerminalManager(
      * callbacks so Room learns about it, and publishes the exit event when it
      * was the last one.
      */
-    private fun onEngineSessionExited(pane: EngineTerminal, exitCode: Int) {
+    private fun onEngineSessionExited(pane: TerminalEngine, exitCode: Int) {
         val session = engineSessions.find { it.enginePane === pane } ?: return
         val persistentId = session.persistentId
 

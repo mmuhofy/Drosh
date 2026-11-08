@@ -41,6 +41,28 @@ class Frame private constructor(
     val fullyDamaged: Boolean
         get() = dirty == FrameFormat.DIRTY_FULL
 
+    /**
+     * The viewport, top to bottom, base codepoint per cell.
+     *
+     * Overscan rows are skipped: this is what the user sees, not the rows a
+     * smooth scroll reveals at the edges. Trailing blanks within a line are
+     * stripped; the caller decides what to do with the rest.
+     */
+    fun lines(): List<String> {
+        val lines = ArrayList<String>(rows)
+        val first = overscanAbove
+        for (row in first until first + rows) {
+            val start = row * columns
+            val sb = StringBuilder(columns)
+            for (col in 0 until columns) {
+                val cp = codepoint(start + col)
+                if (cp > 0) sb.appendCodePoint(cp) else sb.append(' ')
+            }
+            lines += sb.toString().trimEnd()
+        }
+        return lines
+    }
+
     /** True when nothing changed since the previous frame. */
     val clean: Boolean
         get() = dirty == FrameFormat.DIRTY_NONE
