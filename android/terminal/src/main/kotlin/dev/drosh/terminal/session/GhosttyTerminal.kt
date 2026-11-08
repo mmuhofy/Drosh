@@ -1,7 +1,6 @@
 package dev.drosh.terminal.session
 
 import android.content.Context
-import android.content.Context
 import android.graphics.Rect
 import android.util.Log
 import android.view.View
