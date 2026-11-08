@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fetch libghostty-vt for the Android ABIs we ship, verify the checksums, and
-# lay the headers and libraries out where the Zig build expects them.
+# lay the headers and libraries out where the native build expects them.
 #
 # The library is not committed: it is 2.1 MB per ABI and it is somebody else's
 # build. It is downloaded, verified against the release's own SHA256SUMS, and
@@ -34,6 +34,13 @@ while [ $# -gt 0 ]; do
 done
 
 command -v curl >/dev/null || { echo "curl is required" >&2; exit 1; }
+
+# GitHub's release asset CDN occasionally answers 502/503/504 and closes the
+# connection without warning. `--retry-all-errors` covers HTTP 5xx, 408 and
+# 429, with a growing delay between attempts.
+fetch() {
+  curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 600 "$@"
+}
 command -v sha256sum >/dev/null || { echo "sha256sum is required" >&2; exit 1; }
 
 info() { printf '  %s\n' "$*"; }
@@ -47,7 +54,7 @@ info "ABIs: $GHOSTTY_VT_ABIS"
 
 # The checksum list is the authority for every file below it.
 echo "  fetching SHA256SUMS"
-curl -fsSL "$BASE/SHA256SUMS" -o "$DEST/SHA256SUMS"
+fetch "$BASE/SHA256SUMS" -o "$DEST/SHA256SUMS"
 
 verify() {
   local file="$1" name="$2"
@@ -71,7 +78,7 @@ verify() {
 # --- headers ----------------------------------------------------------------
 HEADERS="$DEST/libghostty-vt-headers.tar.gz"
 echo "  fetching headers"
-curl -fsSL "$BASE/libghostty-vt-headers.tar.gz" -o "$HEADERS"
+fetch "$BASE/libghostty-vt-headers.tar.gz" -o "$HEADERS"
 verify "$HEADERS" "libghostty-vt-headers.tar.gz"
 rm -rf "$DEST/include"
 tar -xzf "$HEADERS" -C "$DEST"
@@ -84,7 +91,7 @@ for abi in $GHOSTTY_VT_ABIS; do
   out="$DEST/lib/$abi/libghostty-vt.so"
   mkdir -p "$DEST/lib/$abi"
   echo "  fetching $name"
-  curl -fsSL "$BASE/$name" -o "$out"
+  fetch "$BASE/$name" -o "$out"
   verify "$out" "$name"
 
   # The release's SONAME is `libghostty-vt.so.0`, but an APK ships the file as
@@ -109,7 +116,7 @@ done
 # --- provenance -------------------------------------------------------------
 # Which ghostty commit these bytes were built from. The library is somebody
 # else's build; the commit is the only thing that says what is inside it.
-curl -fsSL "$BASE/ghostty-commit.txt" -o "$DEST/ghostty-commit.txt" || true
+fetch "$BASE/ghostty-commit.txt" -o "$DEST/ghostty-commit.txt" || true
 echo "$GHOSTTY_VT_VERSION" > "$DEST/VERSION"
 
 echo "libghostty-vt ready: $DEST"
