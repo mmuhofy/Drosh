@@ -211,6 +211,37 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.post(RenderThread.Command.ScrollOffset(pixels))
     }
 
+    /**
+     * Pixel-by-pixel scroll, the model the old engine settled on: the
+     * sub-line remainder lives in this one place instead of two — the row
+     * the engine holds is the row whose fractional part is visible.
+     * Whole rows go to the engine; the remainder shifts the picture.
+     */
+    private fun scrollPixels(dy: Float) {
+        accumulatorPx += dy
+        val handle = sessionHandle
+        val spacing = cellHeight.coerceAtLeast(1f)
+        val whole = (accumulatorPx / spacing).toInt()
+
+        if (handle != 0L && NativeSession.alternateScreen(handle)) {
+            // A full-screen program owns the scroll — pan in discrete rows,
+            // the screen knows no fractional moves.
+            if (whole != 0) {
+                NativeSession.scroll(handle, NativeSession.SCROLL_DELTA, -whole)
+                accumulatorPx -= whole * spacing
+            }
+            return
+        }
+
+        if (whole != 0) {
+            // Finger down → content down → the viewport moves back through the
+            // history, which the engine takes as a negative row delta.
+            NativeSession.scroll(handle, NativeSession.SCROLL_DELTA, -whole)
+            accumulatorPx -= whole * spacing
+        }
+        scrollOffset(accumulatorPx)
+    }
+
     /** Scroll by rows; negative is up. */
     fun scroll(rows: Int) {
         val session = sessionHandle
@@ -221,6 +252,30 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** The text the IME is composing, as it was last sent — the diff basis. */
     private var composing = ""
+
+    /** Where the sub-line scroll remainder lives — whole rows go to the engine. */
+    private var accumulatorPx = 0f
+
+    private val gestures = GestureDetector(
+        context,
+        object : GestureDetector.OnGestureListener {
+            override fun onDown(e: MotionEvent): Boolean = true
+            override fun onShowPress(e: MotionEvent) {}
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                if (!hasFocus()) {
+                    requestFocus()
+                    requestKeyboard()
+                }
+                return true
+            }
+            override fun onLongPress(e: MotionEvent) {}
+            override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+                scrollPixels(-distanceY)
+                return true
+            }
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean = false
+        },
+    )
 
     // --- keyboard ----------------------------------------------------------
     //
