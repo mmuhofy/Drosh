@@ -105,6 +105,12 @@ pub struct FrameSource {
     cells: ghostty::GhosttyRenderStateRowCells,
     buffer: Vec<u8>,
     sequence: u32,
+    /// The effective foreground/background the engine reports — the OSC override
+    /// when there is one, its own default otherwise. Cells without a colour get
+    /// these handed to them, so a shell with a themed prompt or a light scheme
+    /// renders as Ghostty renders it.
+    default_fg: ghostty::GhosttyColorRgb,
+    default_bg: ghostty::GhosttyColorRgb,
 }
 
 impl FrameSource {
@@ -145,6 +151,23 @@ impl FrameSource {
             );
         }
 
+        let mut default_fg = ghostty::GhosttyColorRgb { r: 255, g: 255, b: 255 };
+        let mut default_bg = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND,
+                &mut default_fg as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_BACKGROUND,
+                &mut default_bg as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+
         Ok(Self {
             terminal,
             state,
@@ -152,6 +175,8 @@ impl FrameSource {
             cells,
             buffer: Vec::new(),
             sequence: 0,
+            default_fg,
+            default_bg,
         })
     }
 
@@ -162,6 +187,19 @@ impl FrameSource {
             if !ghostty::ok(result) {
                 return Err(FrameError::UpdateFailed(result));
             }
+
+            // The effective colours, re-read per frame: an OSC 10/11 override
+            // lands immediately.
+            let _ = ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND,
+                &mut self.default_fg as *mut _ as *mut std::ffi::c_void,
+            );
+            let _ = ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_BACKGROUND,
+                &mut self.default_bg as *mut _ as *mut std::ffi::c_void,
+            );
 
             let mut cols: u16 = 0;
             let mut rows: u16 = 0;
@@ -307,18 +345,24 @@ impl FrameSource {
             &mut style as *mut _ as *mut c_void,
         );
 
-        let mut bg = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
-        let mut fg = ghostty::GhosttyColorRgb { r: 255, g: 255, b: 255 };
-        let _ = ghostty::ghostty_render_state_row_cells_get(
+        let bg_result = ghostty::ghostty_render_state_row_cells_get(
             self.cells,
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_BG_COLOR,
             &mut bg as *mut _ as *mut c_void,
         );
-        let _ = ghostty::ghostty_render_state_row_cells_get(
+        let fg_result = ghostty::ghostty_render_state_row_cells_get(
             self.cells,
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR,
             &mut fg as *mut _ as *mut c_void,
         );
+        // GHOSTTY_INVALID_VALUE when the cell carries no explicit colour; the
+        // engine's effective default is what Ghostty itself would paint.
+        if !ghostty::ok(bg_result) {
+            bg = self.default_bg;
+        }
+        if !ghostty::ok(fg_result) {
+            fg = self.default_fg;
+        }
 
         let mut selected = false;
         let _ = ghostty::ghostty_render_state_row_cells_get(
@@ -352,8 +396,14 @@ impl FrameSource {
         attributes |= (style.underline as u32 & 0xf) << ATTR_UNDERLINE_SHIFT;
 
         put_u32(cell, 0, codepoints[0]);
-        put_u32(cell, 4, rgba(fg));
-        put_u32(cell, 8, rgba(bg));
+        // An engine with a selection policy is its own: Ghostty's own render
+        // state reports it as `SELECTED`, and the classic terminal policy is
+        // to invert the cell — the palette stays the user's, only the roles
+        // of fg/bg change.
+        let bg_out = if selected { fg } else { bg };
+        let fg_out = if selected { bg } else { fg };
+        put_u32(cell, 4, rgba(fg_out));
+        put_u32(cell, 8, rgba(bg_out));
         put_u32(cell, 12, attributes);
         cell[16] = 1;
         let mut flags = 0u8;
@@ -378,7 +428,10 @@ impl Drop for FrameSource {
 }
 
 fn rgba(color: ghostty::GhosttyColorRgb) -> u32 {
-    (u32::from(color.r) << 24) | (u32::from(color.g) << 16) | (u32::from(color.b) << 8) | 0xff
+    (u32::from(color.r))
+        | (u32::from(color.g) << 8)
+        | (u32::from(color.b) << 16)
+        | (0xff << 24)
 }
 
 fn put_u16(out: &mut [u8], at: usize, value: u16) {

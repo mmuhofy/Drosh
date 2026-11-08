@@ -70,10 +70,10 @@ class Frame private constructor(
     /** The base codepoint of cell [index], or 0 when it has no text. */
     fun codepoint(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_CODEPOINT)
 
-    /** Resolved foreground, as `0xAARRGGBB`. */
+    /** Resolved foreground: R, G, B, A in memory, little-endian. */
     fun foreground(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_FOREGROUND)
 
-    /** Resolved background, as `0xAARRGGBB`. */
+    /** Resolved background: R, G, B, A in memory, little-endian. */
     fun background(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_BACKGROUND)
 
     fun attributes(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_ATTRIBUTES)

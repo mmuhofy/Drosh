@@ -441,10 +441,15 @@ internal class FrameRenderer {
     }
 
     private fun putColor(buffer: ByteBuffer, argb: Int) {
-        buffer.put((argb shr 16 and 0xff).toByte())
-        buffer.put((argb shr 8 and 0xff).toByte())
-        buffer.put((argb and 0xff).toByte())
-        buffer.put((argb ushr 24 and 0xff).toByte())
+        // The bytes in order: R, G, B, A. The attribute is normalised
+        // GL_UNSIGNED_BYTE, so the byte order is the colour order — what
+        // used to be written was G, B, A, R, which drew every colour as
+        // whatever the terminal thought black was and stayed hidden under
+        // the white-on-black background.
+        buffer.put(argb.toByte())
+        buffer.put((argb ushr 8).toByte())
+        buffer.put((argb ushr 16).toByte())
+        buffer.put((argb ushr 24).toByte())
     }
 
     private companion object {

@@ -86,6 +86,13 @@ pub const GHOSTTY_RENDER_STATE_DIRTY_FULL: GhosttyRenderStateDirty =
 
 // --- the terminal -----------------------------------------------------------
 
+pub const GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND;
+pub const GHOSTTY_TERMINAL_DATA_COLOR_BACKGROUND: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLOR_BACKGROUND;
+pub const GHOSTTY_TERMINAL_DATA_COLOR_CURSOR: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLOR_CURSOR;
+
 pub const GHOSTTY_TERMINAL_DATA_COLS: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLS;
 pub const GHOSTTY_TERMINAL_DATA_ROWS: GhosttyTerminalData =
