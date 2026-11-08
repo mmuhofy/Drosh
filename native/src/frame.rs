@@ -277,6 +277,8 @@ impl FrameSource {
         overscan: ghostty::GhosttyRenderStateOverscan,
         cell_count: u32,
     ) {
+        // Read the cursor colour before the buffer's mutable borrow begins.
+        let cursor = self.default_cursor();
         let header = &mut self.buffer[0..HEADER_BYTES];
         put_u32(header, 0, MAGIC);
         put_u16(header, 4, VERSION);
@@ -290,7 +292,6 @@ impl FrameSource {
         put_u32(header, 32, cell_count);
         put_u32(header, 36, CELL_BYTES as u32);
         put_u32(header, 40, cell_count * CELL_BYTES as u32);
-        let cursor = self.default_cursor();
         put_u32(header, 44, rgba(cursor));
 
         let mut cursor_x: u16 = 0;
