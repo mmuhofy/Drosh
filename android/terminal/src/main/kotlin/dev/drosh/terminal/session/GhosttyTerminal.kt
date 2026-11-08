@@ -1,6 +1,7 @@
 package dev.drosh.terminal.session
 
 import android.content.Context
+import android.content.Context
 import android.graphics.Rect
 import android.util.Log
 import android.view.View
@@ -69,6 +70,16 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     /** Told when the child exits, with its status. */
     var onSessionExited: ((Int) -> Unit)? = null
 
+    /**
+     * The manager's exit callback — the other ear of the same fork.
+     *
+     * [onSessionExited] is the host's UI listener; this one is the manager's
+     * bookkeeping, and it is attached at registration time. A session's child
+     * dying otherwise leaves the manager holding a row for a session no
+     * process backs.
+     */
+    override var onSessionExitedCallback: ((Int) -> Unit)? = null
+
     /** Told when the shell's phase changes. */
     var onShellPhase: ((dev.drosh.terminal.engine.shell.Phase) -> Unit)? = null
 
@@ -80,6 +91,7 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         view.onExit = { status ->
             state = state.exited()
             onSessionExited?.invoke(status)
+            onSessionExitedCallback?.invoke(status)
         }
         view.onGridChanged = { _, _ -> }
     }
@@ -214,6 +226,30 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     /** Write bytes to the child. Used by the keyboard and the paste path. */
     override fun write(bytes: ByteArray) {
         view.write(bytes)
+    }
+
+    /**
+     * Paste the platform clipboard into the child.
+     *
+     * The shell's bracketed-paste mode (`2004`) is not surfaced by the engine's
+     * modes accessor — that carries mouse tracking and the kitty flags only —
+     * so this writes the text plain, truncated to the same limit the other
+     * engine applies. A shell that asked for the bracket gets no echo-off
+     * guard against an accidental Enter; it has everything to gain from a
+     * paste that works at all.
+     */
+    override fun pasteClipboard() {
+        val clipboard =
+            view.context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager ?: return
+        val text = clipboard.primaryClip?.getItemAt(0)?.coerceToText(view.context)?.toString().orEmpty()
+        if (text.isEmpty()) {
+            return
+        }
+
+        if (text.length > PASTE_LIMIT) {
+            Log.w(TAG, "paste truncated to $PASTE_LIMIT characters")
+        }
+        write(text.take(PASTE_LIMIT).toByteArray(Charsets.UTF_8))
     }
 
     /** Stop the session, keeping the view alive. */
@@ -390,5 +426,7 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         /** The grid a PTY starts with when the caller has not measured one. */
         const val DEFAULT_COLUMNS = 80
         const val DEFAULT_ROWS = 24
+
+        const val PASTE_LIMIT = 65_536
     }
 }

@@ -160,6 +160,25 @@ interface TerminalEngine {
     fun hyperlinkAt(row: Int, column: Int): String?
 
     /**
+     * The manager's session-exit callback.
+     *
+     * The manager attaches this at registration time to drop a session from
+     * its list when the child dies. A pane that cannot report exits keeps
+     * the default and never fires; the manager's bookkeeping is then blind.
+     */
+    var onSessionExitedCallback: ((Int) -> Unit)?
+        get() = null
+        set(_) {}
+
+    /**
+     * Paste the platform clipboard into the pane.
+     *
+     * Bracketed paste when the shell asked for it; a pane that cannot tell
+     * writes the text plain.
+     */
+    fun pasteClipboard() {}
+
+    /**
      * The ambient tint of the session's palette as `[r, g, b]`, or empty.
      *
      * Empty on an engine whose palette the app cannot read; the tint bloom is

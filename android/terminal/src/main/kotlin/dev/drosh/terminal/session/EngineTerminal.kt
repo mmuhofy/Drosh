@@ -156,7 +156,7 @@ class EngineTerminal(context: Context) : TerminalEngine {
      * host's listener. Both are called: the host's for UI, the manager's for
      * bookkeeping.
      */
-    var onSessionExitedCallback: ((Int) -> Unit)? = null
+    override var onSessionExitedCallback: ((Int) -> Unit)? = null
 
     /**
      * Told when the selection in this pane appeared or disappeared.
@@ -165,7 +165,7 @@ class EngineTerminal(context: Context) : TerminalEngine {
      * the host publishes the selection — so the pane passes the change on.
      * The host's own [listener] hears it too.
      */
-    var selectionListener: ((Boolean) -> Unit)? = null
+    override var selectionListener: ((Boolean) -> Unit)? = null
 
     /**
      * The engine's listener, with the pane's own observation in front of it.
@@ -418,7 +418,7 @@ class EngineTerminal(context: Context) : TerminalEngine {
     override fun workingDirectory(): String =
         session.blockState().workingDirectory ?: ""
 
-    fun notifyFocus(focused: Boolean) {
+    override fun notifyFocus(focused: Boolean) {
         if (modes() and NativeCore.MODE_FOCUS_IN_OUT == 0) {
             return
         }
@@ -431,7 +431,7 @@ class EngineTerminal(context: Context) : TerminalEngine {
     override fun copySelection(): Boolean = controller.copySelection()
 
     /** Paste from the clipboard, bracketed when the shell asked for it. */
-    fun pasteClipboard() = controller.pasteClipboard()
+    override fun pasteClipboard() = controller.pasteClipboard()
 
     // --- selection ---------------------------------------------------------
 
@@ -555,7 +555,7 @@ class EngineTerminal(context: Context) : TerminalEngine {
     override fun modes(): Int = controller.modes()
 
     /** The average background colour of the grid as `[r, g, b]`, or empty. */
-    fun ambientTint(): IntArray = controller.ambientTint()
+    override fun ambientTint(): IntArray = controller.ambientTint()
 
     /** The last lines the session printed, oldest first. */
     override fun transcript(): List<String> = session.transcript()
