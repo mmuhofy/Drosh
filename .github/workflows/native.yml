@@ -86,6 +86,9 @@ jobs:
         if: steps.ghostty-cache.outputs.cache-hit != 'true'
         env:
           GHOSTTY_VT_ABIS: ${{ matrix.abi }}
+          # gh prefers the API asset endpoint over the browser download URL,
+          # which has been answering a deterministic 504
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tools/fetch-ghostty-vt.sh
 
       - name: Build libdrosh.so

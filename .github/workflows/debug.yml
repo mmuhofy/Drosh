@@ -49,7 +49,13 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
 
+      # gh prefers the API asset endpoint over the browser download URL,
+      # which has been answering a deterministic 504. The token is what
+      # authenticates the API call; the bytes are checked against SHA256SUMS
+      # regardless of how they travel.
       - name: Fetch and verify libghostty-vt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tools/fetch-ghostty-vt.sh
 
       - name: Build libdrosh.so
@@ -92,6 +98,7 @@ jobs:
       - name: Fetch libghostty-vt
         env:
           GHOSTTY_VT_ABIS: arm64-v8a
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tools/fetch-ghostty-vt.sh
 
       - name: Fetch our own native half
