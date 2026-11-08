@@ -2,6 +2,7 @@ package dev.drosh.terminal.engine.surface
 
 import android.content.Context
 import android.view.SurfaceHolder
+import android.view.MotionEvent
 import android.view.SurfaceView
 import dev.drosh.terminal.engine.layout.SizeInfo
 import dev.drosh.terminal.engine.native.NativeInput
@@ -351,8 +352,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     // Re-measure at the final size: this is the only frame of a
                     // pinch where the glyphs are rasterised again.
                     setCell(
-                        cellWidth = cellWidth * (cellPx / fontPx.coerceAtLeast(1f)),
-                        cellHeight = cellHeight * (cellPx / fontPx.coerceAtLeast(1f)),
+                        width = cellWidth * (cellPx / fontPx.coerceAtLeast(1f)),
+                        height = cellHeight * (cellPx / fontPx.coerceAtLeast(1f)),
                         fontPx = cellPx,
                     )
                 } else {
