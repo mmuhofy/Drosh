@@ -12,7 +12,12 @@ _Son güncelleme: 2026-11-08_
 - [x] `DroshSettings.ghosttyEngine` varsayılanı `true` — eski Kotlin (NativeCore, EngineSession, TerminalView …) ölü kod olarak duruyor, varsayılan yoldan erişilmiyor; taşınacak ya da ayrı commit'le silinecek dosyalar için `docs/GHOSTTY-MIGRATION.md`
 - [x] **Session grid registration** — `GhosttyTerminalHost` registers the pane with `TerminalManager` after the guest starts; the pane appears on the grid, closes, restores and is named like any session, and `TerminalManager` is on the `TerminalEngine` interface
 - [x] **Live preview** — the grid's thumbnail ticker (`transcriptTail`) reads `TerminalEngine.transcript()`; the Ghostty pane answers with the visible viewport (fresh dump, overscan excluded)
-- [ ] Ghostty motorunu device'da tam doğrulama (on-device render, keyboard, session close/restore, grid previews)
+- [x] **A1/IME** — composing text reaches the shell incrementally (deleted tail + typed tail); Enter no longer flushes the whole word
+- [x] **A4/nano colour blocks** — cells without explicit colours now take the engine's *effective* default fg/bg (OSC-override aware, white default as Ghostty ships); selection cells swap fg/bg (inverse video); `putColor` byte order fixed (R,G,B,A in order, not G,B,A,R)
+- [x] **A2/A5/0,0 black square** — no frame is drawn until the cell is measured (`LayoutMachine.cellReady`), and the cursor quad renders: bar/block/underline/hollow, in the engine's cursor colour
+- [x] **Pixel-by-pixel scroll** — finger drag in pixels, whole rows to SCROLL_DELTA (alternate screen: whole rows only), sub-line remainder shifts the projected grid
+- [x] **Pinch-to-zoom** — two-finger pinch: log-scale dead zone, 1.35 per-event clamp, one reflow on finger-lift, 9–48sp; zoom chip shows the live size
+- [ ] Ghostty motorunu device'da tam doğrulama (on-device render, keyboard, session close/restore, grid previews, **nano bars, cursor, pinch feel**)
 - [ ] Extra-keys bar for the new engine — `focusedWriter()` returns null on the Ghostty path by design (`EngineTerminalWriter` is Rust-engine-specific); needs a writer that emits bytes through the native encoder
 - [ ] Eski motorun Kotlin parçalarını usulca yeni motora taşımak ya da silme sırasını belirlemek (view/ + input/ jest/mouse seçim kodu)
 

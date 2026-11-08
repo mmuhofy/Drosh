@@ -16,6 +16,24 @@ _Last updated: 2026-11-08_
   visible viewport (a fresh grid dump, overscan excluded).
 - **The Ghostty pane registers as a session** with `TerminalManager` — it shows
   on the grid and gets live previews.
+- **The IME path writes through.** `setComposingText` diffs against what it last
+  sent (DELs for the deleted tail, then the typed tail); `commitText` strips the
+  already-sent prefix. Enter no longer delivers the whole word at once.
+- **Effective colours for unstyled cells.** Frame builder reads
+  `GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND` / `BACKGROUND` / `CURSOR` — effective
+  (OSC-override aware); unstyled cells get Ghostty's default (white, as it ships).
+- **Selection is inverse video.** The engine marks cells (`CELL_FLAG_SELECTED`);
+  the renderer swaps fg/bg for them.
+- **`putColor` writes R,G,B,A in order** — it wrote G,B,A,R before, shifting every
+  noncampus colour. (`frame.rs` packs RGBA little-endian to match.)
+- **No frame draws before the cell exists.** `LayoutMachine.cellReady` gates the
+  render loop; the 2×1 sliver at the origin is gone.
+- **The cursor draws.** Bar/block/underline/hollow-block quad at the engine's
+  cursor cell, in its cursor colour, after the glyph pass.
+- **Pixel-by-pixel scroll.** Finger drag = pixels; whole rows go to SCROLL_DELTA
+  (alternate screen: rows only); the remainder shifts the projection.
+- **Pinch-to-zoom.** Two fingers; log-scale dead zone; 1.35 per-event clamp; one
+  reflow at finger-lift; 9–48sp; zoom chip shows the live size.
 - **The old engine's Kotlin stays as dead code** — `NativeCore`, `EngineSession`,
   `TerminalView` and friends — off the default path, to be ported or deleted
   deliberately, never bulk-deleted. `docs/GHOSTTY-MIGRATION.md` has the current
