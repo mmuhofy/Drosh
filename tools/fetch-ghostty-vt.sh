@@ -41,6 +41,32 @@ command -v curl >/dev/null || { echo "curl is required" >&2; exit 1; }
 fetch() {
   curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 600 "$@"
 }
+
+# The `releases/download` browser URL that serves asset bytes has been
+# answering 504 for every GET — HEAD still returns 200, which is what fools a
+# naive "is it up?" probe. The API asset endpoint (`api.github.com/.../assets`)
+# keeps working, so when the GitHub CLI is present it does the fetching and
+# curl is the fallback. The bytes are verified against SHA256SUMS either way;
+# only the transport changes.
+download() {
+  local name="$1" dest="$2"
+  # gh authenticates either through the runner's GITHUB_TOKEN env var or through
+  # its config file (the usual dev-box case); `gh auth status` covers both. The
+  # API asset endpoint is the one that answers 200 while the browser download
+  # URL answers 504.
+  if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
+    # Always land in a scratch dir so a same-name destination does not make
+    # the `mv` a no-op (which still fails under `set -e`).
+    local dir="$DEST/.download"
+    mkdir -p "$dir"
+    gh release download "$GHOSTTY_VT_VERSION" --repo "$GHOSTTY_VT_REPO" \
+      --pattern "$name" --dir "$dir" --clobber
+    mkdir -p "$(dirname "$dest")"
+    mv "$dir/$name" "$dest"
+    return 0
+  fi
+  fetch "$BASE/$name" -o "$dest"
+}
 command -v sha256sum >/dev/null || { echo "sha256sum is required" >&2; exit 1; }
 
 info() { printf '  %s\n' "$*"; }
@@ -54,7 +80,7 @@ info "ABIs: $GHOSTTY_VT_ABIS"
 
 # The checksum list is the authority for every file below it.
 echo "  fetching SHA256SUMS"
-fetch "$BASE/SHA256SUMS" -o "$DEST/SHA256SUMS"
+download "SHA256SUMS" "$DEST/SHA256SUMS"
 
 verify() {
   local file="$1" name="$2"
@@ -78,7 +104,7 @@ verify() {
 # --- headers ----------------------------------------------------------------
 HEADERS="$DEST/libghostty-vt-headers.tar.gz"
 echo "  fetching headers"
-fetch "$BASE/libghostty-vt-headers.tar.gz" -o "$HEADERS"
+download "libghostty-vt-headers.tar.gz" "$HEADERS"
 verify "$HEADERS" "libghostty-vt-headers.tar.gz"
 rm -rf "$DEST/include"
 tar -xzf "$HEADERS" -C "$DEST"
@@ -91,7 +117,7 @@ for abi in $GHOSTTY_VT_ABIS; do
   out="$DEST/lib/$abi/libghostty-vt.so"
   mkdir -p "$DEST/lib/$abi"
   echo "  fetching $name"
-  fetch "$BASE/$name" -o "$out"
+  download "$name" "$out"
   verify "$out" "$name"
 
   # The release's SONAME is `libghostty-vt.so.0`, but an APK ships the file as
@@ -116,7 +142,8 @@ done
 # --- provenance -------------------------------------------------------------
 # Which ghostty commit these bytes were built from. The library is somebody
 # else's build; the commit is the only thing that says what is inside it.
-fetch "$BASE/ghostty-commit.txt" -o "$DEST/ghostty-commit.txt" || true
+download "ghostty-commit.txt" "$DEST/ghostty-commit.txt" || true
 echo "$GHOSTTY_VT_VERSION" > "$DEST/VERSION"
 
+rm -rf "$DEST/.download"
 echo "libghostty-vt ready: $DEST"
