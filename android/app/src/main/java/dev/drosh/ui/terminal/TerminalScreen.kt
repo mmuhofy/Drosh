@@ -1735,6 +1735,12 @@ private fun TerminalPaneBody(
                 GhosttyTerminalHost(
                     paneSlot = paneSlot,
                     terminalManager = terminalManager,
+                    // The session this pane is *for*. Without it the manager never
+                    // records the pane as a session, and everything that names,
+                    // lists, restores or closes a session — the grid, the
+                    // reconciliation, the relaunch — is looking at a terminal it
+                    // cannot see.
+                    sessionId = terminalManager.sessionIdForSlot(paneSlot).orEmpty(),
                     sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
                     fontSizeSp = fontSizeSp,
                     modifier = Modifier.fillMaxSize(),

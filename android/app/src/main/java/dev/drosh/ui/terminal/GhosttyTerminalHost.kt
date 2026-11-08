@@ -22,6 +22,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.drosh.domain.terminal.PaneSlot
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.terminal.session.GhosttyTerminal
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
@@ -44,21 +45,23 @@ import kotlinx.coroutines.withContext
  *
  * ## What this one does not do yet
  *
- * It does not register with the manager, so a Ghostty pane does not appear in
- * the sidebar and cannot be restored. That is deliberate for a first run: the
- * question this host answers is "does the engine draw", and a session registry
- * entry that cannot be closed is a worse first question.
+ * The pane registers with the manager once started, the same as the other
+ * host: it gets a session id, appears in the grid, can be named, closed and
+ * previewed. What is still missing is the block engine and the marker-driven
+ * chrome — those are the next commit, not a design change.
  */
 @Composable
 fun GhosttyTerminalHost(
     paneSlot: PaneSlot,
     terminalManager: TerminalManager,
+    sessionId: String = "",
     sessionName: String = "",
     fontSizeSp: Float,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val focusedPane by terminalManager.focusedPane.collectAsStateWithLifecycle()
 
     val pane = remember { GhosttyTerminal(context) }
 
@@ -121,6 +124,19 @@ fun GhosttyTerminalHost(
             return@LaunchedEffect
         }
 
+        // Same registration the other host performs: without it the manager
+        // never knows this pane is a session, so it is absent from the grid,
+        // cannot be restored, closed, named or previewed — a working terminal
+        // that the app does not track.
+        if (sessionId.isNotEmpty()) {
+            terminalManager.registerEngineTerminal(
+                paneSlot,
+                pane,
+                persistentId = sessionId,
+                name = sessionName,
+            )
+        }
+
         // The session runs; keep the counters up until frames are being drawn.
         // Zero bytes is one bug, zero frames another, and a renderer that never
         // came up is a third — and it is the only one whose cause is invisible.
@@ -148,10 +164,23 @@ fun GhosttyTerminalHost(
         Log.i(TAG, dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.report())
     }
 
+    // The focus follows the pane the user is in — without this, the manager
+    // never treats the Ghostty pane as active, so the grid shows no "you are
+    // here" card and the restore/reconcile path cannot find its current
+    // session.
+    LaunchedEffect(focusedPane, pane) {
+        if (focusedPane == paneSlot) {
+            terminalManager.focusPane(paneSlot)
+        }
+    }
+
     pane.onSessionExited = { code -> status = "session ended ($code)" }
 
     DisposableEffect(pane) {
-        onDispose { pane.release() }
+        onDispose {
+            terminalManager.unregisterEngineTerminal(paneSlot)
+            pane.release()
+        }
     }
 
     DisposableEffect(lifecycleOwner, pane) {
