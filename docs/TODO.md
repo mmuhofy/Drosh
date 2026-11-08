@@ -1,7 +1,17 @@
 # Drosh — TODO (Phase 6: Agent Bölümü + Native Editor + Workspace + Pinch Zoom)
 _Bu dosya, TODO.md'nin sadece Phase 6 — Agent Intelligence, Native Editor, Workspace ve Smooth Pinch-to-Zoom bölümlerini içerir. Diğer fazlar buraya dahil edilmemiştir._
 
-_Son güncelleme: 2026-10-08_
+_Son güncelleme: 2026-11-08_
+
+---
+
+## Engine — eski Rust motorunun silinmesi (2026-11-08)
+- [x] `rust/` silindi (56 dosya, ~9.6k satır); APK artık `libdrosh_core.so` taşımıyor
+- [x] `debug.yml`: `rust-core` ve `rust-build` job'ları kaldırıldı; `libdrosh_core.so` bekleme/assert'i gitti
+- [x] `release.yml`: `libdrosh_core.so` assert'i kaldırıldı
+- [x] `DroshSettings.ghosttyEngine` varsayılanı `true` — eski Kotlin (NativeCore, EngineSession, TerminalView …) ölü kod olarak duruyor, varsayılan yoldan erişilmiyor; taşınacak ya da ayrı commit'le silinecek dosyalar için `docs/GHOSTTY-MIGRATION.md`
+- [ ] Ghostty motorunu device'da tam doğrulama (sidebar kaydı, find, transcript, hyperlink)
+- [ ] Eski motorun Kotlin parçalarını usulca yeni motora taşımak ya da silme sırasını belirlemek (view/ + input/ jest/mouse seçim kodu)
 
 ---
 

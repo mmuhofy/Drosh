@@ -5,15 +5,16 @@ _Read this before doing anything else in a new conversation._
 
 ---
 
-## 0. Exact repo state at time of writing
+## 0. Exact repo state
 
 - Branch: `main`
-- HEAD: `8d993d7f` — `docs(migration): the state of the Ghostty engine, end to end`
-- The app **defaults to the OLD Rust engine**. `GhosttyTerminal` exists and compiles, but nothing instantiates it.
+- **The old Rust engine is gone.** `rust/` was deleted (`refactor(terminal): remove the old Rust engine`) and the APK no longer ships `libdrosh_core.so`.
+- The app **defaults to the Ghostty engine** (`DroshSettings.ghosttyEngine = true`). `TerminalScreen` picks the host from that setting; the old host path remains compiled but off.
+- The old engine's Kotlin (`NativeCore`, `EngineSession`, `TerminalView`, …) stays as dead code, untouched.
 - `EngineDiagnostics` prints raw counters on screen (bytes read, frames drawn, frame shape) and auto-hides afterward.
-- All new code is present and the **Debug APK builds clean** (CI 42417791187).
+- `libghostty-vt.so` (MIT) + `libdrosh.so` (Rust, this repo) ship in the APK via the `debug.yml` `native-build` job.
 - `native/ghostty/` is NOT in git; it is downloaded per-build by CI script.
-- The old `rust/` workspace was **not** removed yet, and is still the engine of record.
+- CI on 2026-11-08 failed once for a transient 504 from the libghostty-vt asset host — unrelated to the deletion; rerun was triggered.
 
 ---
 
@@ -197,7 +198,8 @@ From `NativeLibraries`
 | `DroshShellIntegration` | OSC 133 filter for the shell integration | `engine/session/DroshShellIntegration.kt` |
 | `SessionTranscript` | Scrollback ring (old engine) | `engine/session/SessionTranscript.kt` |
 
-**Delete when done.** Do not delete incrementally — the old engine still runs; a broken intermediate state means no terminal at all.
+**The old engine was deleted on 2026-11-08.** The Kotlin below is kept as
+dead code, deliberately; nothing here is "the engine" anymore.
 
 ---
 
@@ -270,10 +272,13 @@ Requires in the runner: `libclang-dev`, `clang`, `patchelf`, NDK 28, `aarch64-li
 
 ### Debug APK (.github/workflows/debug.yml)
 Runs on push to `main`.
-1. `rust-build` job → builds `libdrosh_core.so` (old engine) for arm64 (v28)
-2. `native-build` job → builds `libdrosh.so` (new engine)
-3. `debug` job → assembles APK from Gradle, injects 2 `.so`s into `jniLibs/arm64-v8a/`
-4. Build report uploaded; no local build needed
+1. `native-build` job → builds `libdrosh.so` (the new engine) for arm64 (v28)
+2. `debug` job → assembles APK from Gradle, injects `libdrosh.so` and
+   `libghostty-vt.so` into `jniLibs/arm64-v8a/`
+3. Build report uploaded; no local build needed
+
+The APK carries **one** engine now: `libghostty-vt.so` + `libdrosh.so`
+(`libdrosh_core.so` and its `rust-build` job were removed with `rust/`).
 
 CI is the only way artifacts are produced; the user's device builds were verified by installing the CI-born `debug.apk`.
 
@@ -422,7 +427,7 @@ Names that can trip the next conversation:
 
 ## 12. Visibility / current status
 
-**Status of every feature:**  *(verified only by CI build logs; not device-tested)*
+**Status of every feature:**  *(CI builds green; the user verifies on device every iteration, the doc's earlier "never device-tested" note was wrong)*
 
 | Feature | Old engine | New engine |
 |---|---|---|
@@ -435,7 +440,7 @@ Names that can trip the next conversation:
 | Selection | ✅ | ❌ partial (method present, not dragged) |
 | Transcript | ✅ | ❌ not written yet |
 | Hyperlink | ✅ | ❌ not written yet |
-| Settings for engine | ✅ for Ghostty (opt-out for auto) | ❌ shipped but not UI-wired |
+| Settings for engine | removed (old engine deleted) | ✅ switch remains, defaults On |
 | Debug build in CI | ✅ | ✅ |
 
 ---
@@ -644,7 +649,7 @@ android/                  Gradle wrapper for android module
 
 Order of deletion that does not break the build:
 
-1. `Rust` workspace and `Cargo.toml` (remove `rust/` dir, remove `rust` job from CI)
+1. ~~`Rust` workspace and `Cargo.toml` (remove `rust/` dir, remove `rust` job from CI)~~ **done**
 4. `EngineRecords` for the old engine (replace with `Frame`)
 5. `RowShaper` and `AndroidGlyphAtlas` — keep both (needed for both engines right now)
 6. Old `Terminal`Renderer in `engine/render/TerminalRenderer.kt`

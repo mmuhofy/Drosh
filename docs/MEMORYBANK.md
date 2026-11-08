@@ -1,5 +1,23 @@
 # Drosh — Memory Bank
-_Last updated: 2026-10-08_
+_Last updated: 2026-11-08_
+
+---
+
+## 0. Decisions locked on 2026-11-08
+
+- **The old Rust engine is deleted.** `rust/` (56 files, ~9.6k lines) is gone and
+  the APK no longer ships `libdrosh_core.so`.
+- **The Ghostty VT core is the only engine.** `libghostty-vt.so` (MIT) driven by
+  `libdrosh.so` (`native/`, the Rust JNI half).
+- **The old engine's Kotlin stays as dead code** — `NativeCore`, `EngineSession`,
+  `TerminalView` and friends — off the default path, to be ported or deleted
+  deliberately, never bulk-deleted. `docs/GHOSTTY-MIGRATION.md` has the current
+  state including what is and is not verified on device.
+- `DroshSettings.ghosttyEngine` now defaults to `true`.
+- CI: `debug.yml` dropped the `rust-core` and `rust-build` jobs and no longer
+  fetches or asserts `libdrosh_core.so`; `release.yml` no longer asserts it.
+- This file's §3 and §4 describe the stack as it was and are historical for the
+  engine.
 
 ---
 
