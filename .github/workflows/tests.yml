@@ -2,6 +2,12 @@ name: Unit Tests
 
 on:
   workflow_dispatch:
+  # On every push to main as well as on pull requests: the tests are the only
+  # thing that runs them, and a green APK build says nothing about whether the
+  # arithmetic inside it is right. `tests.yml` used to be pull-request-only,
+  # which meant direct pushes to main were never tested at all.
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
