@@ -101,10 +101,10 @@ object FrameFormat {
      * A colour is four bytes — R, G, B, A — which is what a normalised
      * `GL_UNSIGNED_BYTE` vertex attribute hands the fragment shader as a
      * `vec4`. Packed into a little-endian `Int` that is red in the low byte and
-     * alpha in the high one.
+     * alpha in the high one, so it reads `0xAABBGGRR`.
      *
-     * Both sides build and read colours through these helpers, so "which byte
-     * is red" has one answer.
+     * Both sides go through these helpers, so "which byte is red" has one
+     * answer instead of one per file.
      */
     fun packRgba(r: Int, g: Int, b: Int, a: Int = 255): Int =
         (r and 0xff) or

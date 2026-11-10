@@ -1,5 +1,7 @@
 package dev.drosh.terminal.engine.protocol
 
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -57,14 +59,39 @@ class FrameTest {
             .cell(
                 index = 0,
                 codepoint = 'x'.code,
-                foreground = 0xFFE8C547.toInt(),
-                background = 0xFF181818.toInt(),
+                foreground = FrameFormat.packRgba(0xE8, 0xC5, 0x47),
+                background = FrameFormat.packRgba(0x18, 0x18, 0x18),
             )
             .build()
 
         val frame = requireNotNull(Frame.parse(bytes))
-        assertEquals(0xFFE8C547.toInt(), frame.foreground(0))
-        assertEquals(0xFF181818.toInt(), frame.background(0))
+        assertEquals(FrameFormat.packRgba(0xE8, 0xC5, 0x47), frame.foreground(0))
+        assertEquals(FrameFormat.packRgba(0x18, 0x18, 0x18), frame.background(0))
+    }
+
+    /**
+     * The byte order the renderer reads.
+     *
+     * This is the test that would have caught the swap: the shader gets a
+     * normalised `GL_UNSIGNED_BYTE` attribute, so the four bytes it reads are
+     * red, green, blue, alpha — in that order, whatever the integer says.
+     */
+    @Test
+    fun `a colour is four bytes in red green blue alpha order`() {
+        val gold = FrameFormat.packRgba(0xE8, 0xC5, 0x47)
+        assertEquals(0xE8, FrameFormat.red(gold))
+        assertEquals(0xC5, FrameFormat.green(gold))
+        assertEquals(0x47, FrameFormat.blue(gold))
+        assertEquals(255, FrameFormat.alpha(gold))
+
+        // And the bytes in memory are in that order, because the packed
+        // integer is little-endian.
+        val bytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        bytes.putInt(gold)
+        assertEquals(0xE8.toByte(), bytes.get(0))
+        assertEquals(0xC5.toByte(), bytes.get(1))
+        assertEquals(0x47.toByte(), bytes.get(2))
+        assertEquals(0xFF.toByte(), bytes.get(3))
     }
 
     @Test

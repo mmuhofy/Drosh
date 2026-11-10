@@ -78,9 +78,16 @@ class Frame private constructor(
     fun codepoint(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_CODEPOINT)
 
     /** Resolved foreground, as `0xAARRGGBB`. */
+    /**
+     * The cell's resolved foreground, packed by [FrameFormat.packRgba].
+     *
+     * Read the channels with [FrameFormat.red] and friends rather than by
+     * shifting: the byte order is the wire format's business and one place
+     * decides it.
+     */
     fun foreground(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_FOREGROUND)
 
-    /** Resolved background, as `0xAARRGGBB`. */
+    /** The cell's resolved background, packed by [FrameFormat.packRgba]. */
     fun background(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_BACKGROUND)
 
     fun attributes(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_ATTRIBUTES)

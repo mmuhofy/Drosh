@@ -537,6 +537,14 @@ internal class FrameRenderer {
      * a colour with red in the low byte ([native frame.rs] `rgba`), so reading
      * it back is the same shift in reverse.
      */
+    /**
+     * Write a colour as four bytes in the order the shader reads them.
+     *
+     * Red, green, blue, alpha: the attribute is a normalised
+     * `GL_UNSIGNED_BYTE`, so the byte order *is* the colour order. The frame
+     * packs a colour with red in the low byte ([FrameFormat.packRgba]), which
+     * is what makes the first byte here the red one.
+     */
     private fun putColor(buffer: ByteBuffer, packed: Int) {
         buffer.put(packed.toByte())
         buffer.put((packed ushr 8).toByte())

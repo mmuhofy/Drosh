@@ -348,6 +348,15 @@ impl FrameSource {
     }
 
     unsafe fn write_cell(&mut self, at: usize, column: u16) {
+        // The cell is cleared first, and the selection is what positions the
+        // cell iterator — a selection that fails leaves the iterator on the
+        // *previous* cell, so a cell that was not written would keep the
+        // previous one's text and colour.
+        {
+            let cell = &mut self.buffer[at..at + CELL_BYTES];
+            cell.fill(0);
+        }
+
         if !ghostty::ok(ghostty::ghostty_render_state_row_cells_select(
             self.cells, column,
         )) {
@@ -456,7 +465,6 @@ impl FrameSource {
         // the cell's bytes and the source of its colours cannot be borrowed out
         // of the same struct at once.
         let cell = &mut self.buffer[at..at + CELL_BYTES];
-        cell.fill(0);
         put_u32(cell, 0, codepoints[0]);
         put_u32(cell, 4, rgba(fg));
         put_u32(cell, 8, rgba(bg));

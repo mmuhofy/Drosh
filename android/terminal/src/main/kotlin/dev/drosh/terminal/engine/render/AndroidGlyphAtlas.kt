@@ -71,6 +71,9 @@ internal class TextAtlas(
         typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
     }
 
+    /** A row of transparent pixels, for clearing the bitmap a row at a time. */
+    private val clearRow = IntArray(ATLAS_SIZE)
+
     /** The atlas, one byte per texel. */
     private val pixels: ByteBuffer = ByteBuffer
         .allocateDirect(size * size)
@@ -111,6 +114,20 @@ internal class TextAtlas(
         boldPaint.textSize = rounded
     }
 
+    /**
+     * The cache key for a mask: the character, its weight, and the size it was
+     * rasterised at.
+     *
+     * The size is part of the key because the size is part of the mask. A key
+     * without it returned the mask from the *previous* size after a pinch — the
+     * glyphs stayed the size they were while the cells around them grew, which
+     * is a terminal whose letters no longer fit their own cells.
+     */
+    private fun keyFor(codepoint: Int, bold: Boolean): Long =
+        (codepoint.toLong() shl 17) or
+            ((if (bold) 1L else 0L) shl 16) or
+            rasterPx.toLong()
+
     /** Drop every mask. The font changed, and a mask of the wrong face is the wrong mask. */
     fun reset() {
         cache.clear()
@@ -122,6 +139,13 @@ internal class TextAtlas(
         // looks like; the re-upload below publishes it.
         while (pixels.hasRemaining()) pixels.put(0)
         pixels.clear()
+        // The bitmap is where the glyphs are actually drawn, so it has to be
+        // cleared too — otherwise a new glyph is drawn over the old one and
+        // carries its edges with it. `setPixels` rather than `eraseColor`:
+        // the bitmap is ALPHA_8, and that is the call that is defined for it.
+        for (row in 0 until size) {
+            bitmap.setPixels(clearRow, 0, size, 0, row, size, 1)
+        }
         dirty = true
     }
 
@@ -136,7 +160,7 @@ internal class TextAtlas(
         beginSize(px)
         if (rasterPx <= 0f) return null
 
-        val key = (codepoint.toLong() shl 1) or (if (bold) 1L else 0L)
+        val key = keyFor(codepoint, bold)
         cache[key]?.let { return it }
         if (cache.containsKey(key)) return null
 
@@ -163,7 +187,15 @@ internal class TextAtlas(
             return GlyphMask(x = 0, y = 0, width = 0, height = 0, left = 0, top = 0)
         }
 
-        val slot = reserve(width, height) ?: return null
+        // The atlas is finite and a pinch asks for a mask at every size it
+        // passes through. When it fills, the atlas starts over rather than
+        // refusing the glyph: a missing mask is a hole in a letter, and a
+        // re-laid atlas is a re-rasterised letter.
+        var slot = reserve(width, height)
+        if (slot == null) {
+            reset()
+            slot = reserve(width, height) ?: return null
+        }
 
         // Drawn on the CPU once: a terminal draws the same few hundred glyphs
         // forever, and the atlas is the cache.
