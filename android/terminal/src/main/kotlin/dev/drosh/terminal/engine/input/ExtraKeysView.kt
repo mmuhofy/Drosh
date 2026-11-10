@@ -1,6 +1,7 @@
 package dev.drosh.terminal.engine.input
 
 import android.content.Context
+import android.view.KeyEvent
 import android.graphics.Typeface
 import android.util.TypedValue
 import android.view.Gravity
@@ -21,7 +22,7 @@ import android.widget.TextView
 internal class ExtraKeysView(context: Context) : LinearLayout(context) {
 
     /** Called for a row key: which key, and whether Ctrl was armed for it. */
-    var onKey: ((Encoder.Named, Boolean) -> Unit)? = null
+    var onKey: ((Int, Boolean) -> Unit)? = null
 
     /** Copy the current selection to the clipboard. */
     var onCopy: (() -> Unit)? = null
@@ -52,14 +53,14 @@ internal class ExtraKeysView(context: Context) : LinearLayout(context) {
         ctrlButton = addButton("Ctrl") {
             setCtrlArmed(!ctrlArmed)
         }
-        addButton("Esc") { emit(Encoder.Named.Escape) }
-        addButton("Tab") { emit(Encoder.Named.Tab) }
+        addButton("Esc") { emit(KeyEvent.KEYCODE_ESCAPE) }
+        addButton("Tab") { emit(KeyEvent.KEYCODE_TAB) }
         // The arrows report as a group so a future momentum scroll can reuse the
         // same layout.
-        addButton("\u2190") { emit(Encoder.Named.Left) }
-        addButton("\u2191") { emit(Encoder.Named.Up) }
-        addButton("\u2193") { emit(Encoder.Named.Down) }
-        addButton("\u2192") { emit(Encoder.Named.Right) }
+        addButton("\u2190") { emit(KeyEvent.KEYCODE_DPAD_LEFT) }
+        addButton("\u2191") { emit(KeyEvent.KEYCODE_DPAD_UP) }
+        addButton("\u2193") { emit(KeyEvent.KEYCODE_DPAD_DOWN) }
+        addButton("\u2192") { emit(KeyEvent.KEYCODE_DPAD_RIGHT) }
         // Long-press selects a word, this copies it; Paste is also the only way
         // to get text *into* the session without typing it.
         addButton("Copy") { onCopy?.invoke() }
@@ -73,8 +74,8 @@ internal class ExtraKeysView(context: Context) : LinearLayout(context) {
 
     fun clearCtrl() = setCtrlArmed(false)
 
-    private fun emit(named: Encoder.Named) {
-        onKey?.invoke(named, ctrlArmed)
+    private fun emit(keyCode: Int) {
+        onKey?.invoke(keyCode, ctrlArmed)
         clearCtrl()
     }
 

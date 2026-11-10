@@ -67,7 +67,6 @@ class EditorRequestPublisher {
      */
     fun poll() {
         val session = bound ?: return
-        if (!session.isAlive) return
 
         val target = session.editorTarget()
         if (target.isNullOrEmpty() || target == lastTarget) return

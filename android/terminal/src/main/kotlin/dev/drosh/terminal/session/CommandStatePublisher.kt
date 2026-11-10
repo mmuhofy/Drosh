@@ -121,7 +121,8 @@ class CommandStatePublisher(
         val status = when {
             running -> CommandStatus.Running
             finished && state.exitStatus == 0 -> CommandStatus.Success
-            finished && state.exitStatus != null -> CommandStatus.Failure(state.exitStatus)
+            finished && state.exitStatus != null ->
+                CommandStatus.Failure(state.exitStatus ?: 0)
             finished -> CommandStatus.Indeterminate
             else -> CommandStatus.Idle
         }

@@ -94,8 +94,8 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     var onShellPhase: ((dev.drosh.terminal.engine.shell.Phase) -> Unit)? = null
 
     /** The cell size the font measured, in pixels. */
-    private var cellWidth = 1f
-    private var cellHeight = 1f
+    override var cellWidth: Float = 1f
+    override var cellHeight: Float = 1f
 
     init {
         view.onExit = { status ->

@@ -246,6 +246,24 @@ internal class TerminalInputView(context: Context) : View(context) {
     }
 
     /**
+     * The byte Ctrl and a character make.
+     *
+     * Ctrl is the ASCII definition: the letter with its high bits cleared, so
+     * Ctrl+A is 0x01 and Ctrl+Space is 0x00. A character that is not a
+     * letter keeps its own code with the same rule applied — which is how
+     * readline reads Ctrl+[ and Ctrl+].
+     */
+    private fun controlByte(codePoint: Int): Byte {
+        val control = when (codePoint) {
+            in 'a'.code..'z'.code -> codePoint - 'a'.code + 1
+            in 'A'.code..'Z'.code -> codePoint - 'A'.code + 1
+            ' '.code -> 0
+            else -> codePoint and 0x1f
+        }
+        return control.toByte()
+    }
+
+    /**
      * One codepoint to the session, as bytes.
      *
      * Ctrl is the ASCII definition (`code & 0x1f`); Alt is an ESC prefix, which
@@ -259,7 +277,8 @@ internal class TerminalInputView(context: Context) : View(context) {
         val alt = stickyAlt()
         if (ctrl) {
             val character = String(Character.toChars(codePoint))
-            send(Encoder.text(character, Encoder.Mods(ctrl = true, alt = alt)))
+            val control = controlByte(codePoint)
+            send(if (alt) byteArrayOf(ESC, control) else byteArrayOf(control))
             return
         }
 
