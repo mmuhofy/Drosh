@@ -117,10 +117,17 @@ jobs:
           # for: libdrosh.so names it in DT_NEEDED.
           test -f "$dest/libghostty-vt.so"
           test -f "$dest/libdrosh.so"
-          readelf -d "$dest/libdrosh.so" | grep -q "libghostty-vt.so" || {
+          # The output goes to a file first. A pipe into `grep -q` is a race:
+          # grep exits at the first match, readelf takes a SIGPIPE, and with
+          # `pipefail` the pipeline reports the failure of a check that
+          # actually passed. The build failed on a library that linked the
+          # engine perfectly well.
+          readelf -d "$dest/libdrosh.so" > "$RUNNER_TEMP/libdrosh.dynamic"
+          if ! grep -q "libghostty-vt.so" "$RUNNER_TEMP/libdrosh.dynamic"; then
             echo "::error::libdrosh.so does not link libghostty-vt.so"
+            cat "$RUNNER_TEMP/libdrosh.dynamic"
             exit 1
-          }
+          fi
           ls -l "$dest"
 
       # chroot-ng — the guest runtime — is not in this repository. It is built

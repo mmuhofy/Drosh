@@ -214,6 +214,7 @@ class LayoutMachine(
             is State.Idle -> State.Idle(next)
             is State.Changing -> state.copy(size = next)
             is State.Settled -> state.copy(size = next)
+            is State.Zooming -> state.copy(size = next)
         }
         return next
     }
