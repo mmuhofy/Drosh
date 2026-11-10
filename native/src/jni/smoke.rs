@@ -24,6 +24,18 @@ macro_rules! render_get {
     };
 }
 
+/// The same, for the row iterator: a row's data is read through the row API,
+/// not the state API.
+macro_rules! row_get {
+    ($iterator:expr, $field:expr, $out:expr) => {
+        ghostty::ghostty_render_state_row_get(
+            $iterator,
+            $field,
+            $out as *mut _ as *mut std::ffi::c_void,
+        )
+    };
+}
+
 
 /// Run the whole pipeline and return a report.
 #[no_mangle]
@@ -262,7 +274,7 @@ fn probe() -> String {
         return format!("{out}FAIL: render_state_update\n");
     }
 
-    let mut cursor = ghostty::GhosttyRenderStateCursor = unsafe { std::mem::zeroed() };
+    let mut cursor: ghostty::GhosttyRenderStateCursor = unsafe { std::mem::zeroed() };
     cursor.size = std::mem::size_of::<ghostty::GhosttyRenderStateCursor>();
     let cursor_result = render_get!(
         state,
@@ -304,7 +316,7 @@ fn probe() -> String {
             break;
         }
         if !ghostty::ok(unsafe {
-            render_get!(
+            row_get!(
                 iterator,
                 ghostty::GHOSTTY_RENDER_STATE_ROW_DATA_CELLS,
                 &mut cells
@@ -313,10 +325,10 @@ fn probe() -> String {
             continue;
         }
 
-        let mut style = ghostty::GhosttyStyle = unsafe { std::mem::zeroed() };
+        let mut style: ghostty::GhosttyStyle = unsafe { std::mem::zeroed() };
         style.size = std::mem::size_of::<ghostty::GhosttyStyle>();
-        let mut fg = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
-        let mut bg = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
+        let mut fg: ghostty::GhosttyColorRgb = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
+        let mut bg: ghostty::GhosttyColorRgb = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
         let mut cp = [0u32; 8];
 
         for column in 0..cols.min(4) {
