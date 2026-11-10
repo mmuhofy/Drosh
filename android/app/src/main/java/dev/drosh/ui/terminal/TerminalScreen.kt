@@ -1692,6 +1692,11 @@ private fun TerminalPaneBody(
     // pane says nothing about this one.
     val altBufferActive = terminalManager.isAltBufferActive(paneSlot)
 
+    // Which session this slot shows. Read from the flow, not from a lookup: a
+    // plain function call is not a state read, so the grid could open a session
+    // and the screen would never hear about it.
+    val slotSessionIds by terminalManager.slotSessionIds.collectAsStateWithLifecycle()
+
     Column(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -1728,41 +1733,28 @@ private fun TerminalPaneBody(
              * session and its view, so the app hosts a pane instead of
              * a view — see `EngineTerminalHost`.
              */
-            if (terminalConfig.ghosttyEngine) {
-                // The new engine, behind its own switch: same pane, same
-                // session slot, a host that does not need the old engine's
-                // shape.
-                GhosttyTerminalHost(
-                    paneSlot = paneSlot,
-                    terminalManager = terminalManager,
-                    // The session this pane is *for*. Without it the manager never
-                    // records the pane as a session, and everything that names,
-                    // lists, restores or closes a session — the grid, the
-                    // reconciliation, the relaunch — is looking at a terminal it
-                    // cannot see.
-                    sessionId = terminalManager.sessionIdForSlot(paneSlot).orEmpty(),
-                    sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
-                    fontSizeSp = fontSizeSp,
-                    // The pinch reports the size it settled on; the view model
-                    // owns it, so the setting and the cell cannot drift apart.
-                    onZoomCommitted = terminalViewModel::onZoomCommitted,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else EngineTerminalHost(
+            // One engine, one host. The old Rust engine's library is not in
+            // the APK any more, so the switch that chose between them was a
+            // choice between the one engine and a missing library.
+            GhosttyTerminalHost(
                 paneSlot = paneSlot,
                 terminalManager = terminalManager,
                 // The session this pane is *for*. Without it the manager never
                 // records the pane as a session, and everything that names,
-                // lists, restores or closes a session — the sidebar, the
+                // lists, restores or closes a session — the grid, the
                 // reconciliation, the relaunch — is looking at a terminal it
                 // cannot see.
-                sessionId = terminalManager.sessionIdForSlot(paneSlot).orEmpty(),
+                // Read from the flow, not from a lookup: the grid opens a
+                // session by changing what a slot shows, and a plain function
+                // call is not a state read, so the screen would never learn
+                // that it happened.
+                sessionId = slotSessionIds[paneSlot]
+                    ?: terminalManager.sessionIdForSlot(paneSlot).orEmpty(),
                 sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
                 fontSizeSp = fontSizeSp,
-                appearance = terminalConfig,
-                customFontUri = customFontUri,
-                appearanceSource = appearanceSource,
-                onBoundsChanged = onBoundsChanged,
+                // The pinch reports the size it settled on; the view model
+                // owns it, so the setting and the cell cannot drift apart.
+                onZoomCommitted = terminalViewModel::onZoomCommitted,
                 modifier = Modifier.fillMaxSize(),
             )
         }

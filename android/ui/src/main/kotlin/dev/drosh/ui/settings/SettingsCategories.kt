@@ -606,23 +606,10 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     )
                 }
 
-                // The last one: what the terminal does with new output while
-                // the user is reading something further up.
-                7 -> SettingsTile(
-                    cap = cap,
-                    title = stringResource(R.string.settings_terminal_engine),
-                    icon = DroshIcons.SquareTerminal,
-                    supporting = stringResource(R.string.settings_terminal_engine_desc),
-                ) {
-                    SettingsSwitch(
-                        checked = settings.terminal.ghosttyEngine,
-                        onCheckedChange = { on ->
-                            onUpdate {
-                                it.copy(terminal = it.terminal.copy(ghosttyEngine = on))
-                            }
-                        },
-                    )
-                }
+                // The engine switch is gone: the old Rust engine's library is
+                // not in the APK any more, so "off" was a choice between the
+                // one engine and a crash. There is one engine now, and the
+                // setting that could not be turned off is gone with it.
 
                 6 -> SettingsTile(
                     cap = cap,

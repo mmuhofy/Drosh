@@ -104,6 +104,22 @@ class TerminalManager(
      * exists.
      */
     private val sessionSlot: MutableMap<PaneSlot, String> = LinkedHashMap()
+
+    /**
+     * Which session each slot shows, as the screen sees it.
+     *
+     * A plain map changes without Compose noticing, and the screen is what
+     * reacts to a session being opened: the pane's identity, the session the
+     * grid highlights, the session that is restored. So the map is published.
+     */
+    private val _slotSessionIds = MutableStateFlow<Map<PaneSlot, String>>(emptyMap())
+    val slotSessionIds: StateFlow<Map<PaneSlot, String>> = _slotSessionIds.asStateFlow()
+
+    /** Record which session a slot shows, and tell the screen. */
+    private fun setSlotSession(slot: PaneSlot, persistentId: String) {
+        sessionSlot[slot] = persistentId
+        _slotSessionIds.value = sessionSlot.toMap()
+    }
     private val _sessionCount = MutableStateFlow(0)
     val sessionCountFlow: StateFlow<Int> = _sessionCount.asStateFlow()
 
@@ -1388,7 +1404,7 @@ class TerminalManager(
         // session, and the grid's "open" changes what the slot is looking at
         // rather than what exists.
         if (pane.persistentId.isNotEmpty()) {
-            sessionSlot[slot] = pane.persistentId
+            setSlotSession(slot, pane.persistentId)
         }
 
         // Track the pane as a session when it carries an identity. A pane
@@ -1689,16 +1705,23 @@ class TerminalManager(
      * running and keeps its output, which is why the grid can show it again.
      */
     fun switchSessionById(persistentId: String) {
-        val session = liveSessions[persistentId] ?: return
         val slot = focusedPane.value
         val pane = enginePanes[slot] ?: return
 
-        // The pane is told which session to show; the session keeps running
-        // and keeps its output, so coming back to it shows what it printed
-        // while it was away.
-        pane.showSession(session)
-        pane.bindIdentity(session.persistentId, session.name)
-        sessionSlot[slot] = session.persistentId
+        // The slot points at the session, whether or not it is running: the
+        // screen reads this and the host opens the session if it has to. A
+        // switch that did nothing for a session that was not on screen was a
+        // grid that could not open anything.
+        setSlotSession(slot, persistentId)
+
+        // A session that is alive is shown at once. It keeps running and keeps
+        // its output, so coming back to it shows what it printed while it was
+        // away.
+        liveSessions[persistentId]?.let { session ->
+            pane.showSession(session)
+            pane.bindIdentity(session.persistentId, session.name)
+        }
+
         publishActiveId()
     }
 
