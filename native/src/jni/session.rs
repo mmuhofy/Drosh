@@ -224,6 +224,24 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     }
 }
 
+/// The session's text, as the engine holds it.
+///
+/// The engine's own text: the grid and the scrollback, formatted the way the
+/// engine formats them. It does not go through the render state, so it can be
+/// read while the render thread is drawing.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeTranscript(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let Some(session) = session_lock(handle) else {
+        return new_string(&mut env, "");
+    };
+    let text = super::selection::transcript(&session).unwrap_or_default();
+    new_string(&mut env, &text)
+}
+
 /// The shell's phase, as its `OSC 133` marks report it.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeShellPhase(

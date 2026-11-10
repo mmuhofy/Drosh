@@ -6,7 +6,6 @@ import android.util.Log
 import android.view.View
 import dev.drosh.linux.GuestCommand
 import dev.drosh.terminal.engine.native.NativeLibraries
-import dev.drosh.terminal.engine.native.NativePty
 import dev.drosh.terminal.engine.native.NativeSession
 import dev.drosh.terminal.engine.surface.TerminalSurface
 
@@ -36,6 +35,18 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
     /** The view, as the host sees it. */
     override val view: TerminalSurface = TerminalSurface(context)
+
+    /**
+     * The session this pane is showing.
+     *
+     * The pane is a view; the session is what runs. The manager owns the
+     * sessions, so a session keeps running and keeps its output while another
+     * one is on screen — which is what the grid's thumbnails are made of.
+     */
+    @Volatile
+    var session: GhosttySession? = null
+        private set
+
 
     /** The grid. Zero until [start]. */
     @Volatile
@@ -121,6 +132,22 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
      * before the child runs, or the first prompt wraps at 80 columns and is
      * resized a moment later.
      */
+    /**
+     * Show a session in this pane.
+     *
+     * The surface follows the session: it draws that session's grid and writes
+     * that session's process. The session itself is untouched — it keeps
+     * running and keeps its output — so the grid can show it again later.
+     */
+    override fun showSession(session: RenderedSession) {
+        this.session = session as? GhosttySession
+        sessionHandle = session.terminalHandle
+        ptyHandle = session.ptyHandle
+        cellWidth = session.cellWidth
+        cellHeight = session.cellHeight
+        view.attach(session.terminalHandle, session.ptyHandle, session.cellWidth, session.cellHeight)
+    }
+
     override fun start(
         command: GuestCommand,
         columns: Int,
@@ -128,62 +155,34 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         cellWidth: Float,
         cellHeight: Float,
     ): Boolean {
-        // A PTY has to know its size before the child runs, or the first prompt
-        // wraps at 80 columns and is resized a moment later.
-        val columns = if (columns > 0) columns else DEFAULT_COLUMNS
-        val rows = if (rows > 0) rows else DEFAULT_ROWS
-        lastError = null
+        // The pane does not own a session any more: the manager opens them, and
+        // a session outlives the pane showing it. This path exists for the
+        // interface's sake — a caller that has no manager opens a session
+        // directly, and it is registered as this pane's own.
+        val cols = if (columns > 0) columns else DEFAULT_COLUMNS
+        val rowCount = if (rows > 0) rows else DEFAULT_ROWS
         if (!state.canStart) {
-            // A nullable property cannot be handed to Log; the local is the
-            // same string the caller will see.
-            val reason = "the terminal is $state"
-            lastError = reason
-            Log.w(TAG, "start refused: $reason")
+            lastError = "the terminal is $state"
+            Log.w(TAG, "start refused: ${lastError ?: "no reason"}")
             return false
         }
         if (!NativeLibraries.ensureLoaded()) {
-            val reason = "the libraries did not load: ${NativeLibraries.failure ?: "no reason"}"
-            lastError = reason
-            Log.e(TAG, reason)
+            lastError = "the libraries did not load: ${NativeLibraries.failure ?: "no reason"}"
+            Log.e(TAG, lastError ?: "no reason")
             return false
         }
 
-        this.cellWidth = if (cellWidth > 0f) cellWidth else 1f
-        this.cellHeight = if (cellHeight > 0f) cellHeight else 1f
-
-        val session = NativeSession.create(columns, rows)
-        if (session == 0L) {
-            val reason = "the grid could not be created (${columns}x$rows)"
-            lastError = reason
-            Log.e(TAG, reason)
-            return false
-        }
-
-        val launch = EngineLaunch.from(command)
-        val pty = NativePty.spawn(
-            argv = listOf(launch.program) + launch.args,
-            environment = launch.env.toMap(),
-            cwd = launch.cwd ?: "",
-            columns = columns,
-            rows = rows,
-            cellWidth = this.cellWidth.toInt(),
-            cellHeight = this.cellHeight.toInt(),
+        val opened = GhosttySession(
+            persistentId = persistentId.ifEmpty { "local" },
+            name = sessionName,
         )
-
-        if (pty == 0L) {
-            val reason = "the process could not be started (${launch.program})"
-            lastError = reason
-            Log.e(TAG, reason)
-            NativeSession.free(session)
+        if (!opened.start(command, cols, rowCount, cellWidth, cellHeight)) {
+            lastError = opened.lastError
+            Log.e(TAG, "the session could not be started: ${lastError ?: "no reason"}")
             return false
         }
-
-        sessionHandle = session
-        ptyHandle = pty
-        view.attach(session, pty, this.cellWidth, this.cellHeight)
+        showSession(opened)
         state = state.started()
-        // A session nobody can type into is a session nobody can use; the
-        // keyboard is what the start was for.
         view.post { view.requestFocus(); view.requestKeyboard() }
         return true
     }
@@ -207,18 +206,22 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         this.cellWidth = cellWidth
         this.cellHeight = cellHeight
 
-        sessionHandle = handle
-        ptyHandle = 0
-        view.attach(handle, 0, cellWidth, cellHeight)
+        // A bridged session: a grid that exists, with no process behind it. It
+        // is a session like any other — the transport feeds it.
+        val bridged = GhosttySession(
+            persistentId = persistentId.ifEmpty { "bridged" },
+            name = sessionName,
+        )
+        if (!bridged.attachExisting(handle, columns, rows)) return false
+        showSession(bridged)
         state = state.started()
         return true
     }
 
     /** Feed bytes to the grid. Used by a bridged session's transport. */
     override fun feed(bytes: ByteArray, length: Int) {
-        val session = sessionHandle
-        if (session == 0L) return
-        NativeSession.write(session, bytes, length)
+        val shown = session ?: return
+        shown.feed(bytes, length)
         view.invalidate()
     }
 
@@ -251,31 +254,32 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         write(text.take(PASTE_LIMIT).toByteArray(Charsets.UTF_8))
     }
 
-    /** Stop the session, keeping the view alive. */
+    /**
+     * Stop showing this session, keeping the view alive.
+     *
+     * The session itself is not stopped: it belongs to the manager, it may be
+     * on screen in another pane, and it keeps its output either way. The pane
+     * only lets go of it.
+     */
     override fun stop() {
         if (!state.canStop) return
-
-        val pty = ptyHandle
-        if (pty != 0L) {
-            NativePty.close(pty)
-            ptyHandle = 0
-        }
         view.detach()
+        session = null
+        sessionHandle = 0
+        ptyHandle = 0
         state = state.stopped()
     }
 
-    /** Release: the session is closed and the view is dead. */
+    /**
+     * Release: the view is dead and the pane lets go of its session.
+     *
+     * The session is not closed here either — the manager owns it and closes it
+     * when the app is done with it.
+     */
     override fun release() {
         if (state == EngineTerminalState.RELEASED) return
-
         stop()
-
-        val session = sessionHandle
-        if (session != 0L) {
-            NativeSession.free(session)
-            sessionHandle = 0
-        }
-        state = EngineTerminalState.RELEASED
+        state = state.released()
     }
 
     // --- appearance --------------------------------------------------------
@@ -329,53 +333,46 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
 
     /** How much history there is above the viewport, in rows. */
     override fun historySize(): Int {
-        val session = sessionHandle
-        if (session == 0L) return 0
-        return NativeSession.scrollbar(session)?.historyRows ?: 0
+        val shown = session ?: return 0
+        return NativeSession.scrollbar(shown.terminalHandle)?.historyRows ?: 0
     }
 
     /** The viewport's position, in rows above the live edge. */
     override fun scrollOffset(): Int {
-        val session = sessionHandle
-        if (session == 0L) return 0
-        val bar = NativeSession.scrollbar(session) ?: return 0
+        val shown = session ?: return 0
+        val bar = NativeSession.scrollbar(shown.terminalHandle) ?: return 0
         return bar.historyRows - (bar.offset.coerceAtMost(bar.historyRows))
     }
 
     /** Scroll so [offset] rows of history sit above the viewport. */
     override fun scrollTo(offset: Int) {
-        val session = sessionHandle
-        if (session == 0L) return
-        NativeSession.scroll(session, NativeSession.SCROLL_ROW, offset)
+        val shown = session ?: return
+        NativeSession.scroll(shown.terminalHandle, NativeSession.SCROLL_ROW, offset)
         view.invalidate()
     }
 
     /** The shell's phase, as its `OSC 133` marks report it. */
     override fun shellPhase(): dev.drosh.terminal.engine.shell.Phase {
-        val session = sessionHandle
-        if (session == 0L) return dev.drosh.terminal.engine.shell.Phase.UNKNOWN
-        return dev.drosh.terminal.engine.shell.Phase.of(NativeSession.shellPhase(session))
+        val shown = session ?: return dev.drosh.terminal.engine.shell.Phase.UNKNOWN
+        return dev.drosh.terminal.engine.shell.Phase.of(NativeSession.shellPhase(shown.terminalHandle))
     }
 
     /** The working directory the shell last reported. */
     override fun workingDirectory(): String {
-        val session = sessionHandle
-        if (session == 0L) return ""
-        return NativeSession.workingDirectory(session)
+        val shown = session ?: return ""
+        return NativeSession.workingDirectory(shown.terminalHandle)
     }
 
     /** True when the alternate screen is on: a program, not a shell. */
     override fun isAltBufferActive(): Boolean {
-        val session = sessionHandle
-        if (session == 0L) return false
-        return NativeSession.alternateScreen(session)
+        val shown = session ?: return false
+        return NativeSession.alternateScreen(shown.terminalHandle)
     }
 
     /** The engine's mode bits, or 0. */
     override fun modes(): Int {
-        val session = sessionHandle
-        if (session == 0L) return 0
-        return NativeSession.modes(session)
+        val shown = session ?: return 0
+        return NativeSession.modes(shown.terminalHandle)
     }
 
     // --- selection ---------------------------------------------------------
@@ -399,9 +396,8 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     // --- find --------------------------------------------------------------
 
     override fun find(query: String, limit: Int): List<Triple<Int, Int, Int>> {
-        val session = sessionHandle
-        if (session == 0L) return emptyList()
-        return NativeSession.search(session, query, limit)
+        val shown = session ?: return emptyList()
+        return NativeSession.search(shown.terminalHandle, query, limit)
     }
 
     /**
@@ -412,9 +408,8 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
      * not hand it out, and a caller wanting history joins from the log.
      */
     override fun transcript(): List<String> {
-        val session = sessionHandle
-        if (session == 0L) return emptyList()
-        return dev.drosh.terminal.engine.native.NativeSession.frame(session)?.lines() ?: emptyList()
+        val shown = session ?: return emptyList()
+        return shown.transcript()
     }
 
     /** Not carried by this engine: `OSC 8` has no C API surface yet. */

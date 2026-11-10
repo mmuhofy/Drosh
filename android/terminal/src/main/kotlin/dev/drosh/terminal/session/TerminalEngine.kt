@@ -81,6 +81,21 @@ interface TerminalEngine {
 
     fun rebind(persistentId: String, name: String)
 
+    /**
+     * Show a session in this pane.
+     *
+     * A pane is a view and a session is what runs; the two have different
+     * lifetimes, so the pane is told which session to show rather than owning
+     * one. The session is not disturbed — it keeps running and keeps its
+     * output, which is what lets the session grid show a session that is not
+     * on screen.
+     *
+     * A pane whose engine has no such notion does nothing, and says so.
+     */
+    fun showSession(session: RenderedSession) {
+        // Nothing to do: this engine's pane and session are the same object.
+    }
+
     // --- appearance --------------------------------------------------------
 
     /** The font's cell changed: the grid has to reflow. */

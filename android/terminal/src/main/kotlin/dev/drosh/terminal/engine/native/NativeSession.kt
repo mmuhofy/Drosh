@@ -109,6 +109,18 @@ object NativeSession {
         return nativeModes(handle)
     }
 
+    /**
+     * The session's text, as the engine holds it.
+     *
+     * The grid and the scrollback, formatted the way the engine formats them.
+     * It does not go through the render state, so it can be read while the
+     * render thread is drawing — which is what the preview ticker does.
+     */
+    fun transcript(handle: Long): String {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
+        return nativeTranscript(handle)
+    }
+
     /** Search the grid; results are `(row, column, length)` triples. */
     fun search(handle: Long, query: String, limit: Int): List<Triple<Int, Int, Int>> {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return emptyList()
@@ -154,6 +166,7 @@ object NativeSession {
     private external fun nativeScrollbar(handle: Long): IntArray
     private external fun nativeAlternateScreen(handle: Long): Boolean
     private external fun nativeModes(handle: Long): Int
+    private external fun nativeTranscript(handle: Long): String
     private external fun nativeSearch(handle: Long, query: String, limit: Int): IntArray
     private external fun nativeShellPhase(handle: Long): Int
     private external fun nativeWorkingDirectory(handle: Long): String

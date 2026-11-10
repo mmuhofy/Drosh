@@ -142,6 +142,23 @@ fn format(session: &Session, selection: ghostty::GhosttySelection) -> Option<Str
     Some(text)
 }
 
+/// The session's text, as the engine holds it.
+///
+/// `select_all` covers everything the grid has — the viewport and the
+/// scrollback — and formatting it is the engine's own idea of what the text
+/// is. It does not touch the render state, which matters: the preview runs
+/// while the render thread is drawing, and a second `render_state_update` on
+/// the same state would have the two fighting over it.
+pub fn transcript(session: &Session) -> Option<String> {
+    let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+    let result =
+        unsafe { ghostty::ghostty_terminal_select_all(session.terminal(), &mut selection) };
+    if !ghostty::ok(result) {
+        return None;
+    }
+    format(session, selection)
+}
+
 /// Search the grid and return `(row, column, length)` triples.
 ///
 /// `VIEWPORT_MATCHES` rather than `MATCHES`: the latter is in the engine's own

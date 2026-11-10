@@ -29,4 +29,12 @@ class EngineDroshSession(
      * registered yet.
      */
     val session: EngineSession? get() = (enginePane as? EngineTerminal)?.session
+
+    /**
+     * The live session this entry names, when there is one.
+     *
+     * The old engine's sessions live in the pane; the new engine's live in the
+     * manager, so that a session outlives the pane that showed it.
+     */
+    var liveSession: GhosttySession? = null
 }

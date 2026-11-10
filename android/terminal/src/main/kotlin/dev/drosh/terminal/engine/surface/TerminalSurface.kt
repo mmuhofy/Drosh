@@ -15,7 +15,6 @@ import dev.drosh.terminal.engine.native.NativeSelection
 import dev.drosh.terminal.engine.native.NativeSession
 import dev.drosh.terminal.engine.protocol.Frame
 import dev.drosh.terminal.engine.render.RenderThread
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The terminal on screen.
@@ -29,15 +28,16 @@ import java.util.concurrent.atomic.AtomicBoolean
  * draw callback badly enough that a frame can be drawn at one size with a grid
  * from another.
  *
- * ## The two threads it owns
+ * ## The thread it owns
  *
  * - **The render loop**, from [RenderThread]: GL, the atlas, the frame.
- * - **The PTY reader**, a plain thread that reads the child's output, feeds it
- *   to the parser and asks for a frame.
  *
- * They are separate on purpose. A blocking read on the render thread would
- * freeze the picture whenever the child was quiet; a draw on the reader thread
- * would put GL on a thread that did not create the context.
+ * The child's output is read by the session, not by this view — a session
+ * outlives the pane that shows it, and the grid's thumbnail is made of output
+ * that keeps arriving while another session is on screen. A blocking read on
+ * the render thread would freeze the picture whenever the child was quiet; a
+ * draw on the reader thread would put GL on a thread that did not create the
+ * context.
  *
  * ## What it does not do
  *
@@ -61,14 +61,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     @Volatile
     private var cellHeight = 1f
-
-    /** The reader thread, while a child is attached. */
-    private var reader: Thread? = null
-
-    private val reading = AtomicBoolean(false)
-
-    /** The read buffer, reused. */
-    private val readBuffer = ByteArray(64 * 1024)
 
     /** The key encoder's output, reused. */
     private val keyBuffer = ByteArray(256)
@@ -97,11 +89,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     /** Cells the last drawn frame carried. */
     @Volatile
     var lastCellsDrawn: Int = 0
-        private set
-
-    /** Bytes the child has produced since the session started. */
-    @Volatile
-    var bytesRead: Long = 0
         private set
 
     /** Frames the loop drew. */
@@ -168,7 +155,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         renderThread.stop()
-        stopReading()
     }
 
     // --- session ------------------------------------------------------------
@@ -189,12 +175,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // default one-pixel cell is a grid of a thousand columns.
         renderThread.post(RenderThread.Command.Cell(cellWidthPx, cellHeightPx, 0f))
         renderThread.invalidate()
-        startReading()
     }
 
     /** Detach both, without freeing them: the host owns their lifetime. */
     fun detach() {
-        stopReading()
         ptyHandle = 0
         sessionHandle = 0
     }
@@ -618,65 +602,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     // --- reading ------------------------------------------------------------
-
-    /**
-     * Read the child's output until it goes away.
-     *
-     * A blocking read on the render thread would freeze the picture whenever
-     * the child was quiet, so it is its own thread — and it does nothing but
-     * move bytes: the parser is the engine's, and the frame is the renderer's.
-     */
-    private fun startReading() {
-        if (!reading.compareAndSet(false, true)) return
-        val pty = ptyHandle
-        if (pty == 0L) {
-            reading.set(false)
-            return
-        }
-
-        reader = Thread({ readLoop(pty) }, "drosh-pty-reader").apply { isDaemon = true }.also { it.start() }
-    }
-
-    private fun readLoop(pty: Long) {
-        while (reading.get()) {
-                val read = NativePty.read(pty, readBuffer)
-                when {
-                    read > 0 -> {
-                        bytesRead += read
-                        // Straight into the parser: the engine owns the grid,
-                        // and a copy on this side would be a second opinion.
-                        val session = sessionHandle
-                        if (session != 0L) {
-                            NativeSession.write(session, readBuffer, read)
-                        }
-                        renderThread.invalidate()
-                    }
-
-                    read == 0 -> {
-                        // Nothing right now. The child's exit is the signal that
-                        // this loop is done, not an empty read.
-                        val status = NativePty.tryWait(pty)
-                        if (status >= 0) {
-                            reading.set(false)
-                            post { onExit?.invoke(status) }
-                            return
-                        }
-                        Thread.sleep(IDLE_SLEEP_MS)
-                    }
-
-                    else -> {
-                        reading.set(false)
-                        return
-                    }
-                }
-            }
-    }
-
-    private fun stopReading() {
-        reading.set(false)
-        reader?.let { runCatching { it.join(STOP_TIMEOUT_MS) } }
-        reader = null
-    }
+    //
+    // The child's output is read by the *session*, not by this view: a session
+    // outlives the pane that shows it, and the grid's thumbnail is made of
+    // output that keeps arriving while another session is on screen. A reader
+    // here would stop the moment the pane showed something else.
 
     private companion object {
         /** DEL (0x7f), what a terminal expects for backspace. */
@@ -688,10 +618,5 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         /** How much of the detector's fling velocity a terminal uses. */
         const val FLING_SCALE = 0.25f
 
-        /** How long the reader waits when the child has nothing to say. */
-        const val IDLE_SLEEP_MS = 8L
-
-        /** How long [stopReading] waits for the reader to notice. */
-        const val STOP_TIMEOUT_MS = 500L
     }
 }

@@ -152,6 +152,8 @@ class SessionManagerAdapter @Inject constructor(
         }
         if (liveIds.isEmpty()) return
 
+        // The transcript is a native read of the session's grid — it belongs
+        // off the main thread, which is where this ticker already runs.
         for (id in liveIds) {
             val lines = terminalManager.transcriptTail(id, PREVIEW_LINES)
             if (lines.isEmpty()) continue

@@ -112,8 +112,23 @@ fun GhosttyTerminalHost(
 
     // The guest is started once. It is a fork, a rootfs and an exec, so it does
     // not belong on the main thread.
-    LaunchedEffect(pane, sessionName) {
+    //
+    // Keyed on the session id as well as the pane: a pane is one view and one
+    // session, and switching to another session binds the same pane to a
+    // different session. Keyed on the pane alone, the effect never re-ran and
+    // the screen kept drawing the old session.
+    LaunchedEffect(pane, sessionId) {
         status = "preparing"
+
+        // A session that is already alive is shown as it is. Switching
+        // sessions must not restart the one being switched to: it has been
+        // running, and it has the output the grid's thumbnail is made of.
+        val alive = terminalManager.liveSession(sessionId)
+        if (alive != null) {
+            pane.showSession(alive)
+            status = null
+            return@LaunchedEffect
+        }
 
         val guest = withContext(Dispatchers.IO) {
             runCatching { terminalManager.guestCommand() }.getOrNull()
@@ -126,13 +141,22 @@ fun GhosttyTerminalHost(
         status = "starting"
         val started = withContext(Dispatchers.IO) {
             runCatching {
-                pane.start(
+                // The session is the manager's: it is created once, registered
+                // under its id, and it keeps running whether or not this pane
+                // is showing it. The pane only points at it.
+                val session = terminalManager.openSession(
+                    persistentId = sessionId,
+                    name = sessionName,
                     command = guest,
                     columns = DEFAULT_COLUMNS,
                     rows = DEFAULT_ROWS,
                     cellWidth = cell.width,
                     cellHeight = cell.height,
                 )
+                if (session != null) {
+                    pane.showSession(session)
+                }
+                session != null
             }.getOrElse { error ->
                 Log.e(TAG, "the engine refused the session", error)
                 false
@@ -166,10 +190,11 @@ fun GhosttyTerminalHost(
         var ticks = 0
         while (ticks < STATUS_TICKS) {
             val failure = pane.view.rendererFailure
+            val session = pane.session
             status = if (failure != null) {
                 "renderer: $failure"
             } else {
-                "${pane.view.bytesRead} bytes\n" +
+                "${session?.bytesRead ?: 0} bytes\n" +
                     "${pane.view.framesDrawn} frames\n" +
                     "frame ${pane.view.lastFrameShape}"
             }

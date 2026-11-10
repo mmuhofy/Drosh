@@ -82,6 +82,28 @@ class TerminalManager(
      * read, so a session exists here from the moment its row is created.
      */
     private val engineSessions: MutableList<EngineDroshSession> = mutableListOf()
+
+    /**
+     * The live sessions, by their app id.
+     *
+     * A session outlives the pane that showed it: the grid shows every one of
+     * them, whether it is on screen or not, and switching between them is a
+     * change of what a slot is looking at rather than a change of what exists.
+     *
+     * The old engine's sessions live in [engineSessions] instead, because that
+     * engine's session and its pane were the same object; the two registries
+     * coexist until that engine is gone.
+     */
+    private val liveSessions: MutableMap<String, GhosttySession> = LinkedHashMap()
+
+    /**
+     * Which session each slot is showing.
+     *
+     * The session, not the pane: a slot shows one session at a time, and the
+     * grid's "open" changes what a slot is looking at rather than what
+     * exists.
+     */
+    private val sessionSlot: MutableMap<PaneSlot, String> = LinkedHashMap()
     private val _sessionCount = MutableStateFlow(0)
     val sessionCountFlow: StateFlow<Int> = _sessionCount.asStateFlow()
 
@@ -479,7 +501,8 @@ class TerminalManager(
      * other than the pane itself bound it, which is nothing.
      */
     fun sessionIdForSlot(slot: PaneSlot): String? =
-        enginePanes[slot]?.persistentId?.ifEmpty { null }
+        sessionSlot[slot]?.ifEmpty { null }
+            ?: enginePanes[slot]?.persistentId?.ifEmpty { null }
             ?: if (slot == PaneSlot.PRIMARY) {
                 val index = (paneTabIndices[slot] ?: 0).coerceAtLeast(0)
                 engineSessions.getOrNull(index)?.persistentId?.ifEmpty { null }
@@ -490,6 +513,7 @@ class TerminalManager(
     /** The display name of the session shown in [slot], or null. */
     fun sessionNameForSlot(slot: PaneSlot): String? {
         val id = sessionIdForSlot(slot) ?: return null
+        liveSessions[id]?.let { return it.name }
         return engineSessions.firstOrNull { it.persistentId == id }?.name
             ?: enginePanes[slot]?.sessionName?.ifEmpty { null }
     }
@@ -1232,6 +1256,116 @@ class TerminalManager(
      * slot stops reporting scroll and selection, because a pane that answers
      * twice is a pane with two opinions.
      */
+    /**
+     * The live session with this id, or null when there is none.
+     *
+     * This is what the grid asks about a session that is not on screen: it is
+     * alive, it is writing, and it has an output to preview.
+     */
+    fun liveSession(persistentId: String): GhosttySession? = liveSessions[persistentId]
+
+    /**
+     * Open a session: a grid and a process, running under this id.
+     *
+     * The session is created here rather than in the pane that shows it, so it
+     * outlives that pane. A session the user opened and then switched away
+     * from keeps running and keeps its output, and that output is what the
+     * grid's thumbnail shows.
+     *
+     * Returns null when the session could not be started; the reason is on
+     * the session and in the log.
+     */
+    fun openSession(
+        persistentId: String,
+        name: String,
+        command: dev.drosh.linux.GuestCommand,
+        columns: Int,
+        rows: Int,
+        cellWidth: Float,
+        cellHeight: Float,
+    ): GhosttySession? {
+        // One session per id: opening a session that is already open returns
+        // the one that is running.
+        liveSessions[persistentId]?.let { return it }
+
+        val session = GhosttySession(persistentId = persistentId, name = name)
+        if (!session.start(command, columns, rows, cellWidth, cellHeight)) {
+            Log.w("TerminalManager", "the session could not be opened: ${session.lastError}")
+            return null
+        }
+        session.onExit = { code -> onLiveSessionExited(persistentId, code) }
+        liveSessions[persistentId] = session
+
+        // The session also joins the app's session list, so the sidebar, the
+        // grid and the active-id tracking all see it — a session that exists
+        // only in [liveSessions] would be invisible to every one of them.
+        val listed = engineSessions.find { it.persistentId == persistentId }
+        if (listed == null) {
+            engineSessions.add(
+                EngineDroshSession(
+                    enginePane = null,
+                    persistentId = persistentId,
+                    name = name,
+                    liveSession = session,
+                )
+            )
+        } else {
+            listed.liveSession = session
+            listed.name = name
+        }
+
+        _sessionCount.value = liveSessions.size + engineSessions.size
+        _liveSessionIds.value = liveSessionIds()
+        publishActiveId()
+        return session
+    }
+
+    /**
+     * A live session ended on its own.
+     *
+     * The session stays in the list: it is over, but it is still the session
+     * the app knows, and the grid shows what it printed.
+     */
+    private fun onLiveSessionExited(persistentId: String, code: Int) {
+        lifecycleCallbacks?.onSessionFinished(persistentId, code)
+    }
+
+    /**
+     * Every live session, in the order they were started.
+     *
+     * The grid's list: the sessions that are running, whether or not one of
+     * them is on screen.
+     */
+    fun liveSessions(): List<GhosttySession> = liveSessions.values.toList()
+
+    /**
+     * Record a session as live.
+     *
+     * The session is created by whoever starts it — the host, for a session the
+     * user opened — and comes here so the manager can find it again by id.
+     */
+    fun registerLiveSession(session: GhosttySession) {
+        liveSessions[session.persistentId] = session
+        _sessionCount.value = liveSessions.size + engineSessions.size
+    }
+
+    /**
+     * Forget a session and close it.
+     *
+     * Closing a session the app still has a row for is the app's business: the
+     * row is deleted by the session table, and the engine state goes here.
+     */
+    fun releaseLiveSession(persistentId: String) {
+        val session = liveSessions.remove(persistentId) ?: return
+        session.release()
+        // The list entry goes too: a session that is closed is not in the
+        // sidebar's list of sessions any more.
+        engineSessions.removeAll { it.persistentId == persistentId }
+        _sessionCount.value = liveSessions.size + engineSessions.size
+        _liveSessionIds.value = liveSessionIds()
+        publishActiveId()
+    }
+
     fun registerEngineTerminal(
         slot: PaneSlot,
         pane: TerminalEngine,
@@ -1248,6 +1382,13 @@ class TerminalManager(
             // Drop the previous pane's session from the engine list too, so the
             // sidebar and the reconciliation do not keep a dead entry.
             engineSessions.removeAll { it.enginePane === previous }
+        }
+
+        // The slot shows this session from now on: the pane follows the
+        // session, and the grid's "open" changes what the slot is looking at
+        // rather than what exists.
+        if (pane.persistentId.isNotEmpty()) {
+            sessionSlot[slot] = pane.persistentId
         }
 
         // Track the pane as a session when it carries an identity. A pane
@@ -1468,6 +1609,13 @@ class TerminalManager(
      */
     fun transcriptTail(persistentId: String, maxLines: Int): List<String> {
         if (maxLines <= 0) return emptyList()
+        // A live session first: it is the one that is running, and it is the
+        // one the grid can preview whether or not it is on screen.
+        val live = liveSessions[persistentId]
+        if (live != null) {
+            val lines = live.transcript()
+            return if (lines.size <= maxLines) lines else lines.subList(lines.size - maxLines, lines.size)
+        }
         val pane = engineSessions.find { it.persistentId == persistentId }
             ?.enginePane ?: return emptyList()
         val lines = pane.transcript()
@@ -1529,11 +1677,32 @@ class TerminalManager(
      * the id is unknown. Used by [SessionManagerAdapter] when the UI
      * asks to change the active session.
      */
+    /**
+     * Show this session in the focused slot.
+     *
+     * This used to be an empty body: the grid's "open" did nothing, and the
+     * only way to change session was to create another one. A session grid that
+     * cannot open a session is a list of thumbnails and not a switcher.
+     *
+     * The slot keeps its pane — the surface and the renderer — and the pane is
+     * pointed at the session. The session itself is not disturbed: it keeps
+     * running and keeps its output, which is why the grid can show it again.
+     */
     fun switchSessionById(persistentId: String) {
-        // Engine sessions are switched by focusing their pane.
-        // The sidebar handles this through the pane layout, not through
-        // positional indices.
+        val session = liveSessions[persistentId] ?: return
+        val slot = focusedPane.value
+        val pane = enginePanes[slot] ?: return
+
+        // The pane is told which session to show; the session keeps running
+        // and keeps its output, so coming back to it shows what it printed
+        // while it was away.
+        pane.showSession(session)
+        pane.bindIdentity(session.persistentId, session.name)
+        sessionSlot[slot] = session.persistentId
+        publishActiveId()
     }
+
+
 
     /**
      * Currently-active session's persistent id, or null if unknown.
@@ -1578,8 +1747,15 @@ class TerminalManager(
         }
     }
 
+    /**
+     * The ids of the sessions that are alive.
+     *
+     * Both kinds: the old engine's sessions and the new ones. The preview
+     * ticker walks this list, and a session that is alive but not on screen is
+     * exactly the one whose thumbnail the grid needs.
+     */
     fun liveSessionIds(): Set<String> =
-        engineSessions.map { it.persistentId }.toSet()
+        (engineSessions.map { it.persistentId } + liveSessions.keys).toSet()
 
     /**
      * Registers an engine-backed session in the manager's session list.
@@ -1628,6 +1804,11 @@ class TerminalManager(
      * Removes an engine-backed session from the manager's session list.
      */
     fun removeEngineSession(persistentId: String) {
+        // A live session is closed here: the process, the grid and the reader
+        // that kept its output coming. A session the grid shows as closed must
+        // actually be closed, or the process keeps running with nobody watching.
+        releaseLiveSession(persistentId)
+
         val session = engineSessions.find { it.persistentId == persistentId }
         // A session that was recorded but never had a pane — one whose row the
         // reconciliation dropped before the UI hosted it — has to be removable
@@ -1647,11 +1828,11 @@ class TerminalManager(
             }
         }
 
-        _sessionCount.value = engineSessions.size
+        _sessionCount.value = engineSessions.size + liveSessions.size
         _liveSessionIds.value = liveSessionIds()
         publishActiveId()
 
-        if (engineSessions.isEmpty()) {
+        if (engineSessions.isEmpty() && liveSessions.isEmpty()) {
             _noSessionsLeft.value = true
         }
     }
