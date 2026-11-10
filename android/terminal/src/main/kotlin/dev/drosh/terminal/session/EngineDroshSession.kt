@@ -22,6 +22,13 @@ class EngineDroshSession(
     var name: String,
     var pid: Int = 0,
     var isFallbackSession: Boolean = false,
+    /**
+     * The live session this entry names, when there is one.
+     *
+     * The old engine's sessions live in the pane; the new engine's live in the
+     * manager, so that a session outlives the pane that showed it.
+     */
+    var liveSession: GhosttySession? = null,
 ) {
     /**
      * The old engine's session behind the pane, or null when the pane runs on
@@ -29,12 +36,4 @@ class EngineDroshSession(
      * registered yet.
      */
     val session: EngineSession? get() = (enginePane as? EngineTerminal)?.session
-
-    /**
-     * The live session this entry names, when there is one.
-     *
-     * The old engine's sessions live in the pane; the new engine's live in the
-     * manager, so that a session outlives the pane that showed it.
-     */
-    var liveSession: GhosttySession? = null
 }

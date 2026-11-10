@@ -158,7 +158,7 @@ class GhosttySession(
                 }
                 // Nothing right now. The child's exit is the signal that this
                 // is done, not an empty read.
-                read == 0L -> {
+                read == 0 -> {
                     val status = NativePty.tryWait(pty)
                     if (status >= 0) {
                         reading.set(false)
@@ -197,7 +197,7 @@ class GhosttySession(
     }
 
     /** The frame the renderer draws, or null when there is nothing to draw. */
-    fun frame(): Frame? {
+    fun frame(): dev.drosh.terminal.engine.protocol.Frame? {
         val handle = terminalHandle
         if (handle == 0L) return null
         return NativeSession.frame(handle)
