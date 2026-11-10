@@ -171,6 +171,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         ptyHandle = pty
         cellWidth = cellWidthPx
         cellHeight = cellHeightPx
+        // A new session, a new viewport: the fraction the last one was left at
+        // belongs to rows that are not there any more.
+        scrollMachine.reset()
         // The cell first, the surface second: a surface laid out against the
         // default one-pixel cell is a grid of a thousand columns.
         renderThread.post(RenderThread.Command.Cell(cellWidthPx, cellHeightPx, 0f))
@@ -225,8 +228,17 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     var zoomSizeSp: Float = 0f
         private set
 
-    /** Told the live size while a pinch moves, and 0 when it ends. */
+    /**
+     * Told the live size while a pinch moves.
+     *
+     * The size is not reset to zero when the gesture ends: the size the
+     * fingers left is the size the terminal is at until the setting catches
+     * up, and resetting it would show the old size for a frame.
+     */
     var zoomListener: (sp: Float) -> Unit = {}
+
+    /** Told that a pinch has ended, whatever it settled on. */
+    var zoomEndListener: () -> Unit = {}
 
     /**
      * Told the size a pinch settled on, once, when the fingers lift.
@@ -256,31 +268,23 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val frame = pinchMachine.next(detector.scaleFactor) ?: return true
-                // The picture follows the fingers; the grid does not move.
-                renderThread.post(
-                    RenderThread.Command.Pinch(
-                        frame.renderScale,
-                        detector.focusX,
-                        detector.focusY,
-                    ),
-                )
-                zoomSizeSp = frame.targetSp
-                zoomListener(frame.targetSp)
+                // The font grows with the fingers, and the font's size is the
+                // cell's size, so the grid is laid out again as the gesture
+                // runs. Nothing is scaled in the projection: a magnified
+                // picture is not a terminal with bigger text.
+                val size = pinchMachine.quantise(frame.targetSp, LIVE_ZOOM_STEP_SP)
+                zoomSizeSp = size
+                zoomListener(size)
                 return true
             }
 
             override fun onScaleEnd(detector: ScaleGestureDetector) {
                 val settled = pinchMachine.end()
-                // The live picture is always returned to scale 1 here. The new
-                // size arrives as a cell through `setCell`, which is the real
-                // zoom; leaving the projection scaled would keep the whole grid
-                // magnified on top of it, and it would never come back.
-                renderThread.post(RenderThread.Command.Pinch(1f, 0f, 0f))
                 if (settled != null) {
                     zoomCommitListener(pinchMachine.quantise(settled, TerminalZoom.STEP_SP))
                 }
                 zoomSizeSp = 0f
-                zoomListener(0f)
+                zoomEndListener()
             }
         },
     )
@@ -359,21 +363,24 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         if (session == 0L) return
 
-        // The engine's history is both the limit the machine clamps against and
-        // the row space its own scroll works in: row 0 is the top of the
-        // scrollback, and the live edge is `historyRows`.
+        // The engine's own offset is where the viewport is; the machine turns
+        // the finger's travel into a row and a remainder from it. Nothing here
+        // keeps a row count of its own, so the engine and the picture cannot
+        // disagree about where the grid is — which is what made a scroll pull
+        // itself back.
         val scrollbar = NativeSession.scrollbar(session) ?: return
-        scrollMachine.setHistory(scrollbar.historyRows)
+        val target = scrollMachine.drag(
+            engineOffset = scrollbar.offset,
+            historyRows = scrollbar.historyRows,
+            distancePx = distancePx,
+            spacingPx = spacing,
+        )
 
-        if (scrollMachine.drag(distancePx, spacing)) {
+        if (target.row != scrollbar.offset || target.remainderPx != 0f) {
             // Whole rows go to the engine as an absolute row; the remainder
             // shifts the projection between rows.
-            NativeSession.scroll(
-                session,
-                NativeSession.SCROLL_ROW,
-                scrollbar.historyRows + scrollMachine.topRow,
-            )
-            postScrollOffset(scrollMachine.offsetPx)
+            NativeSession.scroll(session, NativeSession.SCROLL_ROW, target.row)
+            postScrollOffset(target.remainderPx)
             renderThread.invalidate()
         }
     }
@@ -617,6 +624,17 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         /** How much of the detector's fling velocity a terminal uses. */
         const val FLING_SCALE = 0.25f
+
+        /**
+         * The step the live size moves in while the fingers are moving.
+         *
+         * Every step is a new cell, and a new cell is a new grid shape, and a
+         * new grid shape is a resize the shell hears about. Half a point is
+         * smooth to the eye and a fifth of the work the tenth of a point
+         * would be; the size the fingers settle on is committed at the
+         * setting's own step.
+         */
+        const val LIVE_ZOOM_STEP_SP = 0.5f
 
     }
 }

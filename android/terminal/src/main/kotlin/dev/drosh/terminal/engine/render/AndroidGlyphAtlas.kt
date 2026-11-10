@@ -84,8 +84,11 @@ internal class TextAtlas(
     /** Set when a mask was added and the texture has to be re-uploaded. */
     var dirty = true
 
-    /** The size the current masks were rasterised at. */
+    /** The size the current masks were rasterised at, in texels. */
     private var rasterPx: Float = 0f
+
+    /** The factor the current masks were rasterised at. */
+    private var rasterScale: Float = 1f
 
     /** The shelf being filled, and where the next one starts. */
     private var penX = 0
@@ -105,14 +108,34 @@ internal class TextAtlas(
      * A pinch changes the size the glyphs are rasterised at; masks of the old
      * size are the wrong masks, and the cache is keyed by size so the ones the
      * gesture wanders back over are still there.
+     *
+     * Small sizes are rasterised at twice the size and drawn at half of it.
+     * A terminal's cell is a fraction of a pixel wide — the text is measured,
+     * not rounded — so a mask rasterised at the cell's own size is sampled
+     * between texels and the linear filter softens every stroke. At a large
+     * size that is invisible; at a small one the strokes are a pixel wide and
+     * the softening is the difference between sharp text and a grey blur.
+     * Rasterising twice as large and letting the GPU halve it is the same
+     * answer with more to spare.
      */
     fun beginSize(px: Float) {
-        val rounded = if (px <= 0f) 0f else kotlin.math.round(px)
-        if (rounded == rasterPx) return
+        val scale = supersampleFor(px)
+        val rounded = if (px <= 0f) 0f else kotlin.math.round(px * scale)
+        if (rounded == rasterPx && scale == rasterScale) return
         rasterPx = rounded
+        rasterScale = scale
         paint.textSize = rounded
         boldPaint.textSize = rounded
     }
+
+    /**
+     * The factor the current masks are rasterised at, relative to the font's
+     * own size.
+     *
+     * One for a large font, two for a small one. The renderer divides the
+     * mask's size by it to get the size to draw at.
+     */
+    val scale: Float get() = rasterScale
 
     /**
      * The cache key for a mask: the character, its weight, and the size it was
@@ -258,5 +281,21 @@ internal class TextAtlas(
          * device that runs the app.
          */
         const val ATLAS_SIZE = 2048
+
+        /**
+         * The font size below which the masks are rasterised twice as large.
+         *
+         * A small font's strokes are a pixel wide, and a mask sampled between
+         * texels loses them. Above this size the softening is invisible, and
+         * the atlas has room to spare.
+         */
+        const val SUPERSAMPLE_BELOW_PX = 24f
+
+        /** The factor a small font's masks are rasterised at. */
+        const val SUPERSAMPLE = 2f
+
+        /** The factor a font of [px] is rasterised at. */
+        fun supersampleFor(px: Float): Float =
+            if (px > 0f && px <= SUPERSAMPLE_BELOW_PX) SUPERSAMPLE else 1f
     }
 }

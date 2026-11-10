@@ -77,32 +77,17 @@ class LayoutMachineTest {
     }
 
     @Test
-    fun `a pinch does not touch the grid`() {
+    fun `a pinch arrives as a cell change and lays the grid out at once`() {
         val machine = machine()
         machine.onSurface(800, 600, now = 0)
         machine.onCell(10f, 20f, now = 0)
 
         val before = machine.appliedColumns to machine.appliedRows
+        assertEquals(80, before.first)
 
-        // A pinch in sixty steps.
-        for (step in 1..60) {
-            val size = machine.onPinch(1f + step / 100f, 400f, 300f)
-            assertEquals(1f + step / 100f, size.pinchScale, 0.0001f)
-            assertNull("a pinch never reflows", machine.poll(now = step.toLong() * 16))
-        }
-
-        assertEquals(before, machine.appliedColumns to machine.appliedRows)
-    }
-
-    @Test
-    fun `committing a pinch lays the grid out at once`() {
-        val machine = machine()
-        machine.onSurface(800, 600, now = 0)
-        machine.onCell(10f, 20f, now = 0)
-
-        val size = machine.onCell(12f, 24f, now = 1000)
-        assertEquals(1f, size.pinchScale)
-
+        // A pinch is a font size, and the font's size is the cell's size, so
+        // the grid is laid out again as the gesture runs.
+        machine.onCell(12f, 24f, now = 1000)
         val change = machine.poll(now = 1000)
         assertNotNull("a committed size reflows immediately", change)
         requireNotNull(change)
@@ -170,13 +155,12 @@ class LayoutMachineTest {
     }
 
     @Test
-    fun `the projection carries the scroll and no pinch`() {
+    fun `the projection carries the scroll and no scale`() {
         val size = SizeInfo(
             width = 800,
             height = 600,
             cellWidth = 10f,
             cellHeight = 20f,
-            pinchScale = 2f,
             scrollOffsetPx = 10f,
         )
         val out = FloatArray(4)

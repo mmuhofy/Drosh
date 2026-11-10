@@ -40,13 +40,6 @@ class PinchMachine(
     data class Frame(
         /** The size the fingers have reached, in sp, already clamped. */
         val targetSp: Float,
-        /**
-         * The ratio to draw at while the gesture runs: `targetSp / baseSp`.
-         *
-         * This is what the glyph shader scales by, so the picture follows the
-         * fingers without the grid being reflowed on every event.
-         */
-        val renderScale: Float,
         /** True once the gesture has crossed the dead zone and counts as a zoom. */
         val zooming: Boolean,
     )
@@ -89,7 +82,6 @@ class PinchMachine(
         val target = (baseSp * factor).coerceIn(minSp, maxSp)
         return Frame(
             targetSp = target,
-            renderScale = target / baseSp,
             zooming = true,
         )
     }

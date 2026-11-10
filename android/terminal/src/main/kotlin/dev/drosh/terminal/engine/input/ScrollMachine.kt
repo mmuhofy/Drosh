@@ -1,153 +1,148 @@
 package dev.drosh.terminal.engine.input
 
 /**
- * The sub-line half of a scroll, with no Android in it.
+ * Where a scroll gesture lands, with no Android in it.
  *
  * ## The model
  *
- * A terminal's scrollback is rows, but a finger moves in pixels. The old
- * terminal kept two numbers — whole rows, and a remainder smaller than one row —
- * and this is that pair plus the rules that keep them honest.
- *
- * The engine owns the rows: [topRow] changing is the caller's signal to move the
- * viewport there. The renderer owns the remainder: [offsetPx] shifts the grid
- * between two rows, which is what makes a drag follow the finger rather than
+ * A terminal's scrollback is rows, but a finger moves in pixels. The engine
+ * owns the rows — it says where the viewport is, and it is the only thing that
+ * knows — and the renderer owns the sub-line remainder: the grid is drawn
+ * shifted by it, which is what makes a drag follow the finger instead of
  * stepping a line at a time.
  *
- * ## Why one clamp
+ * ## What is remembered, and what is not
  *
- * The old code had the limits written out at the drag, and again at the wheel,
- * and again when new output pulled the viewport home. Two of the three were
- * wrong in the same way — they tested `topRow == 0` rather than `topRow >= 0` —
- * which let a drag push the grid past the live edge into an over-scroll the
- * finger could no longer undo. Every path goes through [legalOffset] here, so
- * there is one answer to "may the grid sit this far off".
+ * The engine's offset is asked for on every event and is never second-guessed:
+ * it is the single source of truth for where the viewport is. What is
+ * remembered is the *fraction* — where inside its row the content's top sits,
+ * because the finger is rarely on a row boundary.
  *
- * ## The ends
+ * An earlier version kept a row counter of its own and sent the engine an
+ * absolute row every time. That is two answers to "where is the viewport", and
+ * they drift: the engine clamps at the ends of the history, and a machine that
+ * does not hear about the clamp keeps counting against a grid that stopped
+ * moving. The drift shows as a scroll that springs back — the finger pulls the
+ * grid up, the engine refuses, and the next event asks for the row the machine
+ * believes in rather than the row the engine is at.
  *
- * The remainder is only legal where the row it reveals exists:
+ * Here the fraction is re-synced with the engine on every event: if the engine
+ * moved on its own, the fraction is dropped and the picture starts from where
+ * the engine actually is.
  *
- *   offset > 0  the grid moves **down**, opening the row above [topRow];
- *               legal only when `topRow > minTopRow`
- *   offset < 0  the grid moves **up**, opening the row below the last visible
- *               one; legal only when `topRow < 0`
+ * ## The row space
  *
- * At the live edge (`topRow == 0`) a positive remainder is exactly the
- * over-scroll, so it becomes zero. At the far end of the history the same is
- * true of a negative one.
+ * The engine's row space runs from the oldest row of the scrollback (0) to the
+ * live edge (`historyRows`). The live edge is the largest number in it: the
+ * content is *below* the live edge, so it is at the end of the space.
+ *
+ * A finger moving **down** drags the content down and reveals what is above
+ * it, which is older output — so the first visible row gets *smaller*. A finger
+ * moving up does the opposite.
+ *
+ * ## The remainder
+ *
+ * The row the engine shows is a whole row, but the finger is somewhere inside
+ * one. The remainder is what is left over: the grid is shifted by it, so the
+ * content sits where the finger is rather than where the row boundary is.
+ *
+ * Its sign follows the picture: a **positive** remainder moves the content
+ * **down**, a negative one moves it up. The renderer subtracts it from the
+ * clip's y, and clip y grows upward.
  */
 class ScrollMachine {
 
-    /** The rows above the live edge. Zero means the viewport is at the live edge. */
-    var topRow: Int = 0
-        private set
-
-    /** The sub-line remainder, in pixels; always smaller than one row. */
-    var offsetPx: Float = 0f
-        private set
-
-    /** Rows of history above the live edge, as a positive count. */
-    var historyRows: Int = 0
-        private set
-
-    /** Declare how much history there is. Called when the engine's answer changes. */
-    fun setHistory(rows: Int) {
-        historyRows = rows.coerceAtLeast(0)
-        topRow = topRow.coerceIn(-historyRows, 0)
-        offsetPx = legalOffset(topRow, offsetPx)
-    }
+    /**
+     * Where a drag lands.
+     *
+     * @property row the row the engine should show first.
+     * @property remainderPx how far the grid is shifted from that row, in
+     *   pixels. Positive moves the content down.
+     */
+    data class Target(
+        val row: Int,
+        val remainderPx: Float,
+    )
 
     /**
-     * Move by a pixel delta.
+     * Where the content's top sits inside the engine's row, in rows.
      *
-     * `distancePx` is finger travel: **positive means the finger moved down**,
-     * which drags the content down and reveals older output. That is the
-     * direction every terminal on the platform uses, and it is the one the
-     * renderer's positive remainder already draws.
-     *
-     * Returns true when anything moved, so the caller can skip a redraw.
+     * Negative when the content's top is above the row the engine shows.
      */
-    fun drag(distancePx: Float, spacingPx: Float): Boolean {
-        if (spacingPx <= 0f) return false
-        if (!distancePx.isFinite() || distancePx == 0f) return false
+    private var fraction: Float = 0f
 
-        val beforeRow = topRow
-        val beforeOffset = offsetPx
+    /** The row the engine was last asked for, so a move of its own is noticed. */
+    private var askedRow: Int = 0
 
-        // A finger moving down pushes the grid down, which is what opening the
-        // row above the top one looks like.
-        var offset = offsetPx + distancePx
-        var row = topRow
-        val minRow = -historyRows
+    /**
+     * Move the viewport by a finger's travel.
+     *
+     * @param engineOffset where the engine's viewport is now, in its row space.
+     * @param historyRows the rows of history above the live edge. The live edge
+     *   is at this row.
+     * @param distancePx finger travel. **Positive means the finger moved down**,
+     *   which drags the content down and reveals older output.
+     * @param spacingPx the height of a row.
+     */
+    fun drag(
+        engineOffset: Int,
+        historyRows: Int,
+        distancePx: Float,
+        spacingPx: Float,
+    ): Target {
+        val history = historyRows.coerceAtLeast(0)
+        val offset = engineOffset.coerceIn(0, history)
 
-        // Carry whole rows out of the remainder, in either direction.
-        while (offset >= spacingPx) {
-            if (row > minRow) {
-                row -= 1
-                offset -= spacingPx
-            } else {
-                // At the oldest row there is nothing above to reveal.
-                offset = 0f
-                break
-            }
+        // A row of no height is a surface that has not been measured. Nothing
+        // can be moved by a distance measured against it.
+        if (spacingPx <= 0f || !spacingPx.isFinite()) {
+            askedRow = offset
+            return Target(row = offset, remainderPx = 0f)
         }
-        while (offset <= -spacingPx) {
-            if (row < 0) {
-                row += 1
-                offset += spacingPx
-            } else {
-                // At the live edge there is nothing below to reveal.
-                offset = 0f
-                break
-            }
+        val spacing = spacingPx
+
+        // The engine moved on its own — a program scrolled, or something else
+        // asked for a row. The fraction belonged to the old row and is dropped:
+        // the picture starts from where the engine actually is.
+        if (offset != askedRow) {
+            fraction = 0f
         }
 
-        offset = legalOffset(row, offset)
+        if (!distancePx.isFinite() || distancePx == 0f) {
+            askedRow = offset
+            return Target(row = offset, remainderPx = 0f)
+        }
 
-        val moved = row != beforeRow || offset != beforeOffset
-        topRow = row
-        offsetPx = offset
-        return moved
+        // Where the content's top is, in the engine's row space.
+        var position = offset + fraction
+
+        // Down is a smaller row: the content moves down, so what is above it —
+        // older output — comes into view.
+        position = (position - distancePx / spacing).coerceIn(0f, history.toFloat())
+
+        // The engine shows whole rows, so it gets the nearest one and the
+        // fraction between them is drawn.
+        val row = Math.round(position).toInt().coerceIn(0, history)
+
+        // What is left over: the distance from the row the engine shows to the
+        // row the finger asked for. Positive when the finger is below the row,
+        // which moves the content down.
+        val remainder = (row - position) * spacing
+
+        fraction = position - row
+        askedRow = row
+
+        return Target(row = row, remainderPx = remainder)
     }
 
     /**
-     * Return to the live edge.
+     * Forget the fraction.
      *
-     * What new output does, and what a "jump to bottom" does. The remainder goes
-     * with it: a viewport at the live edge that is still shifted by a few pixels
-     * is an over-scroll nobody asked for.
+     * The viewport was moved by something other than a drag, so the picture
+     * starts again from the row the engine is at.
      */
-    fun toLiveEdge() {
-        topRow = 0
-        offsetPx = 0f
-    }
-
-    /**
-     * Clear the remainder without moving the rows.
-     *
-     * A wheel notch and a PageUp are whole-line requests: there is no sub-line
-     * position to preserve across one. The row count is left alone because the
-     * caller may be mid-line deliberately.
-     */
-    fun snapOffset() {
-        offsetPx = 0f
-    }
-
-    /**
-     * Restrict a remainder to one the current row can actually reveal.
-     *
-     * The one place that decides this; see the class comment for why it is not
-     * written out at each call site.
-     */
-    internal fun legalOffset(row: Int, offset: Float): Float {
-        val minRow = -historyRows
-        var out = offset
-        // At the live edge the grid may not sit pushed down: the row above it
-        // does not exist.
-        if (row >= 0) out = maxOf(out, 0f)
-        // At the oldest row it may not sit pushed up: the row below is the last
-        // one the history has.
-        if (row <= minRow) out = minOf(out, 0f)
-        return out
+    fun reset() {
+        fraction = 0f
+        askedRow = 0
     }
 }

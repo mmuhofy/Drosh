@@ -67,9 +67,6 @@ class RenderThread(
          */
         data class Cell(val width: Float, val height: Float, val fontPx: Float) : Command
 
-        /** A live pinch, in progress. */
-        data class Pinch(val scale: Float, val focusX: Float, val focusY: Float) : Command
-
         /** The sub-line scroll remainder, in pixels. */
         data class ScrollOffset(val pixels: Float) : Command
 
@@ -224,11 +221,6 @@ class RenderThread(
                         layout.onCell(command.width, command.height, now)
                         renderer?.fontPx = command.fontPx
                         cellChanged = true
-                    }
-
-                    is Command.Pinch -> {
-                        layout.onPinch(command.scale, command.focusX, command.focusY)
-                        dirty = true
                     }
 
                     is Command.ScrollOffset -> {

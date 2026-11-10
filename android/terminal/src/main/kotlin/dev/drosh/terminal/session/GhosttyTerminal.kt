@@ -344,10 +344,18 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         return bar.historyRows - (bar.offset.coerceAtMost(bar.historyRows))
     }
 
-    /** Scroll so [offset] rows of history sit above the viewport. */
+    /**
+     * Scroll so [offset] rows of history sit above the viewport.
+     *
+     * The engine's row space runs from the oldest row (0) to the live edge
+     * (`historyRows`), so "how far above the live edge" is the other way round
+     * in it: the row to show is `historyRows - offset`.
+     */
     override fun scrollTo(offset: Int) {
         val shown = session ?: return
-        NativeSession.scroll(shown.terminalHandle, NativeSession.SCROLL_ROW, offset)
+        val bar = NativeSession.scrollbar(shown.terminalHandle) ?: return
+        val row = (bar.historyRows - offset).coerceIn(0, bar.historyRows)
+        NativeSession.scroll(shown.terminalHandle, NativeSession.SCROLL_ROW, row)
         view.invalidate()
     }
 

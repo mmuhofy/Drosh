@@ -101,6 +101,11 @@ internal object Shaders {
         uniform vec4 uProjection;
         uniform vec2 uCellSize;
         uniform vec2 uAtlasSize;
+        // How much larger the mask was rasterised than the font is. A small
+        // font's mask is rasterised at twice the size and drawn at half of it,
+        // so that a stroke one pixel wide survives being sampled between
+        // texels.
+        uniform float uAtlasScale;
         out vec2 vTexCoord;
         out vec4 vColor;
         void main() {
@@ -114,20 +119,24 @@ internal object Shaders {
                 gridRow -= 65536;
             }
             vec2 cell = vec2(float(aGridPos.x), float(gridRow)) * uCellSize;
+
+            // The mask's size, in atlas texels.
             vec2 natural = vec2(aGlyphSize);
 
-            // The offset is where the glyph sits inside its cell. It does not
-            // change when the font does: the pen position is the cell's.
-            vec2 offset = vec2(aOffset);
+            // The size to draw it at: the font's size, not the mask's. The
+            // mask may have been rasterised larger than the font, and the
+            // extra resolution is what keeps a small font's strokes sharp.
+            vec2 drawn = natural / uAtlasScale;
+
+            // The offset is where the glyph sits inside its cell, in the
+            // rasterised mask's pixels; it does not change when the font does,
+            // because the pen position is the cell's.
+            vec2 offset = vec2(aOffset) / uAtlasScale;
 
             float targetWidth = uCellSize.x * float(max(aSpan, 1u));
-            float squeeze = (natural.x > 0.0) ? min(1.0, targetWidth / natural.x) : 1.0;
+            float squeeze = (drawn.x > 0.0) ? min(1.0, targetWidth / drawn.x) : 1.0;
 
-            // A pinch scales the whole picture in the projection, not the glyph
-            // inside its cell: growing the glyph alone changes the space around
-            // each letter, which is the font's tracking changing rather than the
-            // terminal zooming.
-            vec2 size = vec2(natural.x * squeeze, natural.y);
+            vec2 size = vec2(drawn.x * squeeze, drawn.y);
 
             gl_Position = vec4(
                 uProjection.xy + uProjection.zw * (cell + offset + corner * size),

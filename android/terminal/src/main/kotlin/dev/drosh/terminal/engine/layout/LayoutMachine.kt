@@ -32,10 +32,10 @@ package dev.drosh.terminal.engine.layout
  *
  * ## Pinch
  *
- * A pinch never reaches this machine. It changes the glyph size, not the grid;
- * when the fingers lift, the new font is committed as a cell change and the
- * machine reflows once. That is the difference between a zoom that is
- * continuous and one that steps from grid shape to grid shape.
+ * A pinch reaches this machine as a *cell change*: the fingers change the
+ * font's size, the font's size is the cell, and the grid is laid out again.
+ * There is no separate path for the gesture and no scale in the projection,
+ * because a zoom that magnifies the picture is not a zoom of a terminal.
  *
  * ## Why it is testable
  *
@@ -163,23 +163,6 @@ class LayoutMachine(
             appliedColumns = appliedColumns,
             appliedRows = appliedRows,
         )
-        return next
-    }
-
-    /**
-     * A live pinch. Only the glyph size changes; the grid does not move.
-     *
-     * Returns the size the caller should draw with, which is the current one
-     * with the scale applied.
-     */
-    fun onPinch(scale: Float, focusX: Float, focusY: Float): SizeInfo {
-        val safe = if (scale.isFinite() && scale > 0f) scale else 1f
-        val next = size.copy(pinchScale = safe, pinchFocusX = focusX, pinchFocusY = focusY)
-        current = when (val state = current) {
-            is State.Idle -> State.Idle(next)
-            is State.Changing -> state.copy(size = next)
-            is State.Settled -> state.copy(size = next)
-        }
         return next
     }
 

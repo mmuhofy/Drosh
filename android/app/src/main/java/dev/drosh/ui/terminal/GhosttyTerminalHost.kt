@@ -81,11 +81,20 @@ fun GhosttyTerminalHost(
     // cell is a `Paint` call. The measure is exact for the width — a terminal's
     // font is monospace by definition — and the font's own line spacing for the
     // height, which is what every terminal uses.
-    val cell = remember(fontSizeSp, context) {
+    // The size the terminal is drawn at.
+    //
+    // The pinch changes the *font*, and the font's size is the cell's size,
+    // so the grid is laid out again as the fingers move: the text really grows
+    // and fewer columns fit. The live size is the pinch's while it runs and the
+    // setting's otherwise.
+    var liveZoomSp by remember { mutableStateOf(0f) }
+    val effectiveSp = if (liveZoomSp > 0f) liveZoomSp else fontSizeSp
+
+    val cell = remember(effectiveSp, context) {
         val density = context.resources.displayMetrics.scaledDensity
         val paint = android.graphics.Paint().apply {
             typeface = android.graphics.Typeface.MONOSPACE
-            textSize = fontSizeSp * density
+            textSize = effectiveSp * density
             isAntiAlias = true
         }
         CellMetrics(
@@ -100,14 +109,29 @@ fun GhosttyTerminalHost(
     var status by remember { mutableStateOf<String?>("preparing") }
     var zoomSizeSp by remember { mutableStateOf(0f) }
 
-    // The view's font size always reflects the setting; the pinch measures from
-    // it and reports back to it.
-    LaunchedEffect(pane, fontSizeSp) {
-        pane.view.textSizeSp = fontSizeSp
+    // The view's font size always reflects what is on screen; the pinch
+    // measures from it and reports back to it.
+    LaunchedEffect(pane, effectiveSp) {
+        pane.view.textSizeSp = effectiveSp
     }
+
+    // The setting is the truth again once it has caught up with the pinch.
+    // Until then the pinch's size stands, so the text does not jump back to
+    // the old size for a frame while the setting is written.
+    LaunchedEffect(fontSizeSp) {
+        liveZoomSp = 0f
+    }
+
     LaunchedEffect(pane) {
-        pane.view.zoomListener = { sp -> zoomSizeSp = sp }
-        pane.view.zoomCommitListener = { sp -> onZoomCommitted(sp) }
+        pane.view.zoomListener = { sp ->
+            liveZoomSp = sp
+            zoomSizeSp = sp
+        }
+        pane.view.zoomEndListener = { zoomSizeSp = 0f }
+        pane.view.zoomCommitListener = { sp ->
+            liveZoomSp = sp
+            onZoomCommitted(sp)
+        }
     }
 
     // The guest is started once. It is a fork, a rootfs and an exec, so it does

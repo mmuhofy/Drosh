@@ -17,13 +17,19 @@ package dev.drosh.terminal.engine.layout
  * cannot disagree with its source, and there is exactly one place to change
  * when the rule changes.
  *
- * ## What a pinch does and does not do
+ * ## What a pinch does
  *
- * A pinch changes the size of the *text*, not of the grid. The cells stay where
- * they are and the glyphs inside them grow, which is what [pinchScale] is for.
- * Scaling [stepX] as well would change how many columns fit, which is a
- * different terminal rather than a bigger one — the whole screen would zoom
- * like an image and the text would stop lining up with the cursor.
+ * A pinch changes the size of the *font*, and the font's size is the cell's
+ * size: the grid is laid out again, so the text is bigger and fewer columns
+ * fit. That is a zoom.
+ *
+ * It is not a picture zoom. Scaling the projection would magnify the whole
+ * surface — the grid, the cursor, the background — which is what an image
+ * viewer does, and the user is left looking at a blown-up picture of a
+ * terminal rather than a terminal with bigger text. Scaling the glyph inside
+ * a fixed cell is the same mistake in the other direction: the letters grow
+ * into the space around them and the text reads as though its tracking had
+ * changed.
  */
 data class SizeInfo(
     /** The surface, in pixels. */
@@ -32,11 +38,6 @@ data class SizeInfo(
     /** The cell the font measured, in pixels. */
     val cellWidth: Float = 1f,
     val cellHeight: Float = 1f,
-    /** The live pinch, 1 when there is none. */
-    val pinchScale: Float = 1f,
-    /** Where the pinch is anchored, in surface pixels. */
-    val pinchFocusX: Float = 0f,
-    val pinchFocusY: Float = 0f,
     /**
      * The sub-line part of the scroll, in pixels.
      *
@@ -68,7 +69,7 @@ data class SizeInfo(
      * How far apart cells are placed, in pixels.
      *
      * The surface divided by the cells that fit in it, so the grid ends exactly
-     * on the edge. The pinch is deliberately absent: see the class comment.
+     * on the edge.
      */
     val stepX: Float
         get() = if (columns <= 0) cellWidth else width.toFloat() / columns
@@ -79,10 +80,8 @@ data class SizeInfo(
     /**
      * The projection, as `(x0, y0, sx, sy)` for `clip = xy + zw * pixel`.
      *
-     * A plain pixel-to-clip map with no scale in it. The pinch lives in the
-     * glyph size the shader applies, not here: scaling the projection would
-     * zoom the whole surface — grid, cursor, everything — which is an image
-     * zoom rather than a text size.
+     * A plain pixel-to-clip map with no scale in it: the picture is the size
+     * the surface is, and the text is the size the font is.
      *
      * The scroll term moves the grid by the sub-line remainder. Clip y grows
      * upward, so a positive remainder — the content moving down, the user
@@ -92,44 +91,19 @@ data class SizeInfo(
         val w = width.coerceAtLeast(1).toFloat()
         val h = height.coerceAtLeast(1).toFloat()
 
-        // A live pinch scales the whole picture about the point between the
-        // fingers — cells, glyphs, cursor, everything — because that is what a
-        // zoom is. Scaling the glyph inside a fixed cell only changes the space
-        // around each letter, which reads as the font's tracking changing
-        // rather than the terminal zooming.
-        //
-        // The transform is `pixel -> focus + (pixel - focus) * scale`, folded
-        // into the clip-space map `clip = xy + zw * pixel`:
-        //
-        //   xy' = xy + zw * focus * (1 - scale)
-        //   zw' = zw * scale
-        //
-        // At scale 1 the first term is zero and this is the plain pixel map.
-        val s = if (pinchScale.isFinite() && pinchScale > 0f) pinchScale else 1f
-        val zoomX = 2f / w * s
-        val zoomY = -2f / h * s
-
-        out[0] = -1f + (2f / w) * pinchFocusX * (1f - s)
-        out[1] = 1f - 2f * scrollOffsetPx / h + (-2f / h) * pinchFocusY * (1f - s)
-        out[2] = zoomX
-        out[3] = zoomY
+        out[0] = -1f
+        out[1] = 1f - 2f * scrollOffsetPx / h
+        out[2] = 2f / w
+        out[3] = -2f / h
     }
 
-    /** The same size at another font cell, with the pinch cleared. */
+    /** The same size at another font cell. */
     fun withCell(cellWidth: Float, cellHeight: Float): SizeInfo =
-        copy(
-            cellWidth = cellWidth,
-            cellHeight = cellHeight,
-            pinchScale = 1f,
-            pinchFocusX = 0f,
-            pinchFocusY = 0f,
-        )
+        copy(cellWidth = cellWidth, cellHeight = cellHeight)
 
     /** The same size at another surface. */
     fun withSurface(width: Int, height: Int): SizeInfo = copy(width = width, height = height)
 
     /** True when the grid this describes is the same shape as [other]'s. */
     fun sameGridAs(other: SizeInfo): Boolean = columns == other.columns && rows == other.rows
-
-
 }

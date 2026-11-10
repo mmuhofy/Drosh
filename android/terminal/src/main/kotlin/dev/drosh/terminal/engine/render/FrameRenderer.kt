@@ -46,6 +46,9 @@ internal class FrameRenderer {
     private var foregroundAtlasSize = 0
     private var foregroundAtlas = 0
 
+    /** The factor the atlas's masks are rasterised at. */
+    private var foregroundAtlasScale = 0
+
     private var atlasTexture = 0
     private var backgroundBuffer = 0
     private var cursorProgram = 0
@@ -116,6 +119,7 @@ internal class FrameRenderer {
         foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
         foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
         foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
+        foregroundAtlasScale = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasScale")
 
         atlasTexture = buildAtlasTexture()
         backgroundBuffer = buildBuffer()
@@ -393,6 +397,10 @@ internal class FrameRenderer {
         GLES20.glUniform4fv(foregroundProjection, 1, projection, 0)
         GLES20.glUniform2f(foregroundCellSize, cellWidth, cellHeight)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
+        // The masks may be rasterised larger than the font, so that a small
+        // font's strokes survive being sampled between texels. The shader
+        // divides the mask's size by this to get the size to draw at.
+        GLES20.glUniform1f(foregroundAtlasScale, atlas.scale)
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, atlasTexture)
