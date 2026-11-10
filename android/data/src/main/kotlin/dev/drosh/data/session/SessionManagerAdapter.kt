@@ -309,7 +309,7 @@ class SessionManagerAdapter @Inject constructor(
 
             val stale = liveIds - currentIds
             stale.forEach { id ->
-                terminalManager.removeEngineSession(id)
+                terminalManager.removeSession(id)
                 sessionRepository.updateState(id, SessionState.Closed)
             }
 

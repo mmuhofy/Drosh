@@ -46,7 +46,7 @@ class SshSessionLauncherImpl @Inject constructor(
             DEFAULT_CELL_HEIGHT.toFloat(),
         )
 
-        terminalManager.addEngineTabWithId(sessionId, host.name, pane)
+        terminalManager.addSessionTab(sessionId, host.name, pane)
 
         touch(hostId)
         return sessionId

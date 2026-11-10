@@ -165,7 +165,7 @@ fun GhosttyTerminalHost(
         // *opened*, so a pane whose session was already alive was never
         // registered, and the switch found no pane.
         if (sessionId.isNotEmpty()) {
-            terminalManager.registerEngineTerminal(
+            terminalManager.registerPane(
                 paneSlot,
                 pane,
                 persistentId = sessionId,
@@ -267,7 +267,7 @@ fun GhosttyTerminalHost(
 
     DisposableEffect(pane) {
         onDispose {
-            terminalManager.unregisterEngineTerminal(paneSlot)
+            terminalManager.unregisterPane(paneSlot)
             pane.release()
         }
     }

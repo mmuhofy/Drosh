@@ -617,7 +617,7 @@ private fun ReadyScreen(
     // a source resolved once would keep answering for a terminal that was
     // not there yet.
     LaunchedEffect(focusedPaneSlot) {
-        val pane = terminalManager.focusedEngineTerminal()
+        val pane = terminalManager.focusedTerminal()
         appearanceSource.value = pane?.let { SessionAppearanceSource(it) }
     }
 
@@ -636,7 +636,7 @@ private fun ReadyScreen(
      * there yet.
      */
     fun findSource(): TerminalFindSource? {
-        val pane = terminalManager.focusedEngineTerminal() ?: return null
+        val pane = terminalManager.focusedTerminal() ?: return null
         return EngineFindSource(pane)
     }
 
@@ -823,7 +823,7 @@ private fun ReadyScreen(
             if (!hasSelection) {
                 null
             } else {
-                terminalManager.focusedEngineTerminal()?.selectionText()?.takeIf { it.isNotEmpty() }
+                terminalManager.focusedTerminal()?.selectionText()?.takeIf { it.isNotEmpty() }
             }
         }
     }
@@ -856,7 +856,7 @@ private fun ReadyScreen(
 
     fun showKeyboard() {
         try {
-            val engine = terminalManager.focusedEngineTerminal()
+            val engine = terminalManager.focusedTerminal()
             if (engine != null) {
                 engine.focus()
                 val imm = engine.imeTarget.context.getSystemService(
@@ -874,7 +874,7 @@ private fun ReadyScreen(
 
     fun hideKeyboard() {
         try {
-            val engine = terminalManager.focusedEngineTerminal()
+            val engine = terminalManager.focusedTerminal()
             if (engine != null) {
                 val imm = engine.imeTarget.context.getSystemService(
                     Context.INPUT_METHOD_SERVICE,
@@ -913,7 +913,7 @@ private fun ReadyScreen(
      */
     LaunchedEffect(Unit) {
         repeat(30) {
-            if (terminalManager.focusedEngineTerminal() != null) {
+            if (terminalManager.focusedTerminal() != null) {
                 showKeyboard()
                 return@LaunchedEffect
             }
@@ -1148,7 +1148,7 @@ private fun ReadyScreen(
                     // The engine's terminal owns its session, so the refresh
                     // restarts that session; the vendored path restarts the
                     // session the manager owns.
-                    val engine = terminalManager.focusedEngineTerminal()
+                    val engine = terminalManager.focusedTerminal()
                     if (engine != null) {
                         val command = terminalManager.guestCommand()
                         if (command != null) {

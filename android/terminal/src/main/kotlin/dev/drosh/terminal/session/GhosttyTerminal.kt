@@ -409,12 +409,6 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override val rows: Int
         get() = session?.rows ?: 0
 
-    override val cellWidth: Float
-        get() = cellWidth
-
-    override val cellHeight: Float
-        get() = cellHeight
-
     override fun cellColors(
         firstRow: Int,
         firstColumn: Int,

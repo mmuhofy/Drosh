@@ -37,7 +37,7 @@ import dev.drosh.linux.GuestLauncher
 import dev.drosh.linux.GuestSpec
 import dev.drosh.linux.UbuntuBootstrap
 import dev.drosh.linux.UbuntuSetupState
-import dev.drosh.terminal.session.input.TerminalWriter
+import dev.drosh.terminal.session.input.SessionWriter
 import dev.drosh.terminal.session.input.TerminalWriter
 // TermuxTerminalWriter removed — engine is the only terminal.
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit
  *
  * Key improvements over the prior implementation:
  *  - Every session is an engine-backed pane, tracked by [SessionEntry].
- *  - Exit is reported through [onEngineSessionExited], which notifies
+ *  - Exit is reported through [onSessionExited], which notifies
  *    [SessionLifecycleCallbacks] so the data layer can sync Room.
  */
 class TerminalManager(
@@ -146,7 +146,7 @@ class TerminalManager(
         // Command marks are per session, so the flow follows whichever pane has
         // focus — that is the one a keystroke is going to. The engine's session
         // is the only kind there is now.
-        val focusedSession = enginePanes[focusedPane.value].shellSession()
+        val focusedSession = enginePanes[focusedPane.value]?.shellSession()
         commandState.bind(focusedSession)
         // Same reasoning: `dedit` is a command, so it belongs to the session that
         // ran it — the focused one — not to whichever tab happens to be showing.
@@ -964,7 +964,7 @@ class TerminalManager(
     fun focusPane(slot: PaneSlot) {
         val engine = enginePanes[slot]
         if (engine != null) {
-            focusEngineTerminal(slot, engine)
+            focusPane(slot, engine)
             return
         }
     }
@@ -973,7 +973,7 @@ class TerminalManager(
      * Moves keyboard focus to the Termux pane in [slot].
      *
      * The path the manager has always had; the engine's own path is
-     * [focusEngineTerminal]. The two are kept apart on purpose: the Termux pane
+     * [focusPane]. The two are kept apart on purpose: the Termux pane
      * attaches to a session the manager owns and reports through its view's
      * callbacks, while the engine's pane owns its session and reports
      * through the engine's own numbers. Sharing one method would mean
@@ -993,7 +993,7 @@ class TerminalManager(
      * Termux pane with no session cannot: there would be nothing to be
      * active about.
      */
-    private fun focusEngineTerminal(slot: PaneSlot, pane: TerminalEngine) {
+    private fun focusPane(slot: PaneSlot, pane: TerminalEngine) {
         if (pane.state != PaneState.RUNNING) {
             return
         }
@@ -1014,7 +1014,7 @@ class TerminalManager(
         _focusedPane.value = slot
         _selectionBounds.value = null
         _hasSelection.value = false
-        activateEngineTerminal(pane)
+        activatePane(pane)
         // The block engine reads the shell's state from the engine's marks
         // when the session runs on the engine; a vendored session has no
         // marks to read and the wire keeps inferring from the screen.
@@ -1052,7 +1052,7 @@ class TerminalManager(
      * and the selection is published — but they come from the engine's own
      * numbers instead of from a view's callbacks.
      */
-    private fun activateEngineTerminal(pane: TerminalEngine) {
+    private fun activatePane(pane: TerminalEngine) {
         // The engine's pane is the one that reports now.
         pane.selectionListener = { hasSelection ->
             publishEngineSelection(pane, hasSelection)
@@ -1211,7 +1211,7 @@ class TerminalManager(
      * The engine-backed pane that has the focus, or null when a Termux pane
      * has it.
      */
-    fun focusedEngineTerminal(): TerminalEngine? = enginePanes[focusedPane.value]
+    fun focusedTerminal(): TerminalEngine? = enginePanes[focusedPane.value]
 
     /**
      * The session a pane is showing, when it is one the app can ask about.
@@ -1389,7 +1389,7 @@ class TerminalManager(
         publishActiveId()
     }
 
-    fun registerEngineTerminal(
+    fun registerPane(
         slot: PaneSlot,
         pane: TerminalEngine,
         persistentId: String = "",
@@ -1437,11 +1437,11 @@ class TerminalManager(
         // listener (in EngineTerminalHost), so we hook into the pane's exit
         // callback instead of replacing the listener.
         pane.onSessionExitedCallback = { code ->
-            onEngineSessionExited(pane, code)
+            onSessionExited(pane, code)
         }
 
         if (slot == focusedPane.value && pane.state == PaneState.RUNNING) {
-            activateEngineTerminal(pane)
+            activatePane(pane)
             pane.notifyFocus(true)
             if (!pane.hasViewFocus()) {
                 pane.focus()
@@ -1461,7 +1461,7 @@ class TerminalManager(
      * terminal behind it any more, so the focus moves to whatever is left on
      * screen.
      */
-    fun unregisterEngineTerminal(slot: PaneSlot) {
+    fun unregisterPane(slot: PaneSlot) {
         if (slot == focusedPane.value) {
             // Before the pane leaves the registry: this is what finds it and
             // tells the shell that the focus is gone.
@@ -1480,7 +1480,7 @@ class TerminalManager(
             _focusedPane.value = fallback
             val fallbackEngine = enginePanes[fallback]
             if (fallbackEngine != null) {
-                activateEngineTerminal(fallbackEngine)
+                activatePane(fallbackEngine)
                 fallbackEngine.notifyFocus(true)
                 fallbackEngine.focus()
             } else {
@@ -1559,7 +1559,7 @@ class TerminalManager(
 
         // Engine path: record the session identity. The actual EngineTerminal is
         // created by the UI (EngineTerminalHost) and registered via
-        // registerEngineTerminal, which binds the pane to this entry.
+        // registerPane, which binds the pane to this entry.
         val existing = engineSessions.find { it.persistentId == persistentId }
         if (existing == null) {
             engineSessions.add(
@@ -1667,7 +1667,7 @@ class TerminalManager(
         persistentId: String,
         name: String,
         pane: TerminalEngine,
-    ): EngineSession? {
+    ) {
         pane.bindIdentity(persistentId, name)
 
         val existing = engineSessions.find { it.persistentId == persistentId }
@@ -1684,9 +1684,9 @@ class TerminalManager(
             existing.name = name
         }
 
-        registerEngineTerminal(focusedPane.value, pane, persistentId, name)
+        registerPane(focusedPane.value, pane, persistentId, name)
 
-        onBlockSessionChanged(persistentId, ShellStateSource((pane as? EngineTerminal)?.session))
+        onBlockSessionChanged(persistentId, ShellStateSource(pane.shellSession()))
 
         _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()
@@ -1800,11 +1800,11 @@ class TerminalManager(
      * The pane is created by the UI (it needs a Context for its GL surface);
      * this method records its identity so the sidebar, the reconciliation
      * and the active-id tracking see it. The pane itself is tracked in
-     * [enginePanes] via [registerEngineTerminal].
+     * [enginePanes] via [registerPane].
      *
      * Returns the pane's [EngineSession] for callers that need it.
      */
-    fun addEngineTabWithId(
+    fun addSessionTab(
         persistentId: String,
         name: String,
         pane: TerminalEngine,
@@ -1827,7 +1827,7 @@ class TerminalManager(
 
         // Register the pane for focus/selection/scroll tracking.
         // The slot is determined by the caller; default to the focused pane.
-        registerEngineTerminal(focusedPane.value, pane, persistentId, name)
+        registerPane(focusedPane.value, pane, persistentId, name)
 
         _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()
@@ -1839,7 +1839,7 @@ class TerminalManager(
     /**
      * Removes an engine-backed session from the manager's session list.
      */
-    fun removeEngineSession(persistentId: String) {
+    fun removeSession(persistentId: String) {
         // A live session is closed here: the process, the grid and the reader
         // that kept its output coming. A session the grid shows as closed must
         // actually be closed, or the process keeps running with nobody watching.
@@ -1889,7 +1889,7 @@ class TerminalManager(
     }
 
     fun restartCurrentTab() {
-        val engine = focusedEngineTerminal() ?: return
+        val engine = focusedTerminal() ?: return
         val command = guestCommand() ?: plainShellCommand()
         engine.stop()
         engine.start(command)
@@ -1923,7 +1923,7 @@ class TerminalManager(
     }
 
     fun closeTab(index: Int) {
-        // Engine sessions are managed via removeEngineSession. This method
+        // Engine sessions are managed via removeSession. This method
         // is kept for compatibility but is a no-op for engine-backed sessions.
         if (engineSessions.isEmpty()) {
             _noSessionsLeft.value = true
@@ -2098,7 +2098,7 @@ class TerminalManager(
      * callbacks so Room learns about it, and publishes the exit event when it
      * was the last one.
      */
-    private fun onEngineSessionExited(pane: TerminalEngine, exitCode: Int) {
+    private fun onSessionExited(pane: TerminalEngine, exitCode: Int) {
         val session = engineSessions.find { it.enginePane === pane } ?: return
         val persistentId = session.persistentId
 
