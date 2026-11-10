@@ -6,7 +6,7 @@ import dev.drosh.domain.ssh.AuthMethod
 import dev.drosh.domain.ssh.SshCredentialVault
 import dev.drosh.domain.ssh.SshHost
 import dev.drosh.terminal.engine.native.NativeSession
-import dev.drosh.terminal.session.SshSessionFactory
+import dev.drosh.domain.ssh.SshSessionFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.schmizz.keepalive.KeepAliveProvider

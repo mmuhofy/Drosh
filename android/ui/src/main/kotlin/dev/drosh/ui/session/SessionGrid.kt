@@ -8,11 +8,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,18 +39,26 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
 import dev.drosh.theme.DroshBorderSubtle
+import dev.drosh.theme.DroshError
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshSurfaceHigh
@@ -71,6 +81,17 @@ import dev.drosh.ui.DroshIcons
  * which. The model is Chrome's tab switcher, and the reason it works there is
  * the same reason it works here.
  *
+ * ## Hierarchy
+ *
+ * Three kinds of card and they must not look alike:
+ *
+ *  - **The active one** wears the accent: a gold border and a "Buradasın" pill,
+ *    so "you are here" survives a glance back after scrolling.
+ *  - **A waiting or aimed-at card** also wears the accent, but over a tinted
+ *    surface — the grouping gesture needs the loudest colour, and the tint is
+ *    what separates it from plain "you are here".
+ *  - **Everything else** is a quiet card on a subtle border.
+ *
  * ## Grouping
  *
  * Two cards can be joined into a split, which puts their sessions one above the
@@ -90,6 +111,14 @@ import dev.drosh.ui.DroshIcons
  * third card dropped on a pair replaces the pair's second member rather than
  * adding to it. The grid says which two, and never more than the terminal can
  * show.
+ *
+ * ## Closing
+ *
+ * A close — one card, from its menu, or all at once from the header — never
+ * fires on the tap that asked for it. It lands in [pendingCloseId] /
+ * [pendingCloseAll] and a dialog asks once. A card sits next to others the
+ * finger is travelling over; an undoable-in-principle step still deserves one
+ * question in practice, because the transcript it erases is not recoverable.
  */
 @Composable
 fun SessionGrid(
@@ -117,6 +146,16 @@ fun SessionGrid(
      */
     var pendingGroup by remember { mutableStateOf<String?>(null) }
     var menuFor by remember { mutableStateOf<String?>(null) }
+
+    /**
+     * A close waiting for its confirmation.
+     *
+     * [pendingCloseId] is one session's close; [pendingCloseAll] is the header's
+     * "close everything". The two never set together — the dialog is modal —
+     * but they stay separate so confirming can read which one it is serving.
+     */
+    var pendingCloseId by remember { mutableStateOf<String?>(null) }
+    var pendingCloseAll by remember { mutableStateOf(false) }
 
     /** The card under a held finger, or null. */
     var heldId by remember { mutableStateOf<String?>(null) }
@@ -148,23 +187,18 @@ fun SessionGrid(
             count = live.size,
             pending = pendingGroup != null,
             onCancelPending = { pendingGroup = null },
-            onCloseAll = onCloseAll,
+            onCloseAll = {
+                if (live.isEmpty()) {
+                    // Nothing left to close, and a dialog saying so would be
+                    // noise. The empty state is already on screen.
+                } else {
+                    pendingCloseAll = true
+                }
+            },
         )
 
         if (live.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 32.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "Açık session yok.\nAşağıdan yenisini aç.",
-                    color = DroshTextMuted,
-                    fontSize = 14.sp,
-                    lineHeight = 21.sp,
-                )
-            }
+            SessionGridEmpty(onNewSession = onNewSession)
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -217,7 +251,7 @@ fun SessionGrid(
                                 onGroupSessions(held, target)
                             }
                         },
-                        onClose = { onClose(session.id) },
+                        onClose = { pendingCloseId = session.id },
                     )
                 }
             }
@@ -238,8 +272,40 @@ fun SessionGrid(
                 menuFor = null
             },
             onClose = {
-                onClose(menuTarget.id)
+                // Through the same confirmation as the card's own X: the menu
+                // is a second door to the same destructive step.
+                pendingCloseId = menuTarget.id
                 menuFor = null
+            },
+        )
+    }
+
+    // And the close confirmation, also drawn outside the grid so a scroll
+    // underneath it cannot move the question out from under the finger.
+    if (pendingCloseId != null || pendingCloseAll) {
+        val targetName = pendingCloseId
+            ?.let { id -> live.firstOrNull { it.id == id }?.name }
+            ?: "Session"
+        CloseSessionDialog(
+            title = if (pendingCloseAll) "Tüm session'lar kapatılsın mı?" else "Session kapatılsın mı?",
+            message = if (pendingCloseAll) {
+                "${live.size} açık session'ın tamamı kapanacak."
+            } else {
+                "\"$targetName\" kapatılacak. Çıktısı geri alınamaz."
+            },
+            onConfirm = {
+                val id = pendingCloseId
+                if (id != null) {
+                    onClose(id)
+                } else {
+                    onCloseAll()
+                }
+                pendingCloseId = null
+                pendingCloseAll = false
+            },
+            onDismiss = {
+                pendingCloseId = null
+                pendingCloseAll = false
             },
         )
     }
@@ -275,24 +341,32 @@ private fun SessionGridHeader(
         if (pending) {
             SmallIconButton(DroshIcons.X, "Split'i iptal et", onCancelPending)
         } else {
-            SmallIconButton(DroshIcons.EyeOff, "Tümünü kapat", onCloseAll)
+            SmallIconButton(DroshIcons.EyeOff, "Tüm session'ları kapat", onCloseAll)
         }
     }
 }
 
+/**
+ * A small header action.
+ *
+ * The box is 48dp, not 36dp: it is a button someone reaches for while the other
+ * hand is busy, and 36dp was under the touch-target floor. The icon stays small
+ * so the row does not grow — only the reachable area does.
+ */
 @Composable
 private fun SmallIconButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     description: String,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(48.dp)
             .clip(CircleShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
+                role = Role.Button,
                 onClick = onClick,
             ),
         contentAlignment = Alignment.Center,
@@ -307,6 +381,106 @@ private fun SmallIconButton(
 }
 
 /**
+ * The grid with nothing in it.
+ *
+ * An empty box says "broken". This says "start here": what happened (every
+ * session is gone), and the one action that moves forward, as a button rather
+ * than a suggestion, because on a first run the footer is below the fold of
+ * attention and this is where the eye lands.
+ */
+@Composable
+private fun SessionGridEmpty(onNewSession: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(DroshSurfaceVariant)
+                .border(1.dp, DroshBorderSubtle, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = DroshIcons.Terminal,
+                contentDescription = null,
+                tint = DroshTextMuted,
+                modifier = Modifier.size(26.dp),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "Açık session yok",
+            color = DroshText,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Yeni bir shell aç, kart burada belirir.",
+            color = DroshTextMuted,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
+        NewSessionButton(onNewSession)
+    }
+}
+
+/**
+ * The one "add a session" pill, shared by the empty state and the footer so the
+ * two cannot drift apart on how the action looks.
+ */
+@Composable
+private fun NewSessionButton(onNewSession: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(DroshSurfaceHigh)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+                onClick = onNewSession,
+            )
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = DroshIcons.Plus,
+            contentDescription = null,
+            tint = DroshText,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = "Yeni session",
+            color = DroshText,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun SessionGridFooter(onNewSession: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        NewSessionButton(onNewSession)
+    }
+}
+
+/**
  * One session, as a card.
  *
  * The thumbnail is the session's own output, drawn small. It is not a picture
@@ -316,6 +490,11 @@ private fun SmallIconButton(
  *
  * The drag is a long press followed by movement, reported in root coordinates
  * because the grid — not the card — decides what the finger is over.
+ *
+ * Pressing is a real state, not silence: with `indication = null` a tap gave no
+ * visual answer until the switch happened, and a card that answers nothing
+ * reads as dead. The pressed card dips slightly — the same gesture the sidebar
+ * rows speak — and returns over 200ms.
  */
 @Composable
 private fun SessionCard(
@@ -334,16 +513,45 @@ private fun SessionCard(
     onDragEnd: () -> Unit,
     onClose: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+
     val borderWidth by animateFloatAsState(
         targetValue = if (isActive || isPending || isDropTarget) 2f else 1f,
-        animationSpec = tween(180),
+        animationSpec = tween(200),
         label = "cardBorder",
     )
+    // The accent means "this card is in play" for all three states — active,
+    // waiting, aimed at. What separates them is the surface, not the border:
+    // the grouping states add a tint, and the active one adds its pill.
     val borderColor = when {
         isPending || isDropTarget -> DroshPrimary
-        isActive -> DroshText.copy(alpha = 0.55f)
+        isActive -> DroshPrimary.copy(alpha = 0.7f)
         awaitingPartner -> DroshPrimary.copy(alpha = 0.35f)
         else -> DroshBorderSubtle
+    }
+    val cardSurface by animateFloatAsState(
+        targetValue = if (isActive) 1f else 0f,
+        animationSpec = tween(200),
+        label = "cardActiveSurface",
+    )
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) PRESS_SCALE else 1f,
+        animationSpec = tween(200),
+        label = "cardPress",
+    )
+    // The active card's surface brightens with its border, not in a snap — the
+    // same 200ms keeps the two moving as one change rather than two.
+    val background = lerpColor(DroshSurfaceVariant, DroshSurfaceHigh, cardSurface)
+
+    // Screen-reader one-liner: which card this is and what state it is in,
+    // before the user has to guess from a dot. Remembered on the inputs it
+    // reads, so a recomposition driven by anything else rebuilds nothing.
+    val stateDescription = remember(isActive, session.state) {
+        when {
+            isActive -> "Şu an buradasın, ${stateLabel(session.state)}"
+            else -> stateLabel(session.state)
+        }
     }
 
     // The card's origin in the window, captured at layout. The gesture reports
@@ -359,23 +567,33 @@ private fun SessionCard(
                 origin = it.boundsInRoot().topLeft
                 onBounds(it.boundsInRoot())
             }
+            .semantics { stateDescription = stateDescription }
             // A carried card lifts: it is above its neighbours and out of the
             // grid's flow, which is what makes it read as something being moved
             // rather than something that grew.
             .zIndex(if (isHeld) 1f else 0f)
             .graphicsLayer {
-                if (isHeld) {
-                    scaleX = HELD_SCALE
-                    scaleY = HELD_SCALE
-                }
+                val scale = if (isHeld) HELD_SCALE else pressScale
+                scaleX = scale
+                scaleY = scale
             }
             .alpha(if (isHeld) HELD_ALPHA else 1f)
             .clip(RoundedCornerShape(16.dp))
-            .background(if (isActive) DroshSurfaceHigh else DroshSurfaceVariant)
+            .background(background)
+            // The grouping states get their tint over the card surface, so the
+            // accent border never stands alone as the only signal.
+            .then(
+                if (isPending || isDropTarget) {
+                    Modifier.background(DroshPrimary.copy(alpha = 0.08f))
+                } else {
+                    Modifier
+                },
+            )
             .border(borderWidth.dp, borderColor, RoundedCornerShape(16.dp))
             .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
+                role = Role.Button,
                 onClick = onTap,
                 onLongClick = onLongPress,
             )
@@ -412,13 +630,17 @@ private fun SessionCard(
                 // "this one is waiting for a partner" without a sentence.
                 HalfFilledSquare()
             } else {
+                // 48dp of reach around a small mark: the icon stays out of the
+                // card's way visually, but the finger does not have to find a
+                // 22dp dot to hit it.
                 Box(
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
+                            role = Role.Button,
                             onClick = onClose,
                         ),
                     contentAlignment = Alignment.Center,
@@ -447,6 +669,56 @@ private fun SessionCard(
                     .padding(horizontal = 7.dp, vertical = 6.dp),
             )
         }
+
+        // The row of facts under the picture: state in words, then how long
+        // since the session was last touched. The pill rides on the same row
+        // only when it has something to say — an inactive card's footer stays
+        // one quiet line.
+        // Keyed on the timestamp the phrase is built from: the label can go
+        // stale by a minute — invisible — but must not reformat on every
+        // recomposition the grid's other state (drag, pending, press) causes.
+        val meta = remember(session.lastUsedAtMs) { cardMeta(session) }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text(
+                text = meta,
+                color = DroshTextSecondary,
+                fontSize = 10.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (isActive) {
+                ActivePill()
+            }
+        }
+    }
+}
+
+/**
+ * The "you are here" mark.
+ *
+ * A filled pill in the accent: the active card already has the border, but a
+ * border alone says "special", not "current". The words are the difference
+ * between coming back to the grid after a scroll and knowing instantly which
+ * session a tap will land in.
+ */
+@Composable
+private fun ActivePill() {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(DroshPrimary.copy(alpha = 0.16f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = "Buradasın",
+            color = DroshPrimary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -529,43 +801,124 @@ private fun SessionThumbnail(lines: List<String>, modifier: Modifier = Modifier)
     }
 }
 
+/**
+ * The close question.
+ *
+ * Styled after [SessionCardMenu] — same surface, same radius — so a dialog and
+ * a menu read as the same family. Confirm is destructive-coloured, because the
+ * dangerous button should be the one that announces itself.
+ */
 @Composable
-private fun SessionGridFooter(onNewSession: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Row(
+private fun CloseSessionDialog(
+    title: String,
+    message: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
             modifier = Modifier
-                .height(44.dp)
-                .clip(RoundedCornerShape(percent = 50))
+                .clip(RoundedCornerShape(22.dp))
                 .background(DroshSurfaceHigh)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onNewSession,
-                )
-                .padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(20.dp),
         ) {
-            Icon(
-                imageVector = DroshIcons.Plus,
-                contentDescription = null,
-                tint = DroshText,
-                modifier = Modifier.size(16.dp),
-            )
             Text(
-                text = "Yeni session",
+                text = title,
                 color = DroshText,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
             )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = message,
+                color = DroshTextSecondary,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+            )
+            Spacer(Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DialogButton("İptal", DroshTextSecondary, onDismiss)
+                DialogButton("Kapat", DroshError, onConfirm)
+            }
         }
     }
 }
+
+/**
+ * A dialog action, sized to the 48dp floor and coloured by its caller: the
+ * destructive entry in [DroshError], the way out in plain secondary text.
+ */
+@Composable
+private fun DialogButton(
+    label: String,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(horizontal = 18.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = tint,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/** The card's under-picture line: state in words, then recency. */
+private fun cardMeta(session: SessionSnapshot): String {
+    val time = relativeTime(session.lastUsedAtMs, System.currentTimeMillis())
+    return "${stateLabel(session.state)} · $time"
+}
+
+/** The state as a word, shared by the meta line and the semantics. */
+private fun stateLabel(state: SessionState): String = when (state) {
+    SessionState.Running -> "Çalışıyor"
+    SessionState.Idle -> "Boşta"
+    SessionState.Closed -> "Kapalı"
+}
+
+/**
+ * Recency as a short human phrase, not a clock time.
+ *
+ * A clock time forces arithmetic ("was that 14:02 an hour ago?"); a distance
+ * answers the only question the footer is asked: is this the one I just left?
+ * Computed once per change of [thenMs], not per frame — the label going stale
+ * by a minute is invisible, recomposing every card every minute is not.
+ */
+private fun relativeTime(thenMs: Long, nowMs: Long): String {
+    val minutes = ((nowMs - thenMs).coerceAtLeast(0L)) / 60_000L
+    return when {
+        minutes < 1L -> "şimdi"
+        minutes < 60L -> "$minutes dk önce"
+        minutes < MINUTES_PER_DAY -> "${minutes / 60L} sa önce"
+        else -> "${minutes / MINUTES_PER_DAY} g önce"
+    }
+}
+
+/** A naive two-colour blend, enough for a surface that brightens on activation. */
+private fun lerpColor(from: Color, to: Color, fraction: Float): Color =
+    Color(
+        red = from.red + (to.red - from.red) * fraction,
+        green = from.green + (to.green - from.green) * fraction,
+        blue = from.blue + (to.blue - from.blue) * fraction,
+        alpha = from.alpha + (to.alpha - from.alpha) * fraction,
+    )
 
 /** A card's width to its height. Slightly taller than wide, like a tab. */
 private const val CARD_ASPECT = 0.82f
@@ -576,3 +929,9 @@ private const val THUMBNAIL_LINES = 14
 /** How much a carried card grows, and how far it fades. */
 private const val HELD_SCALE = 1.04f
 private const val HELD_ALPHA = 0.92f
+
+/** How far a pressed card dips. Small, so it reads as touch and not as motion. */
+private const val PRESS_SCALE = 0.98f
+
+/** Where "dk" hands over to "sa" and "sa" to "g", in minutes. */
+private const val MINUTES_PER_DAY = 60L * 24L

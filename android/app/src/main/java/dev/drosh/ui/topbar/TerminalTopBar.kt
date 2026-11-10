@@ -125,19 +125,22 @@ private const val CHROME_ANIMATION_MILLIS = 220
 private const val CHROME_COLLAPSE_DELAY_MILLIS = 70
 
 /**
- * The pill's fill, opaque.
+ * The pill's fill: dark, and translucent.
  *
- * The pills used to be glass: a blurred slice of the terminal behind them plus a
- * 28% tint. That read as frosted glass on a device that could blur and as a
- * smudge on one that could not, and either way the button's silhouette depended
- * on what the terminal happened to be printing. An opaque surface is the same
- * control over any output.
+ * The pills used to be glass — a blurred slice of the terminal behind them plus
+ * a tint. The blur is gone: it read as frosted glass on a device that could blur
+ * and as a smudge on one that could not, and either way the button's silhouette
+ * depended on what the terminal happened to be printing.
+ *
+ * The transparency stayed, though, because a row that floats over the output
+ * should look like it is floating over it: the terminal shows through, faintly
+ * enough that the content stays readable and the row keeps its own presence.
  *
  * Dark rather than themed: the row floats over the terminal, and the terminal is
  * dark in every theme, so the button is dark in every theme too. See
  * [PILL_CONTENT] for why its content is light.
  */
-private val PILL_SURFACE = Color(0xFF2A2A2C)
+private val PILL_SURFACE = Color(0xFF2A2A2C).copy(alpha = 0.78f)
 
 /**
  * The row's own colour for its text and its icons.
@@ -205,6 +208,15 @@ private fun Modifier.pillEdge(shape: Shape, width: Dp = PILL_EDGE_WIDTH): Modifi
 
 /** The full capsule. Every pill in the row is one of these. */
 private val PILL_SHAPE = RoundedCornerShape(percent = 50)
+
+/**
+ * The sessions button's shape: a square with soft corners.
+ *
+ * A circle says "one action"; a square with rounded corners says "a list of
+ * things", which is what the button opens. The corners are soft enough that the
+ * button still belongs to the row.
+ */
+private val SESSION_BUTTON_SHAPE = RoundedCornerShape(14.dp)
 
 /**
  * A pill's width, equal to its height, so the buttons read as full circles.
@@ -337,6 +349,10 @@ fun TerminalTopBar(
     modifier: Modifier = Modifier,
 ) {
     val activeName by viewModel.activeName.collectAsStateWithLifecycle()
+    // How many sessions the app knows about. The button says so on itself, so
+    // the grid is one glance away and its size is known before it is opened.
+    val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
+    val sessionCount = sessions.size
 
     val statusBarH = statusBarHeight()
 
@@ -482,41 +498,79 @@ fun TerminalTopBar(
             // touch. Inside it each button is its own disc, so a press ripples
             // inside its own circle instead of across the whole capsule. There
             // is no divider: the two discs are the divider.
-            Box(
-                modifier = Modifier
-                    .height(rowHeight)
-                    .clip(PILL_SHAPE)
-                    .background(PILL_SURFACE)
-                    .pillEdge(PILL_SHAPE),
+            // The sessions button is a square of its own, next to the
+            // overflow capsule rather than inside it: an eye with a count in it
+            // is not a disc, and a disc inside a capsule would have had to be
+            // cut out of it.
+            Row(
+                modifier = Modifier.height(rowHeight),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(
-                    modifier = Modifier.height(rowHeight),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(0.dp),
-                ) {
-                    GlassPillButton(
-                        backdrop = backdrop,
-                        terminalBounds = terminalBounds,
-                        icon = DroshIcons.SessionGrid,
-                        contentDescription = stringResource(dev.drosh.ui.R.string.topbar_sessions),
-                        width = PILL_WIDTH,
-                        height = rowHeight,
-                        iconSize = pillIconSize,
-                        ownSurface = false,
-                        onClick = onOpenSessions,
-                    )
+                GlassPillButton(
+                    backdrop = backdrop,
+                    terminalBounds = terminalBounds,
+                    contentDescription = stringResource(dev.drosh.ui.R.string.topbar_sessions),
+                    width = rowHeight,
+                    height = rowHeight,
+                    iconSize = pillIconSize,
+                    shape = SESSION_BUTTON_SHAPE,
+                    content = {
+                        // An eye with the number of sessions in it.
+                        //
+                        // The eye says what the button does — the grid is a
+                        // switcher, and the switcher is a view of what is
+                        // there. The number says how much there is, without
+                        // a second line of chrome.
+                        Box(
+                            modifier = Modifier.size(pillIconSize),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = DroshIcons.Eye,
+                                contentDescription = null,
+                                tint = PILL_CONTENT,
+                                modifier = Modifier.size(pillIconSize),
+                            )
+                            if (sessionCount > 0) {
+                                Text(
+                                    text = sessionCount.toString(),
+                                    color = PILL_CONTENT,
+                                    fontFamily = LocalFontSet.current.sans,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    },
+                    onClick = onOpenSessions,
+                )
 
-                    GlassPillButton(
-                        backdrop = backdrop,
-                        terminalBounds = terminalBounds,
-                        icon = DroshIcons.EllipsisVertical,
-                        contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
-                        width = PILL_WIDTH,
-                        height = rowHeight,
-                        iconSize = pillIconSize,
-                        ownSurface = false,
-                        onClick = { moreExpanded = true },
-                    )
+                Box(
+                    modifier = Modifier
+                        .height(rowHeight)
+                        .clip(PILL_SHAPE)
+                        .background(PILL_SURFACE)
+                        .pillEdge(PILL_SHAPE),
+                ) {
+                    Row(
+                        modifier = Modifier.height(rowHeight),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(0.dp),
+                    ) {
+                        GlassPillButton(
+                            backdrop = backdrop,
+                            terminalBounds = terminalBounds,
+                            icon = DroshIcons.EllipsisVertical,
+                            contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
+                            width = PILL_WIDTH,
+                            height = rowHeight,
+                            iconSize = pillIconSize,
+                            ownSurface = false,
+                            onClick = { moreExpanded = true },
+                        )
+                    }
                 }
             }
         }
@@ -630,6 +684,13 @@ private fun GlassPillButton(
     height: Dp = BAR_ROW_HEIGHT,
     iconSize: Dp = 22.dp,
     /**
+     * The button's own content, when it is not a single icon.
+     *
+     * The sessions button draws an eye with a count in it, which is more than
+     * an icon can say.
+     */
+    content: (@Composable () -> Unit)? = null,
+    /**
      * False when this button sits inside a body that already carries the fill
      * and the edge.
      *
@@ -647,6 +708,8 @@ private fun GlassPillButton(
         contentDescription, onClick, width, height, iconSize, backdrop, terminalBounds, ownSurface, shape,
     ) { tint ->
         when {
+            content != null -> content()
+
             drawableRes != null -> Icon(
                 painter = painterResource(drawableRes),
                 contentDescription = null,

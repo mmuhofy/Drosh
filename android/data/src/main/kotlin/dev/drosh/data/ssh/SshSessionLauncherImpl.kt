@@ -5,7 +5,7 @@ import dev.drosh.domain.ssh.SshCredentialVault
 import dev.drosh.domain.ssh.SshHostRepository
 import dev.drosh.domain.ssh.SshSessionLauncher
 import dev.drosh.terminal.session.GhosttyTerminal
-import dev.drosh.terminal.session.SshSessionFactory
+import dev.drosh.domain.ssh.SshSessionFactory
 import dev.drosh.terminal.session.TerminalManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
