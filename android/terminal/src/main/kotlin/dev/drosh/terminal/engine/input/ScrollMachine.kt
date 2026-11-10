@@ -13,10 +13,14 @@ package dev.drosh.terminal.engine.input
  *
  * ## What is remembered, and what is not
  *
- * The engine's offset is asked for on every event and is never second-guessed:
- * it is the single source of truth for where the viewport is. What is
- * remembered is the *fraction* — where inside its row the content's top sits,
- * because the finger is rarely on a row boundary.
+ * The position — where the top of the content sits, as a row that may be
+ * fractional — is remembered here, because the finger is rarely on a row
+ * boundary and the engine only knows whole rows.
+ *
+ * The engine's offset is asked for on every event, but only to notice that
+ * something *else* moved the viewport: a program, the scrollbar, a new
+ * session. Then the position is taken from the engine again, and the fraction
+ * is dropped.
  *
  * An earlier version kept a row counter of its own and sent the engine an
  * absolute row every time. That is two answers to "where is the viewport", and
@@ -26,10 +30,6 @@ package dev.drosh.terminal.engine.input
  * grid up, the engine refuses, and the next event asks for the row the machine
  * believes in rather than the row the engine is at.
  *
- * Here the fraction is re-synced with the engine on every event: if the engine
- * moved on its own, the fraction is dropped and the picture starts from where
- * the engine actually is.
- *
  * ## The row space
  *
  * The engine's row space runs from the oldest row of the scrollback (0) to the
@@ -37,8 +37,8 @@ package dev.drosh.terminal.engine.input
  * content is *below* the live edge, so it is at the end of the space.
  *
  * A finger moving **down** drags the content down and reveals what is above
- * it, which is older output — so the first visible row gets *smaller*. A finger
- * moving up does the opposite.
+ * it, which is older output — so the position gets *smaller*. A finger moving
+ * up does the opposite.
  *
  * ## The remainder
  *
@@ -58,21 +58,31 @@ class ScrollMachine {
      * @property row the row the engine should show first.
      * @property remainderPx how far the grid is shifted from that row, in
      *   pixels. Positive moves the content down.
+     * @property position the exact row the content's top is at, fractional.
+     *   The engine shows whole rows; this is where the finger is.
+     * @property toBottom true when the drag reaches the live edge. The
+     *   viewport is then pinned to the active area rather than to a row, so
+     *   that new output follows the user down.
      */
     data class Target(
         val row: Int,
         val remainderPx: Float,
+        val position: Float,
+        val toBottom: Boolean,
     )
 
     /**
-     * Where the content's top sits inside the engine's row, in rows.
+     * Where the content's top is, in the engine's row space.
      *
-     * Negative when the content's top is above the row the engine shows.
+     * Fractional: the finger is rarely on a row boundary.
      */
-    private var fraction: Float = 0f
+    private var position: Float = 0f
 
-    /** The row the engine was last asked for, so a move of its own is noticed. */
+    /** The row the engine was last asked for, to notice a move of its own. */
     private var askedRow: Int = 0
+
+    /** False until the engine's position has been read once. */
+    private var synced: Boolean = false
 
     /**
      * Move the viewport by a finger's travel.
@@ -97,52 +107,59 @@ class ScrollMachine {
         // can be moved by a distance measured against it.
         if (spacingPx <= 0f || !spacingPx.isFinite()) {
             askedRow = offset
-            return Target(row = offset, remainderPx = 0f)
+            synced = true
+            position = offset.toFloat()
+            return Target(offset, 0f, position, offset >= history)
         }
         val spacing = spacingPx
 
         // The engine moved on its own — a program scrolled, or something else
-        // asked for a row. The fraction belonged to the old row and is dropped:
-        // the picture starts from where the engine actually is.
-        if (offset != askedRow) {
-            fraction = 0f
+        // asked for a row. The position belonged to the old row and is taken
+        // from the engine again.
+        if (!synced || offset != askedRow) {
+            position = offset.toFloat()
+            synced = true
         }
 
         if (!distancePx.isFinite() || distancePx == 0f) {
             askedRow = offset
-            return Target(row = offset, remainderPx = 0f)
+            return Target(offset, 0f, position, offset >= history)
         }
-
-        // Where the content's top is, in the engine's row space.
-        var position = offset + fraction
 
         // Down is a smaller row: the content moves down, so what is above it —
         // older output — comes into view.
-        position = (position - distancePx / spacing).coerceIn(0f, history.toFloat())
+        var wanted = position - distancePx / spacing
+        wanted = wanted.coerceIn(0f, history.toFloat())
 
         // The engine shows whole rows, so it gets the nearest one and the
         // fraction between them is drawn.
-        val row = Math.round(position).toInt().coerceIn(0, history)
+        val row = Math.round(wanted).toInt().coerceIn(0, history)
 
         // What is left over: the distance from the row the engine shows to the
         // row the finger asked for. Positive when the finger is below the row,
         // which moves the content down.
-        val remainder = (row - position) * spacing
+        val remainder = (row - wanted) * spacing
 
-        fraction = position - row
+        position = wanted
         askedRow = row
 
-        return Target(row = row, remainderPx = remainder)
+        return Target(
+            row = row,
+            remainderPx = remainder,
+            position = wanted,
+            toBottom = row >= history,
+        )
     }
 
     /**
-     * Forget the fraction.
+     * Forget the position.
      *
-     * The viewport was moved by something other than a drag, so the picture
-     * starts again from the row the engine is at.
+     * The viewport was moved by something other than a drag — a new session,
+     * a resize — so the picture starts again from the row the engine is at.
      */
     fun reset() {
-        fraction = 0f
+        position = 0f
         askedRow = 0
+        synced = false
     }
 }

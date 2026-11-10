@@ -109,6 +109,12 @@ fun GhosttyTerminalHost(
     var status by remember { mutableStateOf<String?>("preparing") }
     var zoomSizeSp by remember { mutableStateOf(0f) }
 
+    // True while the fingers are on the screen. A pinch changes the cell and
+    // nothing else: the grid keeps its shape while the gesture runs, and it is
+    // laid out again — once — when the fingers lift. Reflowing on every step
+    // of the gesture is what makes a zoom stutter.
+    var pinchActive by remember { mutableStateOf(false) }
+
     // The view's font size always reflects what is on screen; the pinch
     // measures from it and reports back to it.
     LaunchedEffect(pane, effectiveSp) {
@@ -124,10 +130,14 @@ fun GhosttyTerminalHost(
 
     LaunchedEffect(pane) {
         pane.view.zoomListener = { sp ->
+            pinchActive = true
             liveZoomSp = sp
             zoomSizeSp = sp
         }
-        pane.view.zoomEndListener = { zoomSizeSp = 0f }
+        pane.view.zoomEndListener = {
+            pinchActive = false
+            zoomSizeSp = 0f
+        }
         pane.view.zoomCommitListener = { sp ->
             liveZoomSp = sp
             onZoomCommitted(sp)
@@ -143,6 +153,25 @@ fun GhosttyTerminalHost(
     // the screen kept drawing the old session.
     LaunchedEffect(pane, sessionId) {
         status = "preparing"
+
+        // The pane is registered with the manager before anything else. The
+        // registration is what makes the manager know this pane is a session:
+        // without it the pane is absent from the grid, cannot be restored,
+        // closed, named or previewed — and, worse, the manager's "show this
+        // session" has no pane to point at, so switching sessions did nothing
+        // at all.
+        //
+        // It used to be registered only on the path where a session was
+        // *opened*, so a pane whose session was already alive was never
+        // registered, and the switch found no pane.
+        if (sessionId.isNotEmpty()) {
+            terminalManager.registerEngineTerminal(
+                paneSlot,
+                pane,
+                persistentId = sessionId,
+                name = sessionName,
+            )
+        }
 
         // A session that is already alive is shown as it is. Switching
         // sessions must not restart the one being switched to: it has been
@@ -190,19 +219,6 @@ fun GhosttyTerminalHost(
         if (!started) {
             status = "start failed: ${pane.lastError ?: "no reason"}"
             return@LaunchedEffect
-        }
-
-        // Same registration the other host performs: without it the manager
-        // never knows this pane is a session, so it is absent from the grid,
-        // cannot be restored, closed, named or previewed — a working terminal
-        // that the app does not track.
-        if (sessionId.isNotEmpty()) {
-            terminalManager.registerEngineTerminal(
-                paneSlot,
-                pane,
-                persistentId = sessionId,
-                name = sessionName,
-            )
         }
 
         // The session runs; keep the counters up until frames are being drawn.
@@ -282,7 +298,14 @@ fun GhosttyTerminalHost(
                 }
             },
             update = { _ ->
-                pane.setCell(cell.width, cell.height, cell.fontPx)
+                // While the pinch runs the cell changes and the grid does not;
+                // when it ends the size is committed and the grid is laid out
+                // again, so the text fits the screen exactly.
+                if (pinchActive) {
+                    pane.view.setZoomCell(cell.width, cell.height, cell.fontPx)
+                } else {
+                    pane.setCell(cell.width, cell.height, cell.fontPx)
+                }
             },
         )
 

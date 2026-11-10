@@ -55,6 +55,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     @Volatile
     private var sessionHandle: Long = 0
 
+    /** The font's own size, in pixels: what the glyphs are rasterised at. */
+    @Volatile
+    private var fontPx: Float = 0f
+
     /** The cell size the font measured, in pixels. */
     @Volatile
     private var cellWidth = 1f
@@ -103,9 +107,26 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     var onGridChanged: ((columns: Int, rows: Int) -> Unit)? = null
 
     init {
-        renderThread.onFrameShape = { columns: Int, rows: Int, cells: Int, stepX: Float, stepY: Float ->
+        renderThread.onFrameShape = {
+                columns: Int,
+                rows: Int,
+                cells: Int,
+                stepX: Float,
+                stepY: Float,
+                cursorColumn: Int,
+                cursorRow: Int,
+                cursorStyle: Int,
+                cursorVisible: Boolean,
+                cursorColor: Int,
+            ->
             lastFrameShape = "${columns}x$rows cells=$cells " +
-                "step=${"%.1f".format(stepX)}x${"%.1f".format(stepY)}"
+                "step=${"%.1f".format(stepX)}x${"%.1f".format(stepY)} " +
+                // The cursor, as the engine reported it: where it is, what it
+                // looks like, and the colour it was given. A cursor in the
+                // wrong place is a question the numbers answer and the code
+                // cannot.
+                "cursor=$cursorColumn,$cursorRow style=$cursorStyle " +
+                "vis=$cursorVisible #${"%06x".format(cursorColor and 0xffffff)}"
         }
         holder.addCallback(this)
         // The surface draws its own pixels; the platform must not clear it to
@@ -186,11 +207,26 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         sessionHandle = 0
     }
 
-    /** Tell the loop the font's cell changed. */
+    /** Tell the loop the font's cell changed, and the grid is laid out again. */
     fun setCell(width: Float, height: Float, fontPx: Float = 0f) {
         cellWidth = width
         cellHeight = height
+        this.fontPx = fontPx
         renderThread.post(RenderThread.Command.Cell(width, height, fontPx))
+    }
+
+    /**
+     * Tell the loop the font's cell changed, mid-pinch.
+     *
+     * The cell is bigger and the grid keeps its shape: the text grows past
+     * the edge of the screen and the engine is not resized. Reflowing on every
+     * step of the gesture is what makes a zoom stutter.
+     */
+    fun setZoomCell(width: Float, height: Float, fontPx: Float = 0f) {
+        cellWidth = width
+        cellHeight = height
+        this.fontPx = fontPx
+        renderThread.post(RenderThread.Command.Cell(width, height, fontPx, reflow = false))
     }
 
     /** The sub-line scroll remainder, in pixels — drawing only. */
@@ -376,13 +412,19 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             spacingPx = spacing,
         )
 
-        if (target.row != scrollbar.offset || target.remainderPx != 0f) {
-            // Whole rows go to the engine as an absolute row; the remainder
-            // shifts the projection between rows.
-            NativeSession.scroll(session, NativeSession.SCROLL_ROW, target.row)
-            postScrollOffset(target.remainderPx)
-            renderThread.invalidate()
-        }
+        // The move and the remainder go to the render thread together: the
+        // engine moves by whole rows and the picture is shifted by the
+        // fraction between them, and in separate frames the row lands first
+        // and the fraction a frame later — the content jumps a whole row and
+        // then shifts back.
+        renderThread.post(
+            RenderThread.Command.Scroll(
+                session = session,
+                row = target.row,
+                position = target.position,
+                toBottom = target.toBottom,
+            ),
+        )
     }
 
     /** Momentum after a flick, through the same pixel path as a drag. */

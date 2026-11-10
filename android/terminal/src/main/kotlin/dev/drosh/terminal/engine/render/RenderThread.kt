@@ -1,6 +1,7 @@
 package dev.drosh.terminal.engine.render
 
 import android.util.Log
+import dev.drosh.terminal.engine.layout.SizeInfo
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -65,10 +66,45 @@ class RenderThread(
          * fifth taller. Rasterising at the cell height draws every glyph too
          * big for its cell.
          */
-        data class Cell(val width: Float, val height: Float, val fontPx: Float) : Command
+        data class Cell(
+            val width: Float,
+            val height: Float,
+            val fontPx: Float,
+            /**
+             * True when the grid is laid out again at this cell.
+             *
+             * False for a live pinch: the cell changed and the grid did not,
+             * so the text grows past the edge of the screen and the engine is
+             * not resized on every step of the gesture.
+             */
+            val reflow: Boolean = true,
+        ) : Command
 
         /** The sub-line scroll remainder, in pixels. */
         data class ScrollOffset(val pixels: Float) : Command
+
+        /**
+         * Move the viewport, and the pixel remainder that goes with it.
+         *
+         * The two belong together: the engine moves by whole rows and the
+         * picture is shifted by the fraction between them. Applied in
+         * separate frames, the row lands first and the remainder a frame
+         * later — the content jumps a whole row and then shifts back, which
+         * is what a scroll that pulls itself like a spring looks like.
+         *
+         * The engine may refuse the move (at the ends of the history it
+         * clamps), so the remainder is computed against where the viewport
+         * *actually* is once the move has been made.
+         */
+        data class Scroll(
+            val session: Long,
+            /** The absolute row to show, from the top of the scrollback. */
+            val row: Int,
+            /** The exact row the content's top is at. */
+            val position: Float,
+            /** True when the drag reached the live edge. */
+            val toBottom: Boolean,
+        ) : Command
 
         /** Redraw without changing anything — new output arrived. */
         data object Invalidate : Command
@@ -133,6 +169,11 @@ class RenderThread(
         cells: Int,
         stepX: Float,
         stepY: Float,
+        cursorColumn: Int,
+        cursorRow: Int,
+        cursorStyle: Int,
+        cursorVisible: Boolean,
+        cursorColor: Int,
     ) -> Unit)? = null
 
     /** True while the loop is running. */
@@ -218,13 +259,42 @@ class RenderThread(
                     }
 
                     is Command.Cell -> {
-                        layout.onCell(command.width, command.height, now)
+                        if (command.reflow) {
+                            layout.onCell(command.width, command.height, now)
+                        } else {
+                            layout.onZoomCell(command.width, command.height, now)
+                        }
                         renderer?.fontPx = command.fontPx
                         cellChanged = true
                     }
 
                     is Command.ScrollOffset -> {
                         layout.onScrollOffset(command.pixels)
+                        dirty = true
+                    }
+
+                    is Command.Scroll -> {
+                        // The engine first, then the remainder against where
+                        // the viewport ended up: the engine clamps at the ends
+                        // of the history, and a remainder computed against a
+                        // row it refused to reach is a phantom movement.
+                        val tag = if (command.toBottom) {
+                            dev.drosh.terminal.engine.native.NativeSession.SCROLL_BOTTOM
+                        } else {
+                            dev.drosh.terminal.engine.native.NativeSession.SCROLL_ROW
+                        }
+                        val amount = if (command.toBottom) 0 else command.row
+                        dev.drosh.terminal.engine.native.NativeSession.scroll(
+                            command.session,
+                            tag,
+                            amount,
+                        )
+                        val actual = dev.drosh.terminal.engine.native.NativeSession
+                            .scrollbar(command.session)
+                            ?.offset
+                            ?: command.row
+                        val spacing = layout.size.cellHeight.coerceAtLeast(1f)
+                        layout.onScrollOffset((actual - command.position) * spacing)
                         dirty = true
                     }
 
@@ -255,6 +325,15 @@ class RenderThread(
                 renderer?.onSizeChanged(layout.size)
             }
 
+            // The renderer's step follows the layout's size, whatever changed
+            // it. A live pinch changes the cell and nothing else — no grid
+            // change, no surface change — and the text has to be bigger on the
+            // screen while the gesture runs.
+            if (renderer != null && !sameStep(rendererCellSize, layout.size)) {
+                rendererCellSize = layout.size
+                renderer?.onGridChanged(layout.size)
+            }
+
             // Nothing is drawn before the font has measured a cell and the
             // surface has a size: a frame from either before is a frame of the
             // wrong shape, and one of them is the black square at the origin.
@@ -271,6 +350,21 @@ class RenderThread(
         renderer?.release()
         renderer = null
         egl.release()
+    }
+
+    /**
+     * The layout's size as the renderer last saw it.
+     *
+     * The renderer's step is the layout's step, and the layout's step changes
+     * for reasons the grid does not: a live pinch makes the cell bigger
+     * without changing the grid's shape.
+     */
+    private var rendererCellSize: SizeInfo? = null
+
+    /** True when two sizes put the cells in the same places. */
+    private fun sameStep(a: SizeInfo?, b: SizeInfo): Boolean {
+        if (a == null) return false
+        return a.stepX == b.stepX && a.stepY == b.stepY
     }
 
     /**
@@ -291,7 +385,24 @@ class RenderThread(
         }
 
         val frame = frameSource?.invoke()
-        frame?.let { onFrameShape?.invoke(it.columns, it.rows, it.cellCount, layout.size.stepX, layout.size.stepY) }
+        frame?.let {
+            onFrameShape?.invoke(
+                it.columns,
+                it.rows,
+                it.cellCount,
+                layout.size.stepX,
+                layout.size.stepY,
+                // The cursor's numbers, as the engine reported them. They are
+                // on the screen because a cursor that is drawn in the wrong
+                // place, or in the wrong colour, is a question the code cannot
+                // answer by reading itself: the numbers have to be seen.
+                it.cursorColumn,
+                it.cursorRow,
+                it.cursorStyle,
+                it.cursorVisible,
+                it.cursorColor,
+            )
+        }
         val cellsDrawn = current.draw(frame, layout.size)
 
         // Only a drawn frame is presented. A frame that drew nothing leaves

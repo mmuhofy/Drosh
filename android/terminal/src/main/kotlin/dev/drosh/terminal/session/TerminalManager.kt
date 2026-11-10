@@ -1706,20 +1706,25 @@ class TerminalManager(
      */
     fun switchSessionById(persistentId: String) {
         val slot = focusedPane.value
-        val pane = enginePanes[slot] ?: return
 
         // The slot points at the session, whether or not it is running: the
         // screen reads this and the host opens the session if it has to. A
         // switch that did nothing for a session that was not on screen was a
         // grid that could not open anything.
+        //
+        // This happens *before* the pane is looked up. A pane that is not
+        // registered yet — one whose session was already alive when the host
+        // took over — used to make this method return before the slot was
+        // pointed anywhere, and the screen never changed.
         setSlotSession(slot, persistentId)
+        val pane = enginePanes[slot]
 
         // A session that is alive is shown at once. It keeps running and keeps
         // its output, so coming back to it shows what it printed while it was
         // away.
         liveSessions[persistentId]?.let { session ->
-            pane.showSession(session)
-            pane.bindIdentity(session.persistentId, session.name)
+            pane?.showSession(session)
+            pane?.bindIdentity(session.persistentId, session.name)
         }
 
         publishActiveId()

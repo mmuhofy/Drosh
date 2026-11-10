@@ -70,6 +70,21 @@ class LayoutMachine(
             val appliedColumns: Int,
             val appliedRows: Int,
         ) : State
+
+        /**
+         * A pinch is running: the cell has changed and the grid has not.
+         *
+         * The text grows and runs off the edge of the screen, and nothing is
+         * reflowed until the fingers lift. A reflow on every step of the
+         * gesture is what makes a zoom stutter: the grid is re-laid out, the
+         * engine is resized, the shell redraws, and the next step does it
+         * again.
+         */
+        data class Zooming(
+            val size: SizeInfo,
+            val appliedColumns: Int,
+            val appliedRows: Int,
+        ) : State
     }
 
     private var current: State = State.Idle(SizeInfo())
@@ -106,6 +121,7 @@ class LayoutMachine(
             is State.Idle -> state.size
             is State.Changing -> state.size
             is State.Settled -> state.size
+            is State.Zooming -> state.size
         }
 
     /** The grid shape currently in force. */
@@ -114,6 +130,7 @@ class LayoutMachine(
             is State.Idle -> state.size.columns
             is State.Changing -> state.appliedColumns
             is State.Settled -> state.appliedColumns
+            is State.Zooming -> state.appliedColumns
         }
 
     val appliedRows: Int
@@ -121,6 +138,7 @@ class LayoutMachine(
             is State.Idle -> state.size.rows
             is State.Changing -> state.appliedRows
             is State.Settled -> state.appliedRows
+            is State.Zooming -> state.appliedRows
         }
 
     /**
@@ -159,6 +177,25 @@ class LayoutMachine(
         hasCell = true
         val next = size.withCell(cellWidth, cellHeight)
         current = State.Settled(
+            size = next,
+            appliedColumns = appliedColumns,
+            appliedRows = appliedRows,
+        )
+        return next
+    }
+
+    /**
+     * A live pinch: the cell changed, the grid did not.
+     *
+     * The text is bigger from this moment and the grid keeps its shape, so
+     * the picture runs off the edge of the screen. Nothing is reflowed until
+     * the gesture ends and [onCell] commits the size.
+     */
+    fun onZoomCell(cellWidth: Float, cellHeight: Float, now: Long): SizeInfo {
+        if (cellWidth <= 0f || cellHeight <= 0f) return size
+        hasCell = true
+        val next = size.withZoomCell(cellWidth, cellHeight)
+        current = State.Zooming(
             size = next,
             appliedColumns = appliedColumns,
             appliedRows = appliedRows,
@@ -219,6 +256,7 @@ class LayoutMachine(
                 appliedColumns = columns,
                 appliedRows = rows,
             )
+            is State.Zooming -> state.copy(appliedColumns = columns, appliedRows = rows)
         }
     }
 

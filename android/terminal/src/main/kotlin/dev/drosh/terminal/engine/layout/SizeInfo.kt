@@ -47,6 +47,18 @@ data class SizeInfo(
      * and those lines fill the strips the shift reveals.
      */
     val scrollOffsetPx: Float = 0f,
+    /**
+     * True while a pinch is in progress.
+     *
+     * A live pinch changes the cell and nothing else: the grid keeps its
+     * shape, so the text grows past the edge of the screen and is cut off.
+     * That is what a zoom looks like, and it is why the zoom does not stutter:
+     * the grid is not reflowed on every step of the gesture.
+     *
+     * When the gesture ends the cell is committed, the grid is laid out again
+     * at the new cell size, and the picture fits the screen exactly.
+     */
+    val zooming: Boolean = false,
 ) {
 
     /**
@@ -70,12 +82,25 @@ data class SizeInfo(
      *
      * The surface divided by the cells that fit in it, so the grid ends exactly
      * on the edge.
+     *
+     * While a pinch is running the step is the cell itself: the grid still has
+     * the shape it had, so the cells are bigger and the grid runs off the
+     * edge. Dividing the surface by the old number of columns would squeeze
+     * the bigger text back into the old cells, which is not a zoom.
      */
     val stepX: Float
-        get() = if (columns <= 0) cellWidth else width.toFloat() / columns
+        get() = when {
+            zooming -> cellWidth
+            columns <= 0 -> cellWidth
+            else -> width.toFloat() / columns
+        }
 
     val stepY: Float
-        get() = if (rows <= 0) cellHeight else height.toFloat() / rows
+        get() = when {
+            zooming -> cellHeight
+            rows <= 0 -> cellHeight
+            else -> height.toFloat() / rows
+        }
 
     /**
      * The projection, as `(x0, y0, sx, sy)` for `clip = xy + zw * pixel`.
@@ -97,9 +122,13 @@ data class SizeInfo(
         out[3] = -2f / h
     }
 
-    /** The same size at another font cell. */
+    /** The same size at another font cell, committed: the grid is laid out. */
     fun withCell(cellWidth: Float, cellHeight: Float): SizeInfo =
-        copy(cellWidth = cellWidth, cellHeight = cellHeight)
+        copy(cellWidth = cellWidth, cellHeight = cellHeight, zooming = false)
+
+    /** The same size at another font cell, mid-pinch: the grid does not move. */
+    fun withZoomCell(cellWidth: Float, cellHeight: Float): SizeInfo =
+        copy(cellWidth = cellWidth, cellHeight = cellHeight, zooming = true)
 
     /** The same size at another surface. */
     fun withSurface(width: Int, height: Int): SizeInfo = copy(width = width, height = height)

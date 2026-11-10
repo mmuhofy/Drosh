@@ -322,7 +322,20 @@ impl FrameSource {
         // is a cursor the renderer must not draw.
         put_u16(header, 22, if cursor.viewport_has_value { cursor.viewport_x } else { 0 });
         put_u16(header, 24, if cursor.viewport_has_value { cursor.viewport_y } else { 0 });
-        put_u16(header, 26, cursor.visual_style as u16);
+        // The visual style is read on its own rather than from the struct's
+        // field. The engine writes that field at the offset *its* struct has,
+        // and the struct is a sized one whose fields are written by name: the
+        // engine's enum is one byte wide where the header's is four, so the
+        // field in the struct lands two bytes before where the header says it
+        // is. The separate query has no such ambiguity, and its value is
+        // masked to a byte so that it reads the same either way.
+        let mut visual_style: u32 = 0;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
+            &mut visual_style
+        );
+        put_u16(header, 26, (visual_style & 0xff) as u16);
 
         let mut flags = 0u16;
         if cursor.visible && cursor.viewport_has_value {
@@ -334,7 +347,9 @@ impl FrameSource {
         // A block cursor over a cell that has a glyph is drawn by the glyph pass
         // as an inverted cell; the renderer does not need a separate rectangle
         // for it. Bar and underline are thin rectangles and need one.
-        if cursor.visual_style != ghostty::GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK {
+        if (visual_style & 0xff) as u16
+            != ghostty::GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK as u16
+        {
             flags |= CURSOR_IS_RECTANGLE;
         }
         put_u16(header, 28, flags);
