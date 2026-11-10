@@ -24,7 +24,7 @@
 //!  32  u32  cell_count
 //!  36  u32  cell_stride
 //!  40  u32  cells_bytes
-//!  44  u32  cursorColor  bytes R,G,B,A little-endian
+//!  44  u32  cursor_color  R,G,B,A little-endian
 //! ```
 //!
 //! Cells follow: `cell_count` records of `cell_stride` bytes, row-major.
@@ -71,6 +71,9 @@ pub const ATTR_BLINK: u32 = 1 << 3;
 pub const ATTR_STRIKETHROUGH: u32 = 1 << 4;
 pub const ATTR_OVERLINE: u32 = 1 << 5;
 pub const ATTR_INVISIBLE: u32 = 1 << 6;
+/// Reverse video, already applied to the colours the frame carries. The bit is
+/// kept so a caller can tell a styled cell from a naturally-dark one.
+pub const ATTR_INVERSE: u32 = 1 << 7;
 pub const ATTR_UNDERLINE_SHIFT: u32 = 8;
 
 pub const CELL_FLAG_SELECTED: u8 = 1 << 0;
@@ -82,6 +85,8 @@ pub const DIRTY_PARTIAL: u16 = 2;
 
 pub const CURSOR_VISIBLE: u16 = 1 << 0;
 pub const CURSOR_BLINKING: u16 = 1 << 1;
+/// The cursor is a thin rectangle (bar or underline), not a filled cell.
+pub const CURSOR_IS_RECTANGLE: u16 = 1 << 2;
 
 /// What went wrong while producing a frame.
 #[derive(Debug)]
@@ -105,10 +110,10 @@ pub struct FrameSource {
     cells: ghostty::GhosttyRenderStateRowCells,
     buffer: Vec<u8>,
     sequence: u32,
-    /// The effective foreground/background the engine reports — the OSC override
-    /// when there is one, its own default otherwise. Cells without a colour get
-    /// these handed to them, so a shell with a themed prompt or a light scheme
-    /// renders as Ghostty renders it.
+    /// The engine's effective default colours, refreshed per frame.
+    ///
+    /// A cell that carries no colour of its own is painted in these — which is
+    /// what Ghostty itself does, and what an OSC 10/11 recolour changes.
     default_fg: ghostty::GhosttyColorRgb,
     default_bg: ghostty::GhosttyColorRgb,
 }
@@ -151,23 +156,6 @@ impl FrameSource {
             );
         }
 
-        let mut default_fg = ghostty::GhosttyColorRgb { r: 255, g: 255, b: 255 };
-        let mut default_bg = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
-        let _ = unsafe {
-            ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND,
-                &mut default_fg as *mut _ as *mut std::ffi::c_void,
-            )
-        };
-        let _ = unsafe {
-            ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_BACKGROUND,
-                &mut default_bg as *mut _ as *mut std::ffi::c_void,
-            )
-        };
-
         Ok(Self {
             terminal,
             state,
@@ -175,8 +163,10 @@ impl FrameSource {
             cells,
             buffer: Vec::new(),
             sequence: 0,
-            default_fg,
-            default_bg,
+            // White on black until the engine answers; both are replaced by the
+            // effective values on the first frame.
+            default_fg: ghostty::GhosttyColorRgb { r: 255, g: 255, b: 255 },
+            default_bg: ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 },
         })
     }
 
@@ -188,18 +178,9 @@ impl FrameSource {
                 return Err(FrameError::UpdateFailed(result));
             }
 
-            // The effective colours, re-read per frame: an OSC 10/11 override
-            // lands immediately.
-            let _ = ghostty::ghostty_terminal_get(
-                self.terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND,
-                &mut self.default_fg as *mut _ as *mut std::ffi::c_void,
-            );
-            let _ = ghostty::ghostty_terminal_get(
-                self.terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_BACKGROUND,
-                &mut self.default_bg as *mut _ as *mut std::ffi::c_void,
-            );
+            // The effective default colours, refreshed before every frame so an
+            // OSC 10/11 recolour lands on the next one.
+            self.refresh_default_colors();
 
             let mut cols: u16 = 0;
             let mut rows: u16 = 0;
@@ -257,16 +238,30 @@ impl FrameSource {
         }
     }
 
-    fn default_cursor(&self) -> ghostty::GhosttyColorRgb {
-        let mut cursor = ghostty::GhosttyColorRgb { r: 255, g: 255, b: 255 };
-        let _ = unsafe {
-            ghostty::ghostty_terminal_get(
-                self.terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_COLOR_CURSOR,
-                &mut cursor as *mut _ as *mut std::ffi::c_void,
-            )
-        };
-        cursor
+    /// Read the engine's effective default foreground and background.
+    ///
+    /// "Effective" is the OSC override when there is one and the engine's own
+    /// default otherwise — the same colours Ghostty paints behind and in front
+    /// of unstyled cells.
+    unsafe fn refresh_default_colors(&mut self) {
+        let mut fg: ghostty::GhosttyColorRgb = self.default_fg;
+        let mut bg: ghostty::GhosttyColorRgb = self.default_bg;
+        let fg_ok = ghostty::ok(render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_FOREGROUND,
+            &mut fg
+        ));
+        let bg_ok = ghostty::ok(render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_BACKGROUND,
+            &mut bg
+        ));
+        if fg_ok {
+            self.default_fg = fg;
+        }
+        if bg_ok {
+            self.default_bg = bg;
+        }
     }
 
     unsafe fn write_header(
@@ -277,8 +272,36 @@ impl FrameSource {
         overscan: ghostty::GhosttyRenderStateOverscan,
         cell_count: u32,
     ) {
-        // Read the cursor colour before the buffer's mutable borrow begins.
-        let cursor = self.default_cursor();
+        // The cursor is one sized struct in the engine's own API
+        // (GHOSTTY_RENDER_STATE_DATA_CURSOR); reading six separate fields was
+        // six chances to read one of them from a moment the others were not at,
+        // and the "viewport has value" flag lived furthest from the two
+        // coordinates it guards.
+        let mut cursor: ghostty::GhosttyRenderStateCursor = std::mem::zeroed();
+        cursor.size = std::mem::size_of::<ghostty::GhosttyRenderStateCursor>();
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR, &mut cursor);
+
+        // The cursor's colour: an explicit one if the terminal set it, the
+        // foreground otherwise. Painting it black because "no explicit colour"
+        // was read as "black" is what put a black square at the origin.
+        let mut cursor_color: ghostty::GhosttyColorRgb = self.default_fg;
+        let mut has_cursor_color = false;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR_HAS_VALUE,
+            &mut has_cursor_color
+        );
+        if has_cursor_color {
+            let _ = render_get!(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR,
+                &mut cursor_color
+            );
+        }
+
+        let mut dirty = ghostty::GHOSTTY_RENDER_STATE_DIRTY_FALSE;
+        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_DIRTY, &mut dirty);
+
         let header = &mut self.buffer[0..HEADER_BYTES];
         put_u32(header, 0, MAGIC);
         put_u16(header, 4, VERSION);
@@ -292,38 +315,30 @@ impl FrameSource {
         put_u32(header, 32, cell_count);
         put_u32(header, 36, CELL_BYTES as u32);
         put_u32(header, 40, cell_count * CELL_BYTES as u32);
-        put_u32(header, 44, rgba(cursor));
+        put_u32(header, 44, rgba(cursor_color));
 
-        let mut cursor_x: u16 = 0;
-        let mut cursor_y: u16 = 0;
-        let mut cursor_style: u16 = 0;
-        let mut cursor_visible = false;
-        let mut cursor_blinking = false;
-        let mut viewport_has_value = false;
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X, &mut cursor_x);
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y, &mut cursor_y);
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE, &mut cursor_style);
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE, &mut cursor_visible);
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING, &mut cursor_blinking);
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE, &mut viewport_has_value);
-        if !viewport_has_value {
-            cursor_visible = false;
-        }
+        // The viewport coordinates are only meaningful when the cursor is
+        // inside the viewport; the flag is what says so, and a cursor outside it
+        // is a cursor the renderer must not draw.
+        put_u16(header, 22, if cursor.viewport_has_value { cursor.viewport_x } else { 0 });
+        put_u16(header, 24, if cursor.viewport_has_value { cursor.viewport_y } else { 0 });
+        put_u16(header, 26, cursor.visual_style as u16);
 
-        put_u16(header, 22, cursor_x);
-        put_u16(header, 24, cursor_y);
-        put_u16(header, 26, cursor_style);
         let mut flags = 0u16;
-        if cursor_visible {
+        if cursor.visible && cursor.viewport_has_value {
             flags |= CURSOR_VISIBLE;
         }
-        if cursor_blinking {
+        if cursor.blinking {
             flags |= CURSOR_BLINKING;
+        }
+        // A block cursor over a cell that has a glyph is drawn by the glyph pass
+        // as an inverted cell; the renderer does not need a separate rectangle
+        // for it. Bar and underline are thin rectangles and need one.
+        if cursor.visual_style != ghostty::GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK {
+            flags |= CURSOR_IS_RECTANGLE;
         }
         put_u16(header, 28, flags);
 
-        let mut dirty = ghostty::GHOSTTY_RENDER_STATE_DIRTY_FALSE;
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_DIRTY, &mut dirty);
         let dirty_bits = match dirty {
             ghostty::GHOSTTY_RENDER_STATE_DIRTY_FULL => DIRTY_FULL,
             ghostty::GHOSTTY_RENDER_STATE_DIRTY_PARTIAL => DIRTY_PARTIAL,
@@ -333,9 +348,6 @@ impl FrameSource {
     }
 
     unsafe fn write_cell(&mut self, at: usize, column: u16) {
-        let cell = &mut self.buffer[at..at + CELL_BYTES];
-        cell.fill(0);
-
         if !ghostty::ok(ghostty::ghostty_render_state_row_cells_select(
             self.cells, column,
         )) {
@@ -365,27 +377,27 @@ impl FrameSource {
             &mut style as *mut _ as *mut c_void,
         );
 
-        // A cell carries its colours only when it was styled; otherwise the
-        // engine's effective default — override or its own theme default — is
-        // what Ghostty itself would paint.
-        let mut bg: ghostty::GhosttyColorRgb = self.default_bg;
-        let mut fg: ghostty::GhosttyColorRgb = self.default_fg;
-        let bg_result = ghostty::ghostty_render_state_row_cells_get(
+        // A cell that carries no colour of its own reports GHOSTTY_INVALID_VALUE,
+        // and the caller is expected to substitute the terminal's default — see
+        // ROW_CELLS_DATA_BG_COLOR's note in the engine's header. Starting from
+        // the defaults and keeping them on failure is what makes an unstyled
+        // cell paint in the theme's colours instead of a guessed black.
+        let mut bg = self.default_bg;
+        let mut fg = self.default_fg;
+        let bg_ok = ghostty::ok(ghostty::ghostty_render_state_row_cells_get(
             self.cells,
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_BG_COLOR,
             &mut bg as *mut _ as *mut c_void,
-        );
-        let fg_result = ghostty::ghostty_render_state_row_cells_get(
+        ));
+        let fg_ok = ghostty::ok(ghostty::ghostty_render_state_row_cells_get(
             self.cells,
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR,
             &mut fg as *mut _ as *mut c_void,
-        );
-        // GHOSTTY_INVALID_VALUE when the cell carries no explicit colour; the
-        // engine's effective default is what Ghostty itself would paint.
-        if !ghostty::ok(bg_result) {
+        ));
+        if !bg_ok {
             bg = self.default_bg;
         }
-        if !ghostty::ok(fg_result) {
+        if !fg_ok {
             fg = self.default_fg;
         }
 
@@ -396,7 +408,19 @@ impl FrameSource {
             &mut selected as *mut bool as *mut c_void,
         );
 
+        // Reverse video is a *rendering* instruction the engine hands to the
+        // caller (see ROW_CELLS_DATA_SELECTED's note on rendering policy) —
+        // the colours it resolves are the cell's own, not the swapped ones.
+        // A status bar drawn with SGR 7 is exactly this: without the swap its
+        // foreground lands on its background and the whole line disappears.
+        if style.inverse {
+            std::mem::swap(&mut fg, &mut bg);
+        }
+
         let mut attributes = 0u32;
+        if style.inverse {
+            attributes |= ATTR_INVERSE;
+        }
         if style.bold {
             attributes |= ATTR_BOLD;
         }
@@ -420,17 +444,6 @@ impl FrameSource {
         }
         attributes |= (style.underline as u32 & 0xf) << ATTR_UNDERLINE_SHIFT;
 
-        put_u32(cell, 0, codepoints[0]);
-        // An engine with a selection policy is its own: Ghostty's own render
-        // state reports it as `SELECTED`, and the classic terminal policy is
-        // to invert the cell — the palette stays the user's, only the roles
-        // of fg/bg change.
-        let bg_out = if selected { fg } else { bg };
-        let fg_out = if selected { bg } else { fg };
-        put_u32(cell, 4, rgba(fg_out));
-        put_u32(cell, 8, rgba(bg_out));
-        put_u32(cell, 12, attributes);
-        cell[16] = 1;
         let mut flags = 0u8;
         if selected {
             flags |= CELL_FLAG_SELECTED;
@@ -438,6 +451,17 @@ impl FrameSource {
         if grapheme_len > 1 {
             flags |= CELL_FLAG_GRAPHEME;
         }
+
+        // The buffer borrow is taken last, once every read from `self` is done:
+        // the cell's bytes and the source of its colours cannot be borrowed out
+        // of the same struct at once.
+        let cell = &mut self.buffer[at..at + CELL_BYTES];
+        cell.fill(0);
+        put_u32(cell, 0, codepoints[0]);
+        put_u32(cell, 4, rgba(fg));
+        put_u32(cell, 8, rgba(bg));
+        put_u32(cell, 12, attributes);
+        cell[16] = 1;
         cell[17] = flags;
     }
 }
@@ -452,11 +476,14 @@ impl Drop for FrameSource {
     }
 }
 
+/// A colour as the frame carries it: R in the low byte.
+///
+/// Little-endian that is the byte sequence R, G, B, A — which is what
+/// `GL_UNSIGNED_BYTE` normalised hands the fragment shader as `vec4`. The
+/// previous packing put R in the high byte, so the renderer read green as
+/// red, blue as green, and the real alpha byte as a colour channel.
 fn rgba(color: ghostty::GhosttyColorRgb) -> u32 {
-    (u32::from(color.r))
-        | (u32::from(color.g) << 8)
-        | (u32::from(color.b) << 16)
-        | (0xff << 24)
+    u32::from(color.r) | (u32::from(color.g) << 8) | (u32::from(color.b) << 16) | (0xff << 24)
 }
 
 fn put_u16(out: &mut [u8], at: usize, value: u16) {

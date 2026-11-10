@@ -38,7 +38,6 @@ internal class FrameRenderer {
 
     private var backgroundProgram = 0
     private var foregroundProgram = 0
-    private var cursorProgram = 0
 
     private var backgroundProjection = 0
     private var backgroundCellSize = 0
@@ -47,15 +46,14 @@ internal class FrameRenderer {
     private var foregroundAtlasSize = 0
     private var foregroundAtlas = 0
     private var foregroundScale = 0
-    private var cursorProjection = 0
-    private var cursorCellSize = 0
-    private var cursorCell = 0
-    private var cursorStyle = 0
-    private var cursorColor = 0
-    private var cursorCellPx = 0
 
     private var atlasTexture = 0
     private var backgroundBuffer = 0
+    private var cursorProgram = 0
+    private var cursorProjection = 0
+    private var cursorCellSize = 0
+    private var cursorRect = 0
+    private var cursorColorUniform = 0
     private var foregroundBuffer = 0
 
     /** The glyph masks. Owned by the loop thread. */
@@ -104,18 +102,14 @@ internal class FrameRenderer {
         backgroundProgram = buildProgram(Shaders.BACKGROUND_VERTEX, Shaders.BACKGROUND_FRAGMENT)
         foregroundProgram = buildProgram(Shaders.FOREGROUND_VERTEX, Shaders.FOREGROUND_FRAGMENT)
         cursorProgram = buildProgram(Shaders.CURSOR_VERTEX, Shaders.CURSOR_FRAGMENT)
-        if (backgroundProgram == 0 || foregroundProgram == 0) {
+        if (backgroundProgram == 0 || foregroundProgram == 0 || cursorProgram == 0) {
             failure = lastShaderError ?: "the shaders did not compile"
             return
         }
-        if (cursorProgram != 0) {
-            cursorProjection = GLES20.glGetUniformLocation(cursorProgram, "uProjection")
-            cursorCellSize = GLES20.glGetUniformLocation(cursorProgram, "uCellSize")
-            cursorCell = GLES20.glGetUniformLocation(cursorProgram, "uCell")
-            cursorStyle = GLES20.glGetUniformLocation(cursorProgram, "uStyle")
-            cursorColor = GLES20.glGetUniformLocation(cursorProgram, "uColor")
-            cursorCellPx = GLES20.glGetUniformLocation(cursorProgram, "uCellPx")
-        }
+        cursorProjection = GLES20.glGetUniformLocation(cursorProgram, "uProjection")
+        cursorCellSize = GLES20.glGetUniformLocation(cursorProgram, "uCellSize")
+        cursorRect = GLES20.glGetUniformLocation(cursorProgram, "uRect")
+        cursorColorUniform = GLES20.glGetUniformLocation(cursorProgram, "uColor")
 
         backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
         backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
@@ -204,6 +198,11 @@ internal class FrameRenderer {
         GLES20.glClearColor(DEFAULT_BACKGROUND_R, DEFAULT_BACKGROUND_G, DEFAULT_BACKGROUND_B, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
+        // Decided once, before either pass reads it: the block cursor inverts
+        // exactly one cell, and both the background and the glyph of that cell
+        // have to know which one.
+        invertedCell = blockCursorCell(frame)
+
         val foregroundCount = buildForegrounds(frame)
 
         if (atlas.dirty) {
@@ -225,42 +224,6 @@ internal class FrameRenderer {
      * The row is signed because the frame's overscan rows sit above the
      * viewport; the shader reinterprets the top half of the unsigned range.
      */
-    /**
-     * The cursor, if there is one.
-     *
-     * Ghostty resolves the cursor's geometry to a cell and reports a visual
-     * style; it does not paint it. The styles are 0 bar, 1 block, 2 underline
-     * and 3 hollow block — the last draws its border and nothing else.
-     *
-     * Drawn after the glyphs, so a block cursor occludes the cell the engine
-     * says it is sitting on, the way a terminal does.
-     */
-    private fun drawCursor(frame: Frame, size: SizeInfo) {
-        if (cursorProgram == 0) return
-        if (!frame.cursorVisible) return
-
-        val projection = FloatArray(4)
-        size.projection(projection)
-
-        // The engine reports the colour as bytes R,G,B,A in little-endian.
-        val argb = frame.cursorColor
-        val a = (argb ushr 24 and 0xff) / 255f
-        val b = (argb ushr 16 and 0xff) / 255f
-        val g = (argb ushr 8 and 0xff) / 255f
-        val r = (argb and 0xff) / 255f
-
-        GLES20.glUseProgram(cursorProgram)
-        GLES20.glUniform4fv(cursorProjection, 1, projection, 0)
-        GLES20.glUniform2f(cursorCellSize, cellWidth, cellHeight)
-        // Viewport-relative coordinates are the same rows text is drawn on.
-        GLES20.glUniform2i(cursorCell, frame.cursorColumn, frame.cursorRow)
-        GLES20.glUniform1i(cursorStyle, frame.cursorStyle)
-        GLES20.glUniform4f(cursorColor, r, g, b, a)
-        GLES20.glUniform2f(cursorCellPx, cellWidth, cellHeight)
-
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-    }
-
     private fun buildBackgrounds(frame: Frame, size: SizeInfo) {
         val bytes = frame.cellCount * BACKGROUND_BYTES
         if (backgrounds.capacity() < bytes) {
@@ -272,10 +235,80 @@ internal class FrameRenderer {
             val row = index / frame.columns - frame.overscanAbove
             backgrounds.putShort((index % frame.columns).toShort())
             backgrounds.putShort(row.toShort())
-            putColor(backgrounds, frame.background(index))
+            putColor(backgrounds, backgroundOf(frame, index))
         }
         backgrounds.flip()
     }
+
+    /**
+     * The bar and underline cursors.
+     *
+     * A block cursor needs no shape of its own — the cell is inverted in the
+     * two passes above. A bar and an underline are thin rectangles over a cell
+     * whose glyph stays legible, so they are drawn here with a shader that
+     * takes a rectangle in cell units, which the grid passes cannot express
+     * (their vertex shader multiplies whole cell indices).
+     */
+    private fun drawCursor(frame: Frame, size: SizeInfo) {
+        if (cursorProgram == 0) return
+        if (!frame.cursorVisible || !frame.cursorIsRectangle) return
+        if (frame.cursorColumn !in 0 until frame.columns) return
+        if (frame.cursorRow !in 0 until frame.rows) return
+
+        val isUnderline = frame.cursorStyle == FrameFormat.CURSOR_STYLE_UNDERLINE
+        // A bar hugs the left edge of the cell; an underline the bottom.
+        val x = frame.cursorColumn.toFloat() + if (isUnderline) 0f else 0f
+        val y = (frame.cursorRow + frame.overscanAbove).toFloat() +
+            if (isUnderline) 1f - UNDERLINE_HEIGHT else 0f
+        val w = if (isUnderline) 1f else BAR_WIDTH
+        val h = if (isUnderline) UNDERLINE_HEIGHT else 1f
+
+        val projection = FloatArray(4)
+        size.projection(projection)
+
+        GLES20.glUseProgram(cursorProgram)
+        GLES20.glUniform4fv(cursorProjection, 1, projection, 0)
+        GLES20.glUniform2f(cursorCellSize, cellWidth, cellHeight)
+        GLES20.glUniform4f(
+            cursorRect,
+            x,
+            y,
+            w,
+            h,
+        )
+        GLES20.glUniform4f(
+            cursorColorUniform,
+            FrameFormat.red(frame.cursorColor) / 255f,
+            FrameFormat.green(frame.cursorColor) / 255f,
+            FrameFormat.blue(frame.cursorColor) / 255f,
+            FrameFormat.alpha(frame.cursorColor) / 255f,
+        )
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
+    }
+
+    /**
+     * The cursor cell under a block cursor, as a cell index, or -1.
+     *
+     * A block cursor is drawn by inverting the cell it sits on — that is what
+     * Ghostty does, and it is why a block covers the character rather than
+     * hiding it: the glyph stays, in the cell's own background colour. A bar or
+     * an underline is a shape of its own and does not touch the cell.
+     */
+    private fun blockCursorCell(frame: Frame): Int {
+        if (!frame.cursorVisible || frame.cursorIsRectangle) return -1
+        if (frame.cursorColumn !in 0 until frame.columns) return -1
+        if (frame.cursorRow !in 0 until frame.rows) return -1
+        return (frame.cursorRow + frame.overscanAbove) * frame.columns + frame.cursorColumn
+    }
+
+    /** The cell the block cursor inverts this frame, or -1. Computed once. */
+    private var invertedCell: Int = -1
+
+    private fun backgroundOf(frame: Frame, index: Int): Int =
+        if (index == invertedCell) frame.foreground(index) else frame.background(index)
+
+    private fun foregroundOf(frame: Frame, index: Int): Int =
+        if (index == invertedCell) frame.background(index) else frame.foreground(index)
 
     private fun buildForegrounds(frame: Frame): Int {
         val bytes = frame.cellCount * RECORD_BYTES
@@ -307,7 +340,7 @@ internal class FrameRenderer {
             foregrounds.putShort(entry.top.toShort())
             foregrounds.putShort(column.toShort())
             foregrounds.putShort(row.toShort())
-            putColor(foregrounds, frame.foreground(index))
+            putColor(foregrounds, foregroundOf(frame, index))
             foregrounds.putShort(FLAG_NONE.toShort())
             foregrounds.putShort(span.toShort())
             written += 1
@@ -496,16 +529,19 @@ internal class FrameRenderer {
         return shader
     }
 
-    private fun putColor(buffer: ByteBuffer, argb: Int) {
-        // The bytes in order: R, G, B, A. The attribute is normalised
-        // GL_UNSIGNED_BYTE, so the byte order is the colour order — what
-        // used to be written was G, B, A, R, which drew every colour as
-        // whatever the terminal thought black was and stayed hidden under
-        // the white-on-black background.
-        buffer.put(argb.toByte())
-        buffer.put((argb ushr 8).toByte())
-        buffer.put((argb ushr 16).toByte())
-        buffer.put((argb ushr 24).toByte())
+    /**
+     * Write a colour as four bytes in the order the shader reads them.
+     *
+     * The vertex attribute is `GL_UNSIGNED_BYTE` normalised, so the bytes are
+     * the `vec4` components in order: red, green, blue, alpha. The frame packs
+     * a colour with red in the low byte ([native frame.rs] `rgba`), so reading
+     * it back is the same shift in reverse.
+     */
+    private fun putColor(buffer: ByteBuffer, packed: Int) {
+        buffer.put(packed.toByte())
+        buffer.put((packed ushr 8).toByte())
+        buffer.put((packed ushr 16).toByte())
+        buffer.put((packed ushr 24).toByte())
     }
 
     private companion object {
@@ -513,6 +549,12 @@ internal class FrameRenderer {
 
         /** `u16 column, i16 row, vec4 colour`. */
         const val BACKGROUND_BYTES = 8
+
+        /** A bar cursor's width, as a fraction of a cell. */
+        const val BAR_WIDTH = 0.1f
+
+        /** An underline cursor's height, as a fraction of a cell. */
+        const val UNDERLINE_HEIGHT = 0.1f
 
         /**
          * `u16×2 atlasRect, u16×2 glyphSize, i16×2 offset, u16×2 gridPos,

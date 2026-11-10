@@ -263,9 +263,9 @@ class RenderThread(
                 renderer?.onSizeChanged(layout.size)
             }
 
-            // Never draw before the font has measured the cell: the surface
-            // arrives 0×0 and the grid would be two cells of nothing —
-            // exactly the black square at the origin the user reported.
+            // Nothing is drawn before the font has measured a cell and the
+            // surface has a size: a frame from either before is a frame of the
+            // wrong shape, and one of them is the black square at the origin.
             if (dirty && egl.isReady && egl.windowSurface != null && layout.cellReady) {
                 dirty = false
                 drawFrame()

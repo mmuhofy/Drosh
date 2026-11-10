@@ -137,7 +137,13 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     let Some(scrollbar) = session.scrollbar() else {
         return std::ptr::null_mut();
     };
-    let values = [scrollbar.total as i32, scrollbar.offset as i32];
+    // total, offset, len — the whole scrollbar. The history above the live edge
+    // is total - len, and offset is where the viewport sits in that row space.
+    let values = [
+        scrollbar.total as i32,
+        scrollbar.offset as i32,
+        scrollbar.len as i32,
+    ];
     new_int_array(&mut env, &values)
 }
 

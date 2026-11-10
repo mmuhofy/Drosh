@@ -295,7 +295,9 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     }
 
     override fun setTextSize(sp: Float) {
-        // The font stack measures; this class only carries the result.
+        // The view carries the size for the pinch's origin; the cell itself is
+        // measured by the host and arrives through `setCell`.
+        view.textSizeSp = sp
     }
 
     override fun applyAppearance(config: dev.drosh.domain.settings.TerminalConfig) {
@@ -329,15 +331,15 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override fun historySize(): Int {
         val session = sessionHandle
         if (session == 0L) return 0
-        val scrollbar = NativeSession.scrollbar(session)
-        return scrollbar?.first ?: 0
+        return NativeSession.scrollbar(session)?.historyRows ?: 0
     }
 
     /** The viewport's position, in rows above the live edge. */
     override fun scrollOffset(): Int {
         val session = sessionHandle
         if (session == 0L) return 0
-        return NativeSession.scrollbar(session)?.second ?: 0
+        val bar = NativeSession.scrollbar(session) ?: return 0
+        return bar.historyRows - (bar.offset.coerceAtMost(bar.historyRows))
     }
 
     /** Scroll so [offset] rows of history sit above the viewport. */

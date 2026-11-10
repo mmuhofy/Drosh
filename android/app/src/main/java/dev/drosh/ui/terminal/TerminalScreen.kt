@@ -1743,6 +1743,8 @@ private fun TerminalPaneBody(
                     sessionId = terminalManager.sessionIdForSlot(paneSlot).orEmpty(),
                     sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
                     fontSizeSp = fontSizeSp,
+                    // The pinch reports the size it settled on; the view model
+                    // owns it, so the setting and the cell cannot drift apart.
                     onZoomCommitted = terminalViewModel::onZoomCommitted,
                     modifier = Modifier.fillMaxSize(),
                 )

@@ -60,10 +60,10 @@ fun GhosttyTerminalHost(
     /**
      * Told the size a pinch settled on, once, when the fingers lift.
      *
-     * The size lives in the view model — one owner — so the cell the host
-     * measures comes from the same number the settings store. A pinch that
-     * wrote the cell directly would be undone by the next recomposition, which
-     * is exactly the bug this callback exists to end.
+     * The size is a setting with one owner — the view model — so the cell the
+     * host measures comes back from the same number the settings store holds. A
+     * pinch that wrote the cell directly would be undone by the next
+     * recomposition, which is what made an earlier attempt last one frame.
      */
     onZoomCommitted: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -97,11 +97,14 @@ fun GhosttyTerminalHost(
         )
     }
 
-    var zoomSizeSp by remember { mutableStateOf(0f) }
     var status by remember { mutableStateOf<String?>("preparing") }
+    var zoomSizeSp by remember { mutableStateOf(0f) }
 
-    // The pinch reports its size live; the chip draws it. Same place and same shape
-    // as the other engine's host.
+    // The view's font size always reflects the setting; the pinch measures from
+    // it and reports back to it.
+    LaunchedEffect(pane, fontSizeSp) {
+        pane.view.textSizeSp = fontSizeSp
+    }
     LaunchedEffect(pane) {
         pane.view.zoomListener = { sp -> zoomSizeSp = sp }
         pane.view.zoomCommitListener = { sp -> onZoomCommitted(sp) }
@@ -229,16 +232,6 @@ fun GhosttyTerminalHost(
                 pane.setCell(cell.width, cell.height, cell.fontPx)
             },
         )
-
-        if (zoomSizeSp > 0f) {
-            Text(
-                text = "%.1f sp".format(zoomSizeSp),
-                color = DroshTextSecondary,
-                fontFamily = LocalFontSet.current.sans,
-                fontSize = 12.sp,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-            )
-        }
 
         status?.let { message ->
             Text(

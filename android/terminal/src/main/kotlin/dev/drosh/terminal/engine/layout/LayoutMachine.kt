@@ -85,9 +85,17 @@ class LayoutMachine(
      */
     private var hasCell: Boolean = false
 
-    /** True once the font has measured the cell — nothing worth drawing yet. */
+    /**
+     * True when there is something worth drawing: a measured cell and a surface
+     * with a size.
+     *
+     * The render loop checks this before drawing. Without it, a frame can be
+     * built while the surface is still 0×0 — and a 0×0 surface used to produce
+     * a two-cell grid, which is the black square that used to appear at the
+     * origin before the terminal had drawn anything.
+     */
     val cellReady: Boolean
-        get() = hasCell
+        get() = hasCell && size.width > 0 && size.height > 0
 
     /** The state, for a diagnostic surface. */
     val state: State get() = current

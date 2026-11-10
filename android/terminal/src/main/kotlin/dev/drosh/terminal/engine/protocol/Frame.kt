@@ -28,6 +28,12 @@ class Frame private constructor(
     val cursorStyle: Int,
     val cursorVisible: Boolean,
     val cursorBlinking: Boolean,
+    /**
+     * True when the cursor is a thin rectangle (bar or underline) rather than a
+     * filled cell.
+     */
+    val cursorIsRectangle: Boolean,
+    /** The cursor's colour, packed by [FrameFormat.packRgba]. */
     val cursorColor: Int,
     val dirty: Int,
     val cellCount: Int,
@@ -71,15 +77,10 @@ class Frame private constructor(
     /** The base codepoint of cell [index], or 0 when it has no text. */
     fun codepoint(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_CODEPOINT)
 
-    /**
-     * Resolved foreground, packed by [FrameFormat.packRgba].
-     *
-     * Read it back with [FrameFormat.red] and friends rather than by shifting:
-     * the byte order is the wire format's business and one place decides it.
-     */
+    /** Resolved foreground, as `0xAARRGGBB`. */
     fun foreground(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_FOREGROUND)
 
-    /** Resolved background, packed by [FrameFormat.packRgba]. */
+    /** Resolved background, as `0xAARRGGBB`. */
     fun background(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_BACKGROUND)
 
     fun attributes(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_ATTRIBUTES)
@@ -158,6 +159,7 @@ class Frame private constructor(
                 cursorStyle = buffer.getShort(FrameFormat.OFFSET_CURSOR_STYLE).toInt() and 0xffff,
                 cursorVisible = cursorFlags and FrameFormat.CURSOR_VISIBLE != 0,
                 cursorBlinking = cursorFlags and FrameFormat.CURSOR_BLINKING != 0,
+                cursorIsRectangle = cursorFlags and FrameFormat.CURSOR_IS_RECTANGLE != 0,
                 cursorColor = buffer.getInt(FrameFormat.OFFSET_CURSOR_COLOR),
                 dirty = buffer.getShort(FrameFormat.OFFSET_DIRTY).toInt() and 0xffff,
                 cellCount = cellCount,

@@ -55,8 +55,26 @@ pub const GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE: GhosttyRenderStateData =
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE;
 pub const GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING: GhosttyRenderStateData =
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING;
-pub const GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE: GhosttyRenderStateData =
-    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE;
+pub const GHOSTTY_RENDER_STATE_DATA_CURSOR: GhosttyRenderStateData =
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_CURSOR;
+pub const GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR: GhosttyRenderStateData =
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR;
+pub const GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR_HAS_VALUE: GhosttyRenderStateData =
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR_HAS_VALUE;
+pub const GHOSTTY_RENDER_STATE_DATA_COLOR_FOREGROUND: GhosttyRenderStateData =
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLOR_FOREGROUND;
+pub const GHOSTTY_RENDER_STATE_DATA_COLOR_BACKGROUND: GhosttyRenderStateData =
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_COLOR_BACKGROUND;
+
+/// The cursor's visual style, as the engine's own enum.
+pub const GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR: GhosttyRenderStateCursorVisualStyle =
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR;
+pub const GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK: GhosttyRenderStateCursorVisualStyle =
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK;
+pub const GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE: GhosttyRenderStateCursorVisualStyle =
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE;
+pub const GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK_HOLLOW: GhosttyRenderStateCursorVisualStyle =
+    GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK_HOLLOW;
 pub const GHOSTTY_RENDER_STATE_DATA_DIRTY: GhosttyRenderStateData =
     GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_DIRTY;
 
@@ -87,13 +105,6 @@ pub const GHOSTTY_RENDER_STATE_DIRTY_FULL: GhosttyRenderStateDirty =
     GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_FULL;
 
 // --- the terminal -----------------------------------------------------------
-
-pub const GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND: GhosttyTerminalData =
-    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND;
-pub const GHOSTTY_TERMINAL_DATA_COLOR_BACKGROUND: GhosttyTerminalData =
-    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLOR_BACKGROUND;
-pub const GHOSTTY_TERMINAL_DATA_COLOR_CURSOR: GhosttyTerminalData =
-    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLOR_CURSOR;
 
 pub const GHOSTTY_TERMINAL_DATA_COLS: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_COLS;

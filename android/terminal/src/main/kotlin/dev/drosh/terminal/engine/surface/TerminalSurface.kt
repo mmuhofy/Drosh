@@ -1,9 +1,14 @@
 package dev.drosh.terminal.engine.surface
 
 import android.content.Context
+import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import dev.drosh.domain.terminal.TerminalZoom
+import dev.drosh.terminal.engine.input.PinchMachine
+import dev.drosh.terminal.engine.input.ScrollMachine
 import dev.drosh.terminal.engine.native.NativeInput
 import dev.drosh.terminal.engine.native.NativePty
 import dev.drosh.terminal.engine.native.NativeSelection
@@ -56,10 +61,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     @Volatile
     private var cellHeight = 1f
-
-    /** The font's own size, in pixels — what the glyphs are rasterised at. */
-    @Volatile
-    private var fontPx = 0f
 
     /** The reader thread, while a child is attached. */
     private var reader: Thread? = null
@@ -198,205 +199,17 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         sessionHandle = 0
     }
 
-    /**
-     * Tell the loop the font's cell changed.
-     *
-     * `fontPx` is the size glyphs are rasterised at. When the caller does not
-     * know it — a cell that only moved — the last known one is reused rather
-     * than zeroed, which would rasterise every glyph at nothing.
-     */
+    /** Tell the loop the font's cell changed. */
     fun setCell(width: Float, height: Float, fontPx: Float = 0f) {
         cellWidth = width
         cellHeight = height
-        if (fontPx > 0f) {
-            this.fontPx = fontPx
-        }
-        renderThread.post(RenderThread.Command.Cell(width, height, this.fontPx))
+        renderThread.post(RenderThread.Command.Cell(width, height, fontPx))
     }
 
-    /** A live pinch. The grid does not move; the glyphs do. */
-    fun pinch(scale: Float, focusX: Float, focusY: Float) {
-        renderThread.post(RenderThread.Command.Pinch(scale, focusX, focusY))
-    }
-
-    /** The sub-line scroll remainder, in pixels. */
-    fun scrollOffset(pixels: Float) {
+    /** The sub-line scroll remainder, in pixels — drawing only. */
+    private fun postScrollOffset(pixels: Float) {
         renderThread.post(RenderThread.Command.ScrollOffset(pixels))
     }
-
-    /**
-     * Pixel-by-pixel scroll, the model the old engine settled on: the
-     * sub-line remainder lives in this one place instead of two — the row
-     * the engine holds is the row whose fractional part is visible.
-     * Whole rows go to the engine; the remainder shifts the picture.
-     *
-     * ## The ends
-     *
-     * The engine clamps the viewport at the ends of the history. If the
-     * remainder kept accumulating there, the picture would drift away from a
-     * grid that has stopped moving — which reads as the content sliding under
-     * the finger and never coming back. So the remainder is cleared when the
-     * engine refused the whole of the movement it was asked for.
-     */
-    private fun scrollPixels(dy: Float) {
-        val handle = sessionHandle
-        val spacing = cellHeight.coerceAtLeast(1f)
-
-        accumulatorPx += dy
-        val whole = (accumulatorPx / spacing).toInt()
-
-        if (whole != 0) {
-            val moved = if (handle != 0L) {
-                // Finger down → content down → the viewport moves back through
-                // the history, which the engine takes as a negative row delta.
-                // `0` means the viewport really moved; `1` means it was clamped
-                // at an end of the history.
-                NativeSession.scroll(handle, NativeSession.SCROLL_DELTA, -whole) == 0
-            } else {
-                false
-            }
-            if (moved) {
-                accumulatorPx -= whole * spacing
-            } else {
-                // The viewport did not move: it is at an end of the history.
-                // Nothing may be left over, or the picture keeps drifting.
-                accumulatorPx = 0f
-                scrollOffset(0f)
-                return
-            }
-        }
-
-        // A full-screen program owns the scroll; the fraction is not its
-        // business and the engine would not understand it.
-        if (handle != 0L && NativeSession.alternateScreen(handle)) {
-            return
-        }
-
-        scrollOffset(accumulatorPx)
-    }
-
-    /** Scroll by rows; negative is up. */
-    fun scroll(rows: Int) {
-        val session = sessionHandle
-        if (session == 0L) return
-        NativeSession.scroll(session, NativeSession.SCROLL_DELTA, rows)
-        renderThread.invalidate()
-    }
-
-    /** The text the IME is composing, as it was last sent — the diff basis. */
-    private var composing = ""
-
-    /** Where the sub-line scroll remainder lives — whole rows go to the engine. */
-    private var accumulatorPx = 0f
-
-    // The pinch, ported from the vendored engine: a dead zone in log-scale
-    // before any size changes, a clamped step per event, one reflow when the
-    // fingers lift — never during the gesture.
-    private var zoomBaseSp = 0f
-    private var zoomScaleFactor = 1f
-    private var zoomPassedDeadZone = false
-
-    /** The size the pinch has reached, live. 0 when no pinch is in progress. */
-    @Volatile
-    var zoomSizeSp = 0f
-        private set
-
-    /** Told the live size while a pinch moves, and 0 when it ends. */
-    var zoomListener: (sp: Float) -> Unit = {}
-
-    /**
-     * Told the size the pinch settled on, once, when the fingers lift.
-     *
-     * The surface does not apply it. The size is the app's — one setting, one
-     * owner — and the cell it implies comes back through [setCell] on the next
-     * recomposition. Applying it here as well was the bug that made a pinch
-     * last exactly one frame: the host's remembered cell overwrote it.
-     */
-    var zoomCommitListener: (sp: Float) -> Unit = {}
-
-    private val recognizer = dev.drosh.terminal.engine.view.GestureAndScaleRecognizer(
-        context,
-        object : dev.drosh.terminal.engine.view.GestureAndScaleRecognizer.Listener {
-            override fun onSingleTapUp(event: MotionEvent): Boolean {
-                if (!hasFocus()) {
-                    requestFocus()
-                    requestKeyboard()
-                }
-                return true
-            }
-
-            override fun onDoubleTap(event: MotionEvent): Boolean = false
-            override fun onLongPress(event: MotionEvent) {}
-
-            override fun onScroll(event: MotionEvent, dx: Float, dy: Float): Boolean {
-                // finger down → content down → the history; the engine takes
-                // negative rows as backwards through the scrollback.
-                scrollPixels(-dy)
-                return true
-            }
-
-            override fun onFling(
-                event: MotionEvent,
-                velocityX: Float,
-                velocityY: Float,
-            ): Boolean = false
-
-            override fun onScaleBegin() {
-                val density = resources.displayMetrics.scaledDensity.coerceAtLeast(1f)
-                zoomBaseSp = fontPx / density
-                if (zoomBaseSp <= 0f) zoomBaseSp = 14f
-                zoomScaleFactor = 1f
-                zoomPassedDeadZone = false
-            }
-
-            override fun onScale(focusX: Float, focusY: Float, scale: Float): Boolean {
-                val step = scale.coerceIn(
-                    1f / dev.drosh.domain.terminal.TerminalZoom.MAX_STEP_FACTOR,
-                    dev.drosh.domain.terminal.TerminalZoom.MAX_STEP_FACTOR,
-                )
-                zoomScaleFactor *= step
-
-                if (!zoomPassedDeadZone) {
-                    if (Math.abs(Math.log(zoomScaleFactor.toDouble())) < dev.drosh.domain.terminal.TerminalZoom.DEAD_ZONE) {
-                        return true
-                    }
-                    zoomPassedDeadZone = true
-                }
-
-                val target = (zoomBaseSp * zoomScaleFactor)
-                    .coerceIn(
-                        dev.drosh.domain.terminal.TerminalZoom.MIN_SP,
-                        dev.drosh.domain.terminal.TerminalZoom.MAX_SP,
-                    )
-                val pinch = target / zoomBaseSp
-                renderThread.post(RenderThread.Command.Pinch(pinch, focusX, focusY))
-                zoomSizeSp = target
-                zoomListener(target)
-                return true
-            }
-
-            override fun onScaleEnd() {
-                if (zoomPassedDeadZone) {
-                    val target = (zoomBaseSp * zoomScaleFactor)
-                        .coerceIn(
-                            dev.drosh.domain.terminal.TerminalZoom.MIN_SP,
-                            dev.drosh.domain.terminal.TerminalZoom.MAX_SP,
-                        )
-                    // Hand the size to the app and let it come back as a cell.
-                    // The surface does not measure: the host's font stack does,
-                    // and it measures the size the setting now holds.
-                    zoomCommitListener(target)
-                } else {
-                    // Back at the origin: the picture eases back too.
-                    renderThread.post(RenderThread.Command.Pinch(1f, 0f, 0f))
-                }
-                zoomScaleFactor = 1f
-                zoomPassedDeadZone = false
-                zoomSizeSp = 0f
-                zoomListener(0f)
-            }
-        },
-    )
 
     // --- keyboard ----------------------------------------------------------
     //
@@ -410,20 +223,200 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         isFocusableInTouchMode = true
     }
 
+    // --- gestures ------------------------------------------------------------
+
+    /** The pinch's arithmetic: dead zone, step clamp, measured from the origin. */
+    private val pinchMachine = PinchMachine(
+        minSp = TerminalZoom.MIN_SP,
+        maxSp = TerminalZoom.MAX_SP,
+        deadZone = TerminalZoom.DEAD_ZONE,
+        maxStepFactor = TerminalZoom.MAX_STEP_FACTOR,
+    )
+
+    /** The scroll's arithmetic: whole rows plus the sub-line remainder. */
+    private val scrollMachine = ScrollMachine()
+
+    /** The size a pinch has reached, live, for the chip. Zero when none runs. */
+    @Volatile
+    var zoomSizeSp: Float = 0f
+        private set
+
+    /** Told the live size while a pinch moves, and 0 when it ends. */
+    var zoomListener: (sp: Float) -> Unit = {}
+
     /**
-     * A tap takes the keyboard.
+     * Told the size a pinch settled on, once, when the fingers lift.
      *
-     * A terminal is read far more than it is typed into, but a tap on it is how
-     * the user says "I am working here", and that is the moment the keyboard
-     * belongs on screen. Not consumed: the terminal's own touch handling —
-     * scroll, selection — still sees it.
+     * The surface does not apply it: the size is a setting with one owner, and
+     * the cell it implies comes back through [setCell] on the next layout.
      */
-    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
-        if (event.actionMasked == android.view.MotionEvent.ACTION_UP && !hasFocus()) {
-            requestFocus()
-            requestKeyboard()
+    var zoomCommitListener: (sp: Float) -> Unit = {}
+
+    /**
+     * The font's size in sp, as the host configured it — the pinch's origin.
+     *
+     * A pinch measures from this rather than from the last frame's rounded
+     * value, so shrinking the fingers back to where they started returns to
+     * exactly the size the gesture began at.
+     */
+    @Volatile
+    var textSizeSp: Float = TerminalZoom.DEFAULT_SP
+
+    private val scaleDetector = ScaleGestureDetector(
+        context,
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                pinchMachine.begin(textSizeSp)
+                return true
+            }
+
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val frame = pinchMachine.next(detector.scaleFactor) ?: return true
+                // The picture follows the fingers; the grid does not move.
+                renderThread.post(
+                    RenderThread.Command.Pinch(
+                        frame.renderScale,
+                        detector.focusX,
+                        detector.focusY,
+                    ),
+                )
+                zoomSizeSp = frame.targetSp
+                zoomListener(frame.targetSp)
+                return true
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                val settled = pinchMachine.end()
+                if (settled != null) {
+                    zoomCommitListener(pinchMachine.quantise(settled, TerminalZoom.STEP_SP))
+                } else {
+                    // Never left the dead zone: the picture eases back.
+                    renderThread.post(RenderThread.Command.Pinch(1f, 0f, 0f))
+                }
+                zoomSizeSp = 0f
+                zoomListener(0f)
+            }
+        },
+    )
+
+    private val gestureDetector = GestureDetector(
+        context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(event: MotionEvent): Boolean = true
+
+            override fun onSingleTapUp(event: MotionEvent): Boolean {
+                if (!hasFocus()) {
+                    requestFocus()
+                    requestKeyboard()
+                }
+                return true
+            }
+
+            override fun onScroll(
+                first: MotionEvent?,
+                current: MotionEvent,
+                distanceX: Float,
+                distanceY: Float,
+            ): Boolean {
+                // GestureDetector reports `lastY - currentY`: dragging the
+                // finger down gives a negative value, and down is the direction
+                // that reveals older output. Flipping it once, here, keeps the
+                // machine's own sign honest.
+                dragByPixels(-distanceY)
+                return true
+            }
+
+            override fun onFling(
+                first: MotionEvent?,
+                current: MotionEvent,
+                velocityX: Float,
+                velocityY: Float,
+            ): Boolean {
+                startFling(velocityY)
+                return true
+            }
+        },
+    )
+
+    private var fling: android.widget.Scroller? = null
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        // The scale detector sees every event; the gesture detector is told only
+        // what the pinch did not claim, so two fingers are never a scroll.
+        scaleDetector.onTouchEvent(event)
+        if (!scaleDetector.isInProgress) {
+            gestureDetector.onTouchEvent(event)
         }
-        return super.onTouchEvent(event)
+        return true
+    }
+
+    /** Move the viewport by a finger's travel, in pixels. */
+    private fun dragByPixels(distancePx: Float) {
+        val session = sessionHandle
+        val spacing = cellHeight.coerceAtLeast(1f)
+
+        // A full-screen program and a mouse-tracking program own their scroll:
+        // they get whole rows, and there is no sub-line position to keep.
+        // `modes` bit 0 is mouse tracking, and the engine's own doc says the
+        // alternate screen owns its scroll. A program in either case wants whole
+        // wheel rows, not a sub-line offset it did not ask for.
+        val bits = if (session != 0L) NativeSession.modes(session) else 0
+        val mouseTracking = bits and MODE_MOUSE_TRACKING != 0
+        if (session != 0L && (NativeSession.alternateScreen(session) || mouseTracking)) {
+            val rows = (distancePx / spacing).toInt()
+            if (rows != 0) {
+                NativeSession.scroll(session, NativeSession.SCROLL_DELTA, -rows)
+                renderThread.invalidate()
+            }
+            return
+        }
+
+        if (session == 0L) return
+
+        // The engine's history is both the limit the machine clamps against and
+        // the row space its own scroll works in: row 0 is the top of the
+        // scrollback, and the live edge is `historyRows`.
+        val scrollbar = NativeSession.scrollbar(session) ?: return
+        scrollMachine.setHistory(scrollbar.historyRows)
+
+        if (scrollMachine.drag(distancePx, spacing)) {
+            // Whole rows go to the engine as an absolute row; the remainder
+            // shifts the projection between rows.
+            NativeSession.scroll(
+                session,
+                NativeSession.SCROLL_ROW,
+                scrollbar.historyRows + scrollMachine.topRow,
+            )
+            postScrollOffset(scrollMachine.offsetPx)
+            renderThread.invalidate()
+        }
+    }
+
+    /** Momentum after a flick, through the same pixel path as a drag. */
+    private fun startFling(velocityY: Float) {
+        val scroller = fling ?: android.widget.Scroller(context).also { fling = it }
+        if (!scroller.isFinished) return
+        // The detector's velocities are tuned for lists; a terminal that moved
+        // at that speed scrolled a screenful per flick. The vendored view used
+        // a quarter of it, and so does this.
+        scroller.fling(
+            0, 0,
+            0, -(velocityY * FLING_SCALE).toInt(),
+            0, 0,
+            Int.MIN_VALUE, Int.MAX_VALUE,
+        )
+        var lastY = 0
+        val step = object : Runnable {
+            override fun run() {
+                if (scroller.isFinished) return
+                scroller.computeScrollOffset()
+                val y = scroller.currY
+                dragByPixels((y - lastY).toFloat())
+                lastY = y
+                postOnAnimation(this)
+            }
+        }
+        postOnAnimation(step)
     }
 
     /** Ask the IME to show, for a view that already has the focus. */
@@ -445,65 +438,29 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         return object : android.view.inputmethod.BaseInputConnection(this@TerminalSurface, false) {
 
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                val raw = text?.toString().orEmpty()
-                // The composing text this commit carries already went to the shell
-                // as it was typed; sending it again would double every character.
-                if (composing.isNotEmpty() && raw.startsWith(composing)) {
-                    val rest = raw.removePrefix(composing).replace('\n', '\r')
-                    if (rest.isNotEmpty()) {
-                        send(rest.toByteArray(Charsets.UTF_8))
-                    }
-                } else {
-                    // No prefix in common with what the shell holds — either the
-                    // IME discarded the composition, or it never committed one:
-                    // send everything, newline as CR like a terminal expects.
-                    send(raw.replace('\n', '\r').toByteArray(Charsets.UTF_8))
+                if (!text.isNullOrEmpty()) {
+                    // AOSP keyboards send Enter as text, not as a key event. A
+                    // terminal wants CR: the tty's ICRNL turns it into a
+                    // newline for the shell.
+                    send(text.toString().replace('\n', '\r').toByteArray(Charsets.UTF_8))
                 }
-                composing = ""
                 return true
             }
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-                val next = text?.toString().orEmpty()
-                val common = composing.commonPrefixWith(next).length
-                // Backward deletion first — the shell cannot take a character back,
-                // so the tail that the IME erased is erased there too.
-                val removed = composing.substring(common)
-                repeat(removed.length) { send(byteArrayOf(DEL)) }
-                val added = next.substring(common)
-                if (added.isNotEmpty()) {
-                    send(added.toByteArray(Charsets.UTF_8))
-                }
-                composing = next
-                return true
-            }
-
-            override fun finishComposingText(): Boolean {
-                // Every byte for the composition has already been sent; this is
-                // only the IME telling us the underline is gone.
-                composing = ""
+                // Held, not sent: the keyboard may still replace it, and a shell
+                // cannot take a character back.
                 return true
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 repeat(beforeLength) { send(byteArrayOf(DEL)) }
-                // The composing buffer loses the same tail the shell lost.
-                composing = composing.dropLast(beforeLength)
                 return true
             }
 
             override fun sendKeyEvent(event: android.view.KeyEvent): Boolean {
                 if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-                    // The IME routes the key here; the view's own onKeyDown is
-                    // the other path, and both firing would type everything
-                    // twice. A key event that came from the IME is marked, and
-                    // onKeyDown skips it.
-                    imeKeyInFlight = true
-                    try {
-                        sendKey(event)
-                    } finally {
-                        imeKeyInFlight = false
-                    }
+                    sendKey(event)
                     return true
                 }
                 return true
@@ -511,19 +468,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         }
     }
 
-    /**
-     * True while a key is being delivered through the input connection.
-     *
-     * A key event reaches this view twice when the IME sends it: once through
-     * `InputConnection.sendKeyEvent` and once through the view's own dispatch.
-     * Only one of them may encode it.
-     */
-    private var imeKeyInFlight = false
-
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
-        if (imeKeyInFlight) {
-            return true
-        }
         sendKey(event)
         return true
     }
@@ -734,6 +679,12 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private companion object {
         /** DEL (0x7f), what a terminal expects for backspace. */
         const val DEL: Byte = 0x7f
+
+        /** Bit 0 of the engine's mode bits is mouse tracking. */
+        const val MODE_MOUSE_TRACKING = 1
+
+        /** How much of the detector's fling velocity a terminal uses. */
+        const val FLING_SCALE = 0.25f
 
         /** How long the reader waits when the child has nothing to say. */
         const val IDLE_SLEEP_MS = 8L

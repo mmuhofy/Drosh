@@ -78,11 +78,23 @@ object NativeSession {
      * The engine reports both as one struct; splitting it here keeps the caller
      * from needing to know that.
      */
-    fun scrollbar(handle: Long): Pair<Int, Int>? {
+    data class Scrollbar(
+        /** Total scrollable rows: the history plus the viewport. */
+        val total: Int,
+        /** Where the viewport sits, in that row space. */
+        val offset: Int,
+        /** How many rows the viewport shows. */
+        val len: Int,
+    ) {
+        /** The rows of history above the live edge. */
+        val historyRows: Int get() = maxOf(total - len, 0)
+    }
+
+    fun scrollbar(handle: Long): Scrollbar? {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
         val values = nativeScrollbar(handle)
-        if (values.size < 2) return null
-        return values[0] to values[1]
+        if (values.size < 3) return null
+        return Scrollbar(total = values[0], offset = values[1], len = values[2])
     }
 
     /** True when the alternate screen is on: a program, not a shell. */
@@ -110,14 +122,7 @@ object NativeSession {
         return out
     }
 
-    /**
-     * Scrolls the viewport. `tag` is one of the `SCROLL_*` constants.
-     *
-     * Returns 0 when the viewport moved, 1 when it was already at an end of the
-     * history and the engine clamped, and a negative code when there is no
-     * session. The distinction is what lets a drag stop accumulating pixels
-     * against a grid that has stopped moving.
-     */
+    /** Scrolls the viewport. `tag` is one of the `SCROLL_*` constants. */
     fun scroll(handle: Long, tag: Int, amount: Int): Int {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
         return nativeScroll(handle, tag, amount)

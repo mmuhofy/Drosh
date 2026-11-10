@@ -32,6 +32,7 @@ class FrameBuilder(
     private var cursorStyle = 0
     private var cursorVisible = true
     private var cursorBlinking = false
+    private var cursorIsRectangle = false
     private var cursorColor = FrameFormat.packRgba(255, 255, 255)
     private var dirty = FrameFormat.DIRTY_FULL
 
@@ -50,9 +51,11 @@ class FrameBuilder(
 
     fun cursorBlinking(value: Boolean): FrameBuilder = apply { cursorBlinking = value }
 
-    fun cursorStyle(value: Int): FrameBuilder = apply { cursorStyle = value }
+    fun cursorIsRectangle(value: Boolean): FrameBuilder = apply { cursorIsRectangle = value }
 
     fun cursorColor(value: Int): FrameBuilder = apply { cursorColor = value }
+
+    fun cursorStyle(value: Int): FrameBuilder = apply { cursorStyle = value }
 
     fun dirty(value: Int): FrameBuilder = apply { dirty = value }
 
@@ -60,8 +63,6 @@ class FrameBuilder(
     fun cell(
         index: Int,
         codepoint: Int,
-        // Colours are packed by [FrameFormat.packRgba] — white on black here,
-        // which is what the engine's own defaults are.
         foreground: Int = FrameFormat.packRgba(255, 255, 255),
         background: Int = FrameFormat.packRgba(0, 0, 0),
         attributes: Int = 0,
@@ -109,7 +110,8 @@ class FrameBuilder(
         out.putShort(
             FrameFormat.OFFSET_CURSOR_FLAGS,
             ((if (cursorVisible) FrameFormat.CURSOR_VISIBLE else 0) or
-                (if (cursorBlinking) FrameFormat.CURSOR_BLINKING else 0)).toShort(),
+                (if (cursorBlinking) FrameFormat.CURSOR_BLINKING else 0) or
+                (if (cursorIsRectangle) FrameFormat.CURSOR_IS_RECTANGLE else 0)).toShort(),
         )
         out.putShort(FrameFormat.OFFSET_DIRTY, dirty.toShort())
         out.putInt(FrameFormat.OFFSET_CELL_COUNT, cellCount)

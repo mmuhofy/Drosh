@@ -48,13 +48,21 @@ data class SizeInfo(
     val scrollOffsetPx: Float = 0f,
 ) {
 
-    /** Columns that fit: a whole number of cells, rounded down. */
+    /**
+     * Columns that fit: a whole number of cells, rounded down.
+     *
+     * Zero when there is no surface to fit them in. A surface reports 0×0
+     * before it is laid out, and answering "two columns" for it — the old
+     * minimum — drew a two-cell grid in the corner of an otherwise empty
+     * window: the black square at the origin. A grid of no cells draws nothing,
+     * which is the truth about a window that has no size yet.
+     */
     val columns: Int
-        get() = if (cellWidth <= 0f) MIN_COLUMNS else maxOf((width / cellWidth).toInt(), MIN_COLUMNS)
+        get() = if (width <= 0 || cellWidth <= 0f) 0 else maxOf((width / cellWidth).toInt(), 1)
 
-    /** Rows that fit. */
+    /** Rows that fit. Zero before the surface exists, for [columns]' reason. */
     val rows: Int
-        get() = if (cellHeight <= 0f) MIN_ROWS else maxOf((height / cellHeight).toInt(), MIN_ROWS)
+        get() = if (height <= 0 || cellHeight <= 0f) 0 else maxOf((height / cellHeight).toInt(), 1)
 
     /**
      * How far apart cells are placed, in pixels.
@@ -106,16 +114,5 @@ data class SizeInfo(
     /** True when the grid this describes is the same shape as [other]'s. */
     fun sameGridAs(other: SizeInfo): Boolean = columns == other.columns && rows == other.rows
 
-    private companion object {
-        /**
-         * The smallest grid worth drawing.
-         *
-         * A surface can be zero-sized for a frame while a pane is being laid
-         * out, and a grid of zero columns is a division by zero waiting in the
-         * renderer. Two columns and one row is the smallest thing that is still
-         * a terminal.
-         */
-        const val MIN_COLUMNS = 2
-        const val MIN_ROWS = 1
-    }
+
 }

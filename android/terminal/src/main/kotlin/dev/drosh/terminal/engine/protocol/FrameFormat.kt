@@ -29,12 +29,12 @@ package dev.drosh.terminal.engine.protocol
  *  22  u16  cursorX
  *  24  u16  cursorY        relative to the viewport
  *  26  u16  cursorStyle
- *  28  u16  cursorFlags    bit0 visible, bit1 blinking
+ *  28  u16  cursorFlags    bit0 visible, bit1 blinking, bit2 thin rectangle
  *  30  u16  dirty          bit0 full, bit1 partial, bit2 none
  *  32  u32  cellCount
  *  36  u32  cellStride
  *  40  u32  cellsBytes
- *  44  u32  cursorColor  bytes R,G,B,A little-endian
+ *  44  u32  cursorColor    R,G,B,A little-endian
  * ```
  *
  * Cells follow, `cellCount` records of `cellStride` bytes:
@@ -98,14 +98,13 @@ object FrameFormat {
     /**
      * The one colour contract on the wire.
      *
-     * A cell's colour is four bytes in memory — R, G, B, A — which is what GL
-     * reads when the attribute is `GL_UNSIGNED_BYTE` normalised, and what the
-     * fragment shader's `vec4` expects in that order. As a little-endian `Int`
-     * that is `0xAABBGGRR`, not `0xAARRGGBB`: the alpha is the high byte and
-     * red is the low one.
+     * A colour is four bytes — R, G, B, A — which is what a normalised
+     * `GL_UNSIGNED_BYTE` vertex attribute hands the fragment shader as a
+     * `vec4`. Packed into a little-endian `Int` that is red in the low byte and
+     * alpha in the high one.
      *
-     * Both sides go through these helpers, so "what colour is this" has one
-     * answer instead of one per file.
+     * Both sides build and read colours through these helpers, so "which byte
+     * is red" has one answer.
      */
     fun packRgba(r: Int, g: Int, b: Int, a: Int = 255): Int =
         (r and 0xff) or
@@ -147,4 +146,19 @@ object FrameFormat {
 
     const val CURSOR_VISIBLE = 1 shl 0
     const val CURSOR_BLINKING = 1 shl 1
+
+    /**
+     * The cursor is a thin rectangle — a bar or an underline — rather than a
+     * filled cell.
+     *
+     * A block cursor over a glyph is drawn by inverting that cell; a bar and an
+     * underline are shapes of their own and the glyph under them stays legible.
+     */
+    const val CURSOR_IS_RECTANGLE = 1 shl 2
+
+    /** Cursor visual styles, matching the engine's own enum. */
+    const val CURSOR_STYLE_BAR = 0
+    const val CURSOR_STYLE_BLOCK = 1
+    const val CURSOR_STYLE_UNDERLINE = 2
+    const val CURSOR_STYLE_BLOCK_HOLLOW = 3
 }

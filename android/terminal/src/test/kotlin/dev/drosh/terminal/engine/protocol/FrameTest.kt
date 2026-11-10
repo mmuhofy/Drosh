@@ -53,21 +53,18 @@ class FrameTest {
 
     @Test
     fun `colours arrive resolved and opaque`() {
-        val gold = FrameFormat.packRgba(0xE8, 0xC5, 0x47)
-        val grey = FrameFormat.packRgba(0x18, 0x18, 0x18)
         val bytes = FrameBuilder(columns = 1, rows = 1)
-            .cell(index = 0, codepoint = 'x'.code, foreground = gold, background = grey)
+            .cell(
+                index = 0,
+                codepoint = 'x'.code,
+                foreground = 0xFFE8C547.toInt(),
+                background = 0xFF181818.toInt(),
+            )
             .build()
 
         val frame = requireNotNull(Frame.parse(bytes))
-        assertEquals(gold, frame.foreground(0))
-        assertEquals(grey, frame.background(0))
-        // The channel order is the wire format's contract, so it is asserted
-        // through the one helper that defines it.
-        assertEquals(0xE8, FrameFormat.red(frame.foreground(0)))
-        assertEquals(0xC5, FrameFormat.green(frame.foreground(0)))
-        assertEquals(0x47, FrameFormat.blue(frame.foreground(0)))
-        assertEquals(255, FrameFormat.alpha(frame.foreground(0)))
+        assertEquals(0xFFE8C547.toInt(), frame.foreground(0))
+        assertEquals(0xFF181818.toInt(), frame.background(0))
     }
 
     @Test

@@ -139,24 +139,34 @@ class LayoutMachineTest {
         machine.onSurface(1080, 2400, now = 0)
         // The one-pixel default would be a thousand columns; nothing is laid out
         // until a real cell exists.
-        assertEquals(2, machine.appliedColumns)
-        assertEquals(1, machine.appliedRows)
+        assertEquals(0, machine.appliedColumns)
+        assertEquals(0, machine.appliedRows)
+        assertFalse(machine.cellReady)
 
         machine.onCell(10f, 20f, now = 0)
         assertEquals(108, machine.appliedColumns)
         assertEquals(120, machine.appliedRows)
+        assertTrue(machine.cellReady)
     }
 
+    /**
+     * A zero-sized surface has no grid, and saying so is the fix for the black
+     * square at the origin.
+     *
+     * The old rule floored the shape at two columns and one row, so a surface
+     * that had not been laid out yet produced a two-cell grid — one dark
+     * rectangle in the corner of an otherwise empty window. A window with no
+     * size has no cells, and the renderer now draws nothing until it does.
+     */
     @Test
-    fun `a zero-sized surface still yields a drawable grid`() {
+    fun `a zero-sized surface has no grid and is not ready to draw`() {
         val machine = machine()
         machine.onSurface(0, 0, now = 0)
         machine.onCell(10f, 20f, now = 0)
 
-        assertEquals(2, machine.appliedColumns)
-        assertEquals(1, machine.appliedRows)
-        assertTrue(machine.size.stepX > 0f)
-        assertTrue(machine.size.stepY > 0f)
+        assertEquals(0, machine.appliedColumns)
+        assertEquals(0, machine.appliedRows)
+        assertFalse(machine.cellReady)
     }
 
     @Test
