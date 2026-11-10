@@ -62,5 +62,26 @@ object NativeSmoke {
         }
     }
 
+    /**
+     * What the engine says about the cursor and about colours.
+     *
+     * The engine resolves colours and reports the cursor; the renderer only
+     * draws what it is told. When the cursor is missing or a coloured cell
+     * comes out white, the question is *which side* is wrong, and only the
+     * engine can answer it — so it is asked, on the device, with the bytes the
+     * APK carries.
+     *
+     * The report is written to the log by the host; it names the cursor's own
+     * numbers and, for a plain cell, a coloured one and an inverse one, what
+     * came back.
+     */
+    fun probe(): String {
+        if (!NativeLibraries.ensureLoaded()) {
+            return "FAIL: the native libraries did not load"
+        }
+        return nativeProbe()
+    }
+
     private external fun nativeSelfTest(): String
+    private external fun nativeProbe(): String
 }

@@ -180,8 +180,12 @@ fun GhosttyTerminalHost(
     }
 
     // The engine's own report, for a build that has to be diagnosed on a phone.
+    //
+    // It goes to the log as well as the screen: `adb logcat -s GhosttyTerminalHost`
+    // is one command, and the screen is a picture of it.
     LaunchedEffect(pane) {
-        Log.i(TAG, dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.report())
+        val report = dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.report()
+        Log.i(TAG, report)
     }
 
     // The focus follows the pane the user is in — without this, the manager

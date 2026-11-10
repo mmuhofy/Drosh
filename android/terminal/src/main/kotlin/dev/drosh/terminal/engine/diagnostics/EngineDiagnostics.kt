@@ -42,6 +42,9 @@ object EngineDiagnostics {
         appendLine()
         appendLine("--- layout ---")
         appendLine(layoutReport())
+        appendLine()
+        appendLine("--- probe ---")
+        appendLine(NativeSmoke.probe())
     }
 
     private fun libraryReport(): String {
