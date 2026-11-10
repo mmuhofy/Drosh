@@ -287,11 +287,13 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
             override fun onScaleEnd(detector: ScaleGestureDetector) {
                 val settled = pinchMachine.end()
+                // The live picture is always returned to scale 1 here. The new
+                // size arrives as a cell through `setCell`, which is the real
+                // zoom; leaving the projection scaled would keep the whole grid
+                // magnified on top of it, and it would never come back.
+                renderThread.post(RenderThread.Command.Pinch(1f, 0f, 0f))
                 if (settled != null) {
                     zoomCommitListener(pinchMachine.quantise(settled, TerminalZoom.STEP_SP))
-                } else {
-                    // Never left the dead zone: the picture eases back.
-                    renderThread.post(RenderThread.Command.Pinch(1f, 0f, 0f))
                 }
                 zoomSizeSp = 0f
                 zoomListener(0f)

@@ -124,15 +124,15 @@ internal object Shaders {
             float targetWidth = uCellSize.x * float(max(aSpan, 1u));
             float squeeze = (natural.x > 0.0) ? min(1.0, targetWidth / natural.x) : 1.0;
 
-            // A pinch grows the glyph about its own centre. Growing from the
-            // top-left corner would push every letter down and right as it got
-            // bigger, which reads as the spacing changing rather than the type.
-            vec2 naturalSize = vec2(natural.x * squeeze, natural.y);
-            vec2 size = naturalSize * uScale;
-            vec2 grow = (size - naturalSize) * 0.5;
+            // A pinch scales the whole picture in the projection, not the glyph
+            // inside its cell: growing the glyph alone changes the space around
+            // each letter, which is the font's tracking changing rather than the
+            // terminal zooming. `uScale` is kept at 1 and exists only so the
+            // uniform list does not change shape.
+            vec2 size = vec2(natural.x * squeeze, natural.y);
 
             gl_Position = vec4(
-                uProjection.xy + uProjection.zw * (cell + offset - grow + corner * size),
+                uProjection.xy + uProjection.zw * (cell + offset + corner * size),
                 0.0,
                 1.0
             );

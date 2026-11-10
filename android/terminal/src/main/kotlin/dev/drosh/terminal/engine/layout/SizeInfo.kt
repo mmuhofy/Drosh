@@ -92,10 +92,27 @@ data class SizeInfo(
         val w = width.coerceAtLeast(1).toFloat()
         val h = height.coerceAtLeast(1).toFloat()
 
-        out[0] = -1f
-        out[1] = 1f - 2f * scrollOffsetPx / h
-        out[2] = 2f / w
-        out[3] = -2f / h
+        // A live pinch scales the whole picture about the point between the
+        // fingers — cells, glyphs, cursor, everything — because that is what a
+        // zoom is. Scaling the glyph inside a fixed cell only changes the space
+        // around each letter, which reads as the font's tracking changing
+        // rather than the terminal zooming.
+        //
+        // The transform is `pixel -> focus + (pixel - focus) * scale`, folded
+        // into the clip-space map `clip = xy + zw * pixel`:
+        //
+        //   xy' = xy + zw * focus * (1 - scale)
+        //   zw' = zw * scale
+        //
+        // At scale 1 the first term is zero and this is the plain pixel map.
+        val s = if (pinchScale.isFinite() && pinchScale > 0f) pinchScale else 1f
+        val zoomX = 2f / w * s
+        val zoomY = -2f / h * s
+
+        out[0] = -1f + (2f / w) * pinchFocusX * (1f - s)
+        out[1] = 1f - 2f * scrollOffsetPx / h + (-2f / h) * pinchFocusY * (1f - s)
+        out[2] = zoomX
+        out[3] = zoomY
     }
 
     /** The same size at another font cell, with the pinch cleared. */
