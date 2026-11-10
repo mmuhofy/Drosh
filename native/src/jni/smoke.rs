@@ -16,11 +16,13 @@ use crate::ghostty;
 
 macro_rules! render_get {
     ($state:expr, $field:expr, $out:expr) => {
-        ghostty::ghostty_render_state_get(
-            $state,
-            $field,
-            $out as *mut _ as *mut std::ffi::c_void,
-        )
+        unsafe {
+            ghostty::ghostty_render_state_get(
+                $state,
+                $field,
+                $out as *mut _ as *mut std::ffi::c_void,
+            )
+        }
     };
 }
 
@@ -28,11 +30,13 @@ macro_rules! render_get {
 /// not the state API.
 macro_rules! row_get {
     ($iterator:expr, $field:expr, $out:expr) => {
-        ghostty::ghostty_render_state_row_get(
-            $iterator,
-            $field,
-            $out as *mut _ as *mut std::ffi::c_void,
-        )
+        unsafe {
+            ghostty::ghostty_render_state_row_get(
+                $iterator,
+                $field,
+                $out as *mut _ as *mut std::ffi::c_void,
+            )
+        }
     };
 }
 
