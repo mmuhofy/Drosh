@@ -101,7 +101,6 @@ internal object Shaders {
         uniform vec4 uProjection;
         uniform vec2 uCellSize;
         uniform vec2 uAtlasSize;
-        uniform float uScale;
         out vec2 vTexCoord;
         out vec4 vColor;
         void main() {
@@ -127,8 +126,7 @@ internal object Shaders {
             // A pinch scales the whole picture in the projection, not the glyph
             // inside its cell: growing the glyph alone changes the space around
             // each letter, which is the font's tracking changing rather than the
-            // terminal zooming. `uScale` is kept at 1 and exists only so the
-            // uniform list does not change shape.
+            // terminal zooming.
             vec2 size = vec2(natural.x * squeeze, natural.y);
 
             gl_Position = vec4(

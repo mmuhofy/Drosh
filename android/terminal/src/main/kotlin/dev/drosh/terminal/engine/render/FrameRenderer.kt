@@ -45,7 +45,6 @@ internal class FrameRenderer {
     private var foregroundCellSize = 0
     private var foregroundAtlasSize = 0
     private var foregroundAtlas = 0
-    private var foregroundScale = 0
 
     private var atlasTexture = 0
     private var backgroundBuffer = 0
@@ -117,7 +116,6 @@ internal class FrameRenderer {
         foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
         foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
         foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
-        foregroundScale = GLES20.glGetUniformLocation(foregroundProgram, "uScale")
 
         atlasTexture = buildAtlasTexture()
         backgroundBuffer = buildBuffer()
@@ -394,7 +392,6 @@ internal class FrameRenderer {
         GLES20.glUseProgram(foregroundProgram)
         GLES20.glUniform4fv(foregroundProjection, 1, projection, 0)
         GLES20.glUniform2f(foregroundCellSize, cellWidth, cellHeight)
-        GLES20.glUniform1f(foregroundScale, size.pinchScale)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
