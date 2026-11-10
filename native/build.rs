@@ -30,6 +30,13 @@ fn main() {
         );
     }
 
+    if std::env::var("CARGO_FEATURE_ENGINE").is_err() {
+        // No engine: no bindings, no headers, no library. The crate is the
+        // parts that stand on their own.
+        println!("cargo:rerun-if-changed=build.rs");
+        return;
+    }
+
     let mut builder = bindgen::Builder::default()
         .header(header.to_string_lossy())
         .clang_arg(format!("-I{}", include.display()));
@@ -82,8 +89,14 @@ fn main() {
 
     // A dynamic dependency, not a static one: the APK ships `libghostty-vt.so`
     // beside this library and the loader resolves it by soname.
-    println!("cargo:rustc-link-search=native={}", lib.display());
-    println!("cargo:rustc-link-lib=dylib=ghostty-vt");
+    //
+    // Only when the engine is there: the host's test run builds the crate
+    // without it, and a link flag for a library that is not there is a link
+    // error rather than a warning.
+    if std::env::var("CARGO_FEATURE_ENGINE").is_ok() {
+        println!("cargo:rustc-link-search=native={}", lib.display());
+        println!("cargo:rustc-link-lib=dylib=ghostty-vt");
+    }
 
     // Android's log is called from the JNI layer; a build for the host has none.
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {

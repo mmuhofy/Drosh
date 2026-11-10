@@ -24,12 +24,23 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
+// The engine's own surface and everything that drives it. Without the
+// `engine` feature the crate is only the renderer's rules — which is what
+// the tests build, because the engine's library is an Android library and
+// a test binary on a build machine cannot link it.
+#[cfg(feature = "engine")]
 pub mod frame;
+#[cfg(feature = "engine")]
 pub mod ghostty;
+#[cfg(feature = "engine")]
 pub mod pty;
+pub mod renderer;
+#[cfg(feature = "engine")]
 pub mod session;
+#[cfg(feature = "engine")]
 pub mod shell;
 
+#[cfg(feature = "engine")]
 pub mod jni;
 
 /// Install a panic hook that logs instead of unwinding.

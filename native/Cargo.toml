@@ -10,6 +10,14 @@ description = "The Drosh terminal's native half: the Ghostty VT engine, driven."
 name = "drosh"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# The engine. Off means the crate is the parts that do not talk to the
+# engine — the renderer's own rules — which is what the host's test run
+# builds: the engine's library is built for Android and cannot be linked
+# into a test binary on a build machine.
+default = ["engine"]
+engine = []
+
 [dependencies]
 # The JNI boundary. 0.21 is the version Android's ART is happiest with.
 jni = "=0.21"

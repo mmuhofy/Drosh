@@ -82,3 +82,17 @@ jobs:
       # next module with tests would otherwise be missed the same way.
       - name: Run remaining module tests
         run: ./gradlew test -x :domain:test -x :features:agent:test --no-daemon --stacktrace
+
+      # The native half's own rules — the renderer's colour rules, the ones
+      # ported from Ghostty's renderer — are Rust, and they are tested by
+      # Rust's own runner.
+      #
+      # Without the `engine` feature: the engine's library is built for
+      # Android, and a test binary on the build machine cannot link it. The
+      # rules are the part that does not need it.
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run the native tests
+        working-directory: native
+        run: cargo test --no-default-features

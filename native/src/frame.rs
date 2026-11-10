@@ -473,8 +473,12 @@ impl FrameSource {
         // ROW_CELLS_DATA_BG_COLOR's note in the engine's header. Starting from
         // the defaults and keeping them on failure is what makes an unstyled
         // cell paint in the theme's colours instead of a guessed black.
-        let mut bg = self.default_bg;
-        let mut fg = self.default_fg;
+        // The cell's own colours, or none when the style has none: the
+        // difference between "the style asked for black" and "the style said
+        // nothing" is the difference between a black cell and a default one,
+        // and it is what the inverse rule turns into the text colour.
+        let mut bg: ghostty::GhosttyColorRgb = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
+        let mut fg: ghostty::GhosttyColorRgb = ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 };
         let bg_ok = ghostty::ok(ghostty::ghostty_render_state_row_cells_get(
             self.cells,
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_BG_COLOR,
@@ -485,12 +489,8 @@ impl FrameSource {
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR,
             &mut fg as *mut _ as *mut c_void,
         ));
-        if !bg_ok {
-            bg = self.default_bg;
-        }
-        if !fg_ok {
-            fg = self.default_fg;
-        }
+        let bg_style = if bg_ok { Some(rgb(bg)) } else { None };
+        let fg_style = if fg_ok { Some(rgb(fg)) } else { None };
 
         let mut selected = false;
         let _ = ghostty::ghostty_render_state_row_cells_get(
@@ -499,14 +499,41 @@ impl FrameSource {
             &mut selected as *mut bool as *mut c_void,
         );
 
+        // The colours the cell is drawn with, by Ghostty's own rule.
+        //
         // Reverse video is a *rendering* instruction the engine hands to the
         // caller (see ROW_CELLS_DATA_SELECTED's note on rendering policy) —
         // the colours it resolves are the cell's own, not the swapped ones.
-        // A status bar drawn with SGR 7 is exactly this: without the swap its
+        // A status bar drawn with SGR 7 is exactly this: without the rule its
         // foreground lands on its background and the whole line disappears.
-        if style.inverse {
-            std::mem::swap(&mut fg, &mut bg);
-        }
+        //
+        // The rule is not a swap of the two colours. It picks between them,
+        // and which one it picks depends on whether the cell carries a
+        // colour of its own — see `renderer::cell`.
+        let colors = crate::renderer::cell::colors(
+            &crate::renderer::cell::CellStyle {
+                foreground: fg_style,
+                background: bg_style,
+                inverse: style.inverse,
+                bold: style.bold,
+                faint: style.faint,
+            },
+            codepoints[0],
+            &crate::renderer::cell::Defaults {
+                foreground: rgb(self.default_fg),
+                background: rgb(self.default_bg),
+            },
+        );
+        let fg = crate::renderer::cell::Rgb {
+            r: colors.foreground.r,
+            g: colors.foreground.g,
+            b: colors.foreground.b,
+        };
+        let bg = crate::renderer::cell::Rgb {
+            r: colors.background.r,
+            g: colors.background.g,
+            b: colors.background.b,
+        };
 
         let mut attributes = 0u32;
         if style.inverse {
@@ -548,8 +575,16 @@ impl FrameSource {
         // of the same struct at once.
         let cell = &mut self.buffer[at..at + CELL_BYTES];
         put_u32(cell, 0, codepoints[0]);
-        put_u32(cell, 4, rgba(fg));
-        put_u32(cell, 8, rgba(bg));
+        put_u32(cell, 4, rgba(ghostty::GhosttyColorRgb {
+            r: fg.r,
+            g: fg.g,
+            b: fg.b,
+        }));
+        put_u32(cell, 8, rgba(ghostty::GhosttyColorRgb {
+            r: bg.r,
+            g: bg.g,
+            b: bg.b,
+        }));
         put_u32(cell, 12, attributes);
         cell[16] = 1;
         cell[17] = flags;
@@ -572,6 +607,15 @@ impl Drop for FrameSource {
 /// `GL_UNSIGNED_BYTE` normalised hands the fragment shader as `vec4`. The
 /// previous packing put R in the high byte, so the renderer read green as
 /// red, blue as green, and the real alpha byte as a colour channel.
+/// The engine's colour as the renderer's own.
+///
+/// The two are the same three bytes; the renderer's type is the one the
+/// colour rules speak, so that the rules do not have to know about the
+/// engine's ABI.
+fn rgb(color: ghostty::GhosttyColorRgb) -> crate::renderer::cell::Rgb {
+    crate::renderer::cell::Rgb::new(color.r, color.g, color.b)
+}
+
 fn rgba(color: ghostty::GhosttyColorRgb) -> u32 {
     u32::from(color.r) | (u32::from(color.g) << 8) | (u32::from(color.b) << 16) | (0xff << 24)
 }
