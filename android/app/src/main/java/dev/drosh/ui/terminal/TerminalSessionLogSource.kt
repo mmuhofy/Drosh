@@ -1,6 +1,5 @@
 package dev.drosh.ui.terminal
 
-import dev.drosh.terminal.session.EngineSessions
 import dev.drosh.terminal.session.SessionTranscript
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.ui.session.SessionLogSource
@@ -32,7 +31,6 @@ import dev.drosh.ui.session.SessionLogSource
  */
 class TerminalSessionLogSource(
     private val terminalManager: TerminalManager,
-    private val engineSessions: EngineSessions,
 ) : SessionLogSource {
 
     override fun lines(sessionId: String): List<String> =
@@ -50,10 +48,9 @@ class TerminalSessionLogSource(
      * started — has no transcript at all, and the sheet shows its empty state.
      */
     private fun transcriptFor(sessionId: String): SessionTranscript? {
-        val engineSession = engineSessions.sessionFor(sessionId)
-        if (engineSession != null) {
-            return SessionTranscript.Engine.of(engineSession)
-        }
-        return null
+        val session = terminalManager.sessionById(sessionId) ?: return null
+        val lines = session.transcript()
+        if (lines.isEmpty()) return null
+        return SessionTranscript.Engine.of(lines)
     }
 }

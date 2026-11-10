@@ -1,14 +1,14 @@
 package dev.drosh.terminal.session
 
 /**
- * The lifecycle of an [EngineTerminal].
+ * The lifecycle of a terminal pane.
  *
  * The pane owns its session, so the states are about that session: whether it
  * runs, and whether the pane may be used at all. The transitions are pure —
- * they are the rules, and [EngineTerminal] applies them — so they can be checked
+ * they are the rules, and the pane applies them — so they can be checked
  * without a device and without the native library.
  */
-enum class EngineTerminalState {
+enum class PaneState {
     /** No session yet; the pane may be started. */
     IDLE,
 
@@ -25,13 +25,13 @@ enum class EngineTerminalState {
     val canStop: Boolean get() = this == RUNNING
 
     /** The state after a session was started successfully. */
-    fun started(): EngineTerminalState = if (canStart) RUNNING else this
+    fun started(): PaneState = if (canStart) RUNNING else this
 
     /** The state after the session was stopped. */
-    fun stopped(): EngineTerminalState = if (canStop) IDLE else this
+    fun stopped(): PaneState = if (canStop) IDLE else this
 
     /** The state after the pane was released. Releasing twice is harmless. */
-    fun released(): EngineTerminalState = RELEASED
+    fun released(): PaneState = RELEASED
 
     /**
      * The state after the child exited on its own.
@@ -40,5 +40,5 @@ enum class EngineTerminalState {
      * what the child last drew on screen, and starting again is a new session
      * in the same pane.
      */
-    fun exited(): EngineTerminalState = if (this == RUNNING) IDLE else this
+    fun exited(): PaneState = if (this == RUNNING) IDLE else this
 }

@@ -1,6 +1,5 @@
 package dev.drosh.terminal.session
 
-import dev.drosh.terminal.engine.core.EngineSession
 
 /** What a tab becomes in a log: four spaces, the width it stood for. */
 private const val TAB_WIDTH = "    "
@@ -13,7 +12,7 @@ private const val TAB_WIDTH = "    "
  * The app is between two terminals. The vendored Termux emulator keeps a
  * scrollback of its own; the Rust engine keeps
  * a bounded copy of what the session printed and hands it over through JNI
- * ([EngineSession.transcript]). Both can answer "what did this session
+ * (the session's own transcript). Both can answer "what did this session
  * print?", so the log sheet asks that one question of whichever terminal owns
  * the session — and the kind says which terminal answered it.
  *
@@ -71,7 +70,7 @@ sealed interface SessionTranscript {
              * What the engine has of the session.
              *
              * The lines arrive already stripped: the copy the engine keeps is
-             * raw bytes, but [EngineSession.transcript] runs them through the
+             * raw bytes, but the session's transcript runs them through the
              * core's own parser before handing them over. Stripping them a
              * second time is not the same as stripping them once — it eats
              * the characters that were meant to be literal, so a line that
@@ -85,8 +84,8 @@ sealed interface SessionTranscript {
              * them: a program that redrew its line shows every redraw, and the
              * carriage returns that separated them are still in the text.
              */
-            fun of(session: EngineSession): Engine =
-                Engine(linesOf(session.transcript()))
+            fun of(lines: List<String>): Engine =
+                Engine(linesOf(lines))
 
             /**
              * The plain-text lines of the engine's lines.

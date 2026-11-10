@@ -86,6 +86,23 @@ impl Session {
         self.frames.render()
     }
 
+    /// The colours of a region of the grid, as `(foreground, background)` pairs.
+    ///
+    /// The frame has to exist before its cells can be read: the colours are
+    /// the frame's, and the frame is what the engine produced last.
+    pub fn cell_colors(
+        &mut self,
+        first_row: u16,
+        first_column: u16,
+        rows: u16,
+        columns: u16,
+    ) -> Vec<u32> {
+        if self.render().is_err() {
+            return Vec::new();
+        }
+        self.frames.cell_colors(first_row, first_column, rows, columns)
+    }
+
     pub fn shell_phase(&self) -> Phase {
         self.shell.phase()
     }

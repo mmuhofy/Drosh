@@ -59,7 +59,7 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         private set
 
     /** Where the pane is in its lifecycle. */
-    override var state: EngineTerminalState = EngineTerminalState.IDLE
+    override var state: PaneState = PaneState.IDLE
         private set
 
     /**
@@ -277,7 +277,7 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
      * when the app is done with it.
      */
     override fun release() {
-        if (state == EngineTerminalState.RELEASED) return
+        if (state == PaneState.RELEASED) return
         stop()
         state = state.released()
     }
@@ -402,6 +402,34 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override fun selectionBounds(): Rect? = view.selectionBounds()
 
     // --- find --------------------------------------------------------------
+
+    override val columns: Int
+        get() = session?.columns ?: 0
+
+    override val rows: Int
+        get() = session?.rows ?: 0
+
+    override val cellWidth: Float
+        get() = cellWidth
+
+    override val cellHeight: Float
+        get() = cellHeight
+
+    override fun cellColors(
+        firstRow: Int,
+        firstColumn: Int,
+        rows: Int,
+        columns: Int,
+    ): IntArray {
+        val shown = session ?: return IntArray(0)
+        return NativeSession.cellColors(
+            shown.terminalHandle,
+            firstRow,
+            firstColumn,
+            rows,
+            columns,
+        )
+    }
 
     override fun find(query: String, limit: Int): List<Triple<Int, Int, Int>> {
         val shown = session ?: return emptyList()

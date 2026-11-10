@@ -116,6 +116,11 @@ pub struct FrameSource {
     /// what Ghostty itself does, and what an OSC 10/11 recolour changes.
     default_fg: ghostty::GhosttyColorRgb,
     default_bg: ghostty::GhosttyColorRgb,
+    /// The grid's shape, as the last frame saw it.
+    columns: u16,
+    rows: u16,
+    /// The overscan rows above the viewport, as the last frame saw them.
+    overscan_above: u16,
 }
 
 impl FrameSource {
@@ -167,7 +172,65 @@ impl FrameSource {
             // effective values on the first frame.
             default_fg: ghostty::GhosttyColorRgb { r: 255, g: 255, b: 255 },
             default_bg: ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 },
+            columns: 0,
+            rows: 0,
+            overscan_above: 0,
         })
+    }
+
+    /// The colours of a region of the grid, as `(foreground, background)` pairs.
+    ///
+    /// The values are the frame's own packed colours — red in the low byte —
+    /// so a caller reads them with the same helpers the renderer uses.
+    ///
+    /// The region is in grid cells, and the rows are counted from the top of
+    /// the *viewport*: row zero is the first row the terminal shows, and the
+    /// overscan rows above it are not part of the grid the user sees.
+    pub fn cell_colors(
+        &self,
+        first_row: u16,
+        first_column: u16,
+        rows: u16,
+        columns: u16,
+    ) -> Vec<u32> {
+        let mut out = Vec::with_capacity(rows as usize * columns as usize * 2);
+        let cols = self.columns;
+        let overscan = self.overscan_above;
+        for row in 0..rows {
+            let grid_row = first_row as i32 + row as i32 + overscan as i32;
+            if grid_row < 0 {
+                // A row above the captured ones: the cells are not there.
+                for _ in 0..columns {
+                    out.push(0);
+                    out.push(0);
+                }
+                continue;
+            }
+            for column in 0..columns {
+                let grid_column = first_column as usize + column as usize;
+                if grid_column >= cols as usize {
+                    out.push(0);
+                    out.push(0);
+                    continue;
+                }
+                let index = grid_row as usize * cols as usize + grid_column;
+                let at = HEADER_BYTES + index * CELL_BYTES;
+                if at + CELL_BYTES > self.buffer.len() {
+                    out.push(0);
+                    out.push(0);
+                    continue;
+                }
+                let fg = u32::from_le_bytes(
+                    self.buffer[at + 4..at + 8].try_into().unwrap(),
+                );
+                let bg = u32::from_le_bytes(
+                    self.buffer[at + 8..at + 12].try_into().unwrap(),
+                );
+                out.push(fg);
+                out.push(bg);
+            }
+        }
+        out
     }
 
     /// Produce the next frame and return it.
@@ -196,6 +259,10 @@ impl FrameSource {
             let row_count =
                 u32::from(rows) + u32::from(overscan.above) + u32::from(overscan.below);
             let cell_count = row_count * u32::from(cols);
+
+            self.columns = cols;
+            self.rows = rows;
+            self.overscan_above = overscan.above;
 
             let needed = HEADER_BYTES + cell_count as usize * CELL_BYTES;
             self.buffer.clear();

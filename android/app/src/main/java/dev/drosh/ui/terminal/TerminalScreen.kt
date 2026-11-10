@@ -568,6 +568,7 @@ private fun ReadyScreen(
         mutableStateOf<TerminalAppearanceSource?>(null)
     }
 
+
     // ── Find in the output ──────────────────────────────────────────────────
     //
     // Everything below is about one question the find bar asks: what does this
@@ -610,6 +611,16 @@ private fun ReadyScreen(
      */
     val focusedPaneSlot by terminalManager.focusedPane.collectAsStateWithLifecycle()
 
+    // The appearance is read from the cells of the session the focused pane
+    // is showing. It is asked for when it is needed rather than kept: the
+    // pane registers itself with the manager after the first composition, so
+    // a source resolved once would keep answering for a terminal that was
+    // not there yet.
+    LaunchedEffect(focusedPaneSlot) {
+        val pane = terminalManager.focusedEngineTerminal()
+        appearanceSource.value = pane?.let { SessionAppearanceSource(it) }
+    }
+
     /**
      * The source the find bar asks for the matches.
      *
@@ -625,9 +636,8 @@ private fun ReadyScreen(
      * there yet.
      */
     fun findSource(): TerminalFindSource? {
-        val enginePane = terminalManager.focusedEngineTerminal()
-        val oldEngineSession = (enginePane as? dev.drosh.terminal.session.EngineTerminal)?.session
-        return if (oldEngineSession != null) EngineFindSource(oldEngineSession) else null
+        val pane = terminalManager.focusedEngineTerminal() ?: return null
+        return EngineFindSource(pane)
     }
 
     /**
@@ -1731,7 +1741,7 @@ private fun TerminalPaneBody(
              *
              * The pane runs on the Rust engine. The engine owns its
              * session and its view, so the app hosts a pane instead of
-             * a view — see `EngineTerminalHost`.
+             * a view — see `GhosttyTerminalHost`.
              */
             // One engine, one host. The old Rust engine's library is not in
             // the APK any more, so the switch that chose between them was a

@@ -5,7 +5,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.drosh.domain.ssh.AuthMethod
 import dev.drosh.domain.ssh.SshCredentialVault
 import dev.drosh.domain.ssh.SshHost
-import dev.drosh.terminal.engine.core.EngineSession
+import dev.drosh.terminal.engine.native.NativeSession
 import dev.drosh.terminal.session.SshSessionFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,8 +24,9 @@ import javax.inject.Singleton
  * Connects over SSHJ and bridges the shell channel into a bridged session
  * running in the Rust engine core.
  *
- * Returns the native bridged-session handle; the caller wraps it in an
- * [EngineSession] and registers it via [TerminalManager.addEngineTabWithId].
+ * Returns the native session handle: a grid with no process behind it, which
+ * the transport feeds. The caller wraps it in a session and registers it with
+ * the terminal manager.
  */
 @Singleton
 class SshSessionFactoryImpl @Inject constructor(
@@ -60,8 +61,10 @@ class SshSessionFactoryImpl @Inject constructor(
         channel.allocatePTY("xterm-256color", columns, rows, 0, 0, emptyMap<PTYMode, Int>())
         val shell = channel.startShell()
 
-        // Create the bridged session in the engine core.
-        val handle = EngineSession.createBridgedSession(columns, rows, cellWidth, cellHeight)
+        // The bridged session: a grid with no process behind it. The transport
+        // feeds it, and the shell on the other end of the channel is the
+        // process.
+        val handle = NativeSession.create(columns, rows)
         if (handle <= 0L) {
             runCatching { channel.close() }
             runCatching { ssh.disconnect() }
@@ -76,12 +79,12 @@ class SshSessionFactoryImpl @Inject constructor(
                 while (true) {
                     val read = input.read(buffer)
                     if (read <= 0) break
-                    EngineSession.feedBridgedSession(handle, buffer.copyOfRange(0, read))
+                    NativeSession.write(handle, buffer.copyOfRange(0, read), read)
                 }
             } catch (_: Exception) {
                 // Connection dropped — fall through to finish.
             } finally {
-                EngineSession.closeBridgedSession(handle)
+                NativeSession.free(handle)
                 runCatching { channel.close() }
                 runCatching { ssh.disconnect() }
             }

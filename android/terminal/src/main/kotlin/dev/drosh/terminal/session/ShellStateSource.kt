@@ -3,8 +3,6 @@ package dev.drosh.terminal.session
 import dev.drosh.domain.block.ShellPhase
 import dev.drosh.domain.block.ShellState
 import dev.drosh.domain.block.ShellStateSource
-import dev.drosh.terminal.engine.core.EngineSession
-import dev.drosh.terminal.engine.core.BlockState as EngineBlockState
 import java.net.URLDecoder
 
 /**
@@ -19,41 +17,13 @@ import java.net.URLDecoder
  * everything about them, so this file is where the two meet — and it lives on
  * the session side of that line.
  */
-class EngineShellStateSource(
-    private val session: EngineSession?,
+class ShellStateSource(
+    private val session: ShellSession?,
 ) : ShellStateSource {
 
     // An engine with no marks to read answers nothing: the caller shows a
     // neutral shell state rather than an invented one.
-    override fun currentState(): ShellState? = session?.blockState()?.toShellState()
-}
-
-/**
- * The domain shape of the engine's block state.
- *
- * Null when the engine knows nothing: a session that has not seen a mark has
- * no phase, no directory and no editor target, and saying so is honest where
- * inventing a phase would not be.
- */
-internal fun EngineBlockState.toShellState(): ShellState? {
-    val shellPhase = when (this.phase) {
-        EngineBlockState.PHASE_PROMPT -> ShellPhase.PROMPT
-        EngineBlockState.PHASE_TYPING -> ShellPhase.TYPING
-        EngineBlockState.PHASE_RUNNING -> ShellPhase.RUNNING
-        EngineBlockState.PHASE_FINISHED -> ShellPhase.FINISHED
-        else -> ShellPhase.UNKNOWN
-    }
-    val directory = this.workingDirectory?.let { pathOf(it) }
-    val editor = this.editorTarget?.takeIf { it.isNotBlank() }
-    if (shellPhase == ShellPhase.UNKNOWN && directory == null && editor == null) {
-        return null
-    }
-    return ShellState(
-        phase = shellPhase,
-        exitStatus = status,
-        workingDirectory = directory,
-        editorTarget = editor,
-    )
+    override fun currentState(): ShellState? = session?.shellState()
 }
 
 /**

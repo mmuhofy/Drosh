@@ -6,7 +6,6 @@ import dev.drosh.domain.block.ShellPhase
 import dev.drosh.domain.block.ShellState
 import dev.drosh.domain.block.ShellStateSource
 // Termux terminal model removed — engine is the only terminal now.
-import dev.drosh.terminal.engine.core.EngineSession
 
 /**
  * Wires the Termux terminal session into the block engine via the
@@ -159,7 +158,7 @@ class BlockEngineWire(
      * changing which session is active. Used after a restart, where the id is
      * unchanged but the process and everything on screen is new.
      */
-    fun reanchorEngine(session: EngineSession) {
+    fun reanchorEngine(session: ShellSession) {
         previousTranscript = session.transcript().joinToString("\n")
         pendingEcho = null
     }
@@ -171,7 +170,7 @@ class BlockEngineWire(
      * instead of the Termux emulator's screen. The diff logic is the same;
      * only the transcript source differs.
      */
-    fun onEngineSessionTextChanged(session: EngineSession, sessionId: String?) {
+    fun onShellSessionTextChanged(session: ShellSession, sessionId: String?) {
         if (sessionId != activeSessionId) return
         val current = session.transcript().joinToString("\n")
         if (current.isEmpty()) {

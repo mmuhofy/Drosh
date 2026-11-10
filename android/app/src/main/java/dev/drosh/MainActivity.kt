@@ -68,8 +68,6 @@ import dev.drosh.domain.settings.toMillis
 import dev.drosh.domain.terminal.ObserveFirstLaunchUseCase
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.editor.EditorScreen
-import dev.drosh.terminal.engine.core.EngineSession
-import dev.drosh.terminal.session.EngineSessions
 import dev.drosh.terminal.session.ExtraKeyState
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.ui.terminal.TerminalSessionLogSource
@@ -700,10 +698,7 @@ class MainActivity : ComponentActivity() {
                 // keeps the log reader honest — it reads the emulator's
                 // scrollback, which is where the output is.
                 val logSource = remember(terminalManager) {
-                    TerminalSessionLogSource(terminalManager, object : EngineSessions {
-                        override fun sessionFor(sessionId: String): EngineSession? =
-                            terminalManager.engineSessionById(sessionId)
-                    })
+                    TerminalSessionLogSource(terminalManager)
                 }
                 val logSessions by sessionSwitcherViewModel.allSessions
                     .collectAsStateWithLifecycle()

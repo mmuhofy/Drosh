@@ -4,8 +4,7 @@ import android.content.Context
 import dev.drosh.domain.ssh.SshCredentialVault
 import dev.drosh.domain.ssh.SshHostRepository
 import dev.drosh.domain.ssh.SshSessionLauncher
-import dev.drosh.terminal.engine.core.EngineSession
-import dev.drosh.terminal.session.EngineTerminal
+import dev.drosh.terminal.session.GhosttyTerminal
 import dev.drosh.terminal.session.SshSessionFactory
 import dev.drosh.terminal.session.TerminalManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,7 +35,7 @@ class SshSessionLauncherImpl @Inject constructor(
 
         val handle = factory.createSession(host, DEFAULT_COLS, DEFAULT_ROWS, DEFAULT_CELL_WIDTH, DEFAULT_CELL_HEIGHT)
 
-        val pane = EngineTerminal(context)
+        val pane = GhosttyTerminal(context)
         val sessionId = "ssh_${UUID.randomUUID()}"
 
         pane.attachExisting(

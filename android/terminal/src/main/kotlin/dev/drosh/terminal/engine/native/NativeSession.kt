@@ -121,6 +121,23 @@ object NativeSession {
         return nativeTranscript(handle)
     }
 
+    /**
+     * The colours of a region of the grid, as `(foreground, background)` pairs.
+     *
+     * The values are the frame's own packed colours — red in the low byte —
+     * so a caller reads them with [FrameFormat.red] and friends.
+     */
+    fun cellColors(
+        handle: Long,
+        firstRow: Int,
+        firstColumn: Int,
+        rows: Int,
+        columns: Int,
+    ): IntArray {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return IntArray(0)
+        return nativeCellColors(handle, firstRow, firstColumn, rows, columns)
+    }
+
     /** Search the grid; results are `(row, column, length)` triples. */
     fun search(handle: Long, query: String, limit: Int): List<Triple<Int, Int, Int>> {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return emptyList()
@@ -167,6 +184,13 @@ object NativeSession {
     private external fun nativeAlternateScreen(handle: Long): Boolean
     private external fun nativeModes(handle: Long): Int
     private external fun nativeTranscript(handle: Long): String
+    private external fun nativeCellColors(
+        handle: Long,
+        firstRow: Int,
+        firstColumn: Int,
+        rows: Int,
+        columns: Int,
+    ): IntArray
     private external fun nativeSearch(handle: Long, query: String, limit: Int): IntArray
     private external fun nativeShellPhase(handle: Long): Int
     private external fun nativeWorkingDirectory(handle: Long): String

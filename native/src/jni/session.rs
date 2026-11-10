@@ -224,6 +224,36 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     }
 }
 
+/// The colours of a region of the grid, as `(foreground, background)` pairs.
+///
+/// The values are the frame's own packed colours — red in the low byte — so
+/// the caller reads them with the same helpers the renderer uses.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeCellColors(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    first_row: jint,
+    first_column: jint,
+    rows: jint,
+    columns: jint,
+) -> jintArray {
+    let Some(mut session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    if rows <= 0 || columns <= 0 {
+        return new_int_array(&mut env, &[]);
+    }
+    let colors = session.cell_colors(
+        first_row as u16,
+        first_column as u16,
+        rows as u16,
+        columns as u16,
+    );
+    let values: Vec<i32> = colors.into_iter().map(|c| c as i32).collect();
+    new_int_array(&mut env, &values)
+}
+
 /// The session's text, as the engine holds it.
 ///
 /// The engine's own text: the grid and the scrollback, formatted the way the

@@ -14,7 +14,7 @@
 
 package dev.drosh.terminal.session
 
-import dev.drosh.terminal.engine.core.EngineSession
+
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -45,12 +45,12 @@ class EditorRequestPublisher {
     /** Guest paths, in the order the guest asked for them. */
     val requests: Flow<String> = channel.receiveAsFlow()
 
-    private var bound: EngineSession? = null
+    private var bound: ShellSession? = null
 
     /** The last editor target seen, so the same request is not delivered twice. */
     private var lastTarget: String? = null
 
-    fun bind(session: EngineSession?) {
+    fun bind(session: ShellSession?) {
         if (bound === session) return
         bound = session
         lastTarget = null
@@ -69,7 +69,7 @@ class EditorRequestPublisher {
         val session = bound ?: return
         if (!session.isAlive) return
 
-        val target = session.blockState().editorTarget
+        val target = session.editorTarget()
         if (target.isNullOrEmpty() || target == lastTarget) return
         lastTarget = target
         channel.trySend(target)

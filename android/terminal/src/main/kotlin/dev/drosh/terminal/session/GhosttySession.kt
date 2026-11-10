@@ -34,7 +34,7 @@ class GhosttySession(
     val persistentId: String,
     /** The name the sidebar and the grid show. */
     var name: String,
-) : RenderedSession {
+) : RenderedSession, ShellSession {
 
     /** The engine's grid. Zero until [start]. */
     override var terminalHandle: Long = 0
@@ -45,7 +45,7 @@ class GhosttySession(
         private set
 
     /** Where the session is in its life. */
-    var state: EngineTerminalState = EngineTerminalState.IDLE
+    var state: PaneState = PaneState.IDLE
         private set
 
     /** Why the last start failed, or null when it did not. */
@@ -54,6 +54,12 @@ class GhosttySession(
 
     /** Told when the process exits, with its status. */
     var onExit: ((Int) -> Unit)? = null
+
+    /** The grid's shape, in cells: what the engine is holding. */
+    var columns: Int = 0
+        private set
+    var rows: Int = 0
+        private set
 
     /** The cell the grid is measured in, in pixels. */
     override var cellWidth: Float = 1f
@@ -93,10 +99,12 @@ class GhosttySession(
         cellWidth: Float,
         cellHeight: Float,
     ): Boolean {
-        if (state != EngineTerminalState.IDLE) return false
+        if (state != PaneState.IDLE) return false
         lastError = null
 
         val grid = NativeSession.create(columns, rows)
+        this.columns = columns
+        this.rows = rows
         if (grid == 0L) {
             lastError = "the grid could not be created (${columns}x$rows)"
             return false
@@ -122,7 +130,7 @@ class GhosttySession(
         this.cellHeight = cellHeight
         terminalHandle = grid
         ptyHandle = pty
-        state = EngineTerminalState.RUNNING
+        state = PaneState.RUNNING
         startReading()
         return true
     }
@@ -189,12 +197,51 @@ class GhosttySession(
      * from a local child, so there is no PTY. The caller feeds the grid.
      */
     fun attachExisting(handle: Long, columns: Int = 0, rows: Int = 0): Boolean {
-        if (state != EngineTerminalState.IDLE) return false
+        if (state != PaneState.IDLE) return false
+        this.columns = columns
+        this.rows = rows
         terminalHandle = handle
         ptyHandle = 0
-        state = EngineTerminalState.RUNNING
+        state = PaneState.RUNNING
         return true
     }
+
+    /**
+     * The shell's state, as the engine reports it.
+     *
+     * The engine taps the shell's marks where the bytes enter, so it knows the
+     * phase and the directory without anyone reading the screen. The editor
+     * target is not among them yet: the engine reports it as absent rather
+     * than as a guess.
+     */
+    override fun shellState(): dev.drosh.domain.block.ShellState? {
+        val handle = terminalHandle
+        if (handle == 0L) return null
+        val phase = dev.drosh.terminal.engine.shell.Phase.of(NativeSession.shellPhase(handle))
+        val directory = NativeSession.workingDirectory(handle).takeIf { it.isNotBlank() }
+        val shellPhase = when (phase) {
+            dev.drosh.terminal.engine.shell.Phase.PROMPT ->
+                dev.drosh.domain.block.ShellPhase.PROMPT
+            dev.drosh.terminal.engine.shell.Phase.TYPING ->
+                dev.drosh.domain.block.ShellPhase.TYPING
+            dev.drosh.terminal.engine.shell.Phase.RUNNING ->
+                dev.drosh.domain.block.ShellPhase.RUNNING
+            dev.drosh.terminal.engine.shell.Phase.FINISHED ->
+                dev.drosh.domain.block.ShellPhase.FINISHED
+            else -> dev.drosh.domain.block.ShellPhase.UNKNOWN
+        }
+        if (shellPhase == dev.drosh.domain.block.ShellPhase.UNKNOWN && directory == null) {
+            return null
+        }
+        return dev.drosh.domain.block.ShellState(
+            phase = shellPhase,
+            workingDirectory = directory,
+            editorTarget = editorTarget(),
+        )
+    }
+
+    /** The file the shell last asked the editor to open, or null. */
+    override fun editorTarget(): String? = null
 
     /** The frame the renderer draws, or null when there is nothing to draw. */
     fun frame(): dev.drosh.terminal.engine.protocol.Frame? {
@@ -219,6 +266,8 @@ class GhosttySession(
 
     /** The grid's shape changed. */
     fun resize(columns: Int, rows: Int) {
+        this.columns = columns
+        this.rows = rows
         val grid = terminalHandle
         val pty = ptyHandle
         if (grid != 0L) {
@@ -254,14 +303,14 @@ class GhosttySession(
             NativePty.close(pty)
             ptyHandle = 0
         }
-        if (state == EngineTerminalState.RUNNING) {
-            state = EngineTerminalState.IDLE
+        if (state == PaneState.RUNNING) {
+            state = PaneState.IDLE
         }
     }
 
     /** Close the process and free the grid. */
     fun release() {
-        if (state == EngineTerminalState.RELEASED) return
+        if (state == PaneState.RELEASED) return
         stopReading()
         stop()
         val grid = terminalHandle
@@ -269,7 +318,7 @@ class GhosttySession(
             NativeSession.free(grid)
             terminalHandle = 0
         }
-        state = EngineTerminalState.RELEASED
+        state = PaneState.RELEASED
     }
 
     private companion object {

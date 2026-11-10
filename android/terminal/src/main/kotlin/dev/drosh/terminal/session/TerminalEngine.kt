@@ -27,7 +27,7 @@ interface TerminalEngine {
     val view: View
 
     /** Where the pane is in its lifecycle. */
-    val state: EngineTerminalState
+    val state: PaneState
 
     /** The persistent id of the session this terminal runs. */
     var persistentId: String
@@ -156,6 +156,35 @@ interface TerminalEngine {
     // --- find --------------------------------------------------------------
 
     fun find(query: String, limit: Int = 200): List<Triple<Int, Int, Int>>
+
+    /**
+     * The grid's shape, in cells.
+     *
+     * What the terminal shows: the columns and the rows of the live grid.
+     */
+    val columns: Int
+        get() = 0
+    val rows: Int
+        get() = 0
+
+    /** The cell the font measured, in pixels. */
+    val cellWidth: Float
+        get() = 1f
+    val cellHeight: Float
+        get() = 1f
+
+    /**
+     * The colours of a region of the grid, as `(foreground, background)` pairs.
+     *
+     * The values are the engine's own packed colours — red in the low byte —
+     * so a caller reads them with the same helpers the renderer uses.
+     */
+    fun cellColors(
+        firstRow: Int,
+        firstColumn: Int,
+        rows: Int,
+        columns: Int,
+    ): IntArray = IntArray(0)
 
     /**
      * The last lines the session printed, oldest first.

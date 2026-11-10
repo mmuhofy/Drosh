@@ -37,10 +37,9 @@ import dev.drosh.linux.GuestLauncher
 import dev.drosh.linux.GuestSpec
 import dev.drosh.linux.UbuntuBootstrap
 import dev.drosh.linux.UbuntuSetupState
-import dev.drosh.terminal.session.input.EngineTerminalWriter
+import dev.drosh.terminal.session.input.TerminalWriter
 import dev.drosh.terminal.session.input.TerminalWriter
 // TermuxTerminalWriter removed — engine is the only terminal.
-import dev.drosh.terminal.engine.core.EngineSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -53,7 +52,7 @@ import java.util.concurrent.TimeUnit
  * Adapted for Drosh — dev.drosh
  *
  * Key improvements over the prior implementation:
- *  - Every session is an engine-backed pane, tracked by [EngineDroshSession].
+ *  - Every session is an engine-backed pane, tracked by [SessionEntry].
  *  - Exit is reported through [onEngineSessionExited], which notifies
  *    [SessionLifecycleCallbacks] so the data layer can sync Room.
  */
@@ -81,7 +80,7 @@ class TerminalManager(
      * built it; this list is what the sidebar and the session reconciliation
      * read, so a session exists here from the moment its row is created.
      */
-    private val engineSessions: MutableList<EngineDroshSession> = mutableListOf()
+    private val engineSessions: MutableList<SessionEntry> = mutableListOf()
 
     /**
      * The live sessions, by their app id.
@@ -147,11 +146,11 @@ class TerminalManager(
         // Command marks are per session, so the flow follows whichever pane has
         // focus — that is the one a keystroke is going to. The engine's session
         // is the only kind there is now.
-        val focusedEngineSession = (enginePanes[focusedPane.value] as? EngineTerminal)?.session
-        commandState.bind(focusedEngineSession)
+        val focusedSession = enginePanes[focusedPane.value].shellSession()
+        commandState.bind(focusedSession)
         // Same reasoning: `dedit` is a command, so it belongs to the session that
         // ran it — the focused one — not to whichever tab happens to be showing.
-        editorRequests.bind(focusedEngineSession)
+        editorRequests.bind(focusedSession)
     }
 
     /**
@@ -995,7 +994,7 @@ class TerminalManager(
      * active about.
      */
     private fun focusEngineTerminal(slot: PaneSlot, pane: TerminalEngine) {
-        if (pane.state != EngineTerminalState.RUNNING) {
+        if (pane.state != PaneState.RUNNING) {
             return
         }
         if (_focusedPane.value == slot) {
@@ -1019,7 +1018,7 @@ class TerminalManager(
         // The block engine reads the shell's state from the engine's marks
         // when the session runs on the engine; a vendored session has no
         // marks to read and the wire keeps inferring from the screen.
-        onBlockSessionChanged(null, EngineShellStateSource((pane as? EngineTerminal)?.session))
+        onBlockSessionChanged(null, ShellStateSource(pane.shellSession()))
         publishAltBufferState()
         publishActiveId()
         pane.notifyFocus(true)
@@ -1161,10 +1160,10 @@ class TerminalManager(
                             // engine's session object; the new one has none
                             // until the transcript tap is wired, so it is a
                             // no-op there rather than a `!!`.
-                            val session = (pane as? EngineTerminal)?.session
+                            val session = pane.shellSession()
                             if (session != null) {
                                 withContext(Dispatchers.IO) {
-                                    wire?.onEngineSessionTextChanged(session, sessionId)
+                                    wire?.onShellSessionTextChanged(session, sessionId)
                                 }
                             }
                         }
@@ -1215,6 +1214,15 @@ class TerminalManager(
     fun focusedEngineTerminal(): TerminalEngine? = enginePanes[focusedPane.value]
 
     /**
+     * The session a pane is showing, when it is one the app can ask about.
+     *
+     * A pane is a view; the session behind it is what runs. The app asks
+     * about the shell, and the shell belongs to the session.
+     */
+    private fun TerminalEngine.shellSession(): ShellSession? =
+        (this as? GhosttyTerminal)?.session
+
+    /**
      * Where the input of the focused terminal goes.
      *
      * The focused pane may run on either terminal, and the two take bytes in
@@ -1231,11 +1239,10 @@ class TerminalManager(
      * the pane that has it has no session.
      */
     fun focusedWriter(): TerminalWriter? {
-        val engine = focusedEngineTerminal()
-        if (engine is EngineTerminal) {
-            return EngineTerminalWriter(engine)
-        }
-        return null
+        val pane = enginePanes[focusedPane.value] ?: return null
+        val handle = (pane as? GhosttyTerminal)?.sessionHandle ?: return null
+        if (handle == 0L) return null
+        return SessionWriter(pane, handle)
     }
 
     /**
@@ -1318,7 +1325,7 @@ class TerminalManager(
         val listed = engineSessions.find { it.persistentId == persistentId }
         if (listed == null) {
             engineSessions.add(
-                EngineDroshSession(
+                SessionEntry(
                     enginePane = null,
                     persistentId = persistentId,
                     name = name,
@@ -1414,7 +1421,7 @@ class TerminalManager(
             val existing = engineSessions.find { it.persistentId == pane.persistentId }
             if (existing == null) {
                 engineSessions.add(
-                    EngineDroshSession(
+                    SessionEntry(
                         enginePane = pane,
                         persistentId = pane.persistentId,
                         name = pane.sessionName,
@@ -1433,7 +1440,7 @@ class TerminalManager(
             onEngineSessionExited(pane, code)
         }
 
-        if (slot == focusedPane.value && pane.state == EngineTerminalState.RUNNING) {
+        if (slot == focusedPane.value && pane.state == PaneState.RUNNING) {
             activateEngineTerminal(pane)
             pane.notifyFocus(true)
             if (!pane.hasViewFocus()) {
@@ -1499,7 +1506,7 @@ class TerminalManager(
     private fun slotHasTerminal(slot: PaneSlot): Boolean {
         val engine = enginePanes[slot]
         if (engine != null) {
-            return engine.state == EngineTerminalState.RUNNING
+            return engine.state == PaneState.RUNNING
         }
         return false
     }
@@ -1556,7 +1563,7 @@ class TerminalManager(
         val existing = engineSessions.find { it.persistentId == persistentId }
         if (existing == null) {
             engineSessions.add(
-                EngineDroshSession(
+                SessionEntry(
                     enginePane = null,
                     persistentId = persistentId,
                     name = name,
@@ -1597,10 +1604,13 @@ class TerminalManager(
      * of a session the user is not currently looking at.
      */
     /**
-     * Look up an engine session's underlying [EngineSession] by persistent id.
+     * Look up a live session by its app id.
+     *
+     * The session the app can ask about — its shell, its transcript — is the
+     * one the manager owns, not the one a pane happens to be showing.
      */
-    fun engineSessionById(persistentId: String): EngineSession? =
-        engineSessions.find { it.persistentId == persistentId }?.session
+    fun sessionById(persistentId: String): ShellSession? =
+        liveSessions[persistentId] ?: engineSessions.find { it.persistentId == persistentId }?.session
 
     /**
      * The last [maxLines] lines a session printed, oldest first.
@@ -1663,7 +1673,7 @@ class TerminalManager(
         val existing = engineSessions.find { it.persistentId == persistentId }
         if (existing == null) {
             engineSessions.add(
-                EngineDroshSession(
+                SessionEntry(
                     enginePane = pane,
                     persistentId = persistentId,
                     name = name,
@@ -1676,7 +1686,7 @@ class TerminalManager(
 
         registerEngineTerminal(focusedPane.value, pane, persistentId, name)
 
-        onBlockSessionChanged(persistentId, EngineShellStateSource((pane as? EngineTerminal)?.session))
+        onBlockSessionChanged(persistentId, ShellStateSource((pane as? EngineTerminal)?.session))
 
         _sessionCount.value = engineSessions.size
         _liveSessionIds.value = liveSessionIds()
@@ -1685,7 +1695,6 @@ class TerminalManager(
         syncActiveTabIndex()
         publishAltBufferState()
         publishActiveId()
-        return (pane as? EngineTerminal)?.session
     }
 
     /**
@@ -1799,7 +1808,7 @@ class TerminalManager(
         persistentId: String,
         name: String,
         pane: TerminalEngine,
-    ): EngineSession? {
+    ) {
         pane.bindIdentity(persistentId, name)
 
         val existing = engineSessions.find { it.persistentId == persistentId }
@@ -1808,7 +1817,7 @@ class TerminalManager(
             existing.name = name
         } else {
             engineSessions.add(
-                EngineDroshSession(
+                SessionEntry(
                     enginePane = pane,
                     persistentId = persistentId,
                     name = name,
@@ -1825,7 +1834,6 @@ class TerminalManager(
         _noSessionsLeft.value = false
 
         publishActiveId()
-        return (pane as? EngineTerminal)?.session
     }
 
     /**
@@ -1868,7 +1876,7 @@ class TerminalManager(
     /**
      * Look up an engine session by its persistent id.
      */
-    fun engineSessionForId(persistentId: String): EngineDroshSession? =
+    fun engineSessionForId(persistentId: String): SessionEntry? =
         engineSessions.find { it.persistentId == persistentId }
 
     fun renameTab(index: Int, name: String) {

@@ -18,8 +18,8 @@ import android.os.SystemClock
 import dev.drosh.domain.terminal.CommandSnapshot
 import dev.drosh.domain.terminal.CommandStatus
 import dev.drosh.domain.terminal.ShellIntegrationLevel
-import dev.drosh.terminal.engine.core.BlockState
-import dev.drosh.terminal.engine.core.EngineSession
+import dev.drosh.domain.block.ShellPhase
+import dev.drosh.domain.block.ShellState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * The Rust engine taps the shell's `OSC 133` marks where the bytes enter and
  * reports the phase, the exit status, the working directory and the editor
- * target through [EngineSession.blockState]. This class turns that into the
+ * target through [ShellSession.shellState]. This class turns that into the
  * app's own [CommandSnapshot], so a consumer never learns which terminal
  * produced the answer.
  *
@@ -59,7 +59,7 @@ class CommandStatePublisher(
     val activityLevel: StateFlow<Float> = _activityLevel.asStateFlow()
 
     /** The engine session currently being followed, or null. */
-    private var bound: EngineSession? = null
+    private var bound: ShellSession? = null
 
     /**
      * The snapshot of the previous poll, so a phase that has not moved does not
@@ -73,7 +73,7 @@ class CommandStatePublisher(
      * The engine reports its state on demand rather than pushing it, so the
      * caller polls [poll] from the same watch that already reads the viewport.
      */
-    fun bind(session: EngineSession?) {
+    fun bind(session: ShellSession?) {
         if (bound === session) return
         bound = session
         activity.reset()
@@ -92,9 +92,8 @@ class CommandStatePublisher(
      */
     fun poll() {
         val session = bound ?: return
-        if (!session.isAlive) return
 
-        val state = session.blockState()
+        val state = session.shellState() ?: return
         val next = snapshotOf(state)
         if (next == last) return
         last = next
@@ -116,13 +115,13 @@ class CommandStatePublisher(
      * The engine's phase is a string (`unknown`, `prompt`, `typing`, `running`,
      * `finished`) and its status is the last exit code, when it reported one.
      */
-    private fun snapshotOf(state: BlockState): CommandSnapshot {
-        val running = state.phase == BlockState.PHASE_RUNNING
-        val finished = state.phase == BlockState.PHASE_FINISHED
+    private fun snapshotOf(state: ShellState): CommandSnapshot {
+        val running = state.phase == ShellPhase.RUNNING
+        val finished = state.phase == ShellPhase.FINISHED
         val status = when {
             running -> CommandStatus.Running
-            finished && state.status == 0 -> CommandStatus.Success
-            finished && state.status != null -> CommandStatus.Failure(state.status)
+            finished && state.exitStatus == 0 -> CommandStatus.Success
+            finished && state.exitStatus != null -> CommandStatus.Failure(state.exitStatus)
             finished -> CommandStatus.Indeterminate
             else -> CommandStatus.Idle
         }
@@ -146,7 +145,7 @@ class CommandStatePublisher(
             command = last.command,
             startedAtElapsedMs = started,
             endedAtElapsedMs = ended,
-            exitCode = state.status,
+            exitCode = state.exitStatus,
             level = ShellIntegrationLevel.FULL,
             cwd = state.workingDirectory.orEmpty(),
         )
