@@ -110,7 +110,14 @@ object NativeSession {
         return out
     }
 
-    /** Scrolls the viewport. `tag` is one of the `SCROLL_*` constants. */
+    /**
+     * Scrolls the viewport. `tag` is one of the `SCROLL_*` constants.
+     *
+     * Returns 0 when the viewport moved, 1 when it was already at an end of the
+     * history and the engine clamped, and a negative code when there is no
+     * session. The distinction is what lets a drag stop accumulating pixels
+     * against a grid that has stopped moving.
+     */
     fun scroll(handle: Long, tag: Int, amount: Int): Int {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
         return nativeScroll(handle, tag, amount)

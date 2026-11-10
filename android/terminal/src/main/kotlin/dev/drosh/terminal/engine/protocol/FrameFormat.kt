@@ -93,6 +93,31 @@ object FrameFormat {
     const val CELL_WIDTH = 16
     const val CELL_FLAGS = 17
 
+    // --- colours ----------------------------------------------------------
+
+    /**
+     * The one colour contract on the wire.
+     *
+     * A cell's colour is four bytes in memory — R, G, B, A — which is what GL
+     * reads when the attribute is `GL_UNSIGNED_BYTE` normalised, and what the
+     * fragment shader's `vec4` expects in that order. As a little-endian `Int`
+     * that is `0xAABBGGRR`, not `0xAARRGGBB`: the alpha is the high byte and
+     * red is the low one.
+     *
+     * Both sides go through these helpers, so "what colour is this" has one
+     * answer instead of one per file.
+     */
+    fun packRgba(r: Int, g: Int, b: Int, a: Int = 255): Int =
+        (r and 0xff) or
+            ((g and 0xff) shl 8) or
+            ((b and 0xff) shl 16) or
+            ((a and 0xff) shl 24)
+
+    fun red(color: Int): Int = color and 0xff
+    fun green(color: Int): Int = (color ushr 8) and 0xff
+    fun blue(color: Int): Int = (color ushr 16) and 0xff
+    fun alpha(color: Int): Int = (color ushr 24) and 0xff
+
     // --- attributes -------------------------------------------------------
 
     const val ATTR_BOLD = 1 shl 0

@@ -19,7 +19,7 @@ use jni::objects::{JClass, JString};
 use jni::JNIEnv;
 
 use super::{jint, jlong, jstring};
-use super::{new_string, read_string, session_from};
+use super::{new_string, read_string, session_lock};
 use crate::ghostty;
 use crate::session::Session;
 
@@ -65,7 +65,7 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
     if row < 0 || column < 0 || column > 0xffff {
         return None;
     }
-    let session = session_from(handle)?;
+    let session = session_lock(handle)?;
 
     // A viewport point is what the caller's coordinates are: the renderer draws
     // the viewport and the host's row is a screen row.
@@ -102,18 +102,18 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
         return None;
     }
 
-    format(session, selection)
+    format(&session, selection)
 }
 
 /// Everything the engine holds, as text.
 fn select_all(handle: jlong) -> Option<String> {
-    let session = session_from(handle)?;
+    let session = session_lock(handle)?;
     let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
     let result = unsafe { ghostty::ghostty_terminal_select_all(session.terminal(), &mut selection) };
     if !ghostty::ok(result) {
         return None;
     }
-    format(session, selection)
+    format(&session, selection)
 }
 
 /// Format a selection snapshot into a string.

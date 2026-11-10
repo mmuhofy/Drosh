@@ -16,7 +16,7 @@ use jni::objects::{JByteArray, JClass, JString};
 use jni::JNIEnv;
 
 use super::{jint, jlong};
-use super::{read_string, session_from};
+use super::{read_string, session_lock};
 use crate::ghostty;
 
 /// The engine's name for an Android key code, or null when the engine has no
@@ -113,7 +113,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
     utf8: JString,
     out: JByteArray,
 ) -> jint {
-    let Some(session) = session_from(handle) else {
+    let Some(mut session) = session_lock(handle) else {
         return -1;
     };
 

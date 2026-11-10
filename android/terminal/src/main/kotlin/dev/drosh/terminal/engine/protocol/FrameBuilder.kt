@@ -32,6 +32,7 @@ class FrameBuilder(
     private var cursorStyle = 0
     private var cursorVisible = true
     private var cursorBlinking = false
+    private var cursorColor = FrameFormat.packRgba(255, 255, 255)
     private var dirty = FrameFormat.DIRTY_FULL
 
     private val cells = ByteBuffer
@@ -51,14 +52,18 @@ class FrameBuilder(
 
     fun cursorStyle(value: Int): FrameBuilder = apply { cursorStyle = value }
 
+    fun cursorColor(value: Int): FrameBuilder = apply { cursorColor = value }
+
     fun dirty(value: Int): FrameBuilder = apply { dirty = value }
 
     /** Set one cell. `index` is row-major over `rowCount` rows. */
     fun cell(
         index: Int,
         codepoint: Int,
-        foreground: Int = 0xFFFFFFFF.toInt(),
-        background: Int = 0xFF000000.toInt(),
+        // Colours are packed by [FrameFormat.packRgba] — white on black here,
+        // which is what the engine's own defaults are.
+        foreground: Int = FrameFormat.packRgba(255, 255, 255),
+        background: Int = FrameFormat.packRgba(0, 0, 0),
         attributes: Int = 0,
         width: Int = 1,
         flags: Int = 0,
@@ -110,6 +115,7 @@ class FrameBuilder(
         out.putInt(FrameFormat.OFFSET_CELL_COUNT, cellCount)
         out.putInt(FrameFormat.OFFSET_CELL_STRIDE, FrameFormat.CELL_BYTES)
         out.putInt(FrameFormat.OFFSET_CELLS_BYTES, cellCount * FrameFormat.CELL_BYTES)
+        out.putInt(FrameFormat.OFFSET_CURSOR_COLOR, cursorColor)
 
         val body = cells.array()
         System.arraycopy(body, 0, out.array(), FrameFormat.HEADER_BYTES, body.size)

@@ -1743,6 +1743,7 @@ private fun TerminalPaneBody(
                     sessionId = terminalManager.sessionIdForSlot(paneSlot).orEmpty(),
                     sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
                     fontSizeSp = fontSizeSp,
+                    onZoomCommitted = terminalViewModel::onZoomCommitted,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else EngineTerminalHost(

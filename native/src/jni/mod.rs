@@ -16,19 +16,19 @@ pub mod selection;
 pub mod session;
 pub mod smoke;
 
-use crate::session::Session;
+use crate::session::SessionHandle;
 
-/// A session handle as a pointer.
-pub(crate) fn session_from(handle: jlong) -> Option<&'static mut Session> {
+/// The locked session behind a handle, or None when the handle is not one.
+///
+/// The lock is held for the caller's whole body — a guard, not a snapshot —
+/// because every operation here is a sequence of engine calls that must not
+/// interleave with another thread's.
+pub(crate) fn session_lock(handle: jlong) -> Option<std::sync::MutexGuard<'static, crate::session::Session>> {
     if handle <= 0 {
         return None;
     }
-    unsafe { Session::from_raw(handle as usize as *mut Session) }
-}
-
-/// A session as a handle.
-pub(crate) fn session_to(session: *mut Session) -> jlong {
-    session as usize as jlong
+    let raw = unsafe { SessionHandle::from_raw(handle as usize as *mut SessionHandle) }?;
+    Some(raw.lock())
 }
 
 pub(crate) use jni::sys::{jboolean, jbyteArray, jint, jintArray, jlong, jstring};

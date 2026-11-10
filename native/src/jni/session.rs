@@ -8,9 +8,9 @@ use jni::objects::{JByteArray, JClass, JIntArray, JString};
 use jni::JNIEnv;
 
 use super::{jboolean, jbyteArray, jint, jintArray, jlong, jstring};
-use super::{new_byte_array, new_int_array, new_string, read_string, session_from, session_to};
+use super::{new_byte_array, new_int_array, new_string, read_string, session_lock};
 use crate::ghostty;
-use crate::session::Session;
+use crate::session::{Session, SessionHandle};
 
 /// Create a session with a `columns` x `rows` terminal. Zero on failure.
 #[no_mangle]
@@ -24,7 +24,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
         return 0;
     }
     match Session::new(columns as u16, rows as u16) {
-        Ok(session) => session_to(session.into_raw()),
+        Ok(session) => SessionHandle::into_raw(session) as usize as jlong,
         Err(error) => {
             log::warn!("drosh-native: the session could not be made: {error:?}");
             0
@@ -43,7 +43,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
         return;
     }
     // Rebuilt into a Box so the session's own `Drop` runs.
-    drop(unsafe { Box::from_raw(handle as usize as *mut Session) });
+    unsafe { SessionHandle::destroy(handle as usize as *mut SessionHandle) };
 }
 
 /// Feed a byte stream to the parser.
@@ -55,7 +55,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     data: JByteArray,
     length: jint,
 ) -> jint {
-    let Some(session) = session_from(handle) else {
+    let Some(mut session) = session_lock(handle) else {
         return -1;
     };
     if length < 0 {
@@ -82,7 +82,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     cell_width: jint,
     cell_height: jint,
 ) -> jint {
-    let Some(session) = session_from(handle) else {
+    let Some(mut session) = session_lock(handle) else {
         return -1;
     };
     if columns <= 0 || rows <= 0 {
@@ -109,7 +109,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     _class: JClass,
     handle: jlong,
 ) -> jbyteArray {
-    let Some(session) = session_from(handle) else {
+    let Some(mut session) = session_lock(handle) else {
         return std::ptr::null_mut();
     };
     match session.render() {
@@ -131,7 +131,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     _class: JClass,
     handle: jlong,
 ) -> jintArray {
-    let Some(session) = session_from(handle) else {
+    let Some(session) = session_lock(handle) else {
         return std::ptr::null_mut();
     };
     let Some(scrollbar) = session.scrollbar() else {
@@ -148,7 +148,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     _class: JClass,
     handle: jlong,
 ) -> jboolean {
-    let Some(session) = session_from(handle) else {
+    let Some(session) = session_lock(handle) else {
         return 0;
     };
     if session.active_screen() == ghostty::GHOSTTY_TERMINAL_SCREEN_ALTERNATE {
@@ -168,7 +168,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     _class: JClass,
     handle: jlong,
 ) -> jint {
-    let Some(session) = session_from(handle) else {
+    let Some(session) = session_lock(handle) else {
         return -1;
     };
 
@@ -191,11 +191,12 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     tag: jint,
     amount: jint,
 ) -> jint {
-    let Some(session) = session_from(handle) else {
+    let Some(session) = session_lock(handle) else {
         return -1;
     };
 
     let mut behavior: ghostty::GhosttyTerminalScrollViewport = unsafe { std::mem::zeroed() };
+    let before = session.scrollbar().map(|s| s.offset).unwrap_or(0);
     unsafe {
         super::set_enum(&mut behavior.tag, tag as u32);
         if tag == ghostty::GHOSTTY_SCROLL_VIEWPORT_DELTA as i32 {
@@ -205,7 +206,16 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
         }
         ghostty::ghostty_terminal_scroll_viewport(session.terminal(), behavior);
     }
-    0
+
+    // Did the viewport actually move? At an end of the history the engine
+    // clamps, and a caller that cannot tell would keep accumulating pixels
+    // against a grid that is not moving.
+    let after = session.scrollbar().map(|s| s.offset).unwrap_or(0);
+    if after == before {
+        1
+    } else {
+        0
+    }
 }
 
 /// The shell's phase, as its `OSC 133` marks report it.
@@ -215,7 +225,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     _class: JClass,
     handle: jlong,
 ) -> jint {
-    let Some(session) = session_from(handle) else {
+    let Some(session) = session_lock(handle) else {
         return -1;
     };
     session.shell_phase() as jint
@@ -228,7 +238,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     _class: JClass,
     handle: jlong,
 ) -> jstring {
-    let Some(session) = session_from(handle) else {
+    let Some(session) = session_lock(handle) else {
         return new_string(&mut env, "");
     };
     let directory = session.working_directory().unwrap_or("").to_string();
@@ -244,14 +254,14 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     query: JString,
     limit: jint,
 ) -> jintArray {
-    let Some(session) = session_from(handle) else {
+    let Some(mut session) = session_lock(handle) else {
         return std::ptr::null_mut();
     };
     if limit <= 0 {
         return std::ptr::null_mut();
     }
     let text = read_string(&mut env, &query.into_raw());
-    let triples = super::selection::search(session, &text, limit as usize);
+    let triples = super::selection::search(&session, &text, limit as usize);
     new_int_array(&mut env, &triples)
 }
 

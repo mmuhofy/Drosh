@@ -1,10 +1,9 @@
 package dev.drosh.terminal.engine.surface
 
 import android.content.Context
-import android.view.SurfaceHolder
 import android.view.MotionEvent
+import android.view.SurfaceHolder
 import android.view.SurfaceView
-import dev.drosh.terminal.engine.layout.SizeInfo
 import dev.drosh.terminal.engine.native.NativeInput
 import dev.drosh.terminal.engine.native.NativePty
 import dev.drosh.terminal.engine.native.NativeSelection
@@ -199,14 +198,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         sessionHandle = 0
     }
 
-    /** Tell the loop the font's cell changed. */
+    /**
+     * Tell the loop the font's cell changed.
+     *
+     * `fontPx` is the size glyphs are rasterised at. When the caller does not
+     * know it — a cell that only moved — the last known one is reused rather
+     * than zeroed, which would rasterise every glyph at nothing.
+     */
     fun setCell(width: Float, height: Float, fontPx: Float = 0f) {
         cellWidth = width
         cellHeight = height
         if (fontPx > 0f) {
             this.fontPx = fontPx
         }
-        renderThread.post(RenderThread.Command.Cell(width, height, fontPx))
+        renderThread.post(RenderThread.Command.Cell(width, height, this.fontPx))
     }
 
     /** A live pinch. The grid does not move; the glyphs do. */
@@ -224,29 +229,49 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * sub-line remainder lives in this one place instead of two — the row
      * the engine holds is the row whose fractional part is visible.
      * Whole rows go to the engine; the remainder shifts the picture.
+     *
+     * ## The ends
+     *
+     * The engine clamps the viewport at the ends of the history. If the
+     * remainder kept accumulating there, the picture would drift away from a
+     * grid that has stopped moving — which reads as the content sliding under
+     * the finger and never coming back. So the remainder is cleared when the
+     * engine refused the whole of the movement it was asked for.
      */
     private fun scrollPixels(dy: Float) {
-        accumulatorPx += dy
         val handle = sessionHandle
         val spacing = cellHeight.coerceAtLeast(1f)
+
+        accumulatorPx += dy
         val whole = (accumulatorPx / spacing).toInt()
 
-        if (handle != 0L && NativeSession.alternateScreen(handle)) {
-            // A full-screen program owns the scroll — pan in discrete rows,
-            // the screen knows no fractional moves.
-            if (whole != 0) {
-                NativeSession.scroll(handle, NativeSession.SCROLL_DELTA, -whole)
-                accumulatorPx -= whole * spacing
+        if (whole != 0) {
+            val moved = if (handle != 0L) {
+                // Finger down → content down → the viewport moves back through
+                // the history, which the engine takes as a negative row delta.
+                // `0` means the viewport really moved; `1` means it was clamped
+                // at an end of the history.
+                NativeSession.scroll(handle, NativeSession.SCROLL_DELTA, -whole) == 0
+            } else {
+                false
             }
+            if (moved) {
+                accumulatorPx -= whole * spacing
+            } else {
+                // The viewport did not move: it is at an end of the history.
+                // Nothing may be left over, or the picture keeps drifting.
+                accumulatorPx = 0f
+                scrollOffset(0f)
+                return
+            }
+        }
+
+        // A full-screen program owns the scroll; the fraction is not its
+        // business and the engine would not understand it.
+        if (handle != 0L && NativeSession.alternateScreen(handle)) {
             return
         }
 
-        if (whole != 0) {
-            // Finger down → content down → the viewport moves back through the
-            // history, which the engine takes as a negative row delta.
-            NativeSession.scroll(handle, NativeSession.SCROLL_DELTA, -whole)
-            accumulatorPx -= whole * spacing
-        }
         scrollOffset(accumulatorPx)
     }
 
@@ -278,6 +303,16 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** Told the live size while a pinch moves, and 0 when it ends. */
     var zoomListener: (sp: Float) -> Unit = {}
+
+    /**
+     * Told the size the pinch settled on, once, when the fingers lift.
+     *
+     * The surface does not apply it. The size is the app's — one setting, one
+     * owner — and the cell it implies comes back through [setCell] on the next
+     * recomposition. Applying it here as well was the bug that made a pinch
+     * last exactly one frame: the host's remembered cell overwrote it.
+     */
+    var zoomCommitListener: (sp: Float) -> Unit = {}
 
     private val recognizer = dev.drosh.terminal.engine.view.GestureAndScaleRecognizer(
         context,
@@ -347,15 +382,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                             dev.drosh.domain.terminal.TerminalZoom.MIN_SP,
                             dev.drosh.domain.terminal.TerminalZoom.MAX_SP,
                         )
-                    val density = resources.displayMetrics.scaledDensity.coerceAtLeast(1f)
-                    val cellPx = target * density
-                    // Re-measure at the final size: this is the only frame of a
-                    // pinch where the glyphs are rasterised again.
-                    setCell(
-                        width = cellWidth * (cellPx / fontPx.coerceAtLeast(1f)),
-                        height = cellHeight * (cellPx / fontPx.coerceAtLeast(1f)),
-                        fontPx = cellPx,
-                    )
+                    // Hand the size to the app and let it come back as a cell.
+                    // The surface does not measure: the host's font stack does,
+                    // and it measures the size the setting now holds.
+                    zoomCommitListener(target)
                 } else {
                     // Back at the origin: the picture eases back too.
                     renderThread.post(RenderThread.Command.Pinch(1f, 0f, 0f))
@@ -464,7 +494,16 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
             override fun sendKeyEvent(event: android.view.KeyEvent): Boolean {
                 if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-                    sendKey(event)
+                    // The IME routes the key here; the view's own onKeyDown is
+                    // the other path, and both firing would type everything
+                    // twice. A key event that came from the IME is marked, and
+                    // onKeyDown skips it.
+                    imeKeyInFlight = true
+                    try {
+                        sendKey(event)
+                    } finally {
+                        imeKeyInFlight = false
+                    }
                     return true
                 }
                 return true
@@ -472,7 +511,19 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         }
     }
 
+    /**
+     * True while a key is being delivered through the input connection.
+     *
+     * A key event reaches this view twice when the IME sends it: once through
+     * `InputConnection.sendKeyEvent` and once through the view's own dispatch.
+     * Only one of them may encode it.
+     */
+    private var imeKeyInFlight = false
+
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (imeKeyInFlight) {
+            return true
+        }
         sendKey(event)
         return true
     }

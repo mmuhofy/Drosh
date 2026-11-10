@@ -57,6 +57,15 @@ fun GhosttyTerminalHost(
     sessionId: String = "",
     sessionName: String = "",
     fontSizeSp: Float,
+    /**
+     * Told the size a pinch settled on, once, when the fingers lift.
+     *
+     * The size lives in the view model — one owner — so the cell the host
+     * measures comes from the same number the settings store. A pinch that
+     * wrote the cell directly would be undone by the next recomposition, which
+     * is exactly the bug this callback exists to end.
+     */
+    onZoomCommitted: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -95,6 +104,7 @@ fun GhosttyTerminalHost(
     // as the other engine's host.
     LaunchedEffect(pane) {
         pane.view.zoomListener = { sp -> zoomSizeSp = sp }
+        pane.view.zoomCommitListener = { sp -> onZoomCommitted(sp) }
     }
 
     // The guest is started once. It is a fork, a rootfs and an exec, so it does

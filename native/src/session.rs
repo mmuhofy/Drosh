@@ -1,12 +1,26 @@
 //! A session: the terminal, its render state, its key encoder, and the shell
 //! tap.
 //!
-//! One handle owns all of it. The Kotlin side asks for a frame and gets bytes;
-//! it does not hold a terminal, a render state and a row iterator separately,
-//! because a frame assembled from three calls is a frame whose parts can come
-//! from three different moments.
+//! ## One handle, one lock
+//!
+//! A terminal is written by the PTY reader thread and read by the render
+//! thread. Both used to hold `&mut Session` at the same time — a data race the
+//! compiler could not see because the pointer crossed the JNI boundary as a
+//! `jlong`. What that looked like on screen was a frame assembled from a grid
+//! that was being rewritten underneath it: torn rows, half-drawn text, cells
+//! that appeared one frame and vanished the next.
+//!
+//! [`SessionHandle`] is the fix. It is a `Mutex<Session>` behind the raw
+//! pointer, and every entry point takes the lock for the whole of its work.
+//! The render state and the terminal are then only ever mutated by one thread
+//! at a time, which is the invariant the engine's API actually requires.
+//!
+//! A poisoned lock is recovered rather than propagated: a panic inside one
+//! call must not turn the whole terminal into a dead handle. The state may be
+//! inconsistent for one frame, and the next update repairs it.
 
 use std::ffi::c_void;
+use std::sync::{Mutex, MutexGuard};
 
 use crate::frame::{FrameError, FrameSource};
 use crate::ghostty;
@@ -50,23 +64,6 @@ impl Session {
 
     pub fn terminal(&self) -> ghostty::GhosttyTerminal {
         self.terminal
-    }
-
-    /// `` into a raw pointer for the JNI layer, which passes it as a `jlong`.
-    pub fn into_raw(self) -> *mut Session {
-        Box::into_raw(Box::new(self))
-    }
-
-    /// Reclaim a handle. Null is a no-op.
-    ///
-    /// # Safety
-    /// `raw` must come from [`Session::into_raw`] and not be used again.
-    pub unsafe fn from_raw<'a>(raw: *mut Session) -> Option<&'a mut Session> {
-        if raw.is_null() {
-            None
-        } else {
-            Some(&mut *raw)
-        }
     }
 
     /// Feed a byte stream to the parser.
@@ -193,7 +190,9 @@ impl Session {
     ) -> Vec<u8> {
         if self.keys.is_none() {
             let mut encoder = std::ptr::null_mut();
-            if !ghostty::ok(unsafe { ghostty::ghostty_key_encoder_new(std::ptr::null(), &mut encoder) }) {
+            if !ghostty::ok(unsafe {
+                ghostty::ghostty_key_encoder_new(std::ptr::null(), &mut encoder)
+            }) {
                 return Vec::new();
             }
             unsafe { ghostty::ghostty_key_encoder_setopt_from_terminal(encoder, self.terminal) };
@@ -245,6 +244,61 @@ impl Drop for Session {
                 ghostty::ghostty_key_encoder_free(encoder);
             }
             ghostty::ghostty_terminal_free(self.terminal);
+        }
+    }
+}
+
+/// A session as the JNI layer holds it: a lock around the session.
+///
+/// The lock is not an optimisation. Two threads reach a terminal — the PTY
+/// reader that feeds it and the render thread that draws it — and the engine's
+/// API is single-threaded. Without this the two interleave inside the parser,
+/// which produces frames that are half one screen and half another.
+pub struct SessionHandle {
+    session: Mutex<Session>,
+}
+
+impl SessionHandle {
+    /// Box a session and hand back the raw pointer the JNI layer stores.
+    pub fn into_raw(session: Session) -> *mut SessionHandle {
+        Box::into_raw(Box::new(Self {
+            session: Mutex::new(session),
+        }))
+    }
+
+    /// Borrow a handle from the pointer that crossed the boundary.
+    ///
+    /// # Safety
+    /// `raw` must have come from [`SessionHandle::into_raw`] and must not have
+    /// been freed.
+    pub unsafe fn from_raw<'a>(raw: *mut SessionHandle) -> Option<&'a Self> {
+        if raw.is_null() {
+            None
+        } else {
+            Some(&*raw)
+        }
+    }
+
+    /// Take the lock for the whole of one call.
+    ///
+    /// A poisoned lock is recovered: a panic in one entry point must not leave
+    /// the terminal permanently unusable, and the engine's state is repaired by
+    /// the next update.
+    pub fn lock(&self) -> MutexGuard<'_, Session> {
+        self.session.lock().unwrap_or_else(|poisoned| {
+            log::warn!("drosh-native: a session lock was poisoned; recovering");
+            poisoned.into_inner()
+        })
+    }
+
+    /// Free a handle. Null is a no-op.
+    ///
+    /// # Safety
+    /// `raw` must have come from [`SessionHandle::into_raw`] and must not be
+    /// used again afterwards.
+    pub unsafe fn destroy(raw: *mut SessionHandle) {
+        if !raw.is_null() {
+            drop(Box::from_raw(raw));
         }
     }
 }

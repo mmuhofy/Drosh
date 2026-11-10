@@ -71,10 +71,15 @@ class Frame private constructor(
     /** The base codepoint of cell [index], or 0 when it has no text. */
     fun codepoint(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_CODEPOINT)
 
-    /** Resolved foreground: R, G, B, A in memory, little-endian. */
+    /**
+     * Resolved foreground, packed by [FrameFormat.packRgba].
+     *
+     * Read it back with [FrameFormat.red] and friends rather than by shifting:
+     * the byte order is the wire format's business and one place decides it.
+     */
     fun foreground(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_FOREGROUND)
 
-    /** Resolved background: R, G, B, A in memory, little-endian. */
+    /** Resolved background, packed by [FrameFormat.packRgba]. */
     fun background(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_BACKGROUND)
 
     fun attributes(index: Int): Int = buffer.getInt(offsetOf(index) + FrameFormat.CELL_ATTRIBUTES)
