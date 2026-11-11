@@ -227,21 +227,40 @@ class LayoutMachine(
      * drawing this frame, or the cells and their buffer disagree.
      */
     fun poll(now: Long): GridChange? {
-        val state = current as? State.Changing ?: return null
-        if (now - state.lastChangeAt < settleMillis) return null
+        val state = current
 
-        val columns = state.size.columns
-        val rows = state.size.rows
-        current = State.Settled(
-            size = state.size,
-            appliedColumns = columns,
-            appliedRows = rows,
-        )
+        // A pinch changes the cell and not the grid: the text grows and runs
+        // off the edge of the screen, and nothing is reflowed until the
+        // gesture ends. A change reported here would resize the engine on
+        // every step of the gesture, which is the stutter the pinch is not.
+        if (state is State.Zooming) return null
 
-        if (columns == state.appliedColumns && rows == state.appliedRows) {
+        if (state is State.Changing) {
+            // The surface is still moving: the grid waits.
+            if (now - state.lastChangeAt < settleMillis) return null
+            current = State.Settled(
+                size = state.size,
+                appliedColumns = state.appliedColumns,
+                appliedRows = state.appliedRows,
+            )
+        }
+
+        // The size implies a shape, and the shape the engine has is the one it
+        // was last told about. When they differ, the caller has to resize the
+        // engine — and that is true for a *cell* change as much as for a
+        // surface one: a committed font size is a new grid, and the grid has
+        // to be laid out for it.
+        //
+        // This used to report a change only while the surface was moving,
+        // which meant that a cell change — a font size, a pinch that ended —
+        // was never reported at all, and the grid kept the shape it had.
+        val current = size
+        val columns = current.columns
+        val rows = current.rows
+        if (columns == appliedColumns && rows == appliedRows) {
             return null
         }
-        return GridChange(columns = columns, rows = rows, size = state.size)
+        return GridChange(columns = columns, rows = rows, size = current)
     }
 
     /**
