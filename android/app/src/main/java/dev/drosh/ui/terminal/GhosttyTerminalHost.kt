@@ -105,11 +105,17 @@ fun GhosttyTerminalHost(
             textSize = effectiveSp * density
             isAntiAlias = true
         }
+        val metrics = paint.fontMetrics
         CellMetrics(
             width = paint.measureText("M").coerceAtLeast(1f),
-            height = paint.fontSpacing.coerceAtLeast(1f),
-            // The font's own size, which is what a glyph is rasterised at. The
-            // cell's height is the line box and is about a fifth taller.
+            // The glyph's own line box, and nothing more.
+            //
+            // `fontSpacing` is ascent + descent + *leading*, and a terminal cell
+            // is not the leading's business: a program draws its own rows, and
+            // the cell a background fills is the box the text sits in. Using the
+            // spacing made every cell taller than its text by the leading, so
+            // the text floated away from the coloured block above it.
+            height = (metrics.descent - metrics.ascent).coerceAtLeast(1f),
             fontPx = paint.textSize,
         )
     }

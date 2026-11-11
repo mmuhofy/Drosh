@@ -303,14 +303,13 @@ internal class FrameRenderer {
         // business, and the same clock the render loop already wakes on.
         if (frame.cursorBlinking && !blinkVisible()) return
 
-        // The cursor's shape, and what Ghostty does about the focus:
+        // The cursor's shape. A block is the cell inverted; a bar and an
+        // underline are rectangles of their own.
         //
-        //  - a block cursor is the cell's own colours swapped, so the text
-        //    under it stays readable;
-        //  - a terminal that does not have the focus shows a hollow block
-        //    instead, so the cursor says where it is without pretending to be
-        //    the place the user is typing.
-        val hollow = !focused || frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK_HOLLOW
+        // The focus does not change it: this terminal is the app, and a cursor
+        // that turned into an outline the moment the app went to the background
+        // read as a bug, not as a hint about where the keystrokes go.
+        val hollow = frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK_HOLLOW
         val block = frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK && !hollow
 
         if (block) return // drawn by inverting the cell
@@ -377,7 +376,7 @@ internal class FrameRenderer {
         if (!frame.cursorVisible || frame.cursorIsRectangle) return -1
         // A hollow cursor is an outline drawn over the cell; the cell keeps
         // its own colours.
-        if (!focused || frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK_HOLLOW) return -1
+        if (frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK_HOLLOW) return -1
         if (frame.cursorColumn !in 0 until frame.columns) return -1
         if (frame.cursorRow !in 0 until frame.rows) return -1
         return (frame.cursorRow + frame.overscanAbove) * frame.columns + frame.cursorColumn
@@ -455,18 +454,10 @@ internal class FrameRenderer {
             foregrounds.putShort(entry.width.toShort())
             foregrounds.putShort(entry.height.toShort())
             foregrounds.putShort(entry.left.toShort())
-            // The mask's line box, centred in the cell it is drawn in.
-            //
-            // A font's line box is its ascent plus its descent; a *cell* is
-            // the font's line *spacing*, which also carries the leading. The
-            // mask was placed at the cell's top, so the leading fell at the
-            // bottom of every row and the text sat that much high — a pixel or
-            // two on a plain line, and a visible band in a full-screen program
-            // that draws its own rows. Centring is what every terminal does
-            // with the leftover: both `top` and `height` are in the mask's own
-            // (possibly supersampled) pixels, and the cell is in device ones.
-            val lineBox = cellHeight * atlas.scale - entry.height
-            foregrounds.putShort((entry.top + lineBox / 2f).toInt().toShort())
+            // The glyph sits where the font puts it: the cell is the glyph's own
+            // line box (ascent + descent), so there is nothing left over to
+            // distribute and nothing to centre.
+            foregrounds.putShort(entry.top.toShort())
             foregrounds.putShort(column.toShort())
             foregrounds.putShort(row.toShort())
             putColor(foregrounds, foregroundOf(frame, index))
