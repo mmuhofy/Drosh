@@ -21,7 +21,7 @@ class ShellScannerTest {
     fun `a prompt mark sets the phase`() {
         val scanner = scanner()
         val marks = scanner.scan("\u001b]133;A\u0007".toByteArray())
-        assertEquals(1, marks.len)
+        assertEquals(1, marks.size)
         assertEquals(Phase.PROMPT, scanner.phase)
     }
 
@@ -39,19 +39,19 @@ class ShellScannerTest {
 
         val marks = scanner.scan("\u001b]133;D;0\u0007".toByteArray())
         assertEquals(Phase.FINISHED, scanner.phase)
-        assertEquals(1, marks.len)
+        assertEquals(1, marks.size)
     }
 
     @Test
     fun `a mark split across two reads is still found`() {
         val scanner = scanner()
         // The first half ends mid-mark: no terminator.
-        assertEquals(0, scanner.scan("\u001b]133;".toByteArray()).len)
+        assertEquals(0, scanner.scan("\u001b]133;".toByteArray()).size)
         assertEquals(Phase.UNKNOWN, scanner.phase)
 
         // The second half completes it.
         val marks = scanner.scan("A\u0007".toByteArray())
-        assertEquals(1, marks.len)
+        assertEquals(1, marks.size)
         assertEquals(Phase.PROMPT, scanner.phase)
     }
 
@@ -72,7 +72,7 @@ class ShellScannerTest {
     fun `a chunk with no marks reports nothing`() {
         val scanner = scanner()
         val marks = scanner.scan("hello world\r\n".toByteArray())
-        assertEquals(0, marks.len)
+        assertEquals(0, marks.size)
         assertEquals(Phase.UNKNOWN, scanner.phase)
     }
 
@@ -81,7 +81,7 @@ class ShellScannerTest {
         val scanner = scanner()
         // ST is ESC \, the other legal OSC terminator.
         val marks = scanner.scan("\u001b]133;A\u001b\\".toByteArray())
-        assertEquals(1, marks.len)
+        assertEquals(1, marks.size)
         assertEquals(Phase.PROMPT, scanner.phase)
     }
 
@@ -89,7 +89,7 @@ class ShellScannerTest {
     fun `text around a mark is ignored`() {
         val scanner = scanner()
         val marks = scanner.scan("prompt$ \u001b]133;A\u0007 ls".toByteArray())
-        assertEquals(1, marks.len)
+        assertEquals(1, marks.size)
         assertEquals(Phase.PROMPT, scanner.phase)
     }
 }
