@@ -368,19 +368,24 @@ impl FrameSource {
                 ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_Y,
                 &mut cursor_y as *mut u16 as *mut std::ffi::c_void,
             );
-            let _ = ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_VISIBLE,
-                &mut cursor_visible as *mut bool as *mut std::ffi::c_void,
-            );
-            let _ = ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_STYLE,
-                &mut cursor_style as *mut u32 as *mut std::ffi::c_void,
-            );
         }
-        // Whether the cursor blinks is the render state's answer: the terminal
-        // has no blinking of its own.
+        // The cursor's shape, its visibility and whether it blinks are the
+        // render state's answers, and they are scalars: one number each, of a
+        // size that is written down.
+        //
+        // The terminal's own cursor *style* is not one of them: that is the
+        // SGR style of the cursor, a whole struct, and reading it into
+        // anything smaller is how a library call becomes a smashed stack.
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
+            &mut cursor_style
+        );
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE,
+            &mut cursor_visible
+        );
         render_get!(
             self.state,
             ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING,
