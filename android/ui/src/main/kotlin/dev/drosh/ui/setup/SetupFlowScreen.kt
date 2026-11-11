@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -24,12 +25,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.theme.DroshBackground
-import dev.drosh.ui.setup.onboarding.scenes.AboutScene
-import dev.drosh.ui.setup.onboarding.scenes.ThemeScene
+import dev.drosh.ui.setup.onboarding.scenes.TerminalReadyScene
 import dev.drosh.ui.setup.onboarding.scenes.WelcomeScene
 import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
 import dev.drosh.ui.setup.stages.BootstrapStage
-import dev.drosh.ui.setup.stages.PackageSelectionStage
 
 @Composable
 fun SetupFlowScreen(
@@ -44,6 +43,17 @@ fun SetupFlowScreen(
     if (progress.isFailed) {
         onSetupFailed()
         return
+    }
+
+    // The bootstrap finishing is what opens the last page: the stage below
+    // shows the work, and the moment it reports ready the flow moves on its
+    // own rather than asking the user to find a button in the log drawer's
+    // shadow. Keyed on readiness alone so a retry that ends ready again does
+    // not drag the user back out of the page they are already reading.
+    LaunchedEffect(progress.isReady) {
+        if (progress.isReady && currentPage == 1) {
+            currentPage = 2
+        }
     }
 
     val slideDistance = 32
@@ -76,41 +86,37 @@ fun SetupFlowScreen(
         ) { page ->
             when (page) {
                 0 -> WelcomeScene(
-                    onNext = { currentPage = 1 },
-                    hasAnimated = true,
-                )
-                1 -> AboutScene(
-                    onNext = { currentPage = 2 },
-                )
-                2 -> ThemeScene(
-                    // The bootstrap has not started yet, and it is the point
-                    // after which the palette can be written to the rootfs copy
-                    // of settings.toml. Nothing to do on this page — the write
-                    // is the wizard's, triggered by bootstrap reaching ready.
-                    onNext = { currentPage = 3 },
+                    onNext = {
+                        // The theme is picked on this page, so the bootstrap it
+                        // starts is launched with the palette already held in
+                        // the wizard — the write happens when the rootfs lands,
+                        // and the terminal opens in it.
+                        viewModel.startBootstrap()
+                        currentPage = 1
+                    },
                     viewModel = viewModel,
                 )
-                3 -> PackageSelectionStage(
-                    onNext = { currentPage = 4 },
+                1 -> BootstrapStage(
+                    onSetupFailed = onSetupFailed,
                     viewModel = viewModel,
                 )
-                4 -> BootstrapStage(
+                2 -> TerminalReadyScene(
                     // Applying the theme is the last thing before the terminal
                     // opens, and the callback is what orders them: the session
                     // that appears is already drawn in the palette that was
                     // picked, rather than the default for a moment and then the
-                    // right one.
+                    // right one. The write is idempotent — the wizard already
+                    // fired it when the bootstrap reported ready — so this is
+                    // the ordering guarantee, not a second write.
                     onReady = {
                         viewModel.applySelectedTheme(onApplied = onReady)
                     },
-                    onSetupFailed = onSetupFailed,
-                    viewModel = viewModel,
                 )
             }
         }
 
         WormPageIndicator(
-            pageCount = 5,
+            pageCount = 3,
             currentPage = currentPage,
             modifier = Modifier
                 .align(Alignment.TopCenter)

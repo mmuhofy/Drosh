@@ -13,8 +13,8 @@ import kotlinx.coroutines.flow.Flow
  * warm start (preferences were saved during onboarding).
  *
  * [start] with [SetupPreferences] is the path taken from onboarding — the
- * user's choices (shell, username, packages) are forwarded to the bootstrap
- * pipeline.
+ * wizard's choices (theme; the shell and package set it sends as defaults)
+ * are forwarded to the bootstrap pipeline.
  */
 interface TriggerBootstrapUseCase {
     val state: State

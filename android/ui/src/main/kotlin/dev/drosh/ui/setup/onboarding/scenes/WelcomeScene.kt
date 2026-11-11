@@ -5,7 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,19 +13,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,49 +33,60 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.theme.DroshBackground
-import dev.drosh.theme.DroshOnPrimary
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.DroshIcons
-import dev.drosh.ui.setup.onboarding.components.TypewriterText
+import dev.drosh.ui.setup.SetupWizardViewModel
 import dev.drosh.ui.setup.components.PillButton
-import kotlinx.coroutines.delay
+import dev.drosh.ui.setup.onboarding.components.AccentPreview
+import dev.drosh.ui.setup.onboarding.components.ThemePickerSection
+import dev.drosh.ui.setup.onboarding.components.TypewriterText
+import dev.drosh.ui.setup.onboarding.components.previewColor
 
+/**
+ * The first page: the greeting and the palette, on one screen.
+ *
+ * The theme choice used to be a page of its own; folded in here, the greeting
+ * keeps the top half and the picker keeps the bottom, and "Get started" is
+ * both the theme's confirm and the bootstrap's trigger — one decision per
+ * screen, and the decision this screen collects is what the rest of the flow
+ * will look like. The picker redraws the whole page in the selected accent
+ * while the finger is still down ([AccentPreview]), which is the preview a
+ * theme deserves: the screen itself, not a swatch.
+ */
 @Composable
 fun WelcomeScene(
     onNext: () -> Unit,
+    viewModel: SetupWizardViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
-    hasAnimated: Boolean,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DroshBackground),
-    ) {
-        Column(
-            modifier = Modifier
+    val choices by viewModel.themeChoices.collectAsStateWithLifecycle()
+    val selectedId by viewModel.selectedThemeId.collectAsStateWithLifecycle()
+    val palette by viewModel.previewPalette.collectAsStateWithLifecycle()
+
+    AccentPreview(accent = previewColor(palette.accent)) {
+        Box(
+            modifier = modifier
                 .fillMaxSize()
-                .padding(horizontal = 28.dp)
-                .windowInsetsPadding(WindowInsets.statusBars),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .background(DroshBackground),
         ) {
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            TerminalIconAnimated(
-                size = 96.dp,
-                tint = DroshPrimary,
-                animateIn = !hasAnimated,
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
             Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 28.dp)
+                    .windowInsetsPadding(WindowInsets.statusBars),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TerminalIconAnimated(size = 96.dp, tint = DroshPrimary)
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 Text(
                     text = buildAnnotatedString {
                         append("Welcome to ")
@@ -115,17 +119,24 @@ fun WelcomeScene(
                         textAlign = TextAlign.Center,
                     ),
                 )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                ThemePickerSection(
+                    choices = choices,
+                    selectedId = selectedId,
+                    onSelect = viewModel::selectTheme,
+                    modifier = Modifier.weight(1f),
+                )
+
+                PillButton(
+                    text = "Get started",
+                    onClick = onNext,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp),
+                )
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            PillButton(
-                text = "Get started",
-                onClick = onNext,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-            )
         }
     }
 }
@@ -134,22 +145,19 @@ fun WelcomeScene(
 private fun TerminalIconAnimated(
     size: androidx.compose.ui.unit.Dp,
     tint: Color,
-    animateIn: Boolean,
 ) {
     val scale = remember { Animatable(0.9f) }
     val alpha = remember { Animatable(0f) }
 
-    if (!animateIn) {
-        LaunchedEffect(Unit) {
-            alpha.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = 300),
-            )
-            scale.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = 300),
-            )
-        }
+    LaunchedEffect(Unit) {
+        alpha.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 300),
+        )
+        scale.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 300),
+        )
     }
 
     Box(

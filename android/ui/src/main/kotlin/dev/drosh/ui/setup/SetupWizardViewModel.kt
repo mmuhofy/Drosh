@@ -3,8 +3,6 @@ package dev.drosh.ui.setup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.settings.ApplyThemeUseCase
-import dev.drosh.domain.settings.GuestIsolation
-import dev.drosh.domain.settings.SettingsRepository
 import dev.drosh.domain.settings.DroshTheme
 import dev.drosh.domain.settings.ThemePalette
 import dev.drosh.domain.terminal.BootstrapProgress
@@ -32,14 +30,17 @@ import javax.inject.Inject
  * The onboarding wizard's state: the pages, the choices they collect, and the
  * two things that have to happen once the rootfs is really there.
  *
- * **The theme is the part with a chain behind it.** The palette picked on the
- * theme page cannot be written while setup is running: `.drosh/themes/` and the
- * rootfs copy of `settings.toml` are both inside the Linux environment, which
- * does not exist yet. So the pick is held here as [_selectedThemeId] and written
- * by [applySelectedTheme] the moment the bootstrap reports ready — which is the
- * first moment the write lands in the file the terminal actually reads. Without
- * that second step the picker would be a picture of a choice that goes nowhere,
- * which is the state this feature was in.
+ * **The theme is the only choice the wizard still collects.** The shell and
+ * the package set are no longer onboarding questions — the pipeline receives
+ * its defaults from [startBootstrap] and behaves exactly as it always did —
+ * so the only pick left with a chain behind it is the palette. It cannot be
+ * written while setup is running: `.drosh/themes/` and the rootfs copy of
+ * `settings.toml` are both inside the Linux environment, which does not exist
+ * yet. So the pick is held here as [_selectedThemeId] and written by
+ * [applySelectedTheme] the moment the bootstrap reports ready — which is the
+ * first moment the write lands in the file the terminal actually reads.
+ * Without that second step the picker would be a picture of a choice that
+ * goes nowhere, which is the state this feature was in.
  */
 @HiltViewModel
 class SetupWizardViewModel @Inject constructor(
@@ -47,7 +48,6 @@ class SetupWizardViewModel @Inject constructor(
     private val triggerBootstrap: TriggerBootstrapUseCase,
     private val firstLaunch: ObserveFirstLaunchUseCase,
     private val applyTheme: ApplyThemeUseCase,
-    private val settings: SettingsRepository,
 ) : ViewModel() {
 
     val progress: StateFlow<BootstrapProgress> = observeBootstrap.progress()
@@ -69,29 +69,6 @@ class SetupWizardViewModel @Inject constructor(
 
     private val _isLogDrawerOpen = MutableStateFlow(false)
     val isLogDrawerOpen: StateFlow<Boolean> = _isLogDrawerOpen.asStateFlow()
-
-    /**
-     * Which isolation engine the guest runs under.
-     *
-     * The user's choice, kept in the settings so it survives a restart and so
-     * the session that opens next uses it. The default is proot, the engine that
-     * works on a device today.
-     */
-    val guestIsolation: StateFlow<GuestIsolation> = settings.guestIsolation
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = GuestIsolation.DEFAULT,
-        )
-
-    private val _packageProfile = MutableStateFlow(PackageProfile.Standard)
-    val packageProfile: StateFlow<PackageProfile> = _packageProfile.asStateFlow()
-
-    private val _shellChoice = MutableStateFlow(ShellChoice.Zsh)
-    val shellChoice: StateFlow<ShellChoice> = _shellChoice.asStateFlow()
-
-    private val _customPackagesText = MutableStateFlow("")
-    val customPackagesText: StateFlow<String> = _customPackagesText.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -121,10 +98,6 @@ class SetupWizardViewModel @Inject constructor(
         DroshTheme.find(id, choices)?.palette ?: ThemePalette.DEFAULT
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ThemePalette.DEFAULT)
 
-    /** True once the theme is written to disk, for the "done" line on the page. */
-    private val _themeApplied = MutableStateFlow(false)
-    val themeApplied: StateFlow<Boolean> = _themeApplied.asStateFlow()
-
     init {
         observeBootstrap.liveLogs()
             .onEach { line ->
@@ -143,31 +116,8 @@ class SetupWizardViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    fun selectProfile(profile: PackageProfile) {
-        _packageProfile.value = profile
-    }
-
-    fun selectShell(shell: ShellChoice) {
-        _shellChoice.value = shell
-    }
-
-    /**
-     * Chooses the isolation engine and writes it to the settings.
-     *
-     * The write is a settings write like any other, so the session that opens
-     * next picks it up without a restart and without a second path to keep in
-     * step.
-     */
-    fun selectGuestIsolation(isolation: GuestIsolation) {
-        viewModelScope.launch { settings.setGuestIsolation(isolation) }
-    }
-
     fun selectTheme(themeId: String) {
         _selectedThemeId.value = themeId
-    }
-
-    fun setCustomPackagesText(text: String) {
-        _customPackagesText.value = text
     }
 
     fun toggleLogDrawer() {
@@ -179,17 +129,11 @@ class SetupWizardViewModel @Inject constructor(
     }
 
     fun startBootstrap() {
-        val customPackages = _customPackagesText.value
-            .split(",")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .toSet()
-
         val preferences = SetupPreferences(
             userName = "user",
-            shellChoice = _shellChoice.value,
-            packageProfile = _packageProfile.value,
-            customPackages = customPackages,
+            shellChoice = ShellChoice.Zsh,
+            packageProfile = PackageProfile.Standard,
+            customPackages = emptySet(),
             themeId = _selectedThemeId.value,
         )
 
@@ -223,14 +167,11 @@ class SetupWizardViewModel @Inject constructor(
     fun applySelectedTheme(onApplied: () -> Unit = {}) {
         val themeId = _selectedThemeId.value
         if (applyTheme.isApplied(themeId)) {
-            _themeApplied.value = true
             onApplied()
             return
         }
         viewModelScope.launch {
             applyTheme.apply(themeId)
-                .onSuccess { _themeApplied.value = true }
-                .onFailure { _themeApplied.value = false }
             onApplied()
         }
     }

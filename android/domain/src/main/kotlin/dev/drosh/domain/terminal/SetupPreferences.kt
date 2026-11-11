@@ -9,9 +9,12 @@ import dev.drosh.domain.settings.DroshTheme
  * Created from the local state collected in SetupFlowScreen, then passed to
  * [TriggerBootstrapUseCase.start] so the bootstrap (guest runtime + Ubuntu rootfs)
  * can honour:
- *   - the chosen shell (Zsh → install Oh My Zsh; Bash → skip it)
+ *   - the shell for the guest (Zsh → install Oh My Zsh; Bash → skip it) — no
+ *     longer an onboarding question; the wizard always sends [ShellChoice.Zsh]
  *   - the username for the shell prompt
- *   - the package profile (Minimal / Developer / Custom)
+ *   - the package profile — also no longer an onboarding question; the wizard
+ *     sends [PackageProfile.Standard] with no extras, which is the install the
+ *     pipeline's base-package step performs regardless
  *
  * This type is in `:domain` so that `ui/` → `domain/` → `data/` → `terminal/`
  * can flow without the UI importing `:terminal` directly.

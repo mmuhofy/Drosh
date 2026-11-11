@@ -35,12 +35,18 @@ import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.ui.setup.SetupWizardViewModel
 import dev.drosh.ui.setup.components.LiveLogCard
-import dev.drosh.ui.setup.components.PillButton
 import dev.drosh.ui.setup.components.StepHistoryStack
 
+/**
+ * The second page: the rootfs being installed, with its steps and its logs.
+ *
+ * This page does not end in a button any more. When the bootstrap reports
+ * ready, the flow advances to the terminal-ready page on its own — the finish
+ * is a page, not a state of this one — so the only way out of a failure is
+ * [onSetupFailed], which the recovery route handles.
+ */
 @Composable
 fun BootstrapStage(
-    onReady: () -> Unit,
     onSetupFailed: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SetupWizardViewModel = hiltViewModel(),
@@ -101,16 +107,6 @@ fun BootstrapStage(
             OverallProgressBlock(progress = progress)
 
             Spacer(modifier = Modifier.height(12.dp))
-
-            if (progress.isReady) {
-                PillButton(
-                    text = "Continue to terminal",
-                    onClick = onReady,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                )
-            }
 
             LiveLogCard(
                 lines = liveLogs,
