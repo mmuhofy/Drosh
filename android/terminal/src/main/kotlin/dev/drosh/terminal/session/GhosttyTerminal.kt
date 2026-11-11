@@ -447,8 +447,19 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         return shown.transcript()
     }
 
-    /** Not carried by this engine: `OSC 8` has no C API surface yet. */
-    override fun hyperlinkAt(row: Int, column: Int): String? = null
+    /**
+     * The URI of the hyperlink the cell belongs to (`OSC 8`), or null.
+     *
+     * Read from the engine at the moment of the query rather than carried in
+     * the frame: a link is a property of a cell, the frame is a picture of the
+     * grid, and adding a flag per cell to the frame would pay for every cell to
+     * serve the one the user tapped. The engine resolves the viewport cell
+     * itself, so the row and column are the same ones the renderer drew.
+     */
+    override fun hyperlinkAt(row: Int, column: Int): String? {
+        val shown = session ?: return null
+        return NativeSession.hyperlink(shown.terminalHandle, row, column)
+    }
 
     private companion object {
         const val TAG = "GhosttyTerminal"

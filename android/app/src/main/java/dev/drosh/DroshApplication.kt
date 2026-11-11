@@ -31,6 +31,9 @@ class DroshApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // The terminal's clipboard sink needs a context before any session can
+        // ask it to write; attaching here is the earliest point it exists.
+        ClipboardSink.attach(this)
         sessionManagerAdapter.start()
         ContextCompat.startForegroundService(this, Intent(this, TerminalService::class.java))
     }

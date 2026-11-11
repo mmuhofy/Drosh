@@ -1,6 +1,10 @@
 package dev.drosh.ui.terminal
 
 import android.util.Log
+import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewConfiguration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -10,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
@@ -29,6 +34,7 @@ import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
 /**
  * A pane on the Ghostty engine.
@@ -74,6 +80,15 @@ fun GhosttyTerminalHost(
      * column, and the whole pane before the first frame.
      */
     backgroundColor: Int,
+    /**
+     * Told the URI of a hyperlink the user tapped.
+     *
+     * `OSC 8` links are the terminal's own; a tap on a cell that carries one is
+     * the only way to reach it, because the cell shows text and the link is not
+     * in it. The pane resolves the tapped cell against the engine and reports
+     * the URI, and the caller decides what opening it means.
+     */
+    onUrlClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -122,6 +137,30 @@ fun GhosttyTerminalHost(
 
     var status by remember { mutableStateOf<String?>("preparing") }
     var zoomSizeSp by remember { mutableStateOf(0f) }
+
+    // The tap that follows a hyperlink.
+    //
+    // The surface owns every gesture — scroll, fling, pinch, the focus tap —
+    // and its own touch handling is not this host's business. What the host can
+    // do without taking those away is *observe*: an `OnTouchListener` that
+    // returns false sees each event first and lets the surface handle it as it
+    // always did. A tap is then the host's to recognise, and a cell under it
+    // can be resolved against the engine.
+    //
+    // The cell and the callback are read through `rememberUpdatedState`, so the
+    // listener built once still sees the pane's current metrics after a font
+    // change or a pinch, and the caller's current `onUrlClick`.
+    val currentCell = rememberUpdatedState(cell)
+    val currentOnUrlClick = rememberUpdatedState(onUrlClick)
+    val linkTap = remember(context, pane) {
+        HyperlinkTap(
+            slop = ViewConfiguration.get(context).scaledTouchSlop,
+            timeoutMillis = TAP_TIMEOUT_MILLIS,
+            cellSize = { currentCell.value.width to currentCell.value.height },
+            resolve = { row, column -> pane.hyperlinkAt(row, column) },
+            onLink = { uri -> currentOnUrlClick.value(uri) },
+        )
+    }
 
     // True while the fingers are on the screen. A pinch changes the cell and
     // nothing else: the grid keeps its shape while the gesture runs, and it is
@@ -314,6 +353,12 @@ fun GhosttyTerminalHost(
             update = { _ ->
                 // The theme's ground, on every recomposition that changes it.
                 pane.setBackground(backgroundColor)
+                // The hyperlink tap. Set here rather than in the factory so a
+                // recomposition after a font change re-points it at the pane
+                // that is on screen now — though the listener itself reads the
+                // cell and the callback live, so it is the same object either
+                // way.
+                pane.view.setOnTouchListener(linkTap)
                 // While the pinch runs the cell changes and the grid does not;
                 // when it ends the size is committed and the grid is laid out
                 // again, so the text fits the screen exactly.
@@ -344,8 +389,105 @@ private const val TAG = "GhosttyTerminalHost"
 /** How many half-seconds the status line stays up before it gets out of the way. */
 private const val STATUS_TICKS = 40
 
+/**
+ * How long a touch may last and still count as a tap.
+ *
+ * A terminal's own gestures are drags and pinches; a tap is the short, still
+ * one between them. The window is short because a long press that happened to
+ * move a pixel should scroll, not follow a link.
+ */
+private const val TAP_TIMEOUT_MILLIS = 250L
+
 /** The cell a font measured, in pixels. */
 private data class CellMetrics(val width: Float, val height: Float, val fontPx: Float)
+
+/**
+ * Follows the hyperlink, if any, under a tap on the terminal.
+ *
+ * ## Why a listener that returns false
+ *
+ * The surface handles its own touches — scroll, fling, pinch, focus — and this
+ * must not take any of that away. An `OnTouchListener` runs before the view's
+ * own `onTouchEvent`, and returning false hands the event straight on, so the
+ * surface behaves exactly as it did. What is left here is the one thing the
+ * surface does not do: spotting a tap and asking the engine about the cell
+ * under it.
+ *
+ * ## Why the cell is read at tap time
+ *
+ * The cell size and the resolver are functions, not values: a pinch or a font
+ * change moves the cell, and a listener built once would otherwise resolve the
+ * tap against the cell it was built with. They are read when the tap lands.
+ */
+private class HyperlinkTap(
+    /** How far a touch may wander and still be a tap. */
+    private val slop: Int,
+    /** How long a touch may last and still be a tap. */
+    private val timeoutMillis: Long,
+    /** The pane's cell, in pixels, read at tap time. */
+    private val cellSize: () -> Pair<Float, Float>,
+    /** The engine's link for a viewport cell, or null. */
+    private val resolve: (row: Int, column: Int) -> String?,
+    /** Told the URI that was found. */
+    private val onLink: (String) -> Unit,
+) : View.OnTouchListener {
+
+    private var downX = 0f
+    private var downY = 0f
+    private var downAt = 0L
+
+    /** True while the touch could still become a tap. */
+    private var candidate = false
+
+    override fun onTouch(view: View, event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                downAt = SystemClock.uptimeMillis()
+                // One finger only: a two-finger touch is a pinch's beginning,
+                // and a pinch is not a tap on a link.
+                candidate = event.pointerCount == 1
+            }
+
+            MotionEvent.ACTION_POINTER_DOWN -> candidate = false
+
+            MotionEvent.ACTION_MOVE -> {
+                if (candidate &&
+                    (abs(event.x - downX) > slop || abs(event.y - downY) > slop)
+                ) {
+                    candidate = false
+                }
+            }
+
+            MotionEvent.ACTION_UP -> {
+                val wasTap = candidate && SystemClock.uptimeMillis() - downAt <= timeoutMillis
+                candidate = false
+                if (wasTap) followLink(event.x, event.y)
+            }
+
+            MotionEvent.ACTION_CANCEL -> candidate = false
+        }
+        // Never consume: the surface's own gestures must go on receiving every
+        // event exactly as they did before.
+        return false
+    }
+
+    /** Resolve the tapped cell and report its link, if it has one. */
+    private fun followLink(x: Float, y: Float) {
+        val (width, height) = cellSize()
+        if (width <= 0f || height <= 0f) return
+        // Viewport coordinates: the grid is drawn from the surface's origin, so
+        // the cell under the finger is the finger divided by the cell. The
+        // sub-line scroll remainder is not applied — a tap after a scroll can
+        // be one row out until the picture has settled on a whole row.
+        val column = (x / width).toInt()
+        val row = (y / height).toInt()
+        if (column < 0 || row < 0) return
+        val uri = resolve(row, column) ?: return
+        if (uri.isNotEmpty()) onLink(uri)
+    }
+}
 
 /** The grid a PTY starts with before the surface has been measured. */
 private const val DEFAULT_COLUMNS = 100

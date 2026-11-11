@@ -56,6 +56,21 @@ impl Session {
             return Err(SessionError::TerminalFailed);
         }
 
+        // The clipboard write effect: OSC 52, iTerm2's OSC 1337 Copy, and the
+        // kitty clipboard protocol (OSC 5522). The engine hands each request to
+        // the callback while the bytes are being parsed — which is here, on the
+        // thread that feeds the terminal. The callback is the bridge to
+        // Android's clipboard; whether a write is *allowed* is the Kotlin
+        // sink's decision, not the engine's, so the effect is installed on every
+        // terminal and the sink refuses by default.
+        let _ = unsafe {
+            ghostty::ghostty_terminal_set(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE,
+                crate::clipboard::on_clipboard_write as *const c_void,
+            )
+        };
+
         let frames = FrameSource::new(terminal).map_err(SessionError::Frames)?;
         Ok(Self {
             terminal,

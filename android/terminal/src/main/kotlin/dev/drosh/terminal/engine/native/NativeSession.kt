@@ -185,6 +185,20 @@ object NativeSession {
         return out
     }
 
+    /**
+     * The URI of the hyperlink the cell at a viewport position belongs to, or
+     * null when the cell carries none.
+     *
+     * The engine resolves the cell and reads its `OSC 8` link, so a link that
+     * runs across several cells answers the same for each of them, and the
+     * bounds of the run stay the engine's business. Null is the common case: a
+     * cell with no link is not an error, it is an answer.
+     */
+    fun hyperlink(handle: Long, row: Int, column: Int): String? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeHyperlink(handle, row, column)
+    }
+
     /** Scrolls the viewport. `tag` is one of the `SCROLL_*` constants. */
     fun scroll(handle: Long, tag: Int, amount: Int): Int {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
@@ -234,6 +248,7 @@ object NativeSession {
         columns: Int,
     ): IntArray
     private external fun nativeSearch(handle: Long, query: String, limit: Int): IntArray
+    private external fun nativeHyperlink(handle: Long, row: Int, column: Int): String?
     private external fun nativeShellPhase(handle: Long): Int
     private external fun nativeWorkingDirectory(handle: Long): String
 }

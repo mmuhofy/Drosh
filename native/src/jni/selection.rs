@@ -105,6 +105,70 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
     format(&session, selection)
 }
 
+/// The URI of the hyperlink the cell at a viewport position belongs to, or null.
+///
+/// ## Two calls
+///
+/// The engine writes the URI into a buffer the caller owns, so its length is
+/// asked for first — with a null buffer — and then the bytes. The engine's
+/// answer to the measuring call is `GHOSTTY_OUT_OF_SPACE` for a cell that has a
+/// link, which is the documented contract rather than an error; a cell with no
+/// link answers `GHOSTTY_SUCCESS` and a length of zero.
+///
+/// ## Why a reference and not a row scan
+///
+/// A link runs across the cells that share its `OSC 8` run, and the engine is
+/// the one that knows which cells those are. Resolving the single tapped cell
+/// to a grid reference asks it directly.
+pub fn hyperlink_at(session: &Session, row: u32, column: u16) -> Option<String> {
+    let mut point: ghostty::GhosttyPoint = unsafe { std::mem::zeroed() };
+    unsafe {
+        super::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
+        point.value.coordinate.x = column;
+        point.value.coordinate.y = row;
+    }
+
+    let mut reference: ghostty::GhosttyGridRef = unsafe { std::mem::zeroed() };
+    // A sized struct: `size` tells the engine which layout the caller expects
+    // back, so it is set before the call rather than left to whatever the
+    // engine writes.
+    reference.size = std::mem::size_of::<ghostty::GhosttyGridRef>();
+    let result = unsafe {
+        ghostty::ghostty_terminal_grid_ref(session.terminal(), point, &mut reference)
+    };
+    if !ghostty::ok(result) {
+        return None;
+    }
+
+    let mut length: usize = 0;
+    unsafe {
+        ghostty::ghostty_grid_ref_hyperlink_uri(
+            &reference,
+            std::ptr::null_mut(),
+            0,
+            &mut length,
+        )
+    };
+    if length == 0 {
+        return None;
+    }
+
+    let mut buffer = vec![0u8; length];
+    let result = unsafe {
+        ghostty::ghostty_grid_ref_hyperlink_uri(
+            &reference,
+            buffer.as_mut_ptr(),
+            buffer.len(),
+            &mut length,
+        )
+    };
+    if !ghostty::ok(result) {
+        return None;
+    }
+    buffer.truncate(length);
+    Some(String::from_utf8_lossy(&buffer).into_owned())
+}
+
 /// Everything the engine holds, as text.
 fn select_all(handle: jlong) -> Option<String> {
     let session = session_lock(handle)?;

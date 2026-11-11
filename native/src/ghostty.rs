@@ -157,6 +157,15 @@ pub const GHOSTTY_TERMINAL_SCREEN_PRIMARY: GhosttyTerminalScreen =
 pub const GHOSTTY_TERMINAL_SCREEN_ALTERNATE: GhosttyTerminalScreen =
     GhosttyTerminalScreen_GHOSTTY_TERMINAL_SCREEN_ALTERNATE;
 
+// --- clipboard --------------------------------------------------------------
+
+pub const GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE;
+pub const GHOSTTY_CLIPBOARD_WRITE_RESULT_SUCCESS: GhosttyClipboardWriteResult =
+    GhosttyClipboardWriteResult_GHOSTTY_CLIPBOARD_WRITE_RESULT_SUCCESS;
+pub const GHOSTTY_CLIPBOARD_WRITE_RESULT_DENIED: GhosttyClipboardWriteResult =
+    GhosttyClipboardWriteResult_GHOSTTY_CLIPBOARD_WRITE_RESULT_DENIED;
+
 pub const GHOSTTY_POINT_TAG_VIEWPORT: GhosttyPointTag =
     GhosttyPointTag_GHOSTTY_POINT_TAG_VIEWPORT;
 

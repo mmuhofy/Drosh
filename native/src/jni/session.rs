@@ -15,7 +15,7 @@ use crate::session::{Session, SessionHandle};
 /// Create a session with a `columns` x `rows` terminal. Zero on failure.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeCreate(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     columns: jint,
     rows: jint,
@@ -23,6 +23,10 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     if !(1..=0xffff).contains(&columns) || !(1..=0xffff).contains(&rows) {
         return 0;
     }
+    // The clipboard bridge is captured from the first session that is made.
+    // This is the one place a `JNIEnv` for the app's class loader is in hand
+    // before a program's OSC 52 write needs it on the reader thread.
+    crate::clipboard::install(&mut env);
     match Session::new(columns as u16, rows as u16) {
         Ok(session) => SessionHandle::into_raw(session) as usize as jlong,
         Err(error) => {
@@ -392,6 +396,27 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     let text = read_string(&mut env, &query.into_raw());
     let triples = super::selection::search(&session, &text, limit as usize);
     new_int_array(&mut env, &triples)
+}
+
+/// The URI of the hyperlink the cell at a viewport position belongs to, or null.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeHyperlink(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    row: jint,
+    column: jint,
+) -> jstring {
+    if row < 0 || column < 0 || column > 0xffff {
+        return std::ptr::null_mut();
+    }
+    let Some(session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    match super::selection::hyperlink_at(&session, row as u32, column as u16) {
+        Some(uri) => new_string(&mut env, &uri),
+        None => std::ptr::null_mut(),
+    }
 }
 
 /// Silence an unused-import warning on a target without the JNI types.

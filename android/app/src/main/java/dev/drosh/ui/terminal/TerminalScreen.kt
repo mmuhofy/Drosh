@@ -1868,6 +1868,10 @@ private fun TerminalPaneBody(
                 // The theme's terminal background: the ground the grid is drawn
                 // on, and the colour of everywhere it does not reach.
                 backgroundColor = terminalBackgroundColor,
+                // A tap on a cell that carries an `OSC 8` link. The pane
+                // resolves the cell against the engine and hands the URI up;
+                // the screen decides what opening it means.
+                onUrlClick = onUrlClick,
                 modifier = Modifier.fillMaxSize(),
             )
 
