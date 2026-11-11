@@ -66,6 +66,15 @@ class ScrollMachine {
     private var askedRow: Int = -1
 
     /**
+     * Whether the machine has ever taken the engine's position.
+     *
+     * The first drag has to start somewhere, and the only honest place is where
+     * the engine is. After that the machine is the truth until a gesture
+     * begins, which is what `sync` is for.
+     */
+    private var synced = false
+
+    /**
      * Move the viewport by a finger's travel.
      *
      * @param engineOffset where the engine's viewport is now, in its row space.
@@ -93,6 +102,14 @@ class ScrollMachine {
         //
         // The machine's row is the truth during a gesture. Where the engine
         // actually is is settled once the gesture ends — see `sync`.
+        //
+        // The first drag is the exception: the machine has no position of its
+        // own yet, so it takes the engine's.
+        if (!synced) {
+            row = engineOffset.coerceIn(0, bottom)
+            shiftPx = 0f
+            synced = true
+        }
 
         var current = row.coerceIn(0, bottom)
         var shift = shiftPx
@@ -154,6 +171,7 @@ class ScrollMachine {
         row = engineOffset.coerceIn(0, bottom)
         shiftPx = 0f
         askedRow = row
+        synced = true
     }
 
     /**
@@ -166,5 +184,6 @@ class ScrollMachine {
         row = 0
         shiftPx = 0f
         askedRow = -1
+        synced = false
     }
 }
