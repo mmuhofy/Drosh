@@ -287,12 +287,10 @@ internal class FrameRenderer {
     /**
      * Whether a blinking cursor is in its visible phase right now.
      *
-     * The engine says the cursor blinks; the phase is the clock's business.
-     * The same half-second the render loop already wakes on is the period, so
-     * the cursor does not need a timer of its own.
+     * The engine says the cursor blinks; the phase and the rate are the clock's
+     * business — see [RenderClock], which the settings move.
      */
-    private fun blinkVisible(): Boolean =
-        (System.currentTimeMillis() / BLINK_PERIOD_MILLIS) % 2L == 0L
+    private fun blinkVisible(): Boolean = RenderClock.blinkVisible()
 
     private fun drawCursor(frame: Frame, size: SizeInfo) {
         if (cursorProgram == 0) return
@@ -735,9 +733,6 @@ internal class FrameRenderer {
 
         /** A colour that draws nothing. */
         const val TRANSPARENT = 0
-
-        /** How long a cursor blink lasts, in milliseconds. */
-        const val BLINK_PERIOD_MILLIS = 500L
 
         /** A bar cursor's width, as a fraction of a cell. */
         const val BAR_WIDTH = 0.1f

@@ -107,6 +107,17 @@ object NativeSession {
         return nativeSetColors(handle, foreground, background, palette) != 0.toByte()
     }
 
+    /**
+     * The default cursor's shape and whether it blinks.
+     *
+     * A program can still change its cursor with DECSCUSR; this is what the
+     * terminal falls back to, which is the setting the user chose.
+     */
+    fun setCursor(handle: Long, style: Int, blink: Boolean): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeSetCursor(handle, style, if (blink) 1 else 0) != 0.toByte()
+    }
+
     /** The title the program asked for with OSC 0/2, or null when it set none. */
     fun title(handle: Long): String? {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
@@ -211,6 +222,7 @@ object NativeSession {
         palette: IntArray,
     ): Byte
     private external fun nativeTitle(handle: Long): String?
+    private external fun nativeSetCursor(handle: Long, style: Int, blink: Int): Byte
     private external fun nativeAlternateScreen(handle: Long): Boolean
     private external fun nativeModes(handle: Long): Int
     private external fun nativeTranscript(handle: Long): String

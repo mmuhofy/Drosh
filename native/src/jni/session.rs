@@ -167,6 +167,22 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     1
 }
 
+/// Set the default cursor's shape (`style`) and whether it blinks.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSetCursor(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    style: jint,
+    blink: jboolean,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    session.set_cursor(style.max(0) as u32, blink != 0);
+    1
+}
+
 /// The window title the program asked for (OSC 0/2), or the process name.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeTitle(

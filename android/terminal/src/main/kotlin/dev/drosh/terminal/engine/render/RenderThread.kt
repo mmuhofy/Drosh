@@ -492,7 +492,7 @@ class RenderThread(
         lock.withLock {
             if (pending.isNotEmpty()) return
             val waitMillis = (layout.settlePending).let {
-                if (it) LAYOUT_POLL_MS else BLINK_INTERVAL_MS
+                if (it) LAYOUT_POLL_MS else RenderClock.blinkWaitMillis()
             }
             work.await(waitMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
         }
@@ -507,7 +507,5 @@ class RenderThread(
         /** How often the loop wakes while a surface is settling. */
         const val LAYOUT_POLL_MS = 16L
 
-        /** How often the loop wakes to blink the cursor when nothing else does. */
-        const val BLINK_INTERVAL_MS = 500L
     }
 }

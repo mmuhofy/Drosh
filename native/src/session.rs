@@ -149,6 +149,26 @@ impl Session {
         }
     }
 
+    /// The default cursor's shape and whether it blinks.
+    ///
+    /// A program can still change its own cursor with DECSCUSR; these are what
+    /// the terminal falls back to, which is the setting the user chose.
+    pub fn set_cursor(&mut self, style: u32, blink: bool) {
+        unsafe {
+            let value = style as i32;
+            let _ = ghostty::ghostty_terminal_set(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_DEFAULT_CURSOR_STYLE,
+                &value as *const _ as *const c_void,
+            );
+            let _ = ghostty::ghostty_terminal_set(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_DEFAULT_CURSOR_BLINK,
+                &blink as *const _ as *const c_void,
+            );
+        }
+    }
+
     /// The window title the program asked for with OSC 0 or OSC 2.
     ///
     /// The engine hands back a borrowed string: it stays valid until the next

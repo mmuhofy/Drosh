@@ -414,6 +414,12 @@ class TerminalManager(
      * before the settings were read would otherwise draw in the library's own
      * black.
      */
+    /** The cursor's shape, as the settings ask for it. */
+    private var engineCursorStyle: Int = 1
+
+    /** Whether the terminal's own cursor blinks when a program sets no rate. */
+    private var engineCursorBlink: Boolean = true
+
     private var engineForeground: Int = 0xE8E8E8
     private var engineBackground: Int = 0x0E0E0E
     private var enginePalette: IntArray = IntArray(0)
@@ -430,6 +436,18 @@ class TerminalManager(
      */
     private fun backgroundImageActive(): Boolean =
         backgroundImages?.imageFile?.value != null
+
+    /** Give every live session the cursor the settings ask for. */
+    private fun applyEngineCursor() {
+        for (session in liveSessions.values) applyEngineCursor(session)
+    }
+
+    /** Give one session the cursor the settings ask for. */
+    private fun applyEngineCursor(session: GhosttySession) {
+        val handle = session.terminalHandle
+        if (handle == 0L) return
+        NativeSession.setCursor(handle, engineCursorStyle, engineCursorBlink)
+    }
 
     /** Give every live session the theme's colours. */
     private fun applyEngineColors() {
@@ -512,17 +530,12 @@ class TerminalManager(
     private fun applyCursorBlinkRate(rate: Int) {
         cursorBlinkRateMs = rate
         blinkJob?.cancel()
-        if (rate !in VALID_BLINK_RANGE) {
-            // Off: the cursor is steady.
-            return
-        }
-        blinkJob = managerScope.launch {
-            while (isActive) {
-                delay(rate.toLong())
-                blinkPhase = !blinkPhase
-                // Blink is handled by the engine pane's own renderer now.
-            }
-        }
+        // One clock for every pane's renderer: the rate a settings change sets
+        // is the rate the loop wakes on and the rate the cursor's phase is
+        // measured against. Out of range means the user asked for a steady
+        // cursor, which is zero on that clock.
+        dev.drosh.terminal.engine.render.RenderClock.blinkMillis =
+            if (rate in VALID_BLINK_RANGE) rate.toLong() else 0L
     }
 
     /** The pane's view, or null when the pane is not on screen. */
@@ -889,8 +902,15 @@ class TerminalManager(
 
         settingsRepository.cursorStyle
             .onEach { style ->
-                // Cursor style is now applied through the engine's appearance
-                // system, not through the Termux session client.
+                // The engine's own default cursor, which is what a program that
+                // never asks for one gets. DECSCUSR still overrides it for the
+                // programs that do ask.
+                engineCursorStyle = when (style.trim().lowercase()) {
+                    "beam", "bar" -> CURSOR_STYLE_BAR
+                    "underline" -> CURSOR_STYLE_UNDERLINE
+                    else -> CURSOR_STYLE_BLOCK
+                }
+                applyEngineCursor()
             }
             .launchIn(managerScope)
 
@@ -1424,6 +1444,7 @@ class TerminalManager(
         session.onExit = { code -> onLiveSessionExited(persistentId, code) }
         liveSessions[persistentId] = session
         applyEngineColors(session)
+        applyEngineCursor(session)
 
         // The session also joins the app's session list, so the sidebar, the
         // grid and the active-id tracking all see it — a session that exists
@@ -2394,6 +2415,11 @@ class TerminalManager(
 
         /** Matches [TerminalSettings.palette.background]'s default. */
         const val DEFAULT_TERMINAL_BG_COLOR = 0xFF0E0E0E.toInt()
+
+        /** The engine's cursor styles: bar, block, underline. */
+        const val CURSOR_STYLE_BAR = 0
+        const val CURSOR_STYLE_BLOCK = 1
+        const val CURSOR_STYLE_UNDERLINE = 2
 
         /**
          * The rates the vendored view accepts, mirroring its own
