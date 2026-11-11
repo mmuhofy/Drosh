@@ -594,7 +594,7 @@ impl FrameSource {
         // The rule is not a swap of the two colours. It picks between them,
         // and which one it picks depends on whether the cell carries a
         // colour of its own — see `renderer::cell`.
-        let colors = crate::renderer::cell::colors(
+        let mut colors = crate::renderer::cell::colors(
             &crate::renderer::cell::CellStyle {
                 foreground: fg_style.or(fg_from_tag),
                 background: bg_style.or(bg_from_tag),
@@ -608,6 +608,23 @@ impl FrameSource {
                 background: rgb(self.default_bg),
             },
         );
+
+        // A selected cell is drawn in the terminal's own two colours, swapped:
+        // the selection is a region of the terminal's foreground on its
+        // background, which is what a selection has to look like wherever the
+        // text under it happens to be.
+        if selected {
+            colors.foreground = crate::renderer::cell::Rgb::new(
+                self.default_bg.r,
+                self.default_bg.g,
+                self.default_bg.b,
+            );
+            colors.background = crate::renderer::cell::Rgb::new(
+                self.default_fg.r,
+                self.default_fg.g,
+                self.default_fg.b,
+            );
+        }
         let fg = crate::renderer::cell::Rgb {
             r: colors.foreground.r,
             g: colors.foreground.g,
