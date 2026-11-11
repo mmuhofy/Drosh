@@ -123,11 +123,13 @@ class ScrollMachineTest {
     }
 
     @Test
-    fun `the engine's own move wins`() {
+    fun `a gesture starts from where the engine is`() {
         val scroll = atLiveEdge()
         scroll.drag(engineOffset = 10, historyRows = 10, distancePx = 5f, spacingPx = spacing)
-        // The engine moved on its own: new output at the live edge carried the
-        // view with it, so the engine is now at row 11.
+        // New output arrived while the user was not touching the screen: the
+        // engine moved to row 11 and the view went with it. The next gesture
+        // starts there.
+        scroll.sync(engineOffset = 11, historyRows = 11)
         val target = scroll.drag(
             engineOffset = 11,
             historyRows = 11,
@@ -136,6 +138,28 @@ class ScrollMachineTest {
         )
         assertEquals(11, target.row)
         assertEquals(0f, target.remainderPx, 0.0001f)
+    }
+
+    @Test
+    fun `a move the engine has not seen yet does not reset the picture`() {
+        val scroll = atLiveEdge()
+        val first = scroll.drag(
+            engineOffset = 10,
+            historyRows = 10,
+            distancePx = 5f,
+            spacingPx = spacing,
+        )
+        assertEquals(5f, first.remainderPx, 0.0001f)
+
+        // The engine is still on the row the previous event asked for: the
+        // move is in flight. The shift is not thrown away for it.
+        val second = scroll.drag(
+            engineOffset = 10,
+            historyRows = 10,
+            distancePx = 5f,
+            spacingPx = spacing,
+        )
+        assertEquals(10f, second.remainderPx, 0.0001f)
     }
 
     @Test

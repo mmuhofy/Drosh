@@ -2,13 +2,14 @@ package dev.drosh.ui.keyboard
 
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.mandatorySystemGestures
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,25 +80,40 @@ fun Modifier.droshImePadding(): Modifier =
     if (KeyboardWindowModeState.docked) imePadding() else this
 
 /**
- * Keeps content clear of the navigation bar.
+ * Keeps content clear of the system's bottom strip.
  *
- * The bottom strip of a window belongs to the system, not to the app: a grid
- * that runs under the navigation bar has its last rows where the user cannot
- * tap them and, on a three-button bar, cannot read them either. The terminal
- * therefore ends above the bar and the grid is laid out for the height it was
- * actually given.
+ * That strip is the navigation bar, or — under gesture navigation — the swipe
+ * handle the system draws over the content and keeps for itself. Either way the
+ * bottom of the window is the system's, and a grid that runs into it puts its
+ * last line where the user can neither read it nor reach it.
  *
- * The inset is the *visible* bar's height, so in immersive mode it is zero and
- * the terminal fills the screen — no dead band, which is the other half of
- * fitting the screen exactly.
+ * It is one inset rather than the keyboard's and the bar's added together: the
+ * docked keyboard already covers the bar, and its safe drawing inset already
+ * includes it. A floating keyboard sits over the content by design and takes
+ * nothing from it.
  *
- * Nothing is added while the keyboard is up: the keyboard covers the bar and
- * its own inset already includes it, so padding for both would leave the
- * terminal a bar's height short for as long as the user is typing.
+ * Where the system reserves nothing — the bars hidden, a device with neither —
+ * the inset is zero and the terminal fills the screen, which is the other half
+ * of fitting the screen exactly.
  */
 @Composable
 fun Modifier.droshNavigationBarPadding(): Modifier {
-    val barBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-    return if (imeBottom > 0.dp) this else padding(bottom = barBottom)
+    // The bar, and the strip the system keeps for its own gestures.
+    //
+    // A three-button bar reports its height as the navigation bar; gesture
+    // navigation reports almost nothing there, and the swipe handle — which is
+    // still drawn over the content and still swallows touches — is in the
+    // mandatory system gestures inset instead. A terminal only ever needs the
+    // larger of the two, and using just one of them is how the last line of
+    // output ends up under a handle that the layout never accounted for.
+    val bottom = WindowInsets.safeDrawing
+        .union(WindowInsets.mandatorySystemGestures)
+        .asPaddingValues()
+        .calculateBottomPadding()
+    val barOnly = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+    // With a floating keyboard the content keeps its height: the keyboard sits
+    // over it by design. Otherwise the safe drawing inset covers the keyboard,
+    // the bar and the gesture strip at once, so nothing is added twice.
+    return padding(bottom = if (KeyboardWindowModeState.docked) bottom else barOnly)
 }

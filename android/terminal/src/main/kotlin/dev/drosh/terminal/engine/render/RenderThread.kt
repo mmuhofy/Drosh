@@ -110,6 +110,14 @@ class RenderThread(
         data object Invalidate : Command
 
         /**
+         * The theme's terminal background changed.
+         *
+         * The surface is wiped to it before every frame, so it is the colour
+         * of everything the grid does not cover.
+         */
+        data class Background(val argb: Int) : Command
+
+        /**
          * Wipe the screen.
          *
          * The session behind the pane changed. The new session's grid is
@@ -319,6 +327,11 @@ class RenderThread(
                     }
 
                     is Command.Invalidate -> dirty = true
+
+                    is Command.Background -> {
+                        renderer?.setBackground(command.argb)
+                        dirty = true
+                    }
 
                     is Command.Clear -> {
                         renderer?.clear(layout.size)

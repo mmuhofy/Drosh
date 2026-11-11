@@ -492,85 +492,73 @@ fun TerminalTopBar(
             // baselines whenever their content differed in height, which is why
             // the left and right buttons looked vertically offset.
             //
-            // One body, not two: the pair reads as a single control with two
-            // actions in it, and the body carries the fill and the gradient edge
-            // so the silhouette is one shape rather than two that happen to
-            // touch. Inside it each button is its own disc, so a press ripples
-            // inside its own circle instead of across the whole capsule. There
-            // is no divider: the two discs are the divider.
-            // The sessions button is a square of its own, next to the
-            // overflow capsule rather than inside it: an eye with a count in it
-            // is not a disc, and a disc inside a capsule would have had to be
-            // cut out of it.
-            Row(
-                modifier = Modifier.height(rowHeight),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            // One body, two buttons.
+            //
+            // The pair reads as a single control with two actions in it: the
+            // surface carries the fill and the gradient edge, so the silhouette
+            // is one shape rather than two that happen to touch. Inside it each
+            // button is its own tap target with its own ripple, so a press is
+            // never ambiguous about which of the two it meant.
+            Box(
+                modifier = Modifier
+                    .height(rowHeight)
+                    .clip(PILL_SHAPE)
+                    .background(PILL_SURFACE)
+                    .pillEdge(PILL_SHAPE),
             ) {
-                GlassPillButton(
-                    backdrop = backdrop,
-                    terminalBounds = terminalBounds,
-                    contentDescription = stringResource(dev.drosh.ui.R.string.topbar_sessions),
-                    width = rowHeight,
-                    height = rowHeight,
-                    iconSize = pillIconSize,
-                    shape = SESSION_BUTTON_SHAPE,
-                    content = {
-                        // An eye with the number of sessions in it.
-                        //
-                        // The eye says what the button does — the grid is a
-                        // switcher, and the switcher is a view of what is
-                        // there. The number says how much there is, without
-                        // a second line of chrome.
-                        Box(
-                            modifier = Modifier.size(pillIconSize),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = DroshIcons.Eye,
-                                contentDescription = null,
-                                tint = PILL_CONTENT,
-                                modifier = Modifier.size(pillIconSize),
-                            )
-                            if (sessionCount > 0) {
+                Row(
+                    modifier = Modifier.height(rowHeight),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(0.dp),
+                ) {
+                    GlassPillButton(
+                        backdrop = backdrop,
+                        terminalBounds = terminalBounds,
+                        contentDescription = stringResource(dev.drosh.ui.R.string.topbar_sessions),
+                        width = rowHeight,
+                        height = rowHeight,
+                        iconSize = pillIconSize,
+                        ownSurface = false,
+                        content = {
+                            // The sessions button is a soft-cornered square with
+                            // the number of sessions in it.
+                            //
+                            // It used to be an eye with a count over it, and the
+                            // eye was saying the same thing twice: a switcher
+                            // with a number on it is a view of what is there.
+                            // The square says "a set of things" and the number
+                            // says how many — one sign, not two.
+                            Box(
+                                modifier = Modifier
+                                    .size(pillIconSize)
+                                    .clip(SESSION_BUTTON_SHAPE)
+                                    .background(PILL_CONTENT.copy(alpha = 0.10f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
                                 Text(
-                                    text = sessionCount.toString(),
+                                    text = if (sessionCount > 0) sessionCount.toString() else "-",
                                     color = PILL_CONTENT,
                                     fontFamily = LocalFontSet.current.sans,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.sp,
                                     maxLines = 1,
                                 )
                             }
-                        }
-                    },
-                    onClick = onOpenSessions,
-                )
+                        },
+                        onClick = onOpenSessions,
+                    )
 
-                Box(
-                    modifier = Modifier
-                        .height(rowHeight)
-                        .clip(PILL_SHAPE)
-                        .background(PILL_SURFACE)
-                        .pillEdge(PILL_SHAPE),
-                ) {
-                    Row(
-                        modifier = Modifier.height(rowHeight),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(0.dp),
-                    ) {
-                        GlassPillButton(
-                            backdrop = backdrop,
-                            terminalBounds = terminalBounds,
-                            icon = DroshIcons.EllipsisVertical,
-                            contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
-                            width = PILL_WIDTH,
-                            height = rowHeight,
-                            iconSize = pillIconSize,
-                            ownSurface = false,
-                            onClick = { moreExpanded = true },
-                        )
-                    }
+                    GlassPillButton(
+                        backdrop = backdrop,
+                        terminalBounds = terminalBounds,
+                        icon = DroshIcons.EllipsisVertical,
+                        contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
+                        width = PILL_WIDTH,
+                        height = rowHeight,
+                        iconSize = pillIconSize,
+                        ownSurface = false,
+                        onClick = { moreExpanded = true },
+                    )
                 }
             }
         }

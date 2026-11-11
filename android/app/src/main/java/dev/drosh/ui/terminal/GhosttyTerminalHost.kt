@@ -66,6 +66,14 @@ fun GhosttyTerminalHost(
      * recomposition, which is what made an earlier attempt last one frame.
      */
     onZoomCommitted: (Float) -> Unit = {},
+    /**
+     * The theme's terminal background.
+     *
+     * The surface is wiped to it, so it is the colour of everything the grid
+     * does not cover — the band under a zoomed-out grid, the edge of the last
+     * column, and the whole pane before the first frame.
+     */
+    backgroundColor: Int,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -298,6 +306,8 @@ fun GhosttyTerminalHost(
                 }
             },
             update = { _ ->
+                // The theme's ground, on every recomposition that changes it.
+                pane.setBackground(backgroundColor)
                 // While the pinch runs the cell changes and the grid does not;
                 // when it ends the size is committed and the grid is laid out
                 // again, so the text fits the screen exactly.

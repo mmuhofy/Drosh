@@ -192,7 +192,7 @@ internal class FrameRenderer {
     fun clear(size: SizeInfo) {
         if (!created) return
         GLES20.glViewport(0, 0, size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
-        GLES20.glClearColor(DEFAULT_BACKGROUND_R, DEFAULT_BACKGROUND_G, DEFAULT_BACKGROUND_B, 1f)
+        GLES20.glClearColor(backgroundR, backgroundG, backgroundB, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
     }
 
@@ -216,7 +216,7 @@ internal class FrameRenderer {
         // previous picture alone, which is what stops the screen from wiping to
         // the clear colour and coming back.
         GLES20.glViewport(0, 0, size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
-        GLES20.glClearColor(DEFAULT_BACKGROUND_R, DEFAULT_BACKGROUND_G, DEFAULT_BACKGROUND_B, 1f)
+        GLES20.glClearColor(backgroundR, backgroundG, backgroundB, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         // Decided once, before either pass reads it: the block cursor inverts
@@ -384,6 +384,33 @@ internal class FrameRenderer {
     private var invertedCell: Int = -1
 
     /**
+     * The colour the surface is wiped to, as this theme's terminal background.
+     *
+     * Wiping to a fixed near-black was wrong twice over: a light theme had a
+     * black ground wherever the grid did not reach, and every gap — the band
+     * under a zoomed-out grid, the edge of the last column — was that black.
+     * The terminal's own background is the honest colour: it is what the cells
+     * are drawn on, so the parts of the surface that hold no cell look like the
+     * parts that do.
+     */
+    private var backgroundR = DEFAULT_BACKGROUND_R
+    private var backgroundG = DEFAULT_BACKGROUND_G
+    private var backgroundB = DEFAULT_BACKGROUND_B
+
+    /**
+     * Set the terminal's background colour from the theme.
+     *
+     * `argb` is an Android colour. The surface is wiped to it before every
+     * frame and whenever a session switch clears the pane, so this is the
+     * colour of everything the grid does not cover.
+     */
+    fun setBackground(argb: Int) {
+        backgroundR = ((argb shr 16) and 0xff) / 255f
+        backgroundG = ((argb shr 8) and 0xff) / 255f
+        backgroundB = (argb and 0xff) / 255f
+    }
+
+    /**
      * Whether the terminal has the focus.
      *
      * A terminal that does not have it draws a hollow cursor, so the cursor
@@ -425,7 +452,18 @@ internal class FrameRenderer {
             foregrounds.putShort(entry.width.toShort())
             foregrounds.putShort(entry.height.toShort())
             foregrounds.putShort(entry.left.toShort())
-            foregrounds.putShort(entry.top.toShort())
+            // The mask's line box, centred in the cell it is drawn in.
+            //
+            // A font's line box is its ascent plus its descent; a *cell* is
+            // the font's line *spacing*, which also carries the leading. The
+            // mask was placed at the cell's top, so the leading fell at the
+            // bottom of every row and the text sat that much high — a pixel or
+            // two on a plain line, and a visible band in a full-screen program
+            // that draws its own rows. Centring is what every terminal does
+            // with the leftover: both `top` and `height` are in the mask's own
+            // (possibly supersampled) pixels, and the cell is in device ones.
+            val lineBox = cellHeight * atlas.scale - entry.height
+            foregrounds.putShort((entry.top + lineBox / 2f).toInt().toShort())
             foregrounds.putShort(column.toShort())
             foregrounds.putShort(row.toShort())
             putColor(foregrounds, foregroundOf(frame, index))
@@ -710,7 +748,7 @@ internal class FrameRenderer {
 
         const val FLAG_NONE = 0
 
-        /** The terminal's own ground, matching the palette's default. */
+        /** The terminal's own ground, until the theme says otherwise. */
         const val DEFAULT_BACKGROUND_R = 0.094f
         const val DEFAULT_BACKGROUND_G = 0.094f
         const val DEFAULT_BACKGROUND_B = 0.094f

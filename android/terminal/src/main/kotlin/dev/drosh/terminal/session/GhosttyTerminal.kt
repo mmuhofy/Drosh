@@ -276,6 +276,11 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
      * The session is not closed here either — the manager owns it and closes it
      * when the app is done with it.
      */
+    /** The theme's terminal background; everything the grid does not cover. */
+    fun setBackground(argb: Int) {
+        view.setBackground(argb)
+    }
+
     override fun release() {
         if (state == PaneState.RELEASED) return
         stop()

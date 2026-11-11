@@ -219,6 +219,12 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidate()
     }
 
+    /** The theme's terminal background, for the surface the grid is drawn on. */
+    fun setBackground(argb: Int) {
+        renderThread.post(RenderThread.Command.Background(argb))
+        renderThread.invalidate()
+    }
+
     /** Detach both, without freeing them: the host owns their lifetime. */
     fun detach() {
         ptyHandle = 0
@@ -385,6 +391,22 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private var fling: android.widget.Scroller? = null
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // A new gesture starts where the engine actually is.
+        //
+        // This is the one moment the two can be reconciled: the moves the last
+        // gesture asked for have landed by now, so the engine's offset is the
+        // picture's, and output that arrived while the user was not touching the
+        // screen has already carried the view. Reconciling mid-gesture is what
+        // made the scroll stutter — the engine is always one event behind.
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val session = sessionHandle
+            if (session != 0L) {
+                NativeSession.scrollbar(session)?.let {
+                    scrollMachine.sync(it.offset, it.historyRows)
+                }
+            }
+        }
+
         // The scale detector sees every event; the gesture detector is told only
         // what the pinch did not claim, so two fingers are never a scroll.
         scaleDetector.onTouchEvent(event)

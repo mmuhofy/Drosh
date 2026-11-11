@@ -83,13 +83,16 @@ class ScrollMachine {
         val bottom = historyRows.coerceAtLeast(0)
         val spacing = spacingPx.coerceAtLeast(1f)
 
-        // The engine moved on its own: new output at the live edge carried the
-        // view with it, or the terminal was resized. Its position is the truth,
-        // and the shift belonged to the row we were on.
-        if (askedRow >= 0 && engineOffset != askedRow) {
-            row = engineOffset.coerceIn(0, bottom)
-            shiftPx = 0f
-        }
+        // The engine's own position is *not* consulted while a gesture runs.
+        //
+        // It cannot be: the move the last event asked for reaches the engine a
+        // frame later, so the engine is always one event behind, and reading it
+        // as "the engine moved on its own" threw the shift away on every event.
+        // That is the stutter — the picture jumped back to the row boundary and
+        // started again, dozens of times a second.
+        //
+        // The machine's row is the truth during a gesture. Where the engine
+        // actually is is settled once the gesture ends — see `sync`.
 
         var current = row.coerceIn(0, bottom)
         var shift = shiftPx
@@ -135,6 +138,22 @@ class ScrollMachine {
             position = current - shift / spacing,
             toBottom = current >= bottom,
         )
+    }
+
+    /**
+     * Take the engine's position as the starting point.
+     *
+     * Called when a gesture begins and when it ends, which are the only two
+     * moments the engine and the picture have to agree: the pending moves have
+     * all landed by then, and whatever the engine did on its own — new output
+     * at the live edge, a resize — is the position the user should be looking
+     * at.
+     */
+    fun sync(engineOffset: Int, historyRows: Int) {
+        val bottom = historyRows.coerceAtLeast(0)
+        row = engineOffset.coerceIn(0, bottom)
+        shiftPx = 0f
+        askedRow = row
     }
 
     /**

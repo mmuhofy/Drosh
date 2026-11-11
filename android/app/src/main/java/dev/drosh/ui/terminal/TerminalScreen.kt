@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import dev.drosh.ui.R
-import dev.drosh.ui.keyboard.droshImePadding
 import dev.drosh.ui.keyboard.droshNavigationBarPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -987,10 +986,10 @@ private fun ReadyScreen(
                 // was drawn short by that amount and the space below it fell
                 // through to the app background — a black band under the split,
                 // growing with the keyboard.
-                .droshImePadding()
-                // And above the navigation bar: the bottom of the window is the
-                // system's strip, and a grid that runs into it puts rows where
-                // the user cannot reach them. The terminal is then laid out for
+                // The keyboard, the navigation bar and the system's gesture
+                // strip, in one inset: the bottom of the window is the system's,
+                // and a grid that runs into it puts its last line where the user
+                // can neither read it nor reach it. The terminal is laid out for
                 // the height it actually has, so it fits the screen instead of
                 // running past its edge.
                 .droshNavigationBarPadding(),
@@ -1826,6 +1825,9 @@ private fun TerminalPaneBody(
                 // The pinch reports the size it settled on; the view model
                 // owns it, so the setting and the cell cannot drift apart.
                 onZoomCommitted = terminalViewModel::onZoomCommitted,
+                // The theme's terminal background: the ground the grid is drawn
+                // on, and the colour of everywhere it does not reach.
+                backgroundColor = terminalBackgroundColor,
                 modifier = Modifier.fillMaxSize(),
             )
 
