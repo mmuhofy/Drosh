@@ -67,20 +67,35 @@ class Scanner {
     fun scan(chunk: ByteArray): List<Mark> {
         val out = ArrayList<Mark>(4)
 
-        // A carry plus a new chunk is scanned as one buffer, so a mark split
-        // across two reads is still found.
+        // The carried bytes and the new chunk are scanned as one buffer, so a
+        // mark split across two reads is still found.
+        //
+        // The carry used to be written and never read: an incomplete mark was
+        // kept for the next chunk and the next chunk was scanned on its own.
+        // A shell's mark that landed across a read boundary — which is most of
+        // them, since a read is however much the pipe had — was never found,
+        // and the phase never moved off "unknown".
+        val buffer = if (carryLength > 0) {
+            ByteArray(carryLength + chunk.size).also {
+                System.arraycopy(carry, 0, it, 0, carryLength)
+                System.arraycopy(chunk, 0, it, carryLength, chunk.size)
+            }
+        } else {
+            chunk
+        }
+
         var index = 0
-        while (index < chunk.size) {
+        while (index < buffer.size) {
             var start = index
-            while (start < chunk.size && chunk[start] != ESC.toByte()) start += 1
-            if (start >= chunk.size) break
+            while (start < buffer.size && buffer[start] != ESC.toByte()) start += 1
+            if (start >= buffer.size) break
             index = start
 
-            val consumed = tryMark(chunk, index, out)
+            val consumed = tryMark(buffer, index, out)
             if (consumed == 0) {
                 // Incomplete: keep it for the next chunk.
-                carryLength = (chunk.size - index).coerceAtMost(carry.size)
-                System.arraycopy(chunk, index, carry, 0, carryLength)
+                carryLength = (buffer.size - index).coerceAtMost(carry.size)
+                System.arraycopy(buffer, index, carry, 0, carryLength)
                 return out
             }
             index += consumed

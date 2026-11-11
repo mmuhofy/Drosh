@@ -44,7 +44,9 @@ class FrameTest {
 
         assertEquals('h'.code, frame.codepoint(0))
         assertEquals('i'.code, frame.codepoint(1))
-        assertEquals(' '.code, frame.codepoint(2))
+        // A cell nothing wrote to is empty, and the engine writes it that
+        // way: the codepoint is zero, which is what the renderer skips.
+        assertEquals(0, frame.codepoint(2))
 
         assertEquals(2, frame.cursorColumn)
         assertEquals(0, frame.cursorRow)

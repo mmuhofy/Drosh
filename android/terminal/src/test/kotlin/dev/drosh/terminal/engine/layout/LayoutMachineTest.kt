@@ -18,12 +18,32 @@ class LayoutMachineTest {
 
     private fun machine() = LayoutMachine(settleMillis = 48L)
 
+    /**
+     * Apply the grid the machine wants, the way the render loop does.
+     *
+     * The machine decides the shape and the caller resizes the engine to it;
+     * the machine only records that the resize happened when it is told. A
+     * test that wants the machine to *know* the shape has to say so, exactly
+     * as the loop does.
+     */
+    private fun applyGrid(machine: LayoutMachine, now: Long): LayoutMachine.GridChange? {
+        val change = machine.poll(now = now) ?: return null
+        machine.onGridApplied(change.columns, change.rows)
+        return change
+    }
+
     @Test
     fun `a surface change defers the grid`() {
         val machine = machine()
         machine.onSurface(800, 600, now = 0)
         machine.onCell(10f, 20f, now = 0)
-        // The cell change settles immediately, so the grid is 80x30.
+        // The cell change settles at once — it is not deferred by the settle
+        // — so the grid is 80x30 and the change is there to be applied.
+        val change = applyGrid(machine, now = 0)
+        assertNotNull(change)
+        requireNotNull(change)
+        assertEquals(80, change.columns)
+        assertEquals(30, change.rows)
         assertEquals(80, machine.appliedColumns)
         assertEquals(30, machine.appliedRows)
 
@@ -81,6 +101,7 @@ class LayoutMachineTest {
         val machine = machine()
         machine.onSurface(800, 600, now = 0)
         machine.onCell(10f, 20f, now = 0)
+        applyGrid(machine, now = 0)
 
         val before = machine.appliedColumns to machine.appliedRows
         assertEquals(80, before.first)
@@ -111,6 +132,7 @@ class LayoutMachineTest {
         val machine = machine()
         machine.onSurface(800, 600, now = 0)
         machine.onCell(10f, 20f, now = 0)
+        applyGrid(machine, now = 0)
 
         // The surface moves and comes back to the same shape.
         machine.onSurface(800, 400, now = 100)
@@ -129,6 +151,7 @@ class LayoutMachineTest {
         assertFalse(machine.cellReady)
 
         machine.onCell(10f, 20f, now = 0)
+        applyGrid(machine, now = 0)
         assertEquals(108, machine.appliedColumns)
         assertEquals(120, machine.appliedRows)
         assertTrue(machine.cellReady)
