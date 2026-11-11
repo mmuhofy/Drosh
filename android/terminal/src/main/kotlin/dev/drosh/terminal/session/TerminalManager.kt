@@ -482,18 +482,33 @@ class TerminalManager(
      */
     fun bindPaneToSession(slot: PaneSlot, sessionId: String?): Boolean {
         if (sessionId == null) {
-            // No attach here: TerminalView.attachSession takes a non-null
-            // session, and there is nothing to attach. The view keeps painting
-            // the old session until the UI unmounts the pane, which unregisters
-            // it — painting a stale frame for the frame or two before that is
-            // better than growing a detach path on the vendored view for it.
+            // The slot shows nothing. The pane keeps painting what it had
+            // until the UI unmounts it, which unregisters it — painting a
+            // stale frame for the frame or two before that is better than
+            // growing a detach path for it.
             paneTabIndices[slot] = NO_PANE_SESSION
+            setSlotSession(slot, "")
             return true
         }
-        val index = getIndexForId(sessionId)
-        if (index < 0) return false
-        paneTabIndices[slot] = index
-        // Termux view removed.
+
+        // The slot shows this session, and the screen is told: the pane is
+        // built around the session it shows, so the binding has to be
+        // observable. Without this the split's second pane had no session at
+        // all — it was bound by the old engine's tab index, and that index
+        // meant nothing once the engine was replaced.
+        setSlotSession(slot, sessionId)
+
+        // A session that is alive is shown at once. It keeps running and keeps
+        // its output, so the pane has something to draw immediately instead of
+        // an empty grid until the shell catches up.
+        val session = liveSessions[sessionId]
+        val pane = enginePanes[slot]
+        if (session != null && pane != null) {
+            pane.showSession(session)
+            pane.bindIdentity(session.persistentId, session.name)
+        }
+
+        paneTabIndices[slot] = getIndexForId(sessionId)
         return true
     }
 

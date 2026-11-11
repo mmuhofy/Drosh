@@ -1272,6 +1272,13 @@ private fun ReadyScreen(
                     // The same call the drawer's drop makes, and the same one the
                     // row menu makes: a split is a pair, and the terminal owns
                     // which pane each session lands in.
+                    //
+                    // The anchor goes to the primary pane, and the primary
+                    // pane shows the *active* session — so the anchor has to
+                    // become the active one. Without this the pair was made
+                    // and the primary pane kept showing whatever was active
+                    // before it.
+                    sessionSwitcherViewModel.activate(anchor)
                     paneLayoutViewModel.openSplit(partner, anchor)
                     sessionsGridOpen = false
                 },
@@ -1448,7 +1455,12 @@ private fun ReadyScreen(
         // session the grip would open a pane that can only ever be empty, and
         // the split would refuse it anyway.
         onSplitSession = if (liveSessionIds.size >= 2) {
-            { id -> paneLayoutViewModel.openSplit(id, activeId) }
+            { id ->
+                // The primary pane shows the active session, so the session
+                // that stays up has to become the active one.
+                activeId?.let { sessionSwitcherViewModel.activate(it) }
+                paneLayoutViewModel.openSplit(id, activeId)
+            }
         } else {
             null
         },
@@ -1474,7 +1486,10 @@ private fun ReadyScreen(
         onHoldChange = { id -> heldSessionId = id },
         onCycleSplit = paneLayoutViewModel::cycleSplitFraction,
         onDropOnTerminal = if (liveSessionIds.size >= 2) {
-            { id -> paneLayoutViewModel.openSplit(id, activeId) }
+            { id ->
+                activeId?.let { sessionSwitcherViewModel.activate(it) }
+                paneLayoutViewModel.openSplit(id, activeId)
+            }
         } else {
             null
         },
