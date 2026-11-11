@@ -319,8 +319,13 @@ internal class FrameRenderer {
 
         val isUnderline = frame.cursorStyle == FrameFormat.CURSOR_STYLE_UNDERLINE
         // A bar hugs the left edge of the cell; an underline the bottom.
+        //
+        // The row is the viewport's, not the grid's: the glyph pass subtracts
+        // the overscan rows before it draws a cell, so a cursor that *added*
+        // them landed exactly as many rows too low as the frame carried overscan
+        // above the viewport — a cursor that is near the prompt but never on it.
         val x = frame.cursorColumn.toFloat()
-        val y = (frame.cursorRow + frame.overscanAbove).toFloat() +
+        val y = frame.cursorRow.toFloat() +
             if (isUnderline) 1f - UNDERLINE_HEIGHT else 0f
         val w = if (isUnderline) 1f else if (hollow) 1f else BAR_WIDTH
         val h = if (isUnderline) UNDERLINE_HEIGHT else 1f

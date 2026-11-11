@@ -59,6 +59,17 @@ data class SizeInfo(
      * at the new cell size, and the picture fits the screen exactly.
      */
     val zooming: Boolean = false,
+    /**
+     * True while the surface is moving and the grid has not caught up.
+     *
+     * A keyboard rising is sixty surface changes in three hundred
+     * milliseconds. Stretching the cells to the new surface on each of them
+     * makes the text grow and shrink under the eyes — the shimmer a terminal
+     * shows while the keyboard animates. The grid keeps the size it has until
+     * the surface stops, and the band that opens is the background, which is
+     * what the terminal will look like a moment later anyway.
+     */
+    val frozenGrid: Boolean = false,
 ) {
 
     /**
@@ -90,14 +101,14 @@ data class SizeInfo(
      */
     val stepX: Float
         get() = when {
-            zooming -> cellWidth
+            zooming || frozenGrid -> cellWidth
             columns <= 0 -> cellWidth
             else -> width.toFloat() / columns
         }
 
     val stepY: Float
         get() = when {
-            zooming -> cellHeight
+            zooming || frozenGrid -> cellHeight
             rows <= 0 -> cellHeight
             else -> height.toFloat() / rows
         }
@@ -124,11 +135,21 @@ data class SizeInfo(
 
     /** The same size at another font cell, committed: the grid is laid out. */
     fun withCell(cellWidth: Float, cellHeight: Float): SizeInfo =
-        copy(cellWidth = cellWidth, cellHeight = cellHeight, zooming = false)
+        copy(
+            cellWidth = cellWidth,
+            cellHeight = cellHeight,
+            zooming = false,
+            frozenGrid = false,
+        )
 
     /** The same size at another font cell, mid-pinch: the grid does not move. */
     fun withZoomCell(cellWidth: Float, cellHeight: Float): SizeInfo =
-        copy(cellWidth = cellWidth, cellHeight = cellHeight, zooming = true)
+        copy(
+            cellWidth = cellWidth,
+            cellHeight = cellHeight,
+            zooming = true,
+            frozenGrid = true,
+        )
 
     /** The same size at another surface. */
     fun withSurface(width: Int, height: Int): SizeInfo = copy(width = width, height = height)

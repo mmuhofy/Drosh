@@ -170,13 +170,19 @@ class LayoutMachine(
             return next
         }
 
+        // The grid is still the old shape, so it is drawn at the cell it was
+        // laid out with: the picture keeps its size and the surface grows
+        // around it. Stretching it to the new surface is a picture zoom of a
+        // terminal, and a keyboard animating under the eyes is what that looks
+        // like.
+        val drawing = next.copy(frozenGrid = true)
         current = State.Changing(
-            size = next,
+            size = drawing,
             appliedColumns = appliedColumns,
             appliedRows = appliedRows,
             lastChangeAt = now,
         )
-        return next
+        return drawing
     }
 
     /**
@@ -189,7 +195,7 @@ class LayoutMachine(
     fun onCell(cellWidth: Float, cellHeight: Float, now: Long): SizeInfo {
         if (cellWidth <= 0f || cellHeight <= 0f) return size
         hasCell = true
-        val next = size.withCell(cellWidth, cellHeight)
+        val next = size.withCell(cellWidth, cellHeight).copy(frozenGrid = false)
         current = State.Settled(
             size = next,
             appliedColumns = appliedColumns,
@@ -253,7 +259,9 @@ class LayoutMachine(
             // The surface is still moving: the grid waits.
             if (now - state.lastChangeAt < settleMillis) return null
             current = State.Settled(
-                size = state.size,
+                // The surface has stopped: the grid is laid out again and the
+                // cells go back to filling it.
+                size = state.size.copy(frozenGrid = false),
                 appliedColumns = state.appliedColumns,
                 appliedRows = state.appliedRows,
             )

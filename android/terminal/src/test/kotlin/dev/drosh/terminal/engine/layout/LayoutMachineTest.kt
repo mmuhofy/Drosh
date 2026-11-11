@@ -199,6 +199,32 @@ class LayoutMachineTest {
     }
 
     @Test
+    fun `a moving surface does not stretch the cells`() {
+        val machine = LayoutMachine(settleMillis = 100)
+        machine.onCell(10f, 20f, 0)
+        machine.onSurface(800, 600, 0)
+
+        // The keyboard is rising: the surface shrank and the grid has not been
+        // laid out again. The cells keep the size they were laid out with, so
+        // the text does not grow and shrink under the eyes while it animates.
+        val moving = machine.onSurface(800, 400, 16)
+        assertEquals(10f, moving.stepX, 0.0001f)
+        assertEquals(20f, moving.stepY, 0.0001f)
+    }
+
+    @Test
+    fun `a settled surface stretches the cells to fill it`() {
+        val machine = LayoutMachine(settleMillis = 100)
+        machine.onCell(10f, 20f, 0)
+        machine.onSurface(801, 601, 0)
+        machine.poll(200)
+
+        val settled = machine.size
+        assertEquals(801f / 80f, settled.stepX, 0.0001f)
+        assertEquals(601f / 30f, settled.stepY, 0.0001f)
+    }
+
+    @Test
     fun `the step divides the surface exactly`() {
         val size = SizeInfo(width = 801, height = 601, cellWidth = 10f, cellHeight = 20f)
         assertEquals(80, size.columns)
