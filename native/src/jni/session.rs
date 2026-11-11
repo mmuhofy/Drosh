@@ -151,15 +151,16 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     let mut colours: Vec<ghostty::GhosttyColorRgb> = Vec::new();
     if !palette.is_null() {
         // A borrowed local reference: the array belongs to the caller, so it is
-        // wrapped without taking ownership of it — dropping a `JIntArray`
-        // built from a raw pointer would delete the caller's array.
-        let array = std::mem::ManuallyDrop::new(unsafe { JIntArray::from_raw(palette) });
+        // forgotten rather than dropped — dropping a `JIntArray` built from a
+        // raw pointer deletes the caller's array.
+        let array = unsafe { JIntArray::from_raw(palette) };
         if let Ok(len) = env.get_array_length(&array) {
             let mut raw = vec![0i32; len as usize];
             if env.get_int_array_region(&array, 0, &mut raw).is_ok() {
                 colours = raw.into_iter().map(colour).collect();
             }
         }
+        std::mem::forget(array);
     }
 
     session.set_colors(colour(fg), colour(bg), &colours);
