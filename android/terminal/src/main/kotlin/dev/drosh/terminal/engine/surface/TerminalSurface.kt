@@ -452,19 +452,30 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             spacingPx = spacing,
         )
 
-        // The move and the remainder go to the render thread together: the
-        // engine moves by whole rows and the picture is shifted by the
-        // fraction between them, and in separate frames the row lands first
-        // and the fraction a frame later — the content jumps a whole row and
-        // then shifts back.
-        renderThread.post(
-            RenderThread.Command.Scroll(
-                session = session,
-                row = target.row,
-                position = target.position,
-                toBottom = target.toBottom,
-            ),
-        )
+        // The engine moves here, and the remainder is computed from where it
+        // actually ended up.
+        //
+        // Posting the move to the render thread meant the machine always read
+        // an engine one event behind — and an engine that had moved on its own,
+        // because new output arrived, could not be told apart from one that had
+        // not applied the move yet. The machine then asked for a row that no
+        // longer held what the user was reading, and the viewport jumped back a
+        // line every time the shell printed.
+        val tag = if (target.toBottom) {
+            NativeSession.SCROLL_BOTTOM
+        } else {
+            NativeSession.SCROLL_ROW
+        }
+        val amount = if (target.toBottom) 0 else target.row
+        NativeSession.scroll(session, tag, amount)
+
+        val after = NativeSession.scrollbar(session) ?: return
+        val accepted = target.toBottom || after.offset == target.row
+        val drawn = (after.offset - target.position) * spacing
+        scrollMachine.anchor(after.offset, after.historyRows, accepted)
+
+        renderThread.post(RenderThread.Command.ScrollOffset(drawn))
+        renderThread.invalidate()
     }
 
     /** Momentum after a flick, through the same pixel path as a drag. */

@@ -163,6 +163,48 @@ class ScrollMachineTest {
     }
 
     @Test
+    fun `anchoring keeps the shift the engine accepted`() {
+        val scroll = atLiveEdge()
+        val target = scroll.drag(
+            engineOffset = 10,
+            historyRows = 10,
+            distancePx = 5f,
+            spacingPx = spacing,
+        )
+        // The engine went where it was asked.
+        scroll.anchor(engineOffset = target.row, historyRows = 10, accepted = true)
+        val next = scroll.drag(
+            engineOffset = target.row,
+            historyRows = 10,
+            distancePx = 0f,
+            spacingPx = spacing,
+        )
+        assertEquals(5f, next.remainderPx, 0.0001f)
+    }
+
+    @Test
+    fun `anchoring at a wall drops the shift`() {
+        val scroll = ScrollMachine()
+        scroll.drag(engineOffset = 0, historyRows = 10, distancePx = 0f, spacingPx = spacing)
+        val target = scroll.drag(
+            engineOffset = 0,
+            historyRows = 10,
+            distancePx = 30f,
+            spacingPx = spacing,
+        )
+        // The engine refused the row: it is at the oldest one.
+        scroll.anchor(engineOffset = 0, historyRows = 10, accepted = false)
+        val next = scroll.drag(
+            engineOffset = 0,
+            historyRows = 10,
+            distancePx = 0f,
+            spacingPx = spacing,
+        )
+        assertEquals(0, next.row)
+        assertEquals(0f, next.remainderPx, 0.0001f)
+    }
+
+    @Test
     fun `a zero spacing moves nothing`() {
         val scroll = ScrollMachine()
         val target = scroll.drag(

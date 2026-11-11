@@ -175,6 +175,28 @@ class ScrollMachine {
     }
 
     /**
+     * Take the engine's answer after a move was applied.
+     *
+     * The engine is the only thing that knows where the viewport really is: it
+     * clamps at the ends of the history, and it carries the view along when new
+     * output arrives. Anchoring to it after every applied move means the machine
+     * never asks for a row that no longer holds what the user is looking at —
+     * which is what a viewport that jumps back a line every time the shell
+     * prints looks like.
+     *
+     * @param accepted whether the engine went where it was asked. When it did
+     *   not, it stopped at a wall, and the shift that was left over cannot be
+     *   shown: the wall is the wall.
+     */
+    fun anchor(engineOffset: Int, historyRows: Int, accepted: Boolean) {
+        val bottom = historyRows.coerceAtLeast(0)
+        row = engineOffset.coerceIn(0, bottom)
+        if (!accepted) shiftPx = 0f
+        askedRow = row
+        synced = true
+    }
+
+    /**
      * Forget the shift.
      *
      * The viewport was moved by something other than a drag — a new session, a
