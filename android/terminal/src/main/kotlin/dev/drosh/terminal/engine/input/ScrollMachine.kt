@@ -5,64 +5,43 @@ package dev.drosh.terminal.engine.input
  *
  * ## The model
  *
- * A terminal's scrollback is rows, but a finger moves in pixels. The engine
- * owns the rows — it says where the viewport is, and it is the only thing that
- * knows — and the renderer owns the sub-line remainder: the grid is drawn
- * shifted by it, which is what makes a drag follow the finger instead of
- * stepping a line at a time.
+ * Two numbers, exactly as Termux keeps them:
  *
- * ## What is remembered, and what is not
+ *  - **the row** the viewport shows, in the engine's row space, where row 0 is
+ *    the oldest row of the scrollback and the largest row is the live edge;
+ *  - **the shift**, in pixels, of the picture within the viewport. A positive
+ *    shift moves the picture *down*, which opens the row above the viewport —
+ *    the older one.
  *
- * The position — where the top of the content sits, as a row that may be
- * fractional — is remembered here, because the finger is rarely on a row
- * boundary and the engine only knows whole rows.
+ * The two are kept apart on purpose. A finger moves in pixels and the engine
+ * moves in rows, and a machine that rounds the position to a row on every
+ * event throws away the fraction in between: the picture jumps to the row
+ * boundary and back, which is what a scroll that feels like a spring is.
  *
- * The engine's offset is asked for on every event, but only to notice that
- * something *else* moved the viewport: a program, the scrollbar, a new
- * session. Then the position is taken from the engine again, and the fraction
- * is dropped.
+ * So the finger's travel goes into the shift, and only a *whole* row moves
+ * the viewport — with the shift keeping the picture where the finger is. The
+ * picture therefore never jumps: the shift stays below one row and the
+ * viewport moves under it in whole steps.
  *
- * An earlier version kept a row counter of its own and sent the engine an
- * absolute row every time. That is two answers to "where is the viewport", and
- * they drift: the engine clamps at the ends of the history, and a machine that
- * does not hear about the clamp keeps counting against a grid that stopped
- * moving. The drift shows as a scroll that springs back — the finger pulls the
- * grid up, the engine refuses, and the next event asks for the row the machine
- * believes in rather than the row the engine is at.
+ * ## The live edge
  *
- * ## The row space
- *
- * The engine's row space runs from the oldest row of the scrollback (0) to the
- * live edge (`historyRows`). The live edge is the largest number in it: the
- * content is *below* the live edge, so it is at the end of the space.
- *
- * A finger moving **down** drags the content down and reveals what is above
- * it, which is older output — so the position gets *smaller*. A finger moving
- * up does the opposite.
- *
- * ## The remainder
- *
- * The row the engine shows is a whole row, but the finger is somewhere inside
- * one. The remainder is what is left over: the grid is shifted by it, so the
- * content sits where the finger is rather than where the row boundary is.
- *
- * Its sign follows the picture: a **positive** remainder moves the content
- * **down**, a negative one moves it up. The renderer subtracts it from the
- * clip's y, and clip y grows upward.
+ * The engine's row space has its live edge at the largest row, and the engine
+ * keeps the viewport on the active area when it is there — so new output
+ * carries the view down with it. When the view is up in the scrollback the
+ * engine holds the viewport on that row instead, and the view stays where the
+ * user put it.
  */
 class ScrollMachine {
 
     /**
      * Where a drag lands.
      *
-     * @property row the row the engine should show first.
-     * @property remainderPx how far the grid is shifted from that row, in
-     *   pixels. Positive moves the content down.
-     * @property position the exact row the content's top is at, fractional.
-     *   The engine shows whole rows; this is where the finger is.
-     * @property toBottom true when the drag reaches the live edge. The
-     *   viewport is then pinned to the active area rather than to a row, so
-     *   that new output follows the user down.
+     * @property row the row the viewport should show.
+     * @property remainderPx the picture's shift within the viewport, in pixels.
+     *   Positive moves the picture down, opening the row above.
+     * @property position the row the picture's top is at, for the caller that
+     *   wants to know where the view really is.
+     * @property toBottom true when the view is on the live edge.
      */
     data class Target(
         val row: Int,
@@ -71,27 +50,22 @@ class ScrollMachine {
         val toBottom: Boolean,
     )
 
-    /**
-     * Where the content's top is, in the engine's row space.
-     *
-     * Fractional: the finger is rarely on a row boundary.
-     */
-    private var position: Float = 0f
+    /** The viewport's row, as this machine believes it to be. */
+    private var row: Int = 0
+
+    /** The picture's shift within the viewport, in pixels. */
+    private var shiftPx: Float = 0f
 
     /** The row the engine was last asked for, to notice a move of its own. */
-    private var askedRow: Int = 0
-
-    /** False until the engine's position has been read once. */
-    private var synced: Boolean = false
+    private var askedRow: Int = -1
 
     /**
      * Move the viewport by a finger's travel.
      *
      * @param engineOffset where the engine's viewport is now, in its row space.
-     * @param historyRows the rows of history above the live edge. The live edge
-     *   is at this row.
+     * @param historyRows the live edge's row: the largest row there is.
      * @param distancePx finger travel. **Positive means the finger moved down**,
-     *   which drags the content down and reveals older output.
+     *   which drags the picture down and opens the older row above it.
      * @param spacingPx the height of a row.
      */
     fun drag(
@@ -100,88 +74,72 @@ class ScrollMachine {
         distancePx: Float,
         spacingPx: Float,
     ): Target {
-        val history = historyRows.coerceAtLeast(0)
-        val offset = engineOffset.coerceIn(0, history)
+        val bottom = historyRows.coerceAtLeast(0)
+        val spacing = spacingPx.coerceAtLeast(1f)
 
-        // A row of no height is a surface that has not been measured. Nothing
-        // can be moved by a distance measured against it.
-        if (spacingPx <= 0f || !spacingPx.isFinite()) {
-            askedRow = offset
-            synced = true
-            position = offset.toFloat()
-            return Target(offset, 0f, position, offset >= history)
-        }
-        val spacing = spacingPx
-
-        // The engine moved on its own — a program scrolled, or something else
-        // asked for a row. The position belonged to the old row and is taken
-        // from the engine again.
-        if (!synced || offset != askedRow) {
-            position = offset.toFloat()
-            synced = true
+        // The engine moved on its own: new output at the live edge carried the
+        // view with it, or the terminal was resized. Its position is the truth,
+        // and the shift belonged to the row we were on.
+        if (askedRow >= 0 && engineOffset != askedRow) {
+            row = engineOffset.coerceIn(0, bottom)
+            shiftPx = 0f
         }
 
-        if (!distancePx.isFinite() || distancePx == 0f) {
-            askedRow = offset
-            return Target(offset, 0f, position, offset >= history)
+        var current = row.coerceIn(0, bottom)
+        var shift = shiftPx
+
+        // The finger's travel goes into the shift. A whole row moves the
+        // viewport and the rest stays as the shift, so the picture does not
+        // jump when the row does.
+        shift += distancePx
+        while (shift >= spacing) {
+            if (current > 0) {
+                current -= 1
+                shift -= spacing
+            } else {
+                // There is nothing older than the first row.
+                shift = 0f
+                break
+            }
+        }
+        while (shift <= -spacing) {
+            if (current < bottom) {
+                current += 1
+                shift += spacing
+            } else {
+                // There is nothing newer than the live edge.
+                shift = 0f
+                break
+            }
         }
 
-        // Down is a smaller row: the content moves down, so what is above it —
-        // older output — comes into view.
-        var wanted = position - distancePx / spacing
-        wanted = wanted.coerceIn(0f, history.toFloat())
+        // The shift has to be legal for the row it belongs to: at the oldest
+        // row it may not open a row above, and at the live edge it may not open
+        // a row below.
+        if (current <= 0) shift = minOf(shift, 0f)
+        if (current >= bottom) shift = maxOf(shift, 0f)
 
-        // The engine shows whole rows, so it gets the nearest one and the
-        // fraction between them is drawn.
-        val row = Math.round(wanted).toInt().coerceIn(0, history)
-
-        // The live edge is the engine's *active area*, and the engine pins
-        // the viewport to it when it is asked for the last row: `n >= total -
-        // rows` becomes "the active area" and the viewport stops moving. A
-        // drag that is a fraction of a row above the live edge must therefore
-        // not ask for the last row, or the viewport stays pinned and the
-        // picture slides against a viewport that is not going anywhere — which
-        // is what a scroll that pulls itself back looks like.
-        val atBottom = wanted >= history
-        val targetRow =
-            if (atBottom) history else row.coerceAtMost((history - 1).coerceAtLeast(0))
-
-        // What is left over: how far the picture is shifted from the row the
-        // engine shows.
-        //
-        // The row space runs from the oldest row (0) to the live edge, so a
-        // larger row number is *lower* on the screen. The content's top is at
-        // `wanted` and the engine shows `targetRow`, so the picture is shifted
-        // down by (wanted - targetRow) rows.
-        //
-        // The sign is the whole of it: a positive remainder moves the content
-        // down, and the finger moving down moves the content down. It was the
-        // other way round, so the content went against the finger and the
-        // scroll fought the drag — a scroll that pulls itself back.
-        val remainder = (wanted - targetRow) * spacing
-
-        position = wanted
-        // Where the content's top is, relative to the row the engine shows.
-        askedRow = targetRow
-        fraction = wanted - targetRow
+        row = current
+        shiftPx = shift
+        askedRow = current
 
         return Target(
-            row = targetRow,
-            remainderPx = remainder,
-            position = wanted,
-            toBottom = atBottom,
+            row = current,
+            remainderPx = shift,
+            position = current - shift / spacing,
+            toBottom = current >= bottom,
         )
     }
 
     /**
-     * Forget the position.
+     * Forget the shift.
      *
-     * The viewport was moved by something other than a drag — a new session,
-     * a resize — so the picture starts again from the row the engine is at.
+     * The viewport was moved by something other than a drag — a new session, a
+     * resize — so the picture starts again from the row the engine is at.
      */
     fun reset() {
-        position = 0f
-        askedRow = 0
-        synced = false
+        row = 0
+        shiftPx = 0f
+        askedRow = -1
     }
 }

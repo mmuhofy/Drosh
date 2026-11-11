@@ -38,10 +38,31 @@ jobs:
         with:
           workspaces: native
 
-      - name: Install libclang and patchelf
+      - name: Install libclang
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libclang-dev clang patchelf
+          set -euo pipefail
+          # bindgen parses the engine's headers with libclang.
+          #
+          # The apt packages for it are large — libclang-dev pulls hundreds of
+          # megabytes of LLVM — and the runner's Ubuntu mirror fails to resolve
+          # intermittently. apt then retries a mirror that is not coming, and
+          # the step turns into a ten-minute hang before the job times out.
+          #
+          # The PyPI wheel is one file, comes from a host that answers, and
+          # bindgen finds it through LIBCLANG_PATH. apt is the fallback, with
+          # retries, and only the library itself — not the whole toolchain.
+          found=""
+          if pip install --user --quiet libclang; then
+            clang_dir=$(python -c "import clang, os; print(os.path.join(os.path.dirname(clang.__file__), 'native'))")
+            if compgen -G "$clang_dir/libclang*.so" > /dev/null; then
+              echo "LIBCLANG_PATH=$clang_dir" >> "$GITHUB_ENV"
+              found="wheel"
+            fi
+          fi
+          if [ -z "$found" ]; then
+            sudo apt-get -o Acquire::Retries=5 update -qq
+            sudo apt-get -o Acquire::Retries=5 install -y -qq libclang-dev
+          fi
 
       - name: Install pinned NDK
         run: |
