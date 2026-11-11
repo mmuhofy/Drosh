@@ -1,5 +1,6 @@
 package dev.drosh.terminal.session
 
+import dev.drosh.terminal.engine.native.NativeSession
 import android.app.Application
 import android.content.Context
 import android.util.Log
@@ -403,6 +404,19 @@ class TerminalManager(
     /** The theme's background, as a colour. Held so a late pane gets it too. */
     private var terminalBgColor: Int = DEFAULT_TERMINAL_BG_COLOR
 
+    /**
+     * The theme's colours, for the engine.
+     *
+     * The engine paints an unstyled cell in its own two defaults and resolves a
+     * palette index through its own palette. They are handed over with every
+     * setting change and with every new session, because a session created
+     * before the settings were read would otherwise draw in the library's own
+     * black.
+     */
+    private var engineForeground: Int = 0xE8E8E8
+    private var engineBackground: Int = 0x0E0E0E
+    private var enginePalette: IntArray = IntArray(0)
+
     // Termux view background removed — engine panes handle their own.
 
     /**
@@ -415,6 +429,68 @@ class TerminalManager(
      */
     private fun backgroundImageActive(): Boolean =
         backgroundImages?.imageFile?.value != null
+
+    /** Give every live session the theme's colours. */
+    private fun applyEngineColors() {
+        for (session in liveSessions.values) applyEngineColors(session)
+    }
+
+    /** Give one session the theme's colours. */
+    private fun applyEngineColors(session: GhosttySession) {
+        val handle = session.terminalHandle
+        if (handle == 0L) return
+        NativeSession.setColors(handle, engineForeground, engineBackground, enginePalette)
+    }
+
+    /**
+     * The theme's twenty-two colours, as the engine's 256-entry palette.
+     *
+     * The first sixteen are the theme's own ANSI slots; the rest are the
+     * standard colour cube and the grey ramp, which is what every terminal
+     * with a sixteen-colour theme fills them with. A program asking for
+     * colour 208 gets a colour rather than whatever the library happened to
+     * have.
+     */
+    private fun buildEnginePalette(palette: dev.drosh.domain.settings.ThemePalette): IntArray {
+        val out = IntArray(256)
+        fun put(index: Int, hex: String) {
+            out[index] = parseHexColor(hex) ?: 0
+        }
+        put(0, palette.black)
+        put(1, palette.red)
+        put(2, palette.green)
+        put(3, palette.yellow)
+        put(4, palette.blue)
+        put(5, palette.magenta)
+        put(6, palette.cyan)
+        put(7, palette.white)
+        put(8, palette.brightBlack)
+        put(9, palette.brightRed)
+        put(10, palette.brightGreen)
+        put(11, palette.brightYellow)
+        put(12, palette.brightBlue)
+        put(13, palette.brightMagenta)
+        put(14, palette.brightCyan)
+        put(15, palette.brightWhite)
+
+        // The 6x6x6 colour cube: levels 0, 95, 135, 175, 215, 255.
+        val levels = intArrayOf(0, 95, 135, 175, 215, 255)
+        var index = 16
+        for (r in 0 until 6) {
+            for (g in 0 until 6) {
+                for (b in 0 until 6) {
+                    out[index] = (levels[r] shl 16) or (levels[g] shl 8) or levels[b]
+                    index += 1
+                }
+            }
+        }
+        // The grey ramp: 8, 18, 28, ... 238.
+        for (step in 0 until 24) {
+            val value = 8 + step * 10
+            out[232 + step] = (value shl 16) or (value shl 8) or value
+        }
+        return out
+    }
 
     /** Re-applies every pane's background: the image, or the theme colour. */
     private fun applyTerminalBackgrounds() {
@@ -822,10 +898,15 @@ class TerminalManager(
                 shellLocale = settings.shell.locale
                 boldBrightens = settings.terminal.boldBrightens
                 ligatures = settings.terminal.ligatures
-                val bg = parseHexColor(settings.terminal.palette.background)
+                val palette = settings.terminal.palette
+                val bg = parseHexColor(palette.background)
                 if (bg != null && bg != terminalBgColor) {
                     terminalBgColor = bg
                 }
+                engineForeground = parseHexColor(palette.foreground) ?: engineForeground
+                engineBackground = bg ?: engineBackground
+                enginePalette = buildEnginePalette(palette)
+                applyEngineColors()
             }
             ?.launchIn(managerScope)
 
@@ -1333,6 +1414,7 @@ class TerminalManager(
         }
         session.onExit = { code -> onLiveSessionExited(persistentId, code) }
         liveSessions[persistentId] = session
+        applyEngineColors(session)
 
         // The session also joins the app's session list, so the sidebar, the
         // grid and the active-id tracking all see it — a session that exists

@@ -90,6 +90,29 @@ object NativeSession {
         val historyRows: Int get() = maxOf(total - len, 0)
     }
 
+    /**
+     * Hand the theme's colours to the engine.
+     *
+     * A cell with no colour of its own is painted in the engine's two defaults,
+     * and a palette index is resolved through the engine's palette. Left unset
+     * they are the library's own — black on white — so a light theme drew on
+     * the library's black and SGR 7 produced white on white.
+     *
+     * @param foreground packed 0xRRGGBB.
+     * @param background packed 0xRRGGBB.
+     * @param palette 256 entries, packed the same way.
+     */
+    fun setColors(handle: Long, foreground: Int, background: Int, palette: IntArray): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeSetColors(handle, foreground, background, palette) != 0.toByte()
+    }
+
+    /** The title the program asked for with OSC 0/2, or null when it set none. */
+    fun title(handle: Long): String? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeTitle(handle)?.takeIf { it.isNotBlank() }
+    }
+
     fun scrollbar(handle: Long): Scrollbar? {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
         val values = nativeScrollbar(handle)
@@ -181,6 +204,13 @@ object NativeSession {
     private external fun nativeFrame(handle: Long): ByteArray?
     private external fun nativeScroll(handle: Long, tag: Int, amount: Int): Int
     private external fun nativeScrollbar(handle: Long): IntArray
+    private external fun nativeSetColors(
+        handle: Long,
+        foreground: Int,
+        background: Int,
+        palette: IntArray,
+    ): Byte
+    private external fun nativeTitle(handle: Long): String?
     private external fun nativeAlternateScreen(handle: Long): Boolean
     private external fun nativeModes(handle: Long): Int
     private external fun nativeTranscript(handle: Long): String

@@ -124,6 +124,14 @@ pub const GHOSTTY_TERMINAL_DATA_SCROLLBAR: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SCROLLBAR;
 pub const GHOSTTY_TERMINAL_DATA_CURSOR_STYLE: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_STYLE;
+pub const GHOSTTY_TERMINAL_OPT_COLOR_FOREGROUND: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_COLOR_FOREGROUND;
+pub const GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND;
+pub const GHOSTTY_TERMINAL_OPT_COLOR_PALETTE: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_COLOR_PALETTE;
+pub const GHOSTTY_TERMINAL_DATA_TITLE: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_TITLE;
 pub const GHOSTTY_TERMINAL_DATA_CURSOR_X: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_X;
 pub const GHOSTTY_TERMINAL_DATA_CURSOR_Y: GhosttyTerminalData =

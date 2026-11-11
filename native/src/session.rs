@@ -20,6 +20,9 @@
 //! inconsistent for one frame, and the next update repairs it.
 
 use std::ffi::c_void;
+
+/// The engine palette's length.
+const PALETTE_LEN: usize = 256;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::frame::{FrameError, FrameSource};
@@ -109,6 +112,65 @@ impl Session {
 
     pub fn working_directory(&self) -> Option<&str> {
         self.shell.directory()
+    }
+
+    /// The theme's colours, handed to the engine.
+    ///
+    /// The engine paints a cell that carries no colour of its own in *its* two
+    /// defaults, and resolves palette indices through *its* palette. If they
+    /// are never set they are the library's own — a black background and a
+    /// white foreground — so a light theme drew white text on the library's
+    /// black no matter what the app's palette said, and SGR 7 in a light theme
+    /// produced white-on-white.
+    pub fn set_colors(
+        &mut self,
+        foreground: ghostty::GhosttyColorRgb,
+        background: ghostty::GhosttyColorRgb,
+        palette: &[ghostty::GhosttyColorRgb],
+    ) {
+        unsafe {
+            let _ = ghostty::ghostty_terminal_set(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_COLOR_FOREGROUND,
+                &foreground as *const _ as *const c_void,
+            );
+            let _ = ghostty::ghostty_terminal_set(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND,
+                &background as *const _ as *const c_void,
+            );
+            if palette.len() == PALETTE_LEN {
+                let _ = ghostty::ghostty_terminal_set(
+                    self.terminal,
+                    ghostty::GHOSTTY_TERMINAL_OPT_COLOR_PALETTE,
+                    palette.as_ptr() as *const c_void,
+                );
+            }
+        }
+    }
+
+    /// The window title the program asked for with OSC 0 or OSC 2.
+    ///
+    /// The engine hands back a borrowed string: it stays valid until the next
+    /// call that changes the terminal, so it is copied out here rather than
+    /// kept.
+    pub fn title(&self) -> Option<String> {
+        let mut string = ghostty::GhosttyString {
+            ptr: std::ptr::null(),
+            len: 0,
+        };
+        let result = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_TITLE,
+                &mut string as *mut _ as *mut c_void,
+            )
+        };
+        if !ghostty::ok(result) || string.ptr.is_null() || string.len == 0 {
+            return None;
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(string.ptr, string.len) };
+        String::from_utf8(bytes.to_vec()).ok()
     }
 
     /// The scrollbar: total rows and the viewport's offset.
