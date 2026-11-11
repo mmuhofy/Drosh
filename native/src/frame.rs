@@ -209,10 +209,10 @@ impl FrameSource {
         // Into a local first: the read borrows the state and the palette at
         // the same time, and the palette belongs to this struct.
         let mut palette = vec![ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 }; PALETTE_LEN];
-        let _ = render_get!(
+        let _ = ghostty::ghostty_render_state_get(
             self.state,
             ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_PALETTE,
-            palette.as_mut_ptr()
+            palette.as_mut_ptr() as *mut std::ffi::c_void,
         );
         self.palette = palette;
     }
@@ -228,7 +228,7 @@ impl FrameSource {
     fn style_color(
         color: &ghostty::GhosttyStyleColor,
         palette: &[ghostty::GhosttyColorRgb],
-    ) -> Option<ghostty::GhosttyColorRgb> {
+    ) -> Option<crate::renderer::cell::Rgb> {
         // The payload is a union: a palette index in its first byte, or an
         // RGB in its first three. It is read as bytes because the union's
         // own type is a generated name, and the layout is the header's:
@@ -243,12 +243,12 @@ impl FrameSource {
         }
 
         match color.tag as u32 {
-            STYLE_COLOR_PALETTE => palette.get(bytes[0] as usize).copied(),
-            STYLE_COLOR_RGB => Some(ghostty::GhosttyColorRgb {
-                r: bytes[0],
-                g: bytes[1],
-                b: bytes[2],
-            }),
+            STYLE_COLOR_PALETTE => palette.get(bytes[0] as usize).map(|c| rgb(*c)),
+            STYLE_COLOR_RGB => Some(crate::renderer::cell::Rgb::new(
+                bytes[0],
+                bytes[1],
+                bytes[2],
+            )),
             _ => None,
         }
     }
