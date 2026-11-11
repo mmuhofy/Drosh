@@ -257,6 +257,14 @@ internal class FrameRenderer {
             backgrounds.putShort((index % frame.columns).toShort())
             backgrounds.putShort(row.toShort())
             putColor(backgrounds, backgroundOf(frame, index))
+            // The underline, if the cell has one. A cell with no underline
+            // carries a transparent colour and nothing is drawn.
+            val underline = if (frame.attributes(index) and FrameFormat.ATTR_UNDERLINE_MASK != 0) {
+                foregroundOf(frame, index)
+            } else {
+                TRANSPARENT
+            }
+            putColor(backgrounds, underline)
         }
         backgrounds.flip()
     }
@@ -455,6 +463,11 @@ internal class FrameRenderer {
         GLES30.glEnableVertexAttribArray(1)
         GLES30.glVertexAttribPointer(1, 4, GLES30.GL_UNSIGNED_BYTE, true, BACKGROUND_BYTES, 4)
         GLES30.glVertexAttribDivisor(1, 1)
+
+        // The underline's colour: transparent when the cell has none.
+        GLES30.glEnableVertexAttribArray(2)
+        GLES30.glVertexAttribPointer(2, 4, GLES30.GL_UNSIGNED_BYTE, true, BACKGROUND_BYTES, 8)
+        GLES30.glVertexAttribDivisor(2, 1)
 
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, frame.cellCount)
     }
@@ -664,7 +677,11 @@ internal class FrameRenderer {
         const val TAG = "FrameRenderer"
 
         /** `u16 column, i16 row, vec4 colour`. */
-        const val BACKGROUND_BYTES = 8
+        /** The background record: the cell's position, its colour, its underline. */
+        const val BACKGROUND_BYTES = 12
+
+        /** A colour that draws nothing. */
+        const val TRANSPARENT = 0
 
         /** How long a cursor blink lasts, in milliseconds. */
         const val BLINK_PERIOD_MILLIS = 500L

@@ -42,9 +42,13 @@ internal object Shaders {
         #version 300 es
         layout(location = 0) in uvec2 aGridPos;
         layout(location = 1) in vec4 aColor;
+        layout(location = 2) in vec4 aUnderline;
         uniform vec4 uProjection;
         uniform vec2 uCellSize;
         out vec4 vColor;
+        out vec4 vUnderline;
+        // Where the fragment sits inside its cell, in cells.
+        out vec2 vLocal;
         void main() {
             vec2 corner = vec2(
                 float(gl_VertexID == 1 || gl_VertexID == 3),
@@ -61,6 +65,8 @@ internal object Shaders {
                 1.0
             );
             vColor = aColor;
+            vUnderline = aUnderline;
+            vLocal = corner;
         }
     """.trimIndent()
 
@@ -68,9 +74,24 @@ internal object Shaders {
         #version 300 es
         precision mediump float;
         in vec4 vColor;
+        in vec4 vUnderline;
+        in vec2 vLocal;
         out vec4 fragColor;
         void main() {
             fragColor = vColor;
+            // The underline, if the cell has one.
+            //
+            // It is drawn here, in the cell's own quad, rather than as a
+            // glyph: an underline is a rule under the text, and the rule
+            // belongs to the cell, not to the character in it. The alpha says
+            // whether there is one at all — a cell with no underline carries
+            // a transparent colour and nothing is drawn.
+            // 0.06 of the cell's height, and never more than a twentieth of
+            // it: on a small cell a thicker rule would start eating the text
+            // above it.
+            if (vUnderline.a > 0.0 && vLocal.y > 0.94) {
+                fragColor = vUnderline;
+            }
         }
     """.trimIndent()
 
