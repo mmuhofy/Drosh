@@ -418,6 +418,25 @@ impl FrameSource {
             cursor_has_value = false;
         }
 
+        // The header's own fields, and then the cursor's.
+        //
+        // The body is written first and the header last, because the header is
+        // what says how much body there is: a frame that carries its own length
+        // is a frame the other side can check before it reads.
+        let header = &mut self.buffer[0..HEADER_BYTES];
+        put_u32(header, 0, MAGIC);
+        put_u16(header, 4, VERSION);
+        put_u16(header, 6, HEADER_BYTES as u16);
+        put_u32(header, 8, self.sequence);
+        put_u16(header, 12, cols);
+        put_u16(header, 14, rows);
+        put_u16(header, 16, row_count as u16);
+        put_i16(header, 18, overscan.above as i16);
+        put_i16(header, 20, overscan.below as i16);
+        put_u32(header, 32, cell_count);
+        put_u32(header, 36, CELL_BYTES as u32);
+        put_u32(header, 40, cell_count * CELL_BYTES as u32);
+
         put_u16(header, 22, if cursor_has_value { cursor_x } else { 0 });
         put_u16(header, 24, if cursor_has_value { cursor_y } else { 0 });
         // The visual style, masked to a byte so that it reads the same whether
