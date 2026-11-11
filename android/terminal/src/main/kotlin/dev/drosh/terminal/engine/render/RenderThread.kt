@@ -193,6 +193,7 @@ class RenderThread(
         cursorStyle: Int,
         cursorVisible: Boolean,
         cursorColor: Int,
+        cellColours: String,
     ) -> Unit)? = null
 
     /** True while the loop is running. */
@@ -412,6 +413,19 @@ class RenderThread(
 
         val frame = frameSource?.invoke()
         frame?.let {
+            // The first few cells' colours, so a cell that should be coloured
+            // and is not says so on the screen: the engine's answer and the
+            // frame's answer are two different places to look, and which one
+            // is wrong is the question.
+            val sample = buildString {
+                for (i in 0 until minOf(4, it.cellCount)) {
+                    append(' ')
+                    append("%06x/%06x".format(
+                        it.background(i) and 0xffffff,
+                        it.foreground(i) and 0xffffff,
+                    ))
+                }
+            }
             onFrameShape?.invoke(
                 it.columns,
                 it.rows,
@@ -427,6 +441,7 @@ class RenderThread(
                 it.cursorStyle,
                 it.cursorVisible,
                 it.cursorColor,
+                sample,
             )
         }
         val cellsDrawn = current.draw(frame, layout.size)

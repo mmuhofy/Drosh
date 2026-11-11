@@ -118,6 +118,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 cursorStyle: Int,
                 cursorVisible: Boolean,
                 cursorColor: Int,
+                cellColours: String,
             ->
             lastFrameShape = "${columns}x$rows cells=$cells " +
                 "step=${"%.1f".format(stepX)}x${"%.1f".format(stepY)} " +
@@ -126,7 +127,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // wrong place is a question the numbers answer and the code
                 // cannot.
                 "cursor=$cursorColumn,$cursorRow style=$cursorStyle " +
-                "vis=$cursorVisible #${"%06x".format(cursorColor and 0xffffff)}"
+                "vis=$cursorVisible #${"%06x".format(cursorColor and 0xffffff)}" +
+                cellColours
         }
         holder.addCallback(this)
         // The surface draws its own pixels; the platform must not clear it to
