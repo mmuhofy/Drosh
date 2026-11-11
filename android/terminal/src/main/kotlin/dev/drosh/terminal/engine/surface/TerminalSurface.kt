@@ -594,6 +594,22 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** Send bytes from the IME straight to the child. */
     private fun send(bytes: ByteArray) {
+        // Typing means the user is looking at the prompt, not at the scrollback.
+        // A terminal that leaves the view where it was sends the keystrokes to a
+        // shell whose output the user cannot see.
+        val session = sessionHandle
+        if (session != 0L) {
+            val bar = NativeSession.scrollbar(session)
+            if (bar != null && bar.offset < bar.historyRows) {
+                NativeSession.scroll(session, NativeSession.SCROLL_BOTTOM, 0)
+                val after = NativeSession.scrollbar(session)
+                if (after != null) {
+                    scrollMachine.anchor(after.offset, after.historyRows, accepted = true)
+                }
+                renderThread.post(RenderThread.Command.ScrollOffset(0f))
+            }
+        }
+
         write(bytes)
         renderThread.invalidate()
     }

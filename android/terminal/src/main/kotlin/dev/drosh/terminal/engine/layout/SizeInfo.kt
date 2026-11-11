@@ -101,7 +101,9 @@ data class SizeInfo(
      */
     val stepX: Float
         get() = when {
-            zooming || frozenGrid -> cellWidth
+            // Only a pinch freezes the width: the gesture magnifies the text
+            // and the grid runs off the edge, which is what a zoom looks like.
+            zooming -> cellWidth
             columns <= 0 -> cellWidth
             else -> width.toFloat() / columns
         }
