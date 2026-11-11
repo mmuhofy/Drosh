@@ -18,6 +18,14 @@ _Son güncelleme: 2026-11-08_
 - [x] **Pixel-by-pixel scroll** — finger drag in pixels, whole rows to SCROLL_DELTA (alternate screen: whole rows only), sub-line remainder shifts the projected grid
 - [x] **Pinch-to-zoom** — two-finger pinch: log-scale dead zone, 1.35 per-event clamp, one reflow on finger-lift, 9–48sp; zoom chip shows the live size
 - [ ] Ghostty motorunu device'da tam doğrulama (on-device render, keyboard, session close/restore, grid previews, **nano bars, cursor, pinch feel**)
+- [x] **Renk kuralı Ghostty'nin kendi kuralı** — motorun `BG_COLOR` sorgusu "çözülmüş" rengi verir (içerik tag'i ya da stilin rengi); ters çevirme (SGR 7) uygulanmadan geldiği için SGR 7'li hücreler yanlış renkleniyordu. Artık stilin **ham** renk kaynağı okunuyor (palet indeksi / RGB / hiçbiri) ve palet onunla birlikte okunuyor. `native/src/renderer/cell.rs` (Ghostty'nin `cell.zig`/`generic.zig` kuralları) + `cargo test --no-default-features` ile CI'da test ediliyor
+- [x] **Alt çizgi (SGR 4)** — hücrenin kendi çerçevesinde, metnin renginde; alt çizgisi olmayan hücre saydam renk taşır ve çizmez
+- [x] **Seçim renkleri** — seçili hücre terminalin kendi iki renginde, takas edilerek çiziliyor
+- [x] **Odak dışı cursor boş kare** — odak yokken dolu blok yerine çerçeve; cursor yine yerini söyler ama "yazı buraya gidiyor" demez
+- [x] **Scroll: iki sayı** — viewport'un satırı ile resmin piksel kayması ayrı tutuluyor; parmağın yolunu kayma alıyor, sadece **tam satır** viewport'u oynatıyor, artık resim satır sınırına zıplamıyor. Kaymanın işareti de düzeltildi (içerik parmağın tersine gidiyordu)
+- [x] **Pinch donması** — atlas her karede 4 MB'ın tamamıyla GPU'ya gidiyordu; artık sadece değişen raflar yükleniyor
+- [x] **Oturum değişiminde ekran temizleniyor** — yeni oturumun ızgarası boşken renderer önceki resmi ekranda tutuyordu, eski oturum görünüyordu
+- [x] **CI: libclang** — apt ile kurulum yüzlerce MB LLVM paketi çekiyor ve runner'ın aynası ara sıra DNS çözemiyordu (iş 20 dk zaman aşımına takılıyordu); artık PyPI tekerleği kullanılıyor, apt yalnızca yedek
 - [ ] Extra-keys bar for the new engine — `focusedWriter()` returns null on the Ghostty path by design (`EngineTerminalWriter` is Rust-engine-specific); needs a writer that emits bytes through the native encoder
 - [ ] Eski motorun Kotlin parçalarını usulca yeni motora taşımak ya da silme sırasını belirlemek (view/ + input/ jest/mouse seçim kodu)
 
