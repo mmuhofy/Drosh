@@ -45,10 +45,14 @@ internal object Shaders {
         layout(location = 2) in vec4 aUnderline;
         uniform vec4 uProjection;
         uniform vec2 uCellSize;
-        out vec4 vColor;
-        out vec4 vUnderline;
+        // A varying that both stages declare must declare the same precision
+        // in both: the vertex stage's floats are highp by default and the
+        // fragment stage's are whatever it says, and a mismatch is a link
+        // error, not a warning.
+        out highp vec4 vColor;
+        out highp vec4 vUnderline;
         // Where the fragment sits inside its cell, in cells.
-        out vec2 vLocal;
+        out highp vec2 vLocal;
         void main() {
             vec2 corner = vec2(
                 float(gl_VertexID == 1 || gl_VertexID == 3),
@@ -73,9 +77,10 @@ internal object Shaders {
     val BACKGROUND_FRAGMENT = """
         #version 300 es
         precision mediump float;
-        in vec4 vColor;
-        in vec4 vUnderline;
-        in vec2 vLocal;
+        // The same precision the vertex stage declares them with.
+        in highp vec4 vColor;
+        in highp vec4 vUnderline;
+        in highp vec2 vLocal;
         out vec4 fragColor;
         void main() {
             fragColor = vColor;
@@ -194,9 +199,9 @@ internal object Shaders {
         #version 300 es
         uniform vec4 uProjection;
         uniform vec2 uCellSize;
-        uniform vec4 uRect;
+        uniform highp vec4 uRect;
         // Where the fragment sits inside the cursor's rectangle, in cells.
-        out vec2 vLocal;
+        out highp vec2 vLocal;
         void main() {
             int id = gl_VertexID;
             vec2 corner = vec2(
@@ -218,11 +223,11 @@ internal object Shaders {
         precision mediump float;
         uniform vec4 uColor;
         // One when the cursor is drawn as an outline rather than a filled box.
-        uniform float uHollow;
+        uniform highp float uHollow;
         // The cursor's rectangle in cells, so the outline knows where its edges
-        // are.
-        uniform vec4 uRect;
-        in vec2 vLocal;
+        // are. The vertex stage declares it too, so both say highp.
+        uniform highp vec4 uRect;
+        in highp vec2 vLocal;
         out vec4 fragColor;
 
         void main() {
