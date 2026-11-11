@@ -370,6 +370,19 @@ impl FrameSource {
                 ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y,
                 &mut cursor_y
             );
+
+            // A cursor standing on the tail of a wide character belongs on the
+            // character, not on the cell after it: the block would cover the
+            // right half of a two-cell glyph.
+            let mut wide_tail = false;
+            render_get!(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_WIDE_TAIL,
+                &mut wide_tail
+            );
+            if wide_tail && cursor_x > 0 {
+                cursor_x -= 1;
+            }
         }
 
         let mut cursor_visible = false;
