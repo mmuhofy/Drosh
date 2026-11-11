@@ -146,6 +146,15 @@ class RenderThread(
     private val layout = dev.drosh.terminal.engine.layout.LayoutMachine()
 
     /**
+     * Whether the terminal has the focus.
+     *
+     * A terminal that does not have it draws a hollow cursor: the cursor says
+     * where it is without pretending to be the place the user is typing.
+     */
+    @Volatile
+    var focused: Boolean = true
+
+    /**
      * Where the cells come from. Set before [start], cleared after [stop].
      *
      * A function rather than an object so the loop does not need to know what a
@@ -355,6 +364,7 @@ class RenderThread(
             // wrong shape, and one of them is the black square at the origin.
             if (dirty && egl.isReady && egl.windowSurface != null && layout.cellReady) {
                 dirty = false
+                renderer?.focused = focused
                 drawFrame()
             }
 

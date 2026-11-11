@@ -174,6 +174,8 @@ internal object Shaders {
         uniform vec4 uProjection;
         uniform vec2 uCellSize;
         uniform vec4 uRect;
+        // Where the fragment sits inside the cursor's rectangle, in cells.
+        out vec2 vLocal;
         void main() {
             int id = gl_VertexID;
             vec2 corner = vec2(
@@ -181,6 +183,7 @@ internal object Shaders {
                 float(id == 2 || id == 3)
             );
             vec2 cell = (uRect.xy + corner * uRect.zw) * uCellSize;
+            vLocal = corner * uRect.zw;
             gl_Position = vec4(
                 uProjection.xy + uProjection.zw * cell,
                 0.0,
@@ -193,8 +196,31 @@ internal object Shaders {
         #version 300 es
         precision mediump float;
         uniform vec4 uColor;
+        // One when the cursor is drawn as an outline rather than a filled box.
+        uniform float uHollow;
+        // The cursor's rectangle in cells, so the outline knows where its edges
+        // are.
+        uniform vec4 uRect;
+        in vec2 vLocal;
         out vec4 fragColor;
+
         void main() {
+            if (uHollow > 0.5) {
+                // The hollow cursor is a frame: the middle is the terminal's
+                // own colours, so the text under it stays readable and the
+                // cursor still says where it is.
+                //
+                // The frame's thickness is a fraction of the cell, and it
+                // never grows past half of the cell — a thin frame on a small
+                // cell would otherwise eat the whole thing.
+                float edge = min(0.09, min(uRect.z, uRect.w) * 0.25);
+                float left = vLocal.x;
+                float right = uRect.z - vLocal.x;
+                float top = vLocal.y;
+                float bottom = uRect.w - vLocal.y;
+                float border = min(min(left, right), min(top, bottom));
+                if (border > edge) discard;
+            }
             fragColor = uColor;
         }
     """.trimIndent()

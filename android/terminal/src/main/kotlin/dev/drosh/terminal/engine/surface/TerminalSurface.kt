@@ -155,6 +155,17 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     // --- lifecycle ----------------------------------------------------------
 
+    /**
+     * The window's focus decides the cursor's shape: a terminal that is not
+     * where the user is typing draws a hollow cursor, so the cursor says where
+     * it is without pretending to be the place the keystrokes go.
+     */
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        renderThread.focused = hasWindowFocus
+        renderThread.invalidate()
+    }
+
     override fun surfaceCreated(holder: SurfaceHolder) {
         renderThread.start()
         renderThread.post(

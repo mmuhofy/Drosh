@@ -56,6 +56,8 @@ internal class FrameRenderer {
     private var cursorCellSize = 0
     private var cursorRect = 0
     private var cursorColorUniform = 0
+
+    private var cursorHollow = 0
     private var foregroundBuffer = 0
 
     /** The glyph masks. Owned by the loop thread. */
@@ -112,6 +114,7 @@ internal class FrameRenderer {
         cursorCellSize = GLES20.glGetUniformLocation(cursorProgram, "uCellSize")
         cursorRect = GLES20.glGetUniformLocation(cursorProgram, "uRect")
         cursorColorUniform = GLES20.glGetUniformLocation(cursorProgram, "uColor")
+        cursorHollow = GLES20.glGetUniformLocation(cursorProgram, "uHollow")
 
         backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
         backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
@@ -279,7 +282,7 @@ internal class FrameRenderer {
 
     private fun drawCursor(frame: Frame, size: SizeInfo) {
         if (cursorProgram == 0) return
-        if (!frame.cursorVisible || !frame.cursorIsRectangle) return
+        if (!frame.cursorVisible) return
         if (frame.cursorColumn !in 0 until frame.columns) return
         if (frame.cursorRow !in 0 until frame.rows) return
 
@@ -288,12 +291,24 @@ internal class FrameRenderer {
         // business, and the same clock the render loop already wakes on.
         if (frame.cursorBlinking && !blinkVisible()) return
 
+        // The cursor's shape, and what Ghostty does about the focus:
+        //
+        //  - a block cursor is the cell's own colours swapped, so the text
+        //    under it stays readable;
+        //  - a terminal that does not have the focus shows a hollow block
+        //    instead, so the cursor says where it is without pretending to be
+        //    the place the user is typing.
+        val hollow = !focused || frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK_HOLLOW
+        val block = frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK && !hollow
+
+        if (block) return // drawn by inverting the cell
+
         val isUnderline = frame.cursorStyle == FrameFormat.CURSOR_STYLE_UNDERLINE
         // A bar hugs the left edge of the cell; an underline the bottom.
-        val x = frame.cursorColumn.toFloat() + if (isUnderline) 0f else 0f
+        val x = frame.cursorColumn.toFloat()
         val y = (frame.cursorRow + frame.overscanAbove).toFloat() +
             if (isUnderline) 1f - UNDERLINE_HEIGHT else 0f
-        val w = if (isUnderline) 1f else BAR_WIDTH
+        val w = if (isUnderline) 1f else if (hollow) 1f else BAR_WIDTH
         val h = if (isUnderline) UNDERLINE_HEIGHT else 1f
 
         val projection = FloatArray(4)
@@ -322,6 +337,7 @@ internal class FrameRenderer {
             w,
             h,
         )
+        GLES20.glUniform1f(cursorHollow, if (hollow) 1f else 0f)
         GLES20.glUniform4f(
             cursorColorUniform,
             FrameFormat.red(colour) / 255f,
@@ -342,6 +358,9 @@ internal class FrameRenderer {
      */
     private fun blockCursorCell(frame: Frame): Int {
         if (!frame.cursorVisible || frame.cursorIsRectangle) return -1
+        // A hollow cursor is an outline drawn over the cell; the cell keeps
+        // its own colours.
+        if (!focused || frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK_HOLLOW) return -1
         if (frame.cursorColumn !in 0 until frame.columns) return -1
         if (frame.cursorRow !in 0 until frame.rows) return -1
         return (frame.cursorRow + frame.overscanAbove) * frame.columns + frame.cursorColumn
@@ -349,6 +368,15 @@ internal class FrameRenderer {
 
     /** The cell the block cursor inverts this frame, or -1. Computed once. */
     private var invertedCell: Int = -1
+
+    /**
+     * Whether the terminal has the focus.
+     *
+     * A terminal that does not have it draws a hollow cursor, so the cursor
+     * says where it is without pretending to be the place the user is typing.
+     */
+    @Volatile
+    var focused: Boolean = true
 
     private fun backgroundOf(frame: Frame, index: Int): Int =
         if (index == invertedCell) frame.foreground(index) else frame.background(index)
