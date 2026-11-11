@@ -9,7 +9,7 @@ import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateTo
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -92,6 +92,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.drosh.theme.DroshError
 import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshBackground
 import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextSecondary
@@ -1751,11 +1752,11 @@ private fun TerminalPaneBody(
     // out over the new content makes the switch read as a movement rather
     // than as a jump — the one thing a cross-fade cannot do here, because
     // there is only ever one surface to fade.
-    var transitionAlpha by remember { mutableStateOf(0f) }
+    val transitionAlpha = remember { Animatable(0f) }
     LaunchedEffect(paneSessionId) {
         if (paneSessionId.isEmpty()) return@LaunchedEffect
-        transitionAlpha = 1f
-        transitionAlpha = animateTo(
+        transitionAlpha.snapTo(1f)
+        transitionAlpha.animateTo(
             targetValue = 0f,
             animationSpec = tween(SESSION_TRANSITION_MILLIS),
         )
@@ -1822,11 +1823,11 @@ private fun TerminalPaneBody(
             )
 
             // The scrim, over the terminal and under nothing else.
-            if (transitionAlpha > 0f) {
+            if (transitionAlpha.value > 0f) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(DroshBackground.copy(alpha = transitionAlpha)),
+                        .background(DroshBackground.copy(alpha = transitionAlpha.value)),
                 )
             }
         }
