@@ -62,11 +62,12 @@ class LayoutMachineTest {
         val machine = machine()
         machine.onSurface(800, 600, now = 0)
         machine.onCell(10f, 20f, now = 0)
+        applyGrid(machine, now = 0)
 
         machine.onSurface(800, 400, now = 100)
         assertNull("still moving", machine.poll(now = 120))
 
-        val change = machine.poll(now = 200)
+        val change = applyGrid(machine, now = 200)
         assertNotNull(change)
         requireNotNull(change)
         assertEquals(80, change.columns)
@@ -121,6 +122,7 @@ class LayoutMachineTest {
         val machine = machine()
         machine.onSurface(800, 600, now = 0)
         machine.onCell(10f, 20f, now = 0)
+        applyGrid(machine, now = 0)
 
         machine.onScrollOffset(7.5f)
         assertEquals(7.5f, machine.size.scrollOffsetPx, 0.0001f)
