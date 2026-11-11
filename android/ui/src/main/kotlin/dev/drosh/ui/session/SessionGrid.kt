@@ -568,7 +568,10 @@ private fun SessionCard(
                 origin.value = it.boundsInRoot().topLeft
                 onBounds(it.boundsInRoot())
             }
-            .semantics { stateDescription = stateDescription }
+            // `this.` on the left: the name on the right is the card's own
+            // description, and without it the assignment would be to that
+            // one — which is a value, not a property.
+            .semantics { this.stateDescription = stateDescription }
             // A carried card lifts: it is above its neighbours and out of the
             // grid's flow, which is what makes it read as something being moved
             // rather than something that grew.
