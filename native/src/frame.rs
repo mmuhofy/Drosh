@@ -339,48 +339,42 @@ impl FrameSource {
         overscan: ghostty::GhosttyRenderStateOverscan,
         cell_count: u32,
     ) {
-        // The cursor, from the terminal itself.
+        // The cursor, as the render state saw it.
         //
-        // The terminal knows where its cursor is: the column, and the row
-        // within the active area. The render state knows the same thing, but
-        // only as a position *within the viewport* — and it only has one when
-        // the cursor's page happens to be among the rows it captured. That
-        // makes the position a question about the render state's internals
-        // rather than a question about the terminal, and a cursor that is
-        // reported as "not in the viewport" is a cursor with no position at
-        // all.
+        // The render state is the same snapshot the rows come from, and it
+        // answers the question a renderer actually has: *where in the viewport*
+        // is the cursor. That is not the same as where the cursor is in the
+        // terminal — the terminal's row is in the active area, and the viewport
+        // is wherever the user scrolled to — and mixing the two is how a cursor
+        // ends up drawn in the corner.
         //
-        // The terminal's answer is absolute, so it needs no interpretation.
+        // `HAS_VALUE` is the state's own "the cursor is on the screen" answer.
+        // When it is false the position is undefined, and nothing is drawn.
+        let mut cursor_has_value = false;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE,
+            &mut cursor_has_value
+        );
+
         let mut cursor_x: u16 = 0;
         let mut cursor_y: u16 = 0;
+        if cursor_has_value {
+            render_get!(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X,
+                &mut cursor_x
+            );
+            render_get!(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y,
+                &mut cursor_y
+            );
+        }
+
         let mut cursor_visible = false;
         let mut cursor_style: u32 = 0;
         let mut cursor_blinking = false;
-        unsafe {
-            let terminal = self.terminal;
-            let _ = ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_X,
-                &mut cursor_x as *mut u16 as *mut std::ffi::c_void,
-            );
-            let _ = ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_Y,
-                &mut cursor_y as *mut u16 as *mut std::ffi::c_void,
-            );
-        }
-        // The cursor's shape, its visibility and whether it blinks are the
-        // render state's answers, and they are scalars: one number each, of a
-        // size that is written down.
-        //
-        // The terminal's own cursor *style* is not one of them: that is the
-        // SGR style of the cursor, a whole struct, and reading it into
-        // anything smaller is how a library call becomes a smashed stack.
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
-            &mut cursor_style
-        );
         render_get!(
             self.state,
             ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE,
@@ -388,52 +382,63 @@ impl FrameSource {
         );
         render_get!(
             self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
+            &mut cursor_style
+        );
+        render_get!(
+            self.state,
             ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING,
             &mut cursor_blinking
         );
 
-        // The cursor is in the active area, and the frame shows the viewport.
-        // When the viewport is the active area — which is where it is whenever
-        // the user is at the live edge — the two are the same rows and the
-        // cursor's row is its row.
+        // The terminal's own position, as a fallback.
         //
-        // When the viewport is up in the scrollback the cursor is not on the
-        // screen, and there is nothing to draw. The scrollbar says which: its
-        // offset is the viewport's first row, and the live edge is the last
-        // row the viewport can hold.
-        let mut scrollbar: ghostty::GhosttyTerminalScrollbar = std::mem::zeroed();
-        unsafe {
-            let _ = ghostty::ghostty_terminal_get(
-                self.terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_SCROLLBAR,
-                &mut scrollbar as *mut _ as *mut std::ffi::c_void,
-            );
+        // The render state's "in the viewport" answer is the right one, and it
+        // is what a renderer should use. But when it says no while the viewport
+        // is showing the active area, the two disagree about something that has
+        // one obvious answer — and a terminal that shows no cursor at all is
+        // worse than one whose cursor is a row off. At the live edge the active
+        // area *is* the viewport, so the terminal's row is the viewport's row.
+        if !cursor_has_value && cursor_visible {
+            let mut terminal_x: u16 = 0;
+            let mut terminal_y: u16 = 0;
+            let mut scrollbar: ghostty::GhosttyTerminalScrollbar = std::mem::zeroed();
+            unsafe {
+                let _ = ghostty::ghostty_terminal_get(
+                    self.terminal,
+                    ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_X,
+                    &mut terminal_x as *mut u16 as *mut std::ffi::c_void,
+                );
+                let _ = ghostty::ghostty_terminal_get(
+                    self.terminal,
+                    ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_Y,
+                    &mut terminal_y as *mut u16 as *mut std::ffi::c_void,
+                );
+                let _ = ghostty::ghostty_terminal_get(
+                    self.terminal,
+                    ghostty::GHOSTTY_TERMINAL_DATA_SCROLLBAR,
+                    &mut scrollbar as *mut _ as *mut std::ffi::c_void,
+                );
+            }
+            let at_live_edge =
+                scrollbar.offset >= scrollbar.total.saturating_sub(scrollbar.len);
+            if at_live_edge && terminal_x < cols && terminal_y < rows {
+                cursor_x = terminal_x;
+                cursor_y = terminal_y;
+                cursor_has_value = true;
+            }
         }
-        let viewport_at_live_edge = scrollbar.offset
-            >= scrollbar.total.saturating_sub(scrollbar.len);
-        let cursor_has_value = viewport_at_live_edge;
 
-        // The cursor's colour: an explicit one if the terminal set it, the
-        // foreground otherwise. Painting it black because "no explicit colour"
-        // was read as "black" is what put a black square at the origin.
-        let mut cursor_color: ghostty::GhosttyColorRgb = self.default_fg;
-        let mut has_cursor_color = false;
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR_HAS_VALUE,
-            &mut has_cursor_color
-        );
-        if has_cursor_color {
-            let _ = render_get!(
-                self.state,
-                ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR,
-                &mut cursor_color
-            );
-        }
+        // A cursor with no position is not drawn: there is nothing to point at.
+        // The visibility flag alone would leave a cursor in the corner of the
+        // screen, which is worse than no cursor at all.
+        cursor_has_value = cursor_has_value && cursor_x < cols && cursor_y < rows;
 
-        let mut dirty = ghostty::GHOSTTY_RENDER_STATE_DIRTY_FALSE;
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_DIRTY, &mut dirty);
-
+        // The header's own fields.
+        //
+        // The body is written first and the header last, because the header is
+        // what says how much body there is: a frame that carries its own
+        // length is a frame the other side can check before it reads.
         let header = &mut self.buffer[0..HEADER_BYTES];
         put_u32(header, 0, MAGIC);
         put_u16(header, 4, VERSION);
@@ -447,11 +452,7 @@ impl FrameSource {
         put_u32(header, 32, cell_count);
         put_u32(header, 36, CELL_BYTES as u32);
         put_u32(header, 40, cell_count * CELL_BYTES as u32);
-        put_u32(header, 44, rgba(cursor_color));
 
-        // The viewport coordinates are only meaningful when the cursor is
-        // inside the viewport; the flag is what says so, and a cursor outside it
-        // is a cursor the renderer must not draw.
         put_u16(header, 22, if cursor_has_value { cursor_x } else { 0 });
         put_u16(header, 24, if cursor_has_value { cursor_y } else { 0 });
         // The visual style, masked to a byte so that it reads the same whether
@@ -475,12 +476,39 @@ impl FrameSource {
         }
         put_u16(header, 28, flags);
 
+        // How much of the screen changed, as the engine saw it.
+        let mut dirty = ghostty::GHOSTTY_RENDER_STATE_DIRTY_FALSE;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_DIRTY,
+            &mut dirty
+        );
+
         let dirty_bits = match dirty {
             ghostty::GHOSTTY_RENDER_STATE_DIRTY_FULL => DIRTY_FULL,
             ghostty::GHOSTTY_RENDER_STATE_DIRTY_PARTIAL => DIRTY_PARTIAL,
             _ => DIRTY_NONE,
         };
         put_u16(header, 30, dirty_bits);
+
+        // The cursor's colour: an explicit one when the terminal set it, the
+        // foreground otherwise. Painting it black because "no explicit colour"
+        // was read as "black" is what put a black square at the origin.
+        let mut cursor_color: ghostty::GhosttyColorRgb = self.default_fg;
+        let mut has_cursor_color = false;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR_HAS_VALUE,
+            &mut has_cursor_color
+        );
+        if has_cursor_color {
+            let _ = render_get!(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_CURSOR,
+                &mut cursor_color
+            );
+        }
+        put_u32(header, 44, rgba(cursor_color));
     }
 
     unsafe fn write_cell(&mut self, at: usize, column: u16) {

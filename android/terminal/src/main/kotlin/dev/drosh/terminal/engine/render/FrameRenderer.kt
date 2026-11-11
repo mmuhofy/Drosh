@@ -224,6 +224,12 @@ internal class FrameRenderer {
         // have to know which one.
         invertedCell = blockCursorCell(frame)
 
+        // The backgrounds are built here, once, and drawn by the pass below.
+        // Building them in the pass would work too, but a buffer that nobody
+        // fills is a pass that draws whatever was left in it — which is how the
+        // coloured bars of a full-screen program went missing while the text
+        // kept rendering.
+        buildBackgrounds(frame, size)
         val foregroundCount = buildForegrounds(frame)
 
         if (atlas.dirty) {

@@ -1,7 +1,15 @@
 package dev.drosh.ui.keyboard
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateBottomPadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,3 +78,27 @@ object KeyboardWindowModeState {
  */
 fun Modifier.droshImePadding(): Modifier =
     if (KeyboardWindowModeState.docked) imePadding() else this
+
+/**
+ * Keeps content clear of the navigation bar.
+ *
+ * The bottom strip of a window belongs to the system, not to the app: a grid
+ * that runs under the navigation bar has its last rows where the user cannot
+ * tap them and, on a three-button bar, cannot read them either. The terminal
+ * therefore ends above the bar and the grid is laid out for the height it was
+ * actually given.
+ *
+ * The inset is the *visible* bar's height, so in immersive mode it is zero and
+ * the terminal fills the screen — no dead band, which is the other half of
+ * fitting the screen exactly.
+ *
+ * Nothing is added while the keyboard is up: the keyboard covers the bar and
+ * its own inset already includes it, so padding for both would leave the
+ * terminal a bar's height short for as long as the user is typing.
+ */
+@Composable
+fun Modifier.droshNavigationBarPadding(): Modifier {
+    val barBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    return if (imeBottom > 0.dp) this else padding(bottom = barBottom)
+}

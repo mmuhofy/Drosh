@@ -371,6 +371,13 @@ class RenderThread(
 
             if (!dirty) {
                 awaitWork(now)
+                // The wait ended because the blink interval ran out: the cursor
+                // is drawn by this loop and the loop has just woken to flip its
+                // phase, so a frame has to be produced. A wake that only waits
+                // again leaves the cursor frozen in whichever half of the blink
+                // the last frame happened to fall in — which looks like a cursor
+                // that disappears and never comes back.
+                dirty = true
             }
         }
 

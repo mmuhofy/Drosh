@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import dev.drosh.ui.R
 import dev.drosh.ui.keyboard.droshImePadding
+import dev.drosh.ui.keyboard.droshNavigationBarPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
@@ -986,7 +987,13 @@ private fun ReadyScreen(
                 // was drawn short by that amount and the space below it fell
                 // through to the app background — a black band under the split,
                 // growing with the keyboard.
-                .droshImePadding(),
+                .droshImePadding()
+                // And above the navigation bar: the bottom of the window is the
+                // system's strip, and a grid that runs into it puts rows where
+                // the user cannot reach them. The terminal is then laid out for
+                // the height it actually has, so it fits the screen instead of
+                // running past its edge.
+                .droshNavigationBarPadding(),
         ) {
         SplitPaneHost(
             layout = paneLayout,
