@@ -109,13 +109,15 @@ class ShaderPrecisionTest {
         }
 
         // A uniform, or a varying.
+        // The qualifier sits between the storage and the type:
+        // `out highp vec4 vColor;`.
         val declaration = Regex(
-            """^\s*(?:(lowp|mediump|highp)\s+)?(uniform|in|out)\s+(\w+)\s+(\w+)\s*;""",
+            """^\s*(uniform|in|out)\s+(?:(lowp|mediump|highp)\s+)?(\w+)\s+(\w+)\s*;""",
             RegexOption.MULTILINE,
         )
         for (match in declaration.findAll(stage)) {
-            val qualifier = match.groupValues[1].ifEmpty { precision }
-            val kind = match.groupValues[2]
+            val qualifier = match.groupValues[2].ifEmpty { precision }
+            val kind = match.groupValues[1]
             val type = match.groupValues[3]
             val name = match.groupValues[4]
             if (type == "float" || type.startsWith("vec")) {

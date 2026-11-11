@@ -132,8 +132,11 @@ internal object Shaders {
         // so that a stroke one pixel wide survives being sampled between
         // texels.
         uniform float uAtlasScale;
-        out vec2 vTexCoord;
-        out vec4 vColor;
+        // The varyings are declared by both stages, so both say highp: the
+        // vertex stage's floats are highp by default and the fragment
+        // stage's are mediump, and a mismatch is a link error.
+        out highp vec2 vTexCoord;
+        out highp vec4 vColor;
         void main() {
             vec2 corner = vec2(
                 float(gl_VertexID == 1 || gl_VertexID == 3),
@@ -254,8 +257,9 @@ internal object Shaders {
     val FOREGROUND_FRAGMENT = """
         #version 300 es
         precision mediump float;
-        in vec2 vTexCoord;
-        in vec4 vColor;
+        // The same precision the vertex stage declares them with.
+        in highp vec2 vTexCoord;
+        in highp vec4 vColor;
         uniform sampler2D uAtlas;
         out vec4 fragColor;
         void main() {
