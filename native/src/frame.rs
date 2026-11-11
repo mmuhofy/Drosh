@@ -542,8 +542,10 @@ impl FrameSource {
         // the struct, and the struct's layout is a detail of the ABI that two
         // versions of the engine do not agree on. So the flags are read from
         // the place the layout in use puts them.
-        let style_bytes: [u8; 16] = unsafe {
-            let mut bytes = [0u8; 16];
+        // Sixty-four bytes: the sized layout's flags sit at 56 to 64, and the
+        // packed layout's bitfield at 12 to 14.
+        let style_bytes: [u8; 64] = unsafe {
+            let mut bytes = [0u8; 64];
             std::ptr::copy_nonoverlapping(
                 &style as *const _ as *const u8,
                 bytes.as_mut_ptr(),
