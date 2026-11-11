@@ -127,7 +127,9 @@ class LayoutMachine(
     /** The grid shape currently in force. */
     val appliedColumns: Int
         get() = when (val state = current) {
-            is State.Idle -> state.size.columns
+            // Nothing has been applied yet. The idle state means the surface
+            // is not laid out, so there is no grid to have applied.
+            is State.Idle -> 0
             is State.Changing -> state.appliedColumns
             is State.Settled -> state.appliedColumns
             is State.Zooming -> state.appliedColumns
@@ -135,7 +137,7 @@ class LayoutMachine(
 
     val appliedRows: Int
         get() = when (val state = current) {
-            is State.Idle -> state.size.rows
+            is State.Idle -> 0
             is State.Changing -> state.appliedRows
             is State.Settled -> state.appliedRows
             is State.Zooming -> state.appliedRows
@@ -153,9 +155,21 @@ class LayoutMachine(
         // reflow that followed would resize the session and throw its contents
         // away.
         if (width <= 0 || height <= 0) return size
-        if (!hasCell) return size
 
         val next = size.withSurface(width, height)
+
+        // The surface is recorded even before there is a cell to measure it
+        // against — the cell comes later, and the surface it belongs to is
+        // the one that was there when it arrived.
+        //
+        // Dropping it meant that a cell measured after the surface arrived
+        // laid the grid out against a surface of no size at all: no columns,
+        // no rows, and a grid that never matched the window.
+        if (!hasCell) {
+            current = State.Idle(next)
+            return next
+        }
+
         current = State.Changing(
             size = next,
             appliedColumns = appliedColumns,
