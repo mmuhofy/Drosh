@@ -219,17 +219,7 @@ class GhosttySession(
         if (handle == 0L) return null
         val phase = dev.drosh.terminal.engine.shell.Phase.of(NativeSession.shellPhase(handle))
         val directory = NativeSession.workingDirectory(handle).takeIf { it.isNotBlank() }
-        val shellPhase = when (phase) {
-            dev.drosh.terminal.engine.shell.Phase.PROMPT ->
-                dev.drosh.domain.block.ShellPhase.PROMPT
-            dev.drosh.terminal.engine.shell.Phase.TYPING ->
-                dev.drosh.domain.block.ShellPhase.TYPING
-            dev.drosh.terminal.engine.shell.Phase.RUNNING ->
-                dev.drosh.domain.block.ShellPhase.RUNNING
-            dev.drosh.terminal.engine.shell.Phase.FINISHED ->
-                dev.drosh.domain.block.ShellPhase.FINISHED
-            else -> dev.drosh.domain.block.ShellPhase.UNKNOWN
-        }
+        val shellPhase = phase.toShellPhase()
         if (shellPhase == dev.drosh.domain.block.ShellPhase.UNKNOWN && directory == null) {
             return null
         }
@@ -328,4 +318,21 @@ class GhosttySession(
         /** How long a reader is given to notice it should stop. */
         const val READER_STOP_TIMEOUT_MS = 500L
     }
+}
+
+/**
+ * The domain's phase for the engine's.
+ *
+ * The engine's phase is a number it read from the shell's marks; the domain
+ * speaks in names. The translation is where the engine's own vocabulary
+ * becomes the domain's, and it is a pure function so that it can be checked
+ * without an engine and without a device.
+ */
+internal fun dev.drosh.terminal.engine.shell.Phase.toShellPhase():
+    dev.drosh.domain.block.ShellPhase = when (this) {
+    dev.drosh.terminal.engine.shell.Phase.PROMPT -> dev.drosh.domain.block.ShellPhase.PROMPT
+    dev.drosh.terminal.engine.shell.Phase.TYPING -> dev.drosh.domain.block.ShellPhase.TYPING
+    dev.drosh.terminal.engine.shell.Phase.RUNNING -> dev.drosh.domain.block.ShellPhase.RUNNING
+    dev.drosh.terminal.engine.shell.Phase.FINISHED -> dev.drosh.domain.block.ShellPhase.FINISHED
+    else -> dev.drosh.domain.block.ShellPhase.UNKNOWN
 }
