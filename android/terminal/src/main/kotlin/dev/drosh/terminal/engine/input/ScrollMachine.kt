@@ -3,25 +3,31 @@ package dev.drosh.terminal.engine.input
 /**
  * Where a scroll gesture lands, with no Android in it.
  *
- * ## The model
+ * ## What the engine gives us and what it does not
  *
- * Two numbers, exactly as Termux keeps them:
+ * The engine moves the viewport by whole rows: it is asked for a row, and it
+ * shows that row at the top of the screen. The finger, meanwhile, moves in
+ * pixels, and between two rows there is nothing in the engine to show.
+ *
+ * So a scroll has two parts, and they are kept apart:
  *
  *  - **the row** the viewport shows, in the engine's row space, where row 0 is
  *    the oldest row of the scrollback and the largest row is the live edge;
  *  - **the shift**, in pixels, of the picture within the viewport. A positive
  *    shift moves the picture *down*, which opens the row above the viewport —
- *    the older one.
+ *    the older one, which the engine captured as overscan.
  *
- * The two are kept apart on purpose. A finger moves in pixels and the engine
- * moves in rows, and a machine that rounds the position to a row on every
- * event throws away the fraction in between: the picture jumps to the row
- * boundary and back, which is what a scroll that feels like a spring is.
+ * ## Why they are not one number
+ *
+ * A finger moves in pixels and the engine moves in rows. A machine that turns
+ * the finger's position into a row on every event throws the fraction away:
+ * the picture snaps to the row boundary and back, over and over, and the
+ * scroll feels like a spring.
  *
  * So the finger's travel goes into the shift, and only a *whole* row moves
  * the viewport — with the shift keeping the picture where the finger is. The
- * picture therefore never jumps: the shift stays below one row and the
- * viewport moves under it in whole steps.
+ * shift stays below one row and the viewport moves under it in whole steps,
+ * so the picture never jumps.
  *
  * ## The live edge
  *

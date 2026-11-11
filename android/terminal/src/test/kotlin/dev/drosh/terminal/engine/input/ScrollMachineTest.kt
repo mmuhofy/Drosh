@@ -7,10 +7,10 @@ import org.junit.Test
 /**
  * The scroll's arithmetic, without a phone.
  *
- * The model is Termux's: the viewport's row and the picture's shift within it
- * are two numbers, and only a whole row moves the viewport. The cases here are
- * the ones that used to go wrong — the picture jumping to a row boundary, the
- * shift pointing the wrong way, and the view not landing on the live edge.
+ * The viewport's row and the picture's shift within it are two numbers, and
+ * only a whole row moves the viewport. The cases here are the ones that used
+ * to go wrong — the picture jumping to a row boundary, the shift pointing the
+ * wrong way, and the view not landing on the live edge.
  */
 class ScrollMachineTest {
 
