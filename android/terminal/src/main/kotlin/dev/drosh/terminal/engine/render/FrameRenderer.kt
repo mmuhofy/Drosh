@@ -555,8 +555,12 @@ internal class FrameRenderer {
 
         val pixels = atlas.directPixels()
         val start = rows.first * atlas.size
+        // The limit is only ever the capacity: the upload reads a window of the
+        // buffer, but the atlas writes into the whole of it with absolute
+        // puts, and an absolute put is checked against the limit. Shrinking it
+        // for the upload left the buffer refusing the next glyph.
+        pixels.limit(pixels.capacity())
         pixels.position(start)
-        pixels.limit(start + height * atlas.size)
 
         GLES20.glTexSubImage2D(
             GLES20.GL_TEXTURE_2D,

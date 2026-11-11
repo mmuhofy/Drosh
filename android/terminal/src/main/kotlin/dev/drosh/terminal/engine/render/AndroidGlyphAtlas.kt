@@ -202,8 +202,17 @@ internal class TextAtlas(
         dirty = true
     }
 
-    /** The atlas bytes, for the texture upload. */
-    fun directPixels(): ByteBuffer = pixels
+    /**
+     * The atlas bytes, for the texture upload.
+     *
+     * The buffer's limit is its capacity: the upload reads a window of it, and
+     * the atlas writes into the whole of it with absolute puts, which are
+     * checked against the limit.
+     */
+    fun directPixels(): ByteBuffer {
+        pixels.limit(pixels.capacity())
+        return pixels
+    }
 
     /**
      * The mask for a codepoint at the current size, or null when the font has

@@ -64,14 +64,6 @@ pub const VERSION: u16 = 1;
 pub const HEADER_BYTES: usize = 48;
 pub const CELL_BYTES: usize = 20;
 
-/// The packed style layout's flag bits.
-///
-/// The engine pins them: bold, italic, faint, blink, inverse, invisible,
-/// strikethrough, overline, and the underline's three bits.
-const STYLE_FLAG_BOLD: u16 = 1 << 0;
-const STYLE_FLAG_FAINT: u16 = 1 << 2;
-const STYLE_FLAG_INVERSE: u16 = 1 << 4;
-
 pub const ATTR_BOLD: u32 = 1 << 0;
 pub const ATTR_ITALIC: u32 = 1 << 1;
 pub const ATTR_FAINT: u32 = 1 << 2;
@@ -129,22 +121,6 @@ pub struct FrameSource {
     rows: u16,
     /// The overscan rows above the viewport, as the last frame saw them.
     overscan_above: u16,
-    /**
-     * Whether the engine's style struct is the sized one.
-     *
-     * The style is a sized struct on one side of the ABI — it starts with its
-     * own size — and a packed one on the other, where the flags are a bitfield
-     * and the size field does not exist. The two versions of the engine do not
-     * agree about this, and the header describes one of them.
-     *
-     * The engine says which, by refusing a query whose size field is zero: the
-     * sized layout needs the size to know how much of the struct the caller
-     * has, and the packed one has no size to check and answers either way.
-     *
-     * It is asked once a frame, not once a cell: the layout is a property of
-     * the engine, and a query per cell would be a query per cell for nothing.
-     */
-    style_is_sized: bool,
 }
 
 impl FrameSource {
@@ -199,23 +175,7 @@ impl FrameSource {
             columns: 0,
             rows: 0,
             overscan_above: 0,
-            style_is_sized: true,
         })
-    }
-
-    /// Ask the engine which style layout it is using.
-    ///
-    /// The probe is a query with a zero size: the sized layout refuses it — the
-    /// size is how it knows how much of the struct the caller has — and the
-    /// packed one answers, because it has no size to check.
-    unsafe fn probe_style_layout(&mut self) {
-        let mut probe: ghostty::GhosttyStyle = std::mem::zeroed();
-        let result = ghostty::ghostty_render_state_row_cells_get(
-            self.cells,
-            ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE,
-            &mut probe as *mut _ as *mut c_void,
-        );
-        self.style_is_sized = !ghostty::ok(result);
     }
 
     /// The colours of a region of the grid, as `(foreground, background)` pairs.
@@ -303,7 +263,6 @@ impl FrameSource {
             self.columns = cols;
             self.rows = rows;
             self.overscan_above = overscan.above;
-            self.probe_style_layout();
 
             let needed = HEADER_BYTES + cell_count as usize * CELL_BYTES;
             self.buffer.clear();
@@ -529,7 +488,6 @@ impl FrameSource {
             &mut grapheme_len as *mut u32 as *mut c_void,
         );
 
-        let sized_layout = self.style_is_sized;
         let mut style: ghostty::GhosttyStyle = std::mem::zeroed();
         style.size = std::mem::size_of::<ghostty::GhosttyStyle>();
         let _ = ghostty::ghostty_render_state_row_cells_get(
@@ -537,38 +495,6 @@ impl FrameSource {
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE,
             &mut style as *mut _ as *mut c_void,
         );
-
-        // The style's flags — the reverse-video flag above all — are read from
-        // the struct, and the struct's layout is a detail of the ABI that two
-        // versions of the engine do not agree on. So the flags are read from
-        // the place the layout in use puts them.
-        // Sixty-four bytes: the sized layout's flags sit at 56 to 64, and the
-        // packed layout's bitfield at 12 to 14.
-        let style_bytes: [u8; 64] = unsafe {
-            let mut bytes = [0u8; 64];
-            std::ptr::copy_nonoverlapping(
-                &style as *const _ as *const u8,
-                bytes.as_mut_ptr(),
-                bytes.len(),
-            );
-            bytes
-        };
-        let flags_word = u16::from_le_bytes(style_bytes[12..14].try_into().unwrap_or([0; 2]));
-        let inverse = if sized_layout {
-            style_bytes[60] != 0
-        } else {
-            flags_word & STYLE_FLAG_INVERSE != 0
-        };
-        let bold = if sized_layout {
-            style_bytes[56] != 0
-        } else {
-            flags_word & STYLE_FLAG_BOLD != 0
-        };
-        let faint = if sized_layout {
-            style_bytes[58] != 0
-        } else {
-            flags_word & STYLE_FLAG_FAINT != 0
-        };
 
         // A cell that carries no colour of its own reports GHOSTTY_INVALID_VALUE,
         // and the caller is expected to substitute the terminal's default — see
@@ -622,9 +548,9 @@ impl FrameSource {
             &crate::renderer::cell::CellStyle {
                 foreground: fg_style,
                 background: bg_style,
-                inverse: inverse,
-                bold: bold,
-                faint: faint,
+                inverse: style.inverse,
+                bold: style.bold,
+                faint: style.faint,
             },
             codepoints[0],
             &crate::renderer::cell::Defaults {
