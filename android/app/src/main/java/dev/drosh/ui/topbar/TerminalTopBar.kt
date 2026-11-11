@@ -260,15 +260,18 @@ private fun statusBarHeight(): Dp =
  */
 @Composable
 fun rememberTerminalTopPadding(collapsed: Boolean): Dp {
-    // No clearance: the terminal is the screen.
-    //
-    // The grid used to be pushed down by the status bar, or by the whole chrome
-    // row when the bar was hidden, and that pushed-down band was the one part of
-    // the screen that was neither the terminal's nor the chrome's — a strip of
-    // empty background at the top. The chrome floats over the output, as the
-    // translucent pills and the blurred bar are designed to, and the first line
-    // of the terminal is the first line of the screen.
-    val target = 0.dp
+    val statusBarH = statusBarHeight()
+    val target = if (collapsed) {
+        // Immersive: the status bar is gone, so its height is free and the grid
+        // starts right where the pill row ends. Everything past that first line
+        // is output the user was not getting.
+        CHROME_CLEARANCE
+    } else {
+        // The bar is there, so the grid starts below it and the row floats over
+        // the output. The clearance is the bar's own height: the first line is
+        // pushed out of the way of the system's chrome, and only of that.
+        statusBarH
+    }
     return animateDpAsState(
         targetValue = target,
         animationSpec = tween<Dp>(

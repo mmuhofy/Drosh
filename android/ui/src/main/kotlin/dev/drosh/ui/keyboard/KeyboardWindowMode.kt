@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.mandatorySystemGestures
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -91,7 +92,25 @@ fun Modifier.droshImePadding(): Modifier =
  */
 @Composable
 fun Modifier.droshNavigationBarPadding(): Modifier {
-    val barBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // The bar, and the strip the system keeps for its own gestures.
+    //
+    // A three-button bar reports its height as the navigation bar; gesture
+    // navigation reports almost nothing there and keeps the swipe handle —
+    // which is drawn over the content and takes its touches — in the mandatory
+    // system gestures inset instead. Reserving only the bar left the last line
+    // of output under the handle.
+    //
+    // The strip is not a band on the screen: the area belongs to the pane that
+    // holds it, and the pane's own background is the terminal's, so what the
+    // grid does not reach reads as terminal and not as app.
+    val gestureStrip = WindowInsets.mandatorySystemGestures
+        .asPaddingValues()
+        .calculateBottomPadding()
+    val barBottom = WindowInsets.navigationBars
+        .asPaddingValues()
+        .calculateBottomPadding()
     val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-    return if (imeBottom > 0.dp) this else padding(bottom = barBottom)
+    if (imeBottom > 0.dp) return this
+
+    return padding(bottom = maxOf(barBottom, gestureStrip))
 }

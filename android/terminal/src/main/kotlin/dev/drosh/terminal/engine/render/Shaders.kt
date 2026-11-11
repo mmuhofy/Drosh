@@ -230,6 +230,9 @@ internal object Shaders {
         // The cursor's rectangle in cells, so the outline knows where its edges
         // are. The vertex stage declares it too, so both say highp.
         uniform highp vec4 uRect;
+        // The cell, in device pixels: the frame's thickness is a real width on
+        // the screen, not a fraction that vanishes on a small cell.
+        uniform highp vec2 uCellSize;
         in highp vec2 vLocal;
         out vec4 fragColor;
 
@@ -239,10 +242,12 @@ internal object Shaders {
                 // own colours, so the text under it stays readable and the
                 // cursor still says where it is.
                 //
-                // The frame's thickness is a fraction of the cell, and it
-                // never grows past half of the cell — a thin frame on a small
-                // cell would otherwise eat the whole thing.
-                float edge = min(0.09, min(uRect.z, uRect.w) * 0.25);
+                // At least a pixel and a half on the screen, and never more
+                // than a quarter of the cell — a frame measured only in cell
+                // fractions is invisible on a small cell and a slab on a large
+                // one.
+                float smallestCell = max(min(uCellSize.x, uCellSize.y), 1.0);
+                float edge = clamp(1.5 / smallestCell, 0.06, 0.25);
                 float left = vLocal.x;
                 float right = uRect.z - vLocal.x;
                 float top = vLocal.y;
