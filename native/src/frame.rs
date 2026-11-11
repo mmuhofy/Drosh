@@ -64,19 +64,13 @@ pub const VERSION: u16 = 1;
 pub const HEADER_BYTES: usize = 48;
 pub const CELL_BYTES: usize = 20;
 
-/// The active palette's length.
-const PALETTE_LEN: usize = 256;
-
-/// A style colour that names a palette entry.
-const STYLE_COLOR_PALETTE: u32 = 1;
-/// A style colour that names an RGB value.
-const STYLE_COLOR_RGB: u32 = 2;
-
-/// The size of a style colour's payload.
+/// The packed style layout's flag bits.
 ///
-/// The union is padded to eight bytes so that the colour structs stay
-/// aligned; the palette index is the first byte either way.
-const STYLE_COLOR_VALUE_BYTES: usize = 8;
+/// The engine pins them: bold, italic, faint, blink, inverse, invisible,
+/// strikethrough, overline, and the underline's three bits.
+const STYLE_FLAG_BOLD: u16 = 1 << 0;
+const STYLE_FLAG_FAINT: u16 = 1 << 2;
+const STYLE_FLAG_INVERSE: u16 = 1 << 4;
 
 pub const ATTR_BOLD: u32 = 1 << 0;
 pub const ATTR_ITALIC: u32 = 1 << 1;
@@ -135,12 +129,22 @@ pub struct FrameSource {
     rows: u16,
     /// The overscan rows above the viewport, as the last frame saw them.
     overscan_above: u16,
-    /// The active 256-colour palette, as the last frame saw it.
-    ///
-    /// The engine resolves a palette index for us when we ask for a cell's
-    /// colour, but not when the cell's colour is the *style's* — and the
-    /// style's is the raw one, which is what the reverse-video rule needs.
-    palette: Vec<ghostty::GhosttyColorRgb>,
+    /**
+     * Whether the engine's style struct is the sized one.
+     *
+     * The style is a sized struct on one side of the ABI — it starts with its
+     * own size — and a packed one on the other, where the flags are a bitfield
+     * and the size field does not exist. The two versions of the engine do not
+     * agree about this, and the header describes one of them.
+     *
+     * The engine says which, by refusing a query whose size field is zero: the
+     * sized layout needs the size to know how much of the struct the caller
+     * has, and the packed one has no size to check and answers either way.
+     *
+     * It is asked once a frame, not once a cell: the layout is a property of
+     * the engine, and a query per cell would be a query per cell for nothing.
+     */
+    style_is_sized: bool,
 }
 
 impl FrameSource {
@@ -195,62 +199,23 @@ impl FrameSource {
             columns: 0,
             rows: 0,
             overscan_above: 0,
-            palette: Vec::new(),
+            style_is_sized: true,
         })
     }
 
-    /// Read the active palette.
+    /// Ask the engine which style layout it is using.
     ///
-    /// A cell's colour can be a palette index, and the index means nothing
-    /// without the palette it points into. The engine resolves it for the
-    /// colours it hands out, but the *style's* colour is raw — the index
-    /// itself — and the reverse-video rule works on the raw colour.
-    unsafe fn refresh_palette(&mut self) {
-        // Into a local first: the read borrows the state and the palette at
-        // the same time, and the palette belongs to this struct.
-        let mut palette = vec![ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 }; PALETTE_LEN];
-        let _ = ghostty::ghostty_render_state_get(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_PALETTE,
-            palette.as_mut_ptr() as *mut std::ffi::c_void,
+    /// The probe is a query with a zero size: the sized layout refuses it — the
+    /// size is how it knows how much of the struct the caller has — and the
+    /// packed one answers, because it has no size to check.
+    unsafe fn probe_style_layout(&mut self) {
+        let mut probe: ghostty::GhosttyStyle = std::mem::zeroed();
+        let result = ghostty::ghostty_render_state_row_cells_get(
+            self.cells,
+            ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE,
+            &mut probe as *mut _ as *mut c_void,
         );
-        self.palette = palette;
-    }
-
-    /// The colour a style names, or none when it names none.
-    ///
-    /// The style's colour is a *source*: a palette index, an RGB, or nothing.
-    /// This is the raw thing, before any rule is applied to it — which is what
-    /// the reverse-video rule needs, because that rule picks between the
-    /// style's own colour and the terminal's default, and a swap of two
-    /// already-resolved colours gets it backwards for a cell that carries a
-    /// colour of its own.
-    fn style_color(
-        color: &ghostty::GhosttyStyleColor,
-        palette: &[ghostty::GhosttyColorRgb],
-    ) -> Option<crate::renderer::cell::Rgb> {
-        // The payload is a union: a palette index in its first byte, or an
-        // RGB in its first three. It is read as bytes because the union's
-        // own type is a generated name, and the layout is the header's:
-        // `palette` is byte 0, `rgb` is bytes 0 to 2.
-        let mut bytes = [0u8; STYLE_COLOR_VALUE_BYTES];
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                &color.value as *const _ as *const u8,
-                bytes.as_mut_ptr(),
-                bytes.len(),
-            );
-        }
-
-        match color.tag as u32 {
-            STYLE_COLOR_PALETTE => palette.get(bytes[0] as usize).map(|c| rgb(*c)),
-            STYLE_COLOR_RGB => Some(crate::renderer::cell::Rgb::new(
-                bytes[0],
-                bytes[1],
-                bytes[2],
-            )),
-            _ => None,
-        }
+        self.style_is_sized = !ghostty::ok(result);
     }
 
     /// The colours of a region of the grid, as `(foreground, background)` pairs.
@@ -338,7 +303,7 @@ impl FrameSource {
             self.columns = cols;
             self.rows = rows;
             self.overscan_above = overscan.above;
-            self.refresh_palette();
+            self.probe_style_layout();
 
             let needed = HEADER_BYTES + cell_count as usize * CELL_BYTES;
             self.buffer.clear();
@@ -415,14 +380,53 @@ impl FrameSource {
         overscan: ghostty::GhosttyRenderStateOverscan,
         cell_count: u32,
     ) {
-        // The cursor is one sized struct in the engine's own API
-        // (GHOSTTY_RENDER_STATE_DATA_CURSOR); reading six separate fields was
-        // six chances to read one of them from a moment the others were not at,
-        // and the "viewport has value" flag lived furthest from the two
-        // coordinates it guards.
-        let mut cursor: ghostty::GhosttyRenderStateCursor = std::mem::zeroed();
-        cursor.size = std::mem::size_of::<ghostty::GhosttyRenderStateCursor>();
-        render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR, &mut cursor);
+        // The cursor, read through the engine's own scalar queries rather than
+        // through the struct that holds all of it.
+        //
+        // The struct is a sized one: its layout is a detail of the ABI, and a
+        // detail that can be wrong without anything complaining. A field read
+        // from the wrong offset is not an error — it is a number, and the
+        // number goes into the frame and out to the screen. That is what a
+        // cursor parked in the corner is: garbage read as a position.
+        //
+        // The scalar queries have no layout to get wrong: each one writes one
+        // number of a known size.
+        let mut cursor_has_value = false;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE,
+            &mut cursor_has_value
+        );
+        let mut cursor_x: u16 = 0;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X,
+            &mut cursor_x
+        );
+        let mut cursor_y: u16 = 0;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y,
+            &mut cursor_y
+        );
+        let mut cursor_visible = false;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE,
+            &mut cursor_visible
+        );
+        let mut cursor_style: u32 = 0;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
+            &mut cursor_style
+        );
+        let mut cursor_blinking = false;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING,
+            &mut cursor_blinking
+        );
 
         // The cursor's colour: an explicit one if the terminal set it, the
         // foreground otherwise. Painting it black because "no explicit colour"
@@ -463,34 +467,23 @@ impl FrameSource {
         // The viewport coordinates are only meaningful when the cursor is
         // inside the viewport; the flag is what says so, and a cursor outside it
         // is a cursor the renderer must not draw.
-        put_u16(header, 22, if cursor.viewport_has_value { cursor.viewport_x } else { 0 });
-        put_u16(header, 24, if cursor.viewport_has_value { cursor.viewport_y } else { 0 });
-        // The visual style is read on its own rather than from the struct's
-        // field. The engine writes that field at the offset *its* struct has,
-        // and the struct is a sized one whose fields are written by name: the
-        // engine's enum is one byte wide where the header's is four, so the
-        // field in the struct lands two bytes before where the header says it
-        // is. The separate query has no such ambiguity, and its value is
-        // masked to a byte so that it reads the same either way.
-        let mut visual_style: u32 = 0;
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
-            &mut visual_style
-        );
-        put_u16(header, 26, (visual_style & 0xff) as u16);
+        put_u16(header, 22, if cursor_has_value { cursor_x } else { 0 });
+        put_u16(header, 24, if cursor_has_value { cursor_y } else { 0 });
+        // The visual style, masked to a byte so that it reads the same whether
+        // the engine's enum is one byte wide or four.
+        put_u16(header, 26, (cursor_style & 0xff) as u16);
 
         let mut flags = 0u16;
-        if cursor.visible && cursor.viewport_has_value {
+        if cursor_visible && cursor_has_value {
             flags |= CURSOR_VISIBLE;
         }
-        if cursor.blinking {
+        if cursor_blinking {
             flags |= CURSOR_BLINKING;
         }
         // A block cursor over a cell that has a glyph is drawn by the glyph pass
         // as an inverted cell; the renderer does not need a separate rectangle
         // for it. Bar and underline are thin rectangles and need one.
-        if (visual_style & 0xff) as u16
+        if (cursor_style & 0xff) as u16
             != ghostty::GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK as u16
         {
             flags |= CURSOR_IS_RECTANGLE;
@@ -536,6 +529,7 @@ impl FrameSource {
             &mut grapheme_len as *mut u32 as *mut c_void,
         );
 
+        let sized_layout = self.style_is_sized;
         let mut style: ghostty::GhosttyStyle = std::mem::zeroed();
         style.size = std::mem::size_of::<ghostty::GhosttyStyle>();
         let _ = ghostty::ghostty_render_state_row_cells_get(
@@ -543,6 +537,36 @@ impl FrameSource {
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_STYLE,
             &mut style as *mut _ as *mut c_void,
         );
+
+        // The style's flags — the reverse-video flag above all — are read from
+        // the struct, and the struct's layout is a detail of the ABI that two
+        // versions of the engine do not agree on. So the flags are read from
+        // the place the layout in use puts them.
+        let style_bytes: [u8; 16] = unsafe {
+            let mut bytes = [0u8; 16];
+            std::ptr::copy_nonoverlapping(
+                &style as *const _ as *const u8,
+                bytes.as_mut_ptr(),
+                bytes.len(),
+            );
+            bytes
+        };
+        let flags_word = u16::from_le_bytes(style_bytes[12..14].try_into().unwrap_or([0; 2]));
+        let inverse = if sized_layout {
+            style_bytes[60] != 0
+        } else {
+            flags_word & STYLE_FLAG_INVERSE != 0
+        };
+        let bold = if sized_layout {
+            style_bytes[56] != 0
+        } else {
+            flags_word & STYLE_FLAG_BOLD != 0
+        };
+        let faint = if sized_layout {
+            style_bytes[58] != 0
+        } else {
+            flags_word & STYLE_FLAG_FAINT != 0
+        };
 
         // A cell that carries no colour of its own reports GHOSTTY_INVALID_VALUE,
         // and the caller is expected to substitute the terminal's default — see
@@ -565,16 +589,14 @@ impl FrameSource {
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR,
             &mut fg as *mut _ as *mut c_void,
         ));
-        // The style's own colours, raw. A cell whose style names no colour
-        // has none: the engine's resolved colour for it comes from the
-        // content tag instead, and that is a different question.
-        let bg_style = Self::style_color(&style.bg_color, &self.palette);
-        let fg_style = Self::style_color(&style.fg_color, &self.palette);
-
-        // The engine's resolved colours, for the cells whose colour comes from
-        // the content tag rather than from the style.
-        let bg_from_tag = if bg_ok { Some(rgb(bg)) } else { None };
-        let fg_from_tag = if fg_ok { Some(rgb(fg)) } else { None };
+        // The cell's colours, from the engine's own queries.
+        //
+        // These are what Ghostty's renderer calls `bg_style` and `fg_style`:
+        // the style's colour, resolved through the palette, or the content
+        // tag's colour when the cell has one. So the reverse-video rule can
+        // work on them directly.
+        let bg_style = if bg_ok { Some(rgb(bg)) } else { None };
+        let fg_style = if fg_ok { Some(rgb(fg)) } else { None };
 
         let mut selected = false;
         let _ = ghostty::ghostty_render_state_row_cells_get(
@@ -596,11 +618,11 @@ impl FrameSource {
         // colour of its own — see `renderer::cell`.
         let mut colors = crate::renderer::cell::colors(
             &crate::renderer::cell::CellStyle {
-                foreground: fg_style.or(fg_from_tag),
-                background: bg_style.or(bg_from_tag),
-                inverse: style.inverse,
-                bold: style.bold,
-                faint: style.faint,
+                foreground: fg_style,
+                background: bg_style,
+                inverse: inverse,
+                bold: bold,
+                faint: faint,
             },
             codepoints[0],
             &crate::renderer::cell::Defaults {
