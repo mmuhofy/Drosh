@@ -213,23 +213,29 @@ class LayoutMachineTest {
     }
 
     @Test
-    fun `a settled surface stretches the cells to fill it`() {
+    fun `a settled surface keeps the cell the font measured`() {
         val machine = LayoutMachine(settleMillis = 100)
         machine.onCell(10f, 20f, 0)
         machine.onSurface(801, 601, 0)
         machine.poll(200)
 
+        // A terminal does not stretch its cells to the window: the grid is a
+        // whole number of the font's cells and what is left over is background.
         val settled = machine.size
-        assertEquals(801f / 80f, settled.stepX, 0.0001f)
-        assertEquals(601f / 30f, settled.stepY, 0.0001f)
+        assertEquals(10f, settled.stepX, 0.0001f)
+        assertEquals(20f, settled.stepY, 0.0001f)
     }
 
     @Test
-    fun `the step divides the surface exactly`() {
+    fun `the grid is a whole number of cells`() {
         val size = SizeInfo(width = 801, height = 601, cellWidth = 10f, cellHeight = 20f)
         assertEquals(80, size.columns)
         assertEquals(30, size.rows)
-        assertEquals(801f / 80f, size.stepX, 0.0001f)
-        assertEquals(601f / 30f, size.stepY, 0.0001f)
+        // The cells are the font's, and the grid ends before the edge rather
+        // than being stretched to it.
+        assertEquals(10f, size.stepX, 0.0001f)
+        assertEquals(20f, size.stepY, 0.0001f)
+        assertTrue(size.columns * size.stepX <= size.width)
+        assertTrue(size.rows * size.stepY <= size.height)
     }
 }

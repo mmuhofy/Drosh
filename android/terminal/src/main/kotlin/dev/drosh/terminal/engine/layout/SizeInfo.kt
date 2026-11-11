@@ -89,31 +89,22 @@ data class SizeInfo(
         get() = if (height <= 0 || cellHeight <= 0f) 0 else maxOf((height / cellHeight).toInt(), 1)
 
     /**
-     * How far apart cells are placed, in pixels.
+     * How far apart cells are placed, in pixels: the cell itself.
      *
-     * The surface divided by the cells that fit in it, so the grid ends exactly
-     * on the edge.
+     * A terminal does not stretch its grid to the window. The cell is the size
+     * the font drew, and the grid is a whole number of them; what does not fit
+     * in the last row or column is the terminal's own background. Dividing the
+     * surface by the cells that fit — which is what this used to do — made every
+     * cell a hair taller and a hair wider than the glyph inside it, so a
+     * full-screen program's blocks left a seam between rows and the text sat
+     * off its cell by a fraction that changed with the window's height.
      *
-     * While a pinch is running the step is the cell itself: the grid still has
-     * the shape it had, so the cells are bigger and the grid runs off the
-     * edge. Dividing the surface by the old number of columns would squeeze
-     * the bigger text back into the old cells, which is not a zoom.
+     * A pinch is the same rule: the cell grows and the grid keeps its shape, so
+     * the text runs off the edge, which is what a zoom looks like.
      */
-    val stepX: Float
-        get() = when {
-            // Only a pinch freezes the width: the gesture magnifies the text
-            // and the grid runs off the edge, which is what a zoom looks like.
-            zooming -> cellWidth
-            columns <= 0 -> cellWidth
-            else -> width.toFloat() / columns
-        }
+    val stepX: Float get() = cellWidth
 
-    val stepY: Float
-        get() = when {
-            zooming || frozenGrid -> cellHeight
-            rows <= 0 -> cellHeight
-            else -> height.toFloat() / rows
-        }
+    val stepY: Float get() = cellHeight
 
     /**
      * The projection, as `(x0, y0, sx, sy)` for `clip = xy + zw * pixel`.

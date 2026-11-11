@@ -339,38 +339,52 @@ impl FrameSource {
         overscan: ghostty::GhosttyRenderStateOverscan,
         cell_count: u32,
     ) {
-        // The cursor, from the terminal, in one step into the viewport.
+        // The cursor, exactly as the engine's own renderer asks for it.
         //
-        // Two sources were read before — the render state's viewport position
-        // and, when that said "not in the viewport", the terminal's own row —
-        // and they do not always agree. The render state only has a position
-        // while the cursor's page is among the rows it captured, so its answer
-        // flips between true and false as rows are captured and released, and
-        // the fallback answered a row off from the other one. A cursor that
-        // moves between two rows on its own is that flip.
-        //
-        // The terminal's row is absolute and always there. The viewport's first
-        // row is the scrollbar's offset, and the active area's first row is the
-        // last `len` rows of the row space, so the difference between them is
-        // what turns one into the other.
+        // The render state answers the only question a renderer has: is the
+        // cursor on the screen, and on which viewport cell. Ghostty's own
+        // renderer reads these three values and nothing else, and it is right
+        // to: the row is already in the viewport's own row space, so there is
+        // no arithmetic here to get wrong. Deriving it from the terminal's
+        // active row and the scrollbar put it a row off whenever the two row
+        // spaces disagreed by one, which is exactly what a cursor one line high
+        // looks like.
+        let mut cursor_has_value = false;
         let mut cursor_x: u16 = 0;
         let mut cursor_y: u16 = 0;
+        let mut wide_tail = false;
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE,
+            &mut cursor_has_value
+        );
+        if cursor_has_value {
+            render_get!(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X,
+                &mut cursor_x
+            );
+            render_get!(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y,
+                &mut cursor_y
+            );
+            render_get!(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_WIDE_TAIL,
+                &mut wide_tail
+            );
+            // A cursor on the tail of a wide character belongs on the
+            // character: the block would cover the right half of a two-cell
+            // glyph.
+            if wide_tail && cursor_x > 0 {
+                cursor_x -= 1;
+            }
+        }
+
         let mut cursor_visible = false;
         let mut cursor_style: u32 = 0;
         let mut cursor_blinking = false;
-        unsafe {
-            let terminal = self.terminal;
-            let _ = ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_X,
-                &mut cursor_x as *mut u16 as *mut std::ffi::c_void,
-            );
-            let _ = ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_Y,
-                &mut cursor_y as *mut u16 as *mut std::ffi::c_void,
-            );
-        }
         render_get!(
             self.state,
             ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE,
@@ -387,36 +401,11 @@ impl FrameSource {
             &mut cursor_blinking
         );
 
-        let mut scrollbar: ghostty::GhosttyTerminalScrollbar = std::mem::zeroed();
-        unsafe {
-            let _ = ghostty::ghostty_terminal_get(
-                self.terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_SCROLLBAR,
-                &mut scrollbar as *mut _ as *mut std::ffi::c_void,
-            );
-        }
-        let active_top = scrollbar.total.saturating_sub(scrollbar.len);
-        let viewport_row = cursor_y as i64 + active_top as i64 - scrollbar.offset as i64;
-        let mut cursor_has_value =
-            cursor_visible && viewport_row >= 0 && viewport_row < rows as i64 && cursor_x < cols;
-        if cursor_has_value {
-            cursor_y = viewport_row as u16;
-
-            // A cursor on the tail of a wide character belongs on the
-            // character: the block would cover the right half of a two-cell
-            // glyph.
-            let mut wide_tail = false;
-            render_get!(
-                self.state,
-                ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_WIDE_TAIL,
-                &mut wide_tail
-            );
-            if wide_tail && cursor_x > 0 {
-                cursor_x -= 1;
-            }
-        } else {
-            cursor_has_value = false;
-        }
+        // A cursor with no position, or one outside the grid, is not drawn:
+        // there is nothing to point at, and a block in the corner is worse than
+        // no block.
+        cursor_has_value =
+            cursor_has_value && cursor_x < cols && cursor_y < rows;
 
         // The header's own fields, and then the cursor's.
         //
