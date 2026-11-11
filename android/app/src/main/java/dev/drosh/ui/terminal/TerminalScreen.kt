@@ -8,6 +8,13 @@ import android.util.Log
 import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateTo
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
@@ -1227,7 +1234,18 @@ private fun ReadyScreen(
         // grid (there is no such path today, but the nav rows are the reason
         // this could change) still wins. It is a sibling of the terminal rather
         // than a sheet because it wants the whole screen for its cards.
-        if (sessionsGridOpen) {
+        // The grid comes up over the terminal and goes back down into it, so
+        // the two read as one screen changing rather than one replacing
+        // another. The exit has to keep the grid in the composition until the
+        // animation is over, which is why this is an AnimatedVisibility and
+        // not an `if`.
+        AnimatedVisibility(
+            visible = sessionsGridOpen,
+            enter = fadeIn(tween(GRID_TRANSITION_MILLIS)) +
+                slideInVertically(tween(GRID_TRANSITION_MILLIS)) { it / 8 },
+            exit = fadeOut(tween(GRID_TRANSITION_MILLIS)) +
+                slideOutVertically(tween(GRID_TRANSITION_MILLIS)) { it / 8 },
+        ) {
             BackHandler { sessionsGridOpen = false }
 
             SessionGrid(
@@ -1707,6 +1725,27 @@ private fun TerminalPaneBody(
     // and the screen would never hear about it.
     val slotSessionIds by terminalManager.slotSessionIds.collectAsStateWithLifecycle()
 
+    // The session this pane is showing.
+    val paneSessionId = slotSessionIds[paneSlot]
+        ?: terminalManager.sessionIdForSlot(paneSlot).orEmpty()
+
+    // The transition between one session and the next.
+    //
+    // The terminal is one view for the whole app: switching sessions changes
+    // what that view draws, and the change is immediate. A scrim that fades
+    // out over the new content makes the switch read as a movement rather
+    // than as a jump — the one thing a cross-fade cannot do here, because
+    // there is only ever one surface to fade.
+    var transitionAlpha by remember { mutableStateOf(0f) }
+    LaunchedEffect(paneSessionId) {
+        if (paneSessionId.isEmpty()) return@LaunchedEffect
+        transitionAlpha = 1f
+        transitionAlpha = animateTo(
+            targetValue = 0f,
+            animationSpec = tween(SESSION_TRANSITION_MILLIS),
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -1758,8 +1797,7 @@ private fun TerminalPaneBody(
                 // session by changing what a slot shows, and a plain function
                 // call is not a state read, so the screen would never learn
                 // that it happened.
-                sessionId = slotSessionIds[paneSlot]
-                    ?: terminalManager.sessionIdForSlot(paneSlot).orEmpty(),
+                sessionId = paneSessionId,
                 sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
                 fontSizeSp = fontSizeSp,
                 // The pinch reports the size it settled on; the view model
@@ -1767,6 +1805,15 @@ private fun TerminalPaneBody(
                 onZoomCommitted = terminalViewModel::onZoomCommitted,
                 modifier = Modifier.fillMaxSize(),
             )
+
+            // The scrim, over the terminal and under nothing else.
+            if (transitionAlpha > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(DroshBackground.copy(alpha = transitionAlpha)),
+                )
+            }
         }
         // No extra-key bar here.
         //
@@ -1887,3 +1934,18 @@ private fun buildSystemInfo(
         storageAvailable = storageAvailable,
     )
 }
+
+/**
+ * How long the session grid takes to come and go.
+ *
+ * Long enough to read as a movement, short enough that it is never in the way
+ * of the thing the user opened it for.
+ */
+private const val GRID_TRANSITION_MILLIS = 240
+
+/**
+ * How long the scrim takes to clear after a session switch.
+ *
+ * Short: it is there to soften the change, not to delay it.
+ */
+private const val SESSION_TRANSITION_MILLIS = 180

@@ -41,10 +41,20 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ANDROID_DIR = REPO_ROOT / "android"
-RUST_DIR = REPO_ROOT / "rust"
+# The native half lives in `native/`. It was `rust/` when the old engine was
+# there, and the checker kept looking in the old place — which is how it
+# reported "no native entry point found" for a surface that was there all
+# along.
+NATIVE_DIR = REPO_ROOT / "native"
 
-# `external fun name(...)` — the declaration's name is what matters.
-EXTERNAL_FUN = re.compile(r"^\s*external\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE)
+# `external fun name(...)` — the declaration's name is what matters. The
+# visibility may come before it: the engine's declarations are `private
+# external fun`, and a pattern that only matched a bare `external fun` found
+# nothing at all.
+EXTERNAL_FUN = re.compile(
+    r"^\s*(?:(?:private|internal|public)\s+)?external\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)",
+    re.MULTILINE,
+)
 PACKAGE = re.compile(r"^\s*package\s+([A-Za-z0-9_.]+)", re.MULTILINE)
 # A Kotlin `object` or `class` header; the class name is what JNI mangles.
 CLASS = re.compile(r"^\s*(?:internal\s+|public\s+|private\s+|abstract\s+|open\s+)*"
@@ -93,7 +103,7 @@ def kotlin_symbols() -> dict[str, str]:
 def rust_symbols() -> dict[str, str]:
     """Every Rust JNI entry point, mapped to the file it is declared in."""
     found: dict[str, str] = {}
-    for path in sorted(RUST_DIR.rglob("*.rs")):
+    for path in sorted(NATIVE_DIR.rglob("*.rs")):
         if "/target/" in str(path):
             continue
         text = path.read_text(encoding="utf-8")
@@ -105,8 +115,10 @@ def rust_symbols() -> dict[str, str]:
 def c_symbols() -> dict[str, str]:
     """Every C JNI entry point, mapped to the file it is declared in.
 
-    The vendored Termux JNI is C, and it is a separate native library — so
-    the two sides of the boundary are not only Rust and Kotlin.
+    The vendored Termux JNI was C and was a separate native library — so the
+    two sides of the boundary were not only Rust and Kotlin. It is gone with
+    the old engine, but the scan stays: a C entry point is still a C entry
+    point if one is added.
     """
     found: dict[str, str] = {}
     for path in sorted(ANDROID_DIR.rglob("*.c")):

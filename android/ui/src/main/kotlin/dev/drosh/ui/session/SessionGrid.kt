@@ -85,7 +85,8 @@ import dev.drosh.ui.DroshIcons
  *
  * Three kinds of card and they must not look alike:
  *
- *  - **The active one** wears the accent: a gold border and a "Buradasın" pill,
+ *  - **The active one** wears the accent: a border in the theme's primary
+ *    colour and a "Buradasın" pill,
  *    so "you are here" survives a glance back after scrolling.
  *  - **A waiting or aimed-at card** also wears the accent, but over a tinted
  *    surface — the grouping gesture needs the loudest colour, and the tint is
@@ -557,14 +558,14 @@ private fun SessionCard(
     // The card's origin in the window, captured at layout. The gesture reports
     // positions in this node's own space; the grid decides what the finger is
     // over in the window's. One offset is the whole translation between them.
-    var origin by remember { mutableStateOf(Offset.Zero) }
+    val origin = remember { mutableStateOf(Offset.Zero) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(CARD_ASPECT)
             .onGloballyPositioned {
-                origin = it.boundsInRoot().topLeft
+                origin.value = it.boundsInRoot().topLeft
                 onBounds(it.boundsInRoot())
             }
             .semantics { stateDescription = stateDescription }
@@ -599,10 +600,10 @@ private fun SessionCard(
             )
             .pointerInput(session.id) {
                 detectDragGesturesAfterLongPress(
-                    onDragStart = { local -> onDragStart(local + origin) },
+                    onDragStart = { local -> onDragStart(local + origin.value) },
                     onDrag = { change, _ ->
                         change.consume()
-                        onDrag(change.position + origin)
+                        onDrag(change.position + origin.value)
                     },
                     onDragEnd = { onDragEnd() },
                     onDragCancel = { onDragEnd() },
