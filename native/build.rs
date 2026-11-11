@@ -22,19 +22,20 @@ fn main() {
     let include = manifest.join("ghostty").join("include");
     let lib = manifest.join("ghostty").join("lib").join(&abi);
 
+    // Without the engine there is nothing to bind to and no header to read:
+    // the crate is the parts that stand on their own, and the test run that
+    // builds it has no engine's library to link.
+    if std::env::var("CARGO_FEATURE_ENGINE").is_err() {
+        println!("cargo:rerun-if-changed=build.rs");
+        return;
+    }
+
     let header = include.join("ghostty").join("vt.h");
     if !header.exists() {
         panic!(
             "missing {}. Run tools/fetch-ghostty-vt.sh first.",
             header.display()
         );
-    }
-
-    if std::env::var("CARGO_FEATURE_ENGINE").is_err() {
-        // No engine: no bindings, no headers, no library. The crate is the
-        // parts that stand on their own.
-        println!("cargo:rerun-if-changed=build.rs");
-        return;
     }
 
     let mut builder = bindgen::Builder::default()
