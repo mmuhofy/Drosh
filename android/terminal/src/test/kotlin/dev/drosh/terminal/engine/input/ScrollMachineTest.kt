@@ -24,19 +24,24 @@ class ScrollMachineTest {
         val scroll = ScrollMachine()
         // The live edge is row 10 of a history of ten rows.
         val target = scroll.drag(engineOffset = 10, historyRows = 10, distancePx = 5f, spacingPx = spacing)
-        assertEquals(10, target.row)
-        // Pushed down by five pixels: the row above the viewport shows through.
-        assertEquals(5f, target.remainderPx, 0.0001f)
+        // The row below the live edge is never asked for: the engine pins the
+        // viewport to the live area there, and a drag a fraction of a row
+        // above it would slide against a viewport that is not going anywhere.
+        assertEquals(9, target.row)
+        // Pushed down by fifteen pixels: the row above the viewport shows
+        // through, and the content moves with the finger.
+        assertEquals(15f, target.remainderPx, 0.0001f)
     }
 
     @Test
     fun `a drag past a row moves the row and keeps the remainder`() {
         val scroll = ScrollMachine()
         val target = scroll.drag(engineOffset = 100, historyRows = 100, distancePx = 50f, spacingPx = spacing)
-        // Two and a half rows up: the engine shows the nearest whole row, and
-        // the half row that is left over moves the content down.
+        // Two and a half rows up: the engine shows the nearest whole row.
         assertEquals(98, target.row)
-        assertEquals(10f, target.remainderPx, 0.0001f)
+        // The content's top is half a row below the row the engine shows, so
+        // the picture is shifted down by half a row.
+        assertEquals(-10f, target.remainderPx, 0.0001f)
     }
 
     @Test
@@ -45,13 +50,13 @@ class ScrollMachineTest {
         // Two events of five pixels each: ten pixels in total, so the picture
         // has moved half a row even though neither event did.
         val first = scroll.drag(engineOffset = 10, historyRows = 10, distancePx = 5f, spacingPx = spacing)
-        assertEquals(10, first.row)
-        assertEquals(5f, first.remainderPx, 0.0001f)
+        assertEquals(9, first.row)
+        assertEquals(15f, first.remainderPx, 0.0001f)
 
-        // The engine did not move, so it is still at row 10.
-        val second = scroll.drag(engineOffset = 10, historyRows = 10, distancePx = 5f, spacingPx = spacing)
-        assertEquals(10, second.row)
-        assertEquals(10f, second.remainderPx, 0.0001f)
+        // The engine moved to the row it was asked for.
+        val second = scroll.drag(engineOffset = 9, historyRows = 10, distancePx = 5f, spacingPx = spacing)
+        assertEquals(9, second.row)
+        assertEquals(20f, second.remainderPx, 0.0001f)
     }
 
     @Test

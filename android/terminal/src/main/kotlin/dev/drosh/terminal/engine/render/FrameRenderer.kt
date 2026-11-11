@@ -190,7 +190,7 @@ internal class FrameRenderer {
         if (!created) return
         GLES20.glViewport(0, 0, size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
         GLES20.glClearColor(DEFAULT_BACKGROUND_R, DEFAULT_BACKGROUND_G, DEFAULT_BACKGROUND_B, 1f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
     }
 
     /**

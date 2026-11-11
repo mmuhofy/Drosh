@@ -146,17 +146,24 @@ class ScrollMachine {
         val targetRow =
             if (atBottom) history else row.coerceAtMost((history - 1).coerceAtLeast(0))
 
-        // What is left over: the distance from the row the engine shows to the
-        // row the finger asked for. Positive when the finger is below the row,
-        // which moves the content down.
+        // What is left over: how far the picture is shifted from the row the
+        // engine shows.
         //
-        // It is measured from the row the engine is *asked* for, not from the
-        // rounded one: the engine will show what we asked for, and a remainder
-        // measured from another row is a phantom movement.
-        val remainder = (targetRow - wanted) * spacing
+        // The row space runs from the oldest row (0) to the live edge, so a
+        // larger row number is *lower* on the screen. The content's top is at
+        // `wanted` and the engine shows `targetRow`, so the picture is shifted
+        // down by (wanted - targetRow) rows.
+        //
+        // The sign is the whole of it: a positive remainder moves the content
+        // down, and the finger moving down moves the content down. It was the
+        // other way round, so the content went against the finger and the
+        // scroll fought the drag — a scroll that pulls itself back.
+        val remainder = (wanted - targetRow) * spacing
 
         position = wanted
+        // Where the content's top is, relative to the row the engine shows.
         askedRow = targetRow
+        fraction = wanted - targetRow
 
         return Target(
             row = targetRow,
