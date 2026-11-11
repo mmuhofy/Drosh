@@ -84,6 +84,16 @@ internal class TextAtlas(
     /** Set when a mask was added and the texture has to be re-uploaded. */
     var dirty = true
 
+    /**
+     * The topmost row that changed since the last upload.
+     *
+     * The atlas is a square of megabytes and a pinch changes its size on
+     * every step of the gesture, so uploading all of it every frame is four
+     * megabytes a frame and a GPU that cannot keep up. Only the rows that
+     * changed are uploaded, and this is where they start.
+     */
+    private var dirtyTopY: Int = Int.MAX_VALUE
+
     /** The size the current masks were rasterised at, in texels. */
     private var rasterPx: Float = 0f
 
@@ -151,6 +161,25 @@ internal class TextAtlas(
             ((if (bold) 1L else 0L) shl 16) or
             rasterPx.toLong()
 
+    /**
+     * The rows that changed since the last upload, or null when nothing did.
+     *
+     * The range is over the atlas's rows, and it is what the renderer hands
+     * to the texture upload.
+     */
+    fun dirtyRows(): IntRange? {
+        if (dirtyTopY == Int.MAX_VALUE) return null
+        val top = dirtyTopY.coerceIn(0, size)
+        val bottom = (penY + shelfHeight).coerceIn(top, size)
+        if (bottom <= top) return null
+        return top until bottom
+    }
+
+    /** Forget what changed: the texture has it now. */
+    fun clearDirty() {
+        dirtyTopY = Int.MAX_VALUE
+    }
+
     /** Drop every mask. The font changed, and a mask of the wrong face is the wrong mask. */
     fun reset() {
         cache.clear()
@@ -158,6 +187,7 @@ internal class TextAtlas(
         penY = 0
         shelfHeight = 0
         pixels.clear()
+        dirtyTopY = Int.MAX_VALUE
         // A zeroed buffer is a transparent atlas, which is what "no glyphs"
         // looks like; the re-upload below publishes it.
         while (pixels.hasRemaining()) pixels.put(0)
@@ -241,6 +271,7 @@ internal class TextAtlas(
             }
         }
         dirty = true
+        if (slot.y < dirtyTopY) dirtyTopY = slot.y
 
         return GlyphMask(
             x = slot.x,

@@ -178,6 +178,22 @@ internal class FrameRenderer {
     }
 
     /**
+     * Wipe the surface.
+     *
+     * Used when the session behind the pane changes: the new session's grid
+     * is empty until its shell prints something, and the renderer keeps the
+     * previous picture when a frame draws nothing — so without this the old
+     * session stays on screen while the new one's name is already in the
+     * title.
+     */
+    fun clear(size: SizeInfo) {
+        if (!created) return
+        GLES20.glViewport(0, 0, size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
+        GLES20.glClearColor(DEFAULT_BACKGROUND_R, DEFAULT_BACKGROUND_G, DEFAULT_BACKGROUND_B, 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER)
+    }
+
+    /**
      * Draw one frame.
      *
      * Returns the number of cells drawn, which the loop uses to decide whether
@@ -251,11 +267,26 @@ internal class FrameRenderer {
      * takes a rectangle in cell units, which the grid passes cannot express
      * (their vertex shader multiplies whole cell indices).
      */
+    /**
+     * Whether a blinking cursor is in its visible phase right now.
+     *
+     * The engine says the cursor blinks; the phase is the clock's business.
+     * The same half-second the render loop already wakes on is the period, so
+     * the cursor does not need a timer of its own.
+     */
+    private fun blinkVisible(): Boolean =
+        (System.currentTimeMillis() / BLINK_PERIOD_MILLIS) % 2L == 0L
+
     private fun drawCursor(frame: Frame, size: SizeInfo) {
         if (cursorProgram == 0) return
         if (!frame.cursorVisible || !frame.cursorIsRectangle) return
         if (frame.cursorColumn !in 0 until frame.columns) return
         if (frame.cursorRow !in 0 until frame.rows) return
+
+        // A blinking cursor is hidden half the time. The engine says that the
+        // cursor blinks; whether it is in its visible phase is the clock's
+        // business, and the same clock the render loop already wakes on.
+        if (frame.cursorBlinking && !blinkVisible()) return
 
         val isUnderline = frame.cursorStyle == FrameFormat.CURSOR_STYLE_UNDERLINE
         // A bar hugs the left edge of the cell; an underline the bottom.
@@ -267,6 +298,19 @@ internal class FrameRenderer {
 
         val projection = FloatArray(4)
         size.projection(projection)
+
+        // The cursor's colour is the cell's own foreground, the way Ghostty
+        // draws it: a block cursor is the text's colour, so the text under it
+        // stays readable. The frame's cursor colour is the terminal's
+        // foreground, which is right for a cursor standing on empty ground and
+        // wrong for one standing on coloured text.
+        val cellIndex =
+            (frame.cursorRow + frame.overscanAbove) * frame.columns + frame.cursorColumn
+        val colour = if (cellIndex in 0 until frame.cellCount) {
+            frame.foreground(cellIndex)
+        } else {
+            frame.cursorColor
+        }
 
         GLES20.glUseProgram(cursorProgram)
         GLES20.glUniform4fv(cursorProjection, 1, projection, 0)
@@ -280,10 +324,10 @@ internal class FrameRenderer {
         )
         GLES20.glUniform4f(
             cursorColorUniform,
-            FrameFormat.red(frame.cursorColor) / 255f,
-            FrameFormat.green(frame.cursorColor) / 255f,
-            FrameFormat.blue(frame.cursorColor) / 255f,
-            FrameFormat.alpha(frame.cursorColor) / 255f,
+            FrameFormat.red(colour) / 255f,
+            FrameFormat.green(colour) / 255f,
+            FrameFormat.blue(colour) / 255f,
+            FrameFormat.alpha(colour) / 255f,
         )
         GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
     }
@@ -440,20 +484,51 @@ internal class FrameRenderer {
 
     // --- GL helpers --------------------------------------------------------
 
+    /**
+     * Upload the rows that changed, not the whole atlas.
+     *
+     * The atlas is 2048x2048 — four megabytes. Uploading all of it on every
+     * frame it changed is four megabytes a frame, and a pinch changes it on
+     * every step of the gesture: the text got bigger, every mask was
+     * rasterised again, and the whole megabyte went to the GPU each time. That
+     * is the pinch's stutter.
+     *
+     * Only the rows that changed go up, and the buffer's position says where
+     * they start.
+     */
     private fun uploadAtlas() {
+        val rows = atlas.dirtyRows()
+        if (rows == null) {
+            atlas.dirty = false
+            return
+        }
+        val height = rows.count()
+        if (height <= 0) {
+            atlas.dirty = false
+            atlas.clearDirty()
+            return
+        }
+
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, atlasTexture)
+
+        val pixels = atlas.directPixels()
+        val start = rows.first * atlas.size
+        pixels.position(start)
+        pixels.limit(start + height * atlas.size)
+
         GLES20.glTexSubImage2D(
             GLES20.GL_TEXTURE_2D,
             0,
             0,
-            0,
+            rows.first,
             atlas.size,
-            atlas.size,
+            height,
             GLES30.GL_RED,
             GLES20.GL_UNSIGNED_BYTE,
-            atlas.directPixels(),
+            pixels,
         )
+        atlas.clearDirty()
         atlas.dirty = false
     }
 
@@ -562,6 +637,9 @@ internal class FrameRenderer {
 
         /** `u16 column, i16 row, vec4 colour`. */
         const val BACKGROUND_BYTES = 8
+
+        /** How long a cursor blink lasts, in milliseconds. */
+        const val BLINK_PERIOD_MILLIS = 500L
 
         /** A bar cursor's width, as a fraction of a cell. */
         const val BAR_WIDTH = 0.1f

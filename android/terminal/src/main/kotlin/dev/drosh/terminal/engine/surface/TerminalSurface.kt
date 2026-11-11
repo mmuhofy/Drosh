@@ -198,6 +198,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // The cell first, the surface second: a surface laid out against the
         // default one-pixel cell is a grid of a thousand columns.
         renderThread.post(RenderThread.Command.Cell(cellWidthPx, cellHeightPx, 0f))
+        // And the screen is wiped: the session behind this pane is a different
+        // one now, and until its shell prints there is nothing to draw — the
+        // renderer keeps the previous picture when a frame draws nothing, so
+        // without this the old session stays on screen.
+        renderThread.post(RenderThread.Command.Clear)
         renderThread.invalidate()
     }
 

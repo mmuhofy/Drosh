@@ -109,6 +109,16 @@ class RenderThread(
         /** Redraw without changing anything — new output arrived. */
         data object Invalidate : Command
 
+        /**
+         * Wipe the screen.
+         *
+         * The session behind the pane changed. The new session's grid is
+         * empty until its shell prints, and a frame that draws nothing leaves
+         * the previous picture alone — so the old session would stay on
+         * screen while the title already says the new one.
+         */
+        data object Clear : Command
+
         /** The view is being released. */
         data object Quit : Command
     }
@@ -299,6 +309,12 @@ class RenderThread(
                     }
 
                     is Command.Invalidate -> dirty = true
+
+                    is Command.Clear -> {
+                        renderer?.clear(layout.size)
+                        egl.swap()
+                        dirty = true
+                    }
 
                     is Command.Quit -> return
                 }

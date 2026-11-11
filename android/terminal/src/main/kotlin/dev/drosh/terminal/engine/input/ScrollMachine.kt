@@ -135,19 +135,34 @@ class ScrollMachine {
         // fraction between them is drawn.
         val row = Math.round(wanted).toInt().coerceIn(0, history)
 
+        // The live edge is the engine's *active area*, and the engine pins
+        // the viewport to it when it is asked for the last row: `n >= total -
+        // rows` becomes "the active area" and the viewport stops moving. A
+        // drag that is a fraction of a row above the live edge must therefore
+        // not ask for the last row, or the viewport stays pinned and the
+        // picture slides against a viewport that is not going anywhere — which
+        // is what a scroll that pulls itself back looks like.
+        val atBottom = wanted >= history
+        val targetRow =
+            if (atBottom) history else row.coerceAtMost((history - 1).coerceAtLeast(0))
+
         // What is left over: the distance from the row the engine shows to the
         // row the finger asked for. Positive when the finger is below the row,
         // which moves the content down.
-        val remainder = (row - wanted) * spacing
+        //
+        // It is measured from the row the engine is *asked* for, not from the
+        // rounded one: the engine will show what we asked for, and a remainder
+        // measured from another row is a phantom movement.
+        val remainder = (targetRow - wanted) * spacing
 
         position = wanted
-        askedRow = row
+        askedRow = targetRow
 
         return Target(
-            row = row,
+            row = targetRow,
             remainderPx = remainder,
             position = wanted,
-            toBottom = row >= history,
+            toBottom = atBottom,
         )
     }
 

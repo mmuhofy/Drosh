@@ -64,6 +64,20 @@ pub const VERSION: u16 = 1;
 pub const HEADER_BYTES: usize = 48;
 pub const CELL_BYTES: usize = 20;
 
+/// The active palette's length.
+const PALETTE_LEN: usize = 256;
+
+/// A style colour that names a palette entry.
+const STYLE_COLOR_PALETTE: u32 = 1;
+/// A style colour that names an RGB value.
+const STYLE_COLOR_RGB: u32 = 2;
+
+/// The size of a style colour's payload.
+///
+/// The union is padded to eight bytes so that the colour structs stay
+/// aligned; the palette index is the first byte either way.
+const STYLE_COLOR_VALUE_BYTES: usize = 8;
+
 pub const ATTR_BOLD: u32 = 1 << 0;
 pub const ATTR_ITALIC: u32 = 1 << 1;
 pub const ATTR_FAINT: u32 = 1 << 2;
@@ -121,6 +135,12 @@ pub struct FrameSource {
     rows: u16,
     /// The overscan rows above the viewport, as the last frame saw them.
     overscan_above: u16,
+    /// The active 256-colour palette, as the last frame saw it.
+    ///
+    /// The engine resolves a palette index for us when we ask for a cell's
+    /// colour, but not when the cell's colour is the *style's* — and the
+    /// style's is the raw one, which is what the reverse-video rule needs.
+    palette: Vec<ghostty::GhosttyColorRgb>,
 }
 
 impl FrameSource {
@@ -175,7 +195,62 @@ impl FrameSource {
             columns: 0,
             rows: 0,
             overscan_above: 0,
+            palette: Vec::new(),
         })
+    }
+
+    /// Read the active palette.
+    ///
+    /// A cell's colour can be a palette index, and the index means nothing
+    /// without the palette it points into. The engine resolves it for the
+    /// colours it hands out, but the *style's* colour is raw — the index
+    /// itself — and the reverse-video rule works on the raw colour.
+    unsafe fn refresh_palette(&mut self) {
+        // Into a local first: the read borrows the state and the palette at
+        // the same time, and the palette belongs to this struct.
+        let mut palette = vec![ghostty::GhosttyColorRgb { r: 0, g: 0, b: 0 }; PALETTE_LEN];
+        let _ = render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_COLOR_PALETTE,
+            palette.as_mut_ptr()
+        );
+        self.palette = palette;
+    }
+
+    /// The colour a style names, or none when it names none.
+    ///
+    /// The style's colour is a *source*: a palette index, an RGB, or nothing.
+    /// This is the raw thing, before any rule is applied to it — which is what
+    /// the reverse-video rule needs, because that rule picks between the
+    /// style's own colour and the terminal's default, and a swap of two
+    /// already-resolved colours gets it backwards for a cell that carries a
+    /// colour of its own.
+    fn style_color(
+        color: &ghostty::GhosttyStyleColor,
+        palette: &[ghostty::GhosttyColorRgb],
+    ) -> Option<ghostty::GhosttyColorRgb> {
+        // The payload is a union: a palette index in its first byte, or an
+        // RGB in its first three. It is read as bytes because the union's
+        // own type is a generated name, and the layout is the header's:
+        // `palette` is byte 0, `rgb` is bytes 0 to 2.
+        let mut bytes = [0u8; STYLE_COLOR_VALUE_BYTES];
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                &color.value as *const _ as *const u8,
+                bytes.as_mut_ptr(),
+                bytes.len(),
+            );
+        }
+
+        match color.tag as u32 {
+            STYLE_COLOR_PALETTE => palette.get(bytes[0] as usize).copied(),
+            STYLE_COLOR_RGB => Some(ghostty::GhosttyColorRgb {
+                r: bytes[0],
+                g: bytes[1],
+                b: bytes[2],
+            }),
+            _ => None,
+        }
     }
 
     /// The colours of a region of the grid, as `(foreground, background)` pairs.
@@ -263,6 +338,7 @@ impl FrameSource {
             self.columns = cols;
             self.rows = rows;
             self.overscan_above = overscan.above;
+            self.refresh_palette();
 
             let needed = HEADER_BYTES + cell_count as usize * CELL_BYTES;
             self.buffer.clear();
@@ -489,8 +565,16 @@ impl FrameSource {
             ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR,
             &mut fg as *mut _ as *mut c_void,
         ));
-        let bg_style = if bg_ok { Some(rgb(bg)) } else { None };
-        let fg_style = if fg_ok { Some(rgb(fg)) } else { None };
+        // The style's own colours, raw. A cell whose style names no colour
+        // has none: the engine's resolved colour for it comes from the
+        // content tag instead, and that is a different question.
+        let bg_style = Self::style_color(&style.bg_color, &self.palette);
+        let fg_style = Self::style_color(&style.fg_color, &self.palette);
+
+        // The engine's resolved colours, for the cells whose colour comes from
+        // the content tag rather than from the style.
+        let bg_from_tag = if bg_ok { Some(rgb(bg)) } else { None };
+        let fg_from_tag = if fg_ok { Some(rgb(fg)) } else { None };
 
         let mut selected = false;
         let _ = ghostty::ghostty_render_state_row_cells_get(
@@ -512,8 +596,8 @@ impl FrameSource {
         // colour of its own — see `renderer::cell`.
         let colors = crate::renderer::cell::colors(
             &crate::renderer::cell::CellStyle {
-                foreground: fg_style,
-                background: bg_style,
+                foreground: fg_style.or(fg_from_tag),
+                background: bg_style.or(bg_from_tag),
                 inverse: style.inverse,
                 bold: style.bold,
                 faint: style.faint,
