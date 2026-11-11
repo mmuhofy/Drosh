@@ -81,6 +81,18 @@ object NativePty {
         return nativeTryWait(handle)
     }
 
+    /**
+     * The child's process id, or -1 when there is none.
+     *
+     * The session's default name is the child's own name, and that is read
+     * from `/proc/<pid>/comm` — which needs the pid, and only the PTY knows
+     * it.
+     */
+    fun pid(handle: Long): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativePid(handle)
+    }
+
     private external fun nativeSpawn(
         argv: String,
         environment: String,
@@ -102,4 +114,5 @@ object NativePty {
         cellHeight: Int,
     ): Int
     private external fun nativeTryWait(handle: Long): Int
+    private external fun nativePid(handle: Long): Int
 }

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import dev.drosh.domain.agent.ToolResult
 import dev.drosh.domain.block.ShellStateSource
+import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.settings.MotdDefaults
 import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.MotdMode
@@ -1408,6 +1409,14 @@ class TerminalManager(
         liveSessions[persistentId]?.let { return it }
 
         val session = GhosttySession(persistentId = persistentId, name = name)
+        // The child's own name becomes the session's default display name once
+        // the probe has read it. The listener goes on before the start: the
+        // probe runs on a thread of the session's own and must not miss it.
+        session.onProcessName = { processName ->
+            // The probe thread reports; the session table is main-thread
+            // state, so the application is posted rather than done in place.
+            managerScope.launch { applyProcessName(persistentId, session, processName) }
+        }
         if (!session.start(command, columns, rows, cellWidth, cellHeight)) {
             Log.w("TerminalManager", "the session could not be opened: ${session.lastError}")
             return null
@@ -1426,12 +1435,18 @@ class TerminalManager(
                     enginePane = null,
                     persistentId = persistentId,
                     name = name,
+                    pid = session.processId,
                     liveSession = session,
                 )
             )
         } else {
             listed.liveSession = session
             listed.name = name
+            listed.pid = session.processId
+        }
+        // The pid is now known; the data layer keeps its own bookkeeping.
+        if (session.processId > 0) {
+            lifecycleCallbacks?.onSessionPidChanged(persistentId, session.processId)
         }
 
         _sessionCount.value = liveSessions.size + engineSessions.size
@@ -1439,6 +1454,47 @@ class TerminalManager(
         publishActiveId()
         return session
     }
+
+    /**
+     * Fills a session's default name with the process's own name.
+     *
+     * The session's child is the guest launcher before its exec and the shell
+     * after it, so the name the probe read — `zsh`, `bash`, whatever the child
+     * really is — is what the session runs. It replaces only a name the app
+     * generated: a name the user typed in the sidebar must survive a probe
+     * that happens to run after their rename, so anything that is not one of
+     * the generated defaults is left alone.
+     *
+     * Called on the main thread, because the session table is main-thread
+     * state; the probe posts here rather than applying in place.
+     */
+    private fun applyProcessName(persistentId: String, session: GhosttySession, processName: String) {
+        val entry = engineSessions.find { it.persistentId == persistentId }
+        val currentName = entry?.name ?: session.name
+        if (!isDefaultSessionName(currentName)) return
+
+        session.name = processName
+        entry?.name = processName
+        // The pane's copy follows, so a later binding sees the same name.
+        enginePanes.values.firstOrNull { it.persistentId == persistentId }
+            ?.bindIdentity(persistentId, processName)
+        // The grid, the sidebar and the top bar read the persisted name; the
+        // data layer decides whether its own copy is still a default.
+        lifecycleCallbacks?.onSessionDefaultName(persistentId, processName)
+    }
+
+    /**
+     * Whether a session's name is one the app generated rather than one the
+     * user chose.
+     *
+     * The session table's default is [DEFAULT_SESSION_NAME]; a blank name is
+     * the same question asked before the table has answered. Anything else is
+     * treated as deliberate, including a rename that happens to match a
+     * default — the cost of asking twice is lower than the cost of discarding
+     * a name the user typed.
+     */
+    private fun isDefaultSessionName(name: String): Boolean =
+        name.isBlank() || name == DEFAULT_SESSION_NAME
 
     /**
      * A live session ended on its own.

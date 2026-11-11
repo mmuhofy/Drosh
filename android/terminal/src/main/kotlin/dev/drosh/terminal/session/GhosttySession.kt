@@ -3,6 +3,7 @@ package dev.drosh.terminal.session
 import dev.drosh.linux.GuestCommand
 import dev.drosh.terminal.engine.native.NativePty
 import dev.drosh.terminal.engine.native.NativeSession
+import java.io.File
 
 /**
  * A live session: the terminal's grid and the process behind it.
@@ -54,6 +55,25 @@ class GhosttySession(
 
     /** Told when the process exits, with its status. */
     var onExit: ((Int) -> Unit)? = null
+
+    /**
+     * The child's process id, or 0 while there is none.
+     *
+     * The kernel knows the child as this number, and the app's facts about the
+     * session — its default name, its pid in the session table — are read from
+     * the process rather than guessed.
+     */
+    var processId: Int = 0
+        private set
+
+    /**
+     * Told the name of the process behind the session, once it is known.
+     *
+     * The session's default name is the process's own name, and only the
+     * kernel can say what that is after the guest launcher has exec'd. The
+     * receiver applies it; the session only reports what it read.
+     */
+    var onProcessName: ((String) -> Unit)? = null
 
     /** The grid's shape, in cells: what the engine is holding. */
     var columns: Int = 0
@@ -132,6 +152,13 @@ class GhosttySession(
         ptyHandle = pty
         state = PaneState.RUNNING
         startReading()
+        // The child's own name is the session's default display name, and the
+        // kernel only knows it under the child's pid — which exists now.
+        val pid = NativePty.pid(pty)
+        if (pid > 0) {
+            processId = pid
+            startProcessNameProbe(pid)
+        }
         return true
     }
 
@@ -155,6 +182,50 @@ class GhosttySession(
             start()
         }
     }
+
+    /**
+     * Reads the child's process name and reports it as the session's default.
+     *
+     * The session's child is the guest launcher first and the shell only after
+     * its exec, which lands a moment after the fork — so the first read of
+     * `/proc/<pid>/comm` may answer `chroot-ng` where the shell's name is
+     * wanted. The probe reads again on a short interval and reports as soon as
+     * a read differs from the one before it, which is the exec having happened;
+     * when the window closes with no transition it reports what it last saw,
+     * because by then that is whatever the process really is.
+     *
+     * On its own short-lived thread: the read is a filesystem poll, and the
+     * reader thread already has a job of its own.
+     */
+    private fun startProcessNameProbe(pid: Int) {
+        val report = onProcessName ?: return
+        Thread({
+            var previous: String? = null
+            var latest: String? = null
+            var attempt = 0
+            while (attempt < PROCESS_NAME_ATTEMPTS) {
+                val read = readProcessName(pid) ?: return@Thread
+                latest = read
+                if (previous != null && read != previous) break
+                previous = read
+                attempt += 1
+                if (attempt < PROCESS_NAME_ATTEMPTS) {
+                    runCatching { Thread.sleep(PROCESS_NAME_RETRY_MS) }
+                }
+            }
+            val resolved = latest
+            if (!resolved.isNullOrEmpty()) report(resolved)
+        }, "drosh-session-name-$persistentId").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    /** The child's name, as the kernel knows it, or null when it cannot be read. */
+    private fun readProcessName(pid: Int): String? =
+        runCatching {
+            File("/proc/$pid/comm").readText().trim()
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
 
     private fun readLoop(pty: Long) {
         while (reading.get()) {
@@ -285,6 +356,93 @@ class GhosttySession(
         return text.split('\n')
     }
 
+    /**
+     * A match in what the session has printed.
+     *
+     * The coordinates are the engine's text coordinates, not pixels: [row] is
+     * the index of the line in [transcript] — the grid and its scrollback,
+     * oldest line first, one line per grid row — and [column] and [length] are
+     * the character column the match starts at and how many characters it
+     * covers.
+     */
+    data class Match(
+        /** The line of the transcript, which is also the grid row. */
+        val row: Int,
+        /** The character column the match starts at, within the line. */
+        val column: Int,
+        /** How many characters the match covers. */
+        val length: Int,
+        /** The text that matched, quoted back for the find bar. */
+        val text: String,
+    )
+
+    /**
+     * The matches of [query] in everything the session has printed.
+     *
+     * ## Why the transcript and not the engine's search
+     *
+     * The engine's own search answers in *viewport* coordinates: it reports
+     * only what shares a page with the visible rows, so it can never reach the
+     * output that has scrolled past — which is most of what a find bar is for.
+     * Its rows are screen rows to boot, so they do not map onto the scrollbar's
+     * row space and cannot be scrolled to.
+     *
+     * The transcript is the engine's own text of the whole record, and its
+     * lines are the engine's rows, oldest first. A plain substring pass over it
+     * therefore finds the output wherever it is, and its line numbers are the
+     * rows the viewport can be scrolled to.
+     *
+     * Matching is case-insensitive, the way the engine's own matching is; each
+     * match carries its text so the bar can quote what it found.
+     *
+     * @param limit How many matches to report; the scan stops there.
+     */
+    fun search(query: String, limit: Int = SEARCH_LIMIT): List<Match> {
+        if (query.isEmpty() || limit <= 0) return emptyList()
+        val handle = terminalHandle
+        if (handle == 0L) return emptyList()
+        val text = NativeSession.transcript(handle)
+        if (text.isEmpty()) return emptyList()
+        return scan(text, query, limit)
+    }
+
+    /**
+     * A line-by-line, case-insensitive scan of [text] for [query].
+     *
+     * The next match is found once and carried forward rather than re-found
+     * from the start of every line, so the whole scan is one pass. A match that
+     * runs past the end of a line is skipped: a line is a row of the grid, and
+     * a match split across two rows is not what the user typed. The scan stops
+     * at [limit] matches.
+     */
+    private fun scan(text: String, query: String, limit: Int): List<Match> {
+        val matches = ArrayList<Match>()
+        val length = text.length
+        var row = 0
+        var lineStart = 0
+        var index = text.indexOf(query, 0, ignoreCase = true)
+        while (lineStart <= length && matches.size < limit) {
+            val newline = text.indexOf('\n', lineStart)
+            val lineEnd = if (newline < 0) length else newline
+            while (index in lineStart until lineEnd && matches.size < limit) {
+                if (index + query.length <= lineEnd) {
+                    matches.add(
+                        Match(
+                            row = row,
+                            column = index - lineStart,
+                            length = query.length,
+                            text = text.substring(index, index + query.length),
+                        ),
+                    )
+                }
+                index = text.indexOf(query, index + 1, ignoreCase = true)
+            }
+            row += 1
+            lineStart = lineEnd + 1
+        }
+        return matches
+    }
+
     /** Stop the process, keeping the grid. */
     fun stop() {
         stopReading()
@@ -317,6 +475,28 @@ class GhosttySession(
 
         /** How long a reader is given to notice it should stop. */
         const val READER_STOP_TIMEOUT_MS = 500L
+
+        /**
+         * How many times the process-name probe reads `/proc`, and how long it
+         * waits between reads.
+         *
+         * Together they are the window the guest launcher's exec is given to
+         * land in — about half a second, against an exec that normally takes
+         * milliseconds. A probe that never sees a change reports what it read
+         * last rather than nothing, because after that long the name is what
+         * the process really is.
+         */
+        const val PROCESS_NAME_ATTEMPTS = 10
+        const val PROCESS_NAME_RETRY_MS = 50L
+
+        /**
+         * How many matches one scan reports.
+         *
+         * A query like "e" matches thousands of times; the limit keeps one scan
+         * from building an unbounded answer, and a find bar only ever walks
+         * from one match to the next.
+         */
+        const val SEARCH_LIMIT = 10_000
     }
 }
 

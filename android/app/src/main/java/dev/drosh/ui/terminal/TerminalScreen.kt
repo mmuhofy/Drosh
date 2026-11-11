@@ -98,6 +98,8 @@ import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
+import dev.drosh.terminal.session.GhosttySession
+import dev.drosh.terminal.session.GhosttyTerminal
 import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
@@ -427,6 +429,16 @@ private fun ReadyScreen(
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
+    /**
+     * The query the last scan actually ran on, as opposed to what the field
+     * shows.
+     *
+     * The field follows every keystroke; the scan waits for the typing to
+     * settle, because a scan is a pass over the whole output and one per
+     * keystroke would be a scan per character of a word.
+     */
+    var scannedQuery by remember { mutableStateOf("") }
+
 
     val scope = rememberCoroutineScope()
 
@@ -631,23 +643,17 @@ private fun ReadyScreen(
     }
 
     /**
-     * The source the find bar asks for the matches.
+     * The focused pane's session, which is the whole record the find bar
+     * searches.
      *
-     * The bar does not know what draws the terminal it is searching: it asks
-     * a source, and the source answers in its own coordinates — the rows of a
-     * Termux buffer, or the lines of the engine's output log. The two are
-     * told apart by the kind, so an engine answer is never passed off as a
-     * Termux one and the other way round.
-     *
-     * Asked for at the moment it is needed rather than kept: the engine's
-     * pane registers itself with the manager after the first composition, so
-     * a source resolved once would keep answering for a terminal that was not
-     * there yet.
+     * The engine's session owns the grid and its scrollback, and the engine's
+     * own text of both is what [GhosttySession.search] scans. The manager hands
+     * out panes, so the session is reached through the focused one and asked
+     * for at the moment it is needed — a session resolved once would keep
+     * answering for a terminal that is no longer on screen.
      */
-    fun findSource(): TerminalFindSource? {
-        val pane = terminalManager.focusedTerminal() ?: return null
-        return EngineFindSource(pane)
-    }
+    fun focusedSession(): GhosttySession? =
+        (terminalManager.focusedTerminal() as? GhosttyTerminal)?.session
 
     /**
      * The find matches, for whichever pane they were scanned against.
@@ -688,33 +694,30 @@ private fun ReadyScreen(
     var engineContentTick by remember { mutableStateOf(0) }
 
     /**
-     * Follows the focused terminal's screen, which is where new output lands.
+     * Settles the query before it is scanned.
      *
-     * A flow on the view rather than a listener: the view is replaced when a
-     * pane re-opens, and a callback left on the old one would keep counting
-     * for a terminal that is no longer on screen.
-     *
-     * Gated on time as well, and that gate is the whole point of it. A firehose
-     * would otherwise restart the scan once per chunk, forever — the effect
-     * restarts on every key, so a scan that never finishes is a scan that never
-     * answers, and a find bar stuck on "no matches" under heavy output is worse
-     * than one that is a fifth of a second behind it.
+     * The field follows every keystroke, but a scan is a pass over the whole
+     * output; running one per character of a word would keep the bar a step
+     * behind the typing and never let a long query finish. Waiting a moment for
+     * the typing to stop gives one scan per word instead.
      */
+    LaunchedEffect(searchQuery) {
+        if (searchQuery == scannedQuery) return@LaunchedEffect
+        delay(FIND_DEBOUNCE_MILLIS)
+        scannedQuery = searchQuery
+    }
+
     /**
-     * Repeats the scan while the find bar is open on an engine-backed
-     * terminal.
+     * Repeats the scan while the find bar is open.
      *
-     * The vendored path does not come through here: the view's own ticks
-     * drive its rescan, and a second timer on top of that would only read
-     * the same scrollback twice.
-     *
-     * The engine's timer is the slower of the two on purpose: its scan is a
-     * pass over the whole output log, and the log is what the user is
-     * searching in, not a screenful of rows.
+     * The engine keeps no tick of its own: its output arrives as a stream of
+     * bytes, and the only thing that says whether the grid moved is the grid
+     * itself. So the scan is repeated on a slow timer instead, and the counter
+     * the bar shows stays a step behind the output rather than becoming a lie
+     * about it.
      */
-    LaunchedEffect(searchActive, findState?.kind) {
-        if (!searchActive) return@LaunchedEffect
-        if (findState?.kind != TerminalFindKind.ENGINE) return@LaunchedEffect
+    LaunchedEffect(searchActive, scannedQuery.isBlank()) {
+        if (!searchActive || scannedQuery.isBlank()) return@LaunchedEffect
         while (isActive) {
             delay(ENGINE_RESCAN_INTERVAL_MS)
             engineContentTick++
@@ -722,28 +725,32 @@ private fun ReadyScreen(
     }
 
     /**
-     * Scans the focused terminal's whole scrollback for the current query.
+     * Scans the focused session's whole output for the settled query.
      *
-     * Re-run by the query changing, the terminal changing under the bar — the
-     * pane taking focus, a session opening in it — and every gated tick of new
-     * output. A scan reads a few thousand rows, so it runs on
+     * Re-run by the query settling, the terminal changing under the bar — the
+     * pane taking focus, a session opening in it — and every tick of new
+     * output. The scan reads the engine's whole transcript, so it runs on
      * Dispatchers.Default and the bar keeps its previous answer until the new
      * one lands rather than flashing a count of zero.
      */
     LaunchedEffect(
         searchActive,
-        searchQuery,
+        scannedQuery,
         searchContentTick,
         engineContentTick,
         activeId,
     ) {
-        if (!searchActive || searchQuery.isBlank()) {
+        if (!searchActive || scannedQuery.isBlank()) {
             findState = null
             return@LaunchedEffect
         }
-        val source = findSource() ?: return@LaunchedEffect
+        val session = focusedSession()
+        if (session == null) {
+            findState = null
+            return@LaunchedEffect
+        }
 
-        val query = searchQuery
+        val query = scannedQuery
         // Where the user was, carried across a rescan. The row a match sits on
         // moves as output arrives; the text they navigated to does not. Held
         // as an index rather than a row, so a list that has grown stays
@@ -759,18 +766,30 @@ private fun ReadyScreen(
             ?.activeIndex
             ?: -1
 
+        // The session searches its own transcript, so every match spans the
+        // output and not just what is on screen. The match's line is a grid
+        // row, and that is what the arrows scroll the viewport to.
         val matches = withContext(Dispatchers.Default) {
-            source.search(query)
+            TerminalFindMatches.Engine(
+                session.search(query).map { hit ->
+                    EngineTranscriptMatch(
+                        line = hit.row,
+                        colStart = hit.column,
+                        colEnd = hit.column + hit.length,
+                        text = hit.text,
+                    )
+                },
+            )
         }
         // The first match is active from the moment the query resolves, so the
         // bar reads "1/41" and the first hit is the one drawn stronger. No
-        // reveal here on purpose: a scan runs on every keystroke, and jumping
-        // the viewport to the oldest match each time would throw the user out
-        // of the output they are typing in. The viewport moves when they ask
-        // it to, with the arrows.
+        // reveal here on purpose: a scan runs while the user is still typing,
+        // and jumping the viewport to the oldest match each time would throw
+        // them out of the output they are working in. The viewport moves when
+        // they ask it to, with the arrows.
         findState = TerminalFindState(
             query = query,
-            kind = source.kind,
+            kind = TerminalFindKind.ENGINE,
             matches = matches,
             activeIndex = when {
                 matches.count == 0 -> -1
@@ -778,6 +797,28 @@ private fun ReadyScreen(
                 else -> 0
             },
         )
+    }
+
+    /**
+     * Puts the match at [index] on the screen.
+     *
+     * A match's line is an absolute row of the engine's scroll space — 0 is the
+     * oldest row the engine holds — and the engine's scrollbar counts from the
+     * other end, where "rows above the live edge" is 0 at the bottom. The
+     * conversion is the subtraction that turns one into the other, and the
+     * margin leaves a few rows of context above the match so it is not pinned
+     * to the top of the screen.
+     *
+     * The engine clamps the scroll to what history it has, so a request past
+     * either end lands on the end rather than being refused.
+     */
+    fun revealMatch(matches: TerminalFindMatches, index: Int) {
+        val hit = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(index) ?: return
+        val pane = terminalManager.focusedTerminal() ?: return
+        val history = pane.historySize().coerceAtLeast(0)
+        val margin = (pane.rows / 4).coerceAtLeast(0)
+        val above = (history - hit.line + margin).coerceIn(0, history)
+        pane.scrollTo(above)
     }
 
     /**
@@ -803,12 +844,7 @@ private fun ReadyScreen(
         findState = state.copy(activeIndex = next)
         // Reveal after the state write, so the viewport follows the match the
         // user is now on rather than the one they were.
-        //
-        // The source says whether it can: the vendored terminal scrolls to
-        // the row the match is on, and the engine cannot — a line of its
-        // output log is not a grid row, so there is nowhere on the screen to
-        // scroll to. It says no, and the screen stays where it is.
-        findSource()?.reveal(state.matches, next)
+        revealMatch(state.matches, next)
     }
 
     // Text selection menu. The platform ActionMode is switched off when the
@@ -1155,6 +1191,11 @@ private fun ReadyScreen(
                     // about to raise its own, and two keyboards in one row is
                     // one keyboard too many.
                     hideKeyboard()
+                    // A bar opened again searches nothing until the user types:
+                    // a stale query from the last time is not this time's.
+                    searchQuery = ""
+                    scannedQuery = ""
+                    findState = null
                     searchActive = true
                 },
                 onRefresh = {
@@ -1207,8 +1248,10 @@ private fun ReadyScreen(
         // under a status bar, so 64dp clears it in both chrome states.
         if (searchActive) {
             BackHandler {
+                hideKeyboard()
                 searchActive = false
                 searchQuery = ""
+                scannedQuery = ""
                 findState = null
             }
 
@@ -1220,14 +1263,17 @@ private fun ReadyScreen(
                 onNext = { stepMatch(forward = true) },
                 onPrevious = { stepMatch(forward = false) },
                 onClose = {
+                    hideKeyboard()
                     searchActive = false
                     searchQuery = ""
+                    scannedQuery = ""
                     findState = null
                 },
                 // Which terminal the matches came from, and the text of the
-                // one the user is on. The engine's matches are lines of its
-                // output log and not rows of a grid, so the bar says so
-                // rather than pretending the screen moved to them.
+                // one the user is on. The engine's matches now sit on grid
+                // rows, so the arrows scroll the viewport to them; the quote
+                // is still shown because seeing the matched text is useful
+                // even when the screen has moved to it.
                 kind = findState?.kind,
                 matchText = findState?.activeText,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
@@ -1871,6 +1917,16 @@ private fun loadBackgroundDrawable(context: Context, file: File): android.graphi
     }.getOrNull()
 
 private const val ZOOM_CHIP_LINGER_MS = 900L
+
+/**
+ * How long typing must be quiet before a find scan runs.
+ *
+ * The field follows every keystroke, but the scan is a pass over the whole
+ * output; running one per character of a word would keep the bar a step behind
+ * the typing and never let a long query finish. A short pause gives one scan
+ * per word instead.
+ */
+private const val FIND_DEBOUNCE_MILLIS = 150L
 
 /**
  * How long output must be quiet before a find rescan is worth another one.

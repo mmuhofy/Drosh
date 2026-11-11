@@ -64,12 +64,10 @@ import dev.drosh.ui.R
  *
  * ## The engine's lines under it
  *
- * The bar grows a second and a third line when the terminal it is searching
- * is the Rust engine. The engine's matches are lines of its output log and
- * not rows of a grid, so they cannot be drawn on the screen and cannot be
- * scrolled to: the bar quotes the match it is on and says that the screen
- * does not follow it. A match that is counted but not reachable has to read
- * as such.
+ * The bar grows a second line when the terminal it is searching is the Rust
+ * engine: the text of the match the user is on. A match is a run of characters
+ * on a grid row, so the arrows move the viewport to it, and quoting the text
+ * says which of several identical matches the counter is on.
  */
 @Composable
 fun TerminalFindBar(
@@ -85,16 +83,14 @@ fun TerminalFindBar(
      * Which terminal the matches came from, or null when nothing has been
      * scanned yet.
      *
-     * The bar needs it because the two kinds cannot be shown the same way:
-     * the vendored terminal's matches are drawn on the screen, and the
-     * engine's are not.
+     * The bar shows the match's own text only for the engine, whose matches
+     * are runs of characters it can quote.
      */
     kind: TerminalFindKind? = null,
     /**
      * The text of the match the user is on, when the bar can quote one.
      *
-     * Null on the vendored path: there the match is a run of cells on the
-     * screen, and the screen shows it.
+     * Null before a scan has resolved; the bar then shows only the counter.
      */
     matchText: String? = null,
 ) {
@@ -209,20 +205,20 @@ fun TerminalFindBar(
                 FindIconButton(
                     icon = DroshIcons.X,
                     contentDescription = stringResource(R.string.terminal_find_close),
-                    onClick = onClose,
+                    onClick = {
+                        // The bar's own keyboard goes with it, the way it came.
+                        keyboard?.hide()
+                        onClose()
+                    },
                     enabled = true,
                 )
             }
 
-            // The engine's matches: the text of the one the user is on, and
-            // what the arrows do and do not do.
-            //
-            // The arrows still walk the matches — the counter moves and the
-            // quote moves with it — but the screen does not follow, because a
-            // line of the output log is not a row of the grid and there is
-            // nowhere on the screen to scroll to. Saying so is the honest
-            // thing: the alternative is a bar that counts matches the user
-            // can never reach.
+            // The engine's matches: the text of the one the user is on. The
+            // arrows walk the matches, the counter moves with them, and the
+            // viewport is scrolled to each one — the quote is here because a
+            // query like "i" lands in a thousand places and seeing the text is
+            // how the user knows which one they are on.
             if (kind == TerminalFindKind.ENGINE) {
                 matchText?.let { quote ->
                     Text(
@@ -233,19 +229,9 @@ fun TerminalFindBar(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp, bottom = 2.dp),
+                            .padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
                     )
                 }
-                Text(
-                    text = stringResource(R.string.terminal_find_engine_note),
-                    color = DroshTextMuted,
-                    fontSize = 11.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
-                )
             }
         }
     }

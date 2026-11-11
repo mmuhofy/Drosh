@@ -258,6 +258,15 @@ impl Pty {
             Some(0)
         }
     }
+
+    /// The child's pid, or -1 when there is none or it has been reaped.
+    ///
+    /// The host reads `/proc/<pid>/comm` with it: the session's default name
+    /// is the process's own name, and only the kernel knows which process that
+    /// is after the launcher has exec'd into the shell.
+    pub fn pid(&self) -> libc::pid_t {
+        self.child
+    }
 }
 
 impl Drop for Pty {

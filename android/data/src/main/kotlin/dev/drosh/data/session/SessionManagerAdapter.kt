@@ -331,6 +331,28 @@ class SessionManagerAdapter @Inject constructor(
     }
 
     /**
+     * The terminal resolved a session's default name from its process — the
+     * shell's own name, read from `/proc/<pid>/comm` once the guest launcher
+     * has exec'd.
+     *
+     * The grid, the sidebar and the top bar read the session's name from Room,
+     * so this is where the resolved name becomes visible. It replaces the
+     * stored name only while that is still a generated default: a name the
+     * user typed in the sidebar must survive a probe that happens to run after
+     * their rename.
+     */
+    override fun onSessionDefaultName(persistentId: String?, name: String) {
+        if (persistentId.isNullOrEmpty() || name.isBlank()) return
+        appScope.launch {
+            val stored = sessionRepository.observeAll().first()
+                .firstOrNull { it.id == persistentId } ?: return@launch
+            if (stored.name.isBlank() || stored.name == DEFAULT_SESSION_NAME) {
+                sessionRepository.rename(persistentId, name)
+            }
+        }
+    }
+
+    /**
      * Called when the shell pid is assigned. Currently a no-op — Room's
      * schema does not yet store pid. Reserved for future Process Cinema
      * (§15) and session monitoring features.

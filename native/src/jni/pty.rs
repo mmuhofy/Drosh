@@ -201,6 +201,21 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeTry
     pty.try_wait().unwrap_or(-1)
 }
 
+/// The child's process id, or -1 when there is none.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativePid(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jint {
+    if handle <= 0 {
+        return -1;
+    }
+    // A read: the pid is not a lock-protected fact, so the guard is borrowed.
+    let pty = unsafe { &*(handle as usize as *mut Pty) };
+    pty.pid()
+}
+
 #[allow(dead_code)]
 fn _unused(_: jbyteArray) {
     let _ = new_byte_array;

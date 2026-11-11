@@ -27,4 +27,15 @@ interface SessionLifecycleCallbacks {
      * yet, so this is currently a no-op; reserved for process monitoring.
      */
     fun onSessionPidChanged(persistentId: String?, pid: Int)
+
+    /**
+     * A session's default name has been resolved from its process — the
+     * shell's own name, read from `/proc/<pid>/comm` once the guest launcher
+     * has exec'd.
+     *
+     * It may only fill a name the app generated: a name the user chose in the
+     * sidebar must survive a probe that happens to run after their rename, so
+     * the receiver decides against what it has stored.
+     */
+    fun onSessionDefaultName(persistentId: String?, name: String)
 }
