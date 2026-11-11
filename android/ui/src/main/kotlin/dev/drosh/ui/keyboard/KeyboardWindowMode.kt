@@ -66,18 +66,15 @@ object KeyboardWindowModeState {
 }
 
 /**
- * Reserves space for the keyboard only while it is docked.
+ * Reserves the keyboard's space, whatever kind of keyboard it is.
  *
- * A floating keyboard sits *over* the content by design, so padding would push
- * the layout around for no reason — and would leave a dead band where the
- * keyboard happens to sit. Docked, the keyboard occupies the bottom and content
- * must move up.
- *
- * Falls back to padding whenever the mode is unknown, which includes every
- * other IME and any moment before the first broadcast.
+ * The inset is the window's own: it is what the system says the keyboard covers,
+ * and it is zero for a keyboard that floats over the content. Reading a mode
+ * broadcast to decide whether to apply it meant that a keyboard whose mode never
+ * arrived — any IME that is not Drosh's — left the last rows of the terminal
+ * under the keyboard, where they cannot be read.
  */
-fun Modifier.droshImePadding(): Modifier =
-    if (KeyboardWindowModeState.docked) imePadding() else this
+fun Modifier.droshImePadding(): Modifier = imePadding()
 
 /**
  * Keeps content clear of the navigation bar.
