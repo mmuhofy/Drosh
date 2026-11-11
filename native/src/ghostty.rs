@@ -114,6 +114,10 @@ pub const GHOSTTY_TERMINAL_DATA_CURSOR_X: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_X;
 pub const GHOSTTY_TERMINAL_DATA_CURSOR_Y: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_Y;
+pub const GHOSTTY_TERMINAL_DATA_CURSOR_X: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_X;
+pub const GHOSTTY_TERMINAL_DATA_CURSOR_Y: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_Y;
 pub const GHOSTTY_TERMINAL_DATA_CURSOR_VISIBLE: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_VISIBLE;
 pub const GHOSTTY_TERMINAL_DATA_COLOR_FOREGROUND: GhosttyTerminalData =
@@ -126,6 +130,10 @@ pub const GHOSTTY_TERMINAL_DATA_ROWS: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_ROWS;
 pub const GHOSTTY_TERMINAL_DATA_SCROLLBAR: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SCROLLBAR;
+pub const GHOSTTY_TERMINAL_DATA_CURSOR_STYLE: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_STYLE;
+pub const GHOSTTY_TERMINAL_DATA_CURSOR_BLINKING: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_BLINKING;
 pub const GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN: GhosttyTerminalData =
     GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_ACTIVE_SCREEN;
 pub const GHOSTTY_TERMINAL_DATA_MOUSE_TRACKING: GhosttyTerminalData =

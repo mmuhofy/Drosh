@@ -339,53 +339,72 @@ impl FrameSource {
         overscan: ghostty::GhosttyRenderStateOverscan,
         cell_count: u32,
     ) {
-        // The cursor, read through the engine's own scalar queries rather than
-        // through the struct that holds all of it.
+        // The cursor, from the terminal itself.
         //
-        // The struct is a sized one: its layout is a detail of the ABI, and a
-        // detail that can be wrong without anything complaining. A field read
-        // from the wrong offset is not an error — it is a number, and the
-        // number goes into the frame and out to the screen. That is what a
-        // cursor parked in the corner is: garbage read as a position.
+        // The terminal knows where its cursor is: the column, and the row
+        // within the active area. The render state knows the same thing, but
+        // only as a position *within the viewport* — and it only has one when
+        // the cursor's page happens to be among the rows it captured. That
+        // makes the position a question about the render state's internals
+        // rather than a question about the terminal, and a cursor that is
+        // reported as "not in the viewport" is a cursor with no position at
+        // all.
         //
-        // The scalar queries have no layout to get wrong: each one writes one
-        // number of a known size.
-        let mut cursor_has_value = false;
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE,
-            &mut cursor_has_value
-        );
+        // The terminal's answer is absolute, so it needs no interpretation.
         let mut cursor_x: u16 = 0;
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_X,
-            &mut cursor_x
-        );
         let mut cursor_y: u16 = 0;
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VIEWPORT_Y,
-            &mut cursor_y
-        );
         let mut cursor_visible = false;
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISIBLE,
-            &mut cursor_visible
-        );
         let mut cursor_style: u32 = 0;
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
-            &mut cursor_style
-        );
         let mut cursor_blinking = false;
-        render_get!(
-            self.state,
-            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING,
-            &mut cursor_blinking
-        );
+        unsafe {
+            let terminal = self.terminal;
+            let _ = ghostty::ghostty_terminal_get(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_X,
+                &mut cursor_x as *mut u16 as *mut std::ffi::c_void,
+            );
+            let _ = ghostty::ghostty_terminal_get(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_Y,
+                &mut cursor_y as *mut u16 as *mut std::ffi::c_void,
+            );
+            let _ = ghostty::ghostty_terminal_get(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_VISIBLE,
+                &mut cursor_visible as *mut bool as *mut std::ffi::c_void,
+            );
+            let _ = ghostty::ghostty_terminal_get(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_STYLE,
+                &mut cursor_style as *mut u32 as *mut std::ffi::c_void,
+            );
+            let _ = ghostty::ghostty_terminal_get(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_BLINKING,
+                &mut cursor_blinking as *mut bool as *mut std::ffi::c_void,
+            );
+        }
+
+        // The cursor is in the active area, and the frame shows the viewport.
+        // When the viewport is the active area — which is where it is whenever
+        // the user is at the live edge — the two are the same rows and the
+        // cursor's row is its row.
+        //
+        // When the viewport is up in the scrollback the cursor is not on the
+        // screen, and there is nothing to draw. The scrollbar says which: its
+        // offset is the viewport's first row, and the live edge is the last
+        // row the viewport can hold.
+        let mut scrollbar: ghostty::GhosttyTerminalScrollbar = std::mem::zeroed();
+        unsafe {
+            let _ = ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_SCROLLBAR,
+                &mut scrollbar as *mut _ as *mut std::ffi::c_void,
+            );
+        }
+        let viewport_at_live_edge = scrollbar.offset
+            >= (scrollbar.total.saturating_sub(scrollbar.len)) as u32;
+        let cursor_has_value = viewport_at_live_edge;
 
         // The cursor's colour: an explicit one if the terminal set it, the
         // foreground otherwise. Painting it black because "no explicit colour"
