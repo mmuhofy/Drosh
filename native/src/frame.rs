@@ -378,12 +378,14 @@ impl FrameSource {
                 ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_STYLE,
                 &mut cursor_style as *mut u32 as *mut std::ffi::c_void,
             );
-            let _ = ghostty::ghostty_terminal_get(
-                terminal,
-                ghostty::GHOSTTY_TERMINAL_DATA_CURSOR_BLINKING,
-                &mut cursor_blinking as *mut bool as *mut std::ffi::c_void,
-            );
         }
+        // Whether the cursor blinks is the render state's answer: the terminal
+        // has no blinking of its own.
+        render_get!(
+            self.state,
+            ghostty::GHOSTTY_RENDER_STATE_DATA_CURSOR_BLINKING,
+            &mut cursor_blinking
+        );
 
         // The cursor is in the active area, and the frame shows the viewport.
         // When the viewport is the active area — which is where it is whenever
@@ -403,7 +405,7 @@ impl FrameSource {
             );
         }
         let viewport_at_live_edge = scrollbar.offset
-            >= (scrollbar.total.saturating_sub(scrollbar.len)) as u32;
+            >= scrollbar.total.saturating_sub(scrollbar.len);
         let cursor_has_value = viewport_at_live_edge;
 
         // The cursor's colour: an explicit one if the terminal set it, the
