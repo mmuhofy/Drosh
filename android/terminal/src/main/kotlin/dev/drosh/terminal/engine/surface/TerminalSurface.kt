@@ -189,6 +189,12 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        // The gesture detector's own double-tap detection is off: with it on,
+        // the second tap of a pair never reaches the single-tap callback, and
+        // a terminal has to raise the keyboard the instant the finger lands.
+        // The taps are counted in `handleTap` instead.
+        gestureDetector.setOnDoubleTapListener(null)
+
         renderThread.start()
         renderThread.post(
             RenderThread.Command.Surface(holder.surface, width, height),
@@ -369,16 +375,18 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         },
     )
 
+    // The gesture detector's own double-tap detection is switched off: with it
+    // on, the second tap of a pair is routed to the double-tap callback and
+    // never reaches the single-tap one — and a terminal has to raise the
+    // keyboard the instant the finger lands, not after a double-tap timeout.
+    // The taps are counted here instead.
     private val gestureDetector = GestureDetector(
         context,
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(event: MotionEvent): Boolean = true
 
             override fun onSingleTapUp(event: MotionEvent): Boolean {
-                if (!hasFocus()) {
-                    requestFocus()
-                    requestKeyboard()
-                }
+                handleTap(event)
                 return true
             }
 
@@ -409,6 +417,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     )
 
     private var fling: android.widget.Scroller? = null
+
+    /** The tap run: one tap, two taps, three taps. */
+    private var tapCount: Int = 0
+    private var lastTapAt: Long = 0L
+    private var lastTapX: Float = 0f
+    private var lastTapY: Float = 0f
+
+    /** How long a second tap may follow the first and still be a double tap. */
+    private val tapTimeoutMillis: Long =
+        android.view.ViewConfiguration.getDoubleTapTimeout().toLong()
+
+    /** How far the second tap may be and still be a double tap. */
+    private val tapSlop: Float =
+        android.view.ViewConfiguration.get(context).scaledDoubleTapSlop.toFloat()
 
     /**
      * Whether the last scroll was refused because the viewport is against an
@@ -441,6 +463,54 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             gestureDetector.onTouchEvent(event)
         }
         return true
+    }
+
+    /**
+     * A tap, and what it counts as.
+     *
+     * One tap raises the keyboard, two select the word under the finger and
+     * three select the line. The taps are counted here rather than by the
+     * gesture detector, because its own double-tap detection hides the second
+     * tap from the single-tap callback — and a terminal that has to raise the
+     * keyboard the instant the finger lands cannot wait for a double-tap
+     * timeout to find out.
+     */
+    private fun handleTap(event: MotionEvent) {
+        val now = event.eventTime
+        val continues = now - lastTapAt <= tapTimeoutMillis &&
+            kotlin.math.abs(event.x - lastTapX) <= tapSlop &&
+            kotlin.math.abs(event.y - lastTapY) <= tapSlop
+        tapCount = if (continues) tapCount + 1 else 1
+        lastTapAt = now
+        lastTapX = event.x
+        lastTapY = event.y
+
+        when (tapCount) {
+            1 -> {
+                if (!hasFocus()) {
+                    requestFocus()
+                    requestKeyboard()
+                }
+            }
+            2 -> selectAt(event.x, event.y, word = true)
+            else -> selectAt(event.x, event.y, word = false)
+        }
+    }
+
+    /**
+     * The cell under a point, and the selection it asks for.
+     *
+     * The picture may be shifted inside the viewport — the user dragged between
+     * two rows — and the tap is on the picture, not on the grid, so the shift is
+     * taken off before the row is counted.
+     */
+    private fun selectAt(x: Float, y: Float, word: Boolean): Boolean {
+        val cellW = cellWidth.coerceAtLeast(1f)
+        val cellH = cellHeight.coerceAtLeast(1f)
+        val column = (x / cellW).toInt()
+        val row = ((y - renderThread.scrollOffsetPx) / cellH).toInt()
+        if (row < 0) return false
+        return applySelection(row, column, word)
     }
 
     /** Move the viewport by a finger's travel, in pixels. */

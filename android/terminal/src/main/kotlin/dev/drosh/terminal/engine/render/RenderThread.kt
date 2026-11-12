@@ -175,6 +175,16 @@ class RenderThread(
     private var renderer: FrameRenderer? = null
 
     /**
+     * How far the picture is shifted inside the viewport, in pixels.
+     *
+     * The picture moves by this much when the user drags between two rows, and
+     * a tap has to be read against it: a tap's pixel is on the picture, and the
+     * picture is not where the grid is.
+     */
+    @Volatile
+    var scrollOffsetPx: Float = 0f
+
+    /**
      * The font's own pixel size, from the newest cell command that carried one.
      *
      * It is kept here rather than only on the renderer because the renderer is
@@ -406,6 +416,10 @@ class RenderThread(
                 renderer?.focused = focused
                 drawFrame()
             }
+
+            // The picture's shift is the loop's business, and a caller that
+            // reads a tap against the grid needs it.
+            scrollOffsetPx = layout.size.scrollOffsetPx
 
             if (!dirty) {
                 awaitWork(now)
