@@ -395,19 +395,28 @@ private fun ReadyScreen(
     // the phone buzzes, and — when the app is not on screen — a notification
     // says it, because a program that says something while the user is
     // looking at something else has to be able to say it.
-    DisposableEffect(terminalManager) {
+    val bellActivity = LocalDroshActivity.current as? android.app.Activity
+    val bellLifecycleOwner = LocalLifecycleOwner.current
+
+    // Whether the app is on screen. The bell is a notification only when it is
+    // not: a notification for a flash the user just watched is noise.
+    var appOnScreen by remember { mutableStateOf(true) }
+    DisposableEffect(bellLifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            appOnScreen = event == Lifecycle.Event.ON_RESUME
+        }
+        bellLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { bellLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    DisposableEffect(terminalManager, bellActivity) {
         TerminalBell.onBell = {
             val pane = terminalManager.focusedTerminal()
             pane?.bell()
-
-            val activity = LocalDroshActivity.current as? android.app.Activity
-            val onScreen = activity?.lifecycle?.currentState?.isAtLeast(
-                androidx.lifecycle.Lifecycle.State.RESUMED,
-            ) == true
-            if (!onScreen && activity != null) {
+            if (!appOnScreen && bellActivity != null) {
                 val name = pane?.sessionName?.takeIf { it.isNotBlank() }
-                    ?: activity.getString(dev.drosh.ui.R.string.app_name)
-                TerminalBell.notify(activity, name)
+                    ?: bellActivity.getString(dev.drosh.ui.R.string.app_name)
+                TerminalBell.notify(bellActivity, name)
             }
         }
         onDispose { TerminalBell.onBell = null }
