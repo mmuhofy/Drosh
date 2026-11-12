@@ -19,6 +19,7 @@ use jni::JNIEnv;
 use super::{jboolean, jint, jlong};
 use super::{read_string, session_lock};
 use crate::ghostty;
+use crate::session::MOUSE_BUFFER_LEN;
 use crate::pty::Pty;
 
 /// The largest escape sequence one key event can produce, as the stack buffer
@@ -305,7 +306,16 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
         return -1;
     }
 
-    let bytes = session.encode_mouse(
+    // The caller sized the buffer; a sequence that will not fit is refused
+    // rather than truncated, because half an escape sequence is worse than
+    // none.
+    let capacity = match env.get_array_length(&out) {
+        Ok(length) => length as usize,
+        Err(_) => return -2,
+    };
+    let mut scratch = vec![0u8; capacity.min(MOUSE_BUFFER_LEN)];
+
+    let written = session.encode_mouse_into(
         action.max(0) as u32,
         button.max(0) as u32,
         x,
@@ -315,31 +325,79 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
         cell_width as u32,
         cell_height as u32,
         button_pressed != 0,
+        &mut scratch,
     );
-    if bytes.is_empty() {
+    if written == 0 {
         return 0;
-    }
-
-    // The caller sized the buffer; a sequence that will not fit is refused
-    // rather than truncated, because half an escape sequence is worse than
-    // none.
-    let capacity = match env.get_array_length(&out) {
-        Ok(length) => length as usize,
-        Err(_) => return -2,
-    };
-    if bytes.len() > capacity {
-        return -2;
     }
 
     if env
         .set_byte_array_region(
             &out,
             0,
-            unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const i8, bytes.len()) },
+            unsafe { std::slice::from_raw_parts(scratch.as_ptr() as *const i8, written) },
         )
         .is_err()
     {
         return -2;
     }
-    bytes.len() as jint
+    written as jint
+}
+
+/// Encode a mouse event and write it to the PTY, in one crossing.
+///
+/// The same shape as the key path: the sequence is built in a stack buffer and
+/// written to the PTY, so a tap or a drag is one crossing and no allocation.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeEncodeWriteMouse(
+    mut env: JNIEnv,
+    _class: JClass,
+    session_handle: jlong,
+    pty_handle: jlong,
+    action: jint,
+    button: jint,
+    x: jfloat,
+    y: jfloat,
+    width: jint,
+    height: jint,
+    cell_width: jint,
+    cell_height: jint,
+    button_pressed: jboolean,
+) -> jint {
+    if width < 0 || height < 0 || cell_width <= 0 || cell_height <= 0 {
+        return -1;
+    }
+
+    let mut scratch = [0u8; MOUSE_BUFFER_LEN];
+    let written = {
+        let Some(mut session) = session_lock(session_handle) else {
+            return -1;
+        };
+        session.encode_mouse_into(
+            action.max(0) as u32,
+            button.max(0) as u32,
+            x,
+            y,
+            width as u32,
+            height as u32,
+            cell_width as u32,
+            cell_height as u32,
+            button_pressed != 0,
+            &mut scratch,
+        )
+    };
+    if written == 0 {
+        return 0;
+    }
+
+    if pty_handle > 0 {
+        let pty = unsafe { &mut *(pty_handle as usize as *mut Pty) };
+        if let Err(error) = pty.write(&scratch[..written]) {
+            log::debug!("drosh-native: the pty write failed: {error}");
+            return -1;
+        }
+    }
+    let _ = &mut env;
+    written as jint
 }

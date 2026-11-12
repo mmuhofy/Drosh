@@ -26,7 +26,7 @@ const PALETTE_LEN: usize = 256;
 /// The mouse encoder's output buffer. An SGR 1006 sequence is under twenty
 /// bytes; sixty-four covers every format the engine can produce with room to
 /// spare, and a short answer is refused by the caller rather than truncated.
-const MOUSE_BUFFER_LEN: usize = 64;
+pub(crate) const MOUSE_BUFFER_LEN: usize = 64;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::frame::{FrameError, FrameSource};
@@ -616,7 +616,11 @@ impl Session {
     /// cell-grained about. That state lives in the encoder, so the encoder is
     /// created once and reused across events.
     #[allow(clippy::too_many_arguments)]
-    pub fn encode_mouse(
+    /// Encodes a mouse event into the caller's buffer.
+    ///
+    /// The buffer belongs to the caller, so a touch does not allocate a vector
+    /// for a sequence of a dozen bytes.
+    pub fn encode_mouse_into(
         &mut self,
         action_code: u32,
         button_code: u32,
@@ -627,7 +631,8 @@ impl Session {
         cell_width: u32,
         cell_height: u32,
         button_pressed: bool,
-    ) -> Vec<u8> {
+        out: &mut [u8],
+    ) -> usize {
         if self.mouse.is_none() {
             let mut encoder = std::ptr::null_mut();
             if !ghostty::ok(unsafe {
@@ -669,10 +674,9 @@ impl Session {
 
         let mut event = std::ptr::null_mut();
         if !ghostty::ok(unsafe { ghostty::ghostty_mouse_event_new(std::ptr::null(), &mut event) }) {
-            return Vec::new();
+            return 0;
         }
 
-        let mut buffer = vec![0u8; MOUSE_BUFFER_LEN];
         let mut written: usize = 0;
 
         unsafe {
@@ -713,19 +717,18 @@ impl Session {
             let result = ghostty::ghostty_mouse_encoder_encode(
                 encoder,
                 event,
-                buffer.as_mut_ptr().cast(),
-                buffer.len(),
+                out.as_mut_ptr().cast(),
+                out.len(),
                 &mut written,
             );
             ghostty::ghostty_mouse_event_free(event);
 
             if !ghostty::ok(result) || written == 0 {
-                return Vec::new();
+                return 0;
             }
         }
 
-        buffer.truncate(written);
-        buffer
+        written
     }
 }
 

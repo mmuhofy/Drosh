@@ -47,435 +47,36 @@ import dev.drosh.terminal.engine.render.RenderThread
  */
 class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
 
-    /** Where keyboard bytes go. Set by the host when a session starts. */
-    @Volatile
-    private var ptyHandle: Long = 0
 
-    /** The session handle, for frames and keys. */
-    @Volatile
-    private var sessionHandle: Long = 0
-
-    /** The font's own size, in pixels: what the glyphs are rasterised at. */
-    @Volatile
-    private var fontPx: Float = 0f
-
-    /** The cell size the font measured, in pixels. */
-    @Volatile
-    private var cellWidth = 1f
-
-    @Volatile
-    private var cellHeight = 1f
-
-    /**
-     * The render loop.
-     *
-     * Created here so the surface and the loop have the same lifetime: a loop
-     * without a surface draws into nothing, and a surface without a loop is a
-     * black rectangle.
-     */
-    private val renderThread = RenderThread { timing ->
-        if (timing.swapped) {
-            framesDrawn += 1
-            lastCellsDrawn = timing.cellsDrawn
-        }
-    }
-
-    /** The last frame's shape, as the engine reported it. */
-    @Volatile
-    var lastFrameShape: String = "none"
-
-    /** Why the renderer is not drawing, when it is not. */
-    val rendererFailure: String? get() = renderThread.rendererFailure
-
-    /** Cells the last drawn frame carried. */
-    @Volatile
-    var lastCellsDrawn: Int = 0
-        private set
-
-    /** Frames the loop drew. */
-    @Volatile
-    var framesDrawn: Int = 0
-        private set
-
-    /** Told when the child exits, with its status. */
-    var onExit: ((Int) -> Unit)? = null
-
-    /** Told when the grid's shape changed, so the PTY can be resized too. */
-    var onGridChanged: ((columns: Int, rows: Int) -> Unit)? = null
-
-    init {
-        renderThread.onFrameShape = {
-                columns: Int,
-                rows: Int,
-                cells: Int,
-                stepX: Float,
-                stepY: Float,
-                cursorColumn: Int,
-                cursorRow: Int,
-                cursorStyle: Int,
-                cursorVisible: Boolean,
-                cursorColor: Int,
-                cellColours: String,
-            ->
-            lastFrameShape = "${columns}x$rows cells=$cells " +
-                "step=${"%.1f".format(stepX)}x${"%.1f".format(stepY)} " +
-                // The cursor, as the engine reported it: where it is, what it
-                // looks like, and the colour it was given. A cursor in the
-                // wrong place is a question the numbers answer and the code
-                // cannot.
-                "cursor=$cursorColumn,$cursorRow style=$cursorStyle " +
-                "vis=$cursorVisible #${"%06x".format(cursorColor and 0xffffff)}" +
-                cellColours
-        }
-        holder.addCallback(this)
-        // The surface draws its own pixels; the platform must not clear it to
-        // the window background between frames.
-        holder.setFormat(android.graphics.PixelFormat.OPAQUE)
-        setZOrderOnTop(false)
-
-        renderThread.frameSource = { frame() }
-        renderThread.onGridChange = { columns, rows ->
-            // Three things have to agree about the shape: the grid drawn, the
-            // engine's own terminal, and the process. The engine's terminal is
-            // the one that decides where a line wraps, so a resize that missed
-            // it would lay the shell's output out for a shape the screen does
-            // not have.
-            val session = sessionHandle
-            if (session != 0L) {
-                // Where the viewport was, so it can be put back.
-                //
-                // A keyboard opening changes the height, and a resize that
-                // loses the position throws the user back to the live edge —
-                // the screen jumps while the keyboard is still moving. The
-                // rows of the scrollback do not move when only the height
-                // changes, so the same offset is the same place.
-                val before = NativeSession.scrollbar(session)
-                NativeSession.resize(session, columns, rows, cellWidth.toInt(), cellHeight.toInt())
-                val after = NativeSession.scrollbar(session)
-                if (before != null && after != null && before.offset != after.offset) {
-                    // Put the viewport back where it was: the same absolute
-                    // row, asked for by row. A resize that loses the position
-                    // throws the user back to the live edge while the keyboard
-                    // is still moving.
-                    NativeSession.scroll(session, NativeSession.SCROLL_ROW, after.offset)
-                }
-                // The picture's shift is measured in the old cell's pixels, and
-                // the cell is what changed: it starts again from a row.
-                scrollMachine.reset()
-                renderThread.post(RenderThread.Command.ScrollOffset(0f))
-            }
-            val pty = ptyHandle
-            if (pty != 0L) {
-                NativePty.resize(pty, columns, rows, cellWidth.toInt(), cellHeight.toInt())
-            }
-            onGridChanged?.invoke(columns, rows)
-        }
-    }
-
-    // --- lifecycle ----------------------------------------------------------
-
-    /**
-     * The window's focus decides the cursor's shape: a terminal that is not
-     * where the user is typing draws a hollow cursor, so the cursor says where
-     * it is without pretending to be the place the keystrokes go.
-     */
-    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
-        super.onWindowFocusChanged(hasWindowFocus)
-        renderThread.focused = hasWindowFocus
-        renderThread.invalidate()
-    }
-
-    override fun surfaceCreated(holder: SurfaceHolder) {
-        // The gesture detector's own double-tap detection is off: with it on,
-        // the second tap of a pair never reaches the single-tap callback, and
-        // a terminal has to raise the keyboard the instant the finger lands.
-        // The taps are counted in `handleTap` instead.
-        gestureDetector.setOnDoubleTapListener(null)
-
-        renderThread.start()
-        renderThread.post(
-            RenderThread.Command.Surface(holder.surface, width, height),
-        )
-    }
-
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        renderThread.post(RenderThread.Command.Surface(holder.surface, width, height))
-    }
-
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        // The surface is going away, not the context: detach the window and
-        // keep the GL context alive, so a keyboard opening does not have to
-        // rebuild the atlas.
-        renderThread.post(RenderThread.Command.Surface(null, 0, 0))
-    }
-
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        renderThread.stop()
-    }
-
-    // --- session ------------------------------------------------------------
-
-    /**
-     * Attach a terminal and its process.
-     *
-     * Both handles come from the native library; this view does not create
-     * either. A session without a PTY is legitimate — a bridged session reads
-     * from elsewhere — and a PTY without a session is not.
-     */
-    fun attach(session: Long, pty: Long, cellWidthPx: Float, cellHeightPx: Float) {
-        sessionHandle = session
-        ptyHandle = pty
-        cellWidth = cellWidthPx
-        cellHeight = cellHeightPx
-        // A new session, a new viewport: the fraction the last one was left at
-        // belongs to rows that are not there any more.
-        scrollMachine.reset()
-        // The cell first, the surface second: a surface laid out against the
-        // default one-pixel cell is a grid of a thousand columns.
-        renderThread.post(RenderThread.Command.Cell(cellWidthPx, cellHeightPx, 0f))
-        // And the screen is wiped: the session behind this pane is a different
-        // one now, and until its shell prints there is nothing to draw — the
-        // renderer keeps the previous picture when a frame draws nothing, so
-        // without this the old session stays on screen.
-        renderThread.post(RenderThread.Command.Clear)
-        renderThread.invalidate()
-    }
-
-    /**
-     * A program rang the bell.
-     *
-     * The terminal flashes, and the app is told so it can buzz and, when the
-     * app is not on screen, say it in a notification.
-     */
-    fun bell() {
-        renderThread.post(RenderThread.Command.Bell)
-        renderThread.invalidate()
-        // The buzz is the phone's half of the bell: the flash is the screen's.
-        performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-    }
-
-    /**
-     * The picture behind the terminal.
-     *
-     * The view's own background is the picture and the surface is wiped
-     * transparent, so the picture shows through the parts of the grid that
-     * have no colour of their own. Without a picture the terminal paints its
-     * own background, as it always did.
-     */
-    fun setBackgroundImage(bitmap: android.graphics.Bitmap?, opacity: Int) {
-        if (bitmap == null) {
-            background = null
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            renderThread.post(RenderThread.Command.TransparentBackground(false))
-            renderThread.invalidate()
-            return
-        }
-
-        val drawable = android.graphics.drawable.BitmapDrawable(resources, bitmap).apply {
-            alpha = opacity.coerceIn(0, 255)
-        }
-        background = drawable
-        setBackground(drawable)
-        renderThread.post(RenderThread.Command.TransparentBackground(true))
-        renderThread.invalidate()
-    }
-
-    /**
-     * Moves the selection's end to a point.
-     *
-     * The handles at the ends of a selection are the way a user changes a
-     * selection they did not get right: the anchor is the *other* end, so the
-     * drag grows the selection towards the finger.
-     */
-    fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean {
+    /** Encode one mouse event and write it to the child; true when bytes went out. */
+    private fun sendMouse(
+        action: Int,
+        button: Int,
+        x: Float,
+        y: Float,
+        buttonPressed: Boolean,
+    ): Boolean {
+        // One crossing: the sequence is encoded and written to the PTY
+        // together, so a tap or a drag does not build a byte array on the way.
         val session = sessionHandle
-        if (session == 0L) return false
-        val cells = selectedCells ?: return false
-        val point = cellAt(x, y) ?: return false
-
-        // The anchor is the end that stays.
-        val anchor = if (fromEnd) {
-            cells.first to cells.second
-        } else {
-            selectionEnd ?: (cells.first to cells.second)
-        }
-
-        NativeSelection.press(session, anchor.first, anchor.second, NativeSelection.BEHAVIOR_WORD)
-        val dragged = NativeSelection.drag(
-            session,
-            point.first,
-            point.second,
-            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
-            cellWidth.toInt().coerceAtLeast(1),
-            height.coerceAtLeast(1),
+        val pty = ptyHandle
+        if (session == 0L || pty == 0L) return false
+        val written = NativeInput.encodeWriteMouse(
+            session = session,
+            pty = pty,
+            action = action,
+            button = button,
+            x = x,
+            y = y,
+            width = width.coerceAtLeast(1),
+            height = height.coerceAtLeast(1),
+            cellWidth = cellWidth.toInt().coerceAtLeast(1),
+            cellHeight = cellHeight.toInt().coerceAtLeast(1),
+            buttonPressed = buttonPressed,
         )
-        val released = NativeSelection.release(
-            session,
-            point.first,
-            point.second,
-            NativeSelection.BEHAVIOR_WORD,
-        )
-        val result = released ?: dragged
-        if (result == null || result.size < 4) return false
-        setSelectedCells(result[0], result[1], selectionLength(result))
-        setSelectionEnd(result[2], result[3])
-        renderThread.invalidate()
-        return true
+        return written > 0
     }
 
-    /** The colour a search match is drawn in, from the theme. */
-    fun setHighlightColour(argb: Int) {
-        renderThread.post(RenderThread.Command.HighlightColour(argb))
-        renderThread.invalidate()
-    }
-
-    /**
-     * Told that the selection changed.
-     *
-     * The chrome's selection menu hangs off this: without it the menu never
-     * comes up, and a selection that cannot be copied is a selection that does
-     * not exist.
-     */
-    var onSelectionChanged: ((Boolean) -> Unit)? = null
-
-    /** The theme's terminal background, for the surface the grid is drawn on. */
-    fun setBackground(argb: Int) {
-        renderThread.post(RenderThread.Command.Background(argb))
-        renderThread.invalidate()
-    }
-
-    /** Detach both, without freeing them: the host owns their lifetime. */
-    fun detach() {
-        ptyHandle = 0
-        sessionHandle = 0
-        // An in-flight drag belonged to the old session: its press was never
-        // released, and a release sent to the next one would be a click the
-        // new program never asked for.
-        mouseDragging = false
-        mouseDragCellX = -1
-        mouseDragCellY = -1
-    }
-
-    /** Tell the loop the font's cell changed, and the grid is laid out again. */
-    fun setCell(width: Float, height: Float, fontPx: Float = 0f) {
-        cellWidth = width
-        cellHeight = height
-        this.fontPx = fontPx
-        renderThread.post(RenderThread.Command.Cell(width, height, fontPx))
-    }
-
-    /**
-     * Tell the loop the font's cell changed, mid-pinch.
-     *
-     * The cell is bigger and the grid keeps its shape: the text grows past
-     * the edge of the screen and the engine is not resized. Reflowing on every
-     * step of the gesture is what makes a zoom stutter.
-     */
-    fun setZoomCell(width: Float, height: Float, fontPx: Float = 0f) {
-        cellWidth = width
-        cellHeight = height
-        this.fontPx = fontPx
-        renderThread.post(RenderThread.Command.Cell(width, height, fontPx, reflow = false))
-    }
-
-    /** The sub-line scroll remainder, in pixels — drawing only. */
-    private fun postScrollOffset(pixels: Float) {
-        renderThread.post(RenderThread.Command.ScrollOffset(pixels))
-    }
-
-    // --- keyboard ----------------------------------------------------------
-    //
-    // A terminal is not a text field, and an IME is built for one: it composes a
-    // word, shows candidates, and rewrites what it already sent. A shell has no
-    // such thing — once a byte reaches the PTY it is typed. So the connection
-    // below sends what was committed and nothing else.
-
-    init {
-        isFocusable = true
-        isFocusableInTouchMode = true
-    }
-
-    // --- gestures ------------------------------------------------------------
-
-    /**
-     * The user's master switch for mouse reporting, pushed in by the host.
-     *
-     * Off, gestures always drive the local scrollback and the keyboard,
-     * whatever the running program asked for. On, gestures are reported to
-     * programs that turned a tracking mode on, and stay local otherwise.
-     */
-    @Volatile
-    var mouseReportingEnabled: Boolean = true
-
-    /** The wheel drag's axis lock: 0 none, 1 vertical, 2 horizontal. */
-    private var mouseAxis: Int = AXIS_NONE
-
-    /** The wheel's sub-cell remainder along the locked axis, in cells. */
-    private var mouseWheelRemainder: Float = 0f
-
-    /**
-     * True while a long-press has the left button held for a drag.
-     *
-     * The whole touch stream is consumed while it runs: its moves are motion
-     * reports and must never reach the detectors, or a wheel scroll would fire
-     * underneath the drag the program is trying to read.
-     */
-    private var mouseDragging: Boolean = false
-
-    /** The last cell a motion report was sent for — the protocol is cell-grained. */
-    private var mouseDragCellX: Int = -1
-    private var mouseDragCellY: Int = -1
-
-    /** The mouse encoder's output, reused. SGR sequences are short. */
-    private val mouseBuffer = ByteArray(64)
-
-    /**
-     * True when touch gestures should be reported to the running program as
-     * mouse events: the user enabled mouse reporting *and* the program turned
-     * a tracking mode on. Reads the engine's mode bits, which cross the JNI
-     * once per gesture event — the same read `dragByPixels` already does.
-     */
-    private fun mouseReporting(): Boolean {
-        if (!mouseReportingEnabled) return false
-        val session = sessionHandle
-        if (session == 0L) return false
-        return NativeSession.modes(session) and MODE_MOUSE_TRACKING != 0
-    }
-
-    /** The state [mouseReporting] reads, as the host's link tap also asks it. */
-    val mouseReportingActive: Boolean
-        get() = mouseReporting()
-
-    /**
-     * A left-button click: press, then release, at the finger's position.
-     *
-     * Both travel even though the encoder may answer only one — a tracking
-     * mode that reports releases itself (SGR 1006 does) wants the pair.
-     */
-    private fun sendMouseClick(x: Float, y: Float) {
-        sendMouse(
-            NativeInput.MOUSE_ACTION_PRESS,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = false,
-        )
-        sendMouse(
-            NativeInput.MOUSE_ACTION_RELEASE,
-            NativeInput.MOUSE_BUTTON_LEFT,
-            x,
-            y,
-            buttonPressed = false,
-        )
-    }
-
-    /**
-     * Begins a left-button drag at the long-press point: the button is pressed
-     * and *held*, and the following moves become motion reports until the
-     * finger lifts. A short haptic marks the grab, the same feedback the
-     * selection path gives.
-     */
     private fun startMouseDrag(x: Float, y: Float) {
         val session = sessionHandle
         if (session == 0L) return
@@ -588,17 +189,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** Sends `count` wheel presses — encoded once, written once per step. */
     private fun emitWheel(button: Int, count: Int, x: Float, y: Float) {
-        val bytes = encodeMouseBytes(
-            NativeInput.MOUSE_ACTION_PRESS,
-            button,
-            x,
-            y,
-            buttonPressed = false,
-        )
         // The engine may answer nothing — the program left mouse mode between
         // two moves — and an empty write is not a report.
-        if (bytes.isEmpty()) return
-        repeat(count) { write(bytes) }
+        repeat(count) {
+            if (!sendMouse(
+                    NativeInput.MOUSE_ACTION_PRESS,
+                    button,
+                    x,
+                    y,
+                    buttonPressed = false,
+                )
+            ) {
+                return
+            }
+        }
     }
 
     /**
@@ -609,46 +213,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * decides the wire format (SGR 1006, X10, ...) from its own state; nothing
      * here does.
      */
-    private fun encodeMouseBytes(
-        action: Int,
-        button: Int,
-        x: Float,
-        y: Float,
-        buttonPressed: Boolean,
-    ): ByteArray {
-        val session = sessionHandle
-        if (session == 0L) return ByteArray(0)
-        val written = NativeInput.encodeMouse(
-            handle = session,
-            action = action,
-            button = button,
-            x = x,
-            y = y,
-            viewWidth = width.coerceAtLeast(1),
-            viewHeight = height.coerceAtLeast(1),
-            cellWidth = cellWidth.toInt().coerceAtLeast(1),
-            cellHeight = cellHeight.toInt().coerceAtLeast(1),
-            buttonPressed = buttonPressed,
-            out = mouseBuffer,
-        )
-        if (written <= 0) return ByteArray(0)
-        return mouseBuffer.copyOf(written)
-    }
-
-    /** Encode one mouse event and write it to the child; true when bytes went out. */
-    private fun sendMouse(
-        action: Int,
-        button: Int,
-        x: Float,
-        y: Float,
-        buttonPressed: Boolean,
-    ): Boolean {
-        val bytes = encodeMouseBytes(action, button, x, y, buttonPressed)
-        if (bytes.isEmpty()) return false
-        write(bytes)
-        return true
-    }
-
     /** The pinch's arithmetic: dead zone, step clamp, measured from the origin. */
     private val pinchMachine = PinchMachine(
         minSp = TerminalZoom.MIN_SP,
@@ -731,6 +295,25 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     // never reaches the single-tap one — and a terminal has to raise the
     // keyboard the instant the finger lands, not after a double-tap timeout.
     // The taps are counted here instead.
+    /** The wheel drag's axis lock: 0 none, 1 vertical, 2 horizontal. */
+    private var mouseAxis: Int = AXIS_NONE
+
+    /** The wheel's sub-cell remainder along the locked axis, in cells. */
+    private var mouseWheelRemainder: Float = 0f
+
+    /**
+     * True while a long-press has the left button held for a drag.
+     *
+     * The whole touch stream is consumed while it runs: its moves are motion
+     * reports and must never reach the detectors, or a wheel scroll would fire
+     * underneath the drag the program is trying to read.
+     */
+    private var mouseDragging: Boolean = false
+
+    /** The last cell a motion report was sent for — the protocol is cell-grained. */
+    private var mouseDragCellX: Int = -1
+    private var mouseDragCellY: Int = -1
+
     private val gestureDetector = GestureDetector(
         context,
         object : GestureDetector.SimpleOnGestureListener() {

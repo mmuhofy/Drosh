@@ -143,6 +143,56 @@ object NativeInput {
      * @return the number of bytes written, 0 when the event produces nothing
      *         (an action the tracking mode does not report), or a negative code
      */
+    /**
+     * Encodes a mouse event and writes it to the PTY, in one crossing.
+     *
+     * The same shape as the key path: the sequence is built in a stack buffer
+     * and written to the PTY, so a tap or a drag is one crossing and no
+     * allocation.
+     */
+    fun encodeWriteMouse(
+        session: Long,
+        pty: Long,
+        action: Int,
+        button: Int,
+        x: Float,
+        y: Float,
+        width: Int,
+        height: Int,
+        cellWidth: Int,
+        cellHeight: Int,
+        buttonPressed: Boolean,
+    ): Int {
+        if (session == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeEncodeWriteMouse(
+            session,
+            pty,
+            action,
+            button,
+            x,
+            y,
+            width,
+            height,
+            cellWidth,
+            cellHeight,
+            if (buttonPressed) 1 else 0,
+        )
+    }
+
+    private external fun nativeEncodeWriteMouse(
+        session: Long,
+        pty: Long,
+        action: Int,
+        button: Int,
+        x: Float,
+        y: Float,
+        width: Int,
+        height: Int,
+        cellWidth: Int,
+        cellHeight: Int,
+        buttonPressed: Int,
+    ): Int
+
     private external fun nativeEncodeMouse(
         handle: Long,
         action: Int,
