@@ -30,6 +30,7 @@
 // a test binary on a build machine cannot link it.
 #[cfg(feature = "engine")]
 pub mod bell;
+#[cfg(feature = "engine")]
 pub mod clipboard;
 #[cfg(feature = "engine")]
 pub mod frame;

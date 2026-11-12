@@ -731,7 +731,13 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 val session = sessionHandle
                 if (session == 0L) return
                 val cell = cellAt(event.x, event.y) ?: return
-                if (NativeSelection.press(session, cell.first, cell.second)) {
+                if (NativeSelection.press(
+                        session,
+                        cell.first,
+                        cell.second,
+                        NativeSelection.BEHAVIOR_WORD,
+                    ) != null
+                ) {
                     longPressSelecting = true
                     selectionAnchor = cell
                     setSelectedCells(cell.first, cell.second, 1)
@@ -761,7 +767,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 if (longPressSelecting && session != 0L) {
                     val cell = cellAt(current.x, current.y)
                     if (cell != null) {
-                        NativeSelection.drag(
+                        val cells = NativeSelection.drag(
                             session,
                             cell.first,
                             cell.second,
@@ -769,6 +775,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                             cellWidth.toInt().coerceAtLeast(1),
                             height.coerceAtLeast(1),
                         )
+                        if (cells != null && cells.size >= 4) {
+                            setSelectedCells(cells[0], cells[1], selectionLength(cells))
+                        }
                         // The selection grows from the anchor to the cell the
                         // finger is on.
                         val anchor = selectionAnchor
@@ -885,7 +894,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             val session = sessionHandle
             val cell = cellAt(event.x, event.y)
             if (session != 0L && cell != null) {
-                NativeSelection.release(session, cell.first, cell.second)
+                val cells = NativeSelection.release(
+                    session,
+                    cell.first,
+                    cell.second,
+                    NativeSelection.BEHAVIOR_WORD,
+                )
+                if (cells != null && cells.size >= 4) {
+                    setSelectedCells(cells[0], cells[1], selectionLength(cells))
+                }
             }
             longPressSelecting = false
             renderThread.invalidate()
@@ -941,9 +958,54 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     requestKeyboard()
                 }
             }
-            2 -> selectAt(event.x, event.y, word = true)
-            else -> selectAt(event.x, event.y, word = false)
+            // The gesture is the engine's, and it is told what this click
+            // means: a double tap is a word, a triple tap is the line. The
+            // engine installs the selection, so the cells it covers come back
+            // marked in the frame — a selection that is only remembered as text
+            // is a selection the user cannot see.
+            2 -> selectByGesture(event.x, event.y, NativeSelection.BEHAVIOR_WORD)
+            else -> selectByGesture(event.x, event.y, NativeSelection.BEHAVIOR_LINE)
         }
+    }
+
+    /**
+     * Selects with the engine's gesture.
+     *
+     * A press and a release, with the behaviour the caller means. The engine
+     * answers with the cells the selection covers, and those are the cells the
+     * chrome's menu hangs on.
+     */
+    private fun selectByGesture(x: Float, y: Float, behavior: Int): Boolean {
+        val session = sessionHandle
+        if (session == 0L) return false
+        val cell = cellAt(x, y) ?: return false
+        val pressed = NativeSelection.press(session, cell.first, cell.second, behavior)
+        val released = NativeSelection.release(session, cell.first, cell.second, behavior)
+        val cells = released ?: pressed
+        if (cells == null || cells.size < 4) return false
+
+        selected = NativeSelection.text(session)
+        selectionRect = null
+        setSelectedCells(cells[0], cells[1], selectionLength(cells))
+        renderThread.invalidate()
+        return selected.isNotEmpty()
+    }
+
+    /**
+     * How many cells the selection covers.
+     *
+     * The engine answers with the start and the end of the range; the width is
+     * the columns between them, and a selection that wraps to the next line
+     * covers that line's cells too.
+     */
+    private fun selectionLength(cells: IntArray): Int {
+        val startRow = cells[0]
+        val startColumn = cells[1]
+        val endRow = cells[2]
+        val endColumn = cells[3]
+        val columns = (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1)
+        if (startRow == endRow) return (endColumn - startColumn + 1).coerceAtLeast(1)
+        return (endRow - startRow + 1) * columns
     }
 
     /**

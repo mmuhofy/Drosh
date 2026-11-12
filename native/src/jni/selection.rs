@@ -18,8 +18,8 @@
 use jni::objects::{JClass, JString};
 use jni::JNIEnv;
 
-use super::{jboolean, jint, jlong, jstring};
-use super::{new_string, read_string, session_lock};
+use super::{jint, jlong, jstring, jintArray};
+use super::{new_int_array, new_string, read_string, session_lock};
 use crate::ghostty;
 use crate::session::Session;
 
@@ -108,35 +108,44 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
 /// Feed the selection gesture a press.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionPress(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     handle: jlong,
     row: jint,
     column: jint,
-) -> jboolean {
+    behavior: jint,
+) -> jintArray {
     let Some(mut session) = session_lock(handle) else {
-        return 0;
+        return std::ptr::null_mut();
     };
     if row < 0 || column < 0 {
-        return 0;
+        return std::ptr::null_mut();
     }
-    let applied = session.selection_event(
+    let cells = session.selection_event(
         ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_PRESS,
         row as u16,
         column as u16,
         None,
+        Some(behavior.max(0) as u32),
     );
-    if applied {
-        1
-    } else {
-        0
+    match cells {
+        Some(cells) => new_int_array(
+            &mut env,
+            &[
+                cells.start_row as i32,
+                cells.start_column as i32,
+                cells.end_row as i32,
+                cells.end_column as i32,
+            ],
+        ),
+        None => std::ptr::null_mut(),
     }
 }
 
 /// Feed the selection gesture a drag, with the geometry it reads cells with.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionDrag(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     handle: jlong,
     row: jint,
@@ -144,12 +153,12 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
     columns: jint,
     cell_width: jint,
     screen_height: jint,
-) -> jboolean {
+) -> jintArray {
     let Some(mut session) = session_lock(handle) else {
-        return 0;
+        return std::ptr::null_mut();
     };
     if row < 0 || column < 0 {
-        return 0;
+        return std::ptr::null_mut();
     }
     let geometry = crate::session::SelectionGeometry {
         columns: columns.max(1) as u32,
@@ -157,44 +166,61 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
         padding_left: 0,
         screen_height: screen_height.max(1) as u32,
     };
-    let applied = session.selection_event(
+    let cells = session.selection_event(
         ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DRAG,
         row as u16,
         column as u16,
         Some(geometry),
+        Some(1),
     );
-    if applied {
-        1
-    } else {
-        0
+    match cells {
+        Some(cells) => new_int_array(
+            &mut env,
+            &[
+                cells.start_row as i32,
+                cells.start_column as i32,
+                cells.end_row as i32,
+                cells.end_column as i32,
+            ],
+        ),
+        None => std::ptr::null_mut(),
     }
 }
 
 /// Feed the selection gesture a release.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionRelease(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     handle: jlong,
     row: jint,
     column: jint,
-) -> jboolean {
+    behavior: jint,
+) -> jintArray {
     let Some(mut session) = session_lock(handle) else {
-        return 0;
+        return std::ptr::null_mut();
     };
     if row < 0 || column < 0 {
-        return 0;
+        return std::ptr::null_mut();
     }
-    let applied = session.selection_event(
+    let cells = session.selection_event(
         ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_RELEASE,
         row as u16,
         column as u16,
         None,
+        Some(behavior.max(0) as u32),
     );
-    if applied {
-        1
-    } else {
-        0
+    match cells {
+        Some(cells) => new_int_array(
+            &mut env,
+            &[
+                cells.start_row as i32,
+                cells.start_column as i32,
+                cells.end_row as i32,
+                cells.end_column as i32,
+            ],
+        ),
+        None => std::ptr::null_mut(),
     }
 }
 

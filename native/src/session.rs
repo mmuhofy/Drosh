@@ -43,6 +43,20 @@ pub enum SessionError {
 }
 
 /// A session: a terminal and everything needed to draw it.
+/// The cells a selection covers.
+///
+/// The engine's own answer: the start and the end of the range, in the
+/// viewport's rows and columns. The chrome hangs its menu on these, and the
+/// engine marks the cells in the frame, so the two cannot disagree about where
+/// the selection is.
+#[derive(Clone, Copy)]
+pub struct SelectionCells {
+    pub start_row: u16,
+    pub start_column: u16,
+    pub end_row: u16,
+    pub end_column: u16,
+}
+
 /// The geometry the engine reads a selection drag event with.
 ///
 /// The grid's shape in the surface: how many columns, how wide a cell is, and
@@ -258,7 +272,8 @@ impl Session {
         row: u16,
         column: u16,
         geometry: Option<SelectionGeometry>,
-    ) -> bool {
+        behavior: Option<u32>,
+    ) -> Option<SelectionCells> {
         let gesture = match self.gesture {
             Some(gesture) => gesture,
             None => {
@@ -266,7 +281,7 @@ impl Session {
                 if !ghostty::ok(unsafe {
                     ghostty::ghostty_selection_gesture_new(std::ptr::null(), &mut gesture)
                 }) {
-                    return false;
+                    return None;
                 }
                 self.gesture = Some(gesture);
                 gesture
@@ -285,14 +300,14 @@ impl Session {
         if !ghostty::ok(unsafe {
             ghostty::ghostty_terminal_grid_ref(self.terminal, point, &mut reference)
         }) {
-            return false;
+            return None;
         }
 
         let mut event = std::ptr::null_mut();
         if !ghostty::ok(unsafe {
             ghostty::ghostty_selection_gesture_event_new(std::ptr::null(), &mut event, kind)
         }) {
-            return false;
+            return None;
         }
 
         unsafe {
@@ -301,6 +316,24 @@ impl Session {
                 ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REF,
                 &reference as *const _ as *const c_void,
             );
+            // What a click means.
+            //
+            // The engine counts the clicks and has a table of what each count
+            // selects. The host knows better what the user meant — a double tap
+            // is a word *here* — so the host sets the table: every count selects
+            // what this gesture means.
+            if let Some(behavior) = behavior {
+                let behaviors = ghostty::GhosttySelectionGestureBehaviors {
+                    single_click: behavior,
+                    double_click: behavior,
+                    triple_click: behavior,
+                };
+                ghostty::ghostty_selection_gesture_event_set(
+                    event,
+                    ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_OPT_BEHAVIORS,
+                    &behaviors as *const _ as *const c_void,
+                );
+            }
             if let Some(geometry) = geometry {
                 let mut value: ghostty::GhosttySelectionGestureGeometry =
                     std::mem::zeroed();
@@ -331,7 +364,21 @@ impl Session {
 
         // A release produces no selection of its own — it ends the gesture —
         // and the engine says so with "no value", which is not a failure.
-        ghostty::ok(result) || result == ghostty::NO_VALUE
+        if !ghostty::ok(result) && result != ghostty::NO_VALUE {
+            return None;
+        }
+        if !ghostty::ok(result) {
+            return None;
+        }
+
+        // The cells the selection covers, so the chrome knows where to hang
+        // its menu and which cells to mark.
+        Some(SelectionCells {
+            start_row: selection.start.y,
+            start_column: selection.start.x,
+            end_row: selection.end.y,
+            end_column: selection.end.x,
+        })
     }
 
     /// The text of the terminal's current selection, or none.

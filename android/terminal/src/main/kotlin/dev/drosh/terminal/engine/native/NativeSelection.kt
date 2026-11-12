@@ -45,9 +45,9 @@ object NativeSelection {
      * whatever the press selected. The selection it makes is the terminal's own,
      * which is what puts the selected cells in the frame.
      */
-    fun press(handle: Long, row: Int, column: Int): Boolean {
-        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
-        return nativeSelectionPress(handle, row, column) != 0.toByte()
+    fun press(handle: Long, row: Int, column: Int, behavior: Int): IntArray? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeSelectionPress(handle, row, column, behavior)
     }
 
     /** A drag, with the geometry the engine reads the cells with. */
@@ -58,17 +58,17 @@ object NativeSelection {
         columns: Int,
         cellWidth: Int,
         screenHeight: Int,
-    ): Boolean {
-        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+    ): IntArray? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
         return nativeSelectionDrag(
             handle, row, column, columns, cellWidth, screenHeight,
-        ) != 0.toByte()
+        )
     }
 
     /** The end of a gesture. */
-    fun release(handle: Long, row: Int, column: Int): Boolean {
-        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
-        return nativeSelectionRelease(handle, row, column) != 0.toByte()
+    fun release(handle: Long, row: Int, column: Int, behavior: Int): IntArray? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeSelectionRelease(handle, row, column, behavior)
     }
 
     /** The text of the terminal's current selection, or "". */
@@ -77,10 +77,26 @@ object NativeSelection {
         return nativeSelectionText(handle) ?: ""
     }
 
+    /**
+     * What a click selects.
+     *
+     * The engine counts the clicks and has a table of what each count selects;
+     * the host sets the table, so the host decides what the user's gesture
+     * meant.
+     */
+    const val BEHAVIOR_CELL = 0
+    const val BEHAVIOR_WORD = 1
+    const val BEHAVIOR_LINE = 2
+
     private external fun nativeSelectWord(handle: Long, row: Int, column: Int): String
     private external fun nativeSelectLine(handle: Long, row: Int, column: Int): String
     private external fun nativeSelectAll(handle: Long): String
-    private external fun nativeSelectionPress(handle: Long, row: Int, column: Int): Byte
+    private external fun nativeSelectionPress(
+        handle: Long,
+        row: Int,
+        column: Int,
+        behavior: Int,
+    ): IntArray?
     private external fun nativeSelectionDrag(
         handle: Long,
         row: Int,
@@ -88,7 +104,12 @@ object NativeSelection {
         columns: Int,
         cellWidth: Int,
         screenHeight: Int,
-    ): Byte
-    private external fun nativeSelectionRelease(handle: Long, row: Int, column: Int): Byte
+    ): IntArray?
+    private external fun nativeSelectionRelease(
+        handle: Long,
+        row: Int,
+        column: Int,
+        behavior: Int,
+    ): IntArray?
     private external fun nativeSelectionText(handle: Long): String?
 }
