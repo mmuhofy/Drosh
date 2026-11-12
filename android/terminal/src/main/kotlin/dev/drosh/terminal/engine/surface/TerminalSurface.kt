@@ -675,25 +675,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     // never reaches the single-tap one — and a terminal has to raise the
     // keyboard the instant the finger lands, not after a double-tap timeout.
     // The taps are counted here instead.
-    /** The wheel drag's axis lock: 0 none, 1 vertical, 2 horizontal. */
-    private var mouseAxis: Int = AXIS_NONE
-
-    /** The wheel's sub-cell remainder along the locked axis, in cells. */
-    private var mouseWheelRemainder: Float = 0f
-
-    /**
-     * True while a long-press has the left button held for a drag.
-     *
-     * The whole touch stream is consumed while it runs: its moves are motion
-     * reports and must never reach the detectors, or a wheel scroll would fire
-     * underneath the drag the program is trying to read.
-     */
-    private var mouseDragging: Boolean = false
-
-    /** The last cell a motion report was sent for — the protocol is cell-grained. */
-    private var mouseDragCellX: Int = -1
-    private var mouseDragCellY: Int = -1
-
     private val gestureDetector = GestureDetector(
         context,
         object : GestureDetector.SimpleOnGestureListener() {
