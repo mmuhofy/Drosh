@@ -1052,6 +1052,7 @@ private fun ReadyScreen(
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
+                    mouseReporting = mouseReporting,
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
                     terminalBackgroundColor = hexToColorInt(appearance.terminal.palette.background),
@@ -1097,6 +1098,7 @@ private fun ReadyScreen(
                     terminalManager = terminalManager,
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
+                    mouseReporting = mouseReporting,
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
                     terminalBackgroundColor = hexToColorInt(appearance.terminal.palette.background),
@@ -1727,6 +1729,13 @@ private fun TerminalPaneBody(
     terminalManager: TerminalManager,
     fontSizeSp: Float,
     defaultFontSizeSp: Float,
+    /**
+     * Whether the program's mouse-tracking mode is honoured.
+     *
+     * The surface reads the engine's modes itself; this is the user's half of
+     * the handshake.
+     */
+    mouseReporting: Boolean,
     colorProps: Properties,
     backgroundFile: File?,
     terminalBackgroundColor: Int,
