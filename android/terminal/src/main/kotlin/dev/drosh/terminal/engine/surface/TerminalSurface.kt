@@ -281,6 +281,49 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidate()
     }
 
+    /**
+     * Moves the selection's end to a point.
+     *
+     * The handles at the ends of a selection are the way a user changes a
+     * selection they did not get right: the anchor is the *other* end, so the
+     * drag grows the selection towards the finger.
+     */
+    fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean {
+        val session = sessionHandle
+        if (session == 0L) return false
+        val cells = selectedCells ?: return false
+        val point = cellAt(x, y) ?: return false
+
+        // The anchor is the end that stays.
+        val anchor = if (fromEnd) {
+            cells.first to cells.second
+        } else {
+            selectionEnd ?: (cells.first to cells.second)
+        }
+
+        NativeSelection.press(session, anchor.first, anchor.second, NativeSelection.BEHAVIOR_WORD)
+        val dragged = NativeSelection.drag(
+            session,
+            point.first,
+            point.second,
+            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
+            cellWidth.toInt().coerceAtLeast(1),
+            height.coerceAtLeast(1),
+        )
+        val released = NativeSelection.release(
+            session,
+            point.first,
+            point.second,
+            NativeSelection.BEHAVIOR_WORD,
+        )
+        val result = released ?: dragged
+        if (result == null || result.size < 4) return false
+        setSelectedCells(result[0], result[1], selectionLength(result))
+        setSelectionEnd(result[2], result[3])
+        renderThread.invalidate()
+        return true
+    }
+
     /** The colour a search match is drawn in, from the theme. */
     fun setHighlightColour(argb: Int) {
         renderThread.post(RenderThread.Command.HighlightColour(argb))
@@ -777,6 +820,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                         )
                         if (cells != null && cells.size >= 4) {
                             setSelectedCells(cells[0], cells[1], selectionLength(cells))
+                            setSelectionEnd(cells[2], cells[3])
                         }
                         // The selection grows from the anchor to the cell the
                         // finger is on.
@@ -902,6 +946,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 )
                 if (cells != null && cells.size >= 4) {
                     setSelectedCells(cells[0], cells[1], selectionLength(cells))
+                    setSelectionEnd(cells[2], cells[3])
                 }
             }
             longPressSelecting = false
@@ -987,6 +1032,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         selected = NativeSelection.text(session)
         selectionRect = null
         setSelectedCells(cells[0], cells[1], selectionLength(cells))
+        setSelectionEnd(cells[2], cells[3])
         renderThread.invalidate()
         return selected.isNotEmpty()
     }
@@ -1291,6 +1337,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      */
     private var selectedCells: Triple<Int, Int, Int>? = null
 
+    /** Where the selection ends, in cells: the other handle's anchor. */
+    private var selectionEnd: Pair<Int, Int>? = null
+
     /** The selected text, or "". */
     fun selectedText(): String {
         // The gesture's selection lives in the engine, and the engine is the
@@ -1332,6 +1381,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private fun setSelectedCells(row: Int, column: Int, length: Int) {
         selectedCells = Triple(row, column, length.coerceAtLeast(1))
         onSelectionChanged?.invoke(true)
+    }
+
+    /** Records the selection's end, from the engine's own answer. */
+    private fun setSelectionEnd(row: Int, column: Int) {
+        selectionEnd = row to column
     }
 
     /** Select the word under a cell; returns true when something was selected. */

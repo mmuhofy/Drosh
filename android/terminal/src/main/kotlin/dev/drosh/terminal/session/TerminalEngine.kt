@@ -248,6 +248,15 @@ interface TerminalEngine {
     fun pasteClipboard() {}
 
     /**
+     * Moves the selection's end to a point, in the pane's own pixels.
+     *
+     * The handles at the ends of a selection are how a user fixes a selection
+     * they did not get right. `fromEnd` says which end moves: the other one
+     * stays as the anchor.
+     */
+    fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean = false
+
+    /**
      * A program rang the bell.
      *
      * The terminal flashes and the app buzzes. A pane that cannot flash

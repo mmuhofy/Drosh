@@ -61,6 +61,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -1369,6 +1370,39 @@ private fun ReadyScreen(
                 kind = findState?.kind,
                 matchText = findState?.activeText,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
+            )
+        }
+
+        // The selection's menu and its handles.
+        //
+        // Drawn over the terminal, where the selection is: the menu is a
+        // control over that text and nothing else, and a control the user has
+        // to look for is a control they will not find.
+        val selectionRect = selectionBounds
+        if (hasSelection && selectionRect != null) {
+            TerminalSelectionMenu(
+                bounds = selectionRect,
+                paneOrigin = Offset(
+                    terminalBounds?.left?.toFloat() ?: 0f,
+                    terminalBounds?.top?.toFloat() ?: 0f,
+                ),
+                hasClipboardText = hasClipboardText,
+                url = selectionUrl,
+                onCopy = {
+                    terminalManager.focusedTerminal()?.copySelection()
+                },
+                onPaste = {
+                    terminalManager.focusedTerminal()?.pasteClipboard()
+                },
+                onSelectAll = {
+                    terminalManager.focusedTerminal()?.selectAll()
+                },
+                onOpenUrl = { url ->
+                    browserUrl = url
+                },
+                onExtend = { x, y, fromEnd ->
+                    terminalManager.focusedTerminal()?.extendSelectionTo(x, y, fromEnd)
+                },
             )
         }
 

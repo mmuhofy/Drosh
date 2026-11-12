@@ -382,6 +382,10 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         view.invalidate()
     }
 
+    /** Moves the selection's end to a point, in the pane's pixels. */
+    override fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean =
+        view.extendSelectionTo(x, y, fromEnd)
+
     /** A program rang the bell: the terminal flashes. */
     override fun bell() {
         view.bell()
