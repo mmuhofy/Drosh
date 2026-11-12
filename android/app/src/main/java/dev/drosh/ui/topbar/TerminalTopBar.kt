@@ -403,7 +403,11 @@ fun TerminalTopBar(
      */
     val rowAlpha by animateFloatAsState(
         targetValue = if (immersive) 0f else 1f,
-        animationSpec = chromeTween,
+        // The same timing as the row's travel, in the unit the animation wants.
+        animationSpec = tween<Float>(
+            durationMillis = CHROME_ANIMATION_MILLIS,
+            delayMillis = if (immersive) 0 else CHROME_COLLAPSE_DELAY_MILLIS,
+        ),
         label = "chromeRowAlpha",
     )
 
