@@ -623,17 +623,20 @@ internal class FrameRenderer {
         }
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
+        // The pixels go in as a buffer: the bytes are the picture's own, and
+        // a picture's rows are not padded to four bytes.
+        val data = java.nio.ByteBuffer.wrap(pixels)
         if (format == KITTY_FORMAT_RGB) {
             // RGB has no alpha; the picture is drawn over the terminal, so it
             // is opaque.
             GLES20.glTexImage2D(
                 GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGB, width, height, 0,
-                GLES20.GL_RGB, GLES20.GL_UNSIGNED_BYTE, pixels,
+                GLES20.GL_RGB, GLES20.GL_UNSIGNED_BYTE, data,
             )
         } else {
             GLES20.glTexImage2D(
                 GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0,
-                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels,
+                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, data,
             )
         }
         GLES20.glTexParameteri(
