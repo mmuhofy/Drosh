@@ -92,12 +92,46 @@ object TerminalBell {
     }
 
     /**
+     * A program asked for a notification.
+     *
+     * `OSC 9` and `OSC 777`: the program has a title and a body, and the app
+     * puts them in a notification. The program is not the system's voice — it
+     * is a program on the other side of an ssh connection — so the request is
+     * shown as it is.
+     */
+    @JvmStatic
+    fun notifyRequest(title: String, body: String) {
+        val handler = onNotify ?: return
+        main.post {
+            runCatching { handler(title, body) }
+                .onFailure { Log.w(TAG, "the notification could not be shown", it) }
+        }
+    }
+
+    /**
+     * Told when a program asks for a notification.
+     *
+     * Set by the screen, which has the activity the notification is posted
+     * with. Called on the main thread.
+     */
+    @Volatile
+    var onNotify: ((title: String, body: String) -> Unit)? = null
+
+    /**
      * Says the bell in a notification.
      *
      * Only for an app that is not on screen: a notification for a bell the
      * user just watched flash is noise.
      */
-    fun notify(context: Context, title: String) {
+    fun notify(context: Context, title: String) = notifyWith(context, null, title)
+
+    /**
+     * The notification itself.
+     *
+     * The title is the program's own and the body is what it said; the bell's
+     * own title is used when the program gave none.
+     */
+    fun notifyWith(context: Context, title: String?, body: String) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -120,8 +154,15 @@ object TerminalBell {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(context.getString(dev.drosh.ui.R.string.terminal_bell_title))
-            .setContentText(title)
+            .apply {
+                if (!title.isNullOrBlank()) {
+                    setContentTitle(title)
+                    setContentText(body)
+                } else {
+                    setContentTitle(context.getString(dev.drosh.ui.R.string.terminal_bell_title))
+                    setContentText(body)
+                }
+            }
             .setAutoCancel(true)
             .apply { pending?.let { setContentIntent(it) } }
             .build()

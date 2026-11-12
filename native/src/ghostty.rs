@@ -165,6 +165,8 @@ pub const GHOSTTY_TERMINAL_SCREEN_ALTERNATE: GhosttyTerminalScreen =
 
 // --- clipboard --------------------------------------------------------------
 
+pub const GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION;
 pub const GHOSTTY_TERMINAL_OPT_BELL: GhosttyTerminalOption =
     GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_BELL;
 pub const GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE: GhosttyTerminalOption =

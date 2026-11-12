@@ -411,6 +411,10 @@ private fun ReadyScreen(
     }
 
     DisposableEffect(terminalManager, bellActivity) {
+        TerminalBell.onNotify = { title, body ->
+            val activity = bellActivity ?: return@onNotify
+            TerminalBell.notifyWith(activity, title, body)
+        }
         TerminalBell.onBell = {
             val pane = terminalManager.focusedTerminal()
             pane?.bell()
@@ -420,7 +424,10 @@ private fun ReadyScreen(
                 TerminalBell.notify(bellActivity, name)
             }
         }
-        onDispose { TerminalBell.onBell = null }
+        onDispose {
+            TerminalBell.onBell = null
+            TerminalBell.onNotify = null
+        }
     }
 
     // The clipboard gate. A program may write the clipboard only when the user

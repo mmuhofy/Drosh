@@ -116,6 +116,13 @@ impl Session {
                 ghostty::GHOSTTY_TERMINAL_OPT_BELL,
                 crate::bell::on_bell as *const c_void,
             );
+            // A program that asks for a notification — OSC 9, OSC 777 — gets
+            // one, with the app's own notification.
+            let _ = ghostty::ghostty_terminal_set(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION,
+                crate::bell::on_desktop_notification as *const c_void,
+            );
         };
 
         let frames = FrameSource::new(terminal).map_err(SessionError::Frames)?;

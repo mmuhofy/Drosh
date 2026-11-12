@@ -28,6 +28,10 @@ const SINK_CLASS: &str = "dev/drosh/TerminalBell";
 const SINK_METHOD: &str = "ring";
 const SINK_SIGNATURE: &str = "()V";
 
+/// `TerminalBell.notifyRequest(String, String)`.
+const NOTIFY_METHOD: &str = "notifyRequest";
+const NOTIFY_SIGNATURE: &str = "(Ljava/lang/String;Ljava/lang/String;)V";
+
 /// The VM and the sink, captured once.
 struct Bridge {
     vm: JavaVM,
@@ -56,6 +60,69 @@ fn capture(env: &mut jni::JNIEnv) -> Result<Bridge, jni::errors::Error> {
     let class = env.find_class(SINK_CLASS)?;
     let sink = env.new_global_ref(&class)?;
     Ok(Bridge { vm, sink })
+}
+
+/// The engine's `GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION` callback.
+///
+/// A program that asks for a notification — `OSC 9`, `OSC 777` — gets one.
+/// The request is the program's own title and body, and the app decides where
+/// it goes.
+///
+/// # Safety
+/// Called by the engine while the VT stream is paused; the notification is
+/// borrowed and valid only for the duration of the call.
+pub unsafe extern "C" fn on_desktop_notification(
+    _terminal: ghostty::GhosttyTerminal,
+    _userdata: *mut c_void,
+    notification: *const ghostty::GhosttyTerminalDesktopNotification,
+) {
+    let Some(bridge) = BRIDGE.get() else {
+        return;
+    };
+    let Some(notification) = notification.as_ref() else {
+        return;
+    };
+
+    let title = string_of(&notification.title);
+    let body = string_of(&notification.body);
+    if title.is_empty() && body.is_empty() {
+        return;
+    }
+
+    let Ok(mut env) = bridge.vm.attach_current_thread() else {
+        log::warn!("drosh-native: the notification thread could not reach the JVM");
+        return;
+    };
+
+    let Ok(java_title) = env.new_string(&title) else {
+        return;
+    };
+    let Ok(java_body) = env.new_string(&body) else {
+        return;
+    };
+    let title_object = JObject::from(java_title);
+    let body_object = JObject::from(java_body);
+
+    let result = env.call_static_method(
+        &bridge.sink,
+        NOTIFY_METHOD,
+        NOTIFY_SIGNATURE,
+        &[JValue::Object(&title_object), JValue::Object(&body_object)],
+    );
+    if let Err(error) = result {
+        log::warn!("drosh-native: the notification could not be delivered: {error}");
+    }
+    let _ = env.delete_local_ref(title_object);
+    let _ = env.delete_local_ref(body_object);
+}
+
+/// The engine's borrowed string, as a Rust one.
+unsafe fn string_of(value: &ghostty::GhosttyString) -> String {
+    if value.ptr.is_null() || value.len == 0 {
+        return String::new();
+    }
+    let bytes = std::slice::from_raw_parts(value.ptr, value.len);
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
 /// The engine's `GHOSTTY_TERMINAL_OPT_BELL` callback.
