@@ -255,6 +255,7 @@ internal class FrameRenderer {
         drawBackgrounds(frame, size)
         drawForegrounds(frame, size, foregroundCount)
         drawCursor(frame, size)
+        drawBellFlash(frame, size)
 
         return frame.cellCount
     }
@@ -403,6 +404,37 @@ internal class FrameRenderer {
     }
 
     /**
+     * The visual bell: a wash of white over the terminal, for a moment.
+     *
+     * The cursor's program draws a rectangle, and the grid is a rectangle, so
+     * the flash is the same draw with the whole grid as the rectangle.
+     */
+    private fun drawBellFlash(frame: Frame, size: SizeInfo) {
+        if (cursorProgram == 0) return
+        if (System.currentTimeMillis() >= bellFlashUntil) return
+
+        val projection = FloatArray(4)
+        size.projection(projection)
+
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        GLES20.glUseProgram(cursorProgram)
+        GLES20.glUniform4fv(cursorProjection, 1, projection, 0)
+        GLES20.glUniform2f(cursorCellSize, cellWidth, cellHeight)
+        GLES20.glUniform4f(
+            cursorRect,
+            0f,
+            0f,
+            frame.columns.toFloat(),
+            frame.rows.toFloat(),
+        )
+        GLES20.glUniform1f(cursorHollow, 0f)
+        GLES20.glUniform4f(cursorColorUniform, 1f, 1f, 1f, BELL_FLASH_ALPHA)
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDisable(GLES20.GL_BLEND)
+    }
+
+    /**
      * The cursor cell under a block cursor, as a cell index, or -1.
      *
      * A block cursor is drawn by inverting the cell it sits on — that is what
@@ -457,6 +489,20 @@ internal class FrameRenderer {
         highlightR = ((argb shr 16) and 0xff) / 255f
         highlightG = ((argb shr 8) and 0xff) / 255f
         highlightB = (argb and 0xff) / 255f
+    }
+
+    /**
+     * When the visual bell stops, in milliseconds.
+     *
+     * A program that rings the bell has said something, and the screen has to
+     * say it back: the terminal flashes for a moment, the way a terminal beeps
+     * and the window flashes.
+     */
+    private var bellFlashUntil: Long = 0L
+
+    /** Flash the terminal for a moment: the visual bell. */
+    fun flashBell() {
+        bellFlashUntil = System.currentTimeMillis() + BELL_FLASH_MS
     }
 
     /**
@@ -802,6 +848,12 @@ internal class FrameRenderer {
 
         /** A colour that draws nothing. */
         const val TRANSPARENT = 0
+
+        /** How long the visual bell's flash lasts, in milliseconds. */
+        const val BELL_FLASH_MS = 140L
+
+        /** How white the visual bell's flash is. */
+        const val BELL_FLASH_ALPHA = 0.30f
 
         /** How much of the highlight colour goes over the cell's background. */
         const val HIGHLIGHT_TINT = 0.35f

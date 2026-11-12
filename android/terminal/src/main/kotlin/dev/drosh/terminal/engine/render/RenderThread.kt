@@ -115,6 +115,16 @@ class RenderThread(
         data class HighlightColour(val argb: Int) : Command
 
         /**
+         * A program rang the bell.
+         *
+         * The terminal flashes for a moment, and the loop keeps drawing while
+         * it does: the flash is a moment long and the loop's idle wait is
+         * half a second, so without this the flash would be a frame that
+         * arrives when the flash is over.
+         */
+        data object Bell : Command
+
+        /**
          * Whether the surface is wiped to transparent, for a background image.
          */
         data class TransparentBackground(val transparent: Boolean) : Command
@@ -183,6 +193,15 @@ class RenderThread(
 
     /** The renderer's own GL state, created on the loop thread. */
     private var renderer: FrameRenderer? = null
+
+    /**
+     * When the visual bell's flash is over.
+     *
+     * The loop draws every frame until then, so a flash that is a moment long
+     * is actually seen.
+     */
+    @Volatile
+    private var bellFlashUntil: Long = 0L
 
     /**
      * How far the picture is shifted inside the viewport, in pixels.
@@ -378,6 +397,12 @@ class RenderThread(
                         dirty = true
                     }
 
+                    is Command.Bell -> {
+                        bellFlashUntil = System.currentTimeMillis() + BELL_FLASH_WINDOW_MS
+                        renderer?.flashBell()
+                        dirty = true
+                    }
+
                     is Command.TransparentBackground -> {
                         renderer?.transparentBackground = command.transparent
                         dirty = true
@@ -555,7 +580,18 @@ class RenderThread(
         lock.withLock {
             if (pending.isNotEmpty()) return
             val waitMillis = (layout.settlePending).let {
-                if (it) LAYOUT_POLL_MS else RenderClock.blinkWaitMillis()
+                if (it) {
+                    LAYOUT_POLL_MS
+                } else {
+                    // The visual bell: the flash is over in a moment, and the
+                    // frames have to keep coming for it to be seen.
+                    val flashLeft = bellFlashUntil - System.currentTimeMillis()
+                    if (flashLeft > 0) {
+                        minOf(RenderClock.blinkWaitMillis(), BELL_FLASH_POLL_MS)
+                    } else {
+                        RenderClock.blinkWaitMillis()
+                    }
+                }
             }
             work.await(waitMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
         }
@@ -569,6 +605,12 @@ class RenderThread(
 
         /** How often the loop wakes while a surface is settling. */
         const val LAYOUT_POLL_MS = 16L
+
+        /** How long the bell's flash lasts, in milliseconds. */
+        const val BELL_FLASH_WINDOW_MS = 220L
+
+        /** How often the loop wakes while the bell's flash is on. */
+        const val BELL_FLASH_POLL_MS = 16L
 
     }
 }

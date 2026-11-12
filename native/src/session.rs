@@ -93,7 +93,15 @@ impl Session {
                 terminal,
                 ghostty::GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE,
                 crate::clipboard::on_clipboard_write as *const c_void,
-            )
+            );
+            // The bell: a program that rings it is answered by the app — a
+            // haptic, a flash, and a notification when the app is not on
+            // screen.
+            let _ = ghostty::ghostty_terminal_set(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_BELL,
+                crate::bell::on_bell as *const c_void,
+            );
         };
 
         let frames = FrameSource::new(terminal).map_err(SessionError::Frames)?;

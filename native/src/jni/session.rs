@@ -27,6 +27,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     // This is the one place a `JNIEnv` for the app's class loader is in hand
     // before a program's OSC 52 write needs it on the reader thread.
     crate::clipboard::install(&mut env);
+    crate::bell::install(&mut env);
     match Session::new(columns as u16, rows as u16) {
         Ok(session) => SessionHandle::into_raw(session) as usize as jlong,
         Err(error) => {

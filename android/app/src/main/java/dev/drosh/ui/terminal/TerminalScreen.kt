@@ -129,6 +129,7 @@ import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
 import dev.drosh.terminal.session.chromeCollapsed
 import dev.drosh.ClipboardSink
+import dev.drosh.TerminalBell
 import dev.drosh.ui.topbar.rememberTerminalTopPadding
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.TOP_BAR_BACKDROP_STRIP
@@ -387,6 +388,30 @@ private fun ReadyScreen(
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.
     val terminalTopPadding = rememberTerminalTopPadding(chromeUp, tuiActive)
+
+    // The bell.
+    //
+    // A program that rings it is answered three ways: the terminal flashes,
+    // the phone buzzes, and — when the app is not on screen — a notification
+    // says it, because a program that says something while the user is
+    // looking at something else has to be able to say it.
+    DisposableEffect(terminalManager) {
+        TerminalBell.onBell = {
+            val pane = terminalManager.focusedTerminal()
+            pane?.bell()
+
+            val activity = LocalDroshActivity.current as? android.app.Activity
+            val onScreen = activity?.lifecycle?.currentState?.isAtLeast(
+                androidx.lifecycle.Lifecycle.State.RESUMED,
+            ) == true
+            if (!onScreen && activity != null) {
+                val name = pane?.sessionName?.takeIf { it.isNotBlank() }
+                    ?: activity.getString(dev.drosh.ui.R.string.app_name)
+                TerminalBell.notify(activity, name)
+            }
+        }
+        onDispose { TerminalBell.onBell = null }
+    }
 
     // The clipboard gate. A program may write the clipboard only when the user
     // says so, and the sink is the one that answers the engine.

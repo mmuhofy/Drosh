@@ -114,6 +114,8 @@
     <string name="settings_input_extra_keys_desc">Show the key row above the keyboard</string>
     <string name="settings_input_mouse_reporting">Mouse reporting</string>
     <string name="settings_input_mouse_reporting_desc">Send taps and swipes to programs that track the mouse (vim, htop)</string>
+    <string name="terminal_bell_title">Terminal bell</string>
+    <string name="terminal_bell_channel_name">Terminal bell</string>
     <string name="settings_input_clipboard_writes">Clipboard writes</string>
     <string name="settings_input_clipboard_writes_desc">Let programs put text on the clipboard (OSC 52). Off by default: a program behind ssh could replace what you paste next</string>
     <string name="settings_input_hardware_keyboard">Hide bar on hardware keyboard</string>

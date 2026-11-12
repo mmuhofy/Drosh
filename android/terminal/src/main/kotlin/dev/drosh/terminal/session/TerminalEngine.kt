@@ -248,6 +248,14 @@ interface TerminalEngine {
     fun pasteClipboard() {}
 
     /**
+     * A program rang the bell.
+     *
+     * The terminal flashes and the app buzzes. A pane that cannot flash
+     * simply does nothing.
+     */
+    fun bell() {}
+
+    /**
      * The ambient tint of the session's palette as `[r, g, b]`, or empty.
      *
      * Empty on an engine whose palette the app cannot read; the tint bloom is

@@ -29,6 +29,7 @@
 // the tests build, because the engine's library is an Android library and
 // a test binary on a build machine cannot link it.
 #[cfg(feature = "engine")]
+pub mod bell;
 pub mod clipboard;
 #[cfg(feature = "engine")]
 pub mod frame;

@@ -382,6 +382,11 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         view.invalidate()
     }
 
+    /** A program rang the bell: the terminal flashes. */
+    override fun bell() {
+        view.bell()
+    }
+
     /**
      * The picture behind the terminal, and how opaque it is.
      *

@@ -243,6 +243,19 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     /**
+     * A program rang the bell.
+     *
+     * The terminal flashes, and the app is told so it can buzz and, when the
+     * app is not on screen, say it in a notification.
+     */
+    fun bell() {
+        renderThread.post(RenderThread.Command.Bell)
+        renderThread.invalidate()
+        // The buzz is the phone's half of the bell: the flash is the screen's.
+        performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+    }
+
+    /**
      * The picture behind the terminal.
      *
      * The view's own background is the picture and the surface is wiped
