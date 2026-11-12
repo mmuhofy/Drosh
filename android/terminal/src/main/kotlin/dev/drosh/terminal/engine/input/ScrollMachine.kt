@@ -67,7 +67,12 @@ class ScrollMachine {
      * @param spacingPx the height of a row.
      */
     fun drag(distancePx: Float, spacingPx: Float): Target {
-        val spacing = spacingPx.coerceAtLeast(1f)
+        // A row of no height is a row that cannot be crossed: the machine has
+        // nothing to measure the travel against, so it does not move at all.
+        if (spacingPx <= 0f) {
+            return Target(delta = 0, offsetPx = offsetPx, pinned = false)
+        }
+        val spacing = spacingPx
 
         var offset = offsetPx + distancePx
         var delta = 0
