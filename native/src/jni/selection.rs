@@ -128,6 +128,10 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
         None,
         Some(behavior.max(0) as u32),
     );
+    // The cells, when there are any. An empty array means the event was
+    // applied and produced no selection yet — the engine makes the selection
+    // when the gesture ends, not when it starts — and a null means the event
+    // was refused.
     match cells {
         Some(cells) => new_int_array(
             &mut env,
@@ -138,7 +142,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
                 cells.end_column as i32,
             ],
         ),
-        None => std::ptr::null_mut(),
+        None => new_int_array(&mut env, &[]),
     }
 }
 
@@ -173,6 +177,10 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
         Some(geometry),
         Some(1),
     );
+    // The cells, when there are any. An empty array means the event was
+    // applied and produced no selection yet — the engine makes the selection
+    // when the gesture ends, not when it starts — and a null means the event
+    // was refused.
     match cells {
         Some(cells) => new_int_array(
             &mut env,
@@ -183,7 +191,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
                 cells.end_column as i32,
             ],
         ),
-        None => std::ptr::null_mut(),
+        None => new_int_array(&mut env, &[]),
     }
 }
 
@@ -210,6 +218,10 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
         None,
         Some(behavior.max(0) as u32),
     );
+    // The cells, when there are any. An empty array means the event was
+    // applied and produced no selection yet — the engine makes the selection
+    // when the gesture ends, not when it starts — and a null means the event
+    // was refused.
     match cells {
         Some(cells) => new_int_array(
             &mut env,
@@ -220,7 +232,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
                 cells.end_column as i32,
             ],
         ),
-        None => std::ptr::null_mut(),
+        None => new_int_array(&mut env, &[]),
     }
 }
 

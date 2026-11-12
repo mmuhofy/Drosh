@@ -753,16 +753,24 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 val session = sessionHandle
                 if (session == 0L) return
                 val cell = cellAt(event.x, event.y) ?: return
-                if (NativeSelection.press(
-                        session,
-                        cell.first,
-                        cell.second,
-                        NativeSelection.BEHAVIOR_WORD,
-                    ) != null
-                ) {
+                val pressed = NativeSelection.press(
+                    session,
+                    cell.first,
+                    cell.second,
+                    NativeSelection.BEHAVIOR_WORD,
+                )
+                if (pressed != null) {
                     longPressSelecting = true
                     selectionAnchor = cell
-                    setSelectedCells(cell.first, cell.second, 1)
+                    // The word the engine selected, and the cells it covers:
+                    // the menu hangs on them, and the drag that follows grows
+                    // the selection from the anchor.
+                    if (pressed.size >= 4) {
+                        setSelectedCells(pressed[0], pressed[1], selectionLength(pressed))
+                        setSelectionEnd(pressed[2], pressed[3])
+                    } else {
+                        setSelectedCells(cell.first, cell.second, 1)
+                    }
                     performHapticFeedback(
                         android.view.HapticFeedbackConstants.LONG_PRESS,
                     )
