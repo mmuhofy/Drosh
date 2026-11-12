@@ -7,7 +7,7 @@ import org.gradle.kotlin.dsl.dependencies
 /**
  * Applies Room + KSP for the `data` module.
  *
- * Per AGENT.md §121 + MEMORYBANK.md §52: Room 2.8.4 with FTS5 is used for
+ * Per AGENT.md §121 + docs/archive/MEMORYBANK-2026-11-08.md §52: Room 2.8.4 with FTS5 is used for
  * Command DNA, session history, error DNA fixes, aliases, etc.
  */
 class AndroidRoomConventionPlugin : Plugin<Project> {

@@ -402,7 +402,7 @@ it will keep getting cited as done.
 
 - A phase is done when: (a) the Phase 0 scenario for it shows the target
   metric, (b) the scenario has not regressed the others, (c) a note lands in
-  `docs/MEMORYBANK.md` with the before/after numbers.
+  `docs/archive/MEMORYBANK-2026-11-08.md` with the before/after numbers.
 - The repo ends this effort with: no 500 ms timers in the output path, classic
   mode paying nothing for the block engine, no per-chunk full-text scans,
   pinch measured in-place, release built with R8 + baseline profile, and the

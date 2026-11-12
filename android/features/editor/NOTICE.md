@@ -17,7 +17,7 @@ compiled into — but the module's own code is Apache-2.0, not GPLv3, which is
 the point of having this file at all: a fork of `:editor` may take the Drosh
 code under Apache-2.0 terms, while sora-editor itself remains whatever it was.
 
-This is also the open item from MEMORYBANK §16, decision 14: accepting an
+This is also the open item from docs/archive/MEMORYBANK-2026-11-08.md §16, decision 14: accepting an
 LGPL component inside the app. Its terms are satisfied — unmodified use,
 sources available upstream, license text reproduced here by reference — but the
 decision is recorded as open until it is confirmed ahead of any F-Droid

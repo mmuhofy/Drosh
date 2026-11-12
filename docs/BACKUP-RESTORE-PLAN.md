@@ -156,4 +156,4 @@ builds** — verification is CI (`./gradlew test` + build) only.
   escaping the staging root, symlink members pointing outside.
 - Migration never silently drops a package or a dotfile — the leftovers file
   and log say so.
-- Every commit carries a before/after note in `docs/MEMORYBANK.md`.
+- Every commit carries a before/after note in `docs/archive/MEMORYBANK-2026-11-08.md`.

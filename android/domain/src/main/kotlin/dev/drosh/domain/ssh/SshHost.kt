@@ -5,7 +5,7 @@ package dev.drosh.domain.ssh
  *
  * Metadata only — passwords and private keys are never stored on the row.
  * [keyId] points into the key vault; [authMethod] decides how a session
- * authenticates. Mirrors MEMORYBANK.md §12.
+ * authenticates. Mirrors docs/archive/MEMORYBANK-2026-11-08.md §12.
  */
 data class SshHost(
     val id: String,

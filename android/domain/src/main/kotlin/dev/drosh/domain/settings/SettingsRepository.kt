@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.Flow
  *  - Terminal text color (hex string)
  *  - MOTD mode (Disabled / PlainText / Compose) + custom text
  *
- * See MEMORYBANK.md §5 and §8.
+ * See docs/archive/MEMORYBANK-2026-11-08.md §5 and §8.
  */
 interface SettingsRepository {
 
