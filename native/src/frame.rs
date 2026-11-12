@@ -25,6 +25,7 @@
 //!  36  u32  cell_stride
 //!  40  u32  cells_bytes
 //!  44  u32  cursor_color  R,G,B,A little-endian
+//!  46  i16  first_row_y   the first captured row's viewport row
 //! ```
 //!
 //! Cells follow: `cell_count` records of `cell_stride` bytes, row-major.
@@ -282,6 +283,21 @@ impl FrameSource {
             }
 
             let mut index: u32 = 0;
+            // The first captured row's own place in the viewport.
+            //
+            // The rows are not simply "the viewport's rows, in order": the
+            // engine captures a row above and a row below when they exist, and
+            // the row above has a *negative* viewport row. Deriving a row's
+            // place from its index — which is what the frame used to do — is a
+            // guess about how many rows were captured, and when the guess is
+            // one row off, every cell on the screen moves a row: the text, the
+            // blocks of a full-screen program, and the cursor's cell all
+            // disagree with each other by exactly one line.
+            //
+            // The engine says where each row belongs, so the frame carries that
+            // answer instead of a guess.
+            let mut first_row_y: i16 = 0;
+            let mut seen_first_row = false;
             while index < cell_count {
                 if !ghostty::ghostty_render_state_row_iterator_next(self.iterator) {
                     break;
@@ -294,11 +310,28 @@ impl FrameSource {
                     continue;
                 }
 
+                if !seen_first_row {
+                    let mut y: i32 = 0;
+                    let _ = ghostty::ghostty_render_state_row_get(
+                        self.iterator,
+                        ghostty::GHOSTTY_RENDER_STATE_ROW_DATA_VIEWPORT_Y,
+                        &mut y as *mut i32 as *mut c_void,
+                    );
+                    first_row_y = y as i16;
+                    seen_first_row = true;
+                }
+
                 for column in 0..cols {
                     let at = HEADER_BYTES + index as usize * CELL_BYTES;
                     self.write_cell(at, column);
                     index += 1;
                 }
+            }
+
+            // The first row's place is written last: it is only known once the
+            // rows have been visited.
+            if seen_first_row {
+                put_i16(&mut self.buffer[46..48], first_row_y);
             }
 
             Ok(&self.buffer)

@@ -259,7 +259,8 @@ internal class FrameRenderer {
 
         backgrounds.clear()
         for (index in 0 until frame.cellCount) {
-            val row = index / frame.columns - frame.overscanAbove
+            // The row the engine says this cell belongs to.
+            val row = index / frame.columns + frame.firstRowY
             backgrounds.putShort((index % frame.columns).toShort())
             backgrounds.putShort(row.toShort())
             putColor(backgrounds, backgroundOf(frame, index))
@@ -379,7 +380,11 @@ internal class FrameRenderer {
         if (frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK_HOLLOW) return -1
         if (frame.cursorColumn !in 0 until frame.columns) return -1
         if (frame.cursorRow !in 0 until frame.rows) return -1
-        return (frame.cursorRow + frame.overscanAbove) * frame.columns + frame.cursorColumn
+        // The frame's own index for that row: the viewport's row, less where
+        // the frame's first row sits in it.
+        val row = frame.cursorRow - frame.firstRowY
+        if (row < 0) return -1
+        return row * frame.columns + frame.cursorColumn
     }
 
     /** The cell the block cursor inverts this frame, or -1. Computed once. */
@@ -445,7 +450,7 @@ internal class FrameRenderer {
             val entry = atlas.glyph(codepoint, isBold, if (fontPx > 0f) fontPx else cellHeight) ?: continue
             if (entry.isBlank) continue
 
-            val row = index / frame.columns - frame.overscanAbove
+            val row = index / frame.columns + frame.firstRowY
             val column = index % frame.columns
             val span = if (frame.width(index) == 2) 2 else 1
 

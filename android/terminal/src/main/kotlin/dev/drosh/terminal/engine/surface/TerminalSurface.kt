@@ -145,7 +145,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             // not have.
             val session = sessionHandle
             if (session != 0L) {
+                // Where the viewport was, so it can be put back.
+                //
+                // A keyboard opening changes the height, and a resize that
+                // loses the position throws the user back to the live edge —
+                // the screen jumps while the keyboard is still moving. The
+                // rows of the scrollback do not move when only the height
+                // changes, so the same offset is the same place.
+                val before = NativeSession.scrollbar(session)
                 NativeSession.resize(session, columns, rows, cellWidth.toInt(), cellHeight.toInt())
+                val after = NativeSession.scrollbar(session)
+                if (before != null && after != null && before.offset != after.offset) {
+                    NativeSession.scroll(session, NativeSession.SCROLL_ROW, after.offset)
+                    scrollMachine.sync(after.offset, after.historyRows)
+                }
             }
             val pty = ptyHandle
             if (pty != 0L) {
@@ -485,9 +498,17 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // The detector's velocities are tuned for lists; a terminal that moved
         // at that speed scrolled a screenful per flick. The vendored view used
         // a quarter of it, and so does this.
+        // The flick's direction is the finger's direction.
+        //
+        // The detector's velocity is positive when the finger moved up, and a
+        // positive velocity makes the scroller's position grow, which is a
+        // positive distance for the drag path: the content keeps going the way
+        // it was already going. Negating it sent the content the other way,
+        // and the engine — which clamps at the live edge — pulled it back.
+        // That is a scroll that springs.
         scroller.fling(
             0, 0,
-            0, -(velocityY * FLING_SCALE).toInt(),
+            0, (velocityY * FLING_SCALE).toInt(),
             0, 0,
             Int.MIN_VALUE, Int.MAX_VALUE,
         )

@@ -370,6 +370,20 @@ fun GhosttyTerminalHost(
             },
         )
 
+        // The size, while the fingers are on the screen.
+        //
+        // A pinch changes the font's size and nothing else on the screen says
+        // so: the text is simply bigger, and the number that was asked for is
+        // gone. The chip appears for as long as the gesture runs.
+        if (liveZoomSp > 0f) {
+            TerminalZoomChip(
+                textSizeSp = liveZoomSp,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 64.dp),
+            )
+        }
+
         status?.let { message ->
             Text(
                 text = message,

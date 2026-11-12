@@ -35,6 +35,15 @@ class Frame private constructor(
     val cursorIsRectangle: Boolean,
     /** The cursor's colour, packed by [FrameFormat.packRgba]. */
     val cursorColor: Int,
+    /**
+     * The first captured row's place in the viewport.
+     *
+     * The engine captures a row above and below the viewport when they exist,
+     * and the row above has a negative viewport row. This is where the frame's
+     * first row belongs, so a cell's row is this plus its index — the
+     * engine's own answer, not a guess about how many rows were captured.
+     */
+    val firstRowY: Int,
     val dirty: Int,
     val cellCount: Int,
     val cellStride: Int,
@@ -168,6 +177,7 @@ class Frame private constructor(
                 cursorBlinking = cursorFlags and FrameFormat.CURSOR_BLINKING != 0,
                 cursorIsRectangle = cursorFlags and FrameFormat.CURSOR_IS_RECTANGLE != 0,
                 cursorColor = buffer.getInt(FrameFormat.OFFSET_CURSOR_COLOR),
+                firstRowY = buffer.getShort(FrameFormat.OFFSET_FIRST_ROW_Y).toInt(),
                 dirty = buffer.getShort(FrameFormat.OFFSET_DIRTY).toInt() and 0xffff,
                 cellCount = cellCount,
                 cellStride = cellStride,

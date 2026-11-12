@@ -35,6 +35,7 @@ package dev.drosh.terminal.engine.protocol
  *  36  u32  cellStride
  *  40  u32  cellsBytes
  *  44  u32  cursorColor    R,G,B,A little-endian
+ *  46  i16  firstRowY      the first captured row's viewport row
  * ```
  *
  * Cells follow, `cellCount` records of `cellStride` bytes:
@@ -76,6 +77,7 @@ object FrameFormat {
     const val OFFSET_OVERSCAN_BELOW = 20
     const val OFFSET_CURSOR_X = 22
     const val OFFSET_CURSOR_Y = 24
+    const val OFFSET_FIRST_ROW_Y = 46
     const val OFFSET_CURSOR_STYLE = 26
     const val OFFSET_CURSOR_FLAGS = 28
     const val OFFSET_DIRTY = 30
