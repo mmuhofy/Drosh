@@ -743,6 +743,20 @@ private fun ReadyScreen(
      * Dispatchers.Default and the bar keeps its previous answer until the new
      * one lands rather than flashing a count of zero.
      */
+    /**
+     * Highlights the match the user is on.
+     *
+     * The match's line is a transcript row — the engine's own row space — and
+     * the drawing is in the viewport's, so the viewport's first row is what
+     * turns one into the other.
+     */
+    fun highlightMatch(matches: TerminalFindMatches, index: Int) {
+        val hit = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(index) ?: return
+        val pane = terminalManager.focusedTerminal() ?: return
+        val row = hit.line - pane.viewportRow()
+        pane.setHighlight(row, hit.colStart, hit.colEnd - hit.colStart)
+    }
+
     LaunchedEffect(
         searchActive,
         scannedQuery,
@@ -824,20 +838,6 @@ private fun ReadyScreen(
      * The engine clamps the scroll to what history it has, so a request past
      * either end lands on the end rather than being refused.
      */
-    /**
-     * Highlights the match the user is on.
-     *
-     * The match's line is a transcript row — the engine's own row space — and
-     * the drawing is in the viewport's, so the viewport's first row is what
-     * turns one into the other.
-     */
-    fun highlightMatch(matches: TerminalFindMatches, index: Int) {
-        val hit = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(index) ?: return
-        val pane = terminalManager.focusedTerminal() ?: return
-        val row = hit.line - pane.viewportRow()
-        pane.setHighlight(row, hit.colStart, hit.colEnd - hit.colStart)
-    }
-
     fun revealMatch(matches: TerminalFindMatches, index: Int) {
         val hit = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(index) ?: return
         val pane = terminalManager.focusedTerminal() ?: return
