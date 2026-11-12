@@ -45,6 +45,8 @@ import java.util.Locale
 @Composable
 fun TerminalZoomChip(
     textSizeSp: Float,
+    /** The cell's size in pixels, shown next to the font's size. */
+    cellSizePx: Pair<Int, Int> = 0 to 0,
     modifier: Modifier = Modifier,
 ) {
     val alpha by animateFloatAsState(
@@ -68,7 +70,22 @@ fun TerminalZoomChip(
         Text(
             // US locale explicitly: a Turkish or German locale would print
             // "14,3sp", and the terminal's own size is a number, not prose.
-            text = String.format(Locale.US, "%.1fsp", textSizeSp),
+            //
+            // The cell's size in pixels is the number that says how big the
+            // text actually is on this screen: the font's size is in scale
+            // independent pixels, and two devices with the same scale draw
+            // different cells.
+            text = if (cellSizePx.first > 0 && cellSizePx.second > 0) {
+                String.format(
+                    Locale.US,
+                    "%d×%d px · %.1fsp",
+                    cellSizePx.first,
+                    cellSizePx.second,
+                    textSizeSp,
+                )
+            } else {
+                String.format(Locale.US, "%.1fsp", textSizeSp)
+            },
             color = DroshText,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,

@@ -378,6 +378,7 @@ fun GhosttyTerminalHost(
         if (liveZoomSp > 0f) {
             TerminalZoomChip(
                 textSizeSp = liveZoomSp,
+                cellSizePx = cell.width.toInt() to cell.height.toInt(),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 64.dp),

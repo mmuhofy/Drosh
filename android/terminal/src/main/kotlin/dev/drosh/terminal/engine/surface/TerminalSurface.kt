@@ -156,9 +156,16 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 NativeSession.resize(session, columns, rows, cellWidth.toInt(), cellHeight.toInt())
                 val after = NativeSession.scrollbar(session)
                 if (before != null && after != null && before.offset != after.offset) {
+                    // Put the viewport back where it was: the same absolute
+                    // row, asked for by row. A resize that loses the position
+                    // throws the user back to the live edge while the keyboard
+                    // is still moving.
                     NativeSession.scroll(session, NativeSession.SCROLL_ROW, after.offset)
-                    scrollMachine.sync(after.offset, after.historyRows)
                 }
+                // The picture's shift is measured in the old cell's pixels, and
+                // the cell is what changed: it starts again from a row.
+                scrollMachine.reset()
+                renderThread.post(RenderThread.Command.ScrollOffset(0f))
             }
             val pty = ptyHandle
             if (pty != 0L) {
@@ -403,6 +410,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     private var fling: android.widget.Scroller? = null
 
+    /**
+     * Whether the last scroll was refused because the viewport is against an
+     * edge.
+     *
+     * The fling coasts until the engine says no; a coast that keeps asking
+     * after the answer is a scroll that pushes against a wall.
+     */
+    private var lastScrollPinned: Boolean = false
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // A new gesture starts where the engine actually is.
         //
@@ -412,12 +428,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // screen has already carried the view. Reconciling mid-gesture is what
         // made the scroll stutter — the engine is always one event behind.
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            val session = sessionHandle
-            if (session != 0L) {
-                NativeSession.scrollbar(session)?.let {
-                    scrollMachine.sync(it.offset, it.historyRows)
-                }
-            }
+            // A new gesture starts from a row boundary: the picture is where
+            // the last gesture left it, and that is a fraction of a row the
+            // finger is about to move anyway.
+            scrollMachine.reset()
         }
 
         // The scale detector sees every event; the gesture detector is told only
@@ -452,43 +466,35 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         if (session == 0L) return
 
-        // The engine's own offset is where the viewport is; the machine turns
-        // the finger's travel into a row and a remainder from it. Nothing here
-        // keeps a row count of its own, so the engine and the picture cannot
-        // disagree about where the grid is — which is what made a scroll pull
-        // itself back.
-        val scrollbar = NativeSession.scrollbar(session) ?: return
-        val target = scrollMachine.drag(
-            engineOffset = scrollbar.offset,
-            historyRows = scrollbar.historyRows,
-            distancePx = distancePx,
-            spacingPx = spacing,
-        )
+        // The finger's travel goes into the machine, which turns it into whole
+        // rows for the engine and a shift for the picture.
+        val target = scrollMachine.drag(distancePx = distancePx, spacingPx = spacing)
 
-        // The engine moves here, and the remainder is computed from where it
-        // actually ended up.
-        //
-        // Posting the move to the render thread meant the machine always read
-        // an engine one event behind — and an engine that had moved on its own,
-        // because new output arrived, could not be told apart from one that had
-        // not applied the move yet. The machine then asked for a row that no
-        // longer held what the user was reading, and the viewport jumped back a
-        // line every time the shell printed.
-        val tag = if (target.toBottom) {
-            NativeSession.SCROLL_BOTTOM
-        } else {
-            NativeSession.SCROLL_ROW
+        // The engine moves by a delta, never to an absolute row: a delta
+        // cannot be refused half-way, and the engine's answer is the truth
+        // about where the viewport is.
+        var pinned = false
+        if (target.delta != 0) {
+            val before = NativeSession.scrollbar(session)?.offset
+            NativeSession.scroll(session, NativeSession.SCROLL_DELTA, target.delta)
+            val after = NativeSession.scrollbar(session)?.offset
+            val moved = before != null && after != null && after - before == target.delta
+            if (!moved) {
+                // The viewport is against an edge. The shift that was left over
+                // cannot be shown there, so it goes.
+                scrollMachine.pinned()
+                pinned = true
+            } else if (after == 0) {
+                // The oldest row: there is nothing above it.
+                scrollMachine.atOldestRow()
+            }
         }
-        val amount = if (target.toBottom) 0 else target.row
-        NativeSession.scroll(session, tag, amount)
 
-        val after = NativeSession.scrollbar(session) ?: return
-        val accepted = target.toBottom || after.offset == target.row
-        val drawn = (after.offset - target.position) * spacing
-        scrollMachine.anchor(after.offset, after.historyRows, accepted)
-
-        renderThread.post(RenderThread.Command.ScrollOffset(drawn))
+        // The picture's shift goes to the render thread, which draws the grid
+        // moved down by it — the row above the viewport filling the gap.
+        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
         renderThread.invalidate()
+        lastScrollPinned = pinned
     }
 
     /** Momentum after a flick, through the same pixel path as a drag. */
@@ -498,17 +504,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // The detector's velocities are tuned for lists; a terminal that moved
         // at that speed scrolled a screenful per flick. The vendored view used
         // a quarter of it, and so does this.
-        // The flick's direction is the finger's direction.
+        // The flick continues the drag.
         //
-        // The detector's velocity is positive when the finger moved up, and a
-        // positive velocity makes the scroller's position grow, which is a
-        // positive distance for the drag path: the content keeps going the way
-        // it was already going. Negating it sent the content the other way,
-        // and the engine — which clamps at the live edge — pulled it back.
-        // That is a scroll that springs.
+        // The detector's velocity is positive when the finger moved up, and up
+        // means the content keeps moving up — a negative distance for the drag
+        // path. The scroller's position therefore has to shrink, which is a
+        // negative velocity.
         scroller.fling(
             0, 0,
-            0, (velocityY * FLING_SCALE).toInt(),
+            0, -(velocityY * FLING_SCALE).toInt(),
             0, 0,
             Int.MIN_VALUE, Int.MAX_VALUE,
         )
@@ -520,6 +524,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 val y = scroller.currY
                 dragByPixels((y - lastY).toFloat())
                 lastY = y
+                // The coast ends at the edge: the engine refuses the move and
+                // the picture cannot be pulled further.
+                if (lastScrollPinned) return
                 postOnAnimation(this)
             }
         }
@@ -624,9 +631,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             if (bar != null && bar.offset < bar.historyRows) {
                 NativeSession.scroll(session, NativeSession.SCROLL_BOTTOM, 0)
                 val after = NativeSession.scrollbar(session)
-                if (after != null) {
-                    scrollMachine.anchor(after.offset, after.historyRows, accepted = true)
-                }
+                scrollMachine.reset()
                 renderThread.post(RenderThread.Command.ScrollOffset(0f))
             }
         }

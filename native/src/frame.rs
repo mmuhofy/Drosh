@@ -331,7 +331,7 @@ impl FrameSource {
             // The first row's place is written last: it is only known once the
             // rows have been visited.
             if seen_first_row {
-                put_i16(&mut self.buffer[46..48], first_row_y);
+                put_i16(&mut self.buffer, 46, first_row_y);
             }
 
             Ok(&self.buffer)
