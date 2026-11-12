@@ -412,8 +412,7 @@ private fun ReadyScreen(
 
     DisposableEffect(terminalManager, bellActivity) {
         TerminalBell.onNotify = { title, body ->
-            val activity = bellActivity ?: return@onNotify
-            TerminalBell.notifyWith(activity, title, body)
+            bellActivity?.let { TerminalBell.notifyWith(it, title, body) }
         }
         TerminalBell.onBell = {
             val pane = terminalManager.focusedTerminal()
