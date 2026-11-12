@@ -926,6 +926,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      */
     private var selectedCells: Triple<Int, Int, Int>? = null
 
+    /**
+     * Told that the selection changed.
+     *
+     * The chrome's selection menu hangs off this: without it the menu never
+     * comes up, and a selection that cannot be copied is a selection that does
+     * not exist.
+     */
+    var onSelectionChanged: ((Boolean) -> Unit)? = null
+
     /** Where the selection ends, in cells: the other handle's anchor. */
     private var selectionEnd: Pair<Int, Int>? = null
 
