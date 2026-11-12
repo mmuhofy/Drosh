@@ -271,7 +271,5 @@ interface TerminalEngine {
      * A pane that cannot report selection events keeps the default and never
      * fires; the chrome simply never comes up.
      */
-    var selectionListener: ((Boolean) -> Unit)?
-        get() = null
-        set(_) {}
+    var selectionListener: ((Boolean) -> Unit)? = null
 }

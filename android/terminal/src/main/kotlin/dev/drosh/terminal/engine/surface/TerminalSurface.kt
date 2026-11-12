@@ -251,6 +251,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidate()
     }
 
+    /**
+     * Told that the selection changed.
+     *
+     * The chrome's selection menu hangs off this: without it the menu never
+     * comes up, and a selection that cannot be copied is a selection that does
+     * not exist.
+     */
+    var onSelectionChanged: ((Boolean) -> Unit)? = null
+
     /** The theme's terminal background, for the surface the grid is drawn on. */
     fun setBackground(argb: Int) {
         renderThread.post(RenderThread.Command.Background(argb))
@@ -688,6 +697,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 val cell = cellAt(event.x, event.y) ?: return
                 if (NativeSelection.press(session, cell.first, cell.second)) {
                     longPressSelecting = true
+                    selectionAnchor = cell
+                    setSelectedCells(cell.first, cell.second, 1)
                     performHapticFeedback(
                         android.view.HapticFeedbackConstants.LONG_PRESS,
                     )
@@ -722,6 +733,29 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                             cellWidth.toInt().coerceAtLeast(1),
                             height.coerceAtLeast(1),
                         )
+                        // The selection grows from the anchor to the cell the
+                        // finger is on.
+                        val anchor = selectionAnchor
+                        if (anchor != null) {
+                            val fromRow = minOf(anchor.first, cell.first)
+                            val toRow = maxOf(anchor.first, cell.first)
+                            val fromColumn =
+                                if (anchor.first == cell.first) {
+                                    minOf(anchor.second, cell.second)
+                                } else {
+                                    0
+                                }
+                            val toColumn =
+                                if (anchor.first == cell.first) {
+                                    maxOf(anchor.second, cell.second)
+                                } else {
+                                    (width / cellWidth.coerceAtLeast(1f))
+                                        .toInt().coerceAtLeast(1)
+                                }
+                            val length = (toRow - fromRow + 1) *
+                                (toColumn - fromColumn + 1)
+                            setSelectedCells(fromRow, fromColumn, length)
+                        }
                         renderThread.invalidate()
                         return true
                     }
@@ -760,6 +794,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * and it ends when the finger lifts.
      */
     private var longPressSelecting: Boolean = false
+
+    /** Where a selection gesture started, in cells. */
+    private var selectionAnchor: Pair<Int, Int>? = null
 
     /** The tap run: one tap, two taps, three taps. */
     private var tapCount: Int = 0
@@ -944,7 +981,14 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         // The finger's travel goes into the machine, which turns it into whole
         // rows for the engine and a shift for the picture.
-        val target = scrollMachine.drag(distancePx = distancePx, spacingPx = spacing)
+        // The wall, when the viewport is already at the oldest row: there is
+        // nothing above it to reveal.
+        val atTop = scrollbar.offset <= 0
+        val target = scrollMachine.drag(
+            distancePx = distancePx,
+            spacingPx = spacing,
+            atTop = atTop,
+        )
 
         // The engine moves by a delta, never to an absolute row: a delta
         // cannot be refused half-way, and the engine's answer is the truth
@@ -1135,6 +1179,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     @Volatile
     private var selectionRect: android.graphics.Rect? = null
 
+    /**
+     * The selected cells, as a row, a column and a length.
+     *
+     * The rectangle the chrome hangs the selection menu on is these cells'
+     * rectangle: the menu has to know where the selection is on the screen, and
+     * the cells are where it is.
+     */
+    private var selectedCells: Triple<Int, Int, Int>? = null
+
     /** The selected text, or "". */
     fun selectedText(): String {
         // The gesture's selection lives in the engine, and the engine is the
@@ -1152,7 +1205,31 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     fun hasSelection(): Boolean = selectedText().isNotEmpty()
 
     /** The selection's bounds in pixels, or null. */
-    fun selectionBounds(): android.graphics.Rect? = selectionRect
+    fun selectionBounds(): android.graphics.Rect? {
+        val cells = selectedCells ?: return selectionRect
+        val cellW = cellWidth.coerceAtLeast(1f)
+        val cellH = cellHeight.coerceAtLeast(1f)
+        // The picture may be shifted inside the viewport, and the cells are
+        // where the *grid* is, so the shift comes off.
+        val top = cells.first * cellH - renderThread.scrollOffsetPx
+        return android.graphics.Rect(
+            (cells.second * cellW).toInt(),
+            top.toInt(),
+            ((cells.second + cells.third) * cellW).toInt(),
+            (top + cellH).toInt(),
+        )
+    }
+
+    /**
+     * Records the selected cells and tells the chrome.
+     *
+     * The row and the column are the grid's; the length is how many cells the
+     * selection covers.
+     */
+    private fun setSelectedCells(row: Int, column: Int, length: Int) {
+        selectedCells = Triple(row, column, length.coerceAtLeast(1))
+        onSelectionChanged?.invoke(true)
+    }
 
     /** Select the word under a cell; returns true when something was selected. */
     fun selectWord(row: Int, column: Int): Boolean = applySelection(row, column, word = true)
@@ -1174,6 +1251,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     fun clearSelection() {
         selected = ""
         selectionRect = null
+        selectedCells = null
+        onSelectionChanged?.invoke(false)
         renderThread.invalidate()
     }
 
@@ -1197,6 +1276,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             NativeSelection.selectLine(session, row, column)
         }
         selectionRect = null
+        // The cells the selection covers: the text's own length is the width of
+        // a word, and a line is as long as the text it holds.
+        setSelectedCells(row, column, selected.length.coerceAtLeast(1))
         renderThread.invalidate()
         return selected.isNotEmpty()
     }

@@ -65,14 +65,27 @@ class ScrollMachine {
      * @param distancePx finger travel. **Positive means the finger moved down**,
      *   which drags the picture down and opens the older row above it.
      * @param spacingPx the height of a row.
+     * @param atTop whether the viewport is already at the oldest row.
      */
-    fun drag(distancePx: Float, spacingPx: Float): Target {
+    fun drag(distancePx: Float, spacingPx: Float, atTop: Boolean = false): Target {
         // A row of no height is a row that cannot be crossed: the machine has
         // nothing to measure the travel against, so it does not move at all.
         if (spacingPx <= 0f) {
             return Target(delta = 0, offsetPx = offsetPx, pinned = false)
         }
         val spacing = spacingPx
+
+        // At the oldest row there is nothing above the viewport to reveal, so
+        // the picture does not move at all.
+        //
+        // The wall has to be known *before* the travel is measured, not after:
+        // a shift that is allowed to grow and is then dropped when the engine
+        // refuses the move is a shift that snaps back, and a picture that snaps
+        // back every row is a picture that shivers at the top of the history.
+        if (atTop && distancePx > 0f) {
+            offsetPx = 0f
+            return Target(delta = 0, offsetPx = 0f, pinned = true)
+        }
 
         var offset = offsetPx + distancePx
         var delta = 0

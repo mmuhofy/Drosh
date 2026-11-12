@@ -104,6 +104,10 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
             onSessionExitedCallback?.invoke(status)
         }
         view.onGridChanged = { _, _ -> }
+        // The chrome's selection menu hangs off this.
+        view.onSelectionChanged = { hasSelection ->
+            selectionListener?.invoke(hasSelection)
+        }
     }
 
     // --- identity ----------------------------------------------------------

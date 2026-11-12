@@ -372,12 +372,21 @@ private fun ReadyScreen(
     // to every scroll and publishes the outcome, so reading the row here would
     // recompose the whole screen once per row of a fling to arrive at the same
     // boolean.
-    val immersive = appearance.terminal.immersive &&
-        chromeCollapsed(atLiveEdge, tuiActive, hasScrolled)
+    // Whether the chrome is up: the user is reading the scrollback, or a
+    // full-screen program owns the terminal.
+    //
+    // This is the *scroll's* answer, not the setting's. The setting decides
+    // whether the system's own bars go away with it; the row's position and
+    // the grid's clearance follow the scroll, so the row always tells the user
+    // where they are.
+    val chromeUp = chromeCollapsed(atLiveEdge, tuiActive, hasScrolled)
+
+    // The system's bars follow the setting *and* the chrome.
+    val immersive = appearance.terminal.immersive && chromeUp
 
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.
-    val terminalTopPadding = rememberTerminalTopPadding(immersive, tuiActive)
+    val terminalTopPadding = rememberTerminalTopPadding(chromeUp, tuiActive)
 
     // The clipboard gate. A program may write the clipboard only when the user
     // says so, and the sink is the one that answers the engine.
@@ -1206,7 +1215,7 @@ private fun ReadyScreen(
         // thing between the two is the status bar inset.
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(
-                chromeCollapsed = immersive,
+                chromeCollapsed = chromeUp,
                 backdrop = backdrop,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,
