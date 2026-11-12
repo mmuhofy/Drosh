@@ -43,6 +43,19 @@ pub enum SessionError {
 }
 
 /// A session: a terminal and everything needed to draw it.
+/// The geometry the engine reads a selection drag event with.
+///
+/// The grid's shape in the surface: how many columns, how wide a cell is, and
+/// how tall the surface is. The engine needs it to turn a drag into a
+/// cell-granular selection.
+#[derive(Clone, Copy)]
+pub struct SelectionGeometry {
+    pub columns: u32,
+    pub cell_width: u32,
+    pub padding_left: u32,
+    pub screen_height: u32,
+}
+
 pub struct Session {
     terminal: ghostty::GhosttyTerminal,
     /// The selection gesture, while one is running.
@@ -222,19 +235,6 @@ impl Session {
         String::from_utf8(bytes.to_vec()).ok()
     }
 
-    /// The geometry the engine reads a drag event with.
-    ///
-    /// The grid's shape in the surface: how many columns, how wide a cell is,
-    /// and how tall the surface is. The engine needs it to turn a drag into a
-    /// cell-granular selection.
-    #[derive(Clone, Copy)]
-    pub struct SelectionGeometry {
-        pub columns: u32,
-        pub cell_width: u32,
-        pub padding_left: u32,
-        pub screen_height: u32,
-    }
-
     /// Feed the selection gesture an event.
     ///
     /// `kind` is one of the engine's event types: press, release or drag. The
@@ -249,7 +249,7 @@ impl Session {
         kind: u32,
         row: u16,
         column: u16,
-        geometry: Option<Session::SelectionGeometry>,
+        geometry: Option<SelectionGeometry>,
     ) -> bool {
         let gesture = match self.gesture {
             Some(gesture) => gesture,

@@ -151,7 +151,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
     if row < 0 || column < 0 {
         return 0;
     }
-    let geometry = crate::session::Session::SelectionGeometry {
+    let geometry = crate::session::SelectionGeometry {
         columns: columns.max(1) as u32,
         cell_width: cell_width.max(1) as u32,
         padding_left: 0,
