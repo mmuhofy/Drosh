@@ -58,6 +58,16 @@ interface SettingsRepository {
     suspend fun setMouseReporting(enabled: Boolean)
 
     /**
+     * Hot stream of the bell's flag. Emits true on first launch: a terminal
+     * that says nothing when a program rings the bell is a terminal that
+     * swallowed something.
+     */
+    val bellEnabled: Flow<Boolean>
+
+    /** Persists the bell's flag. */
+    suspend fun setBellEnabled(enabled: Boolean)
+
+    /**
      * Hot stream of the clipboard-write flag. Emits false on first launch: a
      * program may not write the clipboard until the user says so.
      */

@@ -251,6 +251,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * The terminal flashes, and the app is told so it can buzz and, when the
      * app is not on screen, say it in a notification.
      */
+    /** The colour the bell's wash is in, from the theme. */
+    fun setBellColour(argb: Int) {
+        renderThread.post(RenderThread.Command.BellColour(argb))
+    }
+
     fun bell() {
         renderThread.post(RenderThread.Command.Bell)
         renderThread.invalidate()

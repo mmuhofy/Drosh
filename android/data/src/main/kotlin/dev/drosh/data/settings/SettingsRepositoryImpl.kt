@@ -83,6 +83,12 @@ class SettingsRepositoryImpl @Inject constructor(
         store.update { it.copy(input = it.input.copy(mouseReporting = enabled)) }
     }
 
+    override val bellEnabled: Flow<Boolean> = settings.map { it.input.bellEnabled }
+
+    override suspend fun setBellEnabled(enabled: Boolean) {
+        store.update { it.copy(input = it.input.copy(bellEnabled = enabled)) }
+    }
+
     override val allowClipboardWrites: Flow<Boolean> =
         settings.map { it.input.allowClipboardWrites }
 

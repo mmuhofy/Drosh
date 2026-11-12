@@ -58,6 +58,7 @@ internal class FrameRenderer {
     private var cursorColorUniform = 0
 
     private var cursorHollow = 0
+    private var cursorEdge = 0
     private var foregroundBuffer = 0
 
     /** The glyph masks. Owned by the loop thread. */
@@ -136,6 +137,7 @@ internal class FrameRenderer {
         cursorRect = GLES20.glGetUniformLocation(cursorProgram, "uRect")
         cursorColorUniform = GLES20.glGetUniformLocation(cursorProgram, "uColor")
         cursorHollow = GLES20.glGetUniformLocation(cursorProgram, "uHollow")
+        cursorEdge = GLES20.glGetUniformLocation(cursorProgram, "uEdge")
 
         backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
         backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
@@ -334,6 +336,18 @@ internal class FrameRenderer {
      */
     private fun blinkVisible(): Boolean = RenderClock.blinkVisible()
 
+    /**
+     * The outline's thickness, in cell units.
+     *
+     * A frame that is a fraction of a cell vanishes on a small cell and is a
+     * slab on a large one, so the thickness is a real width on the screen: at
+     * least a pixel and a half, and never more than a quarter of the cell.
+     */
+    private fun cursorEdgeFraction(): Float {
+        val smallest = minOf(cellWidth, cellHeight).coerceAtLeast(1f)
+        return (1.5f / smallest).coerceIn(0.06f, 0.25f)
+    }
+
     private fun drawCursor(frame: Frame, size: SizeInfo) {
         if (cursorProgram == 0) return
         if (!frame.cursorVisible) return
@@ -400,6 +414,9 @@ internal class FrameRenderer {
             h,
         )
         GLES20.glUniform1f(cursorHollow, if (hollow) 1f else 0f)
+        // The outline's thickness: at least a pixel and a half on the screen,
+        // and never more than a quarter of the cell.
+        GLES20.glUniform1f(cursorEdge, cursorEdgeFraction())
         GLES20.glUniform4f(
             cursorColorUniform,
             FrameFormat.red(colour) / 255f,
@@ -411,14 +428,18 @@ internal class FrameRenderer {
     }
 
     /**
-     * The visual bell: a wash of white over the terminal, for a moment.
+     * The visual bell: the accent colour over the terminal, fading away.
      *
      * The cursor's program draws a rectangle, and the grid is a rectangle, so
-     * the flash is the same draw with the whole grid as the rectangle.
+     * the wash is the same draw with the whole grid as the rectangle.
      */
     private fun drawBellFlash(frame: Frame, size: SizeInfo) {
         if (cursorProgram == 0) return
-        if (System.currentTimeMillis() >= bellFlashUntil) return
+        val elapsed = System.currentTimeMillis() - bellStartedAt
+        if (elapsed >= BELL_FLASH_MS) return
+        // The wash fades: it is at its strongest at the first frame and gone by
+        // the last, so it reads as a pulse and not as a blink.
+        val strength = 1f - elapsed.toFloat() / BELL_FLASH_MS
 
         val projection = FloatArray(4)
         size.projection(projection)
@@ -436,7 +457,13 @@ internal class FrameRenderer {
             frame.rows.toFloat(),
         )
         GLES20.glUniform1f(cursorHollow, 0f)
-        GLES20.glUniform4f(cursorColorUniform, 1f, 1f, 1f, BELL_FLASH_ALPHA)
+        GLES20.glUniform4f(
+            cursorColorUniform,
+            bellRed,
+            bellGreen,
+            bellBlue,
+            BELL_FLASH_ALPHA * strength,
+        )
         GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
         GLES20.glDisable(GLES20.GL_BLEND)
     }
@@ -717,17 +744,33 @@ internal class FrameRenderer {
     }
 
     /**
-     * When the visual bell stops, in milliseconds.
+     * When the visual bell started, in milliseconds.
      *
      * A program that rings the bell has said something, and the screen has to
-     * say it back: the terminal flashes for a moment, the way a terminal beeps
-     * and the window flashes.
+     * say it back. A white flash is the old way and it is harsh: the terminal
+     * blinks and the text is unreadable for a moment.
+     *
+     * What it does now is a *wash*: the app's accent colour over the terminal,
+     * faint, and it fades away. Nothing blinks, nothing is unreadable, and the
+     * screen says something happened.
      */
-    private var bellFlashUntil: Long = 0L
+    private var bellStartedAt: Long = 0L
 
-    /** Flash the terminal for a moment: the visual bell. */
+    /** The colour the wash is in: the app's accent. */
+    private var bellRed = 0.3f
+    private var bellGreen = 0.5f
+    private var bellBlue = 1f
+
+    /** Set the colour the bell's wash is in, from the theme. */
+    fun setBellColour(argb: Int) {
+        bellRed = ((argb shr 16) and 0xff) / 255f
+        bellGreen = ((argb shr 8) and 0xff) / 255f
+        bellBlue = (argb and 0xff) / 255f
+    }
+
+    /** The visual bell: a wash that fades. */
     fun flashBell() {
-        bellFlashUntil = System.currentTimeMillis() + BELL_FLASH_MS
+        bellStartedAt = System.currentTimeMillis()
     }
 
     /**
@@ -1080,8 +1123,8 @@ internal class FrameRenderer {
         /** How long the visual bell's flash lasts, in milliseconds. */
         const val BELL_FLASH_MS = 140L
 
-        /** How white the visual bell's flash is. */
-        const val BELL_FLASH_ALPHA = 0.30f
+        /** How strong the bell's wash is at its strongest. */
+        const val BELL_FLASH_ALPHA = 0.22f
 
         /** How much of the highlight colour goes over the cell's background. */
         const val HIGHLIGHT_TINT = 0.35f

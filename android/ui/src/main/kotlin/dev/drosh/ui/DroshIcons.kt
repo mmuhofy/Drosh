@@ -97,6 +97,8 @@ object DroshIcons {
     val Palette: ImageVector get() = LucideIcons.Palette
     val Resize: ImageVector get() = LucideIcons.Type
     val Clock: ImageVector get() = LucideIcons.Clock
+    val Bell: ImageVector get() = LucideIcons.Bell
+
     val Brain: ImageVector get() = LucideIcons.Brain
     val Camera: ImageVector get() = LucideIcons.Camera
     val File: ImageVector get() = LucideIcons.File

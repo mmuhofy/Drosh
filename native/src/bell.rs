@@ -32,6 +32,10 @@ const SINK_SIGNATURE: &str = "()V";
 const NOTIFY_METHOD: &str = "notifyRequest";
 const NOTIFY_SIGNATURE: &str = "(Ljava/lang/String;Ljava/lang/String;)V";
 
+/// `TerminalBell.commandEnded(int)`.
+const COMMAND_METHOD: &str = "commandEnded";
+const COMMAND_SIGNATURE: &str = "(I)V";
+
 /// The VM and the sink, captured once.
 struct Bridge {
     vm: JavaVM,
@@ -60,6 +64,44 @@ fn capture(env: &mut jni::JNIEnv) -> Result<Bridge, jni::errors::Error> {
     let class = env.find_class(SINK_CLASS)?;
     let sink = env.new_global_ref(&class)?;
     Ok(Bridge { vm, sink })
+}
+
+/// The engine's `GHOSTTY_TERMINAL_OPT_SEMANTIC_PROMPT` callback.
+///
+/// The shell reports the steps of a command — the prompt starts, the input
+/// starts, the output starts, the command ends — and the command's end carries
+/// the exit status when the shell sent one. The app turns that into a toast
+/// and, when the app is not on screen, a notification.
+pub unsafe extern "C" fn on_semantic_prompt(
+    _terminal: ghostty::GhosttyTerminal,
+    _userdata: *mut c_void,
+    event: *const ghostty::GhosttyTerminalSemanticPrompt,
+) {
+    let Some(bridge) = BRIDGE.get() else {
+        return;
+    };
+    let Some(event) = event.as_ref() else {
+        return;
+    };
+    if event.kind as u32 != ghostty::GHOSTTY_SEMANTIC_PROMPT_COMMAND_END as u32 {
+        return;
+    }
+
+    let Ok(mut env) = bridge.vm.attach_current_thread() else {
+        return;
+    };
+    // A shell that does not report an exit code has not failed; it has said
+    // nothing about how it went.
+    let code = if event.has_exit_code { event.exit_code } else { 0 };
+    let result = env.call_static_method(
+        &bridge.sink,
+        COMMAND_METHOD,
+        COMMAND_SIGNATURE,
+        &[JValue::Int(code)],
+    );
+    if let Err(error) = result {
+        log::warn!("drosh-native: the command's end could not be delivered: {error}");
+    }
 }
 
 /// The engine's `GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION` callback.

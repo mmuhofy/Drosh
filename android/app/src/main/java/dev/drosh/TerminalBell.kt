@@ -31,8 +31,17 @@ object TerminalBell {
 
     private const val TAG = "TerminalBell"
 
-    /** The channel the bell's notifications live in. */
+    /** The channel the bell's own notification lives in. */
     private const val CHANNEL_ID = "drosh_terminal_bell"
+
+    /**
+     * The channel a *program's* notification lives in.
+     *
+     * Separate from the bell's: the bell is the terminal saying something, and
+     * a program asking for a notification is the program saying something.
+     * They are different voices and they are told apart.
+     */
+    private const val NOTIFICATION_CHANNEL_ID = "drosh_terminal_notification"
 
     /** How long the beep lasts, in milliseconds. */
     private const val BELL_MILLIS = 120
@@ -109,6 +118,36 @@ object TerminalBell {
     }
 
     /**
+     * A command finished.
+     *
+     * The shell reports the exit status with the command's end, and the app
+     * says how it went: a toast while the app is on screen, a notification
+     * when it is not. A command that failed is the one the user needs to know
+     * about, and the one they are most likely to have walked away from.
+     *
+     * `@JvmStatic` is what makes the method reachable as
+     * `dev.drosh.TerminalBell.commandEnded(int)`, the signature the native
+     * bridge calls.
+     */
+    @JvmStatic
+    fun commandEnded(exitCode: Int) {
+        val handler = onCommandEnd ?: return
+        main.post {
+            runCatching { handler(exitCode) }
+                .onFailure { Log.w(TAG, "the command's end could not be shown", it) }
+        }
+    }
+
+    /**
+     * Told when a command finished, with its exit code.
+     *
+     * Set by the screen, which knows whether the app is on screen. Called on
+     * the main thread.
+     */
+    @Volatile
+    var onCommandEnd: ((exitCode: Int) -> Unit)? = null
+
+    /**
      * Told when a program asks for a notification.
      *
      * Set by the screen, which has the activity the notification is posted
@@ -133,10 +172,20 @@ object TerminalBell {
      */
     fun notifyWith(context: Context, title: String?, body: String) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        // A program's own notification and the bell's are told apart: the bell
+        // is the terminal's voice, the program is the program's.
+        val fromProgram = !title.isNullOrBlank()
+        val channelId = if (fromProgram) NOTIFICATION_CHANNEL_ID else CHANNEL_ID
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                context.getString(dev.drosh.ui.R.string.terminal_bell_channel_name),
+                channelId,
+                context.getString(
+                    if (fromProgram) {
+                        dev.drosh.ui.R.string.terminal_notification_channel_name
+                    } else {
+                        dev.drosh.ui.R.string.terminal_bell_channel_name
+                    },
+                ),
                 NotificationManager.IMPORTANCE_DEFAULT,
             )
             manager.createNotificationChannel(channel)
@@ -152,7 +201,7 @@ object TerminalBell {
             )
         }
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .apply {
                 if (!title.isNullOrBlank()) {
@@ -167,7 +216,12 @@ object TerminalBell {
             .apply { pending?.let { setContentIntent(it) } }
             .build()
 
-        runCatching { manager.notify(NOTIFICATION_ID, notification) }
+        runCatching {
+            manager.notify(
+                if (fromProgram) NOTIFICATION_ID + 1 else NOTIFICATION_ID,
+                notification,
+            )
+        }
             .onFailure { Log.w(TAG, "the bell notification failed", it) }
     }
 }

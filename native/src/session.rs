@@ -116,6 +116,13 @@ impl Session {
                 ghostty::GHOSTTY_TERMINAL_OPT_BELL,
                 crate::bell::on_bell as *const c_void,
             );
+            // The shell's report of what it is doing: the steps of a command
+            // and, at the end, the exit status.
+            let _ = ghostty::ghostty_terminal_set(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_SEMANTIC_PROMPT,
+                crate::bell::on_semantic_prompt as *const c_void,
+            );
             // A program that asks for a notification — OSC 9, OSC 777 — gets
             // one, with the app's own notification.
             let _ = ghostty::ghostty_terminal_set(

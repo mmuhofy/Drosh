@@ -90,6 +90,13 @@ fun GhosttyTerminalHost(
      */
     backgroundColor: Int,
     /**
+     * The colour the bell's wash is in.
+     *
+     * The app's accent: the bell is the app saying "something happened", and
+     * it says it in the app's own colour.
+     */
+    bellColour: Int = 0xFF3B82F6.toInt(),
+    /**
      * The picture behind the terminal, and how opaque it is.
      *
      * The picture is the view's own background and the surface is wiped
@@ -405,6 +412,7 @@ fun GhosttyTerminalHost(
                     )
                     pane.view.setCell(cell.width, cell.height, cell.fontPx)
                     pane.setHighlightColour(highlightColour)
+                    pane.setBellColour(bellColour)
                     addView(pane.view)
                 }
             },

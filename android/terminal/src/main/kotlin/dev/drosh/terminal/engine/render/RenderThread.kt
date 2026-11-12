@@ -125,6 +125,11 @@ class RenderThread(
         data object Bell : Command
 
         /**
+         * The colour the bell's wash is in, from the theme.
+         */
+        data class BellColour(val argb: Int) : Command
+
+        /**
          * Whether the surface is wiped to transparent, for a background image.
          */
         data class TransparentBackground(val transparent: Boolean) : Command
@@ -405,6 +410,10 @@ class RenderThread(
                         dirty = true
                     }
 
+                    is Command.BellColour -> {
+                        renderer?.setBellColour(command.argb)
+                    }
+
                     is Command.Bell -> {
                         bellFlashUntil = System.currentTimeMillis() + BELL_FLASH_WINDOW_MS
                         renderer?.flashBell()
@@ -618,8 +627,8 @@ class RenderThread(
         /** How often the loop wakes while a surface is settling. */
         const val LAYOUT_POLL_MS = 16L
 
-        /** How long the bell's flash lasts, in milliseconds. */
-        const val BELL_FLASH_WINDOW_MS = 220L
+        /** How long the bell's wash lasts, in milliseconds. */
+        const val BELL_FLASH_WINDOW_MS = 400L
 
         /** How often the loop wakes while the bell's flash is on. */
         const val BELL_FLASH_POLL_MS = 16L

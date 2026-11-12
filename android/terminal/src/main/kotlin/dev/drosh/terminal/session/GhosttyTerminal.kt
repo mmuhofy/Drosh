@@ -398,6 +398,11 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean =
         view.extendSelectionTo(x, y, fromEnd)
 
+    /** The colour the bell's wash is in, from the theme. */
+    fun setBellColour(argb: Int) {
+        view.setBellColour(argb)
+    }
+
     /** A program rang the bell: the terminal flashes. */
     override fun bell() {
         view.bell()

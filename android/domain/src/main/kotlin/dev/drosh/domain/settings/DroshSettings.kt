@@ -188,6 +188,14 @@ data class InputSettings(
      */
     val mouseReporting: Boolean = true,
     /**
+     * Whether the terminal answers a program that rings the bell.
+     *
+     * The bell is a flash, a buzz and a sound: the terminal saying "something
+     * happened" the way a terminal does. Off, the program is silent and the
+     * terminal is quiet.
+     */
+    val bellEnabled: Boolean = true,
+    /**
      * Whether a program may write the clipboard.
      *
      * `OSC 52` is the one escape sequence that reaches *outside* the
