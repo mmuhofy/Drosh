@@ -259,18 +259,22 @@ private fun statusBarHeight(): Dp =
  * the same tween, so the grid cannot end up out of step with the control.
  */
 @Composable
-fun rememberTerminalTopPadding(collapsed: Boolean): Dp {
-    val statusBarH = statusBarHeight()
-    val target = if (collapsed) {
-        // Immersive: the status bar is gone, so its height is free and the grid
-        // starts right where the pill row ends. Everything past that first line
-        // is output the user was not getting.
-        CHROME_CLEARANCE
-    } else {
-        // The bar is there, so the grid starts below it and the row floats over
-        // the output. The clearance is the bar's own height: the first line is
-        // pushed out of the way of the system's chrome, and only of that.
-        statusBarH
+fun rememberTerminalTopPadding(collapsed: Boolean, tuiActive: Boolean = false): Dp {
+    val target = when {
+        // A full-screen program owns the screen: the row floats over it and
+        // the grid starts at the very top. The program draws its own rows and
+        // a clearance would be a strip of nothing above them.
+        tuiActive -> 0.dp
+
+        // Reading the scrollback: the row has taken the status bar's place at
+        // the top, so the first lines of the output have to be visible below
+        // it. Everything past that first line is output the user was not
+        // getting.
+        collapsed -> CHROME_CLEARANCE
+
+        // At the live edge the row floats over the terminal, and the top line
+        // does not matter: the terminal uses the whole screen.
+        else -> 0.dp
     }
     return animateDpAsState(
         targetValue = target,
@@ -378,6 +382,14 @@ fun TerminalTopBar(
     // of the screen, inside the band the status bar vacated. Not flush at y=0 --
     // see COLLAPSED_ROW_OFFSET.
     // Expanded: the real status bar is back, so the row sits below it.
+    // Where the row is.
+    //
+    // Immersive — the user is reading the scrollback, or a full-screen program
+    // owns the terminal — the row takes the status bar's place: the system bar
+    // is gone in that state, and the row sits a few dp from the top edge.
+    //
+    // At the live edge the row floats: it is drawn over the terminal, below
+    // the system status bar, and the terminal uses the whole screen.
     val rowOffset by animateDpAsState(
         targetValue = if (chromeCollapsed) COLLAPSED_ROW_OFFSET else statusBarH + BAR_TOP_OFFSET,
         animationSpec = chromeTween,
@@ -426,14 +438,13 @@ fun TerminalTopBar(
          * the band is not drawn at all — there is nothing between the status
          * bar and the output.
          */
-        if (!chromeCollapsed) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(statusBarH + BAR_TOP_OFFSET)
-                    .background(DroshBackground),
-            )
-        }
+        // No band above the row.
+        //
+        // The band was the app's own background between the system status bar
+        // and the row, so the clock would not sit on the terminal's background.
+        // But the terminal now fills the screen — the row floats over it — and
+        // a band is a strip of nothing at the top of the output, which is the
+        // one thing the terminal should not have.
 
         if (!buttonsHidden) {
         Row(

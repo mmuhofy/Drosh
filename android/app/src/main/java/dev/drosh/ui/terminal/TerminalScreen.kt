@@ -376,7 +376,7 @@ private fun ReadyScreen(
 
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.
-    val terminalTopPadding = rememberTerminalTopPadding(immersive)
+    val terminalTopPadding = rememberTerminalTopPadding(immersive, tuiActive)
 
     val activity = LocalDroshActivity.current
     LaunchedEffect(immersive) {
