@@ -442,6 +442,15 @@ impl Session {
         self.frames.set_highlight(None);
     }
 
+    /// The frame's images, as one buffer.
+    ///
+    /// A program that draws pictures puts them in the terminal; the renderer
+    /// draws them. The pixels are read once per image generation and kept, so a
+    /// frame that shows the same picture again carries only where it is.
+    pub fn images(&mut self) -> Vec<u8> {
+        self.frames.images()
+    }
+
     /// The scrollbar: total rows and the viewport's offset.
     pub fn scrollbar(&self) -> Option<ghostty::GhosttyTerminalScrollbar> {
         let mut value: ghostty::GhosttyTerminalScrollbar = unsafe { std::mem::zeroed() };

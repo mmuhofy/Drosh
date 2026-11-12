@@ -142,6 +142,18 @@ object NativeSession {
         return nativeSetHighlight(handle, row, column, length) != 0.toByte()
     }
 
+    /**
+     * The pictures a program drew, and where they are.
+     *
+     * The buffer is the app's own format: a count, then per picture its id, its
+     * generation, the cell and the offset it sits at, the part of the picture
+     * to show, and — the first time that generation is seen — its pixels.
+     */
+    fun images(handle: Long): ByteArray? {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
+        return nativeImages(handle)
+    }
+
     /** The title the program asked for with OSC 0/2, or null when it set none. */
     fun title(handle: Long): String? {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
@@ -263,6 +275,7 @@ object NativeSession {
         palette: IntArray,
     ): Byte
     private external fun nativeTitle(handle: Long): String?
+    private external fun nativeImages(handle: Long): ByteArray?
     private external fun nativeSetCursor(handle: Long, style: Int, blink: Int): Byte
     private external fun nativeSetHighlight(
         handle: Long,

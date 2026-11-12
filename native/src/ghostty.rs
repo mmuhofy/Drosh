@@ -165,6 +165,58 @@ pub const GHOSTTY_TERMINAL_SCREEN_ALTERNATE: GhosttyTerminalScreen =
 
 // --- clipboard --------------------------------------------------------------
 
+pub const GHOSTTY_IMAGE_PROTOCOL_KITTY: u32 = 0;
+
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_GENERATION: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_GENERATION;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_LAYER: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_LAYER;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_Z: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_Z;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_COL: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_COL;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_ROW: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_ROW;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_X: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_X;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_Y: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_Y;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_WIDTH: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_WIDTH;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_HEIGHT: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_HEIGHT;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_X: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_X;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_Y: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_Y;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_WIDTH: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_WIDTH;
+pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_HEIGHT: GhosttyRenderStateImageData =
+    GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_HEIGHT;
+
+pub const GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR: GhosttyKittyGraphicsImageData =
+    GhosttyKittyGraphicsImageData_GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR;
+pub const GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN: GhosttyKittyGraphicsImageData =
+    GhosttyKittyGraphicsImageData_GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN;
+pub const GHOSTTY_KITTY_IMAGE_DATA_FORMAT: GhosttyKittyGraphicsImageData =
+    GhosttyKittyGraphicsImageData_GHOSTTY_KITTY_IMAGE_DATA_FORMAT;
+pub const GHOSTTY_KITTY_IMAGE_DATA_COMPRESSION: GhosttyKittyGraphicsImageData =
+    GhosttyKittyGraphicsImageData_GHOSTTY_KITTY_IMAGE_DATA_COMPRESSION;
+pub const GHOSTTY_KITTY_IMAGE_DATA_GENERATION: GhosttyKittyGraphicsImageData =
+    GhosttyKittyGraphicsImageData_GHOSTTY_KITTY_IMAGE_DATA_GENERATION;
+
+pub const GHOSTTY_KITTY_IMAGE_COMPRESSION_NONE: u32 = 0;
+
+pub const GHOSTTY_CELL_DATA_WIDE: GhosttyCellData =
+    GhosttyCellData_GHOSTTY_CELL_DATA_WIDE;
+pub const GHOSTTY_CELL_WIDE_NARROW: u32 = 0;
+pub const GHOSTTY_CELL_WIDE_WIDE: u32 = 1;
+pub const GHOSTTY_CELL_WIDE_SPACER_TAIL: u32 = 2;
+pub const GHOSTTY_CELL_WIDE_SPACER_HEAD: u32 = 3;
 pub const GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION: GhosttyTerminalOption =
     GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION;
 pub const GHOSTTY_TERMINAL_OPT_BELL: GhosttyTerminalOption =

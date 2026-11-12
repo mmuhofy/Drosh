@@ -191,6 +191,14 @@ class RenderThread(
     @Volatile
     var frameSource: (() -> dev.drosh.terminal.engine.protocol.Frame?)? = null
 
+    /**
+     * The pictures a program drew, and where they are.
+     *
+     * The pixels come once per picture generation, so a frame that shows the
+     * same picture again carries only where it is.
+     */
+    var imageSource: (() -> ByteArray?)? = null
+
     /** The renderer's own GL state, created on the loop thread. */
     private var renderer: FrameRenderer? = null
 
@@ -518,6 +526,10 @@ class RenderThread(
             it.onSizeChanged(layout.size)
             renderer = it
         }
+
+        // The pictures of this frame, before the cells are drawn: they are
+        // drawn over the text, so they have to be known first.
+        renderer?.setImages(imageSource?.invoke())
 
         val frame = frameSource?.invoke()
         frame?.let {

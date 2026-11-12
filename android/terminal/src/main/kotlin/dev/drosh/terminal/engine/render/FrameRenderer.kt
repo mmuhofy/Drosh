@@ -122,10 +122,15 @@ internal class FrameRenderer {
         backgroundProgram = buildProgram(Shaders.BACKGROUND_VERTEX, Shaders.BACKGROUND_FRAGMENT)
         foregroundProgram = buildProgram(Shaders.FOREGROUND_VERTEX, Shaders.FOREGROUND_FRAGMENT)
         cursorProgram = buildProgram(Shaders.CURSOR_VERTEX, Shaders.CURSOR_FRAGMENT)
-        if (backgroundProgram == 0 || foregroundProgram == 0 || cursorProgram == 0) {
+        imageProgram = buildProgram(Shaders.IMAGE_VERTEX, Shaders.IMAGE_FRAGMENT)
+        if (backgroundProgram == 0 || foregroundProgram == 0 || cursorProgram == 0 ||
+            imageProgram == 0
+        ) {
             failure = lastShaderError ?: "the shaders did not compile"
             return
         }
+        imageProjection = GLES20.glGetUniformLocation(imageProgram, "uProjection")
+        imageTexture = GLES20.glGetUniformLocation(imageProgram, "uTexture")
         cursorProjection = GLES20.glGetUniformLocation(cursorProgram, "uProjection")
         cursorCellSize = GLES20.glGetUniformLocation(cursorProgram, "uCellSize")
         cursorRect = GLES20.glGetUniformLocation(cursorProgram, "uRect")
@@ -143,6 +148,7 @@ internal class FrameRenderer {
         atlasTexture = buildAtlasTexture()
         backgroundBuffer = buildBuffer()
         foregroundBuffer = buildBuffer()
+        imageBuffer = buildBuffer()
 
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glEnable(GLES20.GL_BLEND)
@@ -256,6 +262,7 @@ internal class FrameRenderer {
         drawForegrounds(frame, size, foregroundCount)
         drawCursor(frame, size)
         drawBellFlash(frame, size)
+        drawImages(size)
 
         return frame.cellCount
     }
@@ -489,6 +496,221 @@ internal class FrameRenderer {
         highlightR = ((argb shr 16) and 0xff) / 255f
         highlightG = ((argb shr 8) and 0xff) / 255f
         highlightB = (argb and 0xff) / 255f
+    }
+
+    // --- the pictures a program drew ---------------------------------------
+
+    /**
+     * A picture's texture, and the generation it belongs to.
+     *
+     * The pixels come once per generation: the program sends a picture, and
+     * until it sends another one the texture is the same picture.
+     */
+    private class ImageTexture(
+        val generation: Long,
+        val texture: Int,
+        val width: Int,
+        val height: Int,
+    )
+
+    private val imageTextures = HashMap<Int, ImageTexture>()
+
+    /** The pictures of the last frame, in the order they are drawn. */
+    private val images = ArrayList<ImageDraw>()
+
+    /** One picture: where it is, and the texture it is drawn from. */
+    private class ImageDraw(
+        val texture: Int,
+        val col: Int,
+        val row: Int,
+        val offsetX: Int,
+        val offsetY: Int,
+        val width: Int,
+        val height: Int,
+        val sourceU: Float,
+        val sourceV: Float,
+        val sourceU2: Float,
+        val sourceV2: Float,
+    )
+
+    private var imageProgram = 0
+    private var imageProjection = 0
+    private var imageTexture = 0
+    private var imageBuffer = 0
+    private var imageVertices: java.nio.ByteBuffer? = null
+
+    /**
+     * Reads the pictures of a frame.
+     *
+     * The buffer is the app's own format: a count, then per picture its id,
+     * its generation, the cell and the offset it sits at, the part of the
+     * picture to show, and — the first time that generation is seen — its
+     * pixels.
+     */
+    fun setImages(buffer: ByteArray?) {
+        images.clear()
+        if (buffer == null || buffer.size < 4) return
+        val little = java.nio.ByteBuffer.wrap(buffer).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        val count = little.int
+        var at = 4
+        for (i in 0 until count) {
+            if (at + 60 > buffer.size) break
+            val id = little.int
+            val generation = little.long
+            val col = little.int
+            val row = little.int
+            val offsetX = little.int
+            val offsetY = little.int
+            val width = little.int
+            val height = little.int
+            val sourceX = little.int
+            val sourceY = little.int
+            val sourceWidth = little.int
+            val sourceHeight = little.int
+            val format = little.int
+            val dataLength = little.int
+            val hasPixels = little.get().toInt() != 0
+            at += 60
+
+            // The pixels, when they are new.
+            if (hasPixels && at + dataLength <= buffer.size) {
+                val pixels = buffer.copyOfRange(at, at + dataLength)
+                at += dataLength
+                uploadImage(id, generation, pixels, width, height, format)
+            }
+
+            val texture = imageTextures[id] ?: continue
+            if (texture.generation != generation) continue
+            if (width <= 0 || height <= 0) continue
+
+            images.add(
+                ImageDraw(
+                    texture = texture.texture,
+                    col = col,
+                    row = row,
+                    offsetX = offsetX,
+                    offsetY = offsetY,
+                    width = width,
+                    height = height,
+                    sourceU = sourceX.toFloat() / texture.width.toFloat(),
+                    sourceV = sourceY.toFloat() / texture.height.toFloat(),
+                    sourceU2 = (sourceX + sourceWidth).toFloat() / texture.width.toFloat(),
+                    sourceV2 = (sourceY + sourceHeight).toFloat() / texture.height.toFloat(),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Uploads a picture's pixels.
+     *
+     * The kitty protocol sends RGB or RGBA, and the rows are not padded to
+     * four bytes, so the unpack alignment is one.
+     */
+    private fun uploadImage(
+        id: Int,
+        generation: Long,
+        pixels: ByteArray,
+        width: Int,
+        height: Int,
+        format: Int,
+    ) {
+        if (width <= 0 || height <= 0) return
+        val texture = imageTextures[id]?.texture ?: run {
+            val ids = IntArray(1)
+            GLES20.glGenTextures(1, ids, 0)
+            ids[0]
+        }
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
+        if (format == KITTY_FORMAT_RGB) {
+            // RGB has no alpha; the picture is drawn over the terminal, so it
+            // is opaque.
+            GLES20.glTexImage2D(
+                GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGB, width, height, 0,
+                GLES20.GL_RGB, GLES20.GL_UNSIGNED_BYTE, pixels,
+            )
+        } else {
+            GLES20.glTexImage2D(
+                GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0,
+                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels,
+            )
+        }
+        GLES20.glTexParameteri(
+            GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST,
+        )
+        GLES20.glTexParameteri(
+            GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST,
+        )
+        GLES20.glTexParameteri(
+            GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE,
+        )
+        GLES20.glTexParameteri(
+            GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE,
+        )
+        imageTextures[id] = ImageTexture(generation, texture, width, height)
+    }
+
+    /**
+     * Draws the pictures, over the text.
+     *
+     * A picture is *on* the grid: it covers the cells it is placed on, so it
+     * is drawn after the glyphs and before the cursor.
+     */
+    private fun drawImages(size: SizeInfo) {
+        if (images.isEmpty() || imageProgram == 0) return
+
+        val floats = images.size * 8
+        if (imageVertices == null || imageVertices!!.capacity() < floats * 4) {
+            imageVertices = java.nio.ByteBuffer
+                .allocateDirect(floats * 4)
+                .order(java.nio.ByteOrder.nativeOrder())
+        }
+        val buffer = imageVertices!!
+        buffer.clear()
+        for (image in images) {
+            val x = image.col * cellWidth + image.offsetX
+            val y = image.row * cellHeight + image.offsetY
+            buffer.putFloat(x)
+            buffer.putFloat(y)
+            buffer.putFloat(image.width.toFloat())
+            buffer.putFloat(image.height.toFloat())
+            buffer.putFloat(image.sourceU)
+            buffer.putFloat(image.sourceV)
+            buffer.putFloat(image.sourceU2)
+            buffer.putFloat(image.sourceV2)
+        }
+        buffer.flip()
+
+        val projection = FloatArray(4)
+        size.projection(projection)
+
+        GLES20.glUseProgram(imageProgram)
+        GLES20.glUniform4fv(imageProjection, 1, projection, 0)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glUniform1i(imageTexture, 0)
+
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, imageBuffer)
+        GLES20.glBufferData(
+            GLES20.GL_ARRAY_BUFFER,
+            buffer.remaining(),
+            buffer,
+            GLES20.GL_DYNAMIC_DRAW,
+        )
+        GLES20.glEnableVertexAttribArray(0)
+        GLES20.glVertexAttribPointer(0, 4, GLES20.GL_FLOAT, false, 32, 0)
+        GLES20.glEnableVertexAttribArray(1)
+        GLES20.glVertexAttribPointer(1, 4, GLES20.GL_FLOAT, false, 32, 16)
+
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        for ((index, image) in images.withIndex()) {
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, image.texture)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, index * 4, 4)
+        }
+        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES20.glDisableVertexAttribArray(0)
+        GLES20.glDisableVertexAttribArray(1)
     }
 
     /**
@@ -848,6 +1070,9 @@ internal class FrameRenderer {
 
         /** A colour that draws nothing. */
         const val TRANSPARENT = 0
+
+        /** The kitty protocol's RGB picture format. */
+        const val KITTY_FORMAT_RGB = 0
 
         /** How long the visual bell's flash lasts, in milliseconds. */
         const val BELL_FLASH_MS = 140L

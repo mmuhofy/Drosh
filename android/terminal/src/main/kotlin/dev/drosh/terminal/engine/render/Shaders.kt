@@ -198,6 +198,46 @@ internal object Shaders {
      * corners come from `gl_VertexID`, so there is no vertex buffer: this shader
      * draws exactly one quad and that is all it is for.
      */
+    /**
+     * The pictures a program drew.
+     *
+     * A picture is a rectangle in the surface's own pixels — the program put it
+     * at a cell and an offset — and a rectangle of the picture to show. The
+     * source is normalized on the CPU, so the shader needs nothing but the
+     * texture.
+     */
+    val IMAGE_VERTEX = """
+        #version 300 es
+        layout(location = 0) in vec4 aRect;
+        layout(location = 1) in vec4 aSource;
+        uniform vec4 uProjection;
+        out vec2 vUv;
+        void main() {
+            vec2 corner = vec2(
+                float(gl_VertexID == 1 || gl_VertexID == 3),
+                float(gl_VertexID == 2 || gl_VertexID == 3)
+            );
+            vec2 pixel = aRect.xy + corner * aRect.zw;
+            gl_Position = vec4(
+                uProjection.xy + uProjection.zw * pixel,
+                0.0,
+                1.0
+            );
+            vUv = aSource.xy + corner * aSource.zw;
+        }
+    """.trimIndent()
+
+    val IMAGE_FRAGMENT = """
+        #version 300 es
+        precision mediump float;
+        uniform sampler2D uTexture;
+        in vec2 vUv;
+        out vec4 fragColor;
+        void main() {
+            fragColor = texture(uTexture, vUv);
+        }
+    """.trimIndent()
+
     val CURSOR_VERTEX = """
         #version 300 es
         uniform vec4 uProjection;

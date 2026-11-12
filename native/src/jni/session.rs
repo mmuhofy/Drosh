@@ -209,6 +209,23 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     1
 }
 
+/// The frame's images: the pictures a program drew, and where they are.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeImages(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jbyteArray {
+    let Some(mut session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    let images = session.images();
+    if images.is_empty() {
+        return std::ptr::null_mut();
+    }
+    new_byte_array(&mut env, &images)
+}
+
 /// The window title the program asked for (OSC 0/2), or the process name.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeTitle(

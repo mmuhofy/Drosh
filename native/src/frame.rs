@@ -119,6 +119,14 @@ pub struct FrameSource {
     /// what Ghostty itself does, and what an OSC 10/11 recolour changes.
     default_fg: ghostty::GhosttyColorRgb,
     default_bg: ghostty::GhosttyColorRgb,
+    /// The pixels of the images, by image and generation.
+    ///
+    /// The pixels do not change unless the program sends new ones, and the
+    /// generation says exactly that. So the pixels are read once and kept, and
+    /// a frame that draws the same image again carries only where it is.
+    image_cache:
+        std::collections::HashMap<(u32, u64), (u32, std::vec::Vec<u8>)>,
+
     /// The range the search matched, in the viewport's rows and columns.
     ///
     /// One range: the find bar shows the match the user is on, and that is the
@@ -184,6 +192,7 @@ impl FrameSource {
             rows: 0,
             overscan_above: 0,
             highlight: None,
+            image_cache: std::collections::HashMap::new(),
         })
     }
 
@@ -353,6 +362,193 @@ impl FrameSource {
     /// place by the time it is drawn.
     pub fn set_highlight(&mut self, range: Option<(u16, u16, u16)>) {
         self.highlight = range;
+    }
+
+    /// The frame's images, as one buffer.
+    ///
+    /// A program that draws pictures — the kitty graphics protocol — puts them
+    /// in the terminal, and the renderer has to draw them. The engine knows
+    /// where each one sits (the cell, the offset inside it, the part of the
+    /// image to show) and it knows the pixels; this collects both into one
+    /// buffer the other side can read in a single crossing.
+    ///
+    /// The format is the app's: a count, then per image its id, its
+    /// generation, where it sits and how much of it is shown, and its pixels.
+    pub fn images(&mut self) -> Vec<u8> {
+        let mut iterator = std::ptr::null_mut();
+        if !ghostty::ok(unsafe {
+            ghostty::ghostty_render_state_image_iterator_new(std::ptr::null(), &mut iterator)
+        }) {
+            return Vec::new();
+        }
+
+        // The kitty graphics handle: the pixels come from there.
+        let mut graphics: ghostty::GhosttyKittyGraphics = std::ptr::null_mut();
+        let _ = unsafe { ghostty::ghostty_kitty_graphics_get(self.terminal, &mut graphics) };
+
+        let mut out: Vec<u8> = Vec::new();
+        let mut count: u32 = 0;
+
+        unsafe {
+            while ghostty::ghostty_render_state_image_iterator_next(iterator) {
+                let mut protocol: u32 = 0;
+                let mut image_id: u32 = 0;
+                let mut generation: u64 = 0;
+                let mut layer: u32 = 0;
+                let mut z: i32 = 0;
+                let mut col: i32 = 0;
+                let mut row: i32 = 0;
+                let mut offset_x: u32 = 0;
+                let mut offset_y: u32 = 0;
+                let mut width: u32 = 0;
+                let mut height: u32 = 0;
+                let mut src_x: u32 = 0;
+                let mut src_y: u32 = 0;
+                let mut src_width: u32 = 0;
+                let mut src_height: u32 = 0;
+
+                let keys = [
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_GENERATION,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_LAYER,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_Z,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_COL,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_VIEWPORT_ROW,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_X,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_CELL_OFFSET_Y,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_WIDTH,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_PIXEL_HEIGHT,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_X,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_Y,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_WIDTH,
+                    ghostty::GHOSTTY_RENDER_STATE_IMAGE_DATA_SOURCE_HEIGHT,
+                ];
+                let mut values: [*mut c_void; 15] = [
+                    &mut protocol as *mut u32 as *mut c_void,
+                    &mut image_id as *mut u32 as *mut c_void,
+                    &mut generation as *mut u64 as *mut c_void,
+                    &mut layer as *mut u32 as *mut c_void,
+                    &mut z as *mut i32 as *mut c_void,
+                    &mut col as *mut i32 as *mut c_void,
+                    &mut row as *mut i32 as *mut c_void,
+                    &mut offset_x as *mut u32 as *mut c_void,
+                    &mut offset_y as *mut u32 as *mut c_void,
+                    &mut width as *mut u32 as *mut c_void,
+                    &mut height as *mut u32 as *mut c_void,
+                    &mut src_x as *mut u32 as *mut c_void,
+                    &mut src_y as *mut u32 as *mut c_void,
+                    &mut src_width as *mut u32 as *mut c_void,
+                    &mut src_height as *mut u32 as *mut c_void,
+                ];
+                let mut written: usize = 0;
+                if !ghostty::ok(ghostty::ghostty_render_state_image_get_multi(
+                    iterator,
+                    15,
+                    keys.as_ptr(),
+                    values.as_mut_ptr(),
+                    &mut written,
+                )) {
+                    continue;
+                }
+
+                // Only the kitty protocol: the others are not implemented here,
+                // and an image the renderer cannot draw is better left out than
+                // drawn wrong.
+                if protocol != ghostty::GHOSTTY_IMAGE_PROTOCOL_KITTY as u32 {
+                    continue;
+                }
+
+                // The pixels.
+                let mut image = std::ptr::null_mut();
+                if graphics.is_null()
+                    || std::ptr::null_mut()
+                        == ghostty::ghostty_kitty_graphics_image(graphics, image_id)
+                {
+                    continue;
+                }
+                image = ghostty::ghostty_kitty_graphics_image(graphics, image_id);
+
+                let mut data_ptr: *const u8 = std::ptr::null();
+                let mut data_len: usize = 0;
+                let mut format: u32 = 0;
+                let mut compression: u32 = 0;
+                if !ghostty::ok(ghostty::ghostty_kitty_graphics_image_get_multi(
+                    image,
+                    5,
+                    [
+                        ghostty::GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR,
+                        ghostty::GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN,
+                        ghostty::GHOSTTY_KITTY_IMAGE_DATA_FORMAT,
+                        ghostty::GHOSTTY_KITTY_IMAGE_DATA_COMPRESSION,
+                        ghostty::GHOSTTY_KITTY_IMAGE_DATA_GENERATION,
+                    ]
+                    .as_ptr(),
+                    [
+                        &mut data_ptr as *mut *const u8 as *mut c_void,
+                        &mut data_len as *mut usize as *mut c_void,
+                        &mut format as *mut u32 as *mut c_void,
+                        &mut compression as *mut u32 as *mut c_void,
+                        &mut generation as *mut u64 as *mut c_void,
+                    ]
+                    .as_mut_ptr(),
+                    &mut written,
+                )) {
+                    continue;
+                }
+
+                // A compressed image would have to be inflated here, and the
+                // renderer does not do that: the kitty protocol sends its
+                // pictures uncompressed unless the program asks otherwise.
+                if compression != ghostty::GHOSTTY_KITTY_IMAGE_COMPRESSION_NONE as u32
+                    || data_ptr.is_null()
+                    || data_len == 0
+                {
+                    continue;
+                }
+
+                // The pixels: read once per generation, and only carried
+                // when they are new.
+                let cached = self.image_cache.get(&(image_id, generation)).cloned();
+                let (format, pixels) = match cached {
+                    Some(entry) => (entry.0, Vec::new()),
+                    None => {
+                        let pixels = std::slice::from_raw_parts(data_ptr, data_len).to_vec();
+                        self.image_cache
+                            .insert((image_id, generation), (format, pixels.clone()));
+                        (format, pixels)
+                    }
+                };
+                let has_pixels = !pixels.is_empty();
+
+                count += 1;
+                push_u32(&mut out, image_id);
+                push_u64(&mut out, generation);
+                push_i32(&mut out, col);
+                push_i32(&mut out, row);
+                push_u32(&mut out, offset_x);
+                push_u32(&mut out, offset_y);
+                push_u32(&mut out, width);
+                push_u32(&mut out, height);
+                push_u32(&mut out, src_x);
+                push_u32(&mut out, src_y);
+                push_u32(&mut out, src_width);
+                push_u32(&mut out, src_height);
+                push_u32(&mut out, format);
+                push_u32(&mut out, data_len as u32);
+                push_u8(&mut out, if has_pixels { 1 } else { 0 });
+                if has_pixels {
+                    out.extend_from_slice(&pixels);
+                }
+            }
+            ghostty::ghostty_render_state_image_iterator_free(iterator);
+        }
+
+        // The count, at the front.
+        let mut framed: Vec<u8> = Vec::with_capacity(out.len() + 4);
+        push_u32(&mut framed, count);
+        framed.extend_from_slice(&out);
+        framed
     }
 
     /// Read the engine's effective default foreground and background.
@@ -718,6 +914,35 @@ impl FrameSource {
         // The buffer borrow is taken last, once every read from `self` is done:
         // the cell's bytes and the source of its colours cannot be borrowed out
         // of the same struct at once.
+        // The cell's width.
+        //
+        // A wide character — a CJK ideograph, an emoji — covers two cells, and
+        // the cell after it is a spacer that carries no text of its own. The
+        // frame said "one cell" for everything, so a wide glyph was drawn in
+        // half the space it belongs to and the next glyph landed on top of it.
+        //
+        // The raw cell is the engine's packed value, and the width is one of
+        // its fields: the raw bits are not a documented layout, but the query
+        // is.
+        let mut raw_cell: u64 = 0;
+        let _ = ghostty::ghostty_render_state_row_cells_get(
+            self.cells,
+            ghostty::GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_RAW,
+            &mut raw_cell as *mut u64 as *mut c_void,
+        );
+        let mut wide: u32 = 0;
+        let _ = ghostty::ghostty_cell_get(
+            raw_cell,
+            ghostty::GHOSTTY_CELL_DATA_WIDE,
+            &mut wide as *mut u32 as *mut c_void,
+        );
+        let cell_width = match wide {
+            ghostty::GHOSTTY_CELL_WIDE_WIDE => 2u8,
+            ghostty::GHOSTTY_CELL_WIDE_SPACER_TAIL => 0u8,
+            ghostty::GHOSTTY_CELL_WIDE_SPACER_HEAD => 0u8,
+            _ => 1u8,
+        };
+
         let cell = &mut self.buffer[at..at + CELL_BYTES];
         put_u32(cell, 0, codepoints[0]);
         put_u32(cell, 4, rgba(ghostty::GhosttyColorRgb {
@@ -731,7 +956,7 @@ impl FrameSource {
             b: bg.b,
         }));
         put_u32(cell, 12, attributes);
-        cell[16] = 1;
+        cell[16] = cell_width;
         cell[17] = flags;
     }
 }
@@ -763,6 +988,22 @@ fn rgb(color: ghostty::GhosttyColorRgb) -> crate::renderer::cell::Rgb {
 
 fn rgba(color: ghostty::GhosttyColorRgb) -> u32 {
     u32::from(color.r) | (u32::from(color.g) << 8) | (u32::from(color.b) << 16) | (0xff << 24)
+}
+
+fn push_u8(out: &mut Vec<u8>, value: u8) {
+    out.push(value);
+}
+
+fn push_u32(out: &mut Vec<u8>, value: u32) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+fn push_u64(out: &mut Vec<u8>, value: u64) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+fn push_i32(out: &mut Vec<u8>, value: i32) {
+    out.extend_from_slice(&value.to_le_bytes());
 }
 
 fn put_u16(out: &mut [u8], at: usize, value: u16) {

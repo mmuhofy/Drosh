@@ -132,6 +132,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         setZOrderOnTop(false)
 
         renderThread.frameSource = { frame() }
+        // The pictures a program drew.
+        renderThread.imageSource = {
+            val session = sessionHandle
+            if (session == 0L) null else NativeSession.images(session)
+        }
         renderThread.onGridChange = { columns, rows ->
             // Three things have to agree about the shape: the grid drawn, the
             // engine's own terminal, and the process. The engine's terminal is
