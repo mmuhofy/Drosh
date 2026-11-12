@@ -645,7 +645,7 @@ impl Session {
             if !ghostty::ok(unsafe {
                 ghostty::ghostty_mouse_encoder_new(std::ptr::null(), &mut encoder)
             }) {
-                return Vec::new();
+                return 0;
             }
             self.mouse = Some(encoder);
         }
