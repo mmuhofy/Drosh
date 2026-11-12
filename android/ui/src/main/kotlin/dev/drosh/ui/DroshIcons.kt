@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathData
 import androidx.compose.ui.unit.dp
 import compose.icons.lucideicons.ClipboardPaste
+import compose.icons.lucideicons.Volume2
 import compose.icons.lucideicons.ExternalLink
 import compose.icons.lucideicons.ChevronRight
 import compose.icons.lucideicons.Sun
@@ -97,7 +98,7 @@ object DroshIcons {
     val Palette: ImageVector get() = LucideIcons.Palette
     val Resize: ImageVector get() = LucideIcons.Type
     val Clock: ImageVector get() = LucideIcons.Clock
-    val Bell: ImageVector get() = LucideIcons.Bell
+    val Bell: ImageVector get() = LucideIcons.Volume2
 
     val Brain: ImageVector get() = LucideIcons.Brain
     val Camera: ImageVector get() = LucideIcons.Camera

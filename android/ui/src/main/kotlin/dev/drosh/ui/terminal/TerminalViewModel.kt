@@ -152,6 +152,7 @@ class TerminalViewModel @Inject constructor(
     /** Whether the terminal answers a program that rings the bell. */
     val bellEnabled: StateFlow<Boolean> = settingsRepository.bellEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     /**
      * Whether a program may write the clipboard.
