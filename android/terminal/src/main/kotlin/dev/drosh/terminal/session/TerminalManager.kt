@@ -1449,6 +1449,17 @@ class TerminalManager(
         applyEngineCursor(session)
         publishBackgroundSessions()
 
+        // The program's title, as it changes.
+        session.onTitle = { title ->
+            val titles = _sessionTitles.value.toMutableMap()
+            if (title.isNullOrBlank()) {
+                titles.remove(persistentId)
+            } else {
+                titles[persistentId] = title
+            }
+            _sessionTitles.value = titles
+        }
+
         // The session also joins the app's session list, so the sidebar, the
         // grid and the active-id tracking all see it — a session that exists
         // only in [liveSessions] would be invisible to every one of them.
@@ -1530,6 +1541,17 @@ class TerminalManager(
         publishBackgroundSessions()
         lifecycleCallbacks?.onSessionFinished(persistentId, code)
     }
+
+    /**
+     * The titles the programs asked for, by session id.
+     *
+     * `OSC 0` and `OSC 2` set a terminal's title: `vim` puts the file name
+     * there, a shell puts the directory. It is the *program's* title, not the
+     * session's name — the user named the session, and the program does not get
+     * to rename it.
+     */
+    private val _sessionTitles = MutableStateFlow<Map<String, String>>(emptyMap())
+    val sessionTitles: StateFlow<Map<String, String>> = _sessionTitles.asStateFlow()
 
     /**
      * The sessions that are running but not on screen.

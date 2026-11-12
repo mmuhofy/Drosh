@@ -542,6 +542,10 @@ private fun ReadyScreen(
     val backgroundSessionIds by terminalManager.backgroundSessions
         .collectAsStateWithLifecycle()
 
+    // The titles the programs asked for (OSC 0/2): `vim` puts the file name
+    // there, a shell puts the directory.
+    val sessionTitles by terminalManager.sessionTitles.collectAsStateWithLifecycle()
+
     /**
      * The sessions a log can be taken from, most recently used first.
      *
@@ -1390,6 +1394,7 @@ private fun ReadyScreen(
 
             SessionGrid(
                 backgroundIds = backgroundSessionIds,
+                titles = sessionTitles,
                 sessions = sessions,
                 activeId = activeId,
                 onOpen = { id ->

@@ -135,6 +135,14 @@ fun SessionGrid(
      * the user looks for it.
      */
     backgroundIds: Set<String> = emptySet(),
+    /**
+     * The titles the programs asked for, by session id.
+     *
+     * `OSC 0` and `OSC 2`: `vim` puts the file name there, a shell puts the
+     * directory. The card shows it as the session's second line — the program
+     * saying what it is doing, without renaming the session the user named.
+     */
+    titles: Map<String, String> = emptyMap(),
     onOpen: (String) -> Unit,
     onClose: (String) -> Unit,
     onNewSession: () -> Unit,
@@ -223,6 +231,7 @@ fun SessionGrid(
                         session = session,
                         isActive = session.id == activeId,
                         isBackground = session.id in backgroundIds,
+                        title = titles[session.id],
                         isPending = session.id == pendingGroup,
                         isDropTarget = session.id == dropTarget,
                         isHeld = session.id == heldId,
@@ -513,6 +522,8 @@ private fun SessionCard(
     session: SessionSnapshot,
     isActive: Boolean,
     isBackground: Boolean,
+    /** The title the program asked for, or null. */
+    title: String?,
     isPending: Boolean,
     isDropTarget: Boolean,
     isHeld: Boolean,
@@ -693,7 +704,7 @@ private fun SessionCard(
         // Keyed on the timestamp the phrase is built from: the label can go
         // stale by a minute — invisible — but must not reformat on every
         // recomposition the grid's other state (drag, pending, press) causes.
-        val meta = remember(session.lastUsedAtMs) { cardMeta(session) }
+        val meta = remember(session.lastUsedAtMs, title) { cardMeta(session, title) }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -923,9 +934,14 @@ private fun DialogButton(
 }
 
 /** The card's under-picture line: state in words, then recency. */
-private fun cardMeta(session: SessionSnapshot): String {
+private fun cardMeta(session: SessionSnapshot, title: String? = null): String {
     val time = relativeTime(session.lastUsedAtMs, System.currentTimeMillis())
-    return "${stateLabel(session.state)} · $time"
+    val state = stateLabel(session.state)
+    return if (title.isNullOrBlank()) {
+        "$state · $time"
+    } else {
+        "$title · $state · $time"
+    }
 }
 
 /** The state as a word, shared by the meta line and the semantics. */

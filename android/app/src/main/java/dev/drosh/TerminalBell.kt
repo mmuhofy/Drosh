@@ -34,6 +34,12 @@ object TerminalBell {
     /** The channel the bell's notifications live in. */
     private const val CHANNEL_ID = "drosh_terminal_bell"
 
+    /** How long the beep lasts, in milliseconds. */
+    private const val BELL_MILLIS = 120
+
+    /** How loud the beep is. */
+    private const val BELL_VOLUME = 80
+
     /** The notification's id; one at a time is enough. */
     private const val NOTIFICATION_ID = 4101
 
@@ -58,9 +64,31 @@ object TerminalBell {
     fun ring() {
         val handler = onBell ?: return
         main.post {
-            runCatching { handler() }
-                .onFailure { Log.w(TAG, "the bell could not be answered", it) }
+            runCatching {
+                handler()
+                beep()
+            }.onFailure { Log.w(TAG, "the bell could not be answered", it) }
         }
+    }
+
+    /**
+     * The sound of the bell.
+     *
+     * A terminal's bell is a beep: a short, plain tone that says "something
+     * happened" over whatever the program is playing. The system's own tone
+     * generator is that sound, and it does not need a file of our own.
+     */
+    private fun beep() {
+        runCatching {
+            val tone = android.media.ToneGenerator(
+                android.media.AudioManager.STREAM_NOTIFICATION,
+                BELL_VOLUME,
+            )
+            tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, BELL_MILLIS)
+            // The tone generator holds an audio resource; it is released a
+            // moment after the tone, not immediately, or the sound is cut.
+            main.postDelayed({ runCatching { tone.release() } }, BELL_MILLIS + 200L)
+        }.onFailure { Log.w(TAG, "the bell could not beep", it) }
     }
 
     /**

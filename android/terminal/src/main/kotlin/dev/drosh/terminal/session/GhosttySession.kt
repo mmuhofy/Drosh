@@ -308,7 +308,41 @@ class GhosttySession(
     fun frame(): dev.drosh.terminal.engine.protocol.Frame? {
         val handle = terminalHandle
         if (handle == 0L) return null
+        pollTitle(handle)
         return NativeSession.frame(handle)
+    }
+
+    /**
+     * The title the program asked for, with `OSC 0` or `OSC 2`.
+     *
+     * A terminal's window title follows the program: `vim` puts the file name
+     * there, a shell puts the directory. It is the program's title and not the
+     * session's name — the user named the session, and the program does not get
+     * to rename it.
+     */
+    @Volatile
+    var title: String? = null
+        private set
+
+    /** Told when the program's title changes. */
+    var onTitle: ((String?) -> Unit)? = null
+
+    private var lastTitlePollAt: Long = 0L
+
+    /**
+     * Reads the title, now and then.
+     *
+     * The title changes when the program says so, which is not often, so it is
+     * asked for twice a second rather than on every frame.
+     */
+    private fun pollTitle(handle: Long) {
+        val now = System.currentTimeMillis()
+        if (now - lastTitlePollAt < TITLE_POLL_MILLIS) return
+        lastTitlePollAt = now
+        val read = NativeSession.title(handle)?.takeIf { it.isNotBlank() }
+        if (read == title) return
+        title = read
+        onTitle?.invoke(read)
     }
 
     /** Feed bytes to the parser — a bridged session's transport. */
@@ -470,6 +504,8 @@ class GhosttySession(
     }
 
     private companion object {
+        /** How often the program's title is read, in milliseconds. */
+        const val TITLE_POLL_MILLIS = 500L
         /** How long the reader waits before looking again. */
         const val IDLE_SLEEP_MS = 8L
 
