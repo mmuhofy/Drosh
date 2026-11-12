@@ -118,6 +118,8 @@ class TerminalManager(
 
     /** Record which session a slot shows, and tell the screen. */
     private fun setSlotSession(slot: PaneSlot, persistentId: String) {
+        // Which sessions are in the background follows which pane shows what.
+        publishBackgroundSessions()
         sessionSlot[slot] = persistentId
         _slotSessionIds.value = sessionSlot.toMap()
     }
@@ -1445,6 +1447,7 @@ class TerminalManager(
         liveSessions[persistentId] = session
         applyEngineColors(session)
         applyEngineCursor(session)
+        publishBackgroundSessions()
 
         // The session also joins the app's session list, so the sidebar, the
         // grid and the active-id tracking all see it — a session that exists
@@ -1524,7 +1527,32 @@ class TerminalManager(
      * the app knows, and the grid shows what it printed.
      */
     private fun onLiveSessionExited(persistentId: String, code: Int) {
+        publishBackgroundSessions()
         lifecycleCallbacks?.onSessionFinished(persistentId, code)
+    }
+
+    /**
+     * The sessions that are running but not on screen.
+     *
+     * A session outlives the pane that showed it: closing a pane detaches the
+     * view and leaves the session running, so its output keeps arriving and its
+     * scrollback keeps growing. Those sessions are *in the background*, and the
+     * grid says so — a card that is not on screen but is not dead either.
+     */
+    private val _backgroundSessions = MutableStateFlow<Set<String>>(emptySet())
+    val backgroundSessions: StateFlow<Set<String>> = _backgroundSessions.asStateFlow()
+
+    /**
+     * Recomputes which sessions are in the background.
+     *
+     * A session is in the foreground when a pane is showing it. Everything
+     * else that is still running is in the background.
+     */
+    fun publishBackgroundSessions() {
+        val shown = PaneSlot.entries.mapNotNull { slot ->
+            sessionIdForSlot(slot) ?: enginePanes[slot]?.persistentId?.ifEmpty { null }
+        }.toSet()
+        _backgroundSessions.value = liveSessions.keys.filter { it !in shown }.toSet()
     }
 
     /**
@@ -1636,6 +1664,8 @@ class TerminalManager(
      * screen.
      */
     fun unregisterPane(slot: PaneSlot) {
+        // The pane is gone; the session it showed is in the background now.
+        publishBackgroundSessions()
         if (slot == focusedPane.value) {
             // Before the pane leaves the registry: this is what finds it and
             // tells the shell that the focus is gone.

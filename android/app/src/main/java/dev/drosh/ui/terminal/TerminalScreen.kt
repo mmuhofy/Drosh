@@ -504,6 +504,10 @@ private fun ReadyScreen(
     val noSessionsLeft by terminalManager.noSessionsLeft.collectAsState()
     val sessions by sessionSwitcherViewModel.allSessions.collectAsStateWithLifecycle()
 
+    // The sessions that are running but not on screen: the grid marks them.
+    val backgroundSessionIds by terminalManager.backgroundSessions
+        .collectAsStateWithLifecycle()
+
     /**
      * The sessions a log can be taken from, most recently used first.
      *
@@ -1351,6 +1355,7 @@ private fun ReadyScreen(
             BackHandler { sessionsGridOpen = false }
 
             SessionGrid(
+                backgroundIds = backgroundSessionIds,
                 sessions = sessions,
                 activeId = activeId,
                 onOpen = { id ->

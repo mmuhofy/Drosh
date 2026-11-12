@@ -125,6 +125,16 @@ import dev.drosh.ui.DroshIcons
 fun SessionGrid(
     sessions: List<SessionSnapshot>,
     activeId: String?,
+    /**
+     * The sessions that are running but not on screen.
+     *
+     * A session outlives the pane that showed it: closing the pane detaches
+     * the view and the session keeps running, its output keeps arriving and its
+     * scrollback keeps growing. The card says so, because a card that is not
+     * on screen and not dead either is a third thing, and the grid is where
+     * the user looks for it.
+     */
+    backgroundIds: Set<String> = emptySet(),
     onOpen: (String) -> Unit,
     onClose: (String) -> Unit,
     onNewSession: () -> Unit,
@@ -212,6 +222,7 @@ fun SessionGrid(
                     SessionCard(
                         session = session,
                         isActive = session.id == activeId,
+                        isBackground = session.id in backgroundIds,
                         isPending = session.id == pendingGroup,
                         isDropTarget = session.id == dropTarget,
                         isHeld = session.id == heldId,
@@ -501,6 +512,7 @@ private fun SessionGridFooter(onNewSession: () -> Unit) {
 private fun SessionCard(
     session: SessionSnapshot,
     isActive: Boolean,
+    isBackground: Boolean,
     isPending: Boolean,
     isDropTarget: Boolean,
     isHeld: Boolean,
@@ -696,6 +708,8 @@ private fun SessionCard(
             )
             if (isActive) {
                 ActivePill()
+            } else if (isBackground) {
+                BackgroundPill()
             }
         }
     }
@@ -722,6 +736,30 @@ private fun ActivePill() {
             color = DroshPrimary,
             fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+/**
+ * The mark of a session that is running in the background.
+ *
+ * Not the accent: the accent means "this one is in play". This one means the
+ * opposite — it is running, it is not on screen, and it is still doing
+ * something.
+ */
+@Composable
+private fun BackgroundPill() {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(DroshTextSecondary.copy(alpha = 0.16f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = "Arka planda",
+            color = DroshTextSecondary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
         )
     }
 }
