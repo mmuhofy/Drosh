@@ -167,6 +167,11 @@ pub const GHOSTTY_TERMINAL_SCREEN_ALTERNATE: GhosttyTerminalScreen =
 
 pub const GHOSTTY_IMAGE_PROTOCOL_KITTY: u32 = 0;
 
+pub const GHOSTTY_TERMINAL_DATA_KITTY_GRAPHICS: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_KITTY_GRAPHICS;
+pub const GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_RAW: GhosttyRenderStateRowCellsData =
+    GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_RAW;
+
 pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL: GhosttyRenderStateImageData =
     GhosttyRenderStateImageData_GHOSTTY_RENDER_STATE_IMAGE_DATA_PROTOCOL;
 pub const GHOSTTY_RENDER_STATE_IMAGE_DATA_IMAGE_ID: GhosttyRenderStateImageData =

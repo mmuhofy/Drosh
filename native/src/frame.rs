@@ -384,7 +384,13 @@ impl FrameSource {
 
         // The kitty graphics handle: the pixels come from there.
         let mut graphics: ghostty::GhosttyKittyGraphics = std::ptr::null_mut();
-        let _ = unsafe { ghostty::ghostty_kitty_graphics_get(self.terminal, &mut graphics) };
+        let _ = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_KITTY_GRAPHICS,
+                &mut graphics as *mut _ as *mut c_void,
+            )
+        };
 
         let mut out: Vec<u8> = Vec::new();
         let mut count: u32 = 0;
@@ -460,14 +466,10 @@ impl FrameSource {
                 }
 
                 // The pixels.
-                let mut image = std::ptr::null_mut();
-                if graphics.is_null()
-                    || std::ptr::null_mut()
-                        == ghostty::ghostty_kitty_graphics_image(graphics, image_id)
-                {
+                let image = ghostty::ghostty_kitty_graphics_image(graphics, image_id);
+                if graphics.is_null() || image.is_null() {
                     continue;
                 }
-                image = ghostty::ghostty_kitty_graphics_image(graphics, image_id);
 
                 let mut data_ptr: *const u8 = std::ptr::null();
                 let mut data_len: usize = 0;
