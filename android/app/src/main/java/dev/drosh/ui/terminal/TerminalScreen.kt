@@ -128,6 +128,7 @@ import dev.drosh.ui.topbar.SelectionMenuSurface
 import dev.drosh.ui.topbar.SelectionMenuBackdrop
 import dev.drosh.ui.topbar.menuWidthFor
 import dev.drosh.terminal.session.chromeCollapsed
+import dev.drosh.ClipboardSink
 import dev.drosh.ui.topbar.rememberTerminalTopPadding
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.TOP_BAR_BACKDROP_STRIP
@@ -377,6 +378,14 @@ private fun ReadyScreen(
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.
     val terminalTopPadding = rememberTerminalTopPadding(immersive, tuiActive)
+
+    // The clipboard gate. A program may write the clipboard only when the user
+    // says so, and the sink is the one that answers the engine.
+    val allowClipboardWrites by terminalViewModel.allowClipboardWrites
+        .collectAsStateWithLifecycle()
+    LaunchedEffect(allowClipboardWrites) {
+        ClipboardSink.allowWrites = allowClipboardWrites
+    }
 
     val activity = LocalDroshActivity.current
     LaunchedEffect(immersive) {

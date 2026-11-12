@@ -187,6 +187,15 @@ data class InputSettings(
      * whatever the program asked.
      */
     val mouseReporting: Boolean = true,
+    /**
+     * Whether a program may write the clipboard.
+     *
+     * `OSC 52` is the one escape sequence that reaches *outside* the
+     * terminal: a program behind an ssh connection, or a `cat` of a file
+     * somebody else wrote, could otherwise replace what the user pastes next.
+     * So it is off unless the user asks for it.
+     */
+    val allowClipboardWrites: Boolean = false,
 ) {
     companion object {
         val DEFAULT = InputSettings()

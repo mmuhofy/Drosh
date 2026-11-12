@@ -671,6 +671,20 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                         },
                     )
                 }
+
+                SettingsRow(
+                    cap = cap,
+                    title = stringResource(R.string.settings_input_clipboard_writes),
+                    icon = DroshIcons.ClipboardPaste,
+                    supporting = stringResource(R.string.settings_input_clipboard_writes_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.input.allowClipboardWrites,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(input = it.input.copy(allowClipboardWrites = on)) }
+                        },
+                    )
+                }
             }
         }
     }

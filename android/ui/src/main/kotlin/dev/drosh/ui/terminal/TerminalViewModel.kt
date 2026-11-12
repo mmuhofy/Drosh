@@ -148,6 +148,14 @@ class TerminalViewModel @Inject constructor(
      * mid-session, and the setting is the user's half of that handshake.
      */
     val mouseReporting: StateFlow<Boolean> = settingsRepository.mouseReporting
+
+    /**
+     * Whether a program may write the clipboard.
+     *
+     * The native sink reads the same setting: the gate is one boolean, and
+     * the app and the engine have to agree on it.
+     */
+    val allowClipboardWrites: StateFlow<Boolean> = settingsRepository.allowClipboardWrites
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     private val _fontSizeSp = MutableStateFlow(TerminalZoom.DEFAULT_SP)

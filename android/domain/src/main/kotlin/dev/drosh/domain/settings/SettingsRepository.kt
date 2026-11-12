@@ -57,6 +57,15 @@ interface SettingsRepository {
     /** Persists the mouse-reporting flag. */
     suspend fun setMouseReporting(enabled: Boolean)
 
+    /**
+     * Hot stream of the clipboard-write flag. Emits false on first launch: a
+     * program may not write the clipboard until the user says so.
+     */
+    val allowClipboardWrites: Flow<Boolean>
+
+    /** Persists the clipboard-write flag. */
+    suspend fun setAllowClipboardWrites(enabled: Boolean)
+
     /** Hot stream of the font size in sp. Emits 14 on first launch. */
     val fontSizeSp: Flow<Float>
 

@@ -83,6 +83,13 @@ class SettingsRepositoryImpl @Inject constructor(
         store.update { it.copy(input = it.input.copy(mouseReporting = enabled)) }
     }
 
+    override val allowClipboardWrites: Flow<Boolean> =
+        settings.map { it.input.allowClipboardWrites }
+
+    override suspend fun setAllowClipboardWrites(enabled: Boolean) {
+        store.update { it.copy(input = it.input.copy(allowClipboardWrites = enabled)) }
+    }
+
     override val fontSizeSp: Flow<Float> = settings.map { it.terminal.defaultFontSizeSp }
 
     override suspend fun setFontSize(size: Float) {

@@ -106,6 +106,8 @@
     <string name="settings_input_extra_keys_desc">Klavyenin üstünde tuş satırı göster</string>
     <string name="settings_input_mouse_reporting">Fare raporlaması</string>
     <string name="settings_input_mouse_reporting_desc">Dokunuşları fare takip eden programlara (vim, htop) gönder</string>
+    <string name="settings_input_clipboard_writes">Pano yazımı</string>
+    <string name="settings_input_clipboard_writes_desc">Programların panoya metin koymasına izin ver (OSC 52). Varsayılan kapalı: ssh arkasındaki bir program sonraki yapıştırmanı değiştirebilir</string>
     <string name="settings_input_hardware_keyboard">Donanım klavyesinde gizle</string>
     <string name="settings_input_hardware_keyboard_desc">Fiziksel klavye kendi tuşlarını getirir</string>
     <string name="settings_input_drosh_ime">Drosh Keyboard\'da gizle</string>

@@ -93,6 +93,7 @@ internal object DroshSettingsToml {
         with(settings.input) {
             putBoolean("input", "extra_keys_bar", extraKeysBar)
             putBoolean("input", "mouse_reporting", mouseReporting)
+            putBoolean("input", "allow_clipboard_writes", allowClipboardWrites)
         }
         with(settings.shell) {
             putString("shell", "motd_mode", motdMode.tomlName())
@@ -183,6 +184,9 @@ internal object DroshSettingsToml {
                 extraKeysBar = document.getBoolean("input", "extra_keys_bar", base.input.extraKeysBar),
                 mouseReporting = document.getBoolean(
                     "input", "mouse_reporting", base.input.mouseReporting,
+                ),
+                allowClipboardWrites = document.getBoolean(
+                    "input", "allow_clipboard_writes", base.input.allowClipboardWrites,
                 ),
             ),
             shell = base.shell.copy(
