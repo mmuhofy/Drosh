@@ -13,7 +13,7 @@ package dev.drosh.domain.block
  *
  * Command boundary detection is handled by the `BlockEngine` via three
  * layered signals (OSC 133, ANSI cursor, prompt regex) — see
- * `docs/archive/MEMORYBANK-2026-11-08.md` §7 (Block-Based Output).
+ * `docs/MEMORYBANK.md` §7 (Block-Based Output).
  *
  * UNTESTED — verify before use.
  */

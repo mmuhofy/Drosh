@@ -369,23 +369,18 @@ Phase 6 — Agent Intelligence ← last
 
 ---
 
-## 🧠 STATUS RULES
+## 🧠 MEMORY BANK RULES
 
-- **Always read `docs/STATUS.md` at session start** — before writing any code.
-  It says what the app does now, what has been verified on a device, and what
-  is still open.
-- **Always update `docs/STATUS.md` after every confirmed change:**
-  - What works now (and what was verified on a device)
-  - What was finished
-  - What is still half done
-  - New decisions that change the picture
-- **Never contradict STATUS.md** without explicit Muhofy approval.
-- The open work lives in STATUS.md's tables — add a row when something new is
-  started, and move it when it is finished.
-- STATUS.md is the single source of truth for the current state. If code and
-  STATUS.md conflict: STATUS.md wins.
-- The decisions that led here are kept in `docs/archive/` — read them when the
-  *why* of something is needed, not as a checklist.
+- **Always read `MEMORY_BANK.md` at session start** — before writing any code.
+- **Always update `MEMORY_BANK.md` after every confirmed change:**
+  - New decisions
+  - Completed features
+  - Changed stack versions
+  - Resolved open decisions
+- **Never contradict Memory Bank** without explicit Muhofy approval.
+- **Always update `TODO.md`** — check off completed items, add new ones discovered during implementation.
+- If Memory Bank is missing or incomplete: stop and ask Muhofy before proceeding.
+- Memory Bank is the single source of truth. If code and Memory Bank conflict: Memory Bank wins.
 
 ---
 

@@ -22,7 +22,7 @@ import javax.inject.Inject
  * `barVisible` is the user's toggle persisted in DataStore — false on
  * first launch. `hardwareKeyboardPresent` suppresses the bar even when
  * the user has set `barVisible = true` (Termux convention — see
- * `docs/archive/MEMORYBANK-2026-11-08.md` §8). `droshKeyboardActive` suppresses it while the
+ * `docs/MEMORYBANK.md` §8). `droshKeyboardActive` suppresses it while the
  * companion Drosh Keyboard IME is selected: that keyboard brings its own
  * special keys row, so a second one inside the app would be redundant.
  *
@@ -117,7 +117,7 @@ class InputBarViewModel @Inject constructor(
      * Consume a UI-fired intent. Translates block-mode "interrupt"
      * intents to [submitRawByte] (so Ctrl+C etc. flush raw bytes to PTY
      * rather than going through the BasicTextField — see
-     * `docs/archive/MEMORYBANK-2026-11-08.md` §8 "Block mode modifier semantics"), and
+     * `docs/MEMORYBANK.md` §8 "Block mode modifier semantics"), and
      * updates the sticky-modifier state for the UI highlight.
      */
     fun onIntent(intent: InputIntent) {
@@ -129,7 +129,7 @@ class InputBarViewModel @Inject constructor(
                 val alt = modifierState.consumeAlt()
                 // Block mode override: flush the control byte straight to PTY
                 // instead of typing the literal char; matches the agreed
-                // semantics — see docs/archive/MEMORYBANK-2026-11-08.md §8.
+                // semantics — see MEMORYBANK.md §8.
                 viewModelScope.launch {
                     submitRawByte.submit(byteArrayOf(translateCtrlChar(intent.char).toByte()))
                 }

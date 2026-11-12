@@ -105,7 +105,7 @@ import dev.drosh.ui.workspace.components.workspaceSeedColor
  * A workspace does not own a process and neither does a session row, so a live
  * badge on this screen would be describing something the app cannot promise. What
  * it shows instead is *ended* or not, which is a fact about the record rather
- * than a claim about a shell. See `docs/archive/MEMORYBANK-2026-11-08.md` §9.
+ * than a claim about a shell. See `docs/MEMORYBANK.md` §9.
  *
  * ## Why it is drawn in the settings language
  *

@@ -89,7 +89,7 @@ issue, not a secret.
 
 ## Documentation
 
-`docs/` is the reference layer: `STATUS.md` holds the current state and invariants,
+`docs/` is the reference layer: `MEMORYBANK.md` holds decisions and invariants,
 `docs/AGENT.md` holds the rules for working in the codebase. If a change
 contradicts a documented decision, the documentation moves with the code —
 same commit, not later.

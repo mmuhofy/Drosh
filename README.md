@@ -22,8 +22,7 @@ browser for links.
 🚧 **Active development, pre-release.** Everything below is in the tree and
 compiles; nothing has been verified on a physical device yet. The changelog
 in [`CHANGELOG.md`](CHANGELOG.md) is the per-release record, and the design
-the current state lives in [`docs/STATUS.md`](docs/STATUS.md), and the
-decisions that led there in `docs/archive/`.
+decisions live in [`docs/MEMORYBANK.md`](docs/MEMORYBANK.md).
 
 ## What's in it
 
