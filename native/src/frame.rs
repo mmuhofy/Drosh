@@ -79,6 +79,8 @@ pub const ATTR_UNDERLINE_SHIFT: u32 = 8;
 
 pub const CELL_FLAG_SELECTED: u8 = 1 << 0;
 pub const CELL_FLAG_GRAPHEME: u8 = 1 << 1;
+/// The cell is part of a search match and is drawn highlighted.
+pub const CELL_FLAG_HIGHLIGHT: u8 = 1 << 2;
 
 pub const DIRTY_NONE: u16 = 0;
 pub const DIRTY_FULL: u16 = 1;
@@ -117,6 +119,11 @@ pub struct FrameSource {
     /// what Ghostty itself does, and what an OSC 10/11 recolour changes.
     default_fg: ghostty::GhosttyColorRgb,
     default_bg: ghostty::GhosttyColorRgb,
+    /// The range the search matched, in the viewport's rows and columns.
+    ///
+    /// One range: the find bar shows the match the user is on, and that is the
+    /// one worth drawing.
+    highlight: Option<(u16, u16, u16)>,
     /// The grid's shape, as the last frame saw it.
     columns: u16,
     rows: u16,
@@ -176,6 +183,7 @@ impl FrameSource {
             columns: 0,
             rows: 0,
             overscan_above: 0,
+            highlight: None,
         })
     }
 
@@ -336,6 +344,15 @@ impl FrameSource {
 
             Ok(&self.buffer)
         }
+    }
+
+    /// Highlight a range of cells, or none.
+    ///
+    /// The range is in viewport rows: the find bar scrolls the viewport to the
+    /// match, and a range in the scrollback's coordinates would be a different
+    /// place by the time it is drawn.
+    pub fn set_highlight(&mut self, range: Option<(u16, u16, u16)>) {
+        self.highlight = range;
     }
 
     /// Read the engine's effective default foreground and background.
@@ -676,6 +693,23 @@ impl FrameSource {
         let mut flags = 0u8;
         if selected {
             flags |= CELL_FLAG_SELECTED;
+        }
+
+        // The search match, if this cell is part of it.
+        //
+        // The range is in viewport rows and the cell's own row is its index in
+        // the frame minus the overscan rows above the viewport — the same
+        // space, so the two can be compared directly.
+        if let Some((row, from, length)) = self.highlight {
+            let cell_index = (at - HEADER_BYTES) / CELL_BYTES;
+            let viewport_row = cell_index / self.columns.max(1) as usize;
+            let end = from as u32 + length as u32;
+            if viewport_row == row as usize
+                && column as u32 >= from as u32
+                && (column as u32) < end
+            {
+                flags |= CELL_FLAG_HIGHLIGHT;
+            }
         }
         if grapheme_len > 1 {
             flags |= CELL_FLAG_GRAPHEME;

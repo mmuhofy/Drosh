@@ -148,6 +148,7 @@ class TerminalViewModel @Inject constructor(
      * mid-session, and the setting is the user's half of that handshake.
      */
     val mouseReporting: StateFlow<Boolean> = settingsRepository.mouseReporting
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     /**
      * Whether a program may write the clipboard.

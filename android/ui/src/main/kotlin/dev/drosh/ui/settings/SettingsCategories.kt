@@ -641,10 +641,10 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_keyboard),
-            items = 2,
+            items = 3,
         ) { index, cap ->
-            if (index == 0) {
-                SettingsTile(
+            when (index) {
+                0 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_input_extra_keys),
                     icon = DroshIcons.Keyboard,
@@ -657,8 +657,8 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                         },
                     )
                 }
-            } else {
-                SettingsTile(
+
+                1 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_input_mouse_reporting),
                     icon = DroshIcons.Cursor,
@@ -672,7 +672,7 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     )
                 }
 
-                SettingsRow(
+                else -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_input_clipboard_writes),
                     icon = DroshIcons.ClipboardPaste,
