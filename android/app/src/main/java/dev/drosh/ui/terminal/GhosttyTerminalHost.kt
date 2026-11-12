@@ -122,6 +122,14 @@ fun GhosttyTerminalHost(
 
     val pane = remember { GhosttyTerminal(context) }
 
+    // Whether the viewport is at the live edge.
+    //
+    // The manager follows the scroll and publishes it; the surface asks this
+    // instead of the engine, so that typing does not cost a crossing and a
+    // lock for every character.
+    val atLiveEdge by terminalManager.isAtLiveEdge.collectAsStateWithLifecycle()
+    pane.atLiveEdge = { atLiveEdge }
+
     // The picture behind the terminal, decoded off the main thread.
     //
     // The decode is a file read and a bitmap allocation; doing it on the main

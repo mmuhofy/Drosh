@@ -112,6 +112,9 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
             onSessionExitedCallback?.invoke(status)
         }
         view.onGridChanged = { _, _ -> }
+        // The surface asks the app, not the engine, whether the viewport is at
+        // the live edge.
+        view.atLiveEdge = { atLiveEdge() }
         // The chrome's selection menu hangs off this.
         view.onSelectionChanged = { hasSelection ->
             selectionListener?.invoke(hasSelection)
@@ -381,6 +384,15 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         NativeSession.scroll(shown.terminalHandle, NativeSession.SCROLL_ROW, row)
         view.invalidate()
     }
+
+    /**
+     * Told whether the viewport is at the live edge.
+     *
+     * The app knows it; the engine would have to be asked, and the keyboard
+     * asks a lot.
+     */
+    @Volatile
+    var atLiveEdge: () -> Boolean = { true }
 
     /** Moves the selection's end to a point, in the pane's pixels. */
     override fun extendSelectionTo(x: Float, y: Float, fromEnd: Boolean): Boolean =
