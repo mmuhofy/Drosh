@@ -175,6 +175,22 @@ class RenderThread(
     private var renderer: FrameRenderer? = null
 
     /**
+     * The font's own pixel size, from the newest cell command that carried one.
+     *
+     * It is kept here rather than only on the renderer because the renderer is
+     * created lazily, on the first frame — the surface arrives after the view is
+     * measured, so a cell command can be older than the renderer that draws it.
+     * Applied only to the renderer, that command was dropped on the floor and
+     * every glyph was rasterised at the cell's height, the line box, about a
+     * sixth larger than the font: text too big for its own block.
+     *
+     * Zero is not a size. `TerminalSurface.attach` has a cell and no font, and
+     * posts zero for this; treating that as a size would overwrite a good one
+     * with a bad one, so a zero command means "this caller did not know".
+     */
+    private var fontPx: Float = 0f
+
+    /**
      * Why the renderer came up empty, or null when it drew.
      *
      * No `@Volatile` of its own: it has no backing field, and `renderer` — the
@@ -292,7 +308,16 @@ class RenderThread(
                         } else {
                             layout.onZoomCell(command.width, command.height, now)
                         }
-                        renderer?.fontPx = command.fontPx
+                        // A zero size is "the caller did not know", not "the
+                        // font is zero pixels". Keeping the last real size is
+                        // what stops `attach`'s cell-only command from making
+                        // every glyph too big, and holding it on the loop is
+                        // what carries it across a renderer that does not exist
+                        // yet — see [fontPx].
+                        if (command.fontPx > 0f) {
+                            fontPx = command.fontPx
+                            renderer?.fontPx = command.fontPx
+                        }
                         cellChanged = true
                     }
 
@@ -426,6 +451,10 @@ class RenderThread(
         val started = System.nanoTime()
 
         val current = renderer ?: FrameRenderer().also {
+            // The font size the loop already knows, before the first frame is
+            // built: a renderer created with no size rasterises at the cell's
+            // height, which is the text-too-big case the field exists to avoid.
+            it.fontPx = fontPx
             it.create()
             it.onSizeChanged(layout.size)
             renderer = it

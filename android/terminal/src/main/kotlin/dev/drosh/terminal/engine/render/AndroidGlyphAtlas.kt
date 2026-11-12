@@ -25,7 +25,15 @@ internal class GlyphMask(
      * outside its cell would be clipped by the next one.
      */
     val left: Int,
-    /** The mask's top edge relative to the cell's top, in pixels. */
+    /**
+     * The mask's top edge relative to the cell's top, in pixels.
+     *
+     * Zero, and not the baseline's offset: the mask is the font's line box
+     * (ascent to descent) and the cell is that same box measured with the same
+     * font, so their tops are the same line. It stays a field because the mask
+     * is a rasterised thing and the cell is a measured one, and the renderer is
+     * the one place that resolves the sub-pixel between them.
+     */
     val top: Int,
 ) {
     val isBlank: Boolean get() = width <= 0 || height <= 0
@@ -288,7 +296,18 @@ internal class TextAtlas(
             width = width,
             height = height,
             left = 0,
-            top = (-metrics.ascent).toInt(),
+            // The mask's first row is the font's ascent line: `drawText` puts
+            // the baseline at `slot.y - ascent`, so everything the glyph draws
+            // sits below that line and `height` covers the descent under it.
+            // The cell's top is the same line, because the cell is measured as
+            // `descent - ascent`.
+            //
+            // `-ascent` is therefore *not* this offset: it is how far the
+            // baseline sits below the top of the mask. Adding it here placed
+            // the whole line box one ascent — about four fifths of a cell —
+            // below the cell it belongs to, which is text hanging under its
+            // coloured block and a cursor that reads as a line above it.
+            top = 0,
         )
     }
 

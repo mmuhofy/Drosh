@@ -73,8 +73,24 @@ internal class FrameRenderer {
      * The cell is the line box and is about a fifth taller than the font. Using
      * the cell's height as the rasterisation size draws every glyph too big for
      * the cell it sits in.
+     *
+     * Set by [RenderThread] from the newest cell command that carried a size,
+     * including one that arrived before this renderer existed — see
+     * `RenderThread.fontPx`.
      */
     var fontPx: Float = 0f
+
+    /**
+     * The size a glyph is rasterised at: the font's own, or the cell's when no
+     * font size has ever been named.
+     *
+     * The fallback is a last resort, not a rule: a caller that measures a cell
+     * but not the font (`attach` has only the cell) leaves this zero, and a
+     * glyph rasterised at the cell's height is about a sixth too large for the
+     * cell it is drawn in. Every path that knows the font publishes it, so the
+     * fallback only covers a caller that never did.
+     */
+    private val rasterPx: Float get() = if (fontPx > 0f) fontPx else cellHeight
 
     /**
      * True once the programs compiled and the buffers exist.
@@ -158,7 +174,7 @@ internal class FrameRenderer {
     fun onCellChanged() {
         // A new size, not a new face: the masks are keyed by the size they were
         // rasterised at, so nothing is thrown away.
-        atlas.beginSize(if (fontPx > 0f) fontPx else cellHeight)
+        atlas.beginSize(rasterPx)
     }
 
     /**
@@ -318,10 +334,10 @@ internal class FrameRenderer {
         val isUnderline = frame.cursorStyle == FrameFormat.CURSOR_STYLE_UNDERLINE
         // A bar hugs the left edge of the cell; an underline the bottom.
         //
-        // The row is the viewport's, not the grid's: the glyph pass subtracts
-        // the overscan rows before it draws a cell, so a cursor that *added*
-        // them landed exactly as many rows too low as the frame carried overscan
-        // above the viewport — a cursor that is near the prompt but never on it.
+        // The row is the viewport's, and so is a cell's: the glyph pass takes
+        // its row from the engine's own answer for the frame's first captured
+        // row ([Frame.firstRowY]), which is the space the cursor's viewport row
+        // is reported in. The two are the same rows, so no shift belongs here.
         val x = frame.cursorColumn.toFloat()
         val y = frame.cursorRow.toFloat() +
             if (isUnderline) 1f - UNDERLINE_HEIGHT else 0f
@@ -336,8 +352,12 @@ internal class FrameRenderer {
         // stays readable. The frame's cursor colour is the terminal's
         // foreground, which is right for a cursor standing on empty ground and
         // wrong for one standing on coloured text.
+        //
+        // The cell is found the same way the block cursor finds it — the
+        // viewport row, less where the frame's first row sits — so the two
+        // cannot disagree about which cell the cursor is on.
         val cellIndex =
-            (frame.cursorRow + frame.overscanAbove) * frame.columns + frame.cursorColumn
+            (frame.cursorRow - frame.firstRowY) * frame.columns + frame.cursorColumn
         val colour = if (cellIndex in 0 until frame.cellCount) {
             frame.foreground(cellIndex)
         } else {
@@ -447,7 +467,7 @@ internal class FrameRenderer {
 
             val attributes = frame.attributes(index)
             val isBold = attributes and FrameFormat.ATTR_BOLD != 0
-            val entry = atlas.glyph(codepoint, isBold, if (fontPx > 0f) fontPx else cellHeight) ?: continue
+            val entry = atlas.glyph(codepoint, isBold, rasterPx) ?: continue
             if (entry.isBlank) continue
 
             val row = index / frame.columns + frame.firstRowY
@@ -459,10 +479,19 @@ internal class FrameRenderer {
             foregrounds.putShort(entry.width.toShort())
             foregrounds.putShort(entry.height.toShort())
             foregrounds.putShort(entry.left.toShort())
-            // The glyph sits where the font puts it: the cell is the glyph's own
-            // line box (ascent + descent), so there is nothing left over to
-            // distribute and nothing to centre.
-            foregrounds.putShort(entry.top.toShort())
+            // The mask's line box, centred in the cell it is drawn in.
+            //
+            // The cell is the font's line box, so the two have the same height
+            // and the remainder is zero — almost. The atlas rasterises a mask in
+            // whole rows (`ceil`) at a size that may be supersampled, while the
+            // cell is a measured float, so the mask can end up a pixel taller
+            // than its cell. Ghostty puts exactly that remainder half above and
+            // half below the face (font/Metrics.zig derives `cell_baseline` from
+            // `(cell_height - face_height) / 2`), so a glyph never sits a whole
+            // pixel low in its cell. Both terms are in the mask's own pixels,
+            // which is the unit the shader divides by `uAtlasScale`.
+            val lineBox = cellHeight * atlas.scale - entry.height
+            foregrounds.putShort((entry.top + lineBox / 2f).toInt().toShort())
             foregrounds.putShort(column.toShort())
             foregrounds.putShort(row.toShort())
             putColor(foregrounds, foregroundOf(frame, index))
