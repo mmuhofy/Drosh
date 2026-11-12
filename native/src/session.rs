@@ -460,26 +460,40 @@ impl Session {
         value
     }
 
-    /// Encode one key event, and return the bytes.
+    /// Encode one key event into `out`, and return the byte count.
     ///
     /// The engine owns the rules: `DECCKM`'s `ESC O A` versus `ESC [ A`, the
     /// kitty protocol's form, whether a modifier is a parameter or a prefix. The
     /// encoder is re-read from the terminal before every key, because a program
     /// can turn the kitty protocol on mid-session.
-    pub fn encode_key(
+    ///
+    /// The bytes land in the caller's buffer rather than in one made here. A
+    /// keystroke is the terminal's hottest path, and the owned `Vec` this used
+    /// to return was a 256-byte heap allocation and a memset on every key —
+    /// work whose result was copied out and thrown away within one call. The
+    /// engine's own encoder takes a caller-sized buffer (its header documents
+    /// the static-buffer pattern), so a stack buffer on the JNI side crosses
+    /// no allocation at all.
+    ///
+    /// Zero means the key produced nothing — an action the current mode does
+    /// not report — or the sequence did not fit: the engine answers
+    /// `OUT_OF_SPACE` with the size it needed rather than writing a partial
+    /// escape sequence, and a partial sequence is never handed back.
+    pub fn encode_key_into(
         &mut self,
         key: ghostty::GhosttyKey,
         mods: ghostty::GhosttyMods,
         action: ghostty::GhosttyKeyAction,
         utf8: &str,
         unshifted: u32,
-    ) -> Vec<u8> {
+        out: &mut [u8],
+    ) -> usize {
         if self.keys.is_none() {
             let mut encoder = std::ptr::null_mut();
             if !ghostty::ok(unsafe {
                 ghostty::ghostty_key_encoder_new(std::ptr::null(), &mut encoder)
             }) {
-                return Vec::new();
+                return 0;
             }
             unsafe { ghostty::ghostty_key_encoder_setopt_from_terminal(encoder, self.terminal) };
             self.keys = Some(encoder);
@@ -489,10 +503,9 @@ impl Session {
 
         let mut event = std::ptr::null_mut();
         if !ghostty::ok(unsafe { ghostty::ghostty_key_event_new(std::ptr::null(), &mut event) }) {
-            return Vec::new();
+            return 0;
         }
 
-        let mut buffer = vec![0u8; 256];
         let mut written: usize = 0;
 
         unsafe {
@@ -507,19 +520,18 @@ impl Session {
             let result = ghostty::ghostty_key_encoder_encode(
                 encoder,
                 event,
-                buffer.as_mut_ptr().cast(),
-                buffer.len(),
+                out.as_mut_ptr().cast(),
+                out.len(),
                 &mut written,
             );
             ghostty::ghostty_key_event_free(event);
 
             if !ghostty::ok(result) || written == 0 {
-                return Vec::new();
+                return 0;
             }
         }
 
-        buffer.truncate(written);
-        buffer
+        written
     }
 
     /// Encode one mouse event, and return the bytes.

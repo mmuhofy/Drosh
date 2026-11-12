@@ -19,6 +19,15 @@ use jni::JNIEnv;
 use super::{jboolean, jint, jlong};
 use super::{read_string, session_lock};
 use crate::ghostty;
+use crate::pty::Pty;
+
+/// The largest escape sequence one key event can produce, as the stack buffer
+/// every encode here is sized against. The engine answers `OUT_OF_SPACE` with
+/// the size it needed rather than writing a partial sequence, so an undersized
+/// buffer loses the key whole; 256 is the ceiling the previous code used for
+/// the buffer that crossed the boundary, and no sequence produced by a key
+/// comes near it.
+const KEY_SEQUENCE_MAX: usize = 256;
 
 /// The engine's name for an Android key code, or null when the engine has no
 /// name for it — a character key, which travels as text instead.
@@ -114,23 +123,32 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
     utf8: JString,
     out: JByteArray,
 ) -> jint {
-    let Some(mut session) = session_lock(handle) else {
-        return -1;
-    };
-
+    // The string is read before the lock is taken. It is a JNI call that
+    // touches nothing of the terminal's state, and everything done under the
+    // lock competes with the reader and the render thread for the session.
     let text = read_string(&mut env, &utf8.into_raw());
-    let unshifted = text.chars().next().map(|c| c as u32).unwrap_or(0);
 
-    let key = key_for(key_code).unwrap_or(ghostty::GHOSTTY_KEY_UNIDENTIFIED);
-    let mods = mods_for(meta_state);
-    let key_action = match action {
-        1 => ghostty::GHOSTTY_KEY_ACTION_RELEASE,
-        2 => ghostty::GHOSTTY_KEY_ACTION_REPEAT,
-        _ => ghostty::GHOSTTY_KEY_ACTION_PRESS,
+    // Encoded into a stack buffer: the owned `Vec` this used was an
+    // allocation per key, and its bytes were copied out to `out` anyway.
+    let mut scratch = [0u8; KEY_SEQUENCE_MAX];
+    let written = {
+        let Some(mut session) = session_lock(handle) else {
+            return -1;
+        };
+
+        let key = key_for(key_code).unwrap_or(ghostty::GHOSTTY_KEY_UNIDENTIFIED);
+        let mods = mods_for(meta_state);
+        let key_action = match action {
+            1 => ghostty::GHOSTTY_KEY_ACTION_RELEASE,
+            2 => ghostty::GHOSTTY_KEY_ACTION_REPEAT,
+            _ => ghostty::GHOSTTY_KEY_ACTION_PRESS,
+        };
+
+        session.encode_key_into(key, mods, key_action, &text, unshifted_of(&text))
+        // The guard is dropped here, before the array below is filled: the
+        // copy into JVM memory does not need the terminal's state.
     };
-
-    let bytes = session.encode_key(key, mods, key_action, &text, unshifted);
-    if bytes.is_empty() {
+    if written == 0 {
         return 0;
     }
 
@@ -138,13 +156,103 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
         .set_byte_array_region(
             &out,
             0,
-            unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const i8, bytes.len()) },
+            unsafe { std::slice::from_raw_parts(scratch.as_ptr() as *const i8, written) },
         )
         .is_err()
     {
         return -2;
     }
-    bytes.len() as jint
+    written as jint
+}
+
+/// The codepoint a key's text starts with, as the encoder's unshifted value.
+///
+/// The text crossing this boundary is always a single character — the
+/// keyboard's answer for one key — so its first codepoint is the whole of it.
+fn unshifted_of(text: &str) -> u32 {
+    text.chars().next().map(|c| c as u32).unwrap_or(0)
+}
+
+/// Encode one key event and write the bytes to the child, in one crossing.
+///
+/// The hot path — a keystroke from the keyboard — used to make two JNI
+/// crossings per key: one to encode into a Java array, one (`nativeWrite`) to
+/// copy that array back across the boundary and into the PTY. The two
+/// together spent a heap allocation on every side — the `keyBuffer.copyOf` on
+/// the Java side and the `Vec` `convert_byte_array` made on this side, both
+/// for a sequence of a few bytes — and copied the same bytes three times
+/// before the syscall saw them. This does the whole trip in one call: encode
+/// into a stack buffer under the lock, drop the lock, write from the stack
+/// buffer — the shape the engine's own encoder header recommends
+/// (`static buf` straight into `write(pty_fd, ...)`).
+///
+/// `pty` may be zero for a session that has no child of its own: the bytes
+/// are then encoded and counted but not written anywhere, which is what the
+/// old two-call path effectively did with them.
+///
+/// `unicode` is the character the key produced (Android's
+/// `KeyEvent.unicodeChar`), or zero when it produced none. It stands in for
+/// the UTF-8 string the two-call path carried, so a character key crosses no
+/// `String` either. An unpaired surrogate is not a character and carries no
+/// text — the old path's replacement character for one was an artefact of the
+/// string crossing, not a sequence any program asked for.
+///
+/// Returns the number of bytes written, 0 when the key produced nothing, or a
+/// negative code.
+// UNTESTED — verify before use (mirrors nativeWrite's raw-pointer borrow and
+// nativeEncodeKey's encode path; nothing here was compiled or run)
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeEncodeWriteKey(
+    _env: JNIEnv,
+    _class: JClass,
+    session_handle: jlong,
+    pty_handle: jlong,
+    key_code: jint,
+    meta_state: jint,
+    action: jint,
+    unicode: jint,
+) -> jint {
+    // The character as UTF-8, on the stack: one key produces at most four
+    // bytes, and a `String` for them was an allocation per keystroke.
+    let mut utf8 = [0u8; 4];
+    let text: &str = char::from_u32(unicode as u32)
+        .map(|c| c.encode_utf8(&mut utf8))
+        .unwrap_or("");
+
+    let mut scratch = [0u8; KEY_SEQUENCE_MAX];
+    let written = {
+        let Some(mut session) = session_lock(session_handle) else {
+            return -1;
+        };
+
+        let key = key_for(key_code).unwrap_or(ghostty::GHOSTTY_KEY_UNIDENTIFIED);
+        let mods = mods_for(meta_state);
+        let key_action = match action {
+            1 => ghostty::GHOSTTY_KEY_ACTION_RELEASE,
+            2 => ghostty::GHOSTTY_KEY_ACTION_REPEAT,
+            _ => ghostty::GHOSTTY_KEY_ACTION_PRESS,
+        };
+
+        session.encode_key_into(key, mods, key_action, text, unshifted_of(text))
+        // The guard is dropped before the write below: a PTY whose buffer is
+        // full retries from here without holding the render thread hostage.
+    };
+    if written == 0 {
+        return 0;
+    }
+
+    if pty_handle > 0 {
+        // The same raw-pointer borrow the PTY entry points use: a `jlong`
+        // handle is a `Pty` behind a box, and the write is a short syscall
+        // away from the lock that was just dropped.
+        let pty = unsafe { &mut *(pty_handle as usize as *mut Pty) };
+        if let Err(error) = pty.write(&scratch[..written]) {
+            log::debug!("drosh-native: the pty write failed: {error}");
+            return -3;
+        }
+    }
+
+    written as jint
 }
 
 /// Encode one mouse event into `out`; returns the byte count.

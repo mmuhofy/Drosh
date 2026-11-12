@@ -97,6 +97,14 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override var cellWidth: Float = 1f
     override var cellHeight: Float = 1f
 
+    /**
+     * Told when the selection changes, so the chrome can show its menu.
+     *
+     * The surface knows when a selection starts, ends or moves; the chrome
+     * hangs its menu on the selection's rectangle.
+     */
+    override var selectionListener: ((Boolean) -> Unit)? = null
+
     init {
         view.onExit = { status ->
             state = state.exited()

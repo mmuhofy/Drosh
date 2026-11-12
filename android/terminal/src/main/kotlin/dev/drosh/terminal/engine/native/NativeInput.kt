@@ -71,6 +71,39 @@ object NativeInput {
         return nativeEncodeKey(handle, keyCode, metaState, action, utf8, out)
     }
 
+    /**
+     * Encode one key event and write the bytes to the child, in one crossing.
+     *
+     * The keyboard's hot path — every keystroke — used to spend two JNI
+     * crossings and a copy on each side of the boundary: [encode] into a
+     * buffer, then a second call copying that buffer into the PTY. This does
+     * the whole trip in one call: the engine encodes into a native stack
+     * buffer and the bytes go straight from it into the PTY, so a keystroke
+     * allocates nothing on either side of the boundary.
+     *
+     * @param session the session handle, whose state decides the wire format
+     * @param pty the PTY handle to write the bytes to; zero encodes and
+     *   counts but writes nothing, which is all a session without a child
+     *   could do with them anyway
+     * @param unicode the character the key produced, as Android's
+     *   `KeyEvent.unicodeChar`, or 0 when it produced none — it stands in for
+     *   the UTF-8 string [encode] carried, so a character key crosses no
+     *   `String` either
+     * @return the number of bytes written, 0 when the key produced nothing,
+     *         or a negative code
+     */
+    fun encodeWriteKey(
+        session: Long,
+        pty: Long,
+        keyCode: Int,
+        metaState: Int,
+        action: Int,
+        unicode: Int,
+    ): Int {
+        if (session == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeEncodeWriteKey(session, pty, keyCode, metaState, action, unicode)
+    }
+
     private external fun nativeEncodeKey(
         handle: Long,
         keyCode: Int,
@@ -78,6 +111,15 @@ object NativeInput {
         action: Int,
         utf8: String,
         out: ByteArray,
+    ): Int
+
+    private external fun nativeEncodeWriteKey(
+        session: Long,
+        pty: Long,
+        keyCode: Int,
+        metaState: Int,
+        action: Int,
+        unicode: Int,
     ): Int
 
     /**

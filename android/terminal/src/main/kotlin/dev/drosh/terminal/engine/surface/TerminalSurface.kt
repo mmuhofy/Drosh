@@ -66,9 +66,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     @Volatile
     private var cellHeight = 1f
 
-    /** The key encoder's output, reused. */
-    private val keyBuffer = ByteArray(256)
-
     /**
      * The render loop.
      *
@@ -983,7 +980,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // rows for the engine and a shift for the picture.
         // The wall, when the viewport is already at the oldest row: there is
         // nothing above it to reveal.
-        val atTop = scrollbar.offset <= 0
+        val atTop = (NativeSession.scrollbar(session)?.offset ?: 0) <= 0
         val target = scrollMachine.drag(
             distancePx = distancePx,
             spacingPx = spacing,
@@ -1088,7 +1085,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-                repeat(beforeLength) { send(byteArrayOf(DEL)) }
+                // The same one-byte array every time: a DEL per deletion was
+                // an allocation the child cannot tell from a reused one.
+                repeat(beforeLength) { send(DEL_BYTES) }
                 return true
             }
 
@@ -1108,23 +1107,28 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     /**
-     * Encode one key through the engine.
+     * Encode one key and write it to the child, in one native call.
      *
      * The engine owns the rules: `DECCKM`'s `ESC O A` versus `ESC [ A`, the
-     * kitty protocol's form, whether a modifier is a parameter or a prefix. The
-     * Android key code is the only thing translated here.
+     * kitty protocol's form, whether a modifier is a parameter or a prefix.
+     * The Android key code is the only thing translated here — and even that
+     * less than before: the character crosses as the codepoint
+     * `KeyEvent.unicodeChar` already is, rather than as a `String` made from
+     * it.
+     *
+     * A session with no PTY has nowhere to put the bytes; the old path still
+     * encoded and then dropped them, so skipping the encode is the same
+     * behaviour without the work.
      */
     private fun sendKey(event: android.view.KeyEvent) {
         val session = sessionHandle
         if (session == 0L) return
+        val pty = ptyHandle
+        if (pty == 0L) return
 
-        val text = event.unicodeChar
-            .takeIf { it != 0 }
-            ?.let { String(Character.toChars(it)) }
-            .orEmpty()
-
-        val written = NativeInput.encode(
-            handle = session,
+        NativeInput.encodeWriteKey(
+            session = session,
+            pty = pty,
             keyCode = event.keyCode,
             metaState = event.metaState,
             action = when (event.action) {
@@ -1132,12 +1136,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 android.view.KeyEvent.ACTION_UP -> NativeInput.ACTION_RELEASE
                 else -> NativeInput.ACTION_PRESS
             },
-            utf8 = text,
-            out = keyBuffer,
+            // Zero when the key produced no character; the engine reads the
+            // character's own bytes from it, so no String is made per key.
+            unicode = event.unicodeChar,
         )
-        if (written > 0) {
-            write(keyBuffer.copyOf(written))
-        }
     }
 
     /** Send bytes from the IME straight to the child. */
@@ -1321,6 +1323,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private companion object {
         /** DEL (0x7f), what a terminal expects for backspace. */
         const val DEL: Byte = 0x7f
+
+        /** DEL as the wire carries it, made once and written many times. */
+        val DEL_BYTES: ByteArray = byteArrayOf(DEL)
 
         /** Bit 0 of the engine's mode bits is mouse tracking. */
         const val MODE_MOUSE_TRACKING = 1
