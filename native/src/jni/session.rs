@@ -187,6 +187,27 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     1
 }
 
+/// Highlight the range the search matched, in viewport rows.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSetHighlight(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    row: jint,
+    column: jint,
+    length: jint,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    if row < 0 || column < 0 || length <= 0 {
+        session.clear_highlight();
+        return 1;
+    }
+    session.set_highlight(row as u16, column as u16, length as u16);
+    1
+}
+
 /// The window title the program asked for (OSC 0/2), or the process name.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeTitle(

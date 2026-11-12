@@ -89,6 +89,13 @@ fun GhosttyTerminalHost(
      */
     backgroundColor: Int,
     /**
+     * The colour a search match is drawn in.
+     *
+     * The match is a tint over the cell's own background, so the text under it
+     * stays readable whatever the theme is.
+     */
+    highlightColour: Int = 0xFFFFE000.toInt(),
+    /**
      * Told the URI of a hyperlink the user tapped.
      *
      * `OSC 8` links are the terminal's own; a tap on a cell that carries one is
@@ -359,6 +366,7 @@ fun GhosttyTerminalHost(
                         android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                     )
                     pane.view.setCell(cell.width, cell.height, cell.fontPx)
+                    pane.setHighlightColour(highlightColour)
                     addView(pane.view)
                 }
             },

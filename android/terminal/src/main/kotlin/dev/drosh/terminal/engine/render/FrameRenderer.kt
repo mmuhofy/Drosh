@@ -279,7 +279,24 @@ internal class FrameRenderer {
             val row = index / frame.columns + frame.firstRowY
             backgrounds.putShort((index % frame.columns).toShort())
             backgrounds.putShort(row.toShort())
-            putColor(backgrounds, backgroundOf(frame, index))
+            // A search match is a tint over the cell's own background.
+            val background = backgroundOf(frame, index)
+            val painted = if (frame.isHighlighted(index)) {
+                val alpha = HIGHLIGHT_TINT
+                val r = FrameFormat.red(background) / 255f
+                val g = FrameFormat.green(background) / 255f
+                val b = FrameFormat.blue(background) / 255f
+                val mixed = (r * (1f - alpha) + highlightR * alpha) * 255f
+                val mixedG = (g * (1f - alpha) + highlightG * alpha) * 255f
+                val mixedB = (b * (1f - alpha) + highlightB * alpha) * 255f
+                (0xff shl 24) or
+                    (mixed.toInt().coerceIn(0, 255) shl 16) or
+                    (mixedG.toInt().coerceIn(0, 255) shl 8) or
+                    mixedB.toInt().coerceIn(0, 255)
+            } else {
+                background
+            }
+            putColor(backgrounds, painted)
             // The underline, if the cell has one. A cell with no underline
             // carries a transparent colour and nothing is drawn.
             val underline = if (frame.attributes(index) and FrameFormat.ATTR_UNDERLINE_MASK != 0) {
@@ -423,6 +440,24 @@ internal class FrameRenderer {
     private var backgroundR = DEFAULT_BACKGROUND_R
     private var backgroundG = DEFAULT_BACKGROUND_G
     private var backgroundB = DEFAULT_BACKGROUND_B
+
+    /**
+     * The colour a search match is drawn in.
+     *
+     * The match is a tint over the cell's own background rather than a colour
+     * of its own: the cell's text stays its text, and the block under it says
+     * "this is the match".
+     */
+    private var highlightR = 1f
+    private var highlightG = 0.85f
+    private var highlightB = 0.2f
+
+    /** Set the colour a search match is drawn in, from the theme. */
+    fun setHighlightColour(argb: Int) {
+        highlightR = ((argb shr 16) and 0xff) / 255f
+        highlightG = ((argb shr 8) and 0xff) / 255f
+        highlightB = (argb and 0xff) / 255f
+    }
 
     /**
      * Set the terminal's background colour from the theme.
@@ -758,6 +793,9 @@ internal class FrameRenderer {
 
         /** A colour that draws nothing. */
         const val TRANSPARENT = 0
+
+        /** How much of the highlight colour goes over the cell's background. */
+        const val HIGHLIGHT_TINT = 0.35f
 
         /** A bar cursor's width, as a fraction of a cell. */
         const val BAR_WIDTH = 0.1f

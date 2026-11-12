@@ -214,6 +214,20 @@ impl Session {
         String::from_utf8(bytes.to_vec()).ok()
     }
 
+    /// Highlight the range the search matched.
+    ///
+    /// The range is in viewport rows: the find bar scrolls the viewport to the
+    /// match, and a range in the scrollback's coordinates would be a different
+    /// place by the time it is drawn.
+    pub fn set_highlight(&mut self, row: u16, column: u16, length: u16) {
+        self.frames.set_highlight(Some((row, column, length)));
+    }
+
+    /// Draw no highlight.
+    pub fn clear_highlight(&mut self) {
+        self.frames.set_highlight(None);
+    }
+
     /// The scrollbar: total rows and the viewport's offset.
     pub fn scrollbar(&self) -> Option<ghostty::GhosttyTerminalScrollbar> {
         let mut value: ghostty::GhosttyTerminalScrollbar = unsafe { std::mem::zeroed() };

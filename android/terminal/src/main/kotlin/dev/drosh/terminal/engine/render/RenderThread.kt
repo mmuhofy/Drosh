@@ -110,6 +110,11 @@ class RenderThread(
         data object Invalidate : Command
 
         /**
+         * The colour a search match is drawn in, from the theme.
+         */
+        data class HighlightColour(val argb: Int) : Command
+
+        /**
          * The theme's terminal background changed.
          *
          * The surface is wiped to it before every frame, so it is the colour
@@ -362,6 +367,11 @@ class RenderThread(
                     }
 
                     is Command.Invalidate -> dirty = true
+
+                    is Command.HighlightColour -> {
+                        renderer?.setHighlightColour(command.argb)
+                        dirty = true
+                    }
 
                     is Command.Background -> {
                         renderer?.setBackground(command.argb)

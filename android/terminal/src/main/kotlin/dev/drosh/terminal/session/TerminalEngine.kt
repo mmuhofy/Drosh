@@ -121,7 +121,23 @@ interface TerminalEngine {
 
     fun scrollOffset(): Int
 
+    /**
+     * The absolute row the viewport starts at.
+     *
+     * The transcript's lines are the engine's rows, oldest first, so a match
+     * found in the transcript is in this row space — and the viewport's own
+     * first row is where the drawing of it begins.
+     */
+    fun viewportRow(): Int
+
     fun scrollTo(offset: Int)
+
+    /**
+     * Highlight the range the search matched, in viewport rows.
+     *
+     * A length of zero clears the highlight.
+     */
+    fun setHighlight(row: Int, column: Int, length: Int)
 
     /**
      * Scroll to the prompt above or below the viewport.

@@ -349,6 +349,12 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         return bar.historyRows - (bar.offset.coerceAtMost(bar.historyRows))
     }
 
+    override fun viewportRow(): Int {
+        val shown = session ?: return 0
+        val bar = NativeSession.scrollbar(shown.terminalHandle) ?: return 0
+        return bar.offset
+    }
+
     /**
      * Scroll so [offset] rows of history sit above the viewport.
      *
@@ -361,6 +367,24 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         val bar = NativeSession.scrollbar(shown.terminalHandle) ?: return
         val row = (bar.historyRows - offset).coerceIn(0, bar.historyRows)
         NativeSession.scroll(shown.terminalHandle, NativeSession.SCROLL_ROW, row)
+        view.invalidate()
+    }
+
+    /** The colour a search match is drawn in, from the theme. */
+    fun setHighlightColour(argb: Int) {
+        view.setHighlightColour(argb)
+    }
+
+    /**
+     * Highlight the range the search matched.
+     *
+     * The row is the viewport's: the find bar scrolls the viewport to the
+     * match, so the range is where the match *is*, not where it was in the
+     * scrollback.
+     */
+    override fun setHighlight(row: Int, column: Int, length: Int) {
+        val shown = session ?: return
+        NativeSession.setHighlight(shown.terminalHandle, row, column, length)
         view.invalidate()
     }
 

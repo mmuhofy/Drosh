@@ -797,16 +797,18 @@ private fun ReadyScreen(
         // and jumping the viewport to the oldest match each time would throw
         // them out of the output they are working in. The viewport moves when
         // they ask it to, with the arrows.
+        val active = when {
+            matches.count == 0 -> -1
+            rememberedIndex >= 0 -> rememberedIndex.coerceIn(0, matches.count - 1)
+            else -> 0
+        }
         findState = TerminalFindState(
             query = query,
             kind = TerminalFindKind.ENGINE,
             matches = matches,
-            activeIndex = when {
-                matches.count == 0 -> -1
-                rememberedIndex >= 0 -> rememberedIndex.coerceIn(0, matches.count - 1)
-                else -> 0
-            },
+            activeIndex = active,
         )
+        if (active >= 0) highlightMatch(matches, active)
     }
 
     /**
@@ -822,6 +824,20 @@ private fun ReadyScreen(
      * The engine clamps the scroll to what history it has, so a request past
      * either end lands on the end rather than being refused.
      */
+    /**
+     * Highlights the match the user is on.
+     *
+     * The match's line is a transcript row — the engine's own row space — and
+     * the drawing is in the viewport's, so the viewport's first row is what
+     * turns one into the other.
+     */
+    fun highlightMatch(matches: TerminalFindMatches, index: Int) {
+        val hit = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(index) ?: return
+        val pane = terminalManager.focusedTerminal() ?: return
+        val row = hit.line - pane.viewportRow()
+        pane.setHighlight(row, hit.colStart, hit.colEnd - hit.colStart)
+    }
+
     fun revealMatch(matches: TerminalFindMatches, index: Int) {
         val hit = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(index) ?: return
         val pane = terminalManager.focusedTerminal() ?: return
@@ -829,6 +845,8 @@ private fun ReadyScreen(
         val margin = (pane.rows / 4).coerceAtLeast(0)
         val above = (history - hit.line + margin).coerceIn(0, history)
         pane.scrollTo(above)
+        // The viewport moved, so the match's row in it moved with it.
+        highlightMatch(matches, index)
     }
 
     /**
@@ -1062,6 +1080,7 @@ private fun ReadyScreen(
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
                     mouseReporting = mouseReporting,
+                    highlightColour = hexToColorInt(appearance.terminal.palette.yellow),
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
                     terminalBackgroundColor = hexToColorInt(appearance.terminal.palette.background),
@@ -1108,6 +1127,7 @@ private fun ReadyScreen(
                     fontSizeSp = fontSizeSp,
                     defaultFontSizeSp = defaultFontSizeSp,
                     mouseReporting = mouseReporting,
+                    highlightColour = hexToColorInt(appearance.terminal.palette.yellow),
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
                     terminalBackgroundColor = hexToColorInt(appearance.terminal.palette.background),
@@ -1270,6 +1290,8 @@ private fun ReadyScreen(
                 searchQuery = ""
                 scannedQuery = ""
                 findState = null
+                // The match is not highlighted any more.
+                terminalManager.focusedTerminal()?.setHighlight(0, 0, 0)
             }
 
             TerminalFindBar(
@@ -1285,6 +1307,8 @@ private fun ReadyScreen(
                     searchQuery = ""
                     scannedQuery = ""
                     findState = null
+                    // The match is not highlighted any more.
+                    terminalManager.focusedTerminal()?.setHighlight(0, 0, 0)
                 },
                 // Which terminal the matches came from, and the text of the
                 // one the user is on. The engine's matches now sit on grid
@@ -1745,6 +1769,8 @@ private fun TerminalPaneBody(
      * the handshake.
      */
     mouseReporting: Boolean,
+    /** The colour a search match is drawn in. */
+    highlightColour: Int,
     colorProps: Properties,
     backgroundFile: File?,
     terminalBackgroundColor: Int,
@@ -1901,6 +1927,7 @@ private fun TerminalPaneBody(
                 // The theme's terminal background: the ground the grid is drawn
                 // on, and the colour of everywhere it does not reach.
                 backgroundColor = terminalBackgroundColor,
+                highlightColour = highlightColour,
                 // A tap on a cell that carries an `OSC 8` link. The pane
                 // resolves the cell against the engine and hands the URI up;
                 // the screen decides what opening it means.

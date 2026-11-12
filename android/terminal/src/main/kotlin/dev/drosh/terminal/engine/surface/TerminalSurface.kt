@@ -245,6 +245,12 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidate()
     }
 
+    /** The colour a search match is drawn in, from the theme. */
+    fun setHighlightColour(argb: Int) {
+        renderThread.post(RenderThread.Command.HighlightColour(argb))
+        renderThread.invalidate()
+    }
+
     /** The theme's terminal background, for the surface the grid is drawn on. */
     fun setBackground(argb: Int) {
         renderThread.post(RenderThread.Command.Background(argb))
