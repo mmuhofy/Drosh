@@ -417,34 +417,36 @@ private fun ReadyScreen(
 
     DisposableEffect(terminalManager, bellActivity) {
         TerminalBell.onCommandEnd = { exitCode ->
-            val activity = bellActivity ?: return@onCommandEnd
-            val text = activity.getString(
-                if (exitCode == 0) {
-                    dev.drosh.ui.R.string.terminal_command_ok
+            bellActivity?.let { activity ->
+                val text = activity.getString(
+                    if (exitCode == 0) {
+                        dev.drosh.ui.R.string.terminal_command_ok
+                    } else {
+                        dev.drosh.ui.R.string.terminal_command_failed
+                    },
+                )
+                if (appOnScreen) {
+                    // On screen: a toast, which says it and gets out of the way.
+                    android.widget.Toast
+                        .makeText(activity, text, android.widget.Toast.LENGTH_SHORT)
+                        .show()
                 } else {
-                    dev.drosh.ui.R.string.terminal_command_failed
-                },
-            )
-            if (appOnScreen) {
-                // On screen: a toast, which says it and gets out of the way.
-                android.widget.Toast
-                    .makeText(activity, text, android.widget.Toast.LENGTH_SHORT)
-                    .show()
-            } else {
-                // Not on screen: a notification, because a toast nobody sees is
-                // a toast that did not happen.
-                TerminalBell.notifyWith(activity, text, "")
+                    // Not on screen: a notification, because a toast nobody
+                    // sees is a toast that did not happen.
+                    TerminalBell.notifyWith(activity, text, "")
+                }
             }
         }
         TerminalBell.onNotify = { title, body ->
             bellActivity?.let { TerminalBell.notifyWith(it, title, body) }
         }
         TerminalBell.onBell = {
-            if (!bellEnabled) return@onBell
-            val pane = terminalManager.focusedTerminal()
-            pane?.bell()
+            if (bellEnabled) {
+                terminalManager.focusedTerminal()?.bell()
+            }
             if (!appOnScreen && bellActivity != null) {
-                val name = pane?.sessionName?.takeIf { it.isNotBlank() }
+                val name = terminalManager.focusedTerminal()?.sessionName
+                    ?.takeIf { it.isNotBlank() }
                     ?: bellActivity.getString(dev.drosh.ui.R.string.app_name)
                 TerminalBell.notify(bellActivity, name)
             }
