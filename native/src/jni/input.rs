@@ -144,7 +144,14 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
             _ => ghostty::GHOSTTY_KEY_ACTION_PRESS,
         };
 
-        session.encode_key_into(key, mods, key_action, &text, unshifted_of(&text))
+        session.encode_key_into(
+            key,
+            mods,
+            key_action,
+            &text,
+            unshifted_of(&text),
+            &mut scratch,
+        )
         // The guard is dropped here, before the array below is filled: the
         // copy into JVM memory does not need the terminal's state.
     };
@@ -216,7 +223,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
     // bytes, and a `String` for them was an allocation per keystroke.
     let mut utf8 = [0u8; 4];
     let text: &str = char::from_u32(unicode as u32)
-        .map(|c| c.encode_utf8(&mut utf8))
+        .map(|c| c.encode_utf8(&mut utf8) as &str)
         .unwrap_or("");
 
     let mut scratch = [0u8; KEY_SEQUENCE_MAX];
@@ -233,7 +240,14 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
             _ => ghostty::GHOSTTY_KEY_ACTION_PRESS,
         };
 
-        session.encode_key_into(key, mods, key_action, text, unshifted_of(text))
+        session.encode_key_into(
+            key,
+            mods,
+            key_action,
+            text,
+            unshifted_of(text),
+            &mut scratch,
+        )
         // The guard is dropped before the write below: a PTY whose buffer is
         // full retries from here without holding the render thread hostage.
     };
