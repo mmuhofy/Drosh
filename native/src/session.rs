@@ -249,7 +249,7 @@ impl Session {
         kind: u32,
         row: u16,
         column: u16,
-        geometry: Option<SelectionGeometry>,
+        geometry: Option<Session::SelectionGeometry>,
     ) -> bool {
         let gesture = match self.gesture {
             Some(gesture) => gesture,
@@ -268,7 +268,7 @@ impl Session {
         // The cell under the finger.
         let mut point: ghostty::GhosttyPoint = unsafe { std::mem::zeroed() };
         unsafe {
-            super::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
+            crate::jni::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
             point.value.coordinate.x = column;
             point.value.coordinate.y = row as u32;
         }
@@ -672,7 +672,7 @@ impl Drop for Session {
                 ghostty::ghostty_mouse_encoder_free(encoder);
             }
             if let Some(gesture) = self.gesture.take() {
-                ghostty::ghostty_selection_gesture_free(gesture);
+                ghostty::ghostty_selection_gesture_free(gesture, self.terminal);
             }
             ghostty::ghostty_terminal_free(self.terminal);
         }
