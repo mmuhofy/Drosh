@@ -242,6 +242,32 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidate()
     }
 
+    /**
+     * The picture behind the terminal.
+     *
+     * The view's own background is the picture and the surface is wiped
+     * transparent, so the picture shows through the parts of the grid that
+     * have no colour of their own. Without a picture the terminal paints its
+     * own background, as it always did.
+     */
+    fun setBackgroundImage(bitmap: android.graphics.Bitmap?, opacity: Int) {
+        if (bitmap == null) {
+            background = null
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            renderThread.post(RenderThread.Command.TransparentBackground(false))
+            renderThread.invalidate()
+            return
+        }
+
+        val drawable = android.graphics.drawable.BitmapDrawable(resources, bitmap).apply {
+            alpha = opacity.coerceIn(0, 255)
+        }
+        background = drawable
+        setBackground(drawable)
+        renderThread.post(RenderThread.Command.TransparentBackground(true))
+        renderThread.invalidate()
+    }
+
     /** The colour a search match is drawn in, from the theme. */
     fun setHighlightColour(argb: Int) {
         renderThread.post(RenderThread.Command.HighlightColour(argb))

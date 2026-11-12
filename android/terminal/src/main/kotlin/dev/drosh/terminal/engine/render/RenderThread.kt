@@ -115,6 +115,11 @@ class RenderThread(
         data class HighlightColour(val argb: Int) : Command
 
         /**
+         * Whether the surface is wiped to transparent, for a background image.
+         */
+        data class TransparentBackground(val transparent: Boolean) : Command
+
+        /**
          * The theme's terminal background changed.
          *
          * The surface is wiped to it before every frame, so it is the colour
@@ -370,6 +375,11 @@ class RenderThread(
 
                     is Command.HighlightColour -> {
                         renderer?.setHighlightColour(command.argb)
+                        dirty = true
+                    }
+
+                    is Command.TransparentBackground -> {
+                        renderer?.transparentBackground = command.transparent
                         dirty = true
                     }
 

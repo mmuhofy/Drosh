@@ -208,7 +208,7 @@ internal class FrameRenderer {
     fun clear(size: SizeInfo) {
         if (!created) return
         GLES20.glViewport(0, 0, size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
-        GLES20.glClearColor(backgroundR, backgroundG, backgroundB, 1f)
+        GLES20.glClearColor(backgroundR, backgroundG, backgroundB, if (transparentBackground) 0f else 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
     }
 
@@ -232,7 +232,7 @@ internal class FrameRenderer {
         // previous picture alone, which is what stops the screen from wiping to
         // the clear colour and coming back.
         GLES20.glViewport(0, 0, size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
-        GLES20.glClearColor(backgroundR, backgroundG, backgroundB, 1f)
+        GLES20.glClearColor(backgroundR, backgroundG, backgroundB, if (transparentBackground) 0f else 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         // Decided once, before either pass reads it: the block cursor inverts
@@ -458,6 +458,15 @@ internal class FrameRenderer {
         highlightG = ((argb shr 8) and 0xff) / 255f
         highlightB = (argb and 0xff) / 255f
     }
+
+    /**
+     * Whether the surface is wiped to transparent.
+     *
+     * With a background image behind the terminal, the surface has to be
+     * transparent: an opaque wipe would paint over the picture, and the picture
+     * is the whole point of the setting.
+     */
+    var transparentBackground: Boolean = false
 
     /**
      * Set the terminal's background colour from the theme.

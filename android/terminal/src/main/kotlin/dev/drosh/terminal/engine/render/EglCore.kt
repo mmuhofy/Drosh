@@ -85,13 +85,40 @@ class EglCore {
             // neither, so every frame would fail and the surface would stay
             // black. Every device that runs this app has GLES 3.
             EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
+            // An alpha channel, so a background image behind the terminal can
+            // show through: the surface is wiped to transparent when there is
+            // one, and the view's own background is the picture.
+            //
+            // Not every device offers a translucent config with the rest of
+            // this list; the config is chosen again without the alpha when
+            // there is none, and the terminal then paints its own background
+            // as it always did.
+            EGL14.EGL_ALPHA_SIZE, 8,
             EGL14.EGL_NONE,
         )
         val configs = arrayOfNulls<EGLConfig>(1)
         val configCount = IntArray(1)
-        if (!EGL14.eglChooseConfig(display, attributes, 0, configs, 0, 1, configCount, 0) ||
-            configCount[0] == 0
-        ) {
+        var chosen = EGL14.eglChooseConfig(
+            display, attributes, 0, configs, 0, 1, configCount, 0,
+        ) && configCount[0] > 0
+        if (!chosen) {
+            // The same list without the alpha channel: the terminal then paints
+            // its own background, as it always did, and the background image
+            // is simply not shown.
+            val opaque = intArrayOf(
+                EGL14.EGL_RED_SIZE, 8,
+                EGL14.EGL_GREEN_SIZE, 8,
+                EGL14.EGL_BLUE_SIZE, 8,
+                EGL14.EGL_DEPTH_SIZE, 0,
+                EGL14.EGL_STENCIL_SIZE, 0,
+                EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
+                EGL14.EGL_NONE,
+            )
+            chosen = EGL14.eglChooseConfig(
+                display, opaque, 0, configs, 0, 1, configCount, 0,
+            ) && configCount[0] > 0
+        }
+        if (!chosen) {
             release()
             return false
         }

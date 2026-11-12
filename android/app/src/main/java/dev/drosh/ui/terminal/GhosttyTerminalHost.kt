@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.Text
@@ -89,6 +90,15 @@ fun GhosttyTerminalHost(
      */
     backgroundColor: Int,
     /**
+     * The picture behind the terminal, and how opaque it is.
+     *
+     * The picture is the view's own background and the surface is wiped
+     * transparent, so it shows through the grid where no cell has a colour of
+     * its own.
+     */
+    backgroundFile: java.io.File? = null,
+    backgroundOpacity: Int = 255,
+    /**
      * The colour a search match is drawn in.
      *
      * The match is a tint over the cell's own background, so the text under it
@@ -111,6 +121,26 @@ fun GhosttyTerminalHost(
     val focusedPane by terminalManager.focusedPane.collectAsStateWithLifecycle()
 
     val pane = remember { GhosttyTerminal(context) }
+
+    // The picture behind the terminal, decoded off the main thread.
+    //
+    // The decode is a file read and a bitmap allocation; doing it on the main
+    // thread would stutter the very animation the picture is behind.
+    val backgroundBitmap by produceState<android.graphics.Bitmap?>(null, backgroundFile) {
+        val file = backgroundFile
+        if (file == null || !file.exists()) {
+            value = null
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+            }.getOrNull()
+        }
+    }
+    LaunchedEffect(backgroundBitmap, backgroundOpacity) {
+        pane.setBackgroundImage(backgroundBitmap, backgroundOpacity)
+    }
 
     // The cell, measured in Kotlin rather than asked of a font stack.
     //

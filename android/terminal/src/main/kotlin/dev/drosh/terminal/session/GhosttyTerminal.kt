@@ -382,6 +382,16 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         view.invalidate()
     }
 
+    /**
+     * The picture behind the terminal, and how opaque it is.
+     *
+     * The image is decoded by the caller: the pane is not the place that
+     * knows about files.
+     */
+    fun setBackgroundImage(bitmap: android.graphics.Bitmap?, opacity: Int) {
+        view.setBackgroundImage(bitmap, opacity)
+    }
+
     /** The colour a search match is drawn in, from the theme. */
     fun setHighlightColour(argb: Int) {
         view.setHighlightColour(argb)
