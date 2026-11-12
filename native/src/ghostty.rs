@@ -30,6 +30,10 @@ include!(concat!(env!("OUT_DIR"), "/ghostty.rs"));
 /// constant at forty call sites.
 pub const SUCCESS: GhosttyResult = 0;
 
+/// The engine's "no value" answer: the call succeeded and there was nothing
+/// to return.
+pub const NO_VALUE: GhosttyResult = -4;
+
 /// True when a call succeeded.
 pub fn ok(result: GhosttyResult) -> bool {
     result == SUCCESS
@@ -171,6 +175,16 @@ pub const GHOSTTY_CLIPBOARD_WRITE_RESULT_DENIED: GhosttyClipboardWriteResult =
 pub const GHOSTTY_POINT_TAG_VIEWPORT: GhosttyPointTag =
     GhosttyPointTag_GHOSTTY_POINT_TAG_VIEWPORT;
 
+pub const GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_PRESS: GhosttySelectionGestureEventType =
+    GhosttySelectionGestureEventType_GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_PRESS;
+pub const GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_RELEASE: GhosttySelectionGestureEventType =
+    GhosttySelectionGestureEventType_GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_RELEASE;
+pub const GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DRAG: GhosttySelectionGestureEventType =
+    GhosttySelectionGestureEventType_GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DRAG;
+pub const GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REF: GhosttySelectionGestureEventOption =
+    GhosttySelectionGestureEventOption_GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REF;
+pub const GHOSTTY_SELECTION_GESTURE_EVENT_OPT_GEOMETRY: GhosttySelectionGestureEventOption =
+    GhosttySelectionGestureEventOption_GHOSTTY_SELECTION_GESTURE_EVENT_OPT_GEOMETRY;
 pub const GHOSTTY_SCROLL_VIEWPORT_TOP: GhosttyTerminalScrollViewportTag =
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_TOP;
 pub const GHOSTTY_SCROLL_VIEWPORT_DELTA: GhosttyTerminalScrollViewportTag =

@@ -45,6 +45,13 @@ pub enum SessionError {
 /// A session: a terminal and everything needed to draw it.
 pub struct Session {
     terminal: ghostty::GhosttyTerminal,
+    /// The selection gesture, while one is running.
+    ///
+    /// The gesture is the engine's own: it counts the clicks, so the first
+    /// press selects a cell, the second a word and the third a line, and it
+    /// installs the selection in the terminal — which is what makes the
+    /// selected cells come back marked in the frame.
+    gesture: Option<ghostty::GhosttySelectionGesture>,
     frames: FrameSource,
     keys: Option<ghostty::GhosttyKeyEncoder>,
     mouse: Option<ghostty::GhosttyMouseEncoder>,
@@ -79,6 +86,7 @@ impl Session {
         let frames = FrameSource::new(terminal).map_err(SessionError::Frames)?;
         Ok(Self {
             terminal,
+            gesture: None,
             frames,
             keys: None,
             mouse: None,
@@ -212,6 +220,150 @@ impl Session {
         }
         let bytes = unsafe { std::slice::from_raw_parts(string.ptr, string.len) };
         String::from_utf8(bytes.to_vec()).ok()
+    }
+
+    /// The geometry the engine reads a drag event with.
+    ///
+    /// The grid's shape in the surface: how many columns, how wide a cell is,
+    /// and how tall the surface is. The engine needs it to turn a drag into a
+    /// cell-granular selection.
+    #[derive(Clone, Copy)]
+    pub struct SelectionGeometry {
+        pub columns: u32,
+        pub cell_width: u32,
+        pub padding_left: u32,
+        pub screen_height: u32,
+    }
+
+    /// Feed the selection gesture an event.
+    ///
+    /// `kind` is one of the engine's event types: press, release or drag. The
+    /// point is in viewport coordinates. A drag also needs the geometry, and
+    /// without it the engine refuses the event.
+    ///
+    /// The gesture is the engine's own, so the click count is the engine's
+    /// too: the first press selects a cell, the second a word, the third a
+    /// line, and a drag extends whatever the press selected.
+    pub fn selection_event(
+        &mut self,
+        kind: u32,
+        row: u16,
+        column: u16,
+        geometry: Option<SelectionGeometry>,
+    ) -> bool {
+        let gesture = match self.gesture {
+            Some(gesture) => gesture,
+            None => {
+                let mut gesture = std::ptr::null_mut();
+                if !ghostty::ok(unsafe {
+                    ghostty::ghostty_selection_gesture_new(std::ptr::null(), &mut gesture)
+                }) {
+                    return false;
+                }
+                self.gesture = Some(gesture);
+                gesture
+            }
+        };
+
+        // The cell under the finger.
+        let mut point: ghostty::GhosttyPoint = unsafe { std::mem::zeroed() };
+        unsafe {
+            super::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
+            point.value.coordinate.x = column;
+            point.value.coordinate.y = row as u32;
+        }
+        let mut reference: ghostty::GhosttyGridRef = unsafe { std::mem::zeroed() };
+        reference.size = std::mem::size_of::<ghostty::GhosttyGridRef>();
+        if !ghostty::ok(unsafe {
+            ghostty::ghostty_terminal_grid_ref(self.terminal, point, &mut reference)
+        }) {
+            return false;
+        }
+
+        let mut event = std::ptr::null_mut();
+        if !ghostty::ok(unsafe {
+            ghostty::ghostty_selection_gesture_event_new(std::ptr::null(), &mut event, kind)
+        }) {
+            return false;
+        }
+
+        unsafe {
+            ghostty::ghostty_selection_gesture_event_set(
+                event,
+                ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_OPT_REF,
+                &reference as *const _ as *const c_void,
+            );
+            if let Some(geometry) = geometry {
+                let mut value: ghostty::GhosttySelectionGestureGeometry =
+                    std::mem::zeroed();
+                value.columns = geometry.columns.max(1);
+                value.cell_width = geometry.cell_width.max(1);
+                value.padding_left = geometry.padding_left;
+                value.screen_height = geometry.screen_height.max(1);
+                ghostty::ghostty_selection_gesture_event_set(
+                    event,
+                    ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_OPT_GEOMETRY,
+                    &value as *const _ as *const c_void,
+                );
+            }
+        }
+
+        let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            ghostty::ghostty_selection_gesture_event(
+                gesture,
+                self.terminal,
+                event,
+                &mut selection,
+            )
+        };
+        unsafe {
+            ghostty::ghostty_selection_gesture_event_free(event);
+        }
+
+        // A release produces no selection of its own — it ends the gesture —
+        // and the engine says so with "no value", which is not a failure.
+        ghostty::ok(result) || result == ghostty::NO_VALUE
+    }
+
+    /// The text of the terminal's current selection, or none.
+    pub fn selection_text(&self) -> Option<String> {
+        let mut options: ghostty::GhosttyTerminalSelectionFormatOptions =
+            unsafe { std::mem::zeroed() };
+        options.size = std::mem::size_of::<ghostty::GhosttyTerminalSelectionFormatOptions>();
+        // No selection pointer: the terminal's own selection is what is asked
+        // for. The gesture is what installs it.
+
+        let mut needed: usize = 0;
+        let result = unsafe {
+            ghostty::ghostty_terminal_selection_format_buf(
+                self.terminal,
+                options,
+                std::ptr::null_mut(),
+                0,
+                &mut needed,
+            )
+        };
+        if !ghostty::ok(result) || needed == 0 {
+            return None;
+        }
+
+        let mut buffer = vec![0u8; needed];
+        let mut written: usize = 0;
+        let result = unsafe {
+            ghostty::ghostty_terminal_selection_format_buf(
+                self.terminal,
+                options,
+                buffer.as_mut_ptr(),
+                buffer.len(),
+                &mut written,
+            )
+        };
+        if !ghostty::ok(result) || written == 0 {
+            return None;
+        }
+        buffer.truncate(written);
+        Some(String::from_utf8_lossy(&buffer).into_owned())
     }
 
     /// Highlight the range the search matched.
@@ -518,6 +670,9 @@ impl Drop for Session {
             }
             if let Some(encoder) = self.mouse.take() {
                 ghostty::ghostty_mouse_encoder_free(encoder);
+            }
+            if let Some(gesture) = self.gesture.take() {
+                ghostty::ghostty_selection_gesture_free(gesture);
             }
             ghostty::ghostty_terminal_free(self.terminal);
         }

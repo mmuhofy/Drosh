@@ -673,9 +673,25 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // With mouse reporting active, a long-press grabs the left
                 // button so the following drag is reported to the program —
                 // a region select, a slider, a divider — instead of starting
-                // the local selection. Without reporting, long-press does
-                // nothing here, as before.
-                if (mouseReporting()) startMouseDrag(event.x, event.y)
+                // the local selection.
+                if (mouseReporting()) {
+                    startMouseDrag(event.x, event.y)
+                    return
+                }
+
+                // Otherwise it is a selection: the gesture is the engine's, so
+                // it selects the word under the finger and installs the
+                // selection — which is what puts the selected cells in the
+                // frame, and what the drag that follows grows.
+                val session = sessionHandle
+                if (session == 0L) return
+                val cell = cellAt(event.x, event.y) ?: return
+                if (NativeSelection.press(session, cell.first, cell.second)) {
+                    longPressSelecting = true
+                    performHapticFeedback(
+                        android.view.HapticFeedbackConstants.LONG_PRESS,
+                    )
+                }
             }
 
             override fun onScroll(
@@ -692,6 +708,25 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     handleMouseWheel(distanceX, distanceY, current)
                     return true
                 }
+                // A drag that started as a long press is the selection
+                // growing, not the scrollback moving.
+                val session = sessionHandle
+                if (longPressSelecting && session != 0L) {
+                    val cell = cellAt(current.x, current.y)
+                    if (cell != null) {
+                        NativeSelection.drag(
+                            session,
+                            cell.first,
+                            cell.second,
+                            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
+                            cellWidth.toInt().coerceAtLeast(1),
+                            height.coerceAtLeast(1),
+                        )
+                        renderThread.invalidate()
+                        return true
+                    }
+                }
+
                 // GestureDetector reports `lastY - currentY`: dragging the
                 // finger down gives a negative value, and down is the direction
                 // that reveals older output. Flipping it once, here, keeps the
@@ -717,6 +752,14 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     )
 
     private var fling: android.widget.Scroller? = null
+
+    /**
+     * Whether a long press is growing a selection.
+     *
+     * The drag that follows belongs to the selection, not to the scrollback,
+     * and it ends when the finger lifts.
+     */
+    private var longPressSelecting: Boolean = false
 
     /** The tap run: one tap, two taps, three taps. */
     private var tapCount: Int = 0
@@ -756,6 +799,24 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // reports and must never reach the detectors, which would read the
         // same finger as a wheel scroll underneath the drag.
         if (mouseDragging && mouseDragTouch(event)) return true
+
+        // The end of a selection gesture.
+        //
+        // The release is what tells the engine the gesture is over: until it
+        // comes, the engine still thinks a finger is down and the selection is
+        // still growing.
+        if (longPressSelecting &&
+            (event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL)
+        ) {
+            val session = sessionHandle
+            val cell = cellAt(event.x, event.y)
+            if (session != 0L && cell != null) {
+                NativeSelection.release(session, cell.first, cell.second)
+            }
+            longPressSelecting = false
+            renderThread.invalidate()
+        }
 
         // A new gesture starts where the engine actually is.
         //
@@ -819,6 +880,22 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * two rows — and the tap is on the picture, not on the grid, so the shift is
      * taken off before the row is counted.
      */
+    /**
+     * The cell under a point, as a row and a column.
+     *
+     * The picture may be shifted inside the viewport — the user dragged
+     * between two rows — and the point is on the picture, not on the grid, so
+     * the shift is taken off before the row is counted.
+     */
+    private fun cellAt(x: Float, y: Float): Pair<Int, Int>? {
+        val cellW = cellWidth.coerceAtLeast(1f)
+        val cellH = cellHeight.coerceAtLeast(1f)
+        val column = (x / cellW).toInt()
+        val row = ((y - renderThread.scrollOffsetPx) / cellH).toInt()
+        if (row < 0 || column < 0) return null
+        return row to column
+    }
+
     private fun selectAt(x: Float, y: Float, word: Boolean): Boolean {
         val cellW = cellWidth.coerceAtLeast(1f)
         val cellH = cellHeight.coerceAtLeast(1f)
@@ -1059,10 +1136,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private var selectionRect: android.graphics.Rect? = null
 
     /** The selected text, or "". */
-    fun selectedText(): String = selected
+    fun selectedText(): String {
+        // The gesture's selection lives in the engine, and the engine is the
+        // only one that knows what it covers. The tap's selection is the
+        // snapshot this view took, because that one the engine does not keep.
+        val session = sessionHandle
+        if (session != 0L) {
+            val engineText = NativeSelection.text(session)
+            if (engineText.isNotEmpty()) return engineText
+        }
+        return selected
+    }
 
     /** True when something is selected. */
-    fun hasSelection(): Boolean = selected.isNotEmpty()
+    fun hasSelection(): Boolean = selectedText().isNotEmpty()
 
     /** The selection's bounds in pixels, or null. */
     fun selectionBounds(): android.graphics.Rect? = selectionRect

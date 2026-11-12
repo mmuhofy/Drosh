@@ -18,7 +18,7 @@
 use jni::objects::{JClass, JString};
 use jni::JNIEnv;
 
-use super::{jint, jlong, jstring};
+use super::{jboolean, jint, jlong, jstring};
 use super::{new_string, read_string, session_lock};
 use crate::ghostty;
 use crate::session::Session;
@@ -103,6 +103,115 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
     }
 
     format(&session, selection)
+}
+
+/// Feed the selection gesture a press.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionPress(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    row: jint,
+    column: jint,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    if row < 0 || column < 0 {
+        return 0;
+    }
+    let applied = session.selection_event(
+        ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_PRESS,
+        row as u16,
+        column as u16,
+        None,
+    );
+    if applied {
+        1
+    } else {
+        0
+    }
+}
+
+/// Feed the selection gesture a drag, with the geometry it reads cells with.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionDrag(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    row: jint,
+    column: jint,
+    columns: jint,
+    cell_width: jint,
+    screen_height: jint,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    if row < 0 || column < 0 {
+        return 0;
+    }
+    let geometry = crate::session::Session::SelectionGeometry {
+        columns: columns.max(1) as u32,
+        cell_width: cell_width.max(1) as u32,
+        padding_left: 0,
+        screen_height: screen_height.max(1) as u32,
+    };
+    let applied = session.selection_event(
+        ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_DRAG,
+        row as u16,
+        column as u16,
+        Some(geometry),
+    );
+    if applied {
+        1
+    } else {
+        0
+    }
+}
+
+/// Feed the selection gesture a release.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionRelease(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    row: jint,
+    column: jint,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    if row < 0 || column < 0 {
+        return 0;
+    }
+    let applied = session.selection_event(
+        ghostty::GHOSTTY_SELECTION_GESTURE_EVENT_TYPE_RELEASE,
+        row as u16,
+        column as u16,
+        None,
+    );
+    if applied {
+        1
+    } else {
+        0
+    }
+}
+
+/// The text of the terminal's current selection.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectionText(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let Some(session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    match session.selection_text() {
+        Some(text) => new_string(&mut env, &text),
+        None => std::ptr::null_mut(),
+    }
 }
 
 /// The URI of the hyperlink the cell at a viewport position belongs to, or null.

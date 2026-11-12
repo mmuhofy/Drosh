@@ -37,7 +37,58 @@ object NativeSelection {
         return nativeSelectAll(handle)
     }
 
+    /**
+     * The selection gesture: a press, a drag, a release.
+     *
+     * The gesture is the engine's own, so it counts the clicks: the first press
+     * selects a cell, the second a word, the third a line, and a drag extends
+     * whatever the press selected. The selection it makes is the terminal's own,
+     * which is what puts the selected cells in the frame.
+     */
+    fun press(handle: Long, row: Int, column: Int): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeSelectionPress(handle, row, column) != 0.toByte()
+    }
+
+    /** A drag, with the geometry the engine reads the cells with. */
+    fun drag(
+        handle: Long,
+        row: Int,
+        column: Int,
+        columns: Int,
+        cellWidth: Int,
+        screenHeight: Int,
+    ): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeSelectionDrag(
+            handle, row, column, columns, cellWidth, screenHeight,
+        ) != 0.toByte()
+    }
+
+    /** The end of a gesture. */
+    fun release(handle: Long, row: Int, column: Int): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeSelectionRelease(handle, row, column) != 0.toByte()
+    }
+
+    /** The text of the terminal's current selection, or "". */
+    fun text(handle: Long): String {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
+        return nativeSelectionText(handle) ?: ""
+    }
+
     private external fun nativeSelectWord(handle: Long, row: Int, column: Int): String
     private external fun nativeSelectLine(handle: Long, row: Int, column: Int): String
     private external fun nativeSelectAll(handle: Long): String
+    private external fun nativeSelectionPress(handle: Long, row: Int, column: Int): Byte
+    private external fun nativeSelectionDrag(
+        handle: Long,
+        row: Int,
+        column: Int,
+        columns: Int,
+        cellWidth: Int,
+        screenHeight: Int,
+    ): Byte
+    private external fun nativeSelectionRelease(handle: Long, row: Int, column: Int): Byte
+    private external fun nativeSelectionText(handle: Long): String?
 }
