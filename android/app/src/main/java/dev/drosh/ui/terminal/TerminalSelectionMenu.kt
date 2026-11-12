@@ -71,14 +71,14 @@ fun TerminalSelectionMenu(
             y = paneOrigin.y + bounds.bottom.toFloat(),
             size = handleSize,
             paneOrigin = paneOrigin,
-            onDrag = { px, py -> onExtend(px, py, fromEnd = true) },
+            onDrag = { px, py -> onExtend(px, py, true) },
         )
         Handle(
             x = paneOrigin.x + bounds.right.toFloat(),
             y = paneOrigin.y + bounds.bottom.toFloat(),
             size = handleSize,
             paneOrigin = paneOrigin,
-            onDrag = { px, py -> onExtend(px, py, fromEnd = false) },
+            onDrag = { px, py -> onExtend(px, py, false) },
         )
 
         // The menu, above the selection when there is room for it.
