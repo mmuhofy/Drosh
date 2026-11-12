@@ -641,20 +641,36 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_keyboard),
-            items = 1,
-        ) { _, cap ->
-            SettingsTile(
-                cap = cap,
-                title = stringResource(R.string.settings_input_extra_keys),
-                icon = DroshIcons.Keyboard,
-                supporting = stringResource(R.string.settings_input_extra_keys_desc),
-            ) {
-                SettingsSwitch(
-                    checked = settings.input.extraKeysBar,
-                    onCheckedChange = { on ->
-                        onUpdate { it.copy(input = it.input.copy(extraKeysBar = on)) }
-                    },
-                )
+            items = 2,
+        ) { index, cap ->
+            if (index == 0) {
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_input_extra_keys),
+                    icon = DroshIcons.Keyboard,
+                    supporting = stringResource(R.string.settings_input_extra_keys_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.input.extraKeysBar,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(input = it.input.copy(extraKeysBar = on)) }
+                        },
+                    )
+                }
+            } else {
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_input_mouse_reporting),
+                    icon = DroshIcons.Cursor,
+                    supporting = stringResource(R.string.settings_input_mouse_reporting_desc),
+                ) {
+                    SettingsSwitch(
+                        checked = settings.input.mouseReporting,
+                        onCheckedChange = { on ->
+                            onUpdate { it.copy(input = it.input.copy(mouseReporting = on)) }
+                        },
+                    )
+                }
             }
         }
     }

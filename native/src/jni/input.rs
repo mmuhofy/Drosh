@@ -13,9 +13,10 @@
 //! into the engine's and lets the engine decide the bytes.
 
 use jni::objects::{JByteArray, JClass, JString};
+use jni::sys::jfloat;
 use jni::JNIEnv;
 
-use super::{jint, jlong};
+use super::{jboolean, jint, jlong};
 use super::{read_string, session_lock};
 use crate::ghostty;
 
@@ -131,6 +132,81 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeE
     let bytes = session.encode_key(key, mods, key_action, &text, unshifted);
     if bytes.is_empty() {
         return 0;
+    }
+
+    if env
+        .set_byte_array_region(
+            &out,
+            0,
+            unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const i8, bytes.len()) },
+        )
+        .is_err()
+    {
+        return -2;
+    }
+    bytes.len() as jint
+}
+
+/// Encode one mouse event into `out`; returns the byte count.
+///
+/// The engine decides whether the event produces bytes at all: an action the
+/// program's tracking mode does not report — a motion without a button in
+/// normal mode, say — encodes to nothing, and zero is that answer rather than
+/// an error. The host writes only what came back.
+///
+/// `x`/`y` are surface-space pixels; `width`/`height` the view's size and
+/// `cell_width`/`cell_height` the cell's, the geometry the engine converts
+/// through. `button_pressed` is whether any button is held *right now*, which
+/// is what the encoder needs to know to report motion in the normal tracking
+/// mode — the host is tracking the finger, the engine cannot see it.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeInput_nativeEncodeMouse(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    action: jint,
+    button: jint,
+    x: jfloat,
+    y: jfloat,
+    width: jint,
+    height: jint,
+    cell_width: jint,
+    cell_height: jint,
+    button_pressed: jboolean,
+    out: JByteArray,
+) -> jint {
+    let Some(mut session) = session_lock(handle) else {
+        return -1;
+    };
+    if width < 0 || height < 0 || cell_width <= 0 || cell_height <= 0 {
+        return -1;
+    }
+
+    let bytes = session.encode_mouse(
+        action.max(0) as u32,
+        button.max(0) as u32,
+        x,
+        y,
+        width as u32,
+        height as u32,
+        cell_width as u32,
+        cell_height as u32,
+        button_pressed != 0,
+    );
+    if bytes.is_empty() {
+        return 0;
+    }
+
+    // The caller sized the buffer; a sequence that will not fit is refused
+    // rather than truncated, because half an escape sequence is worse than
+    // none.
+    let capacity = match env.get_array_length(&out) {
+        Ok(length) => length as usize,
+        Err(_) => return -2,
+    };
+    if bytes.len() > capacity {
+        return -2;
     }
 
     if env

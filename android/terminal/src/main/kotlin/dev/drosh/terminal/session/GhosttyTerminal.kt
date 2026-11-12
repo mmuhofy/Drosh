@@ -364,6 +364,24 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         view.invalidate()
     }
 
+    /**
+     * Scroll to the shell's prompt above or below the viewport.
+     *
+     * The engine needs the shell's semantic prompt markers to know where the
+     * prompts are; a shell that does not report them has none to go to, and
+     * the call is a no-op.
+     */
+    override fun scrollToPrompt(delta: Int): Boolean {
+        val shown = session ?: return false
+        val moved = NativeSession.scrollToPrompt(shown.terminalHandle, delta)
+        if (moved) {
+            // The picture is a whole row off now: the engine moved to a prompt,
+            // and the sub-row shift belongs to the finger that is not there.
+            view.resetScrollOffset()
+        }
+        return moved
+    }
+
     /** The shell's phase, as its `OSC 133` marks report it. */
     override fun shellPhase(): dev.drosh.terminal.engine.shell.Phase {
         val shown = session ?: return dev.drosh.terminal.engine.shell.Phase.UNKNOWN

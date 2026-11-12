@@ -77,6 +77,12 @@ class SettingsRepositoryImpl @Inject constructor(
         store.update { it.copy(input = it.input.copy(extraKeysBar = visible)) }
     }
 
+    override val mouseReporting: Flow<Boolean> = settings.map { it.input.mouseReporting }
+
+    override suspend fun setMouseReporting(enabled: Boolean) {
+        store.update { it.copy(input = it.input.copy(mouseReporting = enabled)) }
+    }
+
     override val fontSizeSp: Flow<Float> = settings.map { it.terminal.defaultFontSizeSp }
 
     override suspend fun setFontSize(size: Float) {

@@ -92,6 +92,7 @@ internal object DroshSettingsToml {
         }
         with(settings.input) {
             putBoolean("input", "extra_keys_bar", extraKeysBar)
+            putBoolean("input", "mouse_reporting", mouseReporting)
         }
         with(settings.shell) {
             putString("shell", "motd_mode", motdMode.tomlName())
@@ -180,6 +181,9 @@ internal object DroshSettingsToml {
             ),
             input = base.input.copy(
                 extraKeysBar = document.getBoolean("input", "extra_keys_bar", base.input.extraKeysBar),
+                mouseReporting = document.getBoolean(
+                    "input", "mouse_reporting", base.input.mouseReporting,
+                ),
             ),
             shell = base.shell.copy(
                 motdMode = MotdMode.fromString(document.getString("shell", "motd_mode", "")),

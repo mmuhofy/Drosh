@@ -23,6 +23,10 @@ use std::ffi::c_void;
 
 /// The engine palette's length.
 const PALETTE_LEN: usize = 256;
+/// The mouse encoder's output buffer. An SGR 1006 sequence is under twenty
+/// bytes; sixty-four covers every format the engine can produce with room to
+/// spare, and a short answer is refused by the caller rather than truncated.
+const MOUSE_BUFFER_LEN: usize = 64;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::frame::{FrameError, FrameSource};
@@ -43,6 +47,7 @@ pub struct Session {
     terminal: ghostty::GhosttyTerminal,
     frames: FrameSource,
     keys: Option<ghostty::GhosttyKeyEncoder>,
+    mouse: Option<ghostty::GhosttyMouseEncoder>,
     shell: Scanner,
 }
 
@@ -76,6 +81,7 @@ impl Session {
             terminal,
             frames,
             keys: None,
+            mouse: None,
             shell: Scanner::new(),
         })
     }
@@ -349,6 +355,145 @@ impl Session {
         buffer.truncate(written);
         buffer
     }
+
+    /// Encode one mouse event, and return the bytes.
+    ///
+    /// The engine owns the protocol: which tracking mode the program asked for
+    /// (X10, normal, button-event, any-event) and which wire format it accepted
+    /// (X10, UTF-8, SGR 1006, URxvt, SGR-pixels) are *its* state, read out of
+    /// the VT stream it parsed. Re-deriving that here would be a copy of the
+    /// parser's mode bookkeeping, and a copy is a place to be wrong.
+    ///
+    /// The encoder is re-synced from the terminal before every event, the way
+    /// the key encoder is: a program can turn a different tracking mode or
+    /// format on mid-session, and a stale option would encode for a program
+    /// that is no longer listening.
+    ///
+    /// `x`/`y` are surface-space pixels. The encoder converts them into cell
+    /// coordinates through the size context handed in below, so the geometry
+    /// (view size, cell size, padding) is the host's answer, not a guess.
+    ///
+    /// Events the current tracking mode does not report come back empty: the
+    /// engine answers "nothing to send" rather than making one up.
+    ///
+    /// # Why the encoder is kept
+    ///
+    /// `TRACK_LAST_CELL` makes the engine drop a motion report that lands in
+    /// the cell the last one came from — the dedup the wire protocol itself is
+    /// cell-grained about. That state lives in the encoder, so the encoder is
+    /// created once and reused across events.
+    #[allow(clippy::too_many_arguments)]
+    pub fn encode_mouse(
+        &mut self,
+        action_code: u32,
+        button_code: u32,
+        x: f32,
+        y: f32,
+        width: u32,
+        height: u32,
+        cell_width: u32,
+        cell_height: u32,
+        button_pressed: bool,
+    ) -> Vec<u8> {
+        if self.mouse.is_none() {
+            let mut encoder = std::ptr::null_mut();
+            if !ghostty::ok(unsafe {
+                ghostty::ghostty_mouse_encoder_new(std::ptr::null(), &mut encoder)
+            }) {
+                return Vec::new();
+            }
+            self.mouse = Some(encoder);
+        }
+        let encoder = self.mouse.unwrap();
+
+        // The rendered geometry. The grid is drawn edge to edge on this host —
+        // no padding — so only the view's size and the cell's size matter.
+        let mut size: ghostty::GhosttyMouseEncoderSize = unsafe { std::mem::zeroed() };
+        size.size = std::mem::size_of::<ghostty::GhosttyMouseEncoderSize>();
+        size.screen_width = width.max(1);
+        size.screen_height = height.max(1);
+        size.cell_width = cell_width.max(1);
+        size.cell_height = cell_height.max(1);
+
+        // Android's action vocabulary to the engine's, same shape as keys.
+        let action = match action_code {
+            1 => ghostty::GHOSTTY_MOUSE_ACTION_RELEASE,
+            2 => ghostty::GHOSTTY_MOUSE_ACTION_MOTION,
+            _ => ghostty::GHOSTTY_MOUSE_ACTION_PRESS,
+        };
+        let button = match button_code {
+            1 => ghostty::GHOSTTY_MOUSE_BUTTON_LEFT,
+            2 => ghostty::GHOSTTY_MOUSE_BUTTON_RIGHT,
+            3 => ghostty::GHOSTTY_MOUSE_BUTTON_MIDDLE,
+            4 => ghostty::GHOSTTY_MOUSE_BUTTON_FOUR,
+            5 => ghostty::GHOSTTY_MOUSE_BUTTON_FIVE,
+            6 => ghostty::GHOSTTY_MOUSE_BUTTON_SIX,
+            7 => ghostty::GHOSTTY_MOUSE_BUTTON_SEVEN,
+            8 => ghostty::GHOSTTY_MOUSE_BUTTON_EIGHT,
+            9 => ghostty::GHOSTTY_MOUSE_BUTTON_NINE,
+            _ => ghostty::GHOSTTY_MOUSE_BUTTON_UNKNOWN,
+        };
+
+        let mut event = std::ptr::null_mut();
+        if !ghostty::ok(unsafe { ghostty::ghostty_mouse_event_new(std::ptr::null(), &mut event) }) {
+            return Vec::new();
+        }
+
+        let mut buffer = vec![0u8; MOUSE_BUFFER_LEN];
+        let mut written: usize = 0;
+
+        unsafe {
+            // Tracking mode and wire format follow the terminal's own state.
+            ghostty::ghostty_mouse_encoder_setopt_from_terminal(encoder, self.terminal);
+
+            let track_last_cell: bool = true;
+            ghostty::ghostty_mouse_encoder_setopt(
+                encoder,
+                ghostty::GHOSTTY_MOUSE_ENCODER_OPT_TRACK_LAST_CELL,
+                &track_last_cell as *const bool as *const c_void,
+            );
+            // Whether a button is held *right now*. Motion reports in the
+            // normal tracking mode are only meaningful with one down; the host
+            // knows, the encoder does not.
+            ghostty::ghostty_mouse_encoder_setopt(
+                encoder,
+                ghostty::GHOSTTY_MOUSE_ENCODER_OPT_ANY_BUTTON_PRESSED,
+                &button_pressed as *const bool as *const c_void,
+            );
+            ghostty::ghostty_mouse_encoder_setopt(
+                encoder,
+                ghostty::GHOSTTY_MOUSE_ENCODER_OPT_SIZE,
+                &size as *const _ as *const c_void,
+            );
+
+            ghostty::ghostty_mouse_event_set_action(event, action);
+            if button_code != 0 {
+                ghostty::ghostty_mouse_event_set_button(event, button);
+            } else {
+                ghostty::ghostty_mouse_event_clear_button(event);
+            }
+            ghostty::ghostty_mouse_event_set_position(
+                event,
+                ghostty::GhosttyMousePosition { x, y },
+            );
+
+            let result = ghostty::ghostty_mouse_encoder_encode(
+                encoder,
+                event,
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                &mut written,
+            );
+            ghostty::ghostty_mouse_event_free(event);
+
+            if !ghostty::ok(result) || written == 0 {
+                return Vec::new();
+            }
+        }
+
+        buffer.truncate(written);
+        buffer
+    }
 }
 
 impl Drop for Session {
@@ -356,6 +501,9 @@ impl Drop for Session {
         unsafe {
             if let Some(encoder) = self.keys.take() {
                 ghostty::ghostty_key_encoder_free(encoder);
+            }
+            if let Some(encoder) = self.mouse.take() {
+                ghostty::ghostty_mouse_encoder_free(encoder);
             }
             ghostty::ghostty_terminal_free(self.terminal);
         }

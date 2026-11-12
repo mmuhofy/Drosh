@@ -177,6 +177,8 @@ pub const GHOSTTY_SCROLL_VIEWPORT_DELTA: GhosttyTerminalScrollViewportTag =
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA;
 pub const GHOSTTY_SCROLL_VIEWPORT_ROW: GhosttyTerminalScrollViewportTag =
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_ROW;
+pub const GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT: GhosttyTerminalScrollViewportTag =
+    GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT;
 
 // --- search -----------------------------------------------------------------
 
@@ -226,6 +228,49 @@ pub const GHOSTTY_KEY_ACTION_REPEAT: GhosttyKeyAction =
 
 // The modifiers are a block of `#define`s rather than an enum, so bindgen emits
 // them under the header's own names and no alias is needed.
+
+// --- mouse -------------------------------------------------------------------
+
+pub const GHOSTTY_MOUSE_ACTION_PRESS: GhosttyMouseAction =
+    GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_PRESS;
+pub const GHOSTTY_MOUSE_ACTION_RELEASE: GhosttyMouseAction =
+    GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_RELEASE;
+pub const GHOSTTY_MOUSE_ACTION_MOTION: GhosttyMouseAction =
+    GhosttyMouseAction_GHOSTTY_MOUSE_ACTION_MOTION;
+
+pub const GHOSTTY_MOUSE_BUTTON_UNKNOWN: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_UNKNOWN;
+pub const GHOSTTY_MOUSE_BUTTON_LEFT: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_LEFT;
+pub const GHOSTTY_MOUSE_BUTTON_RIGHT: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_RIGHT;
+pub const GHOSTTY_MOUSE_BUTTON_MIDDLE: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_MIDDLE;
+pub const GHOSTTY_MOUSE_BUTTON_FOUR: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_FOUR;
+pub const GHOSTTY_MOUSE_BUTTON_FIVE: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_FIVE;
+pub const GHOSTTY_MOUSE_BUTTON_SIX: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_SIX;
+pub const GHOSTTY_MOUSE_BUTTON_SEVEN: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_SEVEN;
+pub const GHOSTTY_MOUSE_BUTTON_EIGHT: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_EIGHT;
+pub const GHOSTTY_MOUSE_BUTTON_NINE: GhosttyMouseButton =
+    GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_NINE;
+
+/// The wheel is buttons four to seven on the wire: up, down, left, right —
+/// the xterm convention the protocols themselves are written around.
+pub const GHOSTTY_MOUSE_ENCODER_OPT_EVENT: GhosttyMouseEncoderOption =
+    GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_EVENT;
+pub const GHOSTTY_MOUSE_ENCODER_OPT_FORMAT: GhosttyMouseEncoderOption =
+    GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_FORMAT;
+pub const GHOSTTY_MOUSE_ENCODER_OPT_SIZE: GhosttyMouseEncoderOption =
+    GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_SIZE;
+pub const GHOSTTY_MOUSE_ENCODER_OPT_ANY_BUTTON_PRESSED: GhosttyMouseEncoderOption =
+    GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_ANY_BUTTON_PRESSED;
+pub const GHOSTTY_MOUSE_ENCODER_OPT_TRACK_LAST_CELL: GhosttyMouseEncoderOption =
+    GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_TRACK_LAST_CELL;
 
 // --- build info -------------------------------------------------------------
 

@@ -288,6 +288,11 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
             behavior.value.delta = amount as isize;
         } else if tag == ghostty::GHOSTTY_SCROLL_VIEWPORT_ROW as i32 {
             behavior.value.row = if amount > 0 { amount as usize } else { 0 };
+        } else if tag == ghostty::GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT as i32 {
+            // The prompt delta: negative for the prompt above, positive for
+            // the one below. The engine needs the shell's semantic prompt
+            // markers, which a shell that emits them provides.
+            behavior.value.delta_prompt = amount as isize;
         }
         ghostty::ghostty_terminal_scroll_viewport(session.terminal(), behavior);
     }

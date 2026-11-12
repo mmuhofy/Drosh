@@ -118,6 +118,18 @@ object NativeSession {
         return nativeSetCursor(handle, style, if (blink) 1 else 0) != 0.toByte()
     }
 
+    /**
+     * Scroll to the prompt above or below the viewport.
+     *
+     * The engine needs the shell's semantic prompt markers, which a shell that
+     * emits them (OSC 133) provides; without them there is no prompt to go to
+     * and the call is a no-op.
+     */
+    fun scrollToPrompt(handle: Long, delta: Int): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeScroll(handle, SCROLL_PROMPT, delta) == 0
+    }
+
     /** The title the program asked for with OSC 0/2, or null when it set none. */
     fun title(handle: Long): String? {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return null
@@ -215,6 +227,9 @@ object NativeSession {
 
     /** Scroll to the absolute row `amount`. */
     const val SCROLL_ROW = 3
+
+    /** Scroll by prompts: negative for the one above, positive for the one below. */
+    const val SCROLL_PROMPT = 4
 
     private external fun nativeCreate(columns: Int, rows: Int): Long
     private external fun nativeFree(handle: Long)

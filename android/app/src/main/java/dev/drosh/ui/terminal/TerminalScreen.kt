@@ -462,6 +462,7 @@ private fun ReadyScreen(
     }
     val fontSizeSp by terminalViewModel.fontSizeSp.collectAsState()
     val defaultFontSizeSp by terminalViewModel.defaultFontSizeSp.collectAsState()
+    val mouseReporting by terminalViewModel.mouseReporting.collectAsState()
     /**
      * Which terminal implementation the panes run.
      *
@@ -1185,6 +1186,12 @@ private fun ReadyScreen(
                         sidebarOpen = true
                     }
                 },
+                onPreviousPrompt = {
+                    terminalManager.focusedTerminal()?.scrollToPrompt(-1)
+                },
+                onNextPrompt = {
+                    terminalManager.focusedTerminal()?.scrollToPrompt(1)
+                },
                 onFindInOutput = {
                     // The terminal's own keyboard goes first: the find bar is
                     // about to raise its own, and two keyboards in one row is
@@ -1866,6 +1873,10 @@ private fun TerminalPaneBody(
                 sessionId = paneSessionId,
                 sessionName = terminalManager.sessionNameForSlot(paneSlot).orEmpty(),
                 fontSizeSp = fontSizeSp,
+                // Whether the program's mouse-tracking mode is honoured. The
+                // surface reads the engine's modes itself; this is the user's
+                // half of the handshake.
+                mouseReporting = mouseReporting,
                 // The pinch reports the size it settled on; the view model
                 // owns it, so the setting and the cell cannot drift apart.
                 onZoomCommitted = terminalViewModel::onZoomCommitted,

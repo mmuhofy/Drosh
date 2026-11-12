@@ -64,6 +64,14 @@ fun GhosttyTerminalHost(
     sessionName: String = "",
     fontSizeSp: Float,
     /**
+     * Whether touch is reported to programs that turned a tracking mode on.
+     *
+     * The surface reads the engine's own tracking state on every gesture; this
+     * is the user's master switch over it, and off means gestures are always
+     * local whatever the program asked.
+     */
+    mouseReporting: Boolean = true,
+    /**
      * Told the size a pinch settled on, once, when the fingers lift.
      *
      * The size is a setting with one owner — the view model — so the cell the
@@ -157,6 +165,10 @@ fun GhosttyTerminalHost(
             slop = ViewConfiguration.get(context).scaledTouchSlop,
             timeoutMillis = TAP_TIMEOUT_MILLIS,
             cellSize = { currentCell.value.width to currentCell.value.height },
+            // Read at tap time: a program can turn its tracking mode on or off
+            // mid-session, and a tap that became a click for the program is
+            // not the link's to follow.
+            mouseActive = { pane.view.mouseReportingActive },
             resolve = { row, column -> pane.hyperlinkAt(row, column) },
             onLink = { uri -> currentOnUrlClick.value(uri) },
         )
@@ -353,6 +365,10 @@ fun GhosttyTerminalHost(
             update = { _ ->
                 // The theme's ground, on every recomposition that changes it.
                 pane.setBackground(backgroundColor)
+                // The user's half of the mouse handshake; the engine's half is
+                // the tracking mode the running program turned on, which the
+                // surface reads per gesture.
+                pane.view.mouseReportingEnabled = mouseReporting
                 // The hyperlink tap. Set here rather than in the factory so a
                 // recomposition after a font change re-points it at the pane
                 // that is on screen now — though the listener itself reads the
@@ -441,6 +457,8 @@ private class HyperlinkTap(
     private val timeoutMillis: Long,
     /** The pane's cell, in pixels, read at tap time. */
     private val cellSize: () -> Pair<Float, Float>,
+    /** Whether touch is being reported to the program as mouse events. */
+    private val mouseActive: () -> Boolean,
     /** The engine's link for a viewport cell, or null. */
     private val resolve: (row: Int, column: Int) -> String?,
     /** Told the URI that was found. */
@@ -478,7 +496,11 @@ private class HyperlinkTap(
             MotionEvent.ACTION_UP -> {
                 val wasTap = candidate && SystemClock.uptimeMillis() - downAt <= timeoutMillis
                 candidate = false
-                if (wasTap) followLink(event.x, event.y)
+                // Under mouse reporting the tap is the program's click: the
+                // surface has already sent it, and opening a link on top of
+                // the click the user did not ask for would be two actions for
+                // one touch.
+                if (wasTap && !mouseActive()) followLink(event.x, event.y)
             }
 
             MotionEvent.ACTION_CANCEL -> candidate = false

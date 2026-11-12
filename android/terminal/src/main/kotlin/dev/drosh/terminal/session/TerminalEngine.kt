@@ -123,6 +123,15 @@ interface TerminalEngine {
 
     fun scrollTo(offset: Int)
 
+    /**
+     * Scroll to the prompt above or below the viewport.
+     *
+     * Negative for the prompt above, positive for the one below. False when
+     * there is no prompt to go to — the shell has to report its prompts
+     * (OSC 133) for the engine to know where they are.
+     */
+    fun scrollToPrompt(delta: Int): Boolean
+
     fun historySize(): Int
 
     fun promptRows(): IntArray

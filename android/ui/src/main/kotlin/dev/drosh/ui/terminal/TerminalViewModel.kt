@@ -141,6 +141,15 @@ class TerminalViewModel @Inject constructor(
     val defaultFontSizeSp: StateFlow<Float> = settingsRepository.fontSizeSp
         .stateIn(viewModelScope, SharingStarted.Eagerly, TerminalZoom.DEFAULT_SP)
 
+    /**
+     * Whether touch is reported to programs that track the mouse, as stored.
+     *
+     * The surface reads it live: a program can turn a tracking mode on or off
+     * mid-session, and the setting is the user's half of that handshake.
+     */
+    val mouseReporting: StateFlow<Boolean> = settingsRepository.mouseReporting
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     private val _fontSizeSp = MutableStateFlow(TerminalZoom.DEFAULT_SP)
     val fontSizeSp: StateFlow<Float> = _fontSizeSp.asStateFlow()
 

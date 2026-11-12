@@ -67,6 +67,8 @@
     <string name="topbar_enter_fullscreen">Enter fullscreen</string>
     <string name="topbar_exit_fullscreen">Exit fullscreen</string>
     <string name="topbar_find">Find in output</string>
+    <string name="topbar_previous_prompt">Previous prompt</string>
+    <string name="topbar_next_prompt">Next prompt</string>
     <string name="topbar_new_session">New session</string>
     <string name="topbar_close_session">Close session</string>
     <string name="settings_cursor_style_thin">Thin block</string>
@@ -110,6 +112,8 @@
     <string name="settings_terminal_glass_effects_desc">Blur and translucency in the top bar</string>
     <string name="settings_input_extra_keys">Extra-keys bar</string>
     <string name="settings_input_extra_keys_desc">Show the key row above the keyboard</string>
+    <string name="settings_input_mouse_reporting">Mouse reporting</string>
+    <string name="settings_input_mouse_reporting_desc">Send taps and swipes to programs that track the mouse (vim, htop)</string>
     <string name="settings_input_hardware_keyboard">Hide bar on hardware keyboard</string>
     <string name="settings_input_hardware_keyboard_desc">A physical keyboard brings its own keys</string>
     <string name="settings_input_drosh_ime">Hide bar on Drosh Keyboard</string>

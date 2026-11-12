@@ -176,6 +176,17 @@ data class BackgroundSettings(
 /** How the keyboard and its bars behave. */
 data class InputSettings(
     val extraKeysBar: Boolean = true,
+    /**
+     * Whether touch is reported to programs that asked for the mouse.
+     *
+     * A program that turns a tracking mode on (`vim`, `htop`, `less` with
+     * mouse mode) wants taps and drags as mouse events, not as scrollback
+     * scrolls and keyboard raises. With this on, a touch is reported to such
+     * programs and stays local for everything else — so the gesture the user
+     * knows keeps working in the shell. Off, gestures are always local,
+     * whatever the program asked.
+     */
+    val mouseReporting: Boolean = true,
 ) {
     companion object {
         val DEFAULT = InputSettings()

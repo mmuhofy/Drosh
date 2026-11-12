@@ -327,6 +327,10 @@ fun TerminalTopBar(
     viewModel: SessionSwitcherViewModel,
     onOpenSidebar: () -> Unit,
     onFindInOutput: () -> Unit,
+    /** Scroll to the shell's previous prompt. */
+    onPreviousPrompt: () -> Unit = {},
+    /** Scroll to the shell's next prompt. */
+    onNextPrompt: () -> Unit = {},
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
     /**
@@ -591,6 +595,8 @@ fun TerminalTopBar(
                 onDismiss = { moreExpanded = false },
                 sessionName = activeName,
                 onFindInOutput = onFindInOutput,
+                onPreviousPrompt = onPreviousPrompt,
+                onNextPrompt = onNextPrompt,
                 onRefresh = onRefresh,
                 onToggleButtons = { buttonsHidden = !buttonsHidden },
             )
@@ -617,6 +623,8 @@ private fun MoreActionsDropdown(
     onFindInOutput: () -> Unit,
     onRefresh: () -> Unit,
     onToggleButtons: () -> Unit,
+    onPreviousPrompt: () -> Unit,
+    onNextPrompt: () -> Unit,
 ) {
     DroshDropdownMenu(
         expanded = expanded,
@@ -637,6 +645,10 @@ private fun MoreActionsDropdown(
             // in one four-item list.
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = "refresh"))
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_find), icon = DroshIcons.Search, id = "find"))
+            // The prompts: the shell reports them, and they are the only way
+            // back to a command that scrolled out of the history.
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_previous_prompt), icon = DroshIcons.ArrowUp, id = "prev_prompt"))
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_next_prompt), icon = DroshIcons.ArrowDown, id = "next_prompt"))
             // The row's buttons, out of the way: the terminal is what the
             // user is looking at, and a tap brings them back.
             add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_shrink_buttons), icon = DroshIcons.EyeOff, id = "shrink"))
@@ -649,6 +661,8 @@ private fun MoreActionsDropdown(
             when (item.id) {
                 "refresh" -> onRefresh()
                 "find" -> onFindInOutput()
+                "prev_prompt" -> onPreviousPrompt()
+                "next_prompt" -> onNextPrompt()
                 "shrink" -> onToggleButtons()
             }
         },

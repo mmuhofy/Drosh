@@ -48,6 +48,15 @@ interface SettingsRepository {
     /** Persists the extra-keys bar visibility flag. */
     suspend fun setExtraKeysBarVisible(visible: Boolean)
 
+    /**
+     * Hot stream of the mouse-reporting flag. Emits true on first launch:
+     * reporting is what makes `vim`, `htop` and `less` answer their mouse.
+     */
+    val mouseReporting: Flow<Boolean>
+
+    /** Persists the mouse-reporting flag. */
+    suspend fun setMouseReporting(enabled: Boolean)
+
     /** Hot stream of the font size in sp. Emits 14 on first launch. */
     val fontSizeSp: Flow<Float>
 

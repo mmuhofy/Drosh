@@ -59,6 +59,8 @@
     <string name="topbar_enter_fullscreen">Tam ekran</string>
     <string name="topbar_exit_fullscreen">Tam ekrandan çık</string>
     <string name="topbar_find">Çıktıda ara</string>
+    <string name="topbar_previous_prompt">Önceki komut</string>
+    <string name="topbar_next_prompt">Sonraki komut</string>
     <string name="topbar_new_session">Yeni oturum</string>
     <string name="topbar_close_session">Oturumu kapat</string>
     <string name="settings_cursor_style_thin">İnce blok</string>
@@ -102,6 +104,8 @@
     <string name="settings_terminal_glass_effects_desc">Üst çubukta blur ve yarı saydamlık</string>
     <string name="settings_input_extra_keys">Ek tuşlar çubuğu</string>
     <string name="settings_input_extra_keys_desc">Klavyenin üstünde tuş satırı göster</string>
+    <string name="settings_input_mouse_reporting">Fare raporlaması</string>
+    <string name="settings_input_mouse_reporting_desc">Dokunuşları fare takip eden programlara (vim, htop) gönder</string>
     <string name="settings_input_hardware_keyboard">Donanım klavyesinde gizle</string>
     <string name="settings_input_hardware_keyboard_desc">Fiziksel klavye kendi tuşlarını getirir</string>
     <string name="settings_input_drosh_ime">Drosh Keyboard\'da gizle</string>
