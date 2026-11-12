@@ -328,15 +328,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidate()
     }
 
-    /**
-     * Told that the selection changed.
-     *
-     * The chrome's selection menu hangs off this: without it the menu never
-     * comes up, and a selection that cannot be copied is a selection that does
-     * not exist.
-     */
-    var onSelectionChanged: ((Boolean) -> Unit)? = null
-
     /** The theme's terminal background, for the surface the grid is drawn on. */
     fun setBackground(argb: Int) {
         renderThread.post(RenderThread.Command.Background(argb))
@@ -429,6 +420,40 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
 
     /** Encode one mouse event and write it to the child; true when bytes went out. */
+    private fun mouseReporting(): Boolean {
+        if (!mouseReportingEnabled) return false
+        val session = sessionHandle
+        if (session == 0L) return false
+        return NativeSession.modes(session) and MODE_MOUSE_TRACKING != 0
+    }
+
+    /** The state [mouseReporting] reads, as the host's link tap also asks it. */
+    val mouseReportingActive: Boolean
+        get() = mouseReporting()
+
+    /**
+     * A left-button click: press, then release, at the finger's position.
+     *
+     * Both travel even though the encoder may answer only one — a tracking
+     * mode that reports releases itself (SGR 1006 does) wants the pair.
+     */
+    private fun sendMouseClick(x: Float, y: Float) {
+        sendMouse(
+            NativeInput.MOUSE_ACTION_PRESS,
+            NativeInput.MOUSE_BUTTON_LEFT,
+            x,
+            y,
+            buttonPressed = false,
+        )
+        sendMouse(
+            NativeInput.MOUSE_ACTION_RELEASE,
+            NativeInput.MOUSE_BUTTON_LEFT,
+            x,
+            y,
+            buttonPressed = false,
+        )
+    }
+
     private fun sendMouse(
         action: Int,
         button: Int,
