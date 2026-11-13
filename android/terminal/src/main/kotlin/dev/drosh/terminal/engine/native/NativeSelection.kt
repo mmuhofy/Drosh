@@ -78,6 +78,31 @@ object NativeSelection {
     }
 
     /**
+     * The word between two points, for a drag.
+     *
+     * The engine's API for exactly this: the nearest word between where the
+     * finger went down and where it is now.
+     */
+    fun selectWordBetween(
+        handle: Long,
+        row1: Int,
+        column1: Int,
+        row2: Int,
+        column2: Int,
+    ): String {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
+        return nativeSelectWordBetween(handle, row1, column1, row2, column2) ?: ""
+    }
+
+    private external fun nativeSelectWordBetween(
+        handle: Long,
+        row1: Int,
+        column1: Int,
+        row2: Int,
+        column2: Int,
+    ): String?
+
+    /**
      * What a click selects.
      *
      * The engine counts the clicks and has a table of what each count selects;

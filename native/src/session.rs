@@ -449,6 +449,11 @@ impl Session {
         self.frames.set_highlight(None);
     }
 
+    /// The cells the user's selection covers, or none.
+    pub fn set_selection_range(&mut self, row: u16, column: u16, length: u16) {
+        self.frames.set_app_selection(Some((row, column, length)));
+    }
+
     /// The frame's images, as one buffer.
     ///
     /// A program that draws pictures puts them in the terminal; the renderer

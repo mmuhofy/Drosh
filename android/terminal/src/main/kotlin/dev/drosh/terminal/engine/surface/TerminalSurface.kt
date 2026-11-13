@@ -796,41 +796,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 val session = sessionHandle
                 if (longPressSelecting && session != 0L) {
                     val cell = cellAt(current.x, current.y)
-                    if (cell != null) {
-                        val cells = NativeSelection.drag(
+                    val anchor = selectionAnchor
+                    if (anchor != null && cell != null) {
+                        // The word between where the finger went down and where
+                        // it is now: the engine's own answer for a drag.
+                        val text = NativeSelection.selectWordBetween(
                             session,
+                            anchor.first,
+                            anchor.second,
                             cell.first,
                             cell.second,
-                            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
-                            cellWidth.toInt().coerceAtLeast(1),
-                            height.coerceAtLeast(1),
                         )
-                        if (cells != null && cells.size >= 4) {
-                            setSelectedCells(cells[0], cells[1], selectionLength(cells))
-                            setSelectionEnd(cells[2], cells[3])
-                        }
-                        // The selection grows from the anchor to the cell the
-                        // finger is on.
-                        val anchor = selectionAnchor
-                        if (anchor != null) {
-                            val fromRow = minOf(anchor.first, cell.first)
-                            val toRow = maxOf(anchor.first, cell.first)
-                            val fromColumn =
-                                if (anchor.first == cell.first) {
-                                    minOf(anchor.second, cell.second)
-                                } else {
-                                    0
-                                }
-                            val toColumn =
-                                if (anchor.first == cell.first) {
-                                    maxOf(anchor.second, cell.second)
-                                } else {
-                                    (width / cellWidth.coerceAtLeast(1f))
-                                        .toInt().coerceAtLeast(1)
-                                }
-                            val length = (toRow - fromRow + 1) *
-                                (toColumn - fromColumn + 1)
-                            setSelectedCells(fromRow, fromColumn, length)
+                        if (text.isNotEmpty()) {
+                            selected = text
+                            setSelectedCells(anchor.first, anchor.second, 1)
                         }
                         renderThread.invalidate()
                         return true
@@ -1112,13 +1091,19 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         // The finger's travel goes into the machine, which turns it into whole
         // rows for the engine and a shift for the picture.
-        // The wall, when the viewport is already at the oldest row: there is
-        // nothing above it to reveal.
-        val atTop = (NativeSession.scrollbar(session)?.offset ?: 0) <= 0
+        // The walls: at the oldest row there is nothing above to reveal, and at
+        // the live edge there is nothing below. The picture does not move at
+        // either of them — a shift that grows and is then dropped is a picture
+        // that snaps back, and that is what a scroll that pulls itself back
+        // looks like.
+        val bar = NativeSession.scrollbar(session)
+        val atTop = (bar?.offset ?: 0) <= 0
+        val atBottom = bar != null && bar.offset + bar.len >= bar.total
         val target = scrollMachine.drag(
             distancePx = distancePx,
             spacingPx = spacing,
             atTop = atTop,
+            atBottom = atBottom,
         )
 
         // The engine moves by a delta, never to an absolute row: a delta
@@ -1360,6 +1345,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     /** The selection's bounds in pixels, or null. */
     fun selectionBounds(): android.graphics.Rect? {
+        // The renderer's rectangle first: the engine marks the selected cells
+        // and the renderer draws them, so it is the one that knows where they
+        // land. The cells this view remembers are the fallback for the moment
+        // before the next frame arrives.
+        renderThread.selectionBounds?.let { return it }
         val cells = selectedCells ?: return selectionRect
         val cellW = cellWidth.coerceAtLeast(1f)
         val cellH = cellHeight.coerceAtLeast(1f)

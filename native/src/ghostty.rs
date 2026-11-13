@@ -216,6 +216,8 @@ pub const GHOSTTY_KITTY_IMAGE_DATA_GENERATION: GhosttyKittyGraphicsImageData =
 
 pub const GHOSTTY_KITTY_IMAGE_COMPRESSION_NONE: u32 = 0;
 
+pub const GHOSTTY_RENDER_STATE_DATA_IMAGE_ITERATOR: GhosttyRenderStateData =
+    GhosttyRenderStateData_GHOSTTY_RENDER_STATE_DATA_IMAGE_ITERATOR;
 pub const GHOSTTY_CELL_DATA_WIDE: GhosttyCellData =
     GhosttyCellData_GHOSTTY_CELL_DATA_WIDE;
 pub const GHOSTTY_CELL_WIDE_NARROW: u32 = 0;

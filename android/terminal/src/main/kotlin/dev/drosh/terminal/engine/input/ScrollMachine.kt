@@ -66,8 +66,14 @@ class ScrollMachine {
      *   which drags the picture down and opens the older row above it.
      * @param spacingPx the height of a row.
      * @param atTop whether the viewport is already at the oldest row.
+     * @param atBottom whether the viewport is already at the live edge.
      */
-    fun drag(distancePx: Float, spacingPx: Float, atTop: Boolean = false): Target {
+    fun drag(
+        distancePx: Float,
+        spacingPx: Float,
+        atTop: Boolean = false,
+        atBottom: Boolean = false,
+    ): Target {
         // A row of no height is a row that cannot be crossed: the machine has
         // nothing to measure the travel against, so it does not move at all.
         if (spacingPx <= 0f) {
@@ -83,6 +89,13 @@ class ScrollMachine {
         // refuses the move is a shift that snaps back, and a picture that snaps
         // back every row is a picture that shivers at the top of the history.
         if (atTop && distancePx > 0f) {
+            offsetPx = 0f
+            return Target(delta = 0, offsetPx = 0f, pinned = true)
+        }
+
+        // And at the live edge there is nothing below to reveal: the picture
+        // does not move either.
+        if (atBottom && distancePx < 0f) {
             offsetPx = 0f
             return Target(delta = 0, offsetPx = 0f, pinned = true)
         }

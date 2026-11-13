@@ -209,6 +209,30 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     1
 }
 
+/// The cells the user's selection covers.
+///
+/// The engine's own selection is not what the app draws: the app asks the
+/// engine for a *snapshot* of a selection and the engine does not install a
+/// snapshot, so the range is marked here.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSetSelectionRange(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    row: jint,
+    column: jint,
+    length: jint,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    if row < 0 || column < 0 || length <= 0 {
+        return 1;
+    }
+    session.set_selection_range(row as u16, column as u16, length as u16);
+    1
+}
+
 /// The frame's images: the pictures a program drew, and where they are.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeImages(

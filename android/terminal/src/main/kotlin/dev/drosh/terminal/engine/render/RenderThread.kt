@@ -197,6 +197,16 @@ class RenderThread(
     var frameSource: (() -> dev.drosh.terminal.engine.protocol.Frame?)? = null
 
     /**
+     * Where the selected cells are, in view pixels.
+     *
+     * The renderer measures them — it is the one that sees the engine's
+     * selected cells — and the chrome's menu hangs on that rectangle.
+     */
+    @Volatile
+    var selectionBounds: android.graphics.Rect? = null
+        private set
+
+    /**
      * The pictures a program drew, and where they are.
      *
      * The pixels come once per picture generation, so a frame that shows the
@@ -541,6 +551,8 @@ class RenderThread(
         renderer?.setImages(imageSource?.invoke())
 
         val frame = frameSource?.invoke()
+        // The selected cells, measured while the last frame was drawn.
+        selectionBounds = renderer?.selectionBounds
         frame?.let {
             // The first few cells' colours, so a cell that should be coloured
             // and is not says so on the screen: the engine's answer and the

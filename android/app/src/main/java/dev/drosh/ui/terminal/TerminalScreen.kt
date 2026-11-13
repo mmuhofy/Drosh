@@ -388,9 +388,8 @@ private fun ReadyScreen(
 
     // The grid's own top padding follows the row, on the same tween. See
     // `rememberTerminalTopPadding` for why it cannot be a constant.
-    // The grid's clearance is the *system's* status bar, and nothing at all
-    // when that bar is hidden — which is the immersive state.
-    val terminalTopPadding = rememberTerminalTopPadding(immersive, tuiActive)
+    // The grid's clearance follows the row, on the same tween.
+    val terminalTopPadding = rememberTerminalTopPadding(immersive)
 
     // The bell's setting.
     val bellEnabled by terminalViewModel.bellEnabled.collectAsStateWithLifecycle()
@@ -1295,8 +1294,7 @@ private fun ReadyScreen(
         // thing between the two is the status bar inset.
         // Top bar overlay — floats on terminal, takes no layout space.
         TerminalTopBar(
-                chromeCollapsed = chromeUp,
-                immersive = immersive,
+                chromeCollapsed = immersive,
                 backdrop = backdrop,
                 terminalBounds = terminalBounds,
                 viewModel = sessionSwitcherViewModel,

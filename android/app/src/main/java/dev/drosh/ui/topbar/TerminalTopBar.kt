@@ -262,14 +262,14 @@ private fun statusBarHeight(): Dp =
  */
 @Composable
 fun rememberTerminalTopPadding(collapsed: Boolean, tuiActive: Boolean = false): Dp {
-    // The terminal fills the screen under the system's own bars; the row
-    // floats over the output, which is what a floating row is for.
+    // The grid's clearance follows the row.
     //
-    // What the grid must not be under is the *system's* status bar, because
-    // that one is opaque and the text under it cannot be read. So the clearance
-    // is the status bar's height — and nothing at all when the bar is hidden,
-    // which is the immersive state.
-    val target = if (collapsed) 0.dp else statusBarHeight()
+    // Collapsed — the viewport is up in the scrollback, or a TUI owns the
+    // terminal — the row has taken the status bar's place at the top, and the
+    // grid pads itself to match so the first lines of the output are not under
+    // it. Expanded the row sits below the system's status bar, and the grid
+    // starts below that.
+    val target = if (collapsed) CHROME_CLEARANCE else statusBarH
     return animateDpAsState(
         targetValue = target,
         animationSpec = tween<Dp>(
@@ -318,17 +318,6 @@ fun TerminalTopBar(
      * status bar vacated, and the grid pads itself to match.
      */
     chromeCollapsed: Boolean,
-    /**
-     * Whether the terminal is immersive: the system's own bars are hidden and
-     * the row goes with them.
-     *
-     * The row's *position* follows the scroll — it sits at the top while the
-     * chrome is up and drops below the status bar when it is not — but whether
-     * it is there at all is the setting's business, together with the system's
-     * bars: a row of pills floating over the output while the clock is still
-     * on screen says there is something above the terminal, and there is not.
-     */
-    immersive: Boolean = false,
     /** Strip sampled from the terminal, or null when there is nothing to sample. */
     backdrop: ImageBitmap?,
     /** Where the terminal sits in root space, so a pill can find its slice. */
@@ -395,22 +384,6 @@ fun TerminalTopBar(
     //
     // At the live edge the row floats: it is drawn over the terminal, below
     // the system status bar, and the terminal uses the whole screen.
-    /**
-     * The row's opacity.
-     *
-     * The immersive state is not a position: the row goes away. It fades out
-     * with the same tween it travels on, so the two are one movement.
-     */
-    val rowAlpha by animateFloatAsState(
-        targetValue = if (immersive) 0f else 1f,
-        // The same timing as the row's travel, in the unit the animation wants.
-        animationSpec = tween<Float>(
-            durationMillis = CHROME_ANIMATION_MILLIS,
-            delayMillis = if (immersive) 0 else CHROME_COLLAPSE_DELAY_MILLIS,
-        ),
-        label = "chromeRowAlpha",
-    )
-
     val rowOffset by animateDpAsState(
         targetValue = if (chromeCollapsed) COLLAPSED_ROW_OFFSET else statusBarH + BAR_TOP_OFFSET,
         animationSpec = chromeTween,
@@ -476,11 +449,6 @@ fun TerminalTopBar(
                 // it is the status bar's inset plus a gap, so the row sits below
                 // the clock rather than under it.
                 .offset(y = rowOffset)
-                // And in the immersive state the row is *gone*, not moved: the
-                // terminal is the screen, and a row of pills floating over the
-                // output is the one thing that says "there is something above
-                // this". It fades out with the same tween the row travels on.
-                .alpha(rowAlpha)
                 .height(rowHeight)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

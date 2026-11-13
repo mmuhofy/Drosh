@@ -81,6 +81,8 @@ pub const CELL_FLAG_SELECTED: u8 = 1 << 0;
 pub const CELL_FLAG_GRAPHEME: u8 = 1 << 1;
 /// The cell is part of a search match and is drawn highlighted.
 pub const CELL_FLAG_HIGHLIGHT: u8 = 1 << 2;
+/// The cell is part of the selection the user made.
+pub const CELL_FLAG_APP_SELECTED: u8 = 1 << 3;
 
 pub const DIRTY_NONE: u16 = 0;
 pub const DIRTY_FULL: u16 = 1;
@@ -127,6 +129,13 @@ pub struct FrameSource {
     image_cache:
         std::collections::HashMap<(u32, u64), (u32, std::vec::Vec<u8>)>,
 
+    /// The cells the user's selection covers, in the viewport's rows.
+    ///
+    /// The engine's own selection is not what the app draws: the app asks the
+    /// engine for a *snapshot* of a selection — the word under a finger, the
+    /// line, the range between two points — and the engine does not install a
+    /// snapshot. So the app keeps the range and marks the cells itself.
+    app_selection: Option<(u16, u16, u16)>,
     /// The range the search matched, in the viewport's rows and columns.
     ///
     /// One range: the find bar shows the match the user is on, and that is the
@@ -192,6 +201,7 @@ impl FrameSource {
             rows: 0,
             overscan_above: 0,
             highlight: None,
+            app_selection: None,
             image_cache: std::collections::HashMap::new(),
         })
     }
@@ -355,6 +365,11 @@ impl FrameSource {
         }
     }
 
+    /// The cells the user's selection covers, or none.
+    pub fn set_app_selection(&mut self, range: Option<(u16, u16, u16)>) {
+        self.app_selection = range;
+    }
+
     /// Highlight a range of cells, or none.
     ///
     /// The range is in viewport rows: the find bar scrolls the viewport to the
@@ -391,6 +406,17 @@ impl FrameSource {
                 &mut graphics as *mut _ as *mut c_void,
             )
         };
+
+        // The iterator is a factory; the render state *populates* it with the
+        // placements of the last update. Without this call the iterator is
+        // empty and no picture is ever drawn.
+        unsafe {
+            ghostty::ghostty_render_state_get(
+                self.state,
+                ghostty::GHOSTTY_RENDER_STATE_DATA_IMAGE_ITERATOR,
+                &mut iterator as *mut _ as *mut c_void,
+            );
+        }
 
         let mut out: Vec<u8> = Vec::new();
         let mut count: u32 = 0;
@@ -526,6 +552,11 @@ impl FrameSource {
                 count += 1;
                 push_u32(&mut out, image_id);
                 push_u64(&mut out, generation);
+                // The layer and the z: the pictures are drawn in Ghostty's
+                // order — some under the cell backgrounds, some between the
+                // backgrounds and the text, some over it.
+                push_u32(&mut out, layer);
+                push_i32(&mut out, z);
                 push_i32(&mut out, col);
                 push_i32(&mut out, row);
                 push_u32(&mut out, offset_x);
@@ -891,6 +922,19 @@ impl FrameSource {
         let mut flags = 0u8;
         if selected {
             flags |= CELL_FLAG_SELECTED;
+        }
+
+        // The user's own selection: the cells the app asked to be marked.
+        if let Some((row, from, length)) = self.app_selection {
+            let cell_index = (at - HEADER_BYTES) / CELL_BYTES;
+            let viewport_row = cell_index / self.columns.max(1) as usize;
+            let cell_column = cell_index % self.columns.max(1) as usize;
+            if viewport_row == row as usize
+                && cell_column >= from as usize
+                && cell_column < (from as usize) + length as usize
+            {
+                flags |= CELL_FLAG_APP_SELECTED;
+            }
         }
 
         // The search match, if this cell is part of it.

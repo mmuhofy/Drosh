@@ -252,6 +252,82 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
     }
 }
 
+/// The word between two points, for a drag.
+///
+/// The engine's API for exactly this: the nearest word between the point the
+/// finger went down on and the point it is on now.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nativeSelectWordBetween(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    row1: jint,
+    column1: jint,
+    row2: jint,
+    column2: jint,
+) -> jstring {
+    let Some(session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    if row1 < 0 || column1 < 0 || row2 < 0 || column2 < 0 {
+        return std::ptr::null_mut();
+    }
+
+    let first = match grid_ref(session.terminal(), row1 as u16, column1 as u16) {
+        Some(reference) => reference,
+        None => return std::ptr::null_mut(),
+    };
+    let second = match grid_ref(session.terminal(), row2 as u16, column2 as u16) {
+        Some(reference) => reference,
+        None => return std::ptr::null_mut(),
+    };
+
+    let mut options: ghostty::GhosttyTerminalSelectWordBetweenOptions =
+        unsafe { std::mem::zeroed() };
+    options.size = std::mem::size_of::<ghostty::GhosttyTerminalSelectWordBetweenOptions>();
+    options.start = first;
+    options.end = second;
+
+    let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+    let result = unsafe {
+        ghostty::ghostty_terminal_select_word_between(
+            session.terminal(),
+            &options,
+            &mut selection,
+        )
+    };
+    if !ghostty::ok(result) {
+        return std::ptr::null_mut();
+    }
+
+    match format(&session, selection) {
+        Some(text) => new_string(&mut env, &text),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// The grid reference of a cell, in the viewport's coordinates.
+fn grid_ref(
+    terminal: ghostty::GhosttyTerminal,
+    row: u16,
+    column: u16,
+) -> Option<ghostty::GhosttyGridRef> {
+    let mut point: ghostty::GhosttyPoint = unsafe { std::mem::zeroed() };
+    unsafe {
+        super::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
+        point.value.coordinate.x = column;
+        point.value.coordinate.y = row as u32;
+    }
+    let mut reference: ghostty::GhosttyGridRef = unsafe { std::mem::zeroed() };
+    reference.size = std::mem::size_of::<ghostty::GhosttyGridRef>();
+    if !ghostty::ok(unsafe {
+        ghostty::ghostty_terminal_grid_ref(terminal, point, &mut reference)
+    }) {
+        return None;
+    }
+    Some(reference)
+}
+
 /// The URI of the hyperlink the cell at a viewport position belongs to, or null.
 ///
 /// ## Two calls

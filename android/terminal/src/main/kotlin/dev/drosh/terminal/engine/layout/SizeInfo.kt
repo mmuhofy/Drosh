@@ -145,7 +145,17 @@ data class SizeInfo(
         )
 
     /** The same size at another surface. */
-    fun withSurface(width: Int, height: Int): SizeInfo = copy(width = width, height = height)
+    /**
+     * The surface changed size.
+     *
+     * The sub-row shift goes with it: the shift is measured in the old cell's
+     * pixels, and a surface that changed has a different grid under it. A
+     * shift that outlives the resize leaves the picture a fraction of a row
+     * above where it belongs — with the keyboard opening, the terminal sits a
+     * little high and never quite comes back.
+     */
+    fun withSurface(width: Int, height: Int): SizeInfo =
+        copy(width = width, height = height, scrollOffsetPx = 0f)
 
     /** True when the grid this describes is the same shape as [other]'s. */
     fun sameGridAs(other: SizeInfo): Boolean = columns == other.columns && rows == other.rows

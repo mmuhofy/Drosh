@@ -253,6 +253,7 @@ internal class FrameRenderer {
         // fills is a pass that draws whatever was left in it — which is how the
         // coloured bars of a full-screen program went missing while the text
         // kept rendering.
+        measureSelection(frame, size)
         buildBackgrounds(frame, size)
         val foregroundCount = buildForegrounds(frame)
 
@@ -260,11 +261,15 @@ internal class FrameRenderer {
             uploadAtlas()
         }
 
+        // The pictures, in Ghostty's order: some under the cell backgrounds,
+        // some between the backgrounds and the text, some over the text.
+        drawImages(size, LAYER_BELOW_BACKGROUND)
         drawBackgrounds(frame, size)
+        drawImages(size, LAYER_BELOW_TEXT)
         drawForegrounds(frame, size, foregroundCount)
+        drawImages(size, LAYER_ABOVE_TEXT)
         drawCursor(frame, size)
         drawBellFlash(frame, size)
-        drawImages(size)
 
         return frame.cellCount
     }
@@ -542,12 +547,69 @@ internal class FrameRenderer {
 
     private val imageTextures = HashMap<Int, ImageTexture>()
 
+    /**
+     * The cells the engine says are selected, in view pixels.
+     *
+     * The renderer is the one that sees the selected cells — the engine marks
+     * them in the frame — so it is the one that can say where they are. The
+     * chrome hangs its selection menu on that rectangle.
+     */
+    @Volatile
+    var selectionBounds: android.graphics.Rect? = null
+        private set
+
     /** The pictures of the last frame, in the order they are drawn. */
     private val images = ArrayList<ImageDraw>()
+
+    /**
+     * Where the selected cells are, in view pixels.
+     *
+     * The engine marks the selected cells and the renderer draws them, so this
+     * is the one place that knows both the cells and where they land. The
+     * rectangle is what the chrome's menu hangs on.
+     */
+    private fun measureSelection(frame: Frame, size: SizeInfo) {
+        var left = Int.MAX_VALUE
+        var top = Int.MAX_VALUE
+        var right = Int.MIN_VALUE
+        var bottom = Int.MIN_VALUE
+        for (index in 0 until frame.cellCount) {
+            if (!frame.isSelected(index)) continue
+            val column = index % frame.columns
+            val row = index / frame.columns - frame.overscanAbove
+            if (column < left) left = column
+            if (column > right) right = column
+            if (row < top) top = row
+            if (row > bottom) bottom = row
+        }
+        selectionBounds = if (left == Int.MAX_VALUE) {
+            null
+        } else {
+            android.graphics.Rect(
+                (left * cellWidth).toInt(),
+                (top * cellHeight).toInt(),
+                ((right + 1) * cellWidth).toInt(),
+                ((bottom + 1) * cellHeight).toInt(),
+            )
+        }
+    }
+
+    /**
+     * The pictures, sorted the way they are drawn.
+     *
+     * By the layer first and then by the z, which is Ghostty's order: a
+     * picture under the cell backgrounds is under the text, and a picture over
+     * the text is over it. The order the engine hands them out is not the order
+     * they are drawn in.
+     */
+    private fun sortedImages(): List<ImageDraw> =
+        images.sortedWith(compareBy({ it.layer }, { it.z }))
 
     /** One picture: where it is, and the texture it is drawn from. */
     private class ImageDraw(
         val texture: Int,
+        val layer: Int,
+        val z: Int,
         val col: Int,
         val row: Int,
         val offsetX: Int,
@@ -584,6 +646,8 @@ internal class FrameRenderer {
             if (at + 60 > buffer.size) break
             val id = little.int
             val generation = little.long
+            val layer = little.int
+            val z = little.int
             val col = little.int
             val row = little.int
             val offsetX = little.int
@@ -597,7 +661,7 @@ internal class FrameRenderer {
             val format = little.int
             val dataLength = little.int
             val hasPixels = little.get().toInt() != 0
-            at += 60
+            at += 68
 
             // The pixels, when they are new.
             if (hasPixels && at + dataLength <= buffer.size) {
@@ -613,6 +677,8 @@ internal class FrameRenderer {
             images.add(
                 ImageDraw(
                     texture = texture.texture,
+                    layer = layer,
+                    z = z,
                     col = col,
                     row = row,
                     offsetX = offsetX,
@@ -687,10 +753,12 @@ internal class FrameRenderer {
      * A picture is *on* the grid: it covers the cells it is placed on, so it
      * is drawn after the glyphs and before the cursor.
      */
-    private fun drawImages(size: SizeInfo) {
+    private fun drawImages(size: SizeInfo, layer: Int) {
         if (images.isEmpty() || imageProgram == 0) return
+        val drawn = sortedImages().filter { it.layer == layer }
+        if (drawn.isEmpty()) return
 
-        val floats = images.size * 8
+        val floats = drawn.size * 8
         if (imageVertices == null || imageVertices!!.capacity() < floats * 4) {
             imageVertices = java.nio.ByteBuffer
                 .allocateDirect(floats * 4)
@@ -698,7 +766,7 @@ internal class FrameRenderer {
         }
         val buffer = imageVertices!!
         buffer.clear()
-        for (image in images) {
+        for (image in drawn) {
             val x = image.col * cellWidth + image.offsetX
             val y = image.row * cellHeight + image.offsetY
             buffer.putFloat(x)
@@ -734,7 +802,7 @@ internal class FrameRenderer {
 
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-        for ((index, image) in images.withIndex()) {
+        for ((index, image) in drawn.withIndex()) {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, image.texture)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, index * 4, 4)
         }
@@ -1116,6 +1184,15 @@ internal class FrameRenderer {
 
         /** A colour that draws nothing. */
         const val TRANSPARENT = 0
+
+        /** A picture under the cell backgrounds. */
+        const val LAYER_BELOW_BACKGROUND = 0
+
+        /** A picture between the cell backgrounds and the text. */
+        const val LAYER_BELOW_TEXT = 1
+
+        /** A picture over the text. */
+        const val LAYER_ABOVE_TEXT = 2
 
         /** The kitty protocol's RGB picture format. */
         const val KITTY_FORMAT_RGB = 0
