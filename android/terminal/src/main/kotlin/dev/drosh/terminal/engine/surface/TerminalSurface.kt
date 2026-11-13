@@ -309,25 +309,18 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             selectionEnd ?: (cells.first to cells.second)
         }
 
-        NativeSelection.press(session, anchor.first, anchor.second, NativeSelection.BEHAVIOR_WORD)
-        val dragged = NativeSelection.drag(
+        // The word between the anchor and the point: the engine's own answer
+        // for a drag, and the answer that does not wait for the finger to lift.
+        val text = NativeSelection.selectWordBetween(
             session,
+            anchor.first,
+            anchor.second,
             point.first,
             point.second,
-            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
-            cellWidth.toInt().coerceAtLeast(1),
-            height.coerceAtLeast(1),
         )
-        val released = NativeSelection.release(
-            session,
-            point.first,
-            point.second,
-            NativeSelection.BEHAVIOR_WORD,
-        )
-        val result = released ?: dragged
-        if (result == null || result.size < 4) return false
-        setSelectedCells(result[0], result[1], selectionLength(result))
-        setSelectionEnd(result[2], result[3])
+        if (text.isEmpty()) return false
+        selected = text
+        setSelectedCells(anchor.first, anchor.second, 1)
         renderThread.invalidate()
         return true
     }
