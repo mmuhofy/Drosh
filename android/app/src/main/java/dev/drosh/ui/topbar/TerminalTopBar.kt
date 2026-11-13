@@ -269,7 +269,7 @@ fun rememberTerminalTopPadding(collapsed: Boolean, tuiActive: Boolean = false): 
     // grid pads itself to match so the first lines of the output are not under
     // it. Expanded the row sits below the system's status bar, and the grid
     // starts below that.
-    val target = if (collapsed) CHROME_CLEARANCE else statusBarH
+    val target = if (collapsed) CHROME_CLEARANCE else statusBarHeight()
     return animateDpAsState(
         targetValue = target,
         animationSpec = tween<Dp>(
