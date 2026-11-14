@@ -5,14 +5,18 @@ where the Rust/Kotlin boundary sits. This document is normative: the
 `checkModuleBoundaries` task fails the build when §3 is broken, so a rule here
 that nobody enforces is a bug in this file.
 
+The terminal is **Ghostty's VT core** (v1.4.0, MIT) driven from `native/`.
+It replaced a vendored Termux engine, and the rules below were written for
+that one — what is here is the same shape, one engine further along.
+
 ---
 
 ## 1. Module graph
 
 Every module directory below lives under `android/`, the Gradle build root;
-`gradlew`, `settings.gradle.kts` and `build-logic/` live there too. The Rust
-engine is the separate `rust/` Cargo workspace (§2). Module *names* are unchanged
-by that split: `android/data/` is still `project(":data")`.
+`gradlew`, `settings.gradle.kts` and `build-logic/` live there too. The
+native half is the separate `native/` Cargo crate (§2). Module *names* are
+unchanged by that split: `android/data/` is still `project(":data")`.
 
 ```
 :app  ──► everything (composition root only: Activity, NavHost, Hilt wiring)
@@ -30,7 +34,7 @@ by that split: `android/data/` is still `project(":data")`.
 | Module | Owns | Must not know about |
 |---|---|---|
 | `:domain` | Entities, ports, use cases | Android, any Drosh module |
-| `:terminal` | the Rust core's Kotlin side (JNI, GL renderer, input encoder, view) and the sessions that drive it (sessions, panes, tabs, blocks, shell launch) | Compose, `:ui`, `:app`; the engine half does not know the session half |
+| `:terminal` | the engine's Kotlin side (JNI, the sessions, the surface's layout and input) and the sessions that drive it (sessions, panes, tabs, blocks, shell launch) | Compose, `:ui`, `:app`; the engine half does not know the session half |
 | `:linux` | rootfs, bootstrap, archive, chroot exec | terminal sessions, UI |
 | `:features:ssh` | SSH transport implementing the domain port | `:terminal` |
 | `:data` | Room, DataStore, TOML, vault | `:terminal`, Compose |
@@ -56,37 +60,36 @@ bootstrap ports currently imported by `:data`.
 
 | Concern | Owner | Why |
 |---|---|---|
-| Grid, scrollback, modes, damage | Rust (`alacritty_terminal`) | single source of truth |
-| PTY, shell integration tap, OSC 133/7/1339 | Rust | bytes arrive there |
-| Selection text, word/line boundaries | Rust | needs cell widths and grid geometry |
-| Scrollback search | Rust | avoids copying the transcript across JNI |
-| URL detection per cell | Rust | same reason |
-| Block boundaries | Rust | OSC 133 markers already parsed there |
-| Ambient tint | Rust | averages visible cells without a copy |
-| ANSI stripping | Rust | parser already present; no regex |
+| Grid, scrollback, modes, damage | the engine (Ghostty), read through the C ABI | single source of truth |
+| Cell widths, wide characters, images | the engine | it knows what a cell is |
+| Selection text, word/line boundaries | the engine | needs the cell widths and the grid geometry |
+| Scrollback search | the engine | avoids copying the transcript across JNI |
+| URL detection per cell | the engine | same reason |
+| The frame: cells, colours, images | Rust (`native/src/frame.rs`) | one snapshot for one crossing |
+| The bell, the notifications, the prompt marks | Rust (`native/src/bell.rs`) | the engine's callbacks |
+| ANSI stripping, the shell tap | Kotlin (`native/src/shell.rs`) | the bytes arrive here |
+| Pixels, the glyph atlas, the cursor | Kotlin (`engine/render/`) | OpenGL ES |
 | Gesture recognition, IME, insets | Kotlin | platform API |
 | Selection handles, find bar, link chip | Kotlin | drawing |
 | Session/panes/blocks orchestration | Kotlin (`:terminal`) | product policy, not terminal semantics |
 | Persistence, networking | Kotlin | platform API |
 
-`ffi/` files contain `extern "C"` entry points and handle validation only; the
-behaviour lives in `session/`. A `ffi/*.rs` over 120 lines means logic leaked
-into the boundary.
+The `native/src/jni/` files contain `extern "C"` entry points and handle
+validation only; the behaviour lives in `native/src/`. A `jni/*.rs` over 120
+lines means logic leaked into the boundary.
 
 ### 2.1 JNI surface layout
 
-The target is one file per concern; today the surface is `core/NativeCore.kt`
-(the `external fun` declarations) plus `core/EngineSession.kt` (the session
-wrapper the view talks to).
+One file per concern; the surface is `engine/native/`, and the session and the
+surface's own halves live beside it.
 
 ```
-android/terminal/src/main/kotlin/dev/drosh/terminal/engine/core/
-  NativeCore.kt       library load, handle lifetime
-  NativeTerminal.kt   create/feed/resize/snapshot/state/modes
-  NativeSelection.kt  select, extend, selectedText, wordAt, lineAt
+android/terminal/src/main/kotlin/dev/drosh/terminal/engine/native/
+  NativeSession.kt    create/feed/resize/frame/scroll/modes/title/images
+  NativeSelection.kt  selectWord/selectLine/selectWordBetween/text
   NativeSearch.kt     search(query, limit)
-  NativeText.kt       urlAt, stripAnsi, ambientTint
-  NativeEvents.kt     drainEvents
+  NativeInput.kt      key and mouse encoders
+  NativePty.kt        spawn/read/write/close/pid
 ```
 
 Handles are opaque positive `jlong` values, never raw pointers. No `unwrap()`
@@ -202,9 +205,14 @@ Rules for every phase: one branch, one PR, CI green before merge, `main` never r
 no force-push.
 
 The repository layout itself was split between P0 and P1 (2026-10-20): the Gradle
-build moved under `android/` and the Cargo workspace under `rust/`. It was a pure
-move — module names, Kotlin packages and the cdylib name did not change — so no
-import, Hilt binding or `System.loadLibrary` call was affected.
+build moved under `android/` and the Cargo crate under `rust/` (now `native/`).
+It was a pure move — module names, Kotlin packages and the cdylib name did not
+change — so no import, Hilt binding or `System.loadLibrary` call was affected.
+
+What changed since: the terminal engine itself. The vendored Termux engine and
+its Kotlin view are gone; Ghostty's VT core is driven from `native/` and the
+pixels are drawn by our own OpenGL ES renderer. The cdylib is `libdrosh.so`
+alongside `libghostty-vt.so`.
 
 The guest runtime left the repository with P4 (2026-10-20): chroot-ng is built
 and published by its own project, and Drosh consumes a pinned release asset
