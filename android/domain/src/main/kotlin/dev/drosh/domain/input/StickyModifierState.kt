@@ -8,7 +8,6 @@ package dev.drosh.domain.input
  * highlights; the dispatcher calls into the same implementation to
  * arm/consume bytes per the next intent.
  *
- * See `docs/MEMORYBANK.md` §8 for the agreed sticky semantics.
  *
  * UNTESTED — verify on device.
  */

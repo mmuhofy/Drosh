@@ -44,7 +44,7 @@ For any critical or complex system, **never write from scratch without first stu
    Default references for this project:
    | System | Reference |
    |--------|-----------|
-   | PTY / Terminal | `termux/termux-app` (GitHub) |
+   | PTY / Terminal | `ghostty-org/ghostty` (GitHub) |
    | Agent loop / tool use | `anomalyco/opencode` — `packages/opencode/src/` |
    | SSH client | `hierynomus/sshj` — examples + integration tests |
    | Block output | `warp-terminal/warp` — conceptual reference |
@@ -55,7 +55,7 @@ For any critical or complex system, **never write from scratch without first stu
 4. **Adapt and translate** to Kotlin/Android — do not copy, translate with understanding.
 5. **Document the inspiration source** in a comment at the top of the file:
    ```kotlin
-   // Inspired by: github.com/termux/termux-app/...
+   // Inspired by: github.com/ghostty-org/ghostty/...
    // Adapted for Drosh — dev.drosh
    ```
 
@@ -109,9 +109,17 @@ refactor(semantic): extract pattern matcher to separate class
 ### Layer Responsibilities
 
 The module directories below live under `android/` — the Gradle build root — and
-the Rust engine is the separate `rust/` workspace. `docs/ARCHITECTURE.md` §1 is
-the enforced module graph; where this table and that document disagree, the
+the native half is the separate `native/` Cargo crate. `docs/ARCHITECTURE.md` §1
+is the enforced module graph; where this table and that document disagree, the
 architecture document wins.
+
+The terminal engine is **Ghostty v1.4.0**'s `libghostty-vt` (C ABI, MIT),
+fetched by `tools/fetch-ghostty-vt.sh` and verified against the release's
+SHA256SUMS. The pixels are ours: an OpenGL ES 3.0 renderer in
+`android/terminal/.../engine/render/`. The Rust half in `native/` is the
+boundary: `frame.rs` (the cells and the images), `session.rs`, `pty.rs`,
+`bell.rs`, `clipboard.rs`, and `jni/` (one entry point per Kotlin
+declaration).
 
 ```
 ui/           → Compose screens, components, ViewModels.
@@ -309,7 +317,7 @@ When porting a module from Iris Code:
 | `WebSearchTool.kt` | ✅ Direct port | Phase 6 |
 | `BashTool.kt` | 🔧 Adapt | Block output instead of BashCard |
 | Visual Identity | ✅ Direct port | Colors differ — gold not purple |
-| termux-view JNI | ✅ Direct port | Same binary |
+| termux-view JNI | ⛔ Gone | the engine is Ghostty's now — see `native/` |
 
 ---
 
@@ -369,18 +377,16 @@ Phase 6 — Agent Intelligence ← last
 
 ---
 
-## 🧠 MEMORY BANK RULES
+## 🧠 THE REFERENCE LAYER
 
-- **Always read `MEMORY_BANK.md` at session start** — before writing any code.
-- **Always update `MEMORY_BANK.md` after every confirmed change:**
-  - New decisions
-  - Completed features
-  - Changed stack versions
-  - Resolved open decisions
-- **Never contradict Memory Bank** without explicit Muhofy approval.
-- **Always update `TODO.md`** — check off completed items, add new ones discovered during implementation.
-- If Memory Bank is missing or incomplete: stop and ask Muhofy before proceeding.
-- Memory Bank is the single source of truth. If code and Memory Bank conflict: Memory Bank wins.
+- **Read `docs/ARCHITECTURE.md` before writing code** — the module graph, the
+  layer rules the build enforces, and the naming contract.
+- **Read `docs/SESSION-SYSTEM.md` before touching sessions** — the record, the
+  live session and the pane are three layers, and the pane owns none of them.
+- **The code is the reference.** Where the code and a document disagree, the
+  code is right and the document is a bug — say so and fix it.
+- **Do not invent invariants.** If a rule is not in the code or in these
+  documents, it does not exist yet; write it down when you decide it.
 
 ---
 
@@ -411,7 +417,8 @@ Phase 6 — Agent Intelligence ← last
 | Animation | Lottie Compose | `6.x` |
 | Build | Gradle KTS + Version Catalog | — |
 | Annotation | KSP | match Kotlin `2.2.0` |
-| Terminal | termux-view + termux-emulator | vendored |
+| Terminal engine | Ghostty `libghostty-vt` | v1.4.0, MIT, fetched + verified |
+| Terminal renderer | OpenGL ES 3.0 | ours, in `engine/render/` |
 | Linux | PRoot `5.2.0` + Ubuntu `24.04` | runtime download |
 | LLM (Phase 6 v1.0) | Gemini 3.5 Flash | Google GenAI SDK |
 | LLM (Phase 6 v1.1+) | + Anthropic, OpenAI, OpenRouter | — |

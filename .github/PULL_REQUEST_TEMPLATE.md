@@ -11,7 +11,7 @@ name the symptom a user would see.
 ## Why
 
 The reasoning, in a few sentences. If a documented decision in
-`docs/MEMORYBANK.md` is being changed or overturned, say so — the docs move
+`docs/ARCHITECTURE.md` or `docs/SESSION-SYSTEM.md` is changed or overturned, say so — the docs move
 with the code, in the same PR.
 
 ## Checklist

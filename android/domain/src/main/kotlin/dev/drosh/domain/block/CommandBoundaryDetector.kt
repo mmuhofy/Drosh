@@ -3,7 +3,7 @@ package dev.drosh.domain.block
 /**
  * Command-boundary detector for the block engine.
  *
- * Layered detection strategy (per `docs/MEMORYBANK.md` §7 "Block-Based Output"):
+ * Layered detection strategy:
  *   1. **OSC 133**  — primary, requires the shell prompt to emit
  *      `ESC ] 133 ; A/B/C ST` markers. v2 feature.
  *   2. **ANSI cursor tracking** — secondary. v2 feature.

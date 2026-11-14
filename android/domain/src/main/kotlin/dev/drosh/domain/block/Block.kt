@@ -12,8 +12,7 @@ package dev.drosh.domain.block
  * closes. A 5000-line ring buffer inside the engine prevents unbounded growth.
  *
  * Command boundary detection is handled by the `BlockEngine` via three
- * layered signals (OSC 133, ANSI cursor, prompt regex) — see
- * `docs/MEMORYBANK.md` §7 (Block-Based Output).
+ * layered signals: OSC 133, the ANSI cursor, and the prompt's own shape.
  *
  * UNTESTED — verify before use.
  */

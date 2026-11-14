@@ -355,7 +355,7 @@ class SessionManagerAdapter @Inject constructor(
     /**
      * Called when the shell pid is assigned. Currently a no-op — Room's
      * schema does not yet store pid. Reserved for future Process Cinema
-     * (§15) and session monitoring features.
+     * and session monitoring features.
      */
     override fun onSessionPidChanged(persistentId: String?, pid: Int) {
     }

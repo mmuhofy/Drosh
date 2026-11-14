@@ -22,8 +22,9 @@ terminal uses — with block-based output and an in-app browser for links.
 🚧 **Active development, pre-release.** Everything below is in the tree and
 compiles. The terminal, the gestures and the session system have been run on a
 physical device; the agent and the SSH surface have not. The changelog in
-[`CHANGELOG.md`](CHANGELOG.md) is the per-release record, and the design
-decisions live in [`docs/MEMORYBANK.md`](docs/MEMORYBANK.md).
+[`CHANGELOG.md`](CHANGELOG.md) is the per-release record, and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
+[`docs/SESSION-SYSTEM.md`](docs/SESSION-SYSTEM.md) are the reference layer.
 
 ## What's in it
 
@@ -51,50 +52,6 @@ apps, smooth pinch-to-zoom anchored on the row under your fingers, split
 panes, a project system that groups sessions, a theme store with installable
 themes and background images, a 4-digit PIN lock, and a UI that speaks ten
 languages completely.
-
-## Feature matrix
-
-| Area | State |
-|---|---|
-| **Terminal core** | |
-| PRoot 5.2.0 + Ubuntu 24.04 rootfs | ✅ asset extract, HTTP fallback, tar.gz unpacker |
-| PTY sessions, multi-session lifecycle, Room reconciliation | ✅ |
-| ANSI/SGR pipeline, OSC 133 + OSC 7 parsing | ✅ |
-| Sub-line scrolling with momentum | ✅ |
-| Ghostty VT core (C ABI) + own GLES 3.0 renderer | ✅ cells, glyph atlas, cursor, overscan |
-| Wide characters (CJK, emoji) | ✅ the engine's own cell widths |
-| Kitty graphics protocol | ✅ placements, layers, textures |
-| Mouse reporting (SGR 1006) | ✅ click, drag, wheel, with a setting |
-| Terminal bell | ✅ a fading accent wash, a buzz, a beep, a notification |
-| OSC 0/2 title, OSC 9/777 notifications | ✅ |
-| Terminal selection | ✅ double tap for a word, a menu, draggable handles |
-| Background image behind the terminal | ✅ |
-| Terminal core | ✅ the renderer is ours; the engine is Ghostty |
-| **Block output** | |
-| Block repository + engine, prompt cards, per-block menu | ✅ |
-| Long-output collapse / "show N more" | ❌ not built |
-| Real exit codes in block mode | ❌ **broken** — always `0`, see Known Issues |
-| Semantic classification (ERROR/WARN/OK) | ❌ not built |
-| **Agent** | |
-| Bounded multi-step loop, retries, approval parking | ✅ |
-| Four provider protocols, 225-provider catalog, per-model effort | ✅ |
-| Eight tools, live shell streaming, diff + approve before writes | ✅ |
-| Durable transcripts with compaction | ✅ |
-| Agent chats share the guest home directory | ❌ per-chat terminals not wired |
-| **SSH** | |
-| Hosts, keys, TOFU verification, credential vault, interactive sessions | ✅ |
-| Mosh, SFTP, jump hosts, port forwarding | ❌ not built |
-| **Editor** | ✅ `editor <path>`, syntax highlighting, discard confirmation |
-| **Input** | ✅ FlatKeyBar with blur, sticky modifiers, key repeat, IME-aware |
-| **UI** | |
-| Session sidebar, search, ended-session handling | ✅ |
-| Split panes (top-to-bottom, five snaps) + floating window | ✅ |
-| Pinch-to-zoom (0.1sp, focal anchoring, size chip) | ✅ |
-| In-app browser (WebViewSheet) with nav, progress, dropdown | ✅ |
-| Settings by category, theme store, backgrounds, font packs | ✅ |
-| 4-digit PIN lock, foreground service, DocumentsProvider | ✅ |
-| **Localization** | ✅ **ten languages, 413 strings, zero missing** |
-| **Not built** | Command DNA (history search), ghost-text autocomplete |
 
 ## Stack
 

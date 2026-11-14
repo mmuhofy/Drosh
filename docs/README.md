@@ -6,10 +6,7 @@ edit, not a deletion.
 
 | Document | What it is |
 |----------|------------|
-| `MEMORYBANK.md` | the reference — decisions, invariants, per-feature status. Cited from code across modules |
-| `TODO.md` | the task list, by phase, with a "shipped" trail per feature |
 | `ARCHITECTURE.md` | the module graph, the naming contract, and where the engine's C ABI meets Kotlin |
-| `PERFORMANCE-PLAN.md` | active performance & optimisation plan |
 | `AGENT.md` | rules for working in this codebase |
 | `SESSION-SYSTEM.md` | the session model: the record, the live session, the pane, and the foreground/background rule — cited from `data` and `ui` |
 | `IMMERSIVE-STATUSBAR.md` | the immersive chrome feature, including why one direction was dropped |

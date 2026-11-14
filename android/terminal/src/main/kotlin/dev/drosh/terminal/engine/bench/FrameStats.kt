@@ -183,7 +183,6 @@ internal class FrameStats {
 
     /**
      * Foreground records per frame on average: build and upload cost scale with
-     * this, so without it two runs cannot be compared (TODO.md, device runs 2-3).
      */
     private fun recordsPerFrame(): Float = if (frames == 0) 0f else recordsTotal.toFloat() / frames
 

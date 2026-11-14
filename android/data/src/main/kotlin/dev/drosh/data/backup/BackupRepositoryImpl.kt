@@ -511,7 +511,7 @@ class BackupRepositoryImpl @Inject constructor(
     /**
      * Where an archive member is staged, canonically checked.
      *
-     * The guard is the zip-slip rule from the plan (§3): a member whose path
+     * The guard is the zip-slip rule from the plan: a member whose path
      * climbs out of the staging root is refused rather than written, and the
      * comparison is on canonical paths, so a symlink planted in the staging
      * directory cannot talk the check into agreeing.

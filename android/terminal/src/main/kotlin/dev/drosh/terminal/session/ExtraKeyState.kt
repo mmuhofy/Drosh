@@ -13,7 +13,6 @@ import dev.drosh.domain.input.StickyModifierState
 //
 // Implements [StickyModifierState] so the UI layer can depend on the
 // `:domain` interface instead of importing this module directly — see
-// AGENT.md §139 and `docs/MEMORYBANK.md` §8.
 
 class ExtraKeyState : StickyModifierState {
     var ctrlActive: Boolean = false

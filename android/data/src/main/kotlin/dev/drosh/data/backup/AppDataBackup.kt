@@ -948,7 +948,7 @@ class AppDataBackup @Inject constructor(
      * A full directory copy, because preferences are only meaningful whole:
      * one `drosh_shell_prefs.preferences_pb` holding every key the legacy
      * store ever wrote. The plan asks for a barrier so no write is in flight
-     * while the copy runs (§4); v1 relies on the copy being short and the
+     * while the copy runs; v1 relies on the copy being short and the
      * store being idle, which is what it is during a backup the user started
      * deliberately.
      */

@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.Flow
  *   their behalf. A session's shell starts wherever the session's own startup
  *   says it starts, and opening a workspace changes nothing about that.
  *
- * [MEMORYBANK.md](https://github.com/mmuhofy/Drosh/blob/main/docs/MEMORYBANK.md)
  * §9 sketches project-scoped shortcuts and workflows on top of this. Both are
  * deferred; nothing here anticipates their schema.
  */

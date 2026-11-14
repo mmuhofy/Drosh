@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.StateFlow
  * State transitions are exposed as `StateFlow` for Compose collection.
  * Mutations go through dedicated methods — never via state setters.
  *
- * See `docs/MEMORYBANK.md` §7 (Block-Based Output).
  */
 interface BlockRepository {
 

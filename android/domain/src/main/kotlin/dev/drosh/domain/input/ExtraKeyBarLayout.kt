@@ -3,7 +3,7 @@ package dev.drosh.domain.input
 /**
  * Default 2-row layout for the on-screen extra-keys bar.
  *
- * Mirrors the spec in TODO.md §"Keyboard Handle & Extra Keys":
+ * Mirrors the keyboard handle and the extra keys:
  *
  *   Row 1: [ESC] [TAB] [CTRL] [ALT]  [←] [↓] [↑] [→]
  *   Row 2: [HOME] [END] [PGUP] [PGDN]  [-] [|]

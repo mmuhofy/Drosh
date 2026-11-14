@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
  *
  * Currently surfaces only the bar-visibility toggle — when enabled, the
  * bar sits above the system keyboard in BOTH classic and block mode.
- * Default: false (hidden by default — matches `docs/MEMORYBANK.md` §8).
+ * Default: false (hidden by default).
  */
 interface InputPreferencesRepository {
 
