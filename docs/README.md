@@ -8,9 +8,10 @@ edit, not a deletion.
 |----------|------------|
 | `MEMORYBANK.md` | the reference — decisions, invariants, per-feature status. Cited from code across modules |
 | `TODO.md` | the task list, by phase, with a "shipped" trail per feature |
+| `ARCHITECTURE.md` | the module graph, the naming contract, and where the engine's C ABI meets Kotlin |
 | `PERFORMANCE-PLAN.md` | active performance & optimisation plan |
 | `AGENT.md` | rules for working in this codebase |
-| `SESSION-SYSTEM.md` | session invariants — cited from `data` and `ui` |
+| `SESSION-SYSTEM.md` | the session model: the record, the live session, the pane, and the foreground/background rule — cited from `data` and `ui` |
 | `IMMERSIVE-STATUSBAR.md` | the immersive chrome feature, including why one direction was dropped |
 | `icon/` | launcher icon proposal (Open Decision #5) — not yet adopted; `android/app/src/main/res` still holds the placeholder |
 | `archive/` | superseded, kept for history: `PLAN.md` (DroshKeyboard fork — a separate repo), `PHASE-6-ARCHITECTURE.md` (agent design research — the code has since shipped) |
