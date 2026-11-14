@@ -1,19 +1,32 @@
-# Immersive Status Bar — kaldırıldı
+# Immersive Status Bar — kaldırıldı, sonra geri geldi
 
-> Durum: **kapsandı, tamamen kaldırıldı.** Muhofy ile netleştirildi (2026-10-09).
-> Prototip: `statusbar-immersive-prototype.html` (tasarım vault'unda, `MuhofyBox/Drosh/`) — artık geçerli değil.
-> Üç ayrı deneme, üçü de cihazda yanlış bulundu; sonunda özellik tamamen çıkarıldı.
+> Durum (2026-11-13): **yeniden etkin.** Özellik 2026-10-09'da kaldırılmıştı;
+> aynı davranış (satır üste taşınır, sistem çubukları gizlenir) bu tarihte
+> geri getirildi ve eski davranışın *birebir kendisi* olarak uygulanıyor.
+> Aşağıdaki "kaldırıldı" bölümü tarihsel bir kayıttır: kaldırma kararının
+> gerekçeleri bugün de geçerli (özellikle cutout), ama özelliğin kendisi
+> geri geldi.
+>
+> Prototip: `statusbar-immersive-prototype.html` (tasarım vault'unda, `MuhofyBox/Drosh/`).
+> Üç ayrı deneme, üçü de cihazda yanlış bulundu; sonunda özellik kaldırıldı ve
+> 2026-11-13'te geri geldi.
 
 ---
 
 ## 1. Sonuç
 
-**Özellik yok.** Sistem status bar'ı her zaman görünür. Üst bar sabit bir konumda,
-`CHROME_CLEARANCE` (52dp) boşluğunun altında. Scroll sinyali, durum, ayar, tümü
-kaldırıldı. Prototipin canlı kenar/scrollback ayrımı ve `translationY` geçişleri
-uygulanmadı.
+**Özellik 2026-10-09'da kaldırıldı, 2026-11-13'te geri geldi.** Bugünkü
+davranış:
 
-Neden: aşağıda.
+- Sistem status bar'ı **immersive durumunda gizlenir** (çubuklar birlikte).
+- Üst satır (pills) gizlenmez, **ekranın en üstüne taşınır** — status bar'ın
+  bıraktığı yere.
+- Izgara, satırın altında kalsın diye `CHROME_CLEARANCE` kadar pay bırakır.
+- Canlı kenarda (scroll yukarıdaysa) satır normale döner ve sistem status bar'ı
+  geri gelir.
+
+Kaldırma kararının gerekçeleri aşağıda; özellikle cutout'taki sınırlama bugün
+de geçerli.
 
 ## 2. Neden bırakıldı
 

@@ -11,6 +11,32 @@ release when it ships.
 
 ### Added
 
+**Terminal — Ghostty's VT core, and a renderer of our own**
+
+- The vendored Termux engine is gone. The terminal is now Ghostty v1.4.0's
+  `libghostty-vt` behind the C ABI, driven from `native/`, with the pixels
+  drawn by an OpenGL ES 3.0 renderer written for this app: the cell grid, the
+  glyph atlas, the cursor, and the engine's overscan rows
+- Cells carry the engine's own width, so wide characters (CJK, emoji) take two
+  cells and the cell after them is not drawn
+- The kitty graphics protocol is read and drawn, in Ghostty's own layer order:
+  under the cell backgrounds, between the backgrounds and the text, or over it
+- Mouse reporting: a tap is a click, a long press holds the button and the drag
+  is a motion, and a one-finger drag is the wheel — with a setting
+- The bell: a fading wash of the app's accent colour, a buzz, a beep, and a
+  notification when the app is not on screen
+- `OSC 0/2` titles, `OSC 9/777` notifications, and the shell's exit status
+  (OSC 133) reaching the app: a toast while the app is on screen, a
+  notification when it is not
+- Terminal selection: a double tap selects a word, the menu and the drag
+  handles work, and the selection is drawn by the renderer
+- The theme's colours reach the engine — its defaults, its palette and its
+  cursor — so a light theme is light
+- Scrolling is relative: the engine is asked for a delta, the shift between two
+  rows is kept, and the two ends of the history both stop the picture dead
+- The immersive chrome is back: the row of pills moves to the top of the screen
+  and the system's bars go with it
+
 **Build — architecture guardrails**
 
 - `docs/ARCHITECTURE.md`: the module graph, the enforced layer rules, the
