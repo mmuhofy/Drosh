@@ -13,23 +13,26 @@ agent-native, semantically aware, and built for the way people actually use
 their phones. Not a Termux fork — a modern terminal environment where the
 agent and the shell are the same thing.
 
-A real Ubuntu 24.04 userspace runs on-device under PRoot, driven by the
-vendored termux terminal emulator, with block-based output and an in-app
-browser for links.
+A real Ubuntu 24.04 userspace runs on-device under PRoot, driven by
+[Ghostty](https://ghostty.org)'s VT core — the same engine the desktop
+terminal uses — with block-based output and an in-app browser for links.
 
 ## Status
 
 🚧 **Active development, pre-release.** Everything below is in the tree and
-compiles; nothing has been verified on a physical device yet. The changelog
-in [`CHANGELOG.md`](CHANGELOG.md) is the per-release record, and the design
+compiles. The terminal, the gestures and the session system have been run on a
+physical device; the agent and the SSH surface have not. The changelog in
+[`CHANGELOG.md`](CHANGELOG.md) is the per-release record, and the design
 decisions live in [`docs/MEMORYBANK.md`](docs/MEMORYBANK.md).
 
 ## What's in it
 
-**The terminal.** A full Ubuntu 24.04 userspace under PRoot, a vendored termux
-engine, PTY sessions that survive rotation, OSC 133 shell integration per
-shell, sub-line scrolling with momentum, a block mode with per-command
-prompt cards, and text selection that works the way it does on a desktop.
+**The terminal.** A full Ubuntu 24.04 userspace under PRoot, the Ghostty VT core
+behind a purpose-built OpenGL ES 3.0 renderer, PTY sessions that survive
+rotation, OSC 133 shell integration per shell (the prompt marks, the exit
+status, the working directory), sub-line scrolling with momentum, mouse
+reporting, kitty graphics, wide characters, a block mode with per-command
+prompt cards, and text selection with a menu and draggable handles.
 
 **The agent.** Eight tools (`shell`, `read_file`, `write_file`, `grep`,
 `move_file`, `ask_user`, `update_todo`, `web_search`), four provider
@@ -58,6 +61,15 @@ languages completely.
 | PTY sessions, multi-session lifecycle, Room reconciliation | ✅ |
 | ANSI/SGR pipeline, OSC 133 + OSC 7 parsing | ✅ |
 | Sub-line scrolling with momentum | ✅ |
+| Ghostty VT core (C ABI) + own GLES 3.0 renderer | ✅ cells, glyph atlas, cursor, overscan |
+| Wide characters (CJK, emoji) | ✅ the engine's own cell widths |
+| Kitty graphics protocol | ✅ placements, layers, textures |
+| Mouse reporting (SGR 1006) | ✅ click, drag, wheel, with a setting |
+| Terminal bell | ✅ a fading accent wash, a buzz, a beep, a notification |
+| OSC 0/2 title, OSC 9/777 notifications | ✅ |
+| Terminal selection | ✅ double tap for a word, a menu, draggable handles |
+| Background image behind the terminal | ✅ |
+| Terminal core | ✅ the renderer is ours; the engine is Ghostty |
 | **Block output** | |
 | Block repository + engine, prompt cards, per-block menu | ✅ |
 | Long-output collapse / "show N more" | ❌ not built |
@@ -99,7 +111,8 @@ is a summary of it.
 | Async | Coroutines 1.11.0 + Flow |
 | HTTP / streaming | OkHttp 5.4.0 + SSE |
 | SSH | SSHJ 0.41.1 |
-| Terminal engine | termux-view + termux-terminal-emulator, vendored in-tree |
+| Terminal engine | Ghostty v1.4.0 `libghostty-vt` (C ABI), driven from `native/` |
+| Terminal renderer | OpenGL ES 3.0, written for this app |
 | Linux env | PRoot 5.2.0 + Ubuntu 24.04 rootfs |
 | Min SDK / Target SDK / Compile SDK | 26 / 28 / 36 |
 | ABI | arm64-v8a only |
@@ -110,7 +123,7 @@ is a summary of it.
 ## Architecture
 
 The tree is split by build system: everything the APK ships is under `android/`,
-the Rust core under `rust/`.
+the Rust half under `native/`.
 
 ```
 android/                → the Gradle build; `settings.gradle.kts` and `gradlew` live here
@@ -118,8 +131,8 @@ android/                → the Gradle build; `settings.gradle.kts` and `gradlew
   ui/                   → Compose screens, ViewModels (never imports data/agent/terminal/ssh)
   domain/               → Models, use cases, repository interfaces (pure Kotlin, no Android)
   data/                 → Repository implementations, Room, DataStore, DI bindings
-  terminal/             → the terminal: the Rust core's Kotlin side (JNI, GL
-                          renderer, input, view) and the sessions that drive it
+  terminal/             → the terminal: the engine's Kotlin side (JNI, sessions,
+                          the layout and the input the surface owns)
   linux/                → the Linux userland: rootfs, bootstrap, archive, guest launchers
   features/
     agent/              → AgentRuntime, ToolRegistry, provider adapters, eight tools
@@ -129,13 +142,21 @@ android/                → the Gradle build; `settings.gradle.kts` and `gradlew
   theme/                → DroshColors, typography — the Compose theme
   build-logic/          → Gradle convention plugins
 
-rust/                   → the Cargo workspace; `cargo test` runs from here
-  crates/drosh-jni/     → the JNI boundary: `JNI_OnLoad`, `ffi/`, error codes → `libdrosh_core.so`
-  crates/drosh-session/ → the engine: alacritty's Term, its event loop, selection/search/url/tint
-  crates/drosh-pty/     → raw libc PTY and the child process (D8)
-  crates/drosh-bridge/  → the Rust → Kotlin wire formats; no JNI, by manifest
-  crates/drosh-font/    → rustybuzz shaping + swash rasterisation
+native/                  → the Cargo crate; `cargo test` runs from here
+  src/frame.rs           → the frame: the engine's cells and images in one buffer
+  src/session.rs         → a session: the engine's terminal, the PTY, the shell
+  src/pty.rs             → the PTY and the child process
+  src/shell.rs           → the shell tap: the prompt, the command, the exit status
+  src/bell.rs            → the engine's callbacks: the bell, the notifications, the prompts
+  src/clipboard.rs       → the engine's clipboard callback
+  src/jni/               → the JNI entry points, one per Kotlin declaration
+  ghostty/               → the engine's headers and its shared library
 ```
+
+The engine's library is fetched by `tools/fetch-ghostty-vt.sh` and verified
+against the release's own SHA256SUMS; `native/ghostty/` holds what it
+fetched. The build produces `libdrosh.so`, and the APK ships it next to
+`libghostty-vt.so`.
 
 The guest runtime — [chroot-ng](https://github.com/mmuhofy/chroot-ng) — is a
 third-party binary, so it ships in the repository at
@@ -186,29 +207,30 @@ cd android
 ```
 
 ```bash
-cd rust
-cargo test                     # the engine crate, on the host
+cd native
+cargo test --no-default-features   # the engine-free half, on the host
 ```
 
-The Rust core is built for arm64 only by CI, which drops `libdrosh_core.so`
-into `android/terminal/src/main/jniLibs/arm64-v8a/` before Gradle runs.
+The engine's library is not in the repository: `tools/fetch-ghostty-vt.sh`
+downloads it and checks it against the release's SHA256SUMS. CI runs that
+before it builds.
 
-**A local build without it has no terminal engine at all.** The engine's view
-loads the core when it starts, and a missing one is an `UnsatisfiedLinkError`
-before the first frame — which shows up as a white rectangle where the
-terminal should be. The app says so in words when it happens, but the fix is
-the core itself: build the APK in CI, or cross-compile the core for arm64
-first:
+**A local build without the native half has no terminal engine at all.** The
+engine's library is loaded when the first session starts, and a missing one is
+an `UnsatisfiedLinkError` before the first frame — which shows up as a white
+rectangle where the terminal should be. The fix is the library itself: build
+the APK in CI, or cross-compile the native half for arm64 first:
 
 ```bash
 # the same thing CI does, with the NDK's toolchain
-cd rust
+cd native
+./tools/fetch-ghostty-vt.sh        # or: ../tools/fetch-ghostty-vt.sh
 export ANDROID_NDK_HOME=/path/to/android-ndk
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
 export CC_aarch64_linux_android="$CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER"
 export AR_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 cargo build --release --target aarch64-linux-android
-cp target/aarch64-linux-android/release/libdrosh_core.so \
+cp target/aarch64-linux-android/release/libdrosh.so \
    ../android/terminal/src/main/jniLibs/arm64-v8a/
 ```
 
@@ -217,27 +239,27 @@ CI runs `Build Debug` and `Unit Tests` on every push and pull request, and
 
 ## Reading the engine's log on a device
 
-The engine logs under two tags: `DroshEngine` (the view, the session, the
-input) and `DroshLab` (the renderer, the glyph atlas, the font stack).
+The native half logs under `drosh-native`; the app logs under `DroshApp`.
 
 ```bash
-adb logcat -s DroshEngine DroshLab
+adb logcat -s drosh-native DroshApp
 ```
 
 The lines that matter when the terminal is blank:
 
 | Line | What it means |
 |------|---------------|
-| `font assets failed to load` | the Rust core is not in the APK — the build skipped its cross-compile |
-| `font: cell WxHpx at Npx` | the core is there and the cell was measured; the problem is elsewhere |
-| `the guest is not installed` | there is no rootfs, so the engine has nothing to run |
+| `the engine's library could not be loaded` | `libdrosh.so` is not in the APK — the build skipped its cross-compile |
+| `the guest is not installed` | there is no rootfs, so the terminal has nothing to run |
+| `the shell could not be started` | the guest's shell failed; the reason is on the line after it |
 
 ## Tests
 
-464 unit tests across the pure-JVM modules — domain, data, terminal, agent
-and ui — covering the block engine's boundary detection, the input
-dispatcher, the ANSI pipeline, the agent loop and its four provider
-adapters, the zoom gesture maths, and the room migrations.
+741 unit tests across the pure-JVM modules — domain, data, terminal, agent
+and ui — and the Rust half's own tests, covering the block engine's boundary
+detection, the input dispatcher, the ANSI pipeline, the agent loop and its
+four provider adapters, the zoom and scroll gestures, the renderer's colour
+rules, the room migrations, and the engine's own cell and image handling.
 
 ## Known issues
 
@@ -248,9 +270,9 @@ adapters, the zoom gesture maths, and the room migrations.
   SDK 29+ are unavailable.
 - **Release builds are signed with the committed debug key** and run with
   `isMinifyEnabled = false`.
-- **Nothing has been verified on a physical device.** CI builds and
-  unit-tests; a real device has not confirmed the terminal, the agent, or
-  any gesture yet.
+- **The agent and the SSH surface have not been run on a device.** The
+  terminal, its gestures and the session system have been; the agent's tool
+  loop and an SSH session have not.
 - **Agent chats share one guest home directory** — per-chat terminals are
   not wired.
 
@@ -259,14 +281,16 @@ adapters, the zoom gesture maths, and the room migrations.
 Drosh is split-licensed, and the map is in
 [`LICENSE.md`](LICENSE.md):
 
-- The APK and `:terminal` are **GPL-3.0** — the terminal module contains
-  modified Termux code, and Termux is GPLv3.
+- The terminal module is Drosh's own Kotlin plus the Rust half in `native/`,
+  and the engine it drives (Ghostty) is MIT — so the reason the APK was GPL
+  is gone, and the APK's own licence is now a decision for you. The map is in
+  [`LICENSE.md`](LICENSE.md).
 - The Drosh-authored modules are **Apache-2.0**, so the design system and the
   agent adapters can be reused without copyleft.
 
-Third-party components — Termux, PRoot, sora-editor (LGPL), the TextMate
-grammars (MIT), and the Geist, Inter and JetBrains Mono fonts (OFL) — are
-named with their licenses in `LICENSE.md`, `editor/NOTICE.md` and
+Third-party components — Ghostty (MIT), PRoot, sora-editor (LGPL), the
+TextMate grammars (MIT), and the Geist, Inter and JetBrains Mono fonts (OFL) —
+are named with their licenses in `LICENSE.md`, `editor/NOTICE.md` and
 `CREDITS.md`.
 
 ## Documentation

@@ -1,31 +1,33 @@
 # Drosh — the license map
 
 Drosh is not one license, because it is not one kind of code. Some of it is
-Termux's, some of it is the Linux environment's, and some of it is Drosh's
-own. This file is the map; each row says who owns what and under which terms.
-The full texts live in `LICENSES/`.
+the engine's, some of it is the Linux environment's, and some of it is
+Drosh's own. This file is the map; each row says who owns what and under
+which terms. The full texts live in `LICENSES/`.
 
 ## The one thing to know first
 
-**The APK you install is GPL-3.0.** `:terminal` contains code modified from
-Termux, and Termux is GPLv3 — the app that ships that code ships as a combined
-work under the GPL. That is not a choice anyone gets to make, and it is why the
-root `LICENSE` file (the one GitHub and F-Droid read) is GPLv3: for the app as
-a whole, that is the truth.
+**The reason the APK was GPL-3.0 is gone.** `:terminal` used to contain code
+modified from Termux, and Termux is GPLv3. The terminal is now Drosh's own
+Kotlin plus the Rust half in `native/`, driving Ghostty — which is MIT. The
+root `LICENSE` file still says GPLv3, and **changing the APK's licence is your
+call, not a mechanical consequence**: the source it covers is no longer
+copyleft, but the PRoot binary the app ships is GPL-2.0, and the decision
+covers what you want it to cover.
 
 **The Drosh-authored source is Apache-2.0.** Everything the project wrote
 itself — the app, the UI, the domain models, the data layer, the agent, the
-design system — is Apache-2.0. That means the reusable parts (the block engine
-contracts, the agent adapters, the Compose design system) can be lifted into
-another project without dragging copyleft along, while the APK they happen to
-be compiled into stays GPLv3 because of `:terminal`.
+design system, the terminal — is Apache-2.0. That means the reusable parts (the
+block engine contracts, the agent adapters, the Compose design system, the
+terminal) can be lifted into another project without dragging copyleft along.
 
 ## The map
 
 | Component | Location | License | Why |
 |---|---|---|---|
-| Terminal engine + shell integration | `android/terminal/` (both `com.termux.*` and `dev.drosh.terminal.*`) | **GPL-3.0** | modified Termux code, vendored in-tree |
-| Terminal native library | `android/terminal/src/main/jniLibs/` (`libtermux.so`) | **GPL-3.0** | Termux's JNI library |
+| Terminal (Kotlin) | `android/terminal/` | **Apache-2.0** | Drosh-authored |
+| Terminal native half | `native/` (`libdrosh.so`) | **Apache-2.0** | Drosh-authored |
+| VT engine | `native/ghostty/` (`libghostty-vt.so`) | **MIT** | Ghostty, fetched and checksum-verified — see `native/ghostty/SHA256SUMS` |
 | chroot-ng guest runtime | its own release, shipped as `android/linux/src/main/assets/libchrootng.so` | **Apache-2.0** | third-party binary, unmodified — see `android/terminal/src/main/assets/licenses/` |
 | Drosh source | `android/app/` `android/ui/` `android/data/` `android/domain/` `android/features/agent/` `android/features/ssh/` `android/core/` `android/theme/` | **Apache-2.0** | Drosh-authored |
 | Linux userland | `android/linux/` | **Apache-2.0**, except the rootfs archive format | Drosh-authored; `backup/RootfsArchive{Reader,Writer}.kt` are GPL-3.0 |
