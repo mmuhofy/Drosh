@@ -105,7 +105,7 @@ is a summary of it.
 |-----------|------------|
 | Language | Kotlin 2.2.0, Java 17 |
 | UI | Jetpack Compose BOM 2026.04.01 + Material 3 |
-| Architecture | MVVM + Clean Architecture (10 Gradle modules) |
+| Architecture | MVVM + Clean Architecture (11 Gradle modules) |
 | DI | Hilt 2.58 |
 | Local DB | Room 2.8.5 (schema v6, migrations 1→6) |
 | Async | Coroutines 1.11.0 + Flow |
