@@ -827,6 +827,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // the drag; coasting the local viewport on top of them would
                 // scroll the program twice for one flick.
                 if (mouseReporting()) return false
+                flingStarted = true
                 startFling(velocityY)
                 return true
             }
@@ -868,6 +869,16 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * after the answer is a scroll that pushes against a wall.
      */
     private var lastScrollPinned: Boolean = false
+
+    /**
+     * Whether the gesture that just ended was a flick.
+     *
+     * A flick is followed by a coast, and the coast is still the user's
+     * finger moving: the picture settles when the coast ends, not when the
+     * finger lifts. Settling at the lift would snap the picture back half a
+     * row and then move it again.
+     */
+    private var flingStarted: Boolean = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // A second finger ends the mouse story: two fingers are the user's own
@@ -924,13 +935,36 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             // the last gesture left it, and that is a fraction of a row the
             // finger is about to move anyway.
             scrollMachine.reset()
+            // The flick of the last gesture is over: this one gets its own.
+            flingStarted = false
         }
 
         // The scale detector sees every event; the gesture detector is told only
         // what the pinch did not claim, so two fingers are never a scroll.
+        //
+        // The detectors come first: the lift is what tells them the gesture is
+        // over, and a flick is only known once they have seen it.
         scaleDetector.onTouchEvent(event)
         if (!scaleDetector.isInProgress) {
             gestureDetector.onTouchEvent(event)
+        }
+
+        // The finger is off the screen: the picture goes back onto a row
+        // boundary.
+        //
+        // While the finger is down the shift follows it exactly, so the
+        // scroll is smooth. The moment it lifts, the fraction of a row the
+        // picture was left at would cut the last line of the output in half,
+        // so it is settled here — and only here.
+        //
+        // A flick is the exception: the coast continues the drag, and the
+        // picture settles when the coast ends. Settling now would snap the
+        // picture back half a row before it starts moving again.
+        if (!flingStarted &&
+            (event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL)
+        ) {
+            settleScroll()
         }
         return true
     }
@@ -1084,38 +1118,35 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         // The finger's travel goes into the machine, which turns it into whole
         // rows for the engine and a shift for the picture.
-        // The walls: at the oldest row there is nothing above to reveal, and at
-        // the live edge there is nothing below. The picture does not move at
-        // either of them — a shift that grows and is then dropped is a picture
-        // that snaps back, and that is what a scroll that pulls itself back
-        // looks like.
+        //
+        // The engine's row space runs from the oldest row (0) to the live
+        // edge, and the picture's top edge sits somewhere inside it — at a
+        // whole row, or a fraction of one above it. The machine clamps that
+        // position to the ends, which is what keeps the first and the last
+        // line of the output exactly where they belong: a shift that grew
+        // past the end and was then dropped is a picture that snaps back, and
+        // that is what a scroll that pulls itself back looks like.
         val bar = NativeSession.scrollbar(session)
-        val atTop = (bar?.offset ?: 0) <= 0
-        val atBottom = bar != null && bar.offset + bar.len >= bar.total
+        if (bar == null) return
+        val maxRow = (bar.total - bar.len).coerceAtLeast(0)
         val target = scrollMachine.drag(
             distancePx = distancePx,
-            spacingPx = spacing,
-            atTop = atTop,
-            atBottom = atBottom,
+            rowHeight = spacing,
+            engineRow = bar.offset,
+            maxRow = maxRow,
         )
 
         // The engine moves by a delta, never to an absolute row: a delta
         // cannot be refused half-way, and the engine's answer is the truth
         // about where the viewport is.
-        var pinned = false
         if (target.delta != 0) {
-            val before = NativeSession.scrollbar(session)?.offset
             NativeSession.scroll(session, NativeSession.SCROLL_DELTA, target.delta)
-            val after = NativeSession.scrollbar(session)?.offset
-            val moved = before != null && after != null && after - before == target.delta
-            if (!moved) {
-                // The viewport is against an edge. The shift that was left over
-                // cannot be shown there, so it goes.
-                scrollMachine.pinned()
-                pinned = true
-            } else if (after == 0) {
-                // The oldest row: there is nothing above it.
-                scrollMachine.atOldestRow()
+            // The engine may have refused the move — it clamps at the ends of
+            // its scrollable area. The picture goes where the engine is, so
+            // the two keep describing the same thing.
+            val after = NativeSession.scrollbar(session)
+            if (after != null && after.offset < bar.offset + target.delta) {
+                scrollMachine.snapToEngine()
             }
         }
 
@@ -1123,7 +1154,35 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // moved down by it — the row above the viewport filling the gap.
         renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
         renderThread.invalidate()
-        lastScrollPinned = pinned
+        lastScrollPinned = target.pinned
+    }
+
+    /**
+     * Put the picture back on a row boundary.
+     *
+     * The shift belongs to a finger that is on the screen. When the finger
+     * lifts — or the coast ends — the picture is left a fraction of a row off,
+     * and the last line of the output is cut in half. This is the moment to
+     * settle: the picture goes onto the row it is nearest.
+     */
+    private fun settleScroll() {
+        val session = sessionHandle
+        if (session == 0L) return
+        val bar = NativeSession.scrollbar(session) ?: return
+        val spacing = cellHeight.coerceAtLeast(1f)
+        val maxRow = (bar.total - bar.len).coerceAtLeast(0)
+        val target = scrollMachine.settle(spacing, bar.offset, maxRow)
+        if (target.delta != 0) {
+            NativeSession.scroll(session, NativeSession.SCROLL_DELTA, target.delta)
+            // The engine may have refused the move: the picture goes where the
+            // engine is, and the shift is zero either way.
+            val after = NativeSession.scrollbar(session)
+            if (after != null && after.offset < bar.offset + target.delta) {
+                scrollMachine.snapToEngine()
+            }
+        }
+        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
+        renderThread.invalidate()
     }
 
     /** Momentum after a flick, through the same pixel path as a drag. */
@@ -1148,14 +1207,22 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         var lastY = 0
         val step = object : Runnable {
             override fun run() {
-                if (scroller.isFinished) return
+                if (scroller.isFinished) {
+                    // The coast is over: the picture goes back onto a row
+                    // boundary, so the last line of the output is whole.
+                    settleScroll()
+                    return
+                }
                 scroller.computeScrollOffset()
                 val y = scroller.currY
                 dragByPixels((y - lastY).toFloat())
                 lastY = y
                 // The coast ends at the edge: the engine refuses the move and
                 // the picture cannot be pulled further.
-                if (lastScrollPinned) return
+                if (lastScrollPinned) {
+                    settleScroll()
+                    return
+                }
                 postOnAnimation(this)
             }
         }

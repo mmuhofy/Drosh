@@ -1,48 +1,62 @@
 package dev.drosh.terminal.engine.input
 
+import kotlin.math.ceil
+import kotlin.math.roundToInt
+
 /**
- * Where a scroll gesture lands, with no Android in it.
+ * Where the picture sits inside the viewport.
  *
  * ## The model
  *
- * The picture is shifted within the viewport by a fraction of a row, and the
- * engine is moved by whole rows. The two are kept apart on purpose:
+ * The engine's viewport is a whole number of rows: it is the window the
+ * engine draws, and it can only be placed on row boundaries. The picture,
+ * though, can sit anywhere between two of them — that is what makes a scroll
+ * smooth.
  *
- *  - **the shift**, in pixels, is how far the picture sits below the row it
- *    belongs to. A positive shift moves the picture *down*, which opens the row
- *    above the viewport — the older one;
- *  - **the delta**, in rows, is how many whole rows the engine moves. A
- *    negative delta goes into the history, a positive one toward the live edge.
+ * So there are two numbers, and they are not independent:
  *
- * ## Why the engine is asked for a *delta*
+ *  - the **engine's row**, the row the engine's window starts at. The engine
+ *    counts rows from the top of the scrollback, so the row grows as the
+ *    picture moves down the output and shrinks as it moves up into the
+ *    history;
+ *  - the **shift**, how far the picture hangs above the engine's window, in
+ *    pixels. It is always less than one row.
  *
- * Asking for an absolute row means asking the engine to jump to a place, and
- * the engine answers with the place it could reach: at the ends of the
- * history it clamps, and a picture that was drawn for the row we asked for is
- * left showing the row we got. That disagreement is what a scroll that pulls
- * itself back looks like.
+ * The picture's top edge is therefore one number — the engine's row less the
+ * shift — and it is that number the edges apply to.
  *
- * A delta cannot disagree: the engine moves by that many rows or not at all,
- * and when it does not move, the viewport is against an edge and the shift is
- * dropped — the edge is the edge.
+ * ## Why the position is clamped and not the shift
  *
- * ## The edges
+ * The picture's top edge cannot go above the first row of the output and it
+ * cannot go below the live edge. Clamping *that* is what makes the picture
+ * sit exactly on the first and the last line: the first line flush at the
+ * top, the newest flush at the bottom.
  *
- * At the oldest row there is nothing above the viewport, so the shift is zero
- * there: the picture cannot be pulled down over a row that does not exist.
- * The same goes for a move the engine refused.
+ * Clamping the *shift* instead — the obvious thing to do — is the bug this
+ * machine exists to not have. The shift would grow past the edge, the engine
+ * would refuse the row the shift asked for, and the picture would snap back
+ * to where it started: the scroll pulls itself back.
+ *
+ * Because the position at an edge is a whole row, the shift there is zero:
+ * the picture is exactly on a row boundary and the output is whole.
+ *
+ * ## Why the picture settles when the finger lifts
+ *
+ * While a finger is on the screen the picture follows it exactly, so a line
+ * of output can be half on the screen. When the finger lifts, the picture goes
+ * onto the row it is nearest: the engine moves the one row that makes the
+ * picture whole, and every line of output is a whole line again.
  */
 class ScrollMachine {
 
     /**
      * Where a drag lands.
      *
-     * @property delta how many whole rows the engine moves: negative into the
-     *   history, positive toward the live edge.
-     * @property offsetPx the picture's shift within the viewport, in pixels.
-     *   Positive moves the picture down.
-     * @property pinned whether the viewport is against an edge and cannot move
-     *   further in the direction it was going.
+     * @property delta how many whole rows the engine must move: negative into
+     *   the history, a positive one toward the live edge.
+     * @property offsetPx the picture's shift, in pixels: how far the picture
+     *   hangs above the engine's window. Always between zero and one row.
+     * @property pinned whether an edge stopped the picture.
      */
     data class Target(
         val delta: Int,
@@ -51,98 +65,144 @@ class ScrollMachine {
     )
 
     /**
-     * The picture's shift within the viewport.
+     * The picture's shift, in pixels.
      *
-     * Always between zero and one row: a whole row's worth of travel moves
-     * the engine instead, and the shift keeps the picture where the finger
-     * left it.
+     * Always between zero and one row: a whole row of travel moves the engine
+     * instead, and the shift keeps the picture where the finger left it.
      */
-    private var offsetPx: Float = 0f
+    private var shiftPx: Float = 0f
 
     /**
-     * Move the viewport by a finger's travel.
+     * Move the picture by a finger's travel.
      *
-     * @param distancePx finger travel. **Positive means the finger moved down**,
-     *   which drags the picture down and opens the older row above it.
-     * @param spacingPx the height of a row.
-     * @param atTop whether the viewport is already at the oldest row.
-     * @param atBottom whether the viewport is already at the live edge.
+     * @param distancePx the finger's travel. **Positive means the finger moved
+     *   down**, which drags the picture down and opens the older row above.
+     * @param rowHeight the height of a row.
+     * @param engineRow the row the engine's window starts at.
+     * @param maxRow the last row the engine's window can start at: the live
+     *   edge, where the newest line sits flush at the bottom.
      */
     fun drag(
         distancePx: Float,
-        spacingPx: Float,
-        atTop: Boolean = false,
-        atBottom: Boolean = false,
+        rowHeight: Float,
+        engineRow: Int,
+        maxRow: Int,
     ): Target {
-        // A row of no height is a row that cannot be crossed: the machine has
-        // nothing to measure the travel against, so it does not move at all.
-        if (spacingPx <= 0f) {
-            return Target(delta = 0, offsetPx = offsetPx, pinned = false)
-        }
-        val spacing = spacingPx
-
-        // At the oldest row there is nothing above the viewport to reveal, so
-        // the picture does not move at all.
-        //
-        // The wall has to be known *before* the travel is measured, not after:
-        // a shift that is allowed to grow and is then dropped when the engine
-        // refuses the move is a shift that snaps back, and a picture that snaps
-        // back every row is a picture that shivers at the top of the history.
-        if (atTop && distancePx > 0f) {
-            offsetPx = 0f
-            return Target(delta = 0, offsetPx = 0f, pinned = true)
+        if (rowHeight <= 0f) {
+            return Target(delta = 0, offsetPx = shiftPx, pinned = false)
         }
 
-        // And at the live edge there is nothing below to reveal: the picture
-        // does not move either.
-        if (atBottom && distancePx < 0f) {
-            offsetPx = 0f
-            return Target(delta = 0, offsetPx = 0f, pinned = true)
-        }
+        // Where the picture's top edge is now: the engine's row, less the
+        // fraction of a row it already hangs above it.
+        val position = engineRow - shiftPx / rowHeight
 
-        var offset = offsetPx + distancePx
-        var delta = 0
+        // The finger down moves the picture down, which moves its top edge up
+        // the scrollable area: the older rows come into view.
+        val wanted = position - distancePx / rowHeight
 
-        // A whole row's worth of travel moves the engine, and the rest stays
-        // as the shift, so the picture does not jump when the row does.
-        while (offset >= spacing) {
-            offset -= spacing
-            delta -= 1
-        }
-        while (offset < 0f) {
-            offset += spacing
-            delta += 1
-        }
+        // The edges stop the picture, and they stop it *at* the edge: the
+        // first line of the output stays flush at the top and the newest one
+        // flush at the bottom. The travel that would have gone past the edge
+        // is dropped, and the picture does not move — it neither jumps nor
+        // comes back.
+        val landed = snap(wanted.coerceIn(0f, maxRow.toFloat()))
+        val pinned = wanted != landed
 
-        offsetPx = offset
-        return Target(delta = delta, offsetPx = offset, pinned = false)
+        // The engine's window is the row the picture's top edge hangs into:
+        // the row just below it. Asking for that row is what keeps the engine
+        // and the picture describing the same picture.
+        val row = ceil(landed).toInt()
+        shiftPx = (row - landed) * rowHeight
+        return Target(
+            delta = row - engineRow,
+            offsetPx = shiftPx,
+            pinned = pinned,
+        )
     }
 
-    /** The picture's shift within the viewport, in pixels. */
-    fun shift(): Float = offsetPx
+    /**
+     * Put the picture back on a row boundary.
+     *
+     * The shift belongs to a finger that is on the screen. When the finger
+     * lifts — or the coast ends — the picture is left a fraction of a row off
+     * the row it belongs to, and the last line of the output is cut in half.
+     * This is the moment to settle: the picture goes onto the row it is
+     * nearest, and the engine moves the one row that makes it fit.
+     *
+     * @param rowHeight the height of a row.
+     * @param engineRow the row the engine's window starts at.
+     * @param maxRow the last row the engine's window can start at.
+     */
+    fun settle(rowHeight: Float, engineRow: Int, maxRow: Int): Target {
+        if (rowHeight <= 0f) {
+            return Target(delta = 0, offsetPx = shiftPx, pinned = false)
+        }
+        // The picture's top edge, rounded to the row it is nearest.
+        val position = engineRow - shiftPx / rowHeight
+        val row = position.roundToInt().coerceIn(0, maxRow)
+        shiftPx = 0f
+        return Target(delta = row - engineRow, offsetPx = 0f, pinned = false)
+    }
+
+    /**
+     * The picture's shift, in pixels.
+     *
+     * The renderer pushes the grid down by this, so the row above the engine's
+     * window fills the top of the screen.
+     */
+    fun shift(): Float = shiftPx
+
+    /**
+     * The picture's top edge, in rows, given the engine's row.
+     *
+     * The position is derived rather than kept, so it can never disagree
+     * with the engine: the engine's row is the fact both sides agree on, and
+     * a position that disagreed with it would be a picture that is somewhere
+     * the engine is not.
+     */
+    fun position(engineRow: Int, rowHeight: Float): Float =
+        if (rowHeight <= 0f) engineRow.toFloat()
+        else engineRow - shiftPx / rowHeight
 
     /**
      * The engine refused the move.
      *
-     * The viewport is against an edge: there is no row to move to, and the
-     * shift that was left over cannot be shown.
+     * The engine clamps at the ends of its scrollable area, and a viewport
+     * that did not move leaves the picture a fraction of a row off from a
+     * window that is not there. The picture goes to where the engine is: the
+     * engine's row is the truth.
      */
-    fun pinned() {
-        offsetPx = 0f
+    fun snapToEngine() {
+        shiftPx = 0f
     }
 
     /**
-     * The viewport is at the oldest row.
+     * The picture starts again from a row boundary.
      *
-     * There is nothing above it, so the picture cannot sit below the row it
-     * belongs to.
+     * The engine's window has moved for a reason of its own — it jumped to a
+     * prompt, or the grid changed shape — and the shift belonged to the grid
+     * that is gone.
      */
-    fun atOldestRow() {
-        offsetPx = 0f
+    fun reset() {
+        shiftPx = 0f
     }
 
-    /** Forget the shift: the picture starts again from a row boundary. */
-    fun reset() {
-        offsetPx = 0f
+    /**
+     * Snap a position to a row boundary when it is one.
+     *
+     * A position that is a hair off a whole row — because the arithmetic that
+     * produced it was not exact — would make the picture jump a whole row
+     * when it crossed the boundary. The rounding is where that jump comes
+     * from, so it happens here instead, where it is a rounding and not a
+     * jump.
+     */
+    private fun snap(position: Float): Float {
+        val nearest = position.roundToInt().toFloat()
+        return if (kotlin.math.abs(position - nearest) < EPSILON) nearest else position
+    }
+
+    private companion object {
+        /** How close to a row boundary counts as being on it. */
+        const val EPSILON = 1e-4f
     }
 }
