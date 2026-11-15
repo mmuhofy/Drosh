@@ -85,6 +85,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
 import dev.drosh.ui.DroshIcons
+import dev.drosh.terminal.engine.native.NativeSearch
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -836,22 +837,23 @@ private fun ReadyScreen(
      * the drawing is in the viewport's, so the viewport's first row is what
      * turns one into the other.
      */
-    fun highlightMatch(matches: TerminalFindMatches, index: Int) {
-        val engineMatches = matches as? TerminalFindMatches.Engine
-        val hit = engineMatches?.hits?.getOrNull(index) ?: return
+    /**
+     * Highlights the match the user is on.
+     *
+     * The active match is drawn in the strong colour, and every other match
+     * on the screen in the weaker one, so the match the user is on stays the
+     * strongest thing on the screen. The active one is left out of that set:
+     * it is drawn by [TerminalEngine.setHighlight] in its own colour.
+     */
+    fun highlightMatch(state: TerminalFindState? = findState) {
+        val s = state ?: return
+        if (s.activeRow < 0) return
         val pane = terminalManager.focusedTerminal() ?: return
-        val viewportRow = pane.viewportRow()
-        // Every other match is drawn in the weaker colour, so the match the
-        // user is on stays the strongest thing on the screen. The active one
-        // is left out of this set, because it is drawn by setHighlight below
-        // in its own, stronger colour.
-        val allRanges = engineMatches.hits.mapIndexedNotNull { i, h ->
-            if (i == index) null
-            else Triple(h.line - viewportRow, h.colStart, (h.colEnd - h.colStart).coerceAtLeast(0))
-        }.filter { it.third > 0 }
-        pane.setHighlights(allRanges)
-        val row = hit.line - viewportRow
-        pane.setHighlight(row, hit.colStart, hit.colEnd - hit.colStart)
+        val handle = focusedSession()?.terminalHandle ?: 0L
+        val others = NativeSearch.viewportMatches(handle)
+            .filter { it.first != s.activeRow || it.second != s.activeColumn }
+        pane.setHighlights(others)
+        pane.setHighlight(s.activeRow, s.activeColumn, s.activeLength)
     }
 
     LaunchedEffect(
@@ -863,6 +865,7 @@ private fun ReadyScreen(
     ) {
         if (!searchActive || scannedQuery.isBlank()) {
             findState = null
+            terminalManager.focusedTerminal()?.setHighlight(0, 0, 0)
             return@LaunchedEffect
         }
         val session = focusedSession()
@@ -872,14 +875,6 @@ private fun ReadyScreen(
         }
 
         val query = scannedQuery
-        // Where the user was, carried across a rescan. The row a match sits on
-        // moves as output arrives; the text they navigated to does not. Held
-        // as an index rather than a row, so a list that has grown stays
-        // navigable instead of pointing at a line that is now somewhere else.
-        //
-        // Kept for the *same* query and dropped for a new one: a rescan of what
-        // is already on screen should not move the user, and the answers to a
-        // different question are not answers to this one.
         val previous = findState
         if (previous != null && previous.query != query) findState = null
         val rememberedIndex = previous
@@ -887,40 +882,73 @@ private fun ReadyScreen(
             ?.activeIndex
             ?: -1
 
-        // The session searches its own transcript, so every match spans the
-        // output and not just what is on screen. The match's line is a grid
-        // row, and that is what the arrows scroll the viewport to.
-        val matches = withContext(Dispatchers.Default) {
-            TerminalFindMatches.Engine(
-                session.search(query).map { hit ->
-                    EngineTranscriptMatch(
-                        line = hit.row,
-                        colStart = hit.column,
-                        colEnd = hit.column + hit.length,
-                        text = hit.text,
-                    )
-                },
-            )
+        // The engine's own search: set the needle, then feed and tick until it
+        // is caught up with the terminal. Runs off the main thread, the way the
+        // transcript scan used to. The viewport is not moved by a scan — only
+        // by the arrows — so the scroll policy is set to NONE for the initial
+        // selection and restored afterwards.
+        val handle = session.terminalHandle
+        var total = 0
+        var selectedIdx = -1
+        withContext(Dispatchers.Default) {
+            NativeSearch.setSelectScroll(handle, NativeSearch.SCROLL_NONE)
+            NativeSearch.setNeedle(handle, query)
+            var guard = 0
+            while (guard < 100_000) {
+                NativeSearch.feed(handle)
+                var status = NativeSearch.tick(handle)
+                while (status == NativeSearch.STATUS_RUNNING) {
+                    status = NativeSearch.tick(handle)
+                }
+                if (status == NativeSearch.STATUS_COMPLETE) break
+                guard++
+            }
+            total = NativeSearch.totalMatches(handle)
+            if (total > 0 && rememberedIndex < 0) {
+                NativeSearch.selectNext(handle)
+            }
+            NativeSearch.setSelectScroll(handle, NativeSearch.SCROLL_IF_NEEDED)
+            selectedIdx = if (total > 0) NativeSearch.selectedIndex(handle) else -1
         }
-        // The first match is active from the moment the query resolves, so the
-        // bar reads "1/41" and the first hit is the one drawn stronger. No
-        // reveal here on purpose: a scan runs while the user is still typing,
-        // and jumping the viewport to the oldest match each time would throw
-        // them out of the output they are working in. The viewport moves when
-        // they ask it to, with the arrows.
+
         val active = when {
-            matches.count == 0 -> -1
-            rememberedIndex >= 0 -> rememberedIndex.coerceIn(0, matches.count - 1)
+            total == 0 -> -1
+            rememberedIndex >= 0 -> rememberedIndex.coerceIn(0, total - 1)
             else -> 0
         }
+        // If the remembered index differs from the engine's selection, walk to it.
+        // (Best effort: select next until there; bounded by total.)
+        if (total > 0 && active >= 0) {
+            // ensure engine selection matches active index by repeated selectNext
+            // starting from current selectedIdx
+            var current = selectedIdx
+            var steps = 0
+            while (current != active && steps < total) {
+                NativeSearch.selectNext(handle)
+                current = NativeSearch.selectedIndex(handle).let { if (it < 0) 0 else it }
+                steps++
+            }
+        }
+
+        val finalVp = NativeSearch.selectedMatch(handle)
+        val finalRow = finalVp.getOrElse(0) { -1 }
+        val finalCol = finalVp.getOrElse(1) { 0 }
+        val finalLen = finalVp.getOrElse(2) { 0 }
+        val finalText = NativeSearch.selectedMatchText(handle)
+
         findState = TerminalFindState(
             query = query,
             kind = TerminalFindKind.ENGINE,
-            matches = matches,
+            matches = TerminalFindMatches.Engine(emptyList()),
             activeIndex = active,
+            matchCountOverride = total,
+            activeTextOverride = finalText,
+            activeRow = finalRow,
+            activeColumn = finalCol,
+            activeLength = finalLen,
         )
         if (active >= 0) {
-            highlightMatch(matches, active)
+            highlightMatch(findState)
         } else {
             terminalManager.focusedTerminal()?.clearHighlights()
             terminalManager.focusedTerminal()?.setHighlight(0, 0, 0)
@@ -940,41 +968,43 @@ private fun ReadyScreen(
      * The engine clamps the scroll to what history it has, so a request past
      * either end lands on the end rather than being refused.
      */
-    fun revealMatch(matches: TerminalFindMatches, index: Int) {
-        val hit = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(index) ?: return
-        val pane = terminalManager.focusedTerminal() ?: return
-        val history = pane.historySize().coerceAtLeast(0)
-        val margin = (pane.rows / 4).coerceAtLeast(0)
-        val above = (history - hit.line + margin).coerceIn(0, history)
-        pane.scrollTo(above)
-        // The viewport moved, so the match's row in it moved with it.
-        highlightMatch(matches, index)
-    }
-
     /**
      * Walks the matches, wrapping at both ends, and puts the new one on screen.
      *
-     * Wrapping rather than stopping: a bar whose next arrow dies at the last
-     * match makes the user reach for the other arrow to get back to the first,
-     * which is a longer way of saying "start again".
+     * The engine selects the next/previous match and scrolls the viewport to
+     * it; the app then reads the selected match's viewport coordinates and
+     * quotes its text.
      */
     fun stepMatch(forward: Boolean) {
         val state = findState ?: return
         val count = state.count
         if (count == 0) return
-        // Nothing active yet is the position *before* the first match, so
-        // previous from there wraps to the last one. Reading -1 as a modular
-        // index would land one short of it, which is the kind of off-by-one
-        // that looks like a skipped match.
+        val session = focusedSession() ?: return
+        val handle = session.terminalHandle
         val next = when {
             forward -> (state.activeIndex + 1) % count
             state.activeIndex < 0 -> count - 1
             else -> (state.activeIndex - 1 + count) % count
         }
-        findState = state.copy(activeIndex = next)
-        // Reveal after the state write, so the viewport follows the match the
-        // user is now on rather than the one they were.
-        revealMatch(state.matches, next)
+        // Drive the engine's selection. It scrolls the viewport itself.
+        if (forward) NativeSearch.selectNext(handle) else NativeSearch.selectPrev(handle)
+        // If wrapping was needed, the modulo above already describes it; the
+        // engine wraps on its own, so a single select is enough.
+        val vp = NativeSearch.selectedMatch(handle)
+        val row = vp.getOrElse(0) { -1 }
+        val col = vp.getOrElse(1) { 0 }
+        val len = vp.getOrElse(2) { 0 }
+        val text = NativeSearch.selectedMatchText(handle)
+        val idx = NativeSearch.selectedIndex(handle).let { if (it < 0) next else it }
+        findState = state.copy(
+            activeIndex = idx.coerceIn(0, (count - 1).coerceAtLeast(0)),
+            matchCountOverride = NativeSearch.totalMatches(handle).let { if (it <= 0) count else it },
+            activeTextOverride = text,
+            activeRow = row,
+            activeColumn = col,
+            activeLength = len,
+        )
+        highlightMatch(findState)
     }
 
     // Text selection menu. The platform ActionMode is switched off when the
@@ -1413,6 +1443,8 @@ private fun ReadyScreen(
                     searchActive = false
                     searchQuery = ""
                     scannedQuery = ""
+                    val handle = focusedSession()?.terminalHandle ?: 0L
+                    NativeSearch.free(handle)
                     findState = null
                     // The match is not highlighted any more.
                     terminalManager.focusedTerminal()?.clearHighlights()

@@ -12,6 +12,7 @@ use jni::JNIEnv;
 
 pub mod input;
 pub mod pty;
+pub mod search;
 pub mod selection;
 pub mod session;
 pub mod smoke;

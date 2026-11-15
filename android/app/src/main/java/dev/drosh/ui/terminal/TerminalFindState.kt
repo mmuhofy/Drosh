@@ -17,13 +17,27 @@ data class TerminalFindState(
     /** Which terminal the matches came from. */
     val kind: TerminalFindKind,
     /** The matches themselves. */
-    val matches: TerminalFindMatches,
+    val matches: TerminalFindMatches = TerminalFindMatches.Engine(emptyList()),
     /** Which of the matches the user is on; -1 when there are none. */
     val activeIndex: Int = -1,
+    /** Override for the match count when the engine search reports it directly. */
+    val matchCountOverride: Int? = null,
+    /** Override for the active match's quoted text. */
+    val activeTextOverride: String? = null,
+    /** Viewport row of the active match, or -1 when there is none. */
+    val activeRow: Int = -1,
+    /** Viewport column of the active match. */
+    val activeColumn: Int = 0,
+    /** Viewport length of the active match. */
+    val activeLength: Int = 0,
 ) {
 
     /** How many matches the query found. */
-    val count: Int get() = matches.count
+    val count: Int get() = matchCountOverride ?: matches.count
+
+    /** The text of the match the user is on. */
+    val activeText: String?
+        get() = activeTextOverride ?: (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(activeIndex)?.text
 
     /**
      * The Termux results, with the active match applied.
@@ -35,13 +49,4 @@ data class TerminalFindState(
      */
     // Termux results removed — engine only.
 
-    /**
-     * The text of the match the user is on.
-     *
-     * The engine quotes it: the line of the output log, cut at the match's
-     * columns. The Termux path has no quote to give — there the match is a
-     * run of cells on the screen, and the screen shows it.
-     */
-    val activeText: String?
-        get() = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(activeIndex)?.text
 }

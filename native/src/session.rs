@@ -83,6 +83,12 @@ pub struct Session {
     keys: Option<ghostty::GhosttyKeyEncoder>,
     mouse: Option<ghostty::GhosttyMouseEncoder>,
     shell: Scanner,
+    /// The engine's own search, bound to this terminal.
+    ///
+    /// Created lazily: a terminal that never opens the find bar never pays
+    /// for one, and closing the bar frees it again. The engine keeps the
+    /// search in sync with the terminal across feeds.
+    search: Option<ghostty::GhosttySearch>,
 }
 
 impl Session {
@@ -140,6 +146,7 @@ impl Session {
             keys: None,
             mouse: None,
             shell: Scanner::new(),
+            search: None,
         })
     }
 
@@ -190,6 +197,218 @@ impl Session {
 
     pub fn working_directory(&self) -> Option<&str> {
         self.shell.directory()
+    }
+
+    /// Make sure the engine's search exists for this terminal, creating it
+    /// on first use. Returns the handle, or None when the engine refused.
+    pub fn ensure_search(&mut self) -> Option<ghostty::GhosttySearch> {
+        if self.search.is_none() {
+            let mut search = std::ptr::null_mut();
+            let result = unsafe {
+                ghostty::ghostty_search_new(std::ptr::null(), &mut search, self.terminal)
+            };
+            if !ghostty::ok(result) {
+                return None;
+            }
+            self.search = Some(search);
+        }
+        self.search
+    }
+
+    /// Free the engine's search, if one exists. Touches the terminal, so the
+    /// caller must hold the session lock.
+    pub fn free_search(&mut self) {
+        if let Some(search) = self.search.take() {
+            unsafe { ghostty::ghostty_search_free(search) };
+        }
+    }
+
+    /// Set the needle. An empty query clears it and returns the search to idle.
+    pub fn search_set_needle(&mut self, query: &str) -> bool {
+        let Some(search) = self.ensure_search() else {
+            return false;
+        };
+        if query.is_empty() {
+            return ghostty::ok(unsafe {
+                ghostty::ghostty_search_set(search, ghostty::GHOSTTY_SEARCH_OPT_NEEDLE, std::ptr::null())
+            });
+        }
+        let needle = ghostty::GhosttyString {
+            ptr: query.as_ptr(),
+            len: query.len(),
+        };
+        ghostty::ok(unsafe {
+            ghostty::ghostty_search_set(
+                search,
+                ghostty::GHOSTTY_SEARCH_OPT_NEEDLE,
+                &needle as *const _ as *const std::ffi::c_void,
+            )
+        })
+    }
+
+    /// Feed the terminal's state into the search. Bounded work.
+    pub fn search_feed(&mut self) -> bool {
+        let Some(search) = self.search else {
+            return false;
+        };
+        ghostty::ok(unsafe { ghostty::ghostty_search_feed(search) })
+    }
+
+    /// Make a bounded amount of progress. Returns the status.
+    pub fn search_tick(&mut self) -> i32 {
+        let Some(search) = self.search else {
+            return 2; // COMPLETE when there is nothing to do
+        };
+        let mut status = ghostty::GHOSTTY_SEARCH_STATUS_COMPLETE;
+        let result = unsafe { ghostty::ghostty_search_tick(search, &mut status) };
+        if !ghostty::ok(result) {
+            return 2;
+        }
+        status as i32
+    }
+
+    /// Select the next match (toward older content). Returns true when one was selected.
+    pub fn search_select_next(&mut self) -> bool {
+        let Some(search) = self.search else {
+            return false;
+        };
+        let result = unsafe {
+            ghostty::ghostty_search_set(search, ghostty::GHOSTTY_SEARCH_OPT_SELECT_NEXT, std::ptr::null())
+        };
+        result == ghostty::SUCCESS
+    }
+
+    /// Select the previous match (toward newer content).
+    pub fn search_select_prev(&mut self) -> bool {
+        let Some(search) = self.search else {
+            return false;
+        };
+        let result = unsafe {
+            ghostty::ghostty_search_set(search, ghostty::GHOSTTY_SEARCH_OPT_SELECT_PREV, std::ptr::null())
+        };
+        result == ghostty::SUCCESS
+    }
+
+    /// Set the scroll policy for select operations.
+    pub fn search_set_select_scroll(&mut self, policy: i32) -> bool {
+        let Some(search) = self.search else {
+            return false;
+        };
+        let value = if policy == 0 {
+            ghostty::GHOSTTY_SEARCH_SCROLL_IF_NEEDED
+        } else {
+            ghostty::GHOSTTY_SEARCH_SCROLL_NONE
+        };
+        ghostty::ok(unsafe {
+            ghostty::ghostty_search_set(
+                search,
+                ghostty::GHOSTTY_SEARCH_OPT_SELECT_SCROLL,
+                &value as *const _ as *const std::ffi::c_void,
+            )
+        })
+    }
+
+    /// Total matches on the active screen.
+    pub fn search_total_matches(&self) -> usize {
+        let Some(search) = self.search else {
+            return 0;
+        };
+        let mut total: usize = 0;
+        let result = unsafe {
+            ghostty::ghostty_search_get(
+                search,
+                ghostty::GHOSTTY_SEARCH_DATA_TOTAL_MATCHES,
+                &mut total as *mut usize as *mut std::ffi::c_void,
+            )
+        };
+        if ghostty::ok(result) {
+            total
+        } else {
+            0
+        }
+    }
+
+    /// Index of the selected match, or None.
+    pub fn search_selected_index(&self) -> Option<usize> {
+        let search = self.search?;
+        let mut index: usize = 0;
+        let result = unsafe {
+            ghostty::ghostty_search_get(
+                search,
+                ghostty::GHOSTTY_SEARCH_DATA_SELECTED_INDEX,
+                &mut index as *mut usize as *mut std::ffi::c_void,
+            )
+        };
+        if result == ghostty::NO_VALUE {
+            None
+        } else if ghostty::ok(result) {
+            Some(index)
+        } else {
+            None
+        }
+    }
+
+    /// Viewport row/column/length of the selected match, if it is on screen.
+    pub fn search_selected_match_viewport(&self) -> Option<(i32, i32, i32)> {
+        let search = self.search?;
+        let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            ghostty::ghostty_search_get(
+                search,
+                ghostty::GHOSTTY_SEARCH_DATA_SELECTED_MATCH,
+                &mut selection as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+        if result == ghostty::NO_VALUE {
+            return None;
+        }
+        if !ghostty::ok(result) {
+            return None;
+        }
+        let columns = self.columns();
+        let rows = self.rows();
+        viewport_bounds(self, selection, columns, rows)
+    }
+
+    /// Text of the selected match, or None.
+    pub fn search_selected_match_text(&self) -> Option<String> {
+        let search = self.search?;
+        let mut selection: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            ghostty::ghostty_search_get(
+                search,
+                ghostty::GHOSTTY_SEARCH_DATA_SELECTED_MATCH,
+                &mut selection as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+        if result == ghostty::NO_VALUE || !ghostty::ok(result) {
+            return None;
+        }
+        // Format the selection into a string.
+        let mut options: ghostty::GhosttyTerminalSelectionFormatOptions =
+            unsafe { std::mem::zeroed() };
+        options.size = std::mem::size_of::<ghostty::GhosttyTerminalSelectionFormatOptions>();
+        options.selection = &selection;
+
+        let mut out_ptr: *mut u8 = std::ptr::null_mut();
+        let mut out_len: usize = 0;
+        let result = unsafe {
+            ghostty::ghostty_terminal_selection_format_alloc(
+                self.terminal,
+                std::ptr::null(),
+                options,
+                &mut out_ptr,
+                &mut out_len,
+            )
+        };
+        if !ghostty::ok(result) || out_ptr.is_null() || out_len == 0 {
+            return None;
+        }
+        let text = unsafe {
+            String::from_utf8_lossy(std::slice::from_raw_parts(out_ptr, out_len)).into_owned()
+        };
+        unsafe { ghostty::ghostty_free(std::ptr::null(), out_ptr, out_len) };
+        Some(text)
     }
 
     /// The theme's colours, handed to the engine.
@@ -786,9 +1005,63 @@ impl Drop for Session {
             if let Some(gesture) = self.gesture.take() {
                 ghostty::ghostty_selection_gesture_free(gesture, self.terminal);
             }
+            if let Some(search) = self.search.take() {
+                ghostty::ghostty_search_free(search);
+            }
             ghostty::ghostty_terminal_free(self.terminal);
         }
     }
+}
+
+/// Compute the viewport row/column/length of a match selection.
+///
+/// The engine exposes a match as a *selection* predicate, not a rectangle, so
+/// its extent is found by asking which viewport cells it contains. Returns
+/// None when the match is not on the visible viewport.
+pub fn viewport_bounds(
+    session: &Session,
+    selection: ghostty::GhosttySelection,
+    columns: u16,
+    rows: u16,
+) -> Option<(i32, i32, i32)> {
+    let mut first_row: i32 = -1;
+    let mut first_column: i32 = -1;
+    let mut last_column: i32 = -1;
+
+    for row in 0..rows {
+        for column in 0..columns {
+            let mut point: ghostty::GhosttyPoint = unsafe { std::mem::zeroed() };
+            unsafe {
+                crate::jni::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
+                point.value.coordinate.x = column;
+                point.value.coordinate.y = u32::from(row);
+            }
+
+            let mut contained = false;
+            let result = unsafe {
+                ghostty::ghostty_terminal_selection_contains(
+                    session.terminal(),
+                    &selection,
+                    point,
+                    &mut contained,
+                )
+            };
+            if !ghostty::ok(result) || !contained {
+                continue;
+            }
+
+            if first_row < 0 {
+                first_row = i32::from(row);
+                first_column = i32::from(column);
+            }
+            last_column = i32::from(column);
+        }
+    }
+
+    if first_row < 0 {
+        return None;
+    }
+    Some((first_row, first_column, (last_column - first_column + 1).max(0)))
 }
 
 /// A session as the JNI layer holds it: a lock around the session.
