@@ -789,6 +789,17 @@ impl FrameSource {
         put_u32(header, 44, rgba(cursor_color));
     }
 
+    /// The viewport row a cell belongs to.
+    ///
+    /// The frame's rows start with the overscan rows above the viewport, so a
+    /// cell's row in the frame is a row further down than the row the user
+    /// sees. The overscan row above the viewport is row -1: it is not part of
+    /// the grid the user sees, and nothing the app asks for can land on it.
+    fn viewport_row(&self, cell_index: usize) -> i64 {
+        let frame_row = cell_index / self.columns.max(1) as usize;
+        frame_row as i64 - i64::from(self.overscan_above)
+    }
+
     unsafe fn write_cell(&mut self, at: usize, column: u16) {
         // The cell is cleared first, and the selection is what positions the
         // cell iterator — a selection that fails leaves the iterator on the
@@ -953,9 +964,9 @@ impl FrameSource {
         // The user's own selection: the cells the app asked to be marked.
         if let Some((row, from, length)) = self.app_selection {
             let cell_index = (at - HEADER_BYTES) / CELL_BYTES;
-            let viewport_row = cell_index / self.columns.max(1) as usize;
+            let viewport_row = self.viewport_row(cell_index);
             let cell_column = cell_index % self.columns.max(1) as usize;
-            if viewport_row == row as usize
+            if viewport_row == row as i64
                 && cell_column >= from as usize
                 && cell_column < (from as usize) + length as usize
             {
@@ -971,10 +982,10 @@ impl FrameSource {
         // computed once: the active range and the others are marked from the
         // same answer, so the two cannot disagree about where a cell is.
         let cell_index = (at - HEADER_BYTES) / CELL_BYTES;
-        let viewport_row = cell_index / self.columns.max(1) as usize;
+        let viewport_row = self.viewport_row(cell_index);
         if let Some((row, from, length)) = self.highlight {
             let end = from as u32 + length as u32;
-            if viewport_row == row as usize
+            if viewport_row == row as i64
                 && column as u32 >= from as u32
                 && (column as u32) < end
             {
@@ -991,7 +1002,7 @@ impl FrameSource {
         // the viewport does not show simply never matches.
         for &(row, from, length) in &self.highlights {
             let end = from as u32 + length as u32;
-            if viewport_row == row as usize
+            if viewport_row == row as i64
                 && column as u32 >= from as u32
                 && (column as u32) < end
             {
