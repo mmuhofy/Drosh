@@ -113,6 +113,13 @@ fun GhosttyTerminalHost(
      */
     highlightColour: Int = 0xFFFFE000.toInt(),
     /**
+     * The colour the search's other matches are drawn in.
+     *
+     * A weaker tint than [highlightColour], so the match the user is on stays
+     * the strongest thing on the screen.
+     */
+    highlightAllColour: Int = 0xFF4C9EFF.toInt(),
+    /**
      * Told the URI of a hyperlink the user tapped.
      *
      * `OSC 8` links are the terminal's own; a tap on a cell that carries one is
@@ -412,6 +419,7 @@ fun GhosttyTerminalHost(
                     )
                     pane.view.setCell(cell.width, cell.height, cell.fontPx)
                     pane.setHighlightColour(highlightColour)
+                    pane.setHighlightAllColour(highlightAllColour)
                     pane.setBellColour(bellColour)
                     addView(pane.view)
                 }

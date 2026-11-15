@@ -296,20 +296,34 @@ internal class FrameRenderer {
             backgrounds.putShort(row.toShort())
             // A search match is a tint over the cell's own background.
             val background = backgroundOf(frame, index)
-            val painted = if (frame.isHighlighted(index)) {
-                val alpha = HIGHLIGHT_TINT
-                val r = FrameFormat.red(background) / 255f
-                val g = FrameFormat.green(background) / 255f
-                val b = FrameFormat.blue(background) / 255f
-                val mixed = (r * (1f - alpha) + highlightR * alpha) * 255f
-                val mixedG = (g * (1f - alpha) + highlightG * alpha) * 255f
-                val mixedB = (b * (1f - alpha) + highlightB * alpha) * 255f
-                (0xff shl 24) or
-                    (mixed.toInt().coerceIn(0, 255) shl 16) or
-                    (mixedG.toInt().coerceIn(0, 255) shl 8) or
-                    mixedB.toInt().coerceIn(0, 255)
-            } else {
-                background
+            val painted = when {
+                frame.isHighlighted(index) -> {
+                    val alpha = HIGHLIGHT_TINT
+                    val r = FrameFormat.red(background) / 255f
+                    val g = FrameFormat.green(background) / 255f
+                    val b = FrameFormat.blue(background) / 255f
+                    val mixed = (r * (1f - alpha) + highlightR * alpha) * 255f
+                    val mixedG = (g * (1f - alpha) + highlightG * alpha) * 255f
+                    val mixedB = (b * (1f - alpha) + highlightB * alpha) * 255f
+                    (0xff shl 24) or
+                        (mixed.toInt().coerceIn(0, 255) shl 16) or
+                        (mixedG.toInt().coerceIn(0, 255) shl 8) or
+                        mixedB.toInt().coerceIn(0, 255)
+                }
+                frame.isHighlightedAll(index) -> {
+                    val alpha = HIGHLIGHT_ALL_TINT
+                    val r = FrameFormat.red(background) / 255f
+                    val g = FrameFormat.green(background) / 255f
+                    val b = FrameFormat.blue(background) / 255f
+                    val mixed = (r * (1f - alpha) + highlightAllR * alpha) * 255f
+                    val mixedG = (g * (1f - alpha) + highlightAllG * alpha) * 255f
+                    val mixedB = (b * (1f - alpha) + highlightAllB * alpha) * 255f
+                    (0xff shl 24) or
+                        (mixed.toInt().coerceIn(0, 255) shl 16) or
+                        (mixedG.toInt().coerceIn(0, 255) shl 8) or
+                        mixedB.toInt().coerceIn(0, 255)
+                }
+                else -> background
             }
             putColor(backgrounds, painted)
             // The underline, if the cell has one. A cell with no underline
@@ -523,11 +537,23 @@ internal class FrameRenderer {
     private var highlightG = 0.85f
     private var highlightB = 0.2f
 
+    /** The colour the search's other matches are drawn in. */
+    private var highlightAllR = 0.3f
+    private var highlightAllG = 0.5f
+    private var highlightAllB = 1f
+
     /** Set the colour a search match is drawn in, from the theme. */
     fun setHighlightColour(argb: Int) {
         highlightR = ((argb shr 16) and 0xff) / 255f
         highlightG = ((argb shr 8) and 0xff) / 255f
         highlightB = (argb and 0xff) / 255f
+    }
+
+    /** Set the colour the search's other matches are drawn in, from the theme. */
+    fun setHighlightAllColour(argb: Int) {
+        highlightAllR = ((argb shr 16) and 0xff) / 255f
+        highlightAllG = ((argb shr 8) and 0xff) / 255f
+        highlightAllB = (argb and 0xff) / 255f
     }
 
     // --- the pictures a program drew ---------------------------------------
@@ -1205,6 +1231,9 @@ internal class FrameRenderer {
 
         /** How much of the highlight colour goes over the cell's background. */
         const val HIGHLIGHT_TINT = 0.35f
+
+        /** How much of the all-matches colour goes over the cell's background. */
+        const val HIGHLIGHT_ALL_TINT = 0.2f
 
         /** A bar cursor's width, as a fraction of a cell. */
         const val BAR_WIDTH = 0.1f

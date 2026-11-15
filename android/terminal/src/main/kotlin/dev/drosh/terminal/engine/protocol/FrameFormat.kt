@@ -141,6 +141,12 @@ object FrameFormat {
     /** The cell is part of the search match and is drawn highlighted. */
     const val CELL_FLAG_HIGHLIGHT = 1 shl 2
 
+    /**
+     * The cell is part of one of the search's other matches — not the active
+     * one — and is drawn in the weaker of the two highlight tints.
+     */
+    const val CELL_FLAG_HIGHLIGHT_ALL = 1 shl 4
+
     // --- dirty ------------------------------------------------------------
 
     const val DIRTY_NONE = 0

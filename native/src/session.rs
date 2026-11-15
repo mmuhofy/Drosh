@@ -449,6 +449,20 @@ impl Session {
         self.frames.set_highlight(None);
     }
 
+    /// Highlight every range the search's other matches cover.
+    ///
+    /// The ranges are in viewport rows, the same space [Session::set_highlight]
+    /// speaks, and an empty list is the caller saying there are no matches —
+    /// which is no highlight at all, not an error.
+    pub fn set_highlights(&mut self, ranges: Vec<(u16, u16, u16)>) {
+        self.frames.set_highlights(ranges);
+    }
+
+    /// Draw no all-matches highlight; the active one is untouched.
+    pub fn clear_highlights(&mut self) {
+        self.frames.clear_highlights();
+    }
+
     /// The cells the user's selection covers, or none.
     pub fn set_selection_range(&mut self, row: u16, column: u16, length: u16) {
         self.frames.set_app_selection(Some((row, column, length)));
