@@ -1459,6 +1459,7 @@ private fun ReadyScreen(
                 onExtend = { x, y, fromEnd ->
                     terminalManager.focusedTerminal()?.extendSelectionTo(x, y, fromEnd)
                 },
+                terminalBackground = Color(hexToColorInt(appearance.terminal.palette.background)),
             )
         }
 

@@ -302,25 +302,58 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val cells = selectedCells ?: return false
         val point = cellAt(x, y) ?: return false
 
-        // The anchor is the end that stays.
+        // The anchor is the end that stays: `fromEnd` true means the selection's
+        // end is the part that moves, so the start anchors; false means the start
+        // moves, so the end anchors.
         val anchor = if (fromEnd) {
             cells.first to cells.second
         } else {
             selectionEnd ?: (cells.first to cells.second)
         }
 
-        // The word between the anchor and the point: the engine's own answer
-        // for a drag, and the answer that does not wait for the finger to lift.
-        val text = NativeSelection.selectWordBetween(
+        // The gesture is the engine's own, and it is what installs the selection
+        // the renderer draws. A snapshot (`selectWordBetween`) only returns text:
+        // it leaves the rendered highlight where it was, so the handle would
+        // appear to drag a single cell while the highlight stayed put. Feeding
+        // the gesture a press, a drag and a release installs the selection at
+        // the new range and answers with the cells it covers.
+        NativeSelection.press(session, anchor.first, anchor.second, NativeSelection.BEHAVIOR_WORD)
+        val dragged = NativeSelection.drag(
             session,
-            anchor.first,
-            anchor.second,
             point.first,
             point.second,
+            (width / cellWidth.coerceAtLeast(1f)).toInt().coerceAtLeast(1),
+            cellWidth.toInt().coerceAtLeast(1),
+            height.coerceAtLeast(1),
         )
-        if (text.isEmpty()) return false
-        selected = text
-        setSelectedCells(anchor.first, anchor.second, 1)
+        val released = NativeSelection.release(
+            session,
+            point.first,
+            point.second,
+            NativeSelection.BEHAVIOR_WORD,
+        )
+        val result = released ?: dragged
+        if (result == null || result.size < 4) {
+            // The gesture refused the point (off the grid, scrolled out of
+            // range). Fall back to the snapshot so the drag still reports text,
+            // even though the rendered highlight cannot follow.
+            val text = NativeSelection.selectWordBetween(
+                session,
+                anchor.first,
+                anchor.second,
+                point.first,
+                point.second,
+            )
+            if (text.isEmpty()) return false
+            selected = text
+            setSelectedCells(anchor.first, anchor.second, 1)
+            renderThread.invalidate()
+            return true
+        }
+        setSelectedCells(result[0], result[1], selectionLength(result))
+        setSelectionEnd(result[2], result[3])
+        val engineText = NativeSelection.text(session)
+        if (engineText.isNotEmpty()) selected = engineText
         renderThread.invalidate()
         return true
     }
