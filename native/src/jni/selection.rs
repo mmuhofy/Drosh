@@ -520,7 +520,7 @@ pub fn search(session: &Session, query: &str, limit: usize) -> Vec<i32> {
 
     let mut triples = Vec::with_capacity(buffer.len * 3);
     for index in 0..buffer.len {
-        let Some(bounds) = viewport_bounds(session, selections[index], columns, rows) else {
+        let Some(bounds) = crate::session::viewport_bounds(session, selections[index], columns, rows) else {
             continue;
         };
         triples.push(bounds.0);
@@ -528,59 +528,6 @@ pub fn search(session: &Session, query: &str, limit: usize) -> Vec<i32> {
         triples.push(bounds.2);
     }
     triples
-}
-
-/// A match's extent in viewport coordinates, or None when it is off screen.
-///
-/// The engine exposes a selection as a *predicate* — `contains(terminal,
-/// selection, point)` — not as a rectangle. That is deliberate: a selection can
-/// be rectangular, linear across rows, or semantic, and a rectangle is a wrong
-/// answer for two of the three. So the extent is found by asking, and the scan
-/// is bounded by the viewport.
-fn viewport_bounds(
-    session: &Session,
-    selection: ghostty::GhosttySelection,
-    columns: u16,
-    rows: u16,
-) -> Option<(i32, i32, i32)> {
-    let mut first_row: i32 = -1;
-    let mut first_column: i32 = -1;
-    let mut last_column: i32 = -1;
-
-    for row in 0..rows {
-        for column in 0..columns {
-            let mut point: ghostty::GhosttyPoint = unsafe { std::mem::zeroed() };
-            unsafe {
-                super::set_enum(&mut point.tag, ghostty::GHOSTTY_POINT_TAG_VIEWPORT as u32);
-                point.value.coordinate.x = column;
-                point.value.coordinate.y = u32::from(row);
-            }
-
-            let mut contained = false;
-            let result = unsafe {
-                ghostty::ghostty_terminal_selection_contains(
-                    session.terminal(),
-                    &selection,
-                    point,
-                    &mut contained,
-                )
-            };
-            if !ghostty::ok(result) || !contained {
-                continue;
-            }
-
-            if first_row < 0 {
-                first_row = i32::from(row);
-                first_column = i32::from(column);
-            }
-            last_column = i32::from(column);
-        }
-    }
-
-    if first_row < 0 {
-        return None;
-    }
-    Some((first_row, first_column, (last_column - first_column + 1).max(0)))
 }
 
 /// Frees a search handle when it goes out of scope.
