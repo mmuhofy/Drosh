@@ -837,9 +837,20 @@ private fun ReadyScreen(
      * turns one into the other.
      */
     fun highlightMatch(matches: TerminalFindMatches, index: Int) {
-        val hit = (matches as? TerminalFindMatches.Engine)?.hits?.getOrNull(index) ?: return
+        val engineMatches = matches as? TerminalFindMatches.Engine
+        val hit = engineMatches?.hits?.getOrNull(index) ?: return
         val pane = terminalManager.focusedTerminal() ?: return
-        val row = hit.line - pane.viewportRow()
+        val viewportRow = pane.viewportRow()
+        // Every other match is drawn in the weaker colour, so the match the
+        // user is on stays the strongest thing on the screen. The active one
+        // is left out of this set, because it is drawn by setHighlight below
+        // in its own, stronger colour.
+        val allRanges = engineMatches.hits.mapIndexedNotNull { i, h ->
+            if (i == index) null
+            else Triple(h.line - viewportRow, h.colStart, (h.colEnd - h.colStart).coerceAtLeast(0))
+        }.filter { it.third > 0 }
+        pane.setHighlights(allRanges)
+        val row = hit.line - viewportRow
         pane.setHighlight(row, hit.colStart, hit.colEnd - hit.colStart)
     }
 
@@ -908,7 +919,12 @@ private fun ReadyScreen(
             matches = matches,
             activeIndex = active,
         )
-        if (active >= 0) highlightMatch(matches, active)
+        if (active >= 0) {
+            highlightMatch(matches, active)
+        } else {
+            terminalManager.focusedTerminal()?.clearHighlights()
+            terminalManager.focusedTerminal()?.setHighlight(0, 0, 0)
+        }
     }
 
     /**
@@ -1167,6 +1183,7 @@ private fun ReadyScreen(
                     defaultFontSizeSp = defaultFontSizeSp,
                     mouseReporting = mouseReporting,
                     highlightColour = hexToColorInt(appearance.terminal.palette.yellow),
+                    highlightAllColour = DroshPrimary.toArgb(),
                     bellColour = hexToColorInt(appearance.terminal.palette.accent),
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
@@ -1215,6 +1232,7 @@ private fun ReadyScreen(
                     defaultFontSizeSp = defaultFontSizeSp,
                     mouseReporting = mouseReporting,
                     highlightColour = hexToColorInt(appearance.terminal.palette.yellow),
+                    highlightAllColour = DroshPrimary.toArgb(),
                     bellColour = hexToColorInt(appearance.terminal.palette.accent),
                     colorProps = colorProps,
                     backgroundFile = backgroundFile,
@@ -1379,6 +1397,7 @@ private fun ReadyScreen(
                 scannedQuery = ""
                 findState = null
                 // The match is not highlighted any more.
+                terminalManager.focusedTerminal()?.clearHighlights()
                 terminalManager.focusedTerminal()?.setHighlight(0, 0, 0)
             }
 
@@ -1396,6 +1415,7 @@ private fun ReadyScreen(
                     scannedQuery = ""
                     findState = null
                     // The match is not highlighted any more.
+                    terminalManager.focusedTerminal()?.clearHighlights()
                     terminalManager.focusedTerminal()?.setHighlight(0, 0, 0)
                 },
                 // Which terminal the matches came from, and the text of the
@@ -1894,6 +1914,8 @@ private fun TerminalPaneBody(
     mouseReporting: Boolean,
     /** The colour a search match is drawn in. */
     highlightColour: Int,
+    /** The colour the search's other matches are drawn in. */
+    highlightAllColour: Int,
     /** The colour the bell's wash is in. */
     bellColour: Int,
     colorProps: Properties,
@@ -2056,6 +2078,7 @@ private fun TerminalPaneBody(
                 backgroundFile = backgroundFile,
                 backgroundOpacity = backgroundOpacity,
                 highlightColour = highlightColour,
+                highlightAllColour = highlightAllColour,
                 bellColour = bellColour,
                 // A tap on a cell that carries an `OSC 8` link. The pane
                 // resolves the cell against the engine and hands the URI up;

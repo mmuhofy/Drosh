@@ -423,6 +423,11 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         view.setHighlightColour(argb)
     }
 
+    /** The colour the search's other matches are drawn in, from the theme. */
+    fun setHighlightAllColour(argb: Int) {
+        view.setHighlightAllColour(argb)
+    }
+
     /**
      * Highlight the range the search matched.
      *
@@ -433,6 +438,25 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override fun setHighlight(row: Int, column: Int, length: Int) {
         val shown = session ?: return
         NativeSession.setHighlight(shown.terminalHandle, row, column, length)
+        view.invalidate()
+    }
+
+    /**
+     * Highlight every range the search's other matches cover.
+     *
+     * The ranges are `(row, column, length)` triples in viewport rows, the
+     * same space [setHighlight] speaks.
+     */
+    override fun setHighlights(ranges: List<Triple<Int, Int, Int>>) {
+        val shown = session ?: return
+        NativeSession.setHighlights(shown.terminalHandle, ranges)
+        view.invalidate()
+    }
+
+    /** Draw no all-matches highlight; the active one is untouched. */
+    override fun clearHighlights() {
+        val shown = session ?: return
+        NativeSession.clearHighlights(shown.terminalHandle)
         view.invalidate()
     }
 

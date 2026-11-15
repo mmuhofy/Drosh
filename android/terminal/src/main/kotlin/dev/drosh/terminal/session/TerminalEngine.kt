@@ -140,6 +140,20 @@ interface TerminalEngine {
     fun setHighlight(row: Int, column: Int, length: Int)
 
     /**
+     * Highlight every range the search's other matches cover, in viewport rows.
+     *
+     * The active match is not part of this set — it is drawn by
+     * [setHighlight] in its own, stronger colour. An empty list clears the
+     * marking.
+     */
+    fun setHighlights(ranges: List<Triple<Int, Int, Int>>) {}
+
+    /**
+     * Draw no all-matches highlight; the active one is untouched.
+     */
+    fun clearHighlights() {}
+
+    /**
      * Scroll to the prompt above or below the viewport.
      *
      * Negative for the prompt above, positive for the one below. False when

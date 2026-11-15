@@ -209,6 +209,66 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     1
 }
 
+/// Highlight every range the search's other matches cover, in viewport rows.
+///
+/// `ranges` is `(row, column, length)` triples. An empty array is the caller
+/// saying there are no matches, so it clears the marking. A triple with a
+/// part the frame cannot carry is skipped rather than clamped: a clamped
+/// range marks a different place than the one the caller named, and a wrong
+/// highlight is worse than a missing one.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeSetHighlights(
+    env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    ranges: jintArray,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+
+    let mut triples: Vec<(u16, u16, u16)> = Vec::new();
+    if !ranges.is_null() {
+        // A borrowed local reference: the array belongs to the caller, so it
+        // is forgotten rather than dropped — dropping a `JIntArray` built from
+        // a raw pointer deletes the caller's array.
+        let array = unsafe { JIntArray::from_raw(ranges) };
+        if let Ok(len) = env.get_array_length(&array) {
+            let mut raw = vec![0i32; len as usize];
+            if env.get_int_array_region(&array, 0, &mut raw).is_ok() {
+                for chunk in raw.chunks_exact(3) {
+                    let (row, column, length) = (chunk[0], chunk[1], chunk[2]);
+                    if row < 0 || column < 0 || length <= 0 {
+                        continue;
+                    }
+                    if row > u16::MAX as i32 || column > u16::MAX as i32 || length > u16::MAX as i32 {
+                        continue;
+                    }
+                    triples.push((row as u16, column as u16, length as u16));
+                }
+            }
+        }
+        std::mem::forget(array);
+    }
+
+    session.set_highlights(triples);
+    1
+}
+
+/// Draw no all-matches highlight; the active one is untouched.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeClearHighlights(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jboolean {
+    let Some(mut session) = session_lock(handle) else {
+        return 0;
+    };
+    session.clear_highlights();
+    1
+}
+
 /// The cells the user's selection covers.
 ///
 /// The engine's own selection is not what the app draws: the app asks the

@@ -36,7 +36,8 @@
 //!  8  u32  background RGBA
 //! 12  u32  attributes
 //! 16  u8   width     1 narrow, 2 wide, 0 spacer tail
-//! 17  u8   flags     bit0 selected, bit1 has grapheme
+//! 17  u8   flags     bit0 selected, bit1 has grapheme, bit2 highlight,
+//!                    bit3 app-selected, bit4 all-matches highlight
 //! 18  u16  reserved
 //! ```
 //!
@@ -83,6 +84,9 @@ pub const CELL_FLAG_GRAPHEME: u8 = 1 << 1;
 pub const CELL_FLAG_HIGHLIGHT: u8 = 1 << 2;
 /// The cell is part of the selection the user made.
 pub const CELL_FLAG_APP_SELECTED: u8 = 1 << 3;
+/// The cell is part of one of the search's *other* matches — not the active
+/// one — and is drawn in the weaker of the two highlight tints.
+pub const CELL_FLAG_HIGHLIGHT_ALL: u8 = 1 << 4;
 
 pub const DIRTY_NONE: u16 = 0;
 pub const DIRTY_FULL: u16 = 1;
@@ -141,6 +145,13 @@ pub struct FrameSource {
     /// One range: the find bar shows the match the user is on, and that is the
     /// one worth drawing.
     highlight: Option<(u16, u16, u16)>,
+    /// The ranges the search's *other* matches cover, in viewport rows.
+    ///
+    /// The active match is [FrameSource::highlight]; these are the rest, and
+    /// they are drawn in a weaker tint so the match the user is on stays the
+    /// strongest thing on the screen. Rows outside the viewport mark nothing —
+    /// the frame only carries the rows the viewport shows.
+    highlights: Vec<(u16, u16, u16)>,
     /// The grid's shape, as the last frame saw it.
     columns: u16,
     rows: u16,
@@ -201,6 +212,7 @@ impl FrameSource {
             rows: 0,
             overscan_above: 0,
             highlight: None,
+            highlights: Vec::new(),
             app_selection: None,
             image_cache: std::collections::HashMap::new(),
         })
@@ -377,6 +389,20 @@ impl FrameSource {
     /// place by the time it is drawn.
     pub fn set_highlight(&mut self, range: Option<(u16, u16, u16)>) {
         self.highlight = range;
+    }
+
+    /// Highlight every range the search's other matches cover.
+    ///
+    /// The ranges are in viewport rows, the same space [FrameSource::set_highlight]
+    /// speaks: the find bar converts the scan's grid rows with the viewport's
+    /// first row. An empty list clears the marking.
+    pub fn set_highlights(&mut self, ranges: Vec<(u16, u16, u16)>) {
+        self.highlights = ranges;
+    }
+
+    /// Draw no all-matches highlight; the active one is untouched.
+    pub fn clear_highlights(&mut self) {
+        self.highlights.clear();
     }
 
     /// The frame's images, as one buffer.
@@ -941,16 +967,36 @@ impl FrameSource {
         //
         // The range is in viewport rows and the cell's own row is its index in
         // the frame minus the overscan rows above the viewport — the same
-        // space, so the two can be compared directly.
+        // space, so the two can be compared directly. The cell's place is
+        // computed once: the active range and the others are marked from the
+        // same answer, so the two cannot disagree about where a cell is.
+        let cell_index = (at - HEADER_BYTES) / CELL_BYTES;
+        let viewport_row = cell_index / self.columns.max(1) as usize;
         if let Some((row, from, length)) = self.highlight {
-            let cell_index = (at - HEADER_BYTES) / CELL_BYTES;
-            let viewport_row = cell_index / self.columns.max(1) as usize;
             let end = from as u32 + length as u32;
             if viewport_row == row as usize
                 && column as u32 >= from as u32
                 && (column as u32) < end
             {
                 flags |= CELL_FLAG_HIGHLIGHT;
+            }
+        }
+
+        // The search's other matches, if this cell is part of one.
+        //
+        // The active match is marked above and wins: a cell that is both is
+        // the one the user is on, and it keeps the stronger flag. The list is
+        // the find bar's scan result — at most a few hundred short ranges —
+        // so a linear pass per cell is the cheap answer, and a range on a row
+        // the viewport does not show simply never matches.
+        for &(row, from, length) in &self.highlights {
+            let end = from as u32 + length as u32;
+            if viewport_row == row as usize
+                && column as u32 >= from as u32
+                && (column as u32) < end
+            {
+                flags |= CELL_FLAG_HIGHLIGHT_ALL;
+                break;
             }
         }
         if grapheme_len > 1 {

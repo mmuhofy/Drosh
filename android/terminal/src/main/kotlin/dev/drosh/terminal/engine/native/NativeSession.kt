@@ -143,6 +143,37 @@ object NativeSession {
     }
 
     /**
+     * Highlight every range the search's other matches cover.
+     *
+     * The ranges are `(row, column, length)` triples in viewport rows, the
+     * same space [setHighlight] speaks. An empty list clears the marking. The
+     * active match is not part of this set — it is drawn by [setHighlight]
+     * in its own, stronger colour.
+     */
+    fun setHighlights(handle: Long, ranges: IntArray): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeSetHighlights(handle, ranges) != 0.toByte()
+    }
+
+    /** Convenience overload for a list of `(row, column, length)` triples. */
+    fun setHighlights(handle: Long, ranges: List<Triple<Int, Int, Int>>): Boolean {
+        val flat = IntArray(ranges.size * 3)
+        var index = 0
+        for ((row, column, length) in ranges) {
+            flat[index++] = row
+            flat[index++] = column
+            flat[index++] = length
+        }
+        return setHighlights(handle, flat)
+    }
+
+    /** Draw no all-matches highlight; the active one is untouched. */
+    fun clearHighlights(handle: Long): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeClearHighlights(handle) != 0.toByte()
+    }
+
+    /**
      * The pictures a program drew, and where they are.
      *
      * The buffer is the app's own format: a count, then per picture its id, its
@@ -283,6 +314,8 @@ object NativeSession {
         column: Int,
         length: Int,
     ): Byte
+    private external fun nativeSetHighlights(handle: Long, ranges: IntArray): Byte
+    private external fun nativeClearHighlights(handle: Long): Byte
     private external fun nativeAlternateScreen(handle: Long): Boolean
     private external fun nativeModes(handle: Long): Int
     private external fun nativeTranscript(handle: Long): String

@@ -115,6 +115,10 @@ class Frame private constructor(
     fun isHighlighted(index: Int): Boolean =
         flags(index) and FrameFormat.CELL_FLAG_HIGHLIGHT != 0
 
+    /** True when the cell is part of one of the search's other matches. */
+    fun isHighlightedAll(index: Int): Boolean =
+        flags(index) and FrameFormat.CELL_FLAG_HIGHLIGHT_ALL != 0
+
     fun hasGrapheme(index: Int): Boolean =
         flags(index) and FrameFormat.CELL_FLAG_GRAPHEME != 0
 

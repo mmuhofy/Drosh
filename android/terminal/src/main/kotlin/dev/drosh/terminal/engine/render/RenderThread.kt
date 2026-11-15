@@ -115,6 +115,11 @@ class RenderThread(
         data class HighlightColour(val argb: Int) : Command
 
         /**
+         * The colour the search's other matches are drawn in, from the theme.
+         */
+        data class HighlightAllColour(val argb: Int) : Command
+
+        /**
          * A program rang the bell.
          *
          * The terminal flashes for a moment, and the loop keeps drawing while
@@ -417,6 +422,11 @@ class RenderThread(
 
                     is Command.HighlightColour -> {
                         renderer?.setHighlightColour(command.argb)
+                        dirty = true
+                    }
+
+                    is Command.HighlightAllColour -> {
+                        renderer?.setHighlightAllColour(command.argb)
                         dirty = true
                     }
 
