@@ -301,6 +301,18 @@ private fun ReadyScreen(
     val paneLayout by paneLayoutViewModel.layout.collectAsStateWithLifecycle()
     val liveSessionIds by terminalManager.liveSessionIdsFlow.collectAsStateWithLifecycle()
 
+    val splitMessage by paneLayoutViewModel.splitMessage.collectAsStateWithLifecycle()
+    LaunchedEffect(splitMessage) {
+        splitMessage?.let { msg ->
+            android.widget.Toast.makeText(
+                LocalContext.current,
+                msg,
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            paneLayoutViewModel.clearSplitMessage()
+        }
+    }
+
     /**
      * The second pane's session, bound to [PaneSlot.SECONDARY].
      *
