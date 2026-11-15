@@ -118,10 +118,12 @@ class TerminalManager(
 
     /** Record which session a slot shows, and tell the screen. */
     private fun setSlotSession(slot: PaneSlot, persistentId: String) {
-        // Which sessions are in the background follows which pane shows what.
-        publishBackgroundSessions()
+        // Record the binding first, then publish: the background set is derived
+        // from which slot shows what, so publishing before the update leaves the
+        // just-unbound session looking like it is still on screen.
         sessionSlot[slot] = persistentId
         _slotSessionIds.value = sessionSlot.toMap()
+        publishBackgroundSessions()
     }
     private val _sessionCount = MutableStateFlow(0)
     val sessionCountFlow: StateFlow<Int> = _sessionCount.asStateFlow()
@@ -580,7 +582,23 @@ class TerminalManager(
             // growing a detach path for it.
             paneTabIndices[slot] = NO_PANE_SESSION
             setSlotSession(slot, "")
+            publishAltBufferState()
             return true
+        }
+        if (sessionId.isBlank()) {
+            paneTabIndices[slot] = NO_PANE_SESSION
+            setSlotSession(slot, "")
+            publishAltBufferState()
+            return true
+        }
+
+        // One session on one pane at a time. Two views driven by a single
+        // session fight over its scroll position, so binding the same id to a
+        // second pane is refused rather than allowed to corrupt both.
+        val other = PaneSlot.entries.firstOrNull { it != slot }
+        if (other != null) {
+            val otherId = sessionIdForSlot(other) ?: enginePanes[other]?.persistentId
+            if (otherId == sessionId) return false
         }
 
         // The slot shows this session, and the screen is told: the pane is
@@ -601,6 +619,7 @@ class TerminalManager(
         }
 
         paneTabIndices[slot] = getIndexForId(sessionId)
+        publishAltBufferState()
         return true
     }
 
@@ -655,7 +674,41 @@ class TerminalManager(
      * Focus follows the pane the user was looking at, so the swap does not also
      * move the keyboard somewhere they were not.
      */
-    override fun swapPanes(): Boolean = false
+    override fun swapPanes(): Boolean {
+        val primaryId = sessionIdForSlot(PaneSlot.PRIMARY)
+        val secondaryId = sessionIdForSlot(PaneSlot.SECONDARY)
+        if (primaryId.isNullOrEmpty() || secondaryId.isNullOrEmpty()) return false
+        if (primaryId == secondaryId) return false
+
+        // Exchange the bindings. The panes keep their slot; only the session
+        // they show changes, so the views are re-pointed rather than rebuilt.
+        setSlotSession(PaneSlot.PRIMARY, secondaryId)
+        setSlotSession(PaneSlot.SECONDARY, primaryId)
+
+        val primaryPane = enginePanes[PaneSlot.PRIMARY]
+        val secondaryPane = enginePanes[PaneSlot.SECONDARY]
+        liveSessions[secondaryId]?.let { session ->
+            primaryPane?.showSession(session)
+            primaryPane?.bindIdentity(session.persistentId, session.name)
+        }
+        liveSessions[primaryId]?.let { session ->
+            secondaryPane?.showSession(session)
+            secondaryPane?.bindIdentity(session.persistentId, session.name)
+        }
+
+        // Keep the engine session list's pane references honest.
+        engineSessions.find { it.persistentId == primaryId }?.enginePane = secondaryPane
+        engineSessions.find { it.persistentId == secondaryId }?.enginePane = primaryPane
+
+        val primaryIndex = paneTabIndices[PaneSlot.PRIMARY]
+        val secondaryIndex = paneTabIndices[PaneSlot.SECONDARY]
+        paneTabIndices[PaneSlot.PRIMARY] = secondaryIndex
+        paneTabIndices[PaneSlot.SECONDARY] = primaryIndex
+
+        publishAltBufferState()
+        publishActiveId()
+        return true
+    }
 
     /**
      * Puts [sessionId] in the primary pane and [otherId] in the secondary one.
@@ -669,7 +722,36 @@ class TerminalManager(
      * case: a half-applied swap would leave the panes bound to sessions that are
      * not the pair the user chose.
      */
-    override fun setPaneSessions(primaryId: String, secondaryId: String): Boolean = false
+    override fun setPaneSessions(primaryId: String, secondaryId: String): Boolean {
+        if (primaryId.isBlank() || secondaryId.isBlank()) return false
+        if (primaryId == secondaryId) return false
+        // Both must be known sessions; a pane cannot show a session the app
+        // does not have.
+        val primaryKnown = liveSessions.containsKey(primaryId) ||
+            engineSessions.any { it.persistentId == primaryId }
+        val secondaryKnown = liveSessions.containsKey(secondaryId) ||
+            engineSessions.any { it.persistentId == secondaryId }
+        if (!primaryKnown || !secondaryKnown) return false
+
+        // Bind the secondary slot first, so the primary slot's duplicate guard
+        // does not refuse a session the secondary is about to give up.
+        if (!bindPaneToSession(PaneSlot.SECONDARY, secondaryId)) return false
+        if (!bindPaneToSession(PaneSlot.PRIMARY, primaryId)) {
+            // Keep the pair consistent: undo the secondary binding.
+            bindPaneToSession(PaneSlot.SECONDARY, null)
+            return false
+        }
+
+        // The dragged session becomes the active one.
+        if (enginePanes[PaneSlot.PRIMARY] != null) {
+            focusPane(PaneSlot.PRIMARY)
+        } else {
+            _focusedPane.value = PaneSlot.PRIMARY
+        }
+        publishAltBufferState()
+        publishActiveId()
+        return true
+    }
 
     /**
      * Moves the second pane's session into the primary pane.
@@ -683,7 +765,26 @@ class TerminalManager(
      *
      * Returns false, and changes nothing, when the second pane is empty.
      */
-    override fun promoteSecondaryToPrimary(): Boolean = false
+    override fun promoteSecondaryToPrimary(): Boolean {
+        val secondaryId = sessionIdForSlot(PaneSlot.SECONDARY)
+        if (secondaryId.isNullOrEmpty()) return false
+
+        // Move the second pane's session into the primary pane, leaving the
+        // second empty. Clear the secondary slot first so the primary's
+        // duplicate guard does not refuse the move.
+        bindPaneToSession(PaneSlot.SECONDARY, null)
+        if (!bindPaneToSession(PaneSlot.PRIMARY, secondaryId)) return false
+
+        if (enginePanes[PaneSlot.PRIMARY] != null) {
+            focusPane(PaneSlot.PRIMARY)
+        } else {
+            _focusedPane.value = PaneSlot.PRIMARY
+        }
+        publishAltBufferState()
+        publishBackgroundSessions()
+        publishActiveId()
+        return true
+    }
 
     /**
      * Re-attaches whichever pane holds [index] to its current session.
@@ -1664,6 +1765,14 @@ class TerminalManager(
             onSessionExited(pane, code)
         }
 
+        // If no registered pane currently holds the focus (for example after a
+        // rotation, when every pane unregistered and is now coming back), the
+        // first slot to register takes it. Without this the focus would stay on
+        // a slot whose pane no longer exists.
+        if (pane.state == PaneState.RUNNING && enginePanes[_focusedPane.value] == null) {
+            _focusedPane.value = slot
+        }
+
         if (slot == focusedPane.value && pane.state == PaneState.RUNNING) {
             activatePane(pane)
             pane.notifyFocus(true)
@@ -1671,6 +1780,9 @@ class TerminalManager(
                 pane.focus()
             }
         }
+        // A newly registered pane may be running a TUI; refresh the per-pane
+        // alt-buffer answer so the chrome does not read a stale value.
+        publishAltBufferState()
     }
 
     /**
@@ -1718,6 +1830,7 @@ class TerminalManager(
             _isAtLiveEdge.value = true
             _hasScrolled.value = false
         }
+        publishAltBufferState()
         publishActiveId()
     }
 
@@ -1941,6 +2054,15 @@ class TerminalManager(
      */
     fun switchSessionById(persistentId: String) {
         val slot = focusedPane.value
+
+        // A session already on the other pane must not be bound here too: two
+        // views on one session fight over its scroll position. Refuse rather
+        // than create a duplicate binding.
+        val other = PaneSlot.entries.firstOrNull { it != slot }
+        if (other != null) {
+            val otherId = sessionIdForSlot(other) ?: enginePanes[other]?.persistentId
+            if (otherId == persistentId) return
+        }
 
         // The slot points at the session, whether or not it is running: the
         // screen reads this and the host opens the session if it has to. A

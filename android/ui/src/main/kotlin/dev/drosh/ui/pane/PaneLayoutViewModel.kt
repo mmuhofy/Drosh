@@ -40,6 +40,20 @@ class PaneLayoutViewModel @Inject constructor(
     private val _layout = MutableStateFlow(PaneLayout.EMPTY)
 
     /**
+     * A short message to show when a split is refused.
+     *
+     * A refusal is a normal outcome (the session is already on the other
+     * pane), but it has to be visible rather than silent, or the tap looks
+     * like it did nothing.
+     */
+    private val _splitMessage = MutableStateFlow<String?>(null)
+    val splitMessage: StateFlow<String?> = _splitMessage.asStateFlow()
+
+    fun clearSplitMessage() {
+        _splitMessage.value = null
+    }
+
+    /**
      * The live layout.
      *
      * Seeded from storage and then owned locally, so a pane can be dragged
@@ -90,7 +104,10 @@ class PaneLayoutViewModel @Inject constructor(
      */
     fun openSplit(sessionId: String, primarySessionId: String?) {
         if (sessionId.isBlank()) return
-        if (sessionId == panes.primarySessionId()) return
+        if (sessionId == panes.primarySessionId()) {
+            _splitMessage.value = "That session is already on the other pane"
+            return
+        }
         apply(_layout.value.withSecondary(sessionId).docked())
     }
 
@@ -118,7 +135,11 @@ class PaneLayoutViewModel @Inject constructor(
      * then remember that there was a second thing to toggle.
      */
     fun openFloating(sessionId: String, primarySessionId: String?) {
-        if (sessionId.isBlank() || sessionId == primarySessionId) return
+        if (sessionId.isBlank()) return
+        if (sessionId == panes.primarySessionId()) {
+            _splitMessage.value = "That session is already on the other pane"
+            return
+        }
         apply(_layout.value.withSecondary(sessionId).floating())
     }
 
@@ -305,7 +326,10 @@ class PaneLayoutViewModel @Inject constructor(
      */
     fun splitWithPrimary(draggedId: String, targetId: String) {
         if (draggedId.isBlank() || targetId.isBlank() || draggedId == targetId) return
-        if (!panes.setPaneSessions(draggedId, targetId)) return
+        if (!panes.setPaneSessions(draggedId, targetId)) {
+            _splitMessage.value = "One of those sessions is no longer available"
+            return
+        }
         apply(
             _layout.value
                 .withSecondary(targetId)

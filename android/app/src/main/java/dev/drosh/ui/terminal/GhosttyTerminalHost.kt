@@ -129,6 +129,16 @@ fun GhosttyTerminalHost(
 
     val pane = remember { GhosttyTerminal(context) }
 
+    // A tap on this pane moves the app's focus to it. The manager owns which
+    // pane is active, and without this a second pane could never take the
+    // keyboard: nothing else told the manager that the view gained focus.
+    // Set once; the listener reads the current slot through the closure.
+    LaunchedEffect(pane) {
+        pane.view.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) terminalManager.focusPane(paneSlot)
+        }
+    }
+
     // Whether the viewport is at the live edge.
     //
     // The manager follows the scroll and publishes it; the surface asks this
