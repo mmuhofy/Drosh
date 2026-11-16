@@ -107,13 +107,19 @@ internal class FrameRenderer {
     var failure: String? = null
         private set
 
-    private var backgrounds: ByteBuffer = ByteBuffer
-        .allocateDirect(1024)
-        .order(ByteOrder.LITTLE_ENDIAN)
+    /**
+     * The cells of the last frame: the backgrounds and the sprites.
+     *
+     * The storage is per row, so a row that did not change is a run of records
+     * nobody touches — neither built nor uploaded.
+     */
+    private val cells = Cells()
 
-    private var foregrounds: ByteBuffer = ByteBuffer
-        .allocateDirect(1024)
-        .order(ByteOrder.LITTLE_ENDIAN)
+    /** How many bytes the background buffer on the GPU holds. */
+    private var glBackgroundBytes = 0
+
+    /** How many bytes the sprite buffer on the GPU holds. */
+    private var glSpriteBytes = 0
 
     /**
      * Create the GL resources. Called once, on the loop thread, after the
@@ -289,16 +295,24 @@ internal class FrameRenderer {
         // Decided once, before either pass reads it: the block cursor inverts
         // exactly one cell, and both the background and the glyph of that cell
         // have to know which one.
+        //
+        // The cell the cursor was on in the last frame matters too: it was
+        // drawn inverted, so it has to be drawn again as it was.
+        val previousInverted = invertedCell
         invertedCell = blockCursorCell(frame)
 
-        // The backgrounds are built here, once, and drawn by the pass below.
-        // Building them in the pass would work too, but a buffer that nobody
+        // Which rows have to be drawn again.
+        val dirty = dirtyRows(frame, previousInverted)
+
+        // The cells are built here, once, and drawn by the passes below.
+        // Building them in the passes would work too, but a buffer that nobody
         // fills is a pass that draws whatever was left in it — which is how the
         // coloured bars of a full-screen program went missing while the text
         // kept rendering.
         measureSelection(frame, size)
-        buildBackgrounds(frame, size)
-        val foregroundCount = buildForegrounds(frame)
+        cells.resize(frame)
+        buildBackgrounds(frame, dirty)
+        val foregroundCount = buildForegrounds(frame, dirty)
 
         val buildEnd = System.nanoTime()
 
@@ -317,7 +331,7 @@ internal class FrameRenderer {
         if (atlas.dirty) {
             if (uploadAtlas()) atlasUploads += 1
         }
-        uploadBackgrounds(frame)
+        uploadBackgrounds(frame, dirty)
         uploadForegrounds()
 
         val uploadEnd = System.nanoTime()
@@ -355,61 +369,93 @@ internal class FrameRenderer {
      * The row is signed because the frame's overscan rows sit above the
      * viewport; the shader reinterprets the top half of the unsigned range.
      */
-    private fun buildBackgrounds(frame: Frame, size: SizeInfo) {
-        val bytes = frame.cellCount * BACKGROUND_BYTES
-        if (backgrounds.capacity() < bytes) {
-            backgrounds = ByteBuffer.allocateDirect(bytes).order(ByteOrder.LITTLE_ENDIAN)
+    /**
+     * Build the backgrounds of the rows that changed.
+     *
+     * The rows are the frame's captured rows: the first one is the overscan
+     * row above the viewport, and the record of a cell is its row times the
+     * columns plus its column. Nothing here translates a viewport row into a
+     * captured one, because that translation is where a background ends up
+     * drawn one row from the cells it belongs to.
+     */
+    private fun buildBackgrounds(frame: Frame, dirty: BooleanArray) {
+        for (row in 0 until frame.rowCount) {
+            if (!dirty[row]) continue
+            cells.buildBackgroundRow(
+                frame = frame,
+                row = row,
+                colour = { index -> backgroundColour(frame, index) },
+                underline = { index ->
+                    if (frame.attributes(index) and FrameFormat.ATTR_UNDERLINE_MASK != 0) {
+                        foregroundOf(frame, index)
+                    } else {
+                        Cells.TRANSPARENT
+                    }
+                },
+            )
         }
-
-        backgrounds.clear()
-        for (index in 0 until frame.cellCount) {
-            // The row the engine says this cell belongs to.
-            val row = index / frame.columns + frame.firstRowY
-            backgrounds.putShort((index % frame.columns).toShort())
-            backgrounds.putShort(row.toShort())
-            // A search match is a tint over the cell's own background.
-            val background = backgroundOf(frame, index)
-            val painted = when {
-                frame.isHighlighted(index) -> {
-                    val alpha = HIGHLIGHT_TINT
-                    val r = FrameFormat.red(background) / 255f
-                    val g = FrameFormat.green(background) / 255f
-                    val b = FrameFormat.blue(background) / 255f
-                    val mixed = (r * (1f - alpha) + highlightR * alpha) * 255f
-                    val mixedG = (g * (1f - alpha) + highlightG * alpha) * 255f
-                    val mixedB = (b * (1f - alpha) + highlightB * alpha) * 255f
-                    (0xff shl 24) or
-                        (mixed.toInt().coerceIn(0, 255) shl 16) or
-                        (mixedG.toInt().coerceIn(0, 255) shl 8) or
-                        mixedB.toInt().coerceIn(0, 255)
-                }
-                frame.isHighlightedAll(index) -> {
-                    val alpha = HIGHLIGHT_ALL_TINT
-                    val r = FrameFormat.red(background) / 255f
-                    val g = FrameFormat.green(background) / 255f
-                    val b = FrameFormat.blue(background) / 255f
-                    val mixed = (r * (1f - alpha) + highlightAllR * alpha) * 255f
-                    val mixedG = (g * (1f - alpha) + highlightAllG * alpha) * 255f
-                    val mixedB = (b * (1f - alpha) + highlightAllB * alpha) * 255f
-                    (0xff shl 24) or
-                        (mixed.toInt().coerceIn(0, 255) shl 16) or
-                        (mixedG.toInt().coerceIn(0, 255) shl 8) or
-                        mixedB.toInt().coerceIn(0, 255)
-                }
-                else -> background
-            }
-            putColor(backgrounds, painted)
-            // The underline, if the cell has one. A cell with no underline
-            // carries a transparent colour and nothing is drawn.
-            val underline = if (frame.attributes(index) and FrameFormat.ATTR_UNDERLINE_MASK != 0) {
-                foregroundOf(frame, index)
-            } else {
-                TRANSPARENT
-            }
-            putColor(backgrounds, underline)
-        }
-        backgrounds.flip()
     }
+
+    /** The colour a cell's own background is painted with. */
+    private fun backgroundColour(frame: Frame, index: Int): Int {
+        val background = backgroundOf(frame, index)
+        return when {
+            frame.isHighlighted(index) -> mix(background, highlightR, highlightG, highlightB, HIGHLIGHT_TINT)
+            frame.isHighlightedAll(index) ->
+                mix(background, highlightAllR, highlightAllG, highlightAllB, HIGHLIGHT_ALL_TINT)
+            else -> background
+        }
+    }
+
+    /** A cell's colour, tinted with a highlight. */
+    private fun mix(background: Int, r: Float, g: Float, b: Float, alpha: Float): Int {
+        val br = FrameFormat.red(background) / 255f
+        val bg = FrameFormat.green(background) / 255f
+        val bb = FrameFormat.blue(background) / 255f
+        val mixed = (br * (1f - alpha) + r * alpha) * 255f
+        val mixedG = (bg * (1f - alpha) + g * alpha) * 255f
+        val mixedB = (bb * (1f - alpha) + b * alpha) * 255f
+        return (0xff shl 24) or
+            (mixed.toInt().coerceIn(0, 255) shl 16) or
+            (mixedG.toInt().coerceIn(0, 255) shl 8) or
+            mixedB.toInt().coerceIn(0, 255)
+    }
+
+    /**
+     * The rows that have to be drawn again, as the frame's captured rows.
+     *
+     * The engine's own dirty state says which of its rows changed, and the
+     * frame carries that answer. The app's markings — the search's highlight,
+     * the user's selection — are in it too, because the app marks those rows
+     * dirty on the engine's side.
+     *
+     * The cursor is the app's: a block cursor inverts a cell's colours, so the
+     * cell it was on and the cell it is on now both have to be drawn again.
+     */
+    private fun dirtyRows(frame: Frame, previousInverted: Int): BooleanArray {
+        if (dirtyRowFlags.size < frame.rowCount) {
+            dirtyRowFlags = BooleanArray(frame.rowCount)
+        }
+        val dirty = dirtyRowFlags
+        for (row in 0 until frame.rowCount) {
+            dirty[row] = frame.isRowDirty(row)
+        }
+        markCursorRow(dirty, frame, previousInverted)
+        markCursorRow(dirty, frame, invertedCell)
+        return dirty
+    }
+
+    /** The row a cell is on, marked as needing to be drawn again. */
+    private fun markCursorRow(dirty: BooleanArray, frame: Frame, cell: Int) {
+        if (cell < 0 || frame.columns <= 0) return
+        val row = cell / frame.columns
+        if (row in 0 until frame.rowCount) {
+            dirty[row] = true
+        }
+    }
+
+    /** The rows that have to be drawn again, reused from frame to frame. */
+    private var dirtyRowFlags = BooleanArray(0)
 
     /**
      * The bar and underline cursors.
@@ -1005,56 +1051,63 @@ internal class FrameRenderer {
     private fun foregroundOf(frame: Frame, index: Int): Int =
         if (index == invertedCell) frame.background(index) else frame.foreground(index)
 
-    private fun buildForegrounds(frame: Frame): Int {
-        val bytes = frame.cellCount * RECORD_BYTES
-        if (foregrounds.capacity() < bytes) {
-            foregrounds = ByteBuffer.allocateDirect(bytes).order(ByteOrder.LITTLE_ENDIAN)
+    /**
+     * Build the sprites of the rows from the first changed one.
+     *
+     * A row's sprites are packed behind the rows before it, so a row that
+     * changed size moves every sprite after it. The rows from the first
+     * changed one are therefore built again; the rows before it are where they
+     * were and are left alone.
+     *
+     * @return how many sprites the buffer holds.
+     */
+    private fun buildForegrounds(frame: Frame, dirty: BooleanArray): Int {
+        var first = frame.rowCount
+        for (row in 0 until frame.rowCount) {
+            if (dirty[row]) {
+                first = row
+                break
+            }
         }
-
-        foregrounds.clear()
-        var written = 0
-
-        for (index in 0 until frame.cellCount) {
+        cells.buildSprites(frame, first) { buffer, index, column, gridRow ->
             val codepoint = frame.codepoint(index)
-            if (codepoint == 0 || codepoint == ' '.code) continue
-
-            val attributes = frame.attributes(index)
-            val isBold = attributes and FrameFormat.ATTR_BOLD != 0
-            val entry = atlas.glyph(codepoint, isBold, rasterPx) ?: continue
-            if (entry.isBlank) continue
-
-            val row = index / frame.columns + frame.firstRowY
-            val column = index % frame.columns
-            val span = if (frame.width(index) == 2) 2 else 1
-
-            foregrounds.putShort(entry.x.toShort())
-            foregrounds.putShort(entry.y.toShort())
-            foregrounds.putShort(entry.width.toShort())
-            foregrounds.putShort(entry.height.toShort())
-            foregrounds.putShort(entry.left.toShort())
-            // The mask's line box, centred in the cell it is drawn in.
-            //
-            // The cell is the font's line box, so the two have the same height
-            // and the remainder is zero — almost. The atlas rasterises a mask in
-            // whole rows (`ceil`) at a size that may be supersampled, while the
-            // cell is a measured float, so the mask can end up a pixel taller
-            // than its cell. Ghostty puts exactly that remainder half above and
-            // half below the face (font/Metrics.zig derives `cell_baseline` from
-            // `(cell_height - face_height) / 2`), so a glyph never sits a whole
-            // pixel low in its cell. Both terms are in the mask's own pixels,
-            // which is the unit the shader divides by `uAtlasScale`.
-            val lineBox = cellHeight * atlas.scale - entry.height
-            foregrounds.putShort((entry.top + lineBox / 2f).toInt().toShort())
-            foregrounds.putShort(column.toShort())
-            foregrounds.putShort(row.toShort())
-            putColor(foregrounds, foregroundOf(frame, index))
-            foregrounds.putShort(FLAG_NONE.toShort())
-            foregrounds.putShort(span.toShort())
-            written += 1
+            if (codepoint == 0 || codepoint == ' '.code) {
+                false
+            } else {
+                val attributes = frame.attributes(index)
+                val bold = attributes and FrameFormat.ATTR_BOLD != 0
+                val entry = atlas.glyph(codepoint, bold, rasterPx)
+                if (entry == null || entry.isBlank) {
+                    false
+                } else {
+                    // The mask's line box, centred in the cell it is drawn in.
+                    //
+                    // The cell is the font's line box, so the two have the
+                    // same height and the remainder is zero — almost. The atlas
+                    // rasterises a mask in whole rows (`ceil`) at a size that
+                    // may be supersampled, while the cell is a measured float,
+                    // so the mask can end up a pixel taller than its cell.
+                    // Ghostty puts exactly that remainder half above and half
+                    // below the face (font/Metrics.zig derives `cell_baseline`
+                    // from `(cell_height - face_height) / 2`), so a glyph never
+                    // sits a whole pixel low in its cell.
+                    val lineBox = cellHeight * atlas.scale - entry.height
+                    buffer.putShort(entry.x.toShort())
+                    buffer.putShort(entry.y.toShort())
+                    buffer.putShort(entry.width.toShort())
+                    buffer.putShort(entry.height.toShort())
+                    buffer.putShort(entry.left.toShort())
+                    buffer.putShort((entry.top + lineBox / 2f).toInt().toShort())
+                    buffer.putShort(column.toShort())
+                    buffer.putShort(gridRow.toShort())
+                    putColor(buffer, foregroundOf(frame, index))
+                    buffer.putShort(FLAG_NONE.toShort())
+                    buffer.putShort((if (frame.width(index) == 2) 2 else 1).toShort())
+                    true
+                }
+            }
         }
-        foregrounds.flip()
-
-        return written
+        return cells.spriteCount
     }
 
     // --- drawing -----------------------------------------------------------
@@ -1071,17 +1124,18 @@ internal class FrameRenderer {
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundBuffer)
 
+        val stride = Cells.BACKGROUND_BYTES
         GLES30.glEnableVertexAttribArray(0)
-        GLES30.glVertexAttribIPointer(0, 2, GLES30.GL_UNSIGNED_SHORT, BACKGROUND_BYTES, 0)
+        GLES30.glVertexAttribIPointer(0, 2, GLES30.GL_UNSIGNED_SHORT, stride, 0)
         GLES30.glVertexAttribDivisor(0, 1)
 
         GLES30.glEnableVertexAttribArray(1)
-        GLES30.glVertexAttribPointer(1, 4, GLES30.GL_UNSIGNED_BYTE, true, BACKGROUND_BYTES, 4)
+        GLES30.glVertexAttribPointer(1, 4, GLES30.GL_UNSIGNED_BYTE, true, stride, 4)
         GLES30.glVertexAttribDivisor(1, 1)
 
         // The underline's colour: transparent when the cell has none.
         GLES30.glEnableVertexAttribArray(2)
-        GLES30.glVertexAttribPointer(2, 4, GLES30.GL_UNSIGNED_BYTE, true, BACKGROUND_BYTES, 8)
+        GLES30.glVertexAttribPointer(2, 4, GLES30.GL_UNSIGNED_BYTE, true, stride, 8)
         GLES30.glVertexAttribDivisor(2, 1)
 
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, frame.cellCount)
@@ -1089,25 +1143,49 @@ internal class FrameRenderer {
     }
 
     /**
-     * Hand the background vertices to the GPU.
+     * Hand the changed rows of the background to the GPU.
      *
-     * The upload is separate from the draw so the two can be measured apart:
-     * the bytes that cross to the GPU and the calls that draw them are
-     * different costs, and a change to one is invisible in the other's number.
+     * The buffer on the GPU is the same one from frame to frame, and the rows
+     * that did not change are already on it. The rows that did are written
+     * over the top of them — but the whole buffer has to be allocated on the
+     * GPU first, and again whenever the grid changes shape, because a
+     * sub-update has nowhere to write into a buffer that was never sized.
      */
-    private fun uploadBackgrounds(frame: Frame) {
+    private fun uploadBackgrounds(frame: Frame, dirty: BooleanArray) {
         if (frame.cellCount == 0) return
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundBuffer)
-        // `remaining()`, not `capacity()`: the buffer was flipped, so its limit
-        // is what was written and its position is zero. Handing GL the capacity
-        // asks it to read past the data, which is the IllegalArgumentException
-        // that killed the loop.
-        GLES20.glBufferData(
-            GLES20.GL_ARRAY_BUFFER,
-            backgrounds.remaining(),
-            backgrounds,
-            GLES20.GL_DYNAMIC_DRAW,
-        )
+        val buffer = cells.backgrounds
+        val bytes = buffer.capacity()
+
+        if (glBackgroundBytes != bytes) {
+            // The first frame, or a grid the GPU has not seen before: the
+            // whole buffer goes up.
+            glBackgroundBytes = bytes
+            buffer.position(0)
+            buffer.limit(bytes)
+            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, bytes, buffer, GLES20.GL_DYNAMIC_DRAW)
+            return
+        }
+
+        // Only the rows that changed, in runs of neighbouring rows.
+        var row = 0
+        while (row < frame.rowCount) {
+            if (!dirty[row]) {
+                row += 1
+                continue
+            }
+            val from = row
+            while (row < frame.rowCount && dirty[row]) {
+                row += 1
+            }
+            val offset = from * frame.columns * Cells.BACKGROUND_BYTES
+            val size = (row - from) * frame.columns * Cells.BACKGROUND_BYTES
+            buffer.position(offset)
+            buffer.limit(offset + size)
+            GLES20.glBufferSubData(GLES20.GL_ARRAY_BUFFER, offset, size, buffer)
+        }
+        buffer.position(0)
+        buffer.limit(bytes)
     }
 
     private fun drawForegrounds(frame: Frame, size: SizeInfo, count: Int): Int {
@@ -1132,7 +1210,7 @@ internal class FrameRenderer {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundBuffer)
 
         // atlasRect, glyphSize, offset, gridPos, colour, flags, span
-        val stride = RECORD_BYTES
+        val stride = Cells.SPRITE_BYTES
         GLES30.glEnableVertexAttribArray(0)
         GLES30.glVertexAttribIPointer(0, 2, GLES30.GL_UNSIGNED_SHORT, stride, 0)
         GLES30.glEnableVertexAttribArray(1)
@@ -1157,25 +1235,38 @@ internal class FrameRenderer {
     }
 
     /**
-     * Hand the glyph vertices to the GPU.
+     * Hand the sprites to the GPU, from the first row that changed.
      *
-     * Separate from the draw for the same reason as the backgrounds: the bytes
-     * and the calls are different costs.
+     * A row's sprites move when the row above it changes size, so the rows
+     * after the first changed one are written again as well. The sprites
+     * before it are where they were, and the GPU has them.
      */
     private fun uploadForegrounds() {
+        if (!cells.spritesRebuilt) return
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundBuffer)
-        GLES20.glBufferData(
-            GLES20.GL_ARRAY_BUFFER,
-            foregrounds.remaining(),
-            foregrounds,
-            GLES20.GL_DYNAMIC_DRAW,
-        )
+        val buffer = cells.sprites
+        val bytes = buffer.capacity()
+
+        if (glSpriteBytes != bytes) {
+            glSpriteBytes = bytes
+            buffer.position(0)
+            buffer.limit(bytes)
+            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, bytes, buffer, GLES20.GL_DYNAMIC_DRAW)
+            return
+        }
+
+        val offset = cells.spriteUploadStart()
+        val size = cells.spriteCount * Cells.SPRITE_BYTES - offset
+        if (size <= 0) return
+        buffer.position(offset)
+        buffer.limit(offset + size)
+        GLES20.glBufferSubData(GLES20.GL_ARRAY_BUFFER, offset, size, buffer)
+        buffer.position(0)
+        buffer.limit(bytes)
     }
 
-    // --- GL helpers --------------------------------------------------------
-
     /**
-     * Upload the rows that changed, not the whole atlas.
+     * Upload the atlas rows that changed.
      *
      * The atlas is 2048x2048 — four megabytes. Uploading all of it on every
      * frame it changed is four megabytes a frame, and a pinch changes it on
@@ -1332,13 +1423,6 @@ internal class FrameRenderer {
     private companion object {
         const val TAG = "FrameRenderer"
 
-        /** `u16 column, i16 row, vec4 colour`. */
-        /** The background record: the cell's position, its colour, its underline. */
-        const val BACKGROUND_BYTES = 12
-
-        /** A colour that draws nothing. */
-        const val TRANSPARENT = 0
-
         /** A picture under the cell backgrounds. */
         const val LAYER_BELOW_BACKGROUND = 0
 
@@ -1368,12 +1452,6 @@ internal class FrameRenderer {
 
         /** An underline cursor's height, as a fraction of a cell. */
         const val UNDERLINE_HEIGHT = 0.1f
-
-        /**
-         * `u16×2 atlasRect, u16×2 glyphSize, i16×2 offset, u16×2 gridPos,
-         * vec4 colour, u16 flags, u16 span`.
-         */
-        const val RECORD_BYTES = 24
 
         const val FLAG_NONE = 0
 
