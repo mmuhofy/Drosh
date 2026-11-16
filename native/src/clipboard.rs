@@ -119,31 +119,50 @@ unsafe fn representation(write: &ghostty::GhosttyClipboardWrite) -> Option<Strin
 
     let entries = std::slice::from_raw_parts(write.contents, write.contents_len);
 
-    // The first entry is remembered, not used: a producer that offers
-    // `text/plain` alongside something else may order either way, and the text
-    // is the representation a terminal's clipboard can hold.
-    let mut fallback: Option<&ghostty::GhosttyClipboardContent> = None;
+    // A terminal's clipboard holds text, so only text/* representations are
+    // accepted; a write that offers only something else (an image, say) is
+    // refused rather than coerced into a string. A producer that offers
+    // `text/plain` alongside something else may order either way, so every
+    // entry is checked before giving up.
     for entry in entries {
         if is_text(&entry.mime) {
             if let Some(text) = text_of(&entry.data) {
                 return Some(text);
             }
         }
-        if fallback.is_none() {
-            fallback = Some(entry);
-        }
     }
-    fallback.and_then(|entry| text_of(&entry.data))
+    None
 }
 
 /// True when a representation's MIME type names text.
+///
+/// MIME types may carry parameters (`text/plain;charset=utf-8`), so the
+/// parameters are stripped before the type name is compared: a program that
+/// declares its charset must still be recognised as text. The comparison is
+/// case-insensitive, as MIME types are.
 fn is_text(mime: &ghostty::GhosttyString) -> bool {
-    if mime.ptr.is_null() {
+    if mime.ptr.is_null() || mime.len == 0 {
         return false;
     }
     let bytes = unsafe { std::slice::from_raw_parts(mime.ptr, mime.len) };
-    bytes.eq_ignore_ascii_case(b"text/plain")
-        || (bytes.len() >= b"text/".len() && bytes[..b"text/".len()].eq_ignore_ascii_case(b"text/"))
+    // Drop anything after the first ';': that is the parameter list, not the
+    // type name.
+    let semicolon = bytes.iter().position(|&b| b == b';').unwrap_or(bytes.len());
+    let mut type_name = &bytes[..semicolon];
+    // Trim surrounding whitespace, which a hand-written parameter list may
+    // carry (`text/plain ; charset=utf-8`).
+    while type_name.first() == Some(&b' ') || type_name.first() == Some(&b'\t') {
+        type_name = &type_name[1..];
+    }
+    while type_name.last() == Some(&b' ') || type_name.last() == Some(&b'\t') {
+        type_name = &type_name[..type_name.len() - 1];
+    }
+    if type_name.is_empty() {
+        return false;
+    }
+    type_name.eq_ignore_ascii_case(b"text/plain")
+        || (type_name.len() >= b"text/".len()
+            && type_name[..b"text/".len()].eq_ignore_ascii_case(b"text/"))
 }
 
 /// A representation's bytes as text, lossily. None when it is empty.
