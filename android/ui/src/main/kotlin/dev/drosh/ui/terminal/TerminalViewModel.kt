@@ -161,7 +161,7 @@ class TerminalViewModel @Inject constructor(
      * the app and the engine have to agree on it.
      */
     val allowClipboardWrites: StateFlow<Boolean> = settingsRepository.allowClipboardWrites
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _fontSizeSp = MutableStateFlow(TerminalZoom.DEFAULT_SP)
     val fontSizeSp: StateFlow<Float> = _fontSizeSp.asStateFlow()

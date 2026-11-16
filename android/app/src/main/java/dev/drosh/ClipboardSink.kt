@@ -23,10 +23,9 @@ import android.util.Log
  * A clipboard write is the one escape sequence that reaches *outside* the
  * terminal: a program behind an `ssh` connection, or a `cat` of a file
  * somebody else wrote, could otherwise replace what the user next pastes. So
- * the default is to refuse, and [allowWrites] is the gate the app would open
- * if — and only if — the user asked for it. There is no setting for it yet, so
- * it stays closed; the mechanism is here so the day the setting exists, nothing
- * in the native half has to change.
+ * the default is to refuse, and [allowWrites] is the gate the app opens only
+ * when the user has enabled "clipboard writes" in Settings. The setting lives
+ * in `DroshSettings.input.allowClipboardWrites`.
  *
  * The engine's own reply is synchronous, so [write] answers before the posted
  * write lands. That is the design the engine's callback expects — the VT stream
@@ -49,9 +48,10 @@ object ClipboardSink {
     /**
      * Whether a program may write the clipboard.
      *
-     * Off, and off is the answer this build gives: there is no OSC 52 setting
-     * to read, and writing a program's choice over the user's clipboard without
-     * one is the wrong default. A future settings surface turns this on.
+     * Off by default: a program may not replace the clipboard unless the user
+     * has asked for it (see `DroshSettings.input.allowClipboardWrites`). A
+     * `@Volatile` gate read on the PTY reader thread, where the engine's
+     * callback runs.
      */
     @Volatile
     var allowWrites: Boolean = false
