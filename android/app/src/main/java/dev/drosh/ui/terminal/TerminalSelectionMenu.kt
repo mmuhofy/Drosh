@@ -27,7 +27,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import dev.drosh.theme.DroshOutline
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
