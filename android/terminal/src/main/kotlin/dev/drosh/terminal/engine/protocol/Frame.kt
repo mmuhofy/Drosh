@@ -131,6 +131,30 @@ class Frame private constructor(
     fun hasGrapheme(index: Int): Boolean =
         flags(index) and FrameFormat.CELL_FLAG_GRAPHEME != 0
 
+    /**
+     * Whether the captured row at [index] changed.
+     *
+     * The engine knows which of its rows changed, and the frame carries that
+     * answer as a bitmap: one bit per captured row, in the order the rows
+     * were captured. A row that did not change can be kept as it is instead
+     * of being drawn again — and its cells are already in the frame, because
+     * the frame's buffer is reused from frame to frame.
+     */
+    fun isRowDirty(index: Int): Boolean {
+        if (index < 0 || index >= rowCount) return false
+        val byte = buffer.get(FrameFormat.OFFSET_DIRTY_ROWS + index / 8).toInt()
+        return (byte and (1 shl (index % 8))) != 0
+    }
+
+    /**
+     * Whether the viewport row at [row] changed.
+     *
+     * The bitmap is over the captured rows, and the captured rows start with
+     * the overscan above the viewport — so the viewport's row is that many
+     * captured rows further down.
+     */
+    fun isViewportRowDirty(row: Int): Boolean = isRowDirty(row + overscanAbove)
+
     private fun offsetOf(index: Int): Int {
         require(index in 0 until cellCount) { "cell $index outside 0 until $cellCount" }
         return FrameFormat.HEADER_BYTES + index * cellStride

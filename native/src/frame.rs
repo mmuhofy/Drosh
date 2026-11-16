@@ -6,7 +6,7 @@
 //! header and the cells are one snapshot.
 //!
 //! ```text
-//! header (48 bytes, little-endian)
+//! header (80 bytes, little-endian)
 //!   0  u32  magic          'DRSH'
 //!   4  u16  version
 //!   6  u16  header_bytes
@@ -26,6 +26,7 @@
 //!  40  u32  cells_bytes
 //!  44  u32  cursor_color  R,G,B,A little-endian
 //!  46  i16  first_row_y   the first captured row's viewport row
+//!  48  u8x32 dirty_rows   one bit per captured row: the row changed
 //! ```
 //!
 //! Cells follow: `cell_count` records of `cell_stride` bytes, row-major.
@@ -61,10 +62,17 @@ macro_rules! render_get {
 
 
 pub const MAGIC: u32 = 0x4853_5244; // 'DRSH' little-endian
-pub const VERSION: u16 = 1;
+pub const VERSION: u16 = 2;
 
-pub const HEADER_BYTES: usize = 48;
+pub const HEADER_BYTES: usize = 80;
 pub const CELL_BYTES: usize = 20;
+
+/// How many rows the dirty bitmap can name.
+///
+/// One bit per captured row, so a bitmap of thirty-two bytes covers a screen
+/// of two hundred and fifty rows — more than any phone shows, even on a
+/// desktop with the keyboard open.
+pub const DIRTY_ROW_BYTES: usize = 32;
 
 pub const ATTR_BOLD: u32 = 1 << 0;
 pub const ATTR_ITALIC: u32 = 1 << 1;
@@ -157,6 +165,15 @@ pub struct FrameSource {
     rows: u16,
     /// The overscan rows above the viewport, as the last frame saw them.
     overscan_above: u16,
+    /// The rows the app changed itself, as the last frame saw them.
+    ///
+    /// The engine knows which of *its* rows changed. The app has markings of
+    /// its own — the search's highlight, the range the user's selection
+    /// covers — and the engine does not know about them, so the rows they
+    /// touch are dirty even when the engine says the screen did not change.
+    ///
+    /// The marks are consumed by the frame that carries them.
+    app_dirty_rows: Vec<bool>,
 }
 
 impl FrameSource {
@@ -214,6 +231,7 @@ impl FrameSource {
             highlight: None,
             highlights: Vec::new(),
             app_selection: None,
+            app_dirty_rows: Vec::new(),
             image_cache: std::collections::HashMap::new(),
         })
     }
@@ -331,8 +349,26 @@ impl FrameSource {
             self.overscan_above = overscan.above;
 
             let needed = HEADER_BYTES + cell_count as usize * CELL_BYTES;
-            self.buffer.clear();
-            self.buffer.resize(needed, 0);
+
+            // The engine's own answer to "did anything change".
+            //
+            // A full dirty means every row changed: the screen was resized,
+            // the program redrew all of it, or the viewport moved. A partial
+            // one means some rows changed and the rest are as they were — and
+            // the rest are *in the buffer already*, because the buffer is
+            // reused from frame to frame.
+            let mut dirty = ghostty::GHOSTTY_RENDER_STATE_DIRTY_FALSE;
+            render_get!(self.state, ghostty::GHOSTTY_RENDER_STATE_DATA_DIRTY, &mut dirty);
+            let mut full = dirty == ghostty::GHOSTTY_RENDER_STATE_DIRTY_FULL;
+
+            // The buffer is reused, so a row that did not change keeps the
+            // cells it had. A different size means the grid changed shape, and
+            // then every cell is new.
+            if self.buffer.len() != needed {
+                self.buffer.clear();
+                self.buffer.resize(needed, 0);
+                full = true;
+            }
 
             self.sequence = self.sequence.wrapping_add(1);
             self.write_header(cols, rows, row_count, overscan, cell_count);
@@ -363,27 +399,80 @@ impl FrameSource {
             // answer instead of a guess.
             let mut first_row_y: i16 = 0;
             let mut seen_first_row = false;
+
+            // Which rows changed, as the frame carries it.
+            //
+            // The bitmap is the frame's own: one bit per captured row, in the
+            // order the rows were captured. The renderer reads it to know what
+            // it may keep and what it has to draw again.
+            let mut row_flags = [0u8; DIRTY_ROW_BYTES];
+            let mut row_index: usize = 0;
+
             while index < cell_count {
                 if !ghostty::ghostty_render_state_row_iterator_next(self.iterator) {
                     break;
                 }
+
+                // The row's place in the viewport.
+                //
+                // The engine's own answer, for every row: the app's marks
+                // are in the viewport's rows, so a row has to know which one it
+                // is to be matched against them.
+                let mut y: i32 = 0;
+                let _ = ghostty::ghostty_render_state_row_get(
+                    self.iterator,
+                    ghostty::GHOSTTY_RENDER_STATE_ROW_DATA_VIEWPORT_Y,
+                    &mut y as *mut i32 as *mut c_void,
+                );
+                if !seen_first_row {
+                    first_row_y = y as i16;
+                    seen_first_row = true;
+                }
+
+                // Did this row change?
+                //
+                // The engine knows: it tracks the dirty state of every row of
+                // the screen, and a row that did not change has the cells it
+                // had in the last frame — which are still in the buffer.
+                //
+                // The app's own markings count too: the search's highlight and
+                // the user's selection are the app's, and the engine does not
+                // know about them.
+                let mut engine_dirty = false;
+                let _ = ghostty::ghostty_render_state_row_get(
+                    self.iterator,
+                    ghostty::GHOSTTY_RENDER_STATE_ROW_DATA_DIRTY,
+                    &mut engine_dirty as *mut bool as *mut c_void,
+                );
+                let app_dirty = self
+                    .app_dirty_rows
+                    .get(y.max(0) as usize)
+                    .copied()
+                    .unwrap_or(false);
+                let changed = full || engine_dirty || app_dirty;
+                if row_index < DIRTY_ROW_BYTES * 8 {
+                    if changed {
+                        row_flags[row_index / 8] |= 1u8 << (row_index % 8);
+                    }
+                }
+
+                if !changed {
+                    // The row did not change: its cells are the ones the last
+                    // frame left in the buffer, and they are still right.
+                    index += u32::from(cols);
+                    row_index += 1;
+                    continue;
+                }
+
+                // The row's cells, and the cell container that reads them.
                 if !ghostty::ok(ghostty::ghostty_render_state_row_get(
                     self.iterator,
                     ghostty::GHOSTTY_RENDER_STATE_ROW_DATA_CELLS,
                     &mut self.cells as *mut _ as *mut c_void,
                 )) {
+                    index += u32::from(cols);
+                    row_index += 1;
                     continue;
-                }
-
-                if !seen_first_row {
-                    let mut y: i32 = 0;
-                    let _ = ghostty::ghostty_render_state_row_get(
-                        self.iterator,
-                        ghostty::GHOSTTY_RENDER_STATE_ROW_DATA_VIEWPORT_Y,
-                        &mut y as *mut i32 as *mut c_void,
-                    );
-                    first_row_y = y as i16;
-                    seen_first_row = true;
                 }
 
                 for column in 0..cols {
@@ -391,7 +480,26 @@ impl FrameSource {
                     self.write_cell(at, column);
                     index += 1;
                 }
+                row_index += 1;
             }
+
+            // The app's marks are consumed: the rows they named are in this
+            // frame now.
+            self.app_dirty_rows.clear();
+
+            // The bitmap goes into the header, so the renderer can see which
+            // rows it may keep.
+            for (index, byte) in row_flags.iter().enumerate() {
+                self.buffer[48 + index] = *byte;
+            }
+
+            // The render state's own dirty state is consumed.
+            //
+            // The frame carries the answer now, in its header. Leaving the
+            // render state dirty would make every following frame a full
+            // rebuild — the engine would keep saying "everything changed"
+            // because nobody ever told it that the change was taken.
+            ghostty::ghostty_render_state_clean(self.state);
 
             // The first row's place is written last: it is only known once the
             // rows have been visited.
@@ -405,7 +513,26 @@ impl FrameSource {
 
     /// The cells the user's selection covers, or none.
     pub fn set_app_selection(&mut self, range: Option<(u16, u16, u16)>) {
+        if let Some((row, _, _)) = self.app_selection {
+            self.mark_row_dirty(row);
+        }
+        if let Some((row, _, _)) = range {
+            self.mark_row_dirty(row);
+        }
         self.app_selection = range;
+    }
+
+    /// Mark a viewport row as changed by the app.
+    ///
+    /// The engine tracks the dirty state of its own rows; the app's markings
+    /// — the search's highlight, the user's selection — are the app's, and
+    /// the rows they cover have to be drawn again.
+    fn mark_row_dirty(&mut self, row: u16) {
+        let index = row as usize;
+        if self.app_dirty_rows.len() <= index {
+            self.app_dirty_rows.resize(index + 1, false);
+        }
+        self.app_dirty_rows[index] = true;
     }
 
     /// Highlight a range of cells, or none.
@@ -413,7 +540,16 @@ impl FrameSource {
     /// The range is in viewport rows: the find bar scrolls the viewport to the
     /// match, and a range in the scrollback's coordinates would be a different
     /// place by the time it is drawn.
+    ///
+    /// The rows the range covers are marked dirty: the highlight is the app's
+    /// own, and the engine does not know that those rows changed.
     pub fn set_highlight(&mut self, range: Option<(u16, u16, u16)>) {
+        if let Some((row, _, _)) = self.highlight {
+            self.mark_row_dirty(row);
+        }
+        if let Some((row, _, _)) = range {
+            self.mark_row_dirty(row);
+        }
         self.highlight = range;
     }
 
@@ -423,11 +559,24 @@ impl FrameSource {
     /// speaks: the find bar converts the scan's grid rows with the viewport's
     /// first row. An empty list clears the marking.
     pub fn set_highlights(&mut self, ranges: Vec<(u16, u16, u16)>) {
+        // The rows are collected first: marking one needs the frame source,
+        // and the list being marked is borrowed from it.
+        let old: Vec<u16> = self.highlights.iter().map(|(row, _, _)| *row).collect();
+        for row in old {
+            self.mark_row_dirty(row);
+        }
+        for (row, _, _) in &ranges {
+            self.mark_row_dirty(*row);
+        }
         self.highlights = ranges;
     }
 
     /// Draw no all-matches highlight; the active one is untouched.
     pub fn clear_highlights(&mut self) {
+        let old: Vec<u16> = self.highlights.iter().map(|(row, _, _)| *row).collect();
+        for row in old {
+            self.mark_row_dirty(row);
+        }
         self.highlights.clear();
     }
 

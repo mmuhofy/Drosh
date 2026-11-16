@@ -95,6 +95,12 @@ pub const GHOSTTY_RENDER_STATE_OPTION_OVERSCAN: GhosttyRenderStateOption =
 
 pub const GHOSTTY_RENDER_STATE_ROW_DATA_CELLS: GhosttyRenderStateRowData =
     GhosttyRenderStateRowData_GHOSTTY_RENDER_STATE_ROW_DATA_CELLS;
+/// Whether the row changed since the last update.
+///
+/// The engine tracks the dirty state of every row of the screen, so a row
+/// that did not change can be kept as it is instead of being drawn again.
+pub const GHOSTTY_RENDER_STATE_ROW_DATA_DIRTY: GhosttyRenderStateRowData =
+    GhosttyRenderStateRowData_GHOSTTY_RENDER_STATE_ROW_DATA_DIRTY;
 
 pub const GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF: GhosttyRenderStateRowCellsData =
     GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_BUF;

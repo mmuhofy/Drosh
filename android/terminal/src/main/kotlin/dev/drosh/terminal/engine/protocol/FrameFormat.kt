@@ -16,7 +16,7 @@ package dev.drosh.terminal.engine.protocol
  * Little-endian throughout, because every Android target is.
  *
  * ```
- * header (48 bytes)
+ * header (80 bytes)
  *   0  u32  magic          'DRSH'
  *   4  u16  version
  *   6  u16  headerBytes
@@ -36,6 +36,7 @@ package dev.drosh.terminal.engine.protocol
  *  40  u32  cellsBytes
  *  44  u32  cursorColor    R,G,B,A little-endian
  *  46  i16  firstRowY      the first captured row's viewport row
+ *  48  u8x32 dirtyRows     one bit per captured row: the row changed
  * ```
  *
  * Cells follow, `cellCount` records of `cellStride` bytes:
@@ -59,9 +60,9 @@ object FrameFormat {
     /** `'DRSH'` little-endian. */
     const val MAGIC: Int = 0x48535244
 
-    const val VERSION: Int = 1
+    const val VERSION: Int = 2
 
-    const val HEADER_BYTES: Int = 48
+    const val HEADER_BYTES: Int = 80
     const val CELL_BYTES: Int = 20
 
     // --- header offsets ---------------------------------------------------
@@ -85,6 +86,18 @@ object FrameFormat {
     const val OFFSET_CELL_STRIDE = 36
     const val OFFSET_CELLS_BYTES = 40
     const val OFFSET_CURSOR_COLOR = 44
+
+    /**
+     * The bitmap of the rows that changed.
+     *
+     * One bit per captured row, in the order the rows were captured. The
+     * renderer reads it to know which rows it may keep as they are and which
+     * ones it has to draw again.
+     */
+    const val OFFSET_DIRTY_ROWS = 48
+
+    /** How many bytes the dirty bitmap is. */
+    const val DIRTY_ROW_BYTES: Int = 32
 
     // --- cell offsets -----------------------------------------------------
 
