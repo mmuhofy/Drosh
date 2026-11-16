@@ -79,7 +79,6 @@ pub struct Session {
     /// installs the selection in the terminal — which is what makes the
     /// selected cells come back marked in the frame.
     gesture: Option<ghostty::GhosttySelectionGesture>,
-    frames: FrameSource,
     keys: Option<ghostty::GhosttyKeyEncoder>,
     mouse: Option<ghostty::GhosttyMouseEncoder>,
     shell: Scanner,
@@ -138,16 +137,23 @@ impl Session {
             );
         };
 
-        let frames = FrameSource::new(terminal).map_err(SessionError::Frames)?;
         Ok(Self {
             terminal,
             gesture: None,
-            frames,
             keys: None,
             mouse: None,
             shell: Scanner::new(),
             search: None,
         })
+    }
+
+    /// The render state for this session's terminal.
+    ///
+    /// The render state is *not* part of the session: it is the snapshot the
+    /// renderer reads, and it has its own lock so the terminal's lock can be
+    /// released before the frame is built. See [SessionHandle].
+    pub fn frame_source(&self) -> Result<FrameSource, SessionError> {
+        FrameSource::new(self.terminal).map_err(SessionError::Frames)
     }
 
     pub fn terminal(&self) -> ghostty::GhosttyTerminal {
@@ -168,27 +174,6 @@ impl Session {
             ghostty::ghostty_terminal_resize(self.terminal, columns, rows, cell_width, cell_height)
         };
         ghostty::ok(result)
-    }
-
-    pub fn render(&mut self) -> Result<&[u8], FrameError> {
-        self.frames.render()
-    }
-
-    /// The colours of a region of the grid, as `(foreground, background)` pairs.
-    ///
-    /// The frame has to exist before its cells can be read: the colours are
-    /// the frame's, and the frame is what the engine produced last.
-    pub fn cell_colors(
-        &mut self,
-        first_row: u16,
-        first_column: u16,
-        rows: u16,
-        columns: u16,
-    ) -> Vec<u32> {
-        if self.render().is_err() {
-            return Vec::new();
-        }
-        self.frames.cell_colors(first_row, first_column, rows, columns)
     }
 
     pub fn shell_phase(&self) -> Phase {
@@ -770,48 +755,6 @@ impl Session {
         Some(String::from_utf8_lossy(&buffer).into_owned())
     }
 
-    /// Highlight the range the search matched.
-    ///
-    /// The range is in viewport rows: the find bar scrolls the viewport to the
-    /// match, and a range in the scrollback's coordinates would be a different
-    /// place by the time it is drawn.
-    pub fn set_highlight(&mut self, row: u16, column: u16, length: u16) {
-        self.frames.set_highlight(Some((row, column, length)));
-    }
-
-    /// Draw no highlight.
-    pub fn clear_highlight(&mut self) {
-        self.frames.set_highlight(None);
-    }
-
-    /// Highlight every range the search's other matches cover.
-    ///
-    /// The ranges are in viewport rows, the same space [Session::set_highlight]
-    /// speaks, and an empty list is the caller saying there are no matches —
-    /// which is no highlight at all, not an error.
-    pub fn set_highlights(&mut self, ranges: Vec<(u16, u16, u16)>) {
-        self.frames.set_highlights(ranges);
-    }
-
-    /// Draw no all-matches highlight; the active one is untouched.
-    pub fn clear_highlights(&mut self) {
-        self.frames.clear_highlights();
-    }
-
-    /// The cells the user's selection covers, or none.
-    pub fn set_selection_range(&mut self, row: u16, column: u16, length: u16) {
-        self.frames.set_app_selection(Some((row, column, length)));
-    }
-
-    /// The frame's images, as one buffer.
-    ///
-    /// A program that draws pictures puts them in the terminal; the renderer
-    /// draws them. The pixels are read once per image generation and kept, so a
-    /// frame that shows the same picture again carries only where it is.
-    pub fn images(&mut self) -> Vec<u8> {
-        self.frames.images()
-    }
-
     /// The scrollbar: total rows and the viewport's offset.
     pub fn scrollbar(&self) -> Option<ghostty::GhosttyTerminalScrollbar> {
         let mut value: ghostty::GhosttyTerminalScrollbar = unsafe { std::mem::zeroed() };
@@ -1180,21 +1123,44 @@ pub fn viewport_bounds(
     Some((first_row, first_column, (last_column - first_column + 1).max(0)))
 }
 
-/// A session as the JNI layer holds it: a lock around the session.
+/// A session as the JNI layer holds it: the terminal and its render state.
 ///
-/// The lock is not an optimisation. Two threads reach a terminal — the PTY
-/// reader that feeds it and the render thread that draws it — and the engine's
-/// API is single-threaded. Without this the two interleave inside the parser,
-/// which produces frames that are half one screen and half another.
+/// ## Two locks, two jobs
+///
+/// The lock on the session is not an optimisation. Two threads reach a terminal
+/// — the PTY reader that feeds it and the render thread that draws it — and
+/// the engine's API is single-threaded. Without this the two interleave
+/// inside the parser, which produces frames that are half one screen and half
+/// another.
+///
+/// The render state has its own lock because it is not the terminal. The
+/// engine's render state is updated in two phases: the begin phase reads the
+/// terminal, and the end phase finishes the work on the render state's own
+/// memory. So the terminal's lock is held for the begin phase and released
+/// before the frame is built — which is what keeps the keyboard responsive
+/// while a program floods the screen.
+///
+/// ## The order
+///
+/// The session lock is always taken before the render lock, never the other
+/// way round. The two are never held at the same time except in the begin
+/// phase, where both are needed.
 pub struct SessionHandle {
+    /// The render state comes first so that it is dropped first.
+    ///
+    /// The render state holds tracked state inside the terminal, so it has to
+    /// be released before the terminal is. Rust drops a struct's fields in the
+    /// order they are declared, and this is the one place that order matters.
+    frames: Mutex<FrameSource>,
     session: Mutex<Session>,
 }
 
 impl SessionHandle {
     /// Box a session and hand back the raw pointer the JNI layer stores.
-    pub fn into_raw(session: Session) -> *mut SessionHandle {
+    pub fn into_raw(session: Session, frames: FrameSource) -> *mut SessionHandle {
         Box::into_raw(Box::new(Self {
             session: Mutex::new(session),
+            frames: Mutex::new(frames),
         }))
     }
 
@@ -1221,6 +1187,63 @@ impl SessionHandle {
             log::warn!("drosh-native: a session lock was poisoned; recovering");
             poisoned.into_inner()
         })
+    }
+
+    /// Take the render state's lock.
+    ///
+    /// The render state is the snapshot the renderer reads. It has its own lock
+    /// because the terminal's lock must be free while the frame is built.
+    pub fn frames_lock(&self) -> MutexGuard<'_, FrameSource> {
+        self.frames.lock().unwrap_or_else(|poisoned| {
+            log::warn!("drosh-native: a render state lock was poisoned; recovering");
+            poisoned.into_inner()
+        })
+    }
+
+    /// Produce the next frame.
+    ///
+    /// The terminal's lock is held for the begin phase only. The end phase and
+    /// the row iteration that follows it work on the render state's own
+    /// memory, and the terminal is free to be written to while they run.
+    pub fn render_frame(&self) -> Option<Vec<u8>> {
+        let session = self.lock();
+        let mut frames = self.frames_lock();
+        if frames.begin_update().is_err() {
+            return None;
+        }
+        // The terminal is free again. Everything below is the renderer's own
+        // work and does not need it.
+        drop(session);
+        match frames.end_update() {
+            Ok(bytes) => Some(bytes.to_vec()),
+            Err(error) => {
+                log::debug!("drosh-native: no frame: {error:?}");
+                None
+            }
+        }
+    }
+
+    /// The colours of a region of the grid, as `(foreground, background)` pairs.
+    ///
+    /// The frame has to exist before its cells can be read: the colours are
+    /// the frame's, and the frame is what the engine produced last.
+    pub fn cell_colors(
+        &self,
+        first_row: u16,
+        first_column: u16,
+        rows: u16,
+        columns: u16,
+    ) -> Vec<u32> {
+        let session = self.lock();
+        let mut frames = self.frames_lock();
+        if frames.begin_update().is_err() {
+            return Vec::new();
+        }
+        drop(session);
+        if frames.end_update().is_err() {
+            return Vec::new();
+        }
+        frames.cell_colors(first_row, first_column, rows, columns)
     }
 
     /// Free a handle. Null is a no-op.

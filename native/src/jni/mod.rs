@@ -32,6 +32,31 @@ pub(crate) fn session_lock(handle: jlong) -> Option<std::sync::MutexGuard<'stati
     Some(raw.lock())
 }
 
+/// The handle behind a pointer, or None when the pointer is not one.
+///
+/// The handle owns both halves of a session: the terminal (which has a lock)
+/// and the render state (which has one of its own). The two are used together
+/// where the snapshot is taken, and separately everywhere else.
+pub(crate) fn session_handle(handle: jlong) -> Option<&'static SessionHandle> {
+    if handle <= 0 {
+        return None;
+    }
+    unsafe { SessionHandle::from_raw(handle as usize as *mut SessionHandle) }
+}
+
+/// The locked render state behind a handle, or None when the handle is not one.
+///
+/// The render state is the snapshot the renderer reads. It has its own lock so
+/// that the terminal's lock can be released before the frame is built: the
+/// engine's render state is updated in two phases, and only the first one
+/// needs the terminal.
+pub(crate) fn frames_lock(
+    handle: jlong,
+) -> Option<std::sync::MutexGuard<'static, crate::frame::FrameSource>> {
+    let raw = session_handle(handle)?;
+    Some(raw.frames_lock())
+}
+
 pub(crate) use jni::sys::{jboolean, jbyteArray, jint, jintArray, jlong, jstring};
 
 /// Write a C enum field.

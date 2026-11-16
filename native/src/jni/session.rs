@@ -8,7 +8,10 @@ use jni::objects::{JByteArray, JClass, JIntArray, JString};
 use jni::JNIEnv;
 
 use super::{jboolean, jbyteArray, jint, jintArray, jlong, jstring};
-use super::{new_byte_array, new_int_array, new_string, read_string, session_lock};
+use super::{
+    frames_lock, new_byte_array, new_int_array, new_string, read_string, session_handle,
+    session_lock,
+};
 use crate::ghostty;
 use crate::session::{Session, SessionHandle};
 
@@ -29,7 +32,19 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     crate::clipboard::install(&mut env);
     crate::bell::install(&mut env);
     match Session::new(columns as u16, rows as u16) {
-        Ok(session) => SessionHandle::into_raw(session) as usize as jlong,
+        Ok(session) => {
+            // The render state is the snapshot the renderer reads, and it has
+            // its own lock so the terminal's lock can be released before the
+            // frame is built.
+            let frames = match session.frame_source() {
+                Ok(frames) => frames,
+                Err(error) => {
+                    log::warn!("drosh-native: the render state could not be made: {error:?}");
+                    return 0;
+                }
+            };
+            SessionHandle::into_raw(session, frames) as usize as jlong
+        }
         Err(error) => {
             log::warn!("drosh-native: the session could not be made: {error:?}");
             0
@@ -108,24 +123,23 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
 
 /// Produce the next frame as a byte array, or null when there is nothing to
 /// draw.
+///
+/// The terminal's lock is held for the snapshot and released before the frame
+/// is built: the engine's render state is updated in two phases, and only the
+/// first one needs the terminal. That is what keeps the keyboard responsive
+/// while a program floods the screen.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeFrame(
     mut env: JNIEnv,
     _class: JClass,
     handle: jlong,
 ) -> jbyteArray {
-    let Some(mut session) = session_lock(handle) else {
+    let Some(session) = session_handle(handle) else {
         return std::ptr::null_mut();
     };
-    match session.render() {
-        Ok(bytes) => {
-            let owned = bytes.to_vec();
-            new_byte_array(&mut env, &owned)
-        }
-        Err(error) => {
-            log::debug!("drosh-native: no frame: {error:?}");
-            std::ptr::null_mut()
-        }
+    match session.render_frame() {
+        Some(bytes) => new_byte_array(&mut env, &bytes),
+        None => std::ptr::null_mut(),
     }
 }
 
@@ -198,14 +212,14 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     column: jint,
     length: jint,
 ) -> jboolean {
-    let Some(mut session) = session_lock(handle) else {
+    let Some(mut frames) = frames_lock(handle) else {
         return 0;
     };
     if row < 0 || column < 0 || length <= 0 {
-        session.clear_highlight();
+        frames.set_highlight(None);
         return 1;
     }
-    session.set_highlight(row as u16, column as u16, length as u16);
+    frames.set_highlight(Some((row as u16, column as u16, length as u16)));
     1
 }
 
@@ -223,7 +237,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     handle: jlong,
     ranges: jintArray,
 ) -> jboolean {
-    let Some(mut session) = session_lock(handle) else {
+    let Some(mut frames) = frames_lock(handle) else {
         return 0;
     };
 
@@ -251,7 +265,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
         std::mem::forget(array);
     }
 
-    session.set_highlights(triples);
+    frames.set_highlights(triples);
     1
 }
 
@@ -262,10 +276,10 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     _class: JClass,
     handle: jlong,
 ) -> jboolean {
-    let Some(mut session) = session_lock(handle) else {
+    let Some(mut frames) = frames_lock(handle) else {
         return 0;
     };
-    session.clear_highlights();
+    frames.clear_highlights();
     1
 }
 
@@ -283,13 +297,13 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     column: jint,
     length: jint,
 ) -> jboolean {
-    let Some(mut session) = session_lock(handle) else {
+    let Some(mut frames) = frames_lock(handle) else {
         return 0;
     };
     if row < 0 || column < 0 || length <= 0 {
         return 1;
     }
-    session.set_selection_range(row as u16, column as u16, length as u16);
+    frames.set_app_selection(Some((row as u16, column as u16, length as u16)));
     1
 }
 
@@ -300,10 +314,17 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     _class: JClass,
     handle: jlong,
 ) -> jbyteArray {
-    let Some(mut session) = session_lock(handle) else {
+    // The terminal holds the pictures and the render state holds their
+    // pixels, so both are needed. The terminal's lock is taken first, always:
+    // the two are never taken the other way round.
+    let Some(session) = session_handle(handle) else {
         return std::ptr::null_mut();
     };
-    let images = session.images();
+    let _terminal = session.lock();
+    let Some(mut frames) = session.frames_lock() else {
+        return std::ptr::null_mut();
+    };
+    let images = frames.images();
     if images.is_empty() {
         return std::ptr::null_mut();
     }
@@ -445,7 +466,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     rows: jint,
     columns: jint,
 ) -> jintArray {
-    let Some(mut session) = session_lock(handle) else {
+    let Some(session) = session_handle(handle) else {
         return std::ptr::null_mut();
     };
     if rows <= 0 || columns <= 0 {

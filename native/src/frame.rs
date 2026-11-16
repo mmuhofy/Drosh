@@ -273,13 +273,39 @@ impl FrameSource {
         out
     }
 
-    /// Produce the next frame and return it.
-    pub fn render(&mut self) -> Result<&[u8], FrameError> {
+    /// Begin the update: the only part of it that needs the terminal.
+    ///
+    /// The engine's own two-phase update. The begin phase reads the terminal
+    /// and copies what it can into the render state's own memory; the end
+    /// phase finishes the work without touching the terminal at all.
+    ///
+    /// So the terminal's lock is held for this call and for nothing else. That
+    /// is the whole point: the terminal's lock is what the IO thread waits on
+    /// when the program prints, and a frame that holds it for the whole of its
+    /// production is a frame that makes the keyboard lag.
+    ///
+    /// Every begin must be completed by [FrameSource::end_update] before the
+    /// render state is read.
+    pub fn begin_update(&mut self) -> Result<(), FrameError> {
         unsafe {
-            let result = ghostty::ghostty_render_state_update(self.state, self.terminal);
+            let result = ghostty::ghostty_render_state_begin_update(self.state, self.terminal);
             if !ghostty::ok(result) {
                 return Err(FrameError::UpdateFailed(result));
             }
+        }
+        Ok(())
+    }
+
+    /// Complete the update and produce the next frame.
+    ///
+    /// No terminal access: the end phase works on the render state's own
+    /// memory, and so does the row iteration that follows it. The terminal may
+    /// be modified while this runs — that is what the two phases are for.
+    pub fn end_update(&mut self) -> Result<&[u8], FrameError> {
+        unsafe {
+            // The end phase. It is a no-op without a begin, and it is safe
+            // while the terminal is being written to.
+            ghostty::ghostty_render_state_end_update(self.state);
 
             // The effective default colours, refreshed before every frame so an
             // OSC 10/11 recolour lands on the next one.
