@@ -68,7 +68,7 @@ class CellsTest {
                 bytes.put(at + FrameFormat.CELL_WIDTH, 1.toByte())
             }
         }
-        val parsed = Frame.parse(bytes.array(), bytes.capacity())
+        val parsed = Frame.parse(bytes.array())
         requireNotNull(parsed) { "the test's own frame did not parse" }
         return parsed
     }
