@@ -321,9 +321,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
         return std::ptr::null_mut();
     };
     let _terminal = session.lock();
-    let Some(mut frames) = session.frames_lock() else {
-        return std::ptr::null_mut();
-    };
+    let mut frames = session.frames_lock();
     let images = frames.images();
     if images.is_empty() {
         return std::ptr::null_mut();
