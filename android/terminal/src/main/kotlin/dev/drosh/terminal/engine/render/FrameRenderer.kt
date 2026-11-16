@@ -221,19 +221,62 @@ internal class FrameRenderer {
     }
 
     /**
+     * What one frame cost and what it was made of.
+     *
+     * The phases are separate because a number nobody can attribute is a
+     * number nobody can improve: a slow frame is either the snapshot (the
+     * terminal lock), the vertex building (the cells walked), the upload (the
+     * bytes) or the draw (the calls), and each of those has a different fix.
+     */
+    data class DrawResult(
+        /** The cells the frame carried. */
+        val cells: Int,
+        /** The foreground instances drawn. */
+        val sprites: Int,
+        /** The pictures drawn. */
+        val images: Int,
+        /** The GL draw calls issued. */
+        val drawCalls: Int,
+        /** The atlas regions uploaded. */
+        val atlasUploads: Int,
+        /** The vertex building, in nanoseconds. */
+        val buildNanos: Long,
+        /** The uploads, in nanoseconds. */
+        val uploadNanos: Long,
+        /** The draw calls and the swap, in nanoseconds. */
+        val drawNanos: Long,
+    ) {
+        companion object {
+            /** A frame that drew nothing: the previous picture stays up. */
+            val EMPTY = DrawResult(
+                cells = 0,
+                sprites = 0,
+                images = 0,
+                drawCalls = 0,
+                atlasUploads = 0,
+                buildNanos = 0L,
+                uploadNanos = 0L,
+                drawNanos = 0L,
+            )
+        }
+    }
+
+    /**
      * Draw one frame.
      *
-     * Returns the number of cells drawn, which the loop uses to decide whether
-     * presenting is worth it. Zero means the frame was empty or invalid and the
-     * previous picture should stay on screen.
+     * Returns what the frame cost and what it was made of, which the loop
+     * measures and the diagnostics report. A frame with no cells drew nothing:
+     * the previous picture should stay on screen.
      */
-    fun draw(frame: Frame?, size: SizeInfo): Int {
+    fun draw(frame: Frame?, size: SizeInfo): DrawResult {
         if (!created || frame == null || !frame.valid) {
-            return 0
+            return DrawResult.EMPTY
         }
 
         cellWidth = size.stepX
         cellHeight = size.stepY
+
+        val buildStart = System.nanoTime()
 
         // The clear is the terminal's own background, and it happens only when
         // a frame is actually drawn: a frame that draws nothing leaves the
@@ -257,21 +300,51 @@ internal class FrameRenderer {
         buildBackgrounds(frame, size)
         val foregroundCount = buildForegrounds(frame)
 
+        val buildEnd = System.nanoTime()
+
+        // What the renderer is made of, for the diagnostics: the atlas's fill
+        // is the number the atlas work is measured against.
+        dev.drosh.terminal.engine.bench.RenderBench.setFacts(
+            atlasFillPercent = atlas.usedPercent,
+            fontPx = rasterPx,
+            cellWidth = cellWidth,
+            cellHeight = cellHeight,
+        )
+
+        // The uploads: the atlas first (a new glyph has to be on the GPU before
+        // the pass that samples it), then the two vertex buffers.
+        var atlasUploads = 0
         if (atlas.dirty) {
-            uploadAtlas()
+            if (uploadAtlas()) atlasUploads += 1
         }
+        uploadBackgrounds(frame)
+        uploadForegrounds()
+
+        val uploadEnd = System.nanoTime()
 
         // The pictures, in Ghostty's order: some under the cell backgrounds,
         // some between the backgrounds and the text, some over the text.
-        drawImages(size, LAYER_BELOW_BACKGROUND)
-        drawBackgrounds(frame, size)
-        drawImages(size, LAYER_BELOW_TEXT)
-        drawForegrounds(frame, size, foregroundCount)
-        drawImages(size, LAYER_ABOVE_TEXT)
-        drawCursor(frame, size)
-        drawBellFlash(frame, size)
+        var drawCalls = 0
+        drawCalls += drawImages(size, LAYER_BELOW_BACKGROUND)
+        drawCalls += drawBackgrounds(frame, size)
+        drawCalls += drawImages(size, LAYER_BELOW_TEXT)
+        drawCalls += drawForegrounds(frame, size, foregroundCount)
+        drawCalls += drawImages(size, LAYER_ABOVE_TEXT)
+        drawCalls += drawCursor(frame, size)
+        drawCalls += drawBellFlash(frame, size)
 
-        return frame.cellCount
+        val drawEnd = System.nanoTime()
+
+        return DrawResult(
+            cells = frame.cellCount,
+            sprites = foregroundCount,
+            images = images.size,
+            drawCalls = drawCalls,
+            atlasUploads = atlasUploads,
+            buildNanos = buildEnd - buildStart,
+            uploadNanos = uploadEnd - buildEnd,
+            drawNanos = drawEnd - uploadEnd,
+        )
     }
 
     // --- geometry ----------------------------------------------------------
@@ -367,16 +440,16 @@ internal class FrameRenderer {
         return (1.5f / smallest).coerceIn(0.06f, 0.25f)
     }
 
-    private fun drawCursor(frame: Frame, size: SizeInfo) {
-        if (cursorProgram == 0) return
-        if (!frame.cursorVisible) return
-        if (frame.cursorColumn !in 0 until frame.columns) return
-        if (frame.cursorRow !in 0 until frame.rows) return
+    private fun drawCursor(frame: Frame, size: SizeInfo): Int {
+        if (cursorProgram == 0) return 0
+        if (!frame.cursorVisible) return 0
+        if (frame.cursorColumn !in 0 until frame.columns) return 0
+        if (frame.cursorRow !in 0 until frame.rows) return 0
 
         // A blinking cursor is hidden half the time. The engine says that the
         // cursor blinks; whether it is in its visible phase is the clock's
         // business, and the same clock the render loop already wakes on.
-        if (frame.cursorBlinking && !blinkVisible()) return
+        if (frame.cursorBlinking && !blinkVisible()) return 0
 
         // The cursor's shape. A block is the cell inverted; a bar and an
         // underline are rectangles of their own.
@@ -387,7 +460,7 @@ internal class FrameRenderer {
         val hollow = frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK_HOLLOW
         val block = frame.cursorStyle == FrameFormat.CURSOR_STYLE_BLOCK && !hollow
 
-        if (block) return // drawn by inverting the cell
+        if (block) return 0 // drawn by inverting the cell
 
         val isUnderline = frame.cursorStyle == FrameFormat.CURSOR_STYLE_UNDERLINE
         // A bar hugs the left edge of the cell; an underline the bottom.
@@ -444,6 +517,7 @@ internal class FrameRenderer {
             FrameFormat.alpha(colour) / 255f,
         )
         GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
+        return 1
     }
 
     /**
@@ -452,10 +526,10 @@ internal class FrameRenderer {
      * The cursor's program draws a rectangle, and the grid is a rectangle, so
      * the wash is the same draw with the whole grid as the rectangle.
      */
-    private fun drawBellFlash(frame: Frame, size: SizeInfo) {
-        if (cursorProgram == 0) return
+    private fun drawBellFlash(frame: Frame, size: SizeInfo): Int {
+        if (cursorProgram == 0) return 0
         val elapsed = System.currentTimeMillis() - bellStartedAt
-        if (elapsed >= BELL_FLASH_MS) return
+        if (elapsed >= BELL_FLASH_MS) return 0
         // The wash fades: it is at its strongest at the first frame and gone by
         // the last, so it reads as a pulse and not as a blink.
         val strength = 1f - elapsed.toFloat() / BELL_FLASH_MS
@@ -485,6 +559,7 @@ internal class FrameRenderer {
         )
         GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
         GLES20.glDisable(GLES20.GL_BLEND)
+        return 1
     }
 
     /**
@@ -778,11 +853,14 @@ internal class FrameRenderer {
      *
      * A picture is *on* the grid: it covers the cells it is placed on, so it
      * is drawn after the glyphs and before the cursor.
+     *
+     * Returns the number of draw calls it took: one per picture today, which
+     * is the number the image batching work has to beat.
      */
-    private fun drawImages(size: SizeInfo, layer: Int) {
-        if (images.isEmpty() || imageProgram == 0) return
+    private fun drawImages(size: SizeInfo, layer: Int): Int {
+        if (images.isEmpty() || imageProgram == 0) return 0
         val drawn = sortedImages().filter { it.layer == layer }
-        if (drawn.isEmpty()) return
+        if (drawn.isEmpty()) return 0
 
         val floats = drawn.size * 8
         if (imageVertices == null || imageVertices!!.capacity() < floats * 4) {
@@ -835,6 +913,7 @@ internal class FrameRenderer {
         GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glDisableVertexAttribArray(0)
         GLES20.glDisableVertexAttribArray(1)
+        return drawn.size
     }
 
     /**
@@ -958,8 +1037,8 @@ internal class FrameRenderer {
 
     // --- drawing -----------------------------------------------------------
 
-    private fun drawBackgrounds(frame: Frame, size: SizeInfo) {
-        if (frame.cellCount == 0) return
+    private fun drawBackgrounds(frame: Frame, size: SizeInfo): Int {
+        if (frame.cellCount == 0) return 0
 
         val projection = FloatArray(4)
         size.projection(projection)
@@ -969,16 +1048,6 @@ internal class FrameRenderer {
         GLES20.glUniform2f(backgroundCellSize, cellWidth, cellHeight)
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundBuffer)
-        // `remaining()`, not `capacity()`: the buffer was flipped, so its limit
-        // is what was written and its position is zero. Handing GL the capacity
-        // asks it to read past the data, which is the IllegalArgumentException
-        // that killed the loop.
-        GLES20.glBufferData(
-            GLES20.GL_ARRAY_BUFFER,
-            backgrounds.remaining(),
-            backgrounds,
-            GLES20.GL_DYNAMIC_DRAW,
-        )
 
         GLES30.glEnableVertexAttribArray(0)
         GLES30.glVertexAttribIPointer(0, 2, GLES30.GL_UNSIGNED_SHORT, BACKGROUND_BYTES, 0)
@@ -994,10 +1063,33 @@ internal class FrameRenderer {
         GLES30.glVertexAttribDivisor(2, 1)
 
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, frame.cellCount)
+        return 1
     }
 
-    private fun drawForegrounds(frame: Frame, size: SizeInfo, count: Int) {
-        if (count == 0) return
+    /**
+     * Hand the background vertices to the GPU.
+     *
+     * The upload is separate from the draw so the two can be measured apart:
+     * the bytes that cross to the GPU and the calls that draw them are
+     * different costs, and a change to one is invisible in the other's number.
+     */
+    private fun uploadBackgrounds(frame: Frame) {
+        if (frame.cellCount == 0) return
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundBuffer)
+        // `remaining()`, not `capacity()`: the buffer was flipped, so its limit
+        // is what was written and its position is zero. Handing GL the capacity
+        // asks it to read past the data, which is the IllegalArgumentException
+        // that killed the loop.
+        GLES20.glBufferData(
+            GLES20.GL_ARRAY_BUFFER,
+            backgrounds.remaining(),
+            backgrounds,
+            GLES20.GL_DYNAMIC_DRAW,
+        )
+    }
+
+    private fun drawForegrounds(frame: Frame, size: SizeInfo, count: Int): Int {
+        if (count == 0) return 0
 
         val projection = FloatArray(4)
         size.projection(projection)
@@ -1016,12 +1108,6 @@ internal class FrameRenderer {
         GLES20.glUniform1i(foregroundAtlas, 0)
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundBuffer)
-        GLES20.glBufferData(
-            GLES20.GL_ARRAY_BUFFER,
-            foregrounds.remaining(),
-            foregrounds,
-            GLES20.GL_DYNAMIC_DRAW,
-        )
 
         // atlasRect, glyphSize, offset, gridPos, colour, flags, span
         val stride = RECORD_BYTES
@@ -1045,6 +1131,23 @@ internal class FrameRenderer {
         }
 
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, count)
+        return 1
+    }
+
+    /**
+     * Hand the glyph vertices to the GPU.
+     *
+     * Separate from the draw for the same reason as the backgrounds: the bytes
+     * and the calls are different costs.
+     */
+    private fun uploadForegrounds() {
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundBuffer)
+        GLES20.glBufferData(
+            GLES20.GL_ARRAY_BUFFER,
+            foregrounds.remaining(),
+            foregrounds,
+            GLES20.GL_DYNAMIC_DRAW,
+        )
     }
 
     // --- GL helpers --------------------------------------------------------
@@ -1060,18 +1163,20 @@ internal class FrameRenderer {
      *
      * Only the rows that changed go up, and the buffer's position says where
      * they start.
+     *
+     * @return true when a region went up.
      */
-    private fun uploadAtlas() {
+    private fun uploadAtlas(): Boolean {
         val rows = atlas.dirtyRows()
         if (rows == null) {
             atlas.dirty = false
-            return
+            return false
         }
         val height = rows.count()
         if (height <= 0) {
             atlas.dirty = false
             atlas.clearDirty()
-            return
+            return false
         }
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
@@ -1099,6 +1204,7 @@ internal class FrameRenderer {
         )
         atlas.clearDirty()
         atlas.dirty = false
+        return true
     }
 
     private fun buildAtlasTexture(): Int {

@@ -53,6 +53,15 @@ class Frame private constructor(
     val valid: Boolean
         get() = columns > 0 && rows > 0 && cellStride >= FrameFormat.CELL_BYTES
 
+    /**
+     * The frame's size in bytes.
+     *
+     * The header plus the cells: the number that crosses the boundary on
+     * every frame, and the number the zero-copy work has to move.
+     */
+    val frameBytes: Int
+        get() = FrameFormat.HEADER_BYTES + cellCount * cellStride
+
     /** True when the whole viewport changed and nothing may be skipped. */
     val fullyDamaged: Boolean
         get() = dirty == FrameFormat.DIRTY_FULL

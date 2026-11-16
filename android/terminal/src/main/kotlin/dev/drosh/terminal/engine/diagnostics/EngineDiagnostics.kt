@@ -43,8 +43,23 @@ object EngineDiagnostics {
         appendLine("--- layout ---")
         appendLine(layoutReport())
         appendLine()
+        appendLine("--- render ---")
+        appendLine(renderReport())
+        appendLine()
         appendLine("--- probe ---")
         appendLine(NativeSmoke.probe())
+    }
+
+    /**
+     * What the render loop has been doing.
+     *
+     * The numbers the renderer's own work is measured by: how long the
+     * snapshot takes (the terminal lock), how long the vertices take, how many
+     * bytes go to the GPU and how many calls draw them.
+     */
+    private fun renderReport(): String = buildString {
+        appendLine(dev.drosh.terminal.engine.bench.RenderBench.rendererFacts())
+        appendLine(dev.drosh.terminal.engine.bench.RenderBench.summary())
     }
 
     private fun libraryReport(): String {

@@ -1,6 +1,7 @@
 package dev.drosh.terminal.engine.render
 
 import android.util.Log
+import dev.drosh.terminal.engine.bench.RenderBench
 import dev.drosh.terminal.engine.layout.SizeInfo
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
@@ -561,6 +562,13 @@ class RenderThread(
         renderer?.setImages(imageSource?.invoke())
 
         val frame = frameSource?.invoke()
+
+        // The snapshot is over. Everything past this point is the renderer's
+        // own work and does not hold the terminal's lock — the split is what
+        // the lock-shortening work attacks, and the number below is what says
+        // whether it worked.
+        val pumpEnd = System.nanoTime()
+
         // The selected cells, measured while the last frame was drawn.
         selectionBounds = renderer?.selectionBounds
         frame?.let {
@@ -595,15 +603,45 @@ class RenderThread(
                 sample,
             )
         }
-        val cellsDrawn = current.draw(frame, layout.size)
+        val result = current.draw(frame, layout.size)
 
         // Only a drawn frame is presented. A frame that drew nothing leaves
         // the previous picture alone, which is what stops the screen from
         // wiping to the clear colour and coming back.
-        val swapped = cellsDrawn > 0 && egl.swap()
+        val swapped = result.cells > 0 && egl.swap()
 
         val total = System.nanoTime() - started
-        onFrame(FrameTiming(totalNanos = total, drawNanos = total, cellsDrawn = cellsDrawn, swapped = swapped))
+        onFrame(
+            FrameTiming(
+                totalNanos = total,
+                drawNanos = total,
+                cellsDrawn = result.cells,
+                swapped = swapped,
+            ),
+        )
+
+        // The measurement.
+        //
+        // The phases are laid out on the same clock as the frame: the snapshot
+        // ended when it ended, and the renderer reports how long each of its
+        // own phases took. The swap is counted with the draw, because a
+        // present that blocks is a present the user waited for.
+        val buildEnd = pumpEnd + result.buildNanos
+        val uploadEnd = buildEnd + result.uploadNanos
+        RenderBench.record(
+            startNanos = started,
+            pumpEndNanos = pumpEnd,
+            buildEndNanos = buildEnd,
+            uploadEndNanos = uploadEnd,
+            drawEndNanos = System.nanoTime(),
+            cells = result.cells,
+            sprites = result.sprites,
+            images = result.images,
+            drawCalls = result.drawCalls,
+            frameBytes = frame?.frameBytes ?: 0,
+            atlasUploads = result.atlasUploads,
+            dirty = frame?.dirty ?: 0,
+        )?.let { line -> Log.i(BENCH_TAG, line) }
     }
 
     private fun drainCommands(): List<Command> = lock.withLock {
@@ -642,6 +680,14 @@ class RenderThread(
 
     private companion object {
         const val TAG = "RenderThread"
+
+        /**
+         * The tag the benchmark lines go out under.
+         *
+         * `adb logcat -s DroshBench` is one command and every number the
+         * renderer produced is in it.
+         */
+        const val BENCH_TAG = "DroshBench"
 
         /** How long [stop] waits for the loop to finish its frame. */
         const val STOP_TIMEOUT_MS = 2_000L

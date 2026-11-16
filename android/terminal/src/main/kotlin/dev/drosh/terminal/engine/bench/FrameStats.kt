@@ -1,27 +1,29 @@
 package dev.drosh.terminal.engine.bench
 
+import java.util.Locale
+
 /**
- * Frame timings for the Phase B acceptance numbers ("frame p99 < 8 ms; no jank
- * under full-screen output").
+ * Frame timings for the render loop, and what each frame was made of.
  *
  * **Monotone counters, not a sliding window.** The first version kept a ring of
  * the last 240 frames and printed its percentiles twice a second; a number that
  * changes while it is being read cannot be reported — which is exactly what
  * happened. These counters only ever grow, so the line a user reads is a superset
  * of the line they read a moment ago, and "freeze" turns it into an artefact that
- * can be sent as-is (the app logs it under `DroshLabBench`).
+ * can be sent as-is (the app logs it under `DroshBench`).
  *
- * The frame is also split into the phases it is made of, because the first device
- * run produced a number (`p50 114 ms`) nobody could attribute:
+ * The frame is also split into the phases it is made of, because a number nobody
+ * can attribute is a number nobody can improve:
  *
  * - **pump**: the snapshot call. It takes the grid lock, so it also waits while
- *   the parser is busy.
- * - **build**: turning damaged rows into vertices and uploading them.
- * - **draw**: the GL submit.
+ *   the parser is busy. This is the phase the lock-shortening work attacks.
+ * - **build**: turning the cells into vertices.
+ * - **upload**: handing those vertices and the atlas to the GPU.
+ * - **draw**: the GL submit and the swap.
  *
- * Only frames that actually drew are counted: GLSurfaceView runs in
- * `RENDERMODE_WHEN_DIRTY`, so idle time between frames says nothing. A frame is
- * **janky** when the gap since the previous drawn frame exceeded two refreshes.
+ * Only frames that actually drew are counted: a frame that draws nothing leaves
+ * the previous picture on the screen, and its cost is nobody's problem. A frame
+ * is **janky** when the work took longer than two refreshes.
  */
 internal class FrameStats {
 
@@ -39,20 +41,69 @@ internal class FrameStats {
     private var buildTotal = 0f
     private var uploadTotal = 0f
     private var drawTotal = 0f
-    private var recordsTotal = 0
+
+    /**
+     * What the frames were made of.
+     *
+     * These are the numbers a change to the renderer is measured against: a
+     * renderer that walks fewer cells, uploads fewer bytes and issues fewer
+     * draw calls is a renderer that got faster, and a renderer that says so
+     * without saying why is a renderer whose next change is guesswork.
+     */
+    private var cellsTotal = 0L
+    private var spritesTotal = 0L
+    private var imagesTotal = 0L
+    private var drawCallsTotal = 0L
+    private var frameBytesTotal = 0L
+    private var atlasUploadsTotal = 0L
+
+    /**
+     * The frames by the engine's own dirty state.
+     *
+     * The engine says whether the whole screen changed (`full`), only some of
+     * it changed (`partial`) or nothing changed at all (`false`). The renderer
+     * draws all of it either way today, so the ratio is the headroom the
+     * dirty-row work has to claim.
+     */
+    private var cleanFrames = 0
+    private var partialFrames = 0
+    private var fullFrames = 0
+
     private var lastFrameNanos = 0L
 
     /** While frozen, [record] is ignored: the numbers stop moving. */
     var isFrozen = false
         private set
 
+    /**
+     * Record one drawn frame.
+     *
+     * @param startNanos when the frame's work started.
+     * @param pumpEndNanos when the snapshot was in hand.
+     * @param buildEndNanos when the vertices were built.
+     * @param uploadEndNanos when the GPU had everything.
+     * @param drawEndNanos when the frame was submitted.
+     * @param cells the cells the renderer walked.
+     * @param sprites the foreground instances drawn.
+     * @param images the pictures drawn.
+     * @param drawCalls the GL draw calls issued.
+     * @param frameBytes the size of the frame that came across the boundary.
+     * @param atlasUploads the atlas regions uploaded.
+     * @param dirty the engine's dirty state for this frame.
+     */
     fun record(
         startNanos: Long,
         pumpEndNanos: Long,
         buildEndNanos: Long,
         uploadEndNanos: Long,
         drawEndNanos: Long,
-        recordCount: Int,
+        cells: Int,
+        sprites: Int,
+        images: Int,
+        drawCalls: Int,
+        frameBytes: Int,
+        atlasUploads: Int,
+        dirty: Int,
     ) {
         if (isFrozen) {
             return
@@ -68,10 +119,21 @@ internal class FrameStats {
         buildTotal += buildMillis
         uploadTotal += uploadMillis
         drawTotal += drawMillis
-        recordsTotal += recordCount
+        cellsTotal += cells
+        spritesTotal += sprites
+        imagesTotal += images
+        drawCallsTotal += drawCalls
+        frameBytesTotal += frameBytes
+        atlasUploadsTotal += atlasUploads
         frames += 1
         maxWork = maxOf(maxWork, total)
         work[bucket(total)] += 1
+
+        when (dirty) {
+            DIRTY_NONE -> cleanFrames += 1
+            DIRTY_PARTIAL -> partialFrames += 1
+            else -> fullFrames += 1
+        }
 
         // Jank is *work*, not the gap between frames: the gap also contains idle
         // time, keyboard animations and everything else that has nothing to do
@@ -105,7 +167,17 @@ internal class FrameStats {
         maxInterval = 0f
         pumpTotal = 0f
         buildTotal = 0f
+        uploadTotal = 0f
         drawTotal = 0f
+        cellsTotal = 0
+        spritesTotal = 0
+        imagesTotal = 0
+        drawCallsTotal = 0
+        frameBytesTotal = 0
+        atlasUploadsTotal = 0
+        cleanFrames = 0
+        partialFrames = 0
+        fullFrames = 0
         lastFrameNanos = 0L
     }
 
@@ -121,8 +193,6 @@ internal class FrameStats {
 
     fun averageUpload(): Float = average(uploadTotal)
 
-    fun averageRecords(): Float = recordsPerFrame()
-
     fun averageDraw(): Float = average(drawTotal)
 
     fun frameCount(): Int = frames
@@ -130,6 +200,44 @@ internal class FrameStats {
     fun maxFrame(): Float = maxWork
 
     fun janky(): Int = longs
+
+    /** The cells the renderer walked, per frame. */
+    fun averageCells(): Float = if (frames == 0) 0f else cellsTotal.toFloat() / frames
+
+    /** The foreground instances drawn, per frame. */
+    fun averageSprites(): Float = if (frames == 0) 0f else spritesTotal.toFloat() / frames
+
+    /** The pictures drawn, per frame. */
+    fun averageImages(): Float = if (frames == 0) 0f else imagesTotal.toFloat() / frames
+
+    /** The GL draw calls issued, per frame. */
+    fun averageDrawCalls(): Float = if (frames == 0) 0f else drawCallsTotal.toFloat() / frames
+
+    /** The bytes that crossed the boundary, per frame. */
+    fun averageFrameBytes(): Float =
+        if (frames == 0) 0f else frameBytesTotal.toFloat() / frames
+
+    /** The atlas regions uploaded, per frame. */
+    fun averageAtlasUploads(): Float =
+        if (frames == 0) 0f else atlasUploadsTotal.toFloat() / frames
+
+    /** The frames the engine said were clean. */
+    fun cleanFrameCount(): Int = cleanFrames
+
+    /** The frames where only some of the screen changed. */
+    fun partialFrameCount(): Int = partialFrames
+
+    /** The frames where the whole screen changed. */
+    fun fullFrameCount(): Int = fullFrames
+
+    /**
+     * The share of frames where only part of the screen changed.
+     *
+     * This is the headroom the dirty-row work has to claim: a frame that only
+     * touched two rows should cost two rows, not forty.
+     */
+    fun partialShare(): Float =
+        if (frames == 0) 0f else partialFrames * 100f / frames
 
     /** The status line: compact, and nothing in it moves backwards. */
     fun summary(): String {
@@ -141,20 +249,23 @@ internal class FrameStats {
         // locale (Turkish, German…) would otherwise emit `12,33`, which the
         // reviewer cannot parse and which is not what the log lines look like on
         // any other device.
-        return java.lang.String.format(
-            java.util.Locale.ROOT,
-            "%s%d frames · %.0f rec/f · >8ms %d (%.1f%%) · max %.0f · pump %.1f build %.1f up %.1f draw %.1f · jank %d",
+        return String.format(
+            Locale.ROOT,
+            "%s%d frames · %.0f cells/f · %.0f sprites/f · %.1f draw calls/f · " +
+                ">8ms %d (%.1f%%) · max %.0f · pump %.1f build %.1f up %.1f draw %.1f · jank %d",
             if (isFrozen) "FROZEN " else "",
             frames,
-            recordsPerFrame(),
+            averageCells(),
+            averageSprites(),
+            averageDrawCalls(),
             slowFrames(),
             slowShare(),
-            maxWork,
+            maxFrame(),
             averagePump(),
             averageBuild(),
             averageUpload(),
             averageDraw(),
-            longs,
+            janky(),
         )
     }
 
@@ -163,14 +274,24 @@ internal class FrameStats {
      * cannot change under the reader's feet.
      */
     fun logLine(): String =
-        java.lang.String.format(
-            java.util.Locale.ROOT,
-            "frames=%d records_per_frame=%.1f slow8=%d (%.2f%%) max=%.1f pump=%.1f build=%.1f upload=%.1f draw=%.1f jank=%d interval_max=%.1f",
+        String.format(
+            Locale.ROOT,
+            "frames=%d cells=%.0f sprites=%.0f images=%.1f calls=%.1f bytes=%.0f " +
+                "atlas=%.2f clean=%d partial=%d full=%d slow8=%d (%.2f%%) max=%.1f " +
+                "pump=%.2f build=%.2f upload=%.2f draw=%.2f jank=%d interval_max=%.1f",
             frames,
-            recordsPerFrame(),
+            averageCells(),
+            averageSprites(),
+            averageImages(),
+            averageDrawCalls(),
+            averageFrameBytes(),
+            averageAtlasUploads(),
+            cleanFrames,
+            partialFrames,
+            fullFrames,
             slowFrames(),
             slowShare(),
-            maxWork,
+            maxFrame(),
             averagePump(),
             averageBuild(),
             averageUpload(),
@@ -183,8 +304,9 @@ internal class FrameStats {
 
     /**
      * Foreground records per frame on average: build and upload cost scale with
+     * it, so it is the number that says whether the renderer is doing less.
      */
-    private fun recordsPerFrame(): Float = if (frames == 0) 0f else recordsTotal.toFloat() / frames
+    private fun recordsPerFrame(): Float = if (frames == 0) 0f else spritesTotal.toFloat() / frames
 
     private fun bucket(millis: Float): Int = when {
         millis < 2f -> 0
@@ -206,5 +328,9 @@ internal class FrameStats {
          * sending output is what a user would call a stall.
          */
         const val JANK_MILLIS = 33.4f
+
+        /** The engine's dirty states, as the frame header carries them. */
+        const val DIRTY_NONE = 0
+        const val DIRTY_PARTIAL = 2
     }
 }
