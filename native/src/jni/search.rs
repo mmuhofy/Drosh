@@ -183,6 +183,31 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSearch_native
     }
 }
 
+/// The matches on the screen, as `(row, column, length)` triples in viewport
+/// coordinates.
+///
+/// The engine's own list of the matches on the pages that cover the
+/// viewport. An empty array means there are none: the find bar draws the
+/// active match in its own colour and the rest in the weaker one, and a
+/// match that is not on the screen is not drawn at all.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSearch_nativeViewportMatches(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jintArray {
+    let Some(session) = session_lock(handle) else {
+        return std::ptr::null_mut();
+    };
+    let mut flat: Vec<i32> = Vec::new();
+    for (row, column, length) in session.search_viewport_matches() {
+        flat.push(row);
+        flat.push(column);
+        flat.push(length);
+    }
+    new_int_array(&mut env, &flat)
+}
+
 /// Text of the selected match, or null.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSearch_nativeSelectedMatchText(

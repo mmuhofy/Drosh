@@ -79,6 +79,25 @@ object NativeSearch {
         return nativeSelectedMatchText(handle)
     }
 
+    /**
+     * The matches on the screen, as `(row, column, length)` triples.
+     *
+     * The engine's own list of the matches on the pages that cover the
+     * viewport, in viewport coordinates. These are the matches the find bar
+     * draws in the weaker colour; the one the user is on is drawn in its own.
+     */
+    fun viewportMatches(handle: Long): List<Triple<Int, Int, Int>> {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return emptyList()
+        val flat = nativeViewportMatches(handle)
+        val matches = ArrayList<Triple<Int, Int, Int>>(flat.size / 3)
+        var index = 0
+        while (index + 2 < flat.size) {
+            matches.add(Triple(flat[index], flat[index + 1], flat[index + 2]))
+            index += 3
+        }
+        return matches
+    }
+
     fun free(handle: Long) {
         if (handle == 0L || !NativeLibraries.ensureLoaded()) return
         nativeFree(handle)
@@ -95,5 +114,6 @@ object NativeSearch {
     private external fun nativeSelectedIndex(handle: Long): Int
     private external fun nativeSelectedMatch(handle: Long): IntArray
     private external fun nativeSelectedMatchText(handle: Long): String?
+    private external fun nativeViewportMatches(handle: Long): IntArray
     private external fun nativeFree(handle: Long)
 }

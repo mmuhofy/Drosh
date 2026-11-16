@@ -266,10 +266,32 @@ pub const GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT: GhosttyTerminalScrollViewportTag
 
 pub const GHOSTTY_SEARCH_OPT_NEEDLE: GhosttySearchOption =
     GhosttySearchOption_GHOSTTY_SEARCH_OPT_NEEDLE;
+pub const GHOSTTY_SEARCH_OPT_SELECT_NEXT: GhosttySearchOption =
+    GhosttySearchOption_GHOSTTY_SEARCH_OPT_SELECT_NEXT;
+pub const GHOSTTY_SEARCH_OPT_SELECT_PREV: GhosttySearchOption =
+    GhosttySearchOption_GHOSTTY_SEARCH_OPT_SELECT_PREV;
+pub const GHOSTTY_SEARCH_OPT_SELECT_SCROLL: GhosttySearchOption =
+    GhosttySearchOption_GHOSTTY_SEARCH_OPT_SELECT_SCROLL;
+pub const GHOSTTY_SEARCH_DATA_STATUS: GhosttySearchData =
+    GhosttySearchData_GHOSTTY_SEARCH_DATA_STATUS;
 pub const GHOSTTY_SEARCH_DATA_TOTAL_MATCHES: GhosttySearchData =
     GhosttySearchData_GHOSTTY_SEARCH_DATA_TOTAL_MATCHES;
+pub const GHOSTTY_SEARCH_DATA_SELECTED_INDEX: GhosttySearchData =
+    GhosttySearchData_GHOSTTY_SEARCH_DATA_SELECTED_INDEX;
+pub const GHOSTTY_SEARCH_DATA_SELECTED_MATCH: GhosttySearchData =
+    GhosttySearchData_GHOSTTY_SEARCH_DATA_SELECTED_MATCH;
 pub const GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES: GhosttySearchData =
     GhosttySearchData_GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES;
+pub const GHOSTTY_SEARCH_STATUS_RUNNING: GhosttySearchStatus =
+    GhosttySearchStatus_GHOSTTY_SEARCH_STATUS_RUNNING;
+pub const GHOSTTY_SEARCH_STATUS_FEED_REQUIRED: GhosttySearchStatus =
+    GhosttySearchStatus_GHOSTTY_SEARCH_STATUS_FEED_REQUIRED;
+pub const GHOSTTY_SEARCH_STATUS_COMPLETE: GhosttySearchStatus =
+    GhosttySearchStatus_GHOSTTY_SEARCH_STATUS_COMPLETE;
+pub const GHOSTTY_SEARCH_SCROLL_IF_NEEDED: GhosttySearchScroll =
+    GhosttySearchScroll_GHOSTTY_SEARCH_SCROLL_IF_NEEDED;
+pub const GHOSTTY_SEARCH_SCROLL_NONE: GhosttySearchScroll =
+    GhosttySearchScroll_GHOSTTY_SEARCH_SCROLL_NONE;
 
 // --- keyboard ---------------------------------------------------------------
 

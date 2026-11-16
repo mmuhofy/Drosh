@@ -370,6 +370,122 @@ impl Session {
         viewport_bounds(self, selection, columns, rows)
     }
 
+    /// The matches on the screen, in viewport coordinates.
+    ///
+    /// The engine's own list of the matches on the pages that cover the
+    /// viewport — the ones the user can see, or nearly. A match that cannot
+    /// be placed in the viewport (it is in the scrollback, above the screen)
+    /// is left out: the viewport's rows are what the drawing uses.
+    ///
+    /// A match that runs over a line break covers a row on each side, and
+    /// each of those rows is a range of its own.
+    pub fn search_viewport_matches(&self) -> Vec<(i32, i32, i32)> {
+        let Some(search) = self.search else {
+            return Vec::new();
+        };
+
+        // The engine's list is a buffer, and the buffer's size is not known
+        // until the engine is asked: the first call says how many entries
+        // there are, the second fills them.
+        let mut query: ghostty::GhosttySelectionBuffer = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            ghostty::ghostty_search_get(
+                search,
+                ghostty::GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES,
+                &mut query as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+        if result == ghostty::NO_VALUE {
+            return Vec::new();
+        }
+        let cap = query.len;
+        if cap == 0 {
+            return Vec::new();
+        }
+        let mut selections: Vec<ghostty::GhosttySelection> =
+            vec![unsafe { std::mem::zeroed() }; cap];
+        query.ptr = selections.as_mut_ptr();
+        query.cap = cap;
+        let result = unsafe {
+            ghostty::ghostty_search_get(
+                search,
+                ghostty::GHOSTTY_SEARCH_DATA_VIEWPORT_MATCHES,
+                &mut query as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+        if !ghostty::ok(result) {
+            return Vec::new();
+        }
+
+        let columns = self.columns();
+        let rows = self.rows();
+        let mut ranges = Vec::with_capacity(query.len);
+        for selection in selections.iter().take(query.len) {
+            ranges.extend(self.match_ranges(*selection, columns, rows));
+        }
+        ranges
+    }
+
+    /// The rows a match covers on the screen.
+    ///
+    /// A match is two grid references — where it starts and where it ends —
+    /// and the engine converts them to the viewport's rows. A match in the
+    /// scrollback has no viewport row, and the engine says so: there is
+    /// nothing to draw there.
+    fn match_ranges(
+        &self,
+        selection: ghostty::GhosttySelection,
+        columns: u16,
+        rows: u16,
+    ) -> Vec<(i32, i32, i32)> {
+        let Some((start_row, start_column)) = self.viewport_point(&selection.start) else {
+            return Vec::new();
+        };
+        let Some((end_row, end_column)) = self.viewport_point(&selection.end) else {
+            return Vec::new();
+        };
+        if start_row < 0 || start_row >= i32::from(rows) {
+            return Vec::new();
+        }
+
+        let last_row = end_row.min(i32::from(rows) - 1);
+        let mut ranges = Vec::new();
+        for row in start_row..=last_row {
+            // The match's own row starts where the match starts and ends
+            // where it ends; the rows in between are covered whole.
+            let from = if row == start_row { start_column } else { 0 };
+            let to = if row == end_row {
+                end_column
+            } else {
+                i32::from(columns) - 1
+            };
+            if to >= from {
+                ranges.push((row, from, to - from + 1));
+            }
+        }
+        ranges
+    }
+
+    /// A grid reference's place in the viewport.
+    ///
+    /// The engine's own conversion: a cell that is not on the screen has no
+    /// viewport row, and the engine answers that it has none.
+    fn viewport_point(&self, reference: &ghostty::GhosttyGridRef) -> Option<(i32, i32)> {
+        let mut coordinate: ghostty::GhosttyPointCoordinate = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            ghostty::ghostty_terminal_point_from_grid_ref(
+                self.terminal,
+                reference,
+                ghostty::GHOSTTY_POINT_TAG_VIEWPORT,
+                &mut coordinate,
+            )
+        };
+        if !ghostty::ok(result) {
+            return None;
+        }
+        Some((coordinate.y as i32, coordinate.x as i32))
+    }
+
     /// Text of the selected match, or None.
     pub fn search_selected_match_text(&self) -> Option<String> {
         let search = self.search?;
