@@ -243,6 +243,22 @@ class RenderThread(
     private var renderer: FrameRenderer? = null
 
     /**
+     * The theme's values, kept until a renderer exists to hear them.
+     *
+     * The renderer is created on the first frame, and a surface can be told
+     * its background, its highlight colour and its transparency before that
+     * — a pane that is built and then drawn a moment later. Dropped, those
+     * commands left the renderer on its own defaults: a new session drew on
+     * the library's near-black instead of the theme, which is the plain black
+     * a fresh terminal showed.
+     */
+    private var background: Int? = null
+    private var highlightColour: Int? = null
+    private var highlightAllColour: Int? = null
+    private var bellColour: Int? = null
+    private var transparentBackground: Boolean? = null
+
+    /**
      * When the visual bell's flash is over.
      *
      * The loop draws every frame until then, so a flash that is a moment long
@@ -441,16 +457,19 @@ class RenderThread(
                     is Command.Invalidate -> dirty = true
 
                     is Command.HighlightColour -> {
+                        highlightColour = command.argb
                         renderer?.setHighlightColour(command.argb)
                         dirty = true
                     }
 
                     is Command.HighlightAllColour -> {
+                        highlightAllColour = command.argb
                         renderer?.setHighlightAllColour(command.argb)
                         dirty = true
                     }
 
                     is Command.BellColour -> {
+                        bellColour = command.argb
                         renderer?.setBellColour(command.argb)
                     }
 
@@ -461,11 +480,13 @@ class RenderThread(
                     }
 
                     is Command.TransparentBackground -> {
+                        transparentBackground = command.transparent
                         renderer?.transparentBackground = command.transparent
                         dirty = true
                     }
 
                     is Command.Background -> {
+                        background = command.argb
                         renderer?.setBackground(command.argb)
                         dirty = true
                     }
@@ -573,6 +594,15 @@ class RenderThread(
             it.fontPx = fontPx
             it.create()
             it.onSizeChanged(layout.size)
+            // Everything the theme said before the renderer existed. A pane is
+            // told its colours the moment it is built, and the first frame is
+            // a moment after that: without this the new renderer would draw on
+            // its own defaults.
+            background?.let { argb -> it.setBackground(argb) }
+            highlightColour?.let { argb -> it.setHighlightColour(argb) }
+            highlightAllColour?.let { argb -> it.setHighlightAllColour(argb) }
+            bellColour?.let { argb -> it.setBellColour(argb) }
+            transparentBackground?.let { transparent -> it.transparentBackground = transparent }
             renderer = it
         }
 
