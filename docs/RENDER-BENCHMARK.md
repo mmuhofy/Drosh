@@ -85,31 +85,34 @@ not measured on a device, so they are exact and reproducible.
 
 ```
 PTY → Rust: ghostty_terminal_vt_write            (the session lock)
-         → ghostty_render_state_update            (the session lock)
-         → the row iterator + 9 FFI calls per cell (the session lock)
-         → bytes.to_vec() + new_byte_array        (two copies)
-JNI  → jbyteArray → Frame.parse → ByteBuffer.wrap (no copy)
-Kotlin→ buildBackgrounds + buildForegrounds       (every cell, every frame)
-         → glBufferData, the whole buffer, twice  (every frame)
-         → 2 instanced draws + the cursor + one draw per picture
+         → ghostty_render_state_begin_update      (the session lock)
+         → the terminal's lock is released here
+         → ghostty_render_state_end_update        (no lock)
+         → the row iterator + 9 FFI calls per cell (only the rows that changed)
+         → the frame is written into the caller's buffer
+Kotlin→ the frame is read from that buffer        (no copy, no allocation)
+         → buildBackgrounds + buildForegrounds      (only the rows that changed)
+         → glBufferSubData, only the rows that changed
+         → 2 instanced draws + the cursor + one draw per run of pictures
 ```
 
 ### 3.2 The numbers
 
-| Measure | Value | Where |
-|---|---|---|
-| FFI calls per cell | **9** | `native/src/frame.rs` (`write_cell`) |
-| Frame size | 48 B header + 20 B/cell → 38 KB at 80×24 | `FrameFormat.kt` |
-| Copies per frame | **2** | `native/src/jni/session.rs` (`nativeFrame`) |
-| Cells walked per frame | **all of them** | `FrameRenderer.buildBackgrounds` |
-| Bytes uploaded per frame | the whole background buffer + the whole glyph buffer | `FrameRenderer.drawBackgrounds` / `drawForegrounds` |
-| Draw calls per frame | 2 + the cursor + **one per picture** | `FrameRenderer.draw` |
-| Terminal lock held | the whole frame's production | `native/src/jni/session.rs` |
-| Styles drawn | bold, underline | `FrameRenderer` |
-| Styles carried but not drawn | italic, blink, strikethrough, overline | the frame's attributes |
-| Atlas | one `ALPHA_8` texture, 2048², shelf-packed, no fallback | `AndroidGlyphAtlas.kt` |
-| Font | `Typeface.MONOSPACE`, hard-coded | `AndroidGlyphAtlas.kt` |
-| EGL context loss | not detected | `EglCore.swap` |
+| Measure | Before | Now | Where |
+|---|---|---|---|
+| FFI calls per cell | 9, every cell | 9, **only the rows that changed** | `native/src/frame.rs` (`write_cell`) |
+| Frame size | 48 B header + 20 B/cell | 80 B header + 20 B/cell | `FrameFormat.kt` |
+| Copies per frame | 2 (a Java array per frame) | **0** (the caller's own buffer) | `native/src/jni/session.rs` (`nativeFrameInto`) |
+| Java allocations per frame | one 40 KB array | none | `RenderThread.fetchFrame` |
+| Cells walked per frame | all of them | **only the rows that changed** | `FrameRenderer.buildBackgrounds` |
+| Bytes uploaded per frame | the whole background buffer + the whole glyph buffer | **only the rows that changed** | `FrameRenderer.uploadBackgrounds` |
+| Draw calls per frame | 2 + the cursor + one per picture | 2 + the cursor + **one per run of pictures** | `FrameRenderer.draw` |
+| Terminal lock held | the whole frame's production | **the snapshot only** | `native/src/session.rs` (`with_frame`) |
+| Styles drawn | bold, underline | bold, underline | `FrameRenderer` |
+| Styles carried but not drawn | italic, blink, strikethrough, overline | the same | the frame's attributes |
+| Atlas | one `ALPHA_8` texture, 2048², shelf-packed, no fallback | the same | `AndroidGlyphAtlas.kt` |
+| Font | `Typeface.MONOSPACE`, hard-coded | the same | `AndroidGlyphAtlas.kt` |
+| EGL context loss | not detected | not detected | `EglCore.swap` |
 
 ### 3.3 What the phases cost, on a device
 
@@ -130,13 +133,22 @@ numbers have to take.)*
 Each phase has to beat the numbers of the phase before it, on a device, with
 the report attached.
 
-| Phase | What it changes | The criterion |
-|---|---|---|
-| 0 — measurement | nothing that draws | the numbers exist and are reproducible |
-| 1 — the lock | the snapshot is taken under the lock, the rest is not | `pump` p99 < 4 ms while `flood` runs, and the keyboard stays responsive |
-| 2 — zero copy | the frame crosses as a direct buffer | the copies per frame: 2 → 0; `pump` p50 halves |
-| 3 — dirty rows | only the changed rows are rebuilt and uploaded | a frame that changes one row costs one row: `build` on `idle` ≈ 0 and `partial` frames cost a fraction of `full` ones |
-| 4 — sprites | the background is one draw, the pictures are batched | the draw calls per frame: 3 + pictures → 3 |
+| Phase | What it changes | The criterion | State |
+|---|---|---|---|
+| 0 — measurement | nothing that draws | the numbers exist and are reproducible | done |
+| 1 — the lock | the snapshot is taken under the lock, the rest is not | `pump` p99 < 4 ms while `flood` runs, and the keyboard stays responsive | done, to be measured |
+| 2 — zero copy | the frame is written into the renderer's own buffer | the copies per frame: 2 → 0; `pump` p50 halves | done, to be measured |
+| 3 — dirty rows | only the changed rows are extracted, built and uploaded | a frame that changes one row costs one row: `build` on `idle` ≈ 0 and `partial` frames cost a fraction of `full` ones | done, to be measured |
+| 4 — sprites | the pictures are drawn in runs of the same texture | the draw calls per frame: 3 + runs of pictures | done, to be measured |
+
+**What Phase 4 deliberately did not do.** The background could be drawn as
+one full-screen triangle with the cell colours in a texture, the way Ghostty
+draws it. It was left alone: the fill cost is the same either way (both
+versions paint the whole grid), and the triangle version costs a texture
+fetch per fragment where the instanced version costs one vertex read per
+cell. On a tiled mobile GPU that is not obviously the cheaper of the two, and
+it cannot be measured without a device — so the change that could not be
+measured was not made.
 
 The criteria are deliberately in the phases' own units: a renderer that got
 faster by doing the same work in a different place has not got faster, and

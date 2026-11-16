@@ -925,20 +925,6 @@ internal class FrameRenderer {
                 .order(java.nio.ByteOrder.nativeOrder())
         }
         val buffer = imageVertices!!
-        buffer.clear()
-        for (image in drawn) {
-            val x = image.col * cellWidth + image.offsetX
-            val y = image.row * cellHeight + image.offsetY
-            buffer.putFloat(x)
-            buffer.putFloat(y)
-            buffer.putFloat(image.width.toFloat())
-            buffer.putFloat(image.height.toFloat())
-            buffer.putFloat(image.sourceU)
-            buffer.putFloat(image.sourceV)
-            buffer.putFloat(image.sourceU2)
-            buffer.putFloat(image.sourceV2)
-        }
-        buffer.flip()
 
         val projection = FloatArray(4)
         size.projection(projection)
@@ -949,27 +935,63 @@ internal class FrameRenderer {
         GLES20.glUniform1i(imageTexture, 0)
 
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, imageBuffer)
-        GLES20.glBufferData(
-            GLES20.GL_ARRAY_BUFFER,
-            buffer.remaining(),
-            buffer,
-            GLES20.GL_DYNAMIC_DRAW,
-        )
+        // The pictures are the instances: one per picture, four vertices each.
         GLES20.glEnableVertexAttribArray(0)
-        GLES20.glVertexAttribPointer(0, 4, GLES20.GL_FLOAT, false, 32, 0)
+        GLES20.glVertexAttribPointer(0, 4, GL_FLOAT, false, 32, 0)
+        GLES20.glVertexAttribDivisor(0, 1)
         GLES20.glEnableVertexAttribArray(1)
-        GLES20.glVertexAttribPointer(1, 4, GLES20.GL_FLOAT, false, 32, 16)
+        GLES20.glVertexAttribPointer(1, 4, GL_FLOAT, false, 32, 16)
+        GLES20.glVertexAttribDivisor(1, 1)
 
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-        for ((index, image) in drawn.withIndex()) {
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, image.texture)
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, index * 4, 4)
+
+        // The pictures are drawn in runs of the same texture.
+        //
+        // A run is one instanced draw: the texture is bound once for it and
+        // the pictures of the run are its instances. The runs keep the order
+        // the pictures were sorted in, so two pictures that overlap are still
+        // drawn in the order they were placed.
+        var calls = 0
+        var start = 0
+        while (start < drawn.size) {
+            var end = start + 1
+            while (end < drawn.size && drawn[end].texture == drawn[start].texture) {
+                end += 1
+            }
+
+            buffer.clear()
+            for (index in start until end) {
+                val image = drawn[index]
+                val x = image.col * cellWidth + image.offsetX
+                val y = image.row * cellHeight + image.offsetY
+                buffer.putFloat(x)
+                buffer.putFloat(y)
+                buffer.putFloat(image.width.toFloat())
+                buffer.putFloat(image.height.toFloat())
+                buffer.putFloat(image.sourceU)
+                buffer.putFloat(image.sourceV)
+                buffer.putFloat(image.sourceU2)
+                buffer.putFloat(image.sourceV2)
+            }
+            buffer.flip()
+            GLES20.glBufferData(
+                GLES20.GL_ARRAY_BUFFER,
+                buffer.remaining(),
+                buffer,
+                GLES20.GL_DYNAMIC_DRAW,
+            )
+
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, drawn[start].texture)
+            GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, end - start)
+            calls += 1
+            start = end
         }
+
         GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glDisableVertexAttribArray(0)
         GLES20.glDisableVertexAttribArray(1)
-        return drawn.size
+        return calls
     }
 
     /**
