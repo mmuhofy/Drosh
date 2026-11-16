@@ -140,9 +140,9 @@ class CellsTest {
         cells.resize(frame)
         cells.buildSprites(frame, 0, writer(frame))
 
-        // Four columns of text in six captured rows — the viewport's four and
-        // the overscan row above and below it: twenty-four sprites, packed.
-        assertEquals(4 * 6, cells.spriteCount)
+        // Four columns of text in five captured rows — the viewport's three
+        // and the overscan row above and below it: twenty sprites, packed.
+        assertEquals(4 * 5, cells.spriteCount)
         assertTrue(cells.spritesRebuilt)
         assertEquals(0, cells.spriteUploadStart())
     }
@@ -156,11 +156,13 @@ class CellsTest {
         val full = cells.spriteCount
         assertEquals(4 * 6 - 4, full)
 
-        // Only the last row changed: the sprites built are the last row's, and
-        // the upload starts where that row's sprites start — not at the top.
+        // Only one row changed: the sprites built are that row's and the ones
+        // after it, and the upload starts where that row's sprites start — not
+        // at the top. Rows zero, one and two hold four sprites each, so the
+        // captured row three starts at the twelfth.
         cells.buildSprites(frame, 3, writer(frame))
         assertEquals(full, cells.spriteCount)
-        assertEquals((full - 4) * Cells.SPRITE_BYTES, cells.spriteUploadStart())
+        assertEquals(12 * Cells.SPRITE_BYTES, cells.spriteUploadStart())
     }
 
     @Test
