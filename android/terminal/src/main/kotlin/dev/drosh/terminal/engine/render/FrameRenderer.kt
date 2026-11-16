@@ -937,11 +937,11 @@ internal class FrameRenderer {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, imageBuffer)
         // The pictures are the instances: one per picture, four vertices each.
         GLES20.glEnableVertexAttribArray(0)
-        GLES20.glVertexAttribPointer(0, 4, GL_FLOAT, false, 32, 0)
-        GLES20.glVertexAttribDivisor(0, 1)
+        GLES20.glVertexAttribPointer(0, 4, GLES20.GL_FLOAT, false, 32, 0)
+        GLES30.glVertexAttribDivisor(0, 1)
         GLES20.glEnableVertexAttribArray(1)
-        GLES20.glVertexAttribPointer(1, 4, GL_FLOAT, false, 32, 16)
-        GLES20.glVertexAttribDivisor(1, 1)
+        GLES20.glVertexAttribPointer(1, 4, GLES20.GL_FLOAT, false, 32, 16)
+        GLES30.glVertexAttribDivisor(1, 1)
 
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
