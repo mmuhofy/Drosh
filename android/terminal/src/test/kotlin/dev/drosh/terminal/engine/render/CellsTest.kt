@@ -98,7 +98,9 @@ class CellsTest {
     fun `a cell's record is its row times the columns`() {
         val cells = Cells()
         cells.resize(frame(columns = 10, viewportRows = 4))
-        assertEquals(10 * 4, cells.columns * cells.rows)
+        // The rows are the captured ones: the four of the viewport and the one
+        // above and below it.
+        assertEquals(10 * 6, cells.columns * cells.rows)
         // The overscan row above the viewport is row zero, so a cell's record
         // is exactly its own row and column — no translation.
         assertEquals(0, cells.backgroundAt(0, 0))
@@ -124,10 +126,11 @@ class CellsTest {
         val record = cells.backgroundAt(1, 2)
         assertEquals(2, cells.backgrounds.getShort(record).toInt())
         assertEquals(0, cells.backgrounds.getShort(record + 2).toInt())
-        // The colour, in the byte order the shader reads.
-        assertEquals(0x20, cells.backgrounds.get(record + 4).toInt() and 0xff)
+        // The colour, in the byte order the shader reads: red is the low byte
+        // of the packed value, so it is the first byte written.
+        assertEquals(0x40, cells.backgrounds.get(record + 4).toInt() and 0xff)
         assertEquals(0x30, cells.backgrounds.get(record + 5).toInt() and 0xff)
-        assertEquals(0x40, cells.backgrounds.get(record + 6).toInt() and 0xff)
+        assertEquals(0x20, cells.backgrounds.get(record + 6).toInt() and 0xff)
     }
 
     @Test
@@ -137,8 +140,9 @@ class CellsTest {
         cells.resize(frame)
         cells.buildSprites(frame, 0, writer(frame))
 
-        // Four columns of text in four captured rows: sixteen sprites, packed.
-        assertEquals(4 * 4, cells.spriteCount)
+        // Four columns of text in six captured rows — the viewport's four and
+        // the overscan row above and below it: twenty-four sprites, packed.
+        assertEquals(4 * 6, cells.spriteCount)
         assertTrue(cells.spritesRebuilt)
         assertEquals(0, cells.spriteUploadStart())
     }
@@ -150,7 +154,7 @@ class CellsTest {
         cells.resize(frame)
         cells.buildSprites(frame, 0, writer(frame))
         val full = cells.spriteCount
-        assertEquals(4 * 4 - 4, full)
+        assertEquals(4 * 6 - 4, full)
 
         // Only the last row changed: the sprites built are the last row's, and
         // the upload starts where that row's sprites start — not at the top.
