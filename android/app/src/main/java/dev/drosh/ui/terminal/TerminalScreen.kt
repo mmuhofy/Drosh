@@ -302,10 +302,13 @@ private fun ReadyScreen(
     val liveSessionIds by terminalManager.liveSessionIdsFlow.collectAsStateWithLifecycle()
 
     val splitMessage by paneLayoutViewModel.splitMessage.collectAsStateWithLifecycle()
+    // The context is read here, not inside the effect: a composable's value
+    // cannot be read from a block that is not itself composable.
+    val splitContext = LocalContext.current
     LaunchedEffect(splitMessage) {
         splitMessage?.let { msg ->
             android.widget.Toast.makeText(
-                LocalContext.current,
+                splitContext,
                 msg,
                 android.widget.Toast.LENGTH_SHORT,
             ).show()
