@@ -700,8 +700,10 @@ class TerminalManager(
         engineSessions.find { it.persistentId == primaryId }?.enginePane = secondaryPane
         engineSessions.find { it.persistentId == secondaryId }?.enginePane = primaryPane
 
-        val primaryIndex = paneTabIndices[PaneSlot.PRIMARY]
-        val secondaryIndex = paneTabIndices[PaneSlot.SECONDARY]
+        // The panes keep their tab index too: the index says which session of
+        // the list the pane is on, and a swap moves both.
+        val primaryIndex = paneTabIndices[PaneSlot.PRIMARY] ?: NO_PANE_SESSION
+        val secondaryIndex = paneTabIndices[PaneSlot.SECONDARY] ?: NO_PANE_SESSION
         paneTabIndices[PaneSlot.PRIMARY] = secondaryIndex
         paneTabIndices[PaneSlot.SECONDARY] = primaryIndex
 
