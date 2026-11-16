@@ -13,7 +13,6 @@ import dev.drosh.terminal.engine.native.NativeInput
 import dev.drosh.terminal.engine.native.NativePty
 import dev.drosh.terminal.engine.native.NativeSelection
 import dev.drosh.terminal.engine.native.NativeSession
-import dev.drosh.terminal.engine.protocol.Frame
 import dev.drosh.terminal.engine.render.RenderThread
 
 /**
@@ -131,7 +130,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         holder.setFormat(android.graphics.PixelFormat.OPAQUE)
         setZOrderOnTop(false)
 
-        renderThread.frameSource = { frame() }
+        renderThread.frameSource = { buffer -> frameInto(buffer) }
         // The pictures a program drew.
         renderThread.imageSource = {
             val session = sessionHandle
@@ -1553,10 +1552,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * the engine had nothing coherent to say, and the loop leaves the previous
      * picture alone rather than presenting an empty one.
      */
-    private fun frame(): Frame? {
+    /**
+     * The next frame, written into the buffer the render loop lends.
+     *
+     * The engine writes the frame straight into the buffer, so a frame does
+     * not become a Java array on the way. The buffer is the loop's own and is
+     * reused from frame to frame.
+     *
+     * @return the bytes written, 0 when there was no frame, and -1 when the
+     *   buffer was too small.
+     */
+    private fun frameInto(buffer: java.nio.ByteBuffer): Int {
         val session = sessionHandle
-        if (session == 0L) return null
-        return NativeSession.frame(session)
+        if (session == 0L) return 0
+        return NativeSession.frameInto(session, buffer)
     }
 
     // --- reading ------------------------------------------------------------

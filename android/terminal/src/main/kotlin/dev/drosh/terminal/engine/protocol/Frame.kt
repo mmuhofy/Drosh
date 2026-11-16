@@ -149,53 +149,71 @@ class Frame private constructor(
             if (bytes == null || bytes.size < FrameFormat.HEADER_BYTES) {
                 return null
             }
-
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            return parse(buffer, bytes.size)
+        }
 
-            if (buffer.getInt(FrameFormat.OFFSET_MAGIC) != FrameFormat.MAGIC) {
+        /**
+         * Parse a frame out of a buffer the engine wrote into.
+         *
+         * The buffer belongs to the caller and is reused from frame to frame,
+         * so the frame is only valid until the next one is written. The
+         * renderer reads and draws a frame before it asks for the next, which
+         * is what makes the reuse safe.
+         *
+         * @param buffer the buffer, positioned at the frame's first byte.
+         * @param length how many bytes of it the frame occupies.
+         */
+        fun parse(buffer: ByteBuffer, length: Int): Frame? {
+            if (length < FrameFormat.HEADER_BYTES) {
                 return null
             }
-            val version = buffer.getShort(FrameFormat.OFFSET_VERSION).toInt() and 0xffff
+            val view = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
+
+            if (view.getInt(FrameFormat.OFFSET_MAGIC) != FrameFormat.MAGIC) {
+                return null
+            }
+            val version = view.getShort(FrameFormat.OFFSET_VERSION).toInt() and 0xffff
             if (version != FrameFormat.VERSION) {
                 return null
             }
-            val headerBytes = buffer.getShort(FrameFormat.OFFSET_HEADER_BYTES).toInt() and 0xffff
+            val headerBytes = view.getShort(FrameFormat.OFFSET_HEADER_BYTES).toInt() and 0xffff
             if (headerBytes != FrameFormat.HEADER_BYTES) {
                 return null
             }
 
-            val columns = buffer.getShort(FrameFormat.OFFSET_COLUMNS).toInt() and 0xffff
-            val rows = buffer.getShort(FrameFormat.OFFSET_ROWS).toInt() and 0xffff
-            val rowCount = buffer.getShort(FrameFormat.OFFSET_ROW_COUNT).toInt() and 0xffff
-            val cellCount = buffer.getInt(FrameFormat.OFFSET_CELL_COUNT)
-            val cellStride = buffer.getInt(FrameFormat.OFFSET_CELL_STRIDE)
+            val columns = view.getShort(FrameFormat.OFFSET_COLUMNS).toInt() and 0xffff
+            val rows = view.getShort(FrameFormat.OFFSET_ROWS).toInt() and 0xffff
+            val rowCount = view.getShort(FrameFormat.OFFSET_ROW_COUNT).toInt() and 0xffff
+            val cellCount = view.getInt(FrameFormat.OFFSET_CELL_COUNT)
+            val cellStride = view.getInt(FrameFormat.OFFSET_CELL_STRIDE)
 
             // The body has to be there before any cell is read: a truncated
-            // array is a frame that must not be drawn.
+            // frame is a frame that must not be drawn.
             val needed = FrameFormat.HEADER_BYTES.toLong() + cellCount.toLong() * cellStride
-            if (needed > bytes.size) {
+            if (needed > length) {
                 return null
             }
 
-            val cursorFlags = buffer.getShort(FrameFormat.OFFSET_CURSOR_FLAGS).toInt() and 0xffff
+            val cursorFlags = view.getShort(FrameFormat.OFFSET_CURSOR_FLAGS).toInt() and 0xffff
 
             return Frame(
-                buffer = buffer,
-                sequence = buffer.getInt(FrameFormat.OFFSET_SEQUENCE),
+                buffer = view,
+                sequence = view.getInt(FrameFormat.OFFSET_SEQUENCE),
                 columns = columns,
                 rows = rows,
                 rowCount = rowCount,
-                overscanAbove = buffer.getShort(FrameFormat.OFFSET_OVERSCAN_ABOVE).toInt(),
-                overscanBelow = buffer.getShort(FrameFormat.OFFSET_OVERSCAN_BELOW).toInt(),
-                cursorColumn = buffer.getShort(FrameFormat.OFFSET_CURSOR_X).toInt() and 0xffff,
-                cursorRow = buffer.getShort(FrameFormat.OFFSET_CURSOR_Y).toInt() and 0xffff,
-                cursorStyle = buffer.getShort(FrameFormat.OFFSET_CURSOR_STYLE).toInt() and 0xffff,
+                overscanAbove = view.getShort(FrameFormat.OFFSET_OVERSCAN_ABOVE).toInt(),
+                overscanBelow = view.getShort(FrameFormat.OFFSET_OVERSCAN_BELOW).toInt(),
+                cursorColumn = view.getShort(FrameFormat.OFFSET_CURSOR_X).toInt() and 0xffff,
+                cursorRow = view.getShort(FrameFormat.OFFSET_CURSOR_Y).toInt() and 0xffff,
+                cursorStyle = view.getShort(FrameFormat.OFFSET_CURSOR_STYLE).toInt() and 0xffff,
                 cursorVisible = cursorFlags and FrameFormat.CURSOR_VISIBLE != 0,
                 cursorBlinking = cursorFlags and FrameFormat.CURSOR_BLINKING != 0,
                 cursorIsRectangle = cursorFlags and FrameFormat.CURSOR_IS_RECTANGLE != 0,
-                cursorColor = buffer.getInt(FrameFormat.OFFSET_CURSOR_COLOR),
-                firstRowY = buffer.getShort(FrameFormat.OFFSET_FIRST_ROW_Y).toInt(),
-                dirty = buffer.getShort(FrameFormat.OFFSET_DIRTY).toInt() and 0xffff,
+                cursorColor = view.getInt(FrameFormat.OFFSET_CURSOR_COLOR),
+                firstRowY = view.getShort(FrameFormat.OFFSET_FIRST_ROW_Y).toInt(),
+                dirty = view.getShort(FrameFormat.OFFSET_DIRTY).toInt() and 0xffff,
                 cellCount = cellCount,
                 cellStride = cellStride,
             )

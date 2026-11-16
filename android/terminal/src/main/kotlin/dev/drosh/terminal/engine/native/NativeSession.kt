@@ -56,6 +56,24 @@ object NativeSession {
     }
 
     /**
+     * Produces the next frame into a buffer the caller owns.
+     *
+     * The engine writes the frame straight into the buffer, so a frame does
+     * not become a Java array on the way and the app's heap does not grow by
+     * forty kilobytes every redraw.
+     *
+     * The buffer belongs to the caller and is reused from frame to frame: the
+     * frame is only valid until the next call writes over it.
+     *
+     * @return the bytes written, 0 when there was no frame, and -1 when the
+     *   buffer is too small — the caller makes a bigger one and asks again.
+     */
+    fun frameInto(handle: Long, buffer: java.nio.ByteBuffer): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return 0
+        return nativeFrameInto(handle, buffer)
+    }
+
+    /**
      * The shell's phase, as its `OSC 133` marks report it.
      *
      * 0 unknown, 1 prompt, 2 typing, 3 running, 4 finished. A shell that has
@@ -297,6 +315,7 @@ object NativeSession {
         cellHeight: Int,
     ): Int
     private external fun nativeFrame(handle: Long): ByteArray?
+    private external fun nativeFrameInto(handle: Long, buffer: java.nio.ByteBuffer): Int
     private external fun nativeScroll(handle: Long, tag: Int, amount: Int): Int
     private external fun nativeScrollbar(handle: Long): IntArray
     private external fun nativeSetColors(

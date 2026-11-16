@@ -4,7 +4,7 @@
 //! crosses in one piece, and there is no second call that could answer from a
 //! different moment.
 
-use jni::objects::{JByteArray, JClass, JIntArray, JString};
+use jni::objects::{JByteArray, JByteBuffer, JClass, JIntArray, JString};
 use jni::JNIEnv;
 
 use super::{jboolean, jbyteArray, jint, jintArray, jlong, jstring};
@@ -184,6 +184,47 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
 
     session.set_colors(colour(fg), colour(bg), &colours);
     1
+}
+
+/// Produce the next frame into the caller's buffer, or null when there is
+/// nothing to draw.
+///
+/// The caller lends a direct buffer and the frame is written into it. That is
+/// the whole point: a frame does not become a Java array on the way, so the
+/// app's heap does not grow by forty kilobytes every time the terminal
+/// redraws.
+///
+/// The buffer belongs to the caller. It must stay alive and untouched until
+/// the next call — the renderer reads and draws the frame before it asks for
+/// the next one, which is what makes the reuse safe.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeFrameInto(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    buffer: JByteBuffer,
+) -> jint {
+    let Some(session) = session_handle(handle) else {
+        return 0;
+    };
+    let capacity = env.get_direct_buffer_capacity(&buffer).unwrap_or(0);
+    let address = env.get_direct_buffer_address(&buffer).ok();
+    session
+        .with_frame(|bytes| {
+            let Some(address) = address else {
+                return -1;
+            };
+            if bytes.len() > capacity {
+                // The buffer is too small. The caller makes a bigger one and
+                // asks again; the frame is not drawn from a truncated buffer.
+                return -1;
+            }
+            unsafe {
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), address, bytes.len());
+            }
+            bytes.len() as jint
+        })
+        .unwrap_or(0)
 }
 
 /// Set the default cursor's shape (`style`) and whether it blinks.

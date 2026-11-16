@@ -1206,6 +1206,20 @@ impl SessionHandle {
     /// the row iteration that follows it work on the render state's own
     /// memory, and the terminal is free to be written to while they run.
     pub fn render_frame(&self) -> Option<Vec<u8>> {
+        self.with_frame(|bytes| bytes.to_vec())
+    }
+
+    /// Produce the next frame and hand it to [f].
+    ///
+    /// The frame is only valid while the render state's lock is held, so the
+    /// bytes are given to a function rather than returned: a caller that
+    /// wanted to keep them would have to copy them, and the copy is the one
+    /// thing this arrangement exists to avoid.
+    ///
+    /// The terminal's lock is held for the begin phase only. The end phase and
+    /// the row iteration that follows it work on the render state's own
+    /// memory, and the terminal is free to be written to while they run.
+    pub fn with_frame<R>(&self, f: impl FnOnce(&[u8]) -> R) -> Option<R> {
         let session = self.lock();
         let mut frames = self.frames_lock();
         if frames.begin_update().is_err() {
@@ -1215,7 +1229,7 @@ impl SessionHandle {
         // work and does not need it.
         drop(session);
         match frames.end_update() {
-            Ok(bytes) => Some(bytes.to_vec()),
+            Ok(bytes) => Some(f(bytes)),
             Err(error) => {
                 log::debug!("drosh-native: no frame: {error:?}");
                 None

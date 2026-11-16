@@ -198,9 +198,28 @@ class RenderThread(
      *
      * A function rather than an object so the loop does not need to know what a
      * session is; it asks for bytes and draws them.
+     *
+     * The buffer is the loop's own and is lent to the caller: the engine
+     * writes the frame into it, so a frame does not become a Java array on the
+     * way and nothing is allocated per frame. The caller must not keep the
+     * frame past the next call — the renderer reads and draws it before then,
+     * which is what makes the reuse safe.
+     *
+     * @return the bytes written, 0 when there was no frame, and -1 when the
+     *   buffer was too small.
      */
     @Volatile
-    var frameSource: (() -> dev.drosh.terminal.engine.protocol.Frame?)? = null
+    var frameSource: ((java.nio.ByteBuffer) -> Int)? = null
+
+    /**
+     * The buffer the frames are written into.
+     *
+     * Owned by this thread: the frame is read and drawn here, and nothing
+     * else touches it. It starts at a size that fits a phone's grid and grows
+     * when the engine says it does not fit — which happens once, when the grid
+     * is bigger than the guess.
+     */
+    private var frameBuffer: java.nio.ByteBuffer? = null
 
     /**
      * Where the selected cells are, in view pixels.
@@ -561,7 +580,7 @@ class RenderThread(
         // drawn over the text, so they have to be known first.
         renderer?.setImages(imageSource?.invoke())
 
-        val frame = frameSource?.invoke()
+        val frame = fetchFrame()
 
         // The snapshot is over. Everything past this point is the renderer's
         // own work and does not hold the terminal's lock — the split is what
@@ -644,6 +663,41 @@ class RenderThread(
         )?.let { line -> Log.i(BENCH_TAG, line) }
     }
 
+    /**
+     * The next frame, or null when there was none.
+     *
+     * The frame is written into this thread's own buffer, so nothing is
+     * allocated per frame and nothing is copied on the Kotlin side. The buffer
+     * is reused from frame to frame, and the frame is read and drawn before
+     * the next one is asked for.
+     */
+    private fun fetchFrame(): dev.drosh.terminal.engine.protocol.Frame? {
+        val source = frameSource ?: return null
+        var buffer = frameBuffer ?: newFrameBuffer(INITIAL_FRAME_BYTES).also { frameBuffer = it }
+        var written = source(buffer)
+        if (written < 0) {
+            // The frame does not fit: the grid is bigger than the guess. Make
+            // a bigger buffer and ask again — once, because the engine's
+            // answer is the only one that knows how big it is.
+            buffer = newFrameBuffer(buffer.capacity() * 2)
+            frameBuffer = buffer
+            written = source(buffer)
+            if (written < 0) {
+                return null
+            }
+        }
+        if (written <= 0) {
+            return null
+        }
+        buffer.clear()
+        buffer.limit(written)
+        return dev.drosh.terminal.engine.protocol.Frame.parse(buffer, written)
+    }
+
+    /** A direct buffer, in the frame's byte order. */
+    private fun newFrameBuffer(bytes: Int): java.nio.ByteBuffer =
+        java.nio.ByteBuffer.allocateDirect(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+
     private fun drainCommands(): List<Command> = lock.withLock {
         if (pending.isEmpty()) return emptyList()
         val out = ArrayList<Command>(pending.size)
@@ -701,5 +755,13 @@ class RenderThread(
         /** How often the loop wakes while the bell's flash is on. */
         const val BELL_FLASH_POLL_MS = 16L
 
+        /**
+         * The first frame buffer's size, in bytes.
+         *
+         * Enough for a phone's grid — a hundred columns and sixty rows of
+         * twenty-byte cells, with room to spare — so the buffer is made once
+         * and then reused.
+         */
+        const val INITIAL_FRAME_BYTES = 128 * 1024
     }
 }
