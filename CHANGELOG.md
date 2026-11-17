@@ -36,6 +36,48 @@ release when it ships.
   rows is kept, and the two ends of the history both stop the picture dead
 - The immersive chrome is back: the row of pills moves to the top of the screen
   and the system's bars go with it
+- **The renderer keeps up with the engine.** Terminal output no longer has to
+  wait for a frame to be drawn: the engine's lock is held for the snapshot and
+  released before the frame is built, the frame is written into the renderer's
+  own buffer instead of a Java array, and only the rows the engine says changed
+  are extracted, built and uploaded
+- **The emoji are drawn in colour.** The platform's emoji font rasterises them
+  into a second atlas — a colour one, next to the grayscale text atlas — and
+  they are drawn as pictures over the text: two cells wide, centred, at the
+  cell's height
+- **The terminal draws in its own font**: a bundled JetBrains Mono Nerd Font,
+  so the Powerline separators, the box drawing and the rest of the private-use
+  glyphs a shell prompt uses are characters rather than missing-glyph boxes.
+  The cell and the glyph are measured and rasterised with the same face
+- A new session — and a refreshed one — is drawn in the theme: the colours the
+  app chose are kept on the pane and handed to every session it opens, instead
+  of only to the ones the manager opened
+- The glyph atlas uploads a full reset as a whole: a texture that was uploaded
+  in pieces after a reset kept drawing masks the cache no longer had, which is
+  what a pinch looked like once the atlas filled up
+- The search highlight has its own colour, every match on the screen is tinted,
+  and the one the find bar is on is tinted stronger
+- The `OSC 52` setting reaches the engine's write: a program may set the
+  clipboard when — and only when — the setting asks it to
+- The split's second pane is bound to a session of its own, the focus follows
+  the pane the user touches, and closing a pane leaves its session running
+
+**Build — architecture guardrails, and a renderer that measures itself**
+
+- The render loop times its own phases — the snapshot (the terminal's lock),
+  the vertex building, the upload and the draw — and writes one line every two
+  seconds under the `DroshBench` tag, with the cells, the sprites, the draw
+  calls and the engine's clean/partial/full counts
+- `tools/bench-render.sh` runs four scenarios (idle, output flood, scroll, a
+  full-screen program) on a device and writes a report; `docs/RENDER-BENCHMARK.md`
+  says what each phase is and what each one has to beat
+- The native renderer is split the way Ghostty's is — `renderer/wire`,
+  `frame`, `image`, `row`, `cell` — and the Kotlin side keeps the same shape:
+  `render/Cells` (the cell and sprite store), `font/TextAtlas`, `font/ColorAtlas`,
+  `font/Glyph`, `font/TerminalFont`
+- Unit tests for the arithmetic a row-based renderer cannot get wrong: the
+  cell's record, the sprite packing, the upload ranges, and which codepoints
+  are emoji
 
 **Build — architecture guardrails**
 
