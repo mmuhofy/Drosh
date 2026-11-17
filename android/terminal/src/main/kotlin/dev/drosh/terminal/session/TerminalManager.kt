@@ -456,7 +456,25 @@ class TerminalManager(
     /** Give every live session the theme's colours. */
     private fun applyEngineColors() {
         for (session in liveSessions.values) applyEngineColors(session)
+        // And the panes: a session opened later is the pane's to colour, and a
+        // refresh opens one without the manager in the loop.
+        val theme = engineTheme()
+        for (pane in enginePanes.values) pane.theme = theme
     }
+
+    /**
+     * The theme as the engine draws it.
+     *
+     * The fields the settings flow keeps current, in one value a pane can hold
+     * and apply to whatever session it opens.
+     */
+    private fun engineTheme(): TerminalEngineTheme = TerminalEngineTheme(
+        foreground = engineForeground,
+        background = engineBackground,
+        palette = enginePalette,
+        cursorStyle = engineCursorStyle,
+        cursorBlink = engineCursorBlink,
+    )
 
     /** Give one session the theme's colours. */
     private fun applyEngineColors(session: GhosttySession) {
@@ -1725,6 +1743,10 @@ class TerminalManager(
         if (persistentId.isNotEmpty()) {
             pane.bindIdentity(persistentId, name)
         }
+        // The theme first: the pane may already be showing a session — a
+        // refresh starts one before the manager hears about the pane — and the
+        // session has to be wearing the app's colours, not the library's.
+        pane.theme = engineTheme()
         val previous = enginePanes.put(slot, pane)
         if (previous != null && previous !== pane) {
             previous.selectionListener = null

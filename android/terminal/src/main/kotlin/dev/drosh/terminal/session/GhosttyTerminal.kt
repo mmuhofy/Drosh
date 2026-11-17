@@ -47,6 +47,21 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     var session: GhosttySession? = null
         private set
 
+    /**
+     * The theme every session this pane opens is drawn with.
+     *
+     * Set by the manager and applied the moment a session is shown. The
+     * engine's colours live in the terminal, so a session that starts after
+     * the theme was chosen has to be told it — otherwise a refreshed or newly
+     * opened session draws in the library's own black while the rest of the
+     * app is wearing the theme.
+     */
+    override var theme: TerminalEngineTheme? = null
+        set(value) {
+            field = value
+            applyTheme()
+        }
+
 
     /** The grid. Zero until [start]. */
     @Volatile
@@ -161,6 +176,29 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         cellWidth = session.cellWidth
         cellHeight = session.cellHeight
         view.attach(session.terminalHandle, session.ptyHandle, session.cellWidth, session.cellHeight)
+        // The session is new to this pane, whatever opened it: the theme is
+        // the pane's, and the terminal it points at has never heard it.
+        applyTheme()
+    }
+
+    /**
+     * Hand the theme to the session the pane is showing.
+     *
+     * A no-op when either side is missing: a pane with no session has nothing
+     * to colour, and a pane with no theme has nothing to say.
+     */
+    private fun applyTheme() {
+        val shown = session ?: return
+        val handle = shown.terminalHandle
+        if (handle == 0L) return
+        val current = theme ?: return
+        NativeSession.setColors(
+            handle,
+            current.foreground,
+            current.background,
+            current.palette,
+        )
+        NativeSession.setCursor(handle, current.cursorStyle, current.cursorBlink)
     }
 
     override fun start(

@@ -21,10 +21,41 @@ import android.view.View
  * The `view` is a `View`, not `TerminalView` or `TerminalSurface`: the host puts
  * it in an `AndroidView` and that is all it does with it.
  */
+/**
+ * The theme the engine draws a session with.
+ *
+ * The engine's colours are per terminal, not per screen: a session that starts
+ * after the theme was chosen has to be told it, or it draws in the library's
+ * own black until something else sets them. Keeping the theme on the pane
+ * means every path that opens a session — the manager's, a refresh's, a
+ * bridged one's — applies it without each of them having to remember.
+ */
+data class TerminalEngineTheme(
+    /** The default text colour, packed 0xRRGGBB. */
+    val foreground: Int,
+    /** The default background colour, packed 0xRRGGBB. */
+    val background: Int,
+    /** The 256-entry palette, packed 0xRRGGBB. */
+    val palette: IntArray,
+    /** The cursor's shape, as the engine's own style numbers. */
+    val cursorStyle: Int,
+    /** Whether the cursor blinks. */
+    val cursorBlink: Boolean,
+)
+
 interface TerminalEngine {
 
     /** The Android view that draws the terminal. */
     val view: View
+
+    /**
+     * The theme every session this pane opens is given.
+     *
+     * Set by the manager, applied when a session is shown. Null until the
+     * manager says; a pane with no theme draws in the engine's defaults, which
+     * is what a terminal with no app behind it would show.
+     */
+    var theme: TerminalEngineTheme?
 
     /** Where the pane is in its lifecycle. */
     val state: PaneState
