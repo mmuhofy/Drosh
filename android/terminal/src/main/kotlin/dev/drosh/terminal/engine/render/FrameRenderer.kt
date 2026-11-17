@@ -1199,12 +1199,16 @@ internal class FrameRenderer {
             // whole buffer goes up.
             glBackgroundBytes = bytes
             buffer.position(0)
-            buffer.limit(bytes)
             backgroundBuffer.data(bytes, buffer)
             return
         }
 
         // Only the rows that changed, in runs of neighbouring rows.
+        //
+        // The limit is never touched: a GL upload reads `size` bytes from the
+        // position and nothing else, and shrinking the limit for one run makes
+        // the next run's position illegal — `position > limit` is the crash a
+        // second dirty run caused.
         var row = 0
         while (row < frame.rowCount) {
             if (!dirty[row]) {
@@ -1218,11 +1222,9 @@ internal class FrameRenderer {
             val offset = from * frame.columns * Cells.BACKGROUND_BYTES
             val size = (row - from) * frame.columns * Cells.BACKGROUND_BYTES
             buffer.position(offset)
-            buffer.limit(offset + size)
             backgroundBuffer.subData(offset, size, buffer)
         }
         buffer.position(0)
-        buffer.limit(bytes)
     }
 
     private fun drawForegrounds(frame: Frame, size: SizeInfo, count: Int): Int {
@@ -1287,7 +1289,6 @@ internal class FrameRenderer {
         if (glSpriteBytes != bytes) {
             glSpriteBytes = bytes
             buffer.position(0)
-            buffer.limit(bytes)
             foregroundBuffer.data(bytes, buffer)
             return
         }
@@ -1296,10 +1297,8 @@ internal class FrameRenderer {
         val size = cells.spriteCount * Cells.SPRITE_BYTES - offset
         if (size <= 0) return
         buffer.position(offset)
-        buffer.limit(offset + size)
         foregroundBuffer.subData(offset, size, buffer)
         buffer.position(0)
-        buffer.limit(bytes)
     }
 
     /**
