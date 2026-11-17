@@ -36,7 +36,8 @@ use std::sync::{Mutex, OnceLock};
 
 use ab_glyph::{Font as _, FontRef, GlyphId, PxScale, ScaleFont};
 use harfrust::{
-    font::Font, shape, Buffer, ClusterLevel, Direction, Feature, ShapeOptions, ShaperFont, Tag,
+    font::Font, shape as shape_run, Buffer, ClusterLevel, Direction, Feature, ShapeOptions,
+    ShaperFont, Tag,
 };
 
 /// The one feature a terminal asks the font for.
@@ -44,7 +45,12 @@ use harfrust::{
 /// Ghostty's `default_features` is exactly this: standard ligatures on. The
 /// font's own defaults are applied by the shaper besides it, which is what
 /// makes kerning and the script's required features work.
-const FEATURES: [Feature; 1] = [Feature::new(Tag::new(b"liga"), 1, ..)];
+///
+/// Built per call rather than held in a `static`: `Feature::new` is not a const
+/// fn, and one four-byte tag is not worth a lazily initialised global.
+fn features() -> [Feature; 1] {
+    [Feature::new(Tag::new(b"liga"), 1, ..)]
+}
 
 /// A glyph the renderer can draw: its id, its place in the run, and its size.
 ///
@@ -69,9 +75,11 @@ pub struct GlyphMask {
     pub width: u32,
     /// The mask's height in texels.
     pub height: u32,
-    /// The mask's left edge relative to the pen, in texels.
+    /// The mask's left edge, in texels, measured right from the glyph's pen
+    /// origin. Negative when the outline starts left of the pen.
     pub left: i32,
-    /// The mask's top edge relative to the cell's top, in texels.
+    /// The mask's top edge, in texels, measured down from the glyph's pen
+    /// origin. Negative when the outline rises above the pen.
     pub top: i32,
     /// One byte per texel, row-major from the top-left.
     pub coverage: Vec<u8>,
@@ -141,8 +149,9 @@ impl FontBook {
         buffer.set_cluster_level(ClusterLevel::Characters);
         buffer.guess_segment_properties();
 
-        let options = ShapeOptions::new().features(&FEATURES);
-        if let Err(error) = shape(&shaper, &mut buffer, options) {
+        let features = features();
+        let options = ShapeOptions::new().features(&features);
+        if let Err(error) = shape_run(&shaper, &mut buffer, options) {
             log::warn!("drosh-native: shaping refused a run: {error}");
             return Vec::new();
         }
@@ -192,15 +201,13 @@ impl FontBook {
         }
 
         let mut coverage = vec![0u8; (width * height) as usize];
+        // `draw` reports each pixel of the bounds rect: x across its width, y
+        // down its height, row-major from the top-left. That is already the
+        // mask's own grid, so there is no offset to subtract — the bounds are
+        // the mask.
         outlined.draw(|x, y, alpha| {
-            // ab_glyph's `draw` gives texel-space coordinates as f32; the
-            // bounds are in the same units, and the conversions are explicit
-            // so the mask's integer grid cannot be off by a half texel.
-            let px = (x - bounds.min.x).floor() as i32;
-            // ab_glyph's y grows upward; the mask's row zero is the top.
-            let py = ((bounds.max.y - y).floor() as i32) - 1;
-            if px >= 0 && py >= 0 && (px as u32) < width && (py as u32) < height {
-                let index = (py as usize) * width as usize + px as usize;
+            if x < width && y < height {
+                let index = (y as usize) * width as usize + x as usize;
                 coverage[index] = (alpha.clamp(0f32, 1f32) * 255f32).round() as u8;
             }
         });

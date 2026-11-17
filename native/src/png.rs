@@ -18,7 +18,6 @@
 
 use std::ffi::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::ptr;
 
 use crate::ghostty;
 use std::sync::Once;
