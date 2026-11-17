@@ -52,7 +52,7 @@ pub(crate) fn session_handle(handle: jlong) -> Option<&'static SessionHandle> {
 /// needs the terminal.
 pub(crate) fn frames_lock(
     handle: jlong,
-) -> Option<std::sync::MutexGuard<'static, crate::frame::FrameSource>> {
+) -> Option<std::sync::MutexGuard<'static, crate::renderer::FrameSource>> {
     let raw = session_handle(handle)?;
     Some(raw.frames_lock())
 }

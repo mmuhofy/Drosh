@@ -33,8 +33,6 @@ pub mod bell;
 #[cfg(feature = "engine")]
 pub mod clipboard;
 #[cfg(feature = "engine")]
-pub mod frame;
-#[cfg(feature = "engine")]
 pub mod ghostty;
 #[cfg(feature = "engine")]
 pub mod pty;
