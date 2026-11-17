@@ -151,10 +151,22 @@ impl Session {
             // screenshots' worth — and small enough that a program cannot
             // fill the heap with pictures.
             let kitty_limit: u64 = KITTY_STORAGE_BYTES;
-            let _ = ghostty::ghostty_terminal_set(
+            let set_result = ghostty::ghostty_terminal_set(
                 terminal,
                 ghostty::GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT,
                 &kitty_limit as *const u64 as *const c_void,
+            );
+            // Read the limit back: the set either took or the library was
+            // built without the feature, and the two look identical from the
+            // renderer — no images, ever. This line is the difference.
+            let mut kitty_read_back: u64 = 0;
+            let read_result = ghostty::ghostty_terminal_get(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_KITTY_IMAGE_STORAGE_LIMIT,
+                &mut kitty_read_back as *mut u64 as *mut c_void,
+            );
+            log::info!(
+                "drosh-native: kitty storage set={set_result} read={read_result} limit={kitty_read_back}"
             );
         };
 

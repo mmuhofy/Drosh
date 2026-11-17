@@ -634,11 +634,16 @@ class RenderThread(
             appliedTypeface = face
         }
 
-        // The pictures of this frame, before the cells are drawn: they are
-        // drawn over the text, so they have to be known first.
-        renderer?.setImages(imageSource?.invoke())
-
         val frame = fetchFrame()
+
+        // The pictures are read after the update that produced them.
+        //
+        // They come from the same render state the frame does, and that state
+        // is only complete once the frame's update has run: read before it, the
+        // list is the previous frame's, and a picture a program just sent
+        // arrives one frame late — which for a single still picture looks like
+        // it never arrived at all.
+        renderer?.setImages(imageSource?.invoke())
 
         // The snapshot is over. Everything past this point is the renderer's
         // own work and does not hold the terminal's lock — the split is what
