@@ -29,6 +29,11 @@ log = "0.4"
 # version was checked against docs.rs before use; do not float it here, a
 # decoder API change is a frame that silently stops being drawn.
 png = "=0.17.16"
+# Shaping (ligatures, graphemes, scripts) and glyph rasterization. Both are
+# pure Rust and are pinned: the glyph/position APIs are not stable across
+# minor versions and the renderer depends on their exact shapes.
+ab_glyph = "=0.2.32"
+rustybuzz = "=0.14.0"
 
 [build-dependencies]
 # The engine's ABI is described by the headers that ship next to it. Generating

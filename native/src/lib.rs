@@ -32,6 +32,7 @@
 pub mod bell;
 #[cfg(feature = "engine")]
 pub mod clipboard;
+pub mod font;
 #[cfg(feature = "engine")]
 pub mod ghostty;
 #[cfg(feature = "engine")]
