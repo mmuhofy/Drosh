@@ -84,7 +84,9 @@ impl FontBook {
 
     /// The face's design size, in font units.
     pub fn units_per_em(&self) -> u16 {
-        self.face.units_per_em()
+        // rustybuzz's own `units_per_em` is an i32 (it inherits HarfBuzz's
+        // signed unit); the face underneath guarantees the 16..=16384 range.
+        self.face.units_per_em() as u16
     }
 
     /// Shape one run of text at [size_px].
@@ -145,9 +147,12 @@ impl FontBook {
 
         let mut coverage = vec![0u8; (width * height) as usize];
         outlined.draw(|x, y, alpha| {
+            // ab_glyph's `draw` gives texel-space coordinates as f32; the
+            // bounds are the same units, and the conversions are explicit so
+            // the mask's integer grid cannot be off by a half texel.
             let px = (x - bounds.min.x).floor() as i32;
             // ab_glyph's y grows upward; the mask's row zero is the top.
-            let py = (bounds.max.y - y).floor() as i32 - 1;
+            let py = ((bounds.max.y - y).floor() as i32) - 1;
             if px >= 0 && py >= 0 && (px as u32) < width && (py as u32) < height {
                 let index = (py as usize) * width as usize + px as usize;
                 coverage[index] = (alpha.clamp(0f32, 1f32) * 255f32).round() as u8;
