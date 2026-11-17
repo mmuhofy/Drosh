@@ -5,6 +5,9 @@ import android.opengl.GLES30
 import dev.drosh.terminal.engine.font.ColorAtlas
 import dev.drosh.terminal.engine.font.Emoji
 import dev.drosh.terminal.engine.font.TextAtlas
+import dev.drosh.terminal.engine.gl.GlBuffer
+import dev.drosh.terminal.engine.gl.GlProgram
+import dev.drosh.terminal.engine.gl.GlTexture
 import dev.drosh.terminal.engine.layout.SizeInfo
 import dev.drosh.terminal.engine.protocol.Frame
 import dev.drosh.terminal.engine.protocol.FrameFormat
@@ -39,8 +42,14 @@ import java.nio.ByteOrder
  */
 internal class FrameRenderer {
 
-    private var backgroundProgram = 0
-    private var foregroundProgram = 0
+    private val backgroundProgram =
+        GlProgram(Shaders.BACKGROUND_VERTEX, Shaders.BACKGROUND_FRAGMENT)
+    private val foregroundProgram =
+        GlProgram(Shaders.FOREGROUND_VERTEX, Shaders.FOREGROUND_FRAGMENT)
+    private val cursorProgram =
+        GlProgram(Shaders.CURSOR_VERTEX, Shaders.CURSOR_FRAGMENT)
+    private val imageProgram =
+        GlProgram(Shaders.IMAGE_VERTEX, Shaders.IMAGE_FRAGMENT)
 
     private var backgroundProjection = 0
     private var backgroundCellSize = 0
@@ -52,9 +61,12 @@ internal class FrameRenderer {
     /** The factor the atlas's masks are rasterised at. */
     private var foregroundAtlasScale = 0
 
-    private var atlasTexture = 0
-    private var backgroundBuffer = 0
-    private var cursorProgram = 0
+    /** The text atlas's texture: one byte a texel, [TextAtlas.size] square. */
+    private val atlasTexture = GlTexture()
+    private val backgroundBuffer = GlBuffer()
+    private val foregroundBuffer = GlBuffer()
+    private val imageBuffer = GlBuffer()
+
     private var cursorProjection = 0
     private var cursorCellSize = 0
     private var cursorRect = 0
@@ -62,7 +74,6 @@ internal class FrameRenderer {
 
     private var cursorHollow = 0
     private var cursorEdge = 0
-    private var foregroundBuffer = 0
 
     /** The glyph masks. Owned by the loop thread. */
     private val atlas = TextAtlas()
@@ -77,8 +88,8 @@ internal class FrameRenderer {
      */
     private val colorAtlas = ColorAtlas()
 
-    /** The colour atlas's texture. */
-    private var colorAtlasTexture = 0
+    /** The colour atlas's texture: four bytes a texel, [ColorAtlas.size] square. */
+    private val colorAtlasTexture = GlTexture()
 
     /** The emoji of this frame: a square per cell, drawn over the text. */
     private val colorGlyphs = ArrayList<ImageDraw>()
@@ -145,38 +156,36 @@ internal class FrameRenderer {
      * context is current.
      */
     fun create() {
-        backgroundProgram = buildProgram(Shaders.BACKGROUND_VERTEX, Shaders.BACKGROUND_FRAGMENT)
-        foregroundProgram = buildProgram(Shaders.FOREGROUND_VERTEX, Shaders.FOREGROUND_FRAGMENT)
-        cursorProgram = buildProgram(Shaders.CURSOR_VERTEX, Shaders.CURSOR_FRAGMENT)
-        imageProgram = buildProgram(Shaders.IMAGE_VERTEX, Shaders.IMAGE_FRAGMENT)
-        if (backgroundProgram == 0 || foregroundProgram == 0 || cursorProgram == 0 ||
-            imageProgram == 0
-        ) {
-            failure = lastShaderError ?: "the shaders did not compile"
+        val backgroundOk = backgroundProgram.create()
+        val foregroundOk = foregroundProgram.create()
+        val cursorOk = cursorProgram.create()
+        val imageOk = imageProgram.create()
+        if (!backgroundOk || !foregroundOk || !cursorOk || !imageOk) {
+            failure = shaderFailure() ?: "the shaders did not compile"
             return
         }
-        imageProjection = GLES20.glGetUniformLocation(imageProgram, "uProjection")
-        imageTexture = GLES20.glGetUniformLocation(imageProgram, "uTexture")
-        cursorProjection = GLES20.glGetUniformLocation(cursorProgram, "uProjection")
-        cursorCellSize = GLES20.glGetUniformLocation(cursorProgram, "uCellSize")
-        cursorRect = GLES20.glGetUniformLocation(cursorProgram, "uRect")
-        cursorColorUniform = GLES20.glGetUniformLocation(cursorProgram, "uColor")
-        cursorHollow = GLES20.glGetUniformLocation(cursorProgram, "uHollow")
-        cursorEdge = GLES20.glGetUniformLocation(cursorProgram, "uEdge")
+        imageProjection = imageProgram.uniform("uProjection")
+        imageTexture = imageProgram.uniform("uTexture")
+        cursorProjection = cursorProgram.uniform("uProjection")
+        cursorCellSize = cursorProgram.uniform("uCellSize")
+        cursorRect = cursorProgram.uniform("uRect")
+        cursorColorUniform = cursorProgram.uniform("uColor")
+        cursorHollow = cursorProgram.uniform("uHollow")
+        cursorEdge = cursorProgram.uniform("uEdge")
 
-        backgroundProjection = GLES20.glGetUniformLocation(backgroundProgram, "uProjection")
-        backgroundCellSize = GLES20.glGetUniformLocation(backgroundProgram, "uCellSize")
-        foregroundProjection = GLES20.glGetUniformLocation(foregroundProgram, "uProjection")
-        foregroundCellSize = GLES20.glGetUniformLocation(foregroundProgram, "uCellSize")
-        foregroundAtlasSize = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasSize")
-        foregroundAtlas = GLES20.glGetUniformLocation(foregroundProgram, "uAtlas")
-        foregroundAtlasScale = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasScale")
+        backgroundProjection = backgroundProgram.uniform("uProjection")
+        backgroundCellSize = backgroundProgram.uniform("uCellSize")
+        foregroundProjection = foregroundProgram.uniform("uProjection")
+        foregroundCellSize = foregroundProgram.uniform("uCellSize")
+        foregroundAtlasSize = foregroundProgram.uniform("uAtlasSize")
+        foregroundAtlas = foregroundProgram.uniform("uAtlas")
+        foregroundAtlasScale = foregroundProgram.uniform("uAtlasScale")
 
-        atlasTexture = buildAtlasTexture()
-        colorAtlasTexture = buildColorAtlasTexture()
-        backgroundBuffer = buildBuffer()
-        foregroundBuffer = buildBuffer()
-        imageBuffer = buildBuffer()
+        atlasTexture.create(atlas.size, atlas.size, GLES30.GL_R8)
+        colorAtlasTexture.create(colorAtlas.size, colorAtlas.size, GLES20.GL_RGBA)
+        backgroundBuffer.create()
+        foregroundBuffer.create()
+        imageBuffer.create()
 
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glEnable(GLES20.GL_BLEND)
@@ -185,19 +194,36 @@ internal class FrameRenderer {
         created = true
     }
 
+    /**
+     * The newest shader failure, for the screen.
+     *
+     * The four programs are built in order, so the last one that failed is the
+     * failure worth showing — the older ones are usually the same cause.
+     */
+    private fun shaderFailure(): String? =
+        listOf(
+            backgroundProgram.error,
+            foregroundProgram.error,
+            cursorProgram.error,
+            imageProgram.error,
+        ).lastOrNull { it != null }
+
     /** Release every GL object. */
     fun release() {
-        if (!created) return
-        GLES20.glDeleteProgram(backgroundProgram)
-        GLES20.glDeleteProgram(foregroundProgram)
-        if (cursorProgram != 0) {
-            GLES20.glDeleteProgram(cursorProgram)
+        backgroundProgram.release()
+        foregroundProgram.release()
+        cursorProgram.release()
+        imageProgram.release()
+        atlasTexture.release()
+        colorAtlasTexture.release()
+        backgroundBuffer.release()
+        foregroundBuffer.release()
+        imageBuffer.release()
+        for (image in imageTextures.values) {
+            image.texture.release()
         }
-        GLES20.glDeleteTextures(1, intArrayOf(atlasTexture), 0)
-        if (colorAtlasTexture != 0) {
-            GLES20.glDeleteTextures(1, intArrayOf(colorAtlasTexture), 0)
-        }
-        GLES20.glDeleteBuffers(2, intArrayOf(backgroundBuffer, foregroundBuffer), 0)
+        imageTextures.clear()
+        images.clear()
         created = false
     }
 
@@ -526,7 +552,7 @@ internal class FrameRenderer {
     }
 
     private fun drawCursor(frame: Frame, size: SizeInfo): Int {
-        if (cursorProgram == 0) return 0
+        if (cursorProgram.handle == 0) return 0
         if (!frame.cursorVisible) return 0
         if (frame.cursorColumn !in 0 until frame.columns) return 0
         if (frame.cursorRow !in 0 until frame.rows) return 0
@@ -580,7 +606,7 @@ internal class FrameRenderer {
             frame.cursorColor
         }
 
-        GLES20.glUseProgram(cursorProgram)
+        cursorProgram.use()
         GLES20.glUniform4fv(cursorProjection, 1, projection, 0)
         GLES20.glUniform2f(cursorCellSize, cellWidth, cellHeight)
         GLES20.glUniform4f(
@@ -612,7 +638,7 @@ internal class FrameRenderer {
      * the wash is the same draw with the whole grid as the rectangle.
      */
     private fun drawBellFlash(frame: Frame, size: SizeInfo): Int {
-        if (cursorProgram == 0) return 0
+        if (cursorProgram.handle == 0) return 0
         val elapsed = System.currentTimeMillis() - bellStartedAt
         if (elapsed >= BELL_FLASH_MS) return 0
         // The wash fades: it is at its strongest at the first frame and gone by
@@ -624,7 +650,7 @@ internal class FrameRenderer {
 
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-        GLES20.glUseProgram(cursorProgram)
+        cursorProgram.use()
         GLES20.glUniform4fv(cursorProjection, 1, projection, 0)
         GLES20.glUniform2f(cursorCellSize, cellWidth, cellHeight)
         GLES20.glUniform4f(
@@ -726,7 +752,7 @@ internal class FrameRenderer {
      */
     private class ImageTexture(
         val generation: Long,
-        val texture: Int,
+        val texture: GlTexture,
         val width: Int,
         val height: Int,
     )
@@ -793,7 +819,7 @@ internal class FrameRenderer {
 
     /** One picture: where it is, and the texture it is drawn from. */
     private class ImageDraw(
-        val texture: Int,
+        val texture: GlTexture,
         val layer: Int,
         val z: Int,
         val col: Int,
@@ -808,10 +834,8 @@ internal class FrameRenderer {
         val sourceV2: Float,
     )
 
-    private var imageProgram = 0
     private var imageProjection = 0
     private var imageTexture = 0
-    private var imageBuffer = 0
     private var imageVertices: java.nio.ByteBuffer? = null
 
     /**
@@ -895,41 +919,19 @@ internal class FrameRenderer {
         format: Int,
     ) {
         if (width <= 0 || height <= 0) return
-        val texture = imageTextures[id]?.texture ?: run {
-            val ids = IntArray(1)
-            GLES20.glGenTextures(1, ids, 0)
-            ids[0]
-        }
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
+        // RGB has no alpha; the picture is drawn over the terminal, so it is
+        // opaque.
+        val internalFormat =
+            if (format == KITTY_FORMAT_RGB) GLES20.GL_RGB else GLES20.GL_RGBA
+        // The same texture name across generations: a picture that changes size
+        // re-allocates its storage rather than taking a new name.
+        val texture = imageTextures[id]?.texture ?: GlTexture()
+        // A picture's rows are not padded to four bytes, so the unpack is one
+        // byte at a time. Nearest, not linear: a picture is a picture.
         GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
-        // The pixels go in as a buffer: the bytes are the picture's own, and
-        // a picture's rows are not padded to four bytes.
+        texture.create(width, height, internalFormat, nearest = true)
         val data = java.nio.ByteBuffer.wrap(pixels)
-        if (format == KITTY_FORMAT_RGB) {
-            // RGB has no alpha; the picture is drawn over the terminal, so it
-            // is opaque.
-            GLES20.glTexImage2D(
-                GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGB, width, height, 0,
-                GLES20.GL_RGB, GLES20.GL_UNSIGNED_BYTE, data,
-            )
-        } else {
-            GLES20.glTexImage2D(
-                GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0,
-                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, data,
-            )
-        }
-        GLES20.glTexParameteri(
-            GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST,
-        )
-        GLES20.glTexParameteri(
-            GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST,
-        )
-        GLES20.glTexParameteri(
-            GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE,
-        )
-        GLES20.glTexParameteri(
-            GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE,
-        )
+        texture.subImage(0, 0, width, height, internalFormat, data)
         imageTextures[id] = ImageTexture(generation, texture, width, height)
     }
 
@@ -943,7 +945,7 @@ internal class FrameRenderer {
      * is the number the image batching work has to beat.
      */
     private fun drawImages(size: SizeInfo, layer: Int): Int {
-        if (images.isEmpty() || imageProgram == 0) return 0
+        if (images.isEmpty() || imageProgram.handle == 0) return 0
         val drawn = sortedImages().filter { it.layer == layer }
         if (drawn.isEmpty()) return 0
 
@@ -958,12 +960,12 @@ internal class FrameRenderer {
         val projection = FloatArray(4)
         size.projection(projection)
 
-        GLES20.glUseProgram(imageProgram)
+        imageProgram.use()
         GLES20.glUniform4fv(imageProjection, 1, projection, 0)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glUniform1i(imageTexture, 0)
 
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, imageBuffer)
+        imageBuffer.bind()
         // The pictures are the instances: one per picture, four vertices each.
         GLES20.glEnableVertexAttribArray(0)
         GLES20.glVertexAttribPointer(0, 4, GLES20.GL_FLOAT, false, 32, 0)
@@ -1004,14 +1006,9 @@ internal class FrameRenderer {
                 buffer.putFloat(image.sourceV2)
             }
             buffer.flip()
-            GLES20.glBufferData(
-                GLES20.GL_ARRAY_BUFFER,
-                buffer.remaining(),
-                buffer,
-                GLES20.GL_DYNAMIC_DRAW,
-            )
+            imageBuffer.data(buffer.remaining(), buffer)
 
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, drawn[start].texture)
+            drawn[start].texture.bind()
             GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, end - start)
             calls += 1
             start = end
@@ -1158,11 +1155,11 @@ internal class FrameRenderer {
         val projection = FloatArray(4)
         size.projection(projection)
 
-        GLES20.glUseProgram(backgroundProgram)
+        backgroundProgram.use()
         GLES20.glUniform4fv(backgroundProjection, 1, projection, 0)
         GLES20.glUniform2f(backgroundCellSize, cellWidth, cellHeight)
 
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundBuffer)
+        backgroundBuffer.bind()
 
         val stride = Cells.BACKGROUND_BYTES
         GLES30.glEnableVertexAttribArray(0)
@@ -1193,7 +1190,7 @@ internal class FrameRenderer {
      */
     private fun uploadBackgrounds(frame: Frame, dirty: BooleanArray) {
         if (frame.cellCount == 0) return
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, backgroundBuffer)
+        backgroundBuffer.bind()
         val buffer = cells.backgrounds
         val bytes = buffer.capacity()
 
@@ -1203,7 +1200,7 @@ internal class FrameRenderer {
             glBackgroundBytes = bytes
             buffer.position(0)
             buffer.limit(bytes)
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, bytes, buffer, GLES20.GL_DYNAMIC_DRAW)
+            backgroundBuffer.data(bytes, buffer)
             return
         }
 
@@ -1222,7 +1219,7 @@ internal class FrameRenderer {
             val size = (row - from) * frame.columns * Cells.BACKGROUND_BYTES
             buffer.position(offset)
             buffer.limit(offset + size)
-            GLES20.glBufferSubData(GLES20.GL_ARRAY_BUFFER, offset, size, buffer)
+            backgroundBuffer.subData(offset, size, buffer)
         }
         buffer.position(0)
         buffer.limit(bytes)
@@ -1234,7 +1231,7 @@ internal class FrameRenderer {
         val projection = FloatArray(4)
         size.projection(projection)
 
-        GLES20.glUseProgram(foregroundProgram)
+        foregroundProgram.use()
         GLES20.glUniform4fv(foregroundProjection, 1, projection, 0)
         GLES20.glUniform2f(foregroundCellSize, cellWidth, cellHeight)
         GLES20.glUniform2f(foregroundAtlasSize, atlas.size.toFloat(), atlas.size.toFloat())
@@ -1244,10 +1241,10 @@ internal class FrameRenderer {
         GLES20.glUniform1f(foregroundAtlasScale, atlas.scale)
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, atlasTexture)
+        atlasTexture.bind()
         GLES20.glUniform1i(foregroundAtlas, 0)
 
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundBuffer)
+        foregroundBuffer.bind()
 
         // atlasRect, glyphSize, offset, gridPos, colour, flags, span
         val stride = Cells.SPRITE_BYTES
@@ -1283,7 +1280,7 @@ internal class FrameRenderer {
      */
     private fun uploadForegrounds() {
         if (!cells.spritesRebuilt) return
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, foregroundBuffer)
+        foregroundBuffer.bind()
         val buffer = cells.sprites
         val bytes = buffer.capacity()
 
@@ -1291,7 +1288,7 @@ internal class FrameRenderer {
             glSpriteBytes = bytes
             buffer.position(0)
             buffer.limit(bytes)
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, bytes, buffer, GLES20.GL_DYNAMIC_DRAW)
+            foregroundBuffer.data(bytes, buffer)
             return
         }
 
@@ -1300,7 +1297,7 @@ internal class FrameRenderer {
         if (size <= 0) return
         buffer.position(offset)
         buffer.limit(offset + size)
-        GLES20.glBufferSubData(GLES20.GL_ARRAY_BUFFER, offset, size, buffer)
+        foregroundBuffer.subData(offset, size, buffer)
         buffer.position(0)
         buffer.limit(bytes)
     }
@@ -1333,7 +1330,7 @@ internal class FrameRenderer {
         }
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, atlasTexture)
+        atlasTexture.bind()
 
         val pixels = atlas.directPixels()
         val start = rows.first * atlas.size
@@ -1344,17 +1341,7 @@ internal class FrameRenderer {
         pixels.limit(pixels.capacity())
         pixels.position(start)
 
-        GLES20.glTexSubImage2D(
-            GLES20.GL_TEXTURE_2D,
-            0,
-            0,
-            rows.first,
-            atlas.size,
-            height,
-            GLES30.GL_RED,
-            GLES20.GL_UNSIGNED_BYTE,
-            pixels,
-        )
+        atlasTexture.subImage(0, rows.first, atlas.size, height, GLES30.GL_RED, pixels)
         atlas.clearDirty()
         atlas.dirty = false
         return true
@@ -1418,28 +1405,18 @@ internal class FrameRenderer {
             return
         }
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, colorAtlasTexture)
+        colorAtlasTexture.bind()
         val pixels = colorAtlas.directPixels()
         pixels.limit(pixels.capacity())
         pixels.position(rows.first * colorAtlas.size * 4)
-        GLES20.glTexSubImage2D(
-            GLES20.GL_TEXTURE_2D,
-            0,
-            0,
-            rows.first,
-            colorAtlas.size,
-            height,
-            GLES20.GL_RGBA,
-            GLES20.GL_UNSIGNED_BYTE,
-            pixels,
-        )
+        colorAtlasTexture.subImage(0, rows.first, colorAtlas.size, height, GLES20.GL_RGBA, pixels)
         colorAtlas.clearDirty()
         colorAtlas.dirty = false
     }
 
     /** Draw the emoji, over the glyphs and under the cursor. */
     private fun drawColorGlyphs(size: SizeInfo): Int {
-        if (colorGlyphs.isEmpty() || imageProgram == 0) return 0
+        if (colorGlyphs.isEmpty() || imageProgram.handle == 0) return 0
         val floats = colorGlyphs.size * 8
         if (imageVertices == null || imageVertices!!.capacity() < floats * 4) {
             imageVertices = java.nio.ByteBuffer
@@ -1463,19 +1440,14 @@ internal class FrameRenderer {
         val projection = FloatArray(4)
         size.projection(projection)
 
-        GLES20.glUseProgram(imageProgram)
+        imageProgram.use()
         GLES20.glUniform4fv(imageProjection, 1, projection, 0)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glUniform1i(imageTexture, 0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, colorAtlasTexture)
+        colorAtlasTexture.bind()
 
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, imageBuffer)
-        GLES20.glBufferData(
-            GLES20.GL_ARRAY_BUFFER,
-            buffer.remaining(),
-            buffer,
-            GLES20.GL_DYNAMIC_DRAW,
-        )
+        imageBuffer.bind()
+        imageBuffer.data(buffer.remaining(), buffer)
         GLES20.glEnableVertexAttribArray(0)
         GLES20.glVertexAttribPointer(0, 4, GLES20.GL_FLOAT, false, 32, 0)
         GLES30.glVertexAttribDivisor(0, 1)
@@ -1490,106 +1462,6 @@ internal class FrameRenderer {
         GLES20.glDisableVertexAttribArray(0)
         GLES20.glDisableVertexAttribArray(1)
         return 1
-    }
-
-    /** The colour atlas's texture. */
-    private fun buildColorAtlasTexture(): Int {
-        val handle = IntArray(1)
-        GLES20.glGenTextures(1, handle, 0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, handle[0])
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-        GLES20.glTexImage2D(
-            GLES20.GL_TEXTURE_2D,
-            0,
-            GLES20.GL_RGBA,
-            colorAtlas.size,
-            colorAtlas.size,
-            0,
-            GLES20.GL_RGBA,
-            GLES20.GL_UNSIGNED_BYTE,
-            null,
-        )
-        return handle[0]
-    }
-
-    private fun buildAtlasTexture(): Int {
-        val handle = IntArray(1)
-        GLES20.glGenTextures(1, handle, 0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, handle[0])
-        // Linear, not nearest: a mask drawn at another size — a pinch, a
-        // fractional cell step — is interpolated rather than pixel-doubled.
-        // Nearest doubled every stroke, which is text that grew bolder as it
-        // grew bigger.
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-        GLES20.glTexImage2D(
-            GLES20.GL_TEXTURE_2D,
-            0,
-            GLES30.GL_R8,
-            atlas.size,
-            atlas.size,
-            0,
-            GLES30.GL_RED,
-            GLES20.GL_UNSIGNED_BYTE,
-            null,
-        )
-        return handle[0]
-    }
-
-    private fun buildBuffer(): Int {
-        val handle = IntArray(1)
-        GLES20.glGenBuffers(1, handle, 0)
-        return handle[0]
-    }
-
-    private fun buildProgram(vertex: String, fragment: String): Int {
-        val vertexShader = compile(GLES20.GL_VERTEX_SHADER, vertex)
-        if (vertexShader == 0) return 0
-        val fragmentShader = compile(GLES20.GL_FRAGMENT_SHADER, fragment)
-        if (fragmentShader == 0) return 0
-
-        val program = GLES20.glCreateProgram()
-        GLES20.glAttachShader(program, vertexShader)
-        GLES20.glAttachShader(program, fragmentShader)
-        GLES20.glLinkProgram(program)
-
-        val status = IntArray(1)
-        GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, status, 0)
-        if (status[0] == 0) {
-            val log = GLES20.glGetProgramInfoLog(program)
-            val message = "program link failed: $log"
-            lastShaderError = message
-            android.util.Log.e(TAG, message)
-            GLES20.glDeleteProgram(program)
-            return 0
-        }
-        return program
-    }
-
-    /** The last compile or link failure, kept for the screen. */
-    private var lastShaderError: String? = null
-
-    private fun compile(kind: Int, source: String): Int {
-        val shader = GLES20.glCreateShader(kind)
-        GLES20.glShaderSource(shader, source)
-        GLES20.glCompileShader(shader)
-
-        val status = IntArray(1)
-        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
-        if (status[0] == 0) {
-            val log = GLES20.glGetShaderInfoLog(shader)
-            val message = "shader compile failed: $log"
-            lastShaderError = message
-            android.util.Log.e(TAG, message)
-            GLES20.glDeleteShader(shader)
-            return 0
-        }
-        return shader
     }
 
     /**
@@ -1616,8 +1488,6 @@ internal class FrameRenderer {
     }
 
     private companion object {
-        const val TAG = "FrameRenderer"
-
         /** A picture under the cell backgrounds. */
         const val LAYER_BELOW_BACKGROUND = 0
 
