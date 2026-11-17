@@ -284,6 +284,15 @@ internal class FrameRenderer {
         GLES20.glViewport(0, 0, size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
         GLES20.glClearColor(backgroundR, backgroundG, backgroundB, if (transparentBackground) 0f else 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+
+        // The blend is the whole frame's state, not one pass's.
+        //
+        // A glyph is a mask multiplied by the cell's colour: without alpha
+        // blending its quad is a solid rectangle in that colour, which is what
+        // every character on the screen turned into the moment a pass that
+        // disabled the blend ran before the text was drawn again.
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
     }
 
     /**
@@ -669,7 +678,6 @@ internal class FrameRenderer {
             BELL_FLASH_ALPHA * strength,
         )
         GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
-        GLES20.glDisable(GLES20.GL_BLEND)
         return 1
     }
 
@@ -871,7 +879,12 @@ internal class FrameRenderer {
             val format = little.int
             val dataLength = little.int
             val hasPixels = little.get().toInt() != 0
-            at += 68
+            // The record is sixty-nine bytes: four and eight for the id and
+            // the generation, fourteen fours, then the flag's single byte. A
+            // stride that is one byte out reads the pixels one byte early and
+            // every picture is garbage — which is what a kitty image looked
+            // like.
+            at += 69
 
             // The pixels, when they are new.
             if (hasPixels && at + dataLength <= buffer.size) {
@@ -1014,7 +1027,6 @@ internal class FrameRenderer {
             start = end
         }
 
-        GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glDisableVertexAttribArray(0)
         GLES20.glDisableVertexAttribArray(1)
         return calls
@@ -1457,7 +1469,6 @@ internal class FrameRenderer {
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, colorGlyphs.size)
-        GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glDisableVertexAttribArray(0)
         GLES20.glDisableVertexAttribArray(1)
         return 1

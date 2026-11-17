@@ -252,6 +252,9 @@ class RenderThread(
     @Volatile
     var typeface: android.graphics.Typeface? = null
 
+    /** The face the current renderer was last told to draw with. */
+    private var appliedTypeface: android.graphics.Typeface? = null
+
     /**
      * The theme's values, kept until a renderer exists to hear them.
      *
@@ -602,7 +605,10 @@ class RenderThread(
             // built: a renderer created with no size rasterises at the cell's
             // height, which is the text-too-big case the field exists to avoid.
             it.fontPx = fontPx
-            typeface?.let { face -> it.setTypeface(face) }
+            typeface?.let { face ->
+                it.setTypeface(face)
+                appliedTypeface = face
+            }
             it.create()
             it.onSizeChanged(layout.size)
             // Everything the theme said before the renderer existed. A pane is
@@ -615,6 +621,17 @@ class RenderThread(
             bellColour?.let { argb -> it.setBellColour(argb) }
             transparentBackground?.let { transparent -> it.transparentBackground = transparent }
             renderer = it
+        }
+
+        // The face can arrive after the renderer does — a surface that was
+        // built before the first frame — and a host that measures its cell
+        // with one face while the atlas rasterises with another is text that
+        // does not fit its own advance. Ask every frame; it is a reference
+        // comparison.
+        val face = typeface
+        if (face != null && face !== appliedTypeface) {
+            current.setTypeface(face)
+            appliedTypeface = face
         }
 
         // The pictures of this frame, before the cells are drawn: they are
