@@ -106,16 +106,6 @@ unsafe fn decode(
         }
     };
 
-    let (width, height) = (output.width, output.height);
-    let pixels_count = match (width as usize).checked_mul(height as usize) {
-        Some(count) if count > 0 && count <= MAX_PIXELS => count,
-        _ => return false,
-    };
-    let rgba_len = match pixels_count.checked_mul(4) {
-        Some(len) => len,
-        None => return false,
-    };
-
     // Decoded rows are gathered in a Rust scratch buffer first; the engine's
     // allocator owns only the RGBA image we hand over. This keeps the buffer
     // we must free through the engine exactly the size the engine is told.
@@ -130,6 +120,16 @@ unsafe fn decode(
     if output.buffer_size() > decoded.len() {
         return false;
     }
+
+    let (width, height) = (output.width, output.height);
+    let pixels_count = match (width as usize).checked_mul(height as usize) {
+        Some(count) if count > 0 && count <= MAX_PIXELS => count,
+        _ => return false,
+    };
+    let rgba_len = match pixels_count.checked_mul(4) {
+        Some(len) => len,
+        None => return false,
+    };
 
     let colour = output.color_type;
     let depth = output.bit_depth;
