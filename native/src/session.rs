@@ -107,6 +107,10 @@ impl Session {
             return Err(SessionError::TerminalFailed);
         }
 
+        // The kitty PNG decoder is a process-global sys callback. It must be
+        // in place before a program can send a PNG, and every session gets it.
+        crate::png::install();
+
         // The clipboard write effect: OSC 52, iTerm2's OSC 1337 Copy, and the
         // kitty clipboard protocol (OSC 5522). The engine hands each request to
         // the callback while the bytes are being parsed — which is here, on the

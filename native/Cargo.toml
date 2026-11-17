@@ -25,6 +25,10 @@ jni = "=0.21"
 # that declares them correctly is the one the platform already ships.
 libc = "0.2"
 log = "0.4"
+# PNG frames sent through the kitty graphics protocol (f=100). The exact
+# version was checked against docs.rs before use; do not float it here, a
+# decoder API change is a frame that silently stops being drawn.
+png = "=0.17.16"
 
 [build-dependencies]
 # The engine's ABI is described by the headers that ship next to it. Generating

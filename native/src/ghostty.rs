@@ -281,6 +281,14 @@ pub const GHOSTTY_SCROLL_VIEWPORT_ROW: GhosttyTerminalScrollViewportTag =
 pub const GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT: GhosttyTerminalScrollViewportTag =
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT;
 
+// --- the system interface ---------------------------------------------------
+
+/// Install a PNG decoder callback for the kitty graphics protocol.
+///
+/// A NULL value clears it, and a PNG image is then rejected by the engine.
+pub const GHOSTTY_SYS_OPT_DECODE_PNG: GhosttySysOption =
+    GhosttySysOption_GHOSTTY_SYS_OPT_DECODE_PNG;
+
 // --- search -----------------------------------------------------------------
 
 pub const GHOSTTY_SEARCH_OPT_NEEDLE: GhosttySearchOption =

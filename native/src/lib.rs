@@ -35,6 +35,8 @@ pub mod clipboard;
 #[cfg(feature = "engine")]
 pub mod ghostty;
 #[cfg(feature = "engine")]
+pub mod png;
+#[cfg(feature = "engine")]
 pub mod pty;
 pub mod renderer;
 #[cfg(feature = "engine")]
