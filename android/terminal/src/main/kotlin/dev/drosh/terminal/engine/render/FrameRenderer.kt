@@ -865,7 +865,12 @@ internal class FrameRenderer {
         val count = little.int
         var at = 4
         for (i in 0 until count) {
-            if (at + 60 > buffer.size) break
+            if (at + 69 > buffer.size) break
+            // The record starts where the cursor says, not where the last
+            // read left the buffer: a record's pixels follow it, and a read
+            // that did not skip them starts the next record inside a picture
+            // — a length of -1 and a crash in the copy.
+            little.position(at)
             val id = little.int
             val generation = little.long
             val layer = little.int
@@ -891,7 +896,7 @@ internal class FrameRenderer {
             at += 69
 
             // The pixels, when they are new.
-            if (hasPixels && at + dataLength <= buffer.size) {
+            if (hasPixels && dataLength > 0 && at + dataLength <= buffer.size) {
                 val pixels = buffer.copyOfRange(at, at + dataLength)
                 at += dataLength
                 uploadImage(id, generation, pixels, width, height, format)
