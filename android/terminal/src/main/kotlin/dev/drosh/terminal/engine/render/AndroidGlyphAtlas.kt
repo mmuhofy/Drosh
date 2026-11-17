@@ -66,17 +66,31 @@ internal class GlyphMask(
  * anything.
  */
 internal class TextAtlas(
+    typeface: Typeface = Typeface.MONOSPACE,
     val size: Int = ATLAS_SIZE,
 ) {
 
     private val paint = Paint().apply {
-        typeface = Typeface.MONOSPACE
+        this.typeface = typeface
         isAntiAlias = true
         color = 0xFFFFFFFF.toInt()
     }
 
     private val boldPaint = Paint(paint).apply {
-        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        this.typeface = Typeface.create(typeface, Typeface.BOLD)
+    }
+
+    /**
+     * Draw the glyphs with another face.
+     *
+     * The masks are the face: one rasterised from another typeface is the
+     * wrong mask, so the atlas starts over and every glyph is drawn again.
+     */
+    fun setTypeface(typeface: Typeface) {
+        if (paint.typeface == typeface) return
+        paint.typeface = typeface
+        boldPaint.typeface = Typeface.create(typeface, Typeface.BOLD)
+        reset()
     }
 
     /** A row of transparent pixels, for clearing the bitmap a row at a time. */

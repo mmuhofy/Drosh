@@ -179,6 +179,17 @@ internal class FrameRenderer {
     }
 
     /**
+     * The face the glyphs are drawn in.
+     *
+     * The host measures its cell with the same typeface, so the two agree
+     * about the advance: a cell measured with one face and a mask drawn with
+     * another is text that does not fit its own cell.
+     */
+    fun setTypeface(typeface: android.graphics.Typeface) {
+        atlas.setTypeface(typeface)
+    }
+
+    /**
      * The cell size changed.
      *
      * The atlas's masks are rasterised at a size, so a new cell means a new

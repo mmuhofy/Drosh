@@ -193,7 +193,10 @@ fun GhosttyTerminalHost(
     val cell = remember(effectiveSp, context) {
         val density = context.resources.displayMetrics.scaledDensity
         val paint = android.graphics.Paint().apply {
-            typeface = android.graphics.Typeface.MONOSPACE
+            // The same face the atlas rasterises with: a cell measured in one
+            // face and a glyph drawn in another is text that does not fit its
+            // own advance.
+            typeface = dev.drosh.terminal.engine.font.TerminalFont.of(context)
             textSize = effectiveSp * density
             isAntiAlias = true
         }

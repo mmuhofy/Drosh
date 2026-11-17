@@ -130,6 +130,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         holder.setFormat(android.graphics.PixelFormat.OPAQUE)
         setZOrderOnTop(false)
 
+        // The face, before the loop starts: the atlas rasterises with it and
+        // the host measures its cell with it.
+        renderThread.typeface = dev.drosh.terminal.engine.font.TerminalFont.of(context)
         renderThread.frameSource = { buffer -> frameInto(buffer) }
         // The pictures a program drew.
         renderThread.imageSource = {

@@ -243,6 +243,16 @@ class RenderThread(
     private var renderer: FrameRenderer? = null
 
     /**
+     * The face the terminal is drawn in.
+     *
+     * The surface sets it before the loop starts, because the atlas rasterises
+     * its masks with it and the host measures its cell with it: one face, so
+     * the two cannot disagree about how wide a character is.
+     */
+    @Volatile
+    var typeface: android.graphics.Typeface? = null
+
+    /**
      * The theme's values, kept until a renderer exists to hear them.
      *
      * The renderer is created on the first frame, and a surface can be told
@@ -592,6 +602,7 @@ class RenderThread(
             // built: a renderer created with no size rasterises at the cell's
             // height, which is the text-too-big case the field exists to avoid.
             it.fontPx = fontPx
+            typeface?.let { face -> it.setTypeface(face) }
             it.create()
             it.onSizeChanged(layout.size)
             // Everything the theme said before the renderer existed. A pane is
