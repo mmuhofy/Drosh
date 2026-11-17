@@ -29,7 +29,7 @@ const PALETTE_LEN: usize = 256;
 pub(crate) const MOUSE_BUFFER_LEN: usize = 64;
 use std::sync::{Mutex, MutexGuard};
 
-use crate::frame::{FrameError, FrameSource};
+use crate::renderer::{FrameError, FrameSource};
 use crate::ghostty;
 use crate::shell::{Phase, Scanner};
 
