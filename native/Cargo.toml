@@ -29,11 +29,15 @@ log = "0.4"
 # version was checked against docs.rs before use; do not float it here, a
 # decoder API change is a frame that silently stops being drawn.
 png = "=0.17.16"
-# Shaping (ligatures, graphemes, scripts) and glyph rasterization. Both are
-# pure Rust and are pinned: the glyph/position APIs are not stable across
-# minor versions and the renderer depends on their exact shapes.
+# Glyph rasterization: the coverage mask a shaped glyph is drawn from. Pinned
+# for the same reason as the shaper — the outline API is what the renderer's
+# mask arithmetic is written against.
 ab_glyph = "=0.2.32"
-rustybuzz = "=0.14.0"
+# Shaping (ligatures, graphemes, scripts). RustyBuzz is archived as of
+# 2026-07-26; HarfRust is its maintained fork and tracks HarfBuzz (v15.1.0 at
+# this version). Pinned: the glyph/position APIs are not stable across minor
+# versions and the renderer depends on their exact shapes.
+harfrust = "=0.16.0"
 
 [build-dependencies]
 # The engine's ABI is described by the headers that ship next to it. Generating

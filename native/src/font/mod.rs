@@ -1,13 +1,22 @@
 //! Font shaping and glyph rasterization for the terminal.
 //!
 //! Inspired by: github.com/ghostty-org/ghostty — `src/font/shaper/harfbuzz.zig`
-//! and `src/font/Glyph.zig` (the shaper's run iterator and the glyph mask).
+//! and `src/font/shaper/feature.zig` (the shaper's run iterator and the feature
+//! list).
 //! Adapted for Drosh — dev.drosh.
 //!
 //! Changes: Ghostty calls HarfBuzz and FreeType through Zig. Here the same two
-//! jobs are done by two pure-Rust crates — `rustybuzz` for shaping and
+//! jobs are done by two pure-Rust crates — `harfrust` for shaping and
 //! `ab_glyph` for rasterization — so the Android build needs no extra native
 //! library beside the engine.
+//!
+//! ## Why HarfRust and not RustyBuzz
+//!
+//! `rustybuzz` is archived (the repository was archived on 2026-07-26 and its
+//! README points at the fork). HarfRust is that fork: the same shaping
+//! algorithm, kept in step with HarfBuzz (v15.1.0 at the version pinned here),
+//! and the one that will still take fixes. A terminal's shaping is not a place
+//! to carry a dependency nobody maintains.
 //!
 //! ## Why a font module at all
 //!
@@ -25,23 +34,32 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-use ab_glyph::{Font, FontRef, GlyphId, PxScale, ScaleFont};
-use rustybuzz::{Face, GlyphBuffer, GlyphInfo, GlyphPosition, UnicodeBuffer};
+use ab_glyph::{Font as _, FontRef, GlyphId, PxScale, ScaleFont};
+use harfrust::{
+    font::Font, shape, Buffer, ClusterLevel, Direction, Feature, ShapeOptions, ShaperFont, Tag,
+};
+
+/// The one feature a terminal asks the font for.
+///
+/// Ghostty's `default_features` is exactly this: standard ligatures on. The
+/// font's own defaults are applied by the shaper besides it, which is what
+/// makes kerning and the script's required features work.
+const FEATURES: [Feature; 1] = [Feature::new(Tag::new(b"liga"), 1, ..)];
 
 /// A glyph the renderer can draw: its id, its place in the run, and its size.
 ///
-/// The positions are in font units scaled by the pixel size; the renderer
-/// places the glyph on the grid using the cell its codepoint started in.
+/// The positions are in pixels at the size the run was shaped at; the renderer
+/// places the glyph on the grid using the cluster its codepoint started in.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ShapedGlyph {
     /// The glyph's id in the face.
     pub glyph_id: u32,
     /// The index of the codepoint in the input this glyph starts at.
     pub cluster: u32,
+    /// The glyph's x position: the pen before it, plus its own offset.
+    pub offset: f32,
     /// How far the pen advances after the glyph, in pixels.
     pub advance: f32,
-    /// The glyph's offset from the pen, in pixels.
-    pub offset: f32,
 }
 
 /// An eight-bit coverage mask.
@@ -61,48 +79,77 @@ pub struct GlyphMask {
 
 /// A font that can shape runs and rasterize their glyphs.
 pub struct FontBook {
-    /// Kept alive because both `face` and `font` borrow it.
+    /// The font's bytes. Leaked on purpose: both handles below borrow them for
+    /// the process's lifetime, and a font loaded once and used for every frame
+    /// is exactly the case where a leak is bounded and simpler than a
+    /// self-referential struct.
     bytes: &'static [u8],
-    face: Face<'static>,
+    /// The shaping face, at the font's default instance.
+    font: Font,
+    /// The same bytes as an outline font, for rasterization.
+    outlines: FontRef<'static>,
 }
 
 impl FontBook {
     /// Parse a font.
-    ///
-    /// The bytes are leaked deliberately: both handles borrow them for the
-    /// process's lifetime, and a font that is loaded once and used for every
-    /// frame is exactly the case where a leak is bounded and simpler than a
-    /// self-referential struct.
     pub fn load(bytes: &[u8]) -> Result<Self, FontError> {
         let owned: &'static [u8] = Box::leak(bytes.to_vec().into_boxed_slice());
-        let face = Face::from_slice(owned, 0).ok_or(FontError::Face)?;
+        // `Blob::Static` borrows the slice rather than copying it, so the font
+        // and the outlines are two views of the one allocation.
+        let base = Font::new(owned, 0).ok_or(FontError::Face)?;
+        let font = base.instance_builder().build();
+        let outlines =
+            FontRef::try_from_slice(owned).map_err(|_| FontError::Face)?;
         Ok(Self {
             bytes: owned,
-            face,
+            font,
+            outlines,
         })
     }
 
     /// The face's design size, in font units.
     pub fn units_per_em(&self) -> u16 {
-        // rustybuzz's own `units_per_em` is an i32 (it inherits HarfBuzz's
-        // signed unit); the face underneath guarantees the 16..=16384 range.
-        self.face.units_per_em() as u16
+        self.font.units_per_em()
     }
 
     /// Shape one run of text at [size_px].
     ///
     /// A run is one line of the viewport: shaping across a line break would
     /// let a ligature join two screen rows, which the grid cannot draw.
+    ///
+    /// The shaper works in font units and has no size of its own, so the
+    /// advances and offsets are scaled by the caller — the same manual step
+    /// Ghostty does with HarfBuzz's 26.6 fixed point.
     pub fn shape(&self, text: &str, size_px: f32) -> Vec<ShapedGlyph> {
-        if size_px <= 0f || text.is_empty() {
+        if size_px <= 0f32 || text.is_empty() {
             return Vec::new();
         }
-        let mut buffer = UnicodeBuffer::new();
-        buffer.push_str(text);
-        let glyphs: GlyphBuffer = rustybuzz::shape(&self.face, &[], buffer);
-        let infos: &[GlyphInfo] = glyphs.glyph_infos();
-        let positions: &[GlyphPosition] = glyphs.glyph_positions();
-        let scale = size_px / self.face.units_per_em() as f32;
+
+        let shaper = ShaperFont::new(&self.font);
+        let mut buffer = Buffer::new();
+        // The cluster is the codepoint's index in the run, not its byte offset:
+        // the renderer uses it as the cell the glyph belongs to, and a byte
+        // offset would put every glyph after a multi-byte character one cell
+        // too far right.
+        for (index, codepoint) in text.chars().enumerate() {
+            buffer.push(codepoint as u32, index as u32);
+        }
+        // A terminal's grid is strictly increasing in X. Ghostty forces LTR
+        // for the same reason and says so: RTL in a terminal is not drawn.
+        // Setting it before the guess means the guess leaves it alone.
+        buffer.set_direction(Direction::LeftToRight);
+        buffer.set_cluster_level(ClusterLevel::Characters);
+        buffer.guess_segment_properties();
+
+        let options = ShapeOptions::new().features(&FEATURES);
+        if let Err(error) = shape(&shaper, &mut buffer, options) {
+            log::warn!("drosh-native: shaping refused a run: {error}");
+            return Vec::new();
+        }
+
+        let infos = buffer.glyph_infos();
+        let positions = buffer.glyph_positions();
+        let scale = size_px / self.font.units_per_em() as f32;
 
         let mut out = Vec::with_capacity(infos.len());
         let mut pen = 0f32;
@@ -112,8 +159,8 @@ impl FontBook {
             out.push(ShapedGlyph {
                 glyph_id: info.glyph_id,
                 cluster: info.cluster,
-                advance,
                 offset,
+                advance,
             });
             pen += advance;
         }
@@ -126,12 +173,11 @@ impl FontBook {
     /// size and then drawn at that size is sampled between texels, which is a
     /// blur rather than a smaller glyph.
     pub fn rasterize(&self, glyph_id: u32, size_px: f32) -> Option<GlyphMask> {
-        if glyph_id > u16::MAX as u32 || size_px <= 0f {
+        if glyph_id > u16::MAX as u32 || size_px <= 0f32 {
             return None;
         }
-        let font = FontRef::try_from_slice(self.bytes).ok()?;
         let size = PxScale::from(size_px.round());
-        let scaled = font.as_scaled(size);
+        let scaled = self.outlines.as_scaled(size);
         let glyph = ab_glyph::Glyph {
             id: GlyphId(glyph_id as u16),
             position: ab_glyph::point(0f32, 0f32),
@@ -148,8 +194,8 @@ impl FontBook {
         let mut coverage = vec![0u8; (width * height) as usize];
         outlined.draw(|x, y, alpha| {
             // ab_glyph's `draw` gives texel-space coordinates as f32; the
-            // bounds are the same units, and the conversions are explicit so
-            // the mask's integer grid cannot be off by a half texel.
+            // bounds are in the same units, and the conversions are explicit
+            // so the mask's integer grid cannot be off by a half texel.
             let px = (x - bounds.min.x).floor() as i32;
             // ab_glyph's y grows upward; the mask's row zero is the top.
             let py = ((bounds.max.y - y).floor() as i32) - 1;
@@ -197,17 +243,11 @@ pub fn set_font(bytes: &[u8]) -> bool {
             }
         }
     };
-    match book().lock() {
-        Ok(mut guard) => {
-            *guard = loaded;
-            true
-        }
-        Err(poisoned) => {
-            log::warn!("drosh-native: the font lock was poisoned; recovering");
-            *poisoned.into_inner() = loaded;
-            true
-        }
-    }
+    let mut guard = book().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    *guard = loaded;
+    // A new face is a new set of glyph ids; the old answers are wrong now.
+    clear_cache();
+    true
 }
 
 /// Whether a font has been installed.
@@ -231,11 +271,7 @@ pub fn shape(text: &str, size_px: f32) -> Vec<ShapedGlyph> {
 
 /// Rasterize a glyph with the installed font.
 pub fn rasterize(glyph_id: u32, size_px: f32) -> Option<GlyphMask> {
-    book()
-        .lock()
-        .ok()?
-        .as_ref()?
-        .rasterize(glyph_id, size_px)
+    book().lock().ok()?.as_ref()?.rasterize(glyph_id, size_px)
 }
 
 /// A guard against a font whose outline would need an unreasonable mask.
@@ -281,9 +317,8 @@ mod tests {
 
     // The app's bundled font, reached from the Rust crate through the shared
     // workspace. It is only embedded in the test binary, never in the APK.
-    const FONT_BYTES: &[u8] = include_bytes!(
-        "../../../android/terminal/src/main/res/font/jetbrains_mono_nerd.ttf"
-    );
+    const FONT_BYTES: &[u8] =
+        include_bytes!("../../../android/terminal/src/main/res/font/jetbrains_mono_nerd.ttf");
 
     #[test]
     fn a_font_loads_and_reports_its_design_size() {
@@ -309,12 +344,29 @@ mod tests {
     }
 
     #[test]
+    fn a_cluster_is_the_codepoint_index_not_the_byte_offset() {
+        // `push_str` would give clusters 0, 1, 3 — the byte offsets of
+        // "a", "→", "b". The renderer reads a cluster as a cell, so the
+        // difference is a glyph drawn one column too far right.
+        let book = FontBook::load(FONT_BYTES).unwrap();
+        let shaped = book.shape("a\u{2192}b", 16f32);
+        assert_eq!(shaped.len(), 3);
+        let clusters: Vec<u32> = shaped.iter().map(|glyph| glyph.cluster).collect();
+        assert_eq!(clusters, vec![0, 1, 2]);
+    }
+
+    #[test]
     fn rasterizing_a_glyph_gives_a_mask() {
         let book = FontBook::load(FONT_BYTES).unwrap();
         let shaped = book.shape("A", 20f32);
-        let mask = book.rasterize(shaped[0].glyph_id, 20f32).expect("an A has an outline");
+        let mask = book
+            .rasterize(shaped[0].glyph_id, 20f32)
+            .expect("an A has an outline");
         assert!(mask.width > 0 && mask.height > 0);
-        assert_eq!(mask.coverage.len(), mask.width as usize * mask.height as usize);
+        assert_eq!(
+            mask.coverage.len(),
+            mask.width as usize * mask.height as usize
+        );
         assert!(mask.coverage.iter().any(|byte| *byte > 0));
     }
 }
