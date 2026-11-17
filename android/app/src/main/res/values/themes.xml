@@ -13,8 +13,18 @@
 -->
 <resources>
     <style name="Theme.Drosh.Base" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#FF0A0A0A</item>
-        <item name="android:navigationBarColor">#FF0A0A0A</item>
+        <!--
+          Nothing at all behind the system bars.
+
+          The base theme used to paint both bars #0A0A0A so they would read as a
+          chrome band above the terminal. On a screen that is not the terminal —
+          and on the terminal's own bottom edge once the bars are shown — that
+          band is a strip of the app's colour where the content should run to
+          the edge. Transparent is the honest answer: whatever the screen draws
+          is what is behind the bar.
+        -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
         <!--
