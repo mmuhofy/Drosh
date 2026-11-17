@@ -93,6 +93,18 @@ internal class TextAtlas(
     var dirty = true
 
     /**
+     * Set when the whole atlas was wiped and has to go up as one.
+     *
+     * A reset clears the bitmap and the cache: every mask is gone, and the
+     * texture on the GPU has to be cleared with them. Uploading only the rows
+     * a *new* mask landed on leaves the old masks on the GPU, and the renderer
+     * then samples a texel that holds a glyph it did not ask for — text drawn
+     * with the wrong shapes, which is what a pinch looked like when the atlas
+     * filled up under it.
+     */
+    private var fullDirty: Boolean = false
+
+    /**
      * The topmost row that changed since the last upload.
      *
      * The atlas is a square of megabytes and a pinch changes its size on
@@ -176,6 +188,7 @@ internal class TextAtlas(
      * to the texture upload.
      */
     fun dirtyRows(): IntRange? {
+        if (fullDirty) return 0 until size
         if (dirtyTopY == Int.MAX_VALUE) return null
         val top = dirtyTopY.coerceIn(0, size)
         val bottom = (penY + shelfHeight).coerceIn(top, size)
@@ -186,6 +199,7 @@ internal class TextAtlas(
     /** Forget what changed: the texture has it now. */
     fun clearDirty() {
         dirtyTopY = Int.MAX_VALUE
+        fullDirty = false
     }
 
     /** Drop every mask. The font changed, and a mask of the wrong face is the wrong mask. */
@@ -196,6 +210,9 @@ internal class TextAtlas(
         shelfHeight = 0
         pixels.clear()
         dirtyTopY = Int.MAX_VALUE
+        // The whole texture is new: a reset that is not uploaded leaves the
+        // GPU holding the masks the cache no longer has.
+        fullDirty = true
         // A zeroed buffer is a transparent atlas, which is what "no glyphs"
         // looks like; the re-upload below publishes it.
         while (pixels.hasRemaining()) pixels.put(0)
