@@ -23,6 +23,13 @@ use std::ffi::c_void;
 
 /// The engine palette's length.
 const PALETTE_LEN: usize = 256;
+
+/// How many bytes of kitty graphics a terminal may hold.
+///
+/// The engine's own default is zero, which is "the protocol is off": it parses
+/// a program's image and throws it away. A phone's budget for pictures behind
+/// a terminal is a few screenshots, not a gigabyte.
+const KITTY_STORAGE_BYTES: u64 = 128 * 1024 * 1024;
 /// The mouse encoder's output buffer. An SGR 1006 sequence is under twenty
 /// bytes; sixty-four covers every format the engine can produce with room to
 /// spare, and a short answer is refused by the caller rather than truncated.
@@ -134,6 +141,20 @@ impl Session {
                 terminal,
                 ghostty::GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION,
                 crate::bell::on_desktop_notification as *const c_void,
+            );
+            // The kitty graphics storage.
+            //
+            // A limit of zero is the library's default and it disables the
+            // protocol: the engine parses a program's image, finds nowhere to
+            // keep it, and the renderer is handed nothing. That is why a
+            // kitty image never appeared. 128 MiB is a phone's share — a few
+            // screenshots' worth — and small enough that a program cannot
+            // fill the heap with pictures.
+            let kitty_limit: u64 = KITTY_STORAGE_BYTES;
+            let _ = ghostty::ghostty_terminal_set(
+                terminal,
+                ghostty::GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT,
+                &kitty_limit as *const u64 as *const c_void,
             );
         };
 

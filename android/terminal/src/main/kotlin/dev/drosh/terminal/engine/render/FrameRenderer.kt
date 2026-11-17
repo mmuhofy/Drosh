@@ -531,6 +531,10 @@ internal class FrameRenderer {
     /** The rows that have to be drawn again, reused from frame to frame. */
     private var dirtyRowFlags = BooleanArray(0)
 
+    /** The cell the sprites were last built at. */
+    private var spriteCellWidth = -1f
+    private var spriteCellHeight = -1f
+
     /**
      * The bar and underline cursors.
      *
@@ -1116,6 +1120,17 @@ internal class FrameRenderer {
                 first = row
                 break
             }
+        }
+        // The cell's size is part of a sprite: a glyph is rasterised at the
+        // font's size, and the quad it is drawn in is the cell's. A pinch
+        // changes the size without changing a single cell of the engine's
+        // grid, so a pinch is a frame where no row is dirty and every sprite
+        // is new. Without this the cells grew and the masks kept the old size
+        // — the letters' spacing opening and closing under the fingers.
+        if (cellWidth != spriteCellWidth || cellHeight != spriteCellHeight) {
+            spriteCellWidth = cellWidth
+            spriteCellHeight = cellHeight
+            first = 0
         }
         cells.buildSprites(frame, first) { buffer, index, column, gridRow ->
             val codepoint = frame.codepoint(index)

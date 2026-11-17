@@ -232,6 +232,13 @@ pub const GHOSTTY_CELL_WIDE_SPACER_TAIL: u32 = 2;
 pub const GHOSTTY_CELL_WIDE_SPACER_HEAD: u32 = 3;
 pub const GHOSTTY_TERMINAL_OPT_SEMANTIC_PROMPT: GhosttyTerminalOption =
     GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_SEMANTIC_PROMPT;
+/// The bytes of kitty graphics storage a terminal may hold.
+///
+/// Zero — the library's default — disables the protocol outright: a program
+/// that sends an image gets nothing back and the renderer is handed no
+/// placement. Any limit above zero turns it on.
+pub const GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT;
 pub const GHOSTTY_SEMANTIC_PROMPT_COMMAND_END: u32 = 4;
 pub const GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION: GhosttyTerminalOption =
     GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION;
