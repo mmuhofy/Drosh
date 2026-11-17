@@ -110,8 +110,8 @@ Kotlin→ the frame is read from that buffer        (no copy, no allocation)
 | Terminal lock held | the whole frame's production | **the snapshot only** | `native/src/session.rs` (`with_frame`) |
 | Styles drawn | bold, underline | bold, underline | `FrameRenderer` |
 | Styles carried but not drawn | italic, blink, strikethrough, overline | the same | the frame's attributes |
-| Atlas | one `ALPHA_8` texture, 2048², shelf-packed, no fallback | the same | `AndroidGlyphAtlas.kt` |
-| Font | `Typeface.MONOSPACE`, hard-coded | the same | `AndroidGlyphAtlas.kt` |
+| Atlas | one `ALPHA_8` texture, 2048², shelf-packed, no fallback | the same | `font/TextAtlas.kt` |
+| Font | `Typeface.MONOSPACE`, hard-coded | the same | `font/TextAtlas.kt` |
 | EGL context loss | not detected | not detected | `EglCore.swap` |
 
 ### 3.3 What the phases cost, on a device
