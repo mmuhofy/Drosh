@@ -2,6 +2,7 @@ package dev.drosh.terminal.engine.render
 
 import android.opengl.GLES20
 import android.opengl.GLES30
+import dev.drosh.terminal.engine.font.TextAtlas
 import dev.drosh.terminal.engine.layout.SizeInfo
 import dev.drosh.terminal.engine.protocol.Frame
 import dev.drosh.terminal.engine.protocol.FrameFormat
