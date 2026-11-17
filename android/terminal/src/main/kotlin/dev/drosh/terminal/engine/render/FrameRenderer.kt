@@ -2,6 +2,8 @@ package dev.drosh.terminal.engine.render
 
 import android.opengl.GLES20
 import android.opengl.GLES30
+import dev.drosh.terminal.engine.font.ColorAtlas
+import dev.drosh.terminal.engine.font.Emoji
 import dev.drosh.terminal.engine.font.TextAtlas
 import dev.drosh.terminal.engine.layout.SizeInfo
 import dev.drosh.terminal.engine.protocol.Frame
@@ -64,6 +66,22 @@ internal class FrameRenderer {
 
     /** The glyph masks. Owned by the loop thread. */
     private val atlas = TextAtlas()
+
+    /**
+     * The emoji.
+     *
+     * A second atlas, because an emoji is not a mask: the platform draws it in
+     * its own colours, and the text atlas holds one byte per texel. Ghostty
+     * splits the same way — a grayscale atlas and a colour one — and the two
+     * are sampled by different passes.
+     */
+    private val colorAtlas = ColorAtlas()
+
+    /** The colour atlas's texture. */
+    private var colorAtlasTexture = 0
+
+    /** The emoji of this frame: a square per cell, drawn over the text. */
+    private val colorGlyphs = ArrayList<ImageDraw>()
 
     /** Cell size, in pixels — the line box, which is what a cell is drawn at. */
     private var cellWidth = 1f
@@ -155,6 +173,7 @@ internal class FrameRenderer {
         foregroundAtlasScale = GLES20.glGetUniformLocation(foregroundProgram, "uAtlasScale")
 
         atlasTexture = buildAtlasTexture()
+        colorAtlasTexture = buildColorAtlasTexture()
         backgroundBuffer = buildBuffer()
         foregroundBuffer = buildBuffer()
         imageBuffer = buildBuffer()
@@ -175,6 +194,9 @@ internal class FrameRenderer {
             GLES20.glDeleteProgram(cursorProgram)
         }
         GLES20.glDeleteTextures(1, intArrayOf(atlasTexture), 0)
+        if (colorAtlasTexture != 0) {
+            GLES20.glDeleteTextures(1, intArrayOf(colorAtlasTexture), 0)
+        }
         GLES20.glDeleteBuffers(2, intArrayOf(backgroundBuffer, foregroundBuffer), 0)
         created = false
     }
@@ -325,6 +347,7 @@ internal class FrameRenderer {
         cells.resize(frame)
         buildBackgrounds(frame, dirty)
         val foregroundCount = buildForegrounds(frame, dirty)
+        buildColorGlyphs(frame, dirty)
 
         val buildEnd = System.nanoTime()
 
@@ -345,6 +368,9 @@ internal class FrameRenderer {
         }
         uploadBackgrounds(frame, dirty)
         uploadForegrounds()
+        if (colorAtlas.dirty) {
+            uploadColorAtlas()
+        }
 
         val uploadEnd = System.nanoTime()
 
@@ -356,6 +382,7 @@ internal class FrameRenderer {
         drawCalls += drawImages(size, LAYER_BELOW_TEXT)
         drawCalls += drawForegrounds(frame, size, foregroundCount)
         drawCalls += drawImages(size, LAYER_ABOVE_TEXT)
+        drawCalls += drawColorGlyphs(size)
         drawCalls += drawCursor(frame, size)
         drawCalls += drawBellFlash(frame, size)
 
@@ -1083,7 +1110,8 @@ internal class FrameRenderer {
         }
         cells.buildSprites(frame, first) { buffer, index, column, gridRow ->
             val codepoint = frame.codepoint(index)
-            if (codepoint == 0 || codepoint == ' '.code) {
+            if (codepoint == 0 || codepoint == ' '.code || Emoji.isEmoji(codepoint)) {
+                // An emoji is the colour pass's: a mask of it is a silhouette.
                 false
             } else {
                 val attributes = frame.attributes(index)
@@ -1330,6 +1358,161 @@ internal class FrameRenderer {
         atlas.clearDirty()
         atlas.dirty = false
         return true
+    }
+
+    /**
+     * Build the emoji of the rows that changed.
+     *
+     * An emoji is a square the cell's height, centred in the columns it
+     * covers: a terminal gives it two columns and one row, and an emoji
+     * stretched into that rectangle is a wide face rather than a face.
+     */
+    private fun buildColorGlyphs(frame: Frame, dirty: BooleanArray) {
+        colorGlyphs.clear()
+        for (row in 0 until frame.rowCount) {
+            if (!dirty[row]) continue
+            val gridRow = row + frame.firstRowY
+            val base = row * frame.columns
+            for (column in 0 until frame.columns) {
+                val index = base + column
+                val codepoint = frame.codepoint(index)
+                if (codepoint == 0 || !Emoji.isEmoji(codepoint)) continue
+                val glyph = colorAtlas.glyph(codepoint, cellHeight) ?: continue
+                if (glyph.isBlank) continue
+
+                val span = if (frame.width(index) == 2) 2 else 1
+                val box = span * cellWidth
+                val side = cellHeight
+                colorGlyphs.add(
+                    ImageDraw(
+                        texture = colorAtlasTexture,
+                        layer = LAYER_ABOVE_TEXT,
+                        z = 0,
+                        col = 0,
+                        row = 0,
+                        offsetX = (column * cellWidth + (box - side) / 2f).toInt(),
+                        offsetY = (gridRow * cellHeight).toInt(),
+                        width = side.toInt(),
+                        height = side.toInt(),
+                        sourceU = glyph.x.toFloat() / colorAtlas.size.toFloat(),
+                        sourceV = glyph.y.toFloat() / colorAtlas.size.toFloat(),
+                        sourceU2 = (glyph.x + glyph.width).toFloat() / colorAtlas.size.toFloat(),
+                        sourceV2 = (glyph.y + glyph.height).toFloat() / colorAtlas.size.toFloat(),
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Hand the emoji to the GPU: the rows that changed, or all of them. */
+    private fun uploadColorAtlas() {
+        val rows = colorAtlas.dirtyRows()
+        if (rows == null) {
+            colorAtlas.dirty = false
+            return
+        }
+        val height = rows.count()
+        if (height <= 0) {
+            colorAtlas.dirty = false
+            colorAtlas.clearDirty()
+            return
+        }
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, colorAtlasTexture)
+        val pixels = colorAtlas.directPixels()
+        pixels.limit(pixels.capacity())
+        pixels.position(rows.first * colorAtlas.size * 4)
+        GLES20.glTexSubImage2D(
+            GLES20.GL_TEXTURE_2D,
+            0,
+            0,
+            rows.first,
+            colorAtlas.size,
+            height,
+            GLES20.GL_RGBA,
+            GLES20.GL_UNSIGNED_BYTE,
+            pixels,
+        )
+        colorAtlas.clearDirty()
+        colorAtlas.dirty = false
+    }
+
+    /** Draw the emoji, over the glyphs and under the cursor. */
+    private fun drawColorGlyphs(size: SizeInfo): Int {
+        if (colorGlyphs.isEmpty() || imageProgram == 0) return 0
+        val floats = colorGlyphs.size * 8
+        if (imageVertices == null || imageVertices!!.capacity() < floats * 4) {
+            imageVertices = java.nio.ByteBuffer
+                .allocateDirect(floats * 4)
+                .order(java.nio.ByteOrder.nativeOrder())
+        }
+        val buffer = imageVertices!!
+        buffer.clear()
+        for (image in colorGlyphs) {
+            buffer.putFloat(image.col * cellWidth + image.offsetX)
+            buffer.putFloat(image.row * cellHeight + image.offsetY)
+            buffer.putFloat(image.width.toFloat())
+            buffer.putFloat(image.height.toFloat())
+            buffer.putFloat(image.sourceU)
+            buffer.putFloat(image.sourceV)
+            buffer.putFloat(image.sourceU2)
+            buffer.putFloat(image.sourceV2)
+        }
+        buffer.flip()
+
+        val projection = FloatArray(4)
+        size.projection(projection)
+
+        GLES20.glUseProgram(imageProgram)
+        GLES20.glUniform4fv(imageProjection, 1, projection, 0)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glUniform1i(imageTexture, 0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, colorAtlasTexture)
+
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, imageBuffer)
+        GLES20.glBufferData(
+            GLES20.GL_ARRAY_BUFFER,
+            buffer.remaining(),
+            buffer,
+            GLES20.GL_DYNAMIC_DRAW,
+        )
+        GLES20.glEnableVertexAttribArray(0)
+        GLES20.glVertexAttribPointer(0, 4, GLES20.GL_FLOAT, false, 32, 0)
+        GLES30.glVertexAttribDivisor(0, 1)
+        GLES20.glEnableVertexAttribArray(1)
+        GLES20.glVertexAttribPointer(1, 4, GLES20.GL_FLOAT, false, 32, 16)
+        GLES30.glVertexAttribDivisor(1, 1)
+
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, colorGlyphs.size)
+        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES20.glDisableVertexAttribArray(0)
+        GLES20.glDisableVertexAttribArray(1)
+        return 1
+    }
+
+    /** The colour atlas's texture. */
+    private fun buildColorAtlasTexture(): Int {
+        val handle = IntArray(1)
+        GLES20.glGenTextures(1, handle, 0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, handle[0])
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexImage2D(
+            GLES20.GL_TEXTURE_2D,
+            0,
+            GLES20.GL_RGBA,
+            colorAtlas.size,
+            colorAtlas.size,
+            0,
+            GLES20.GL_RGBA,
+            GLES20.GL_UNSIGNED_BYTE,
+            null,
+        )
+        return handle[0]
     }
 
     private fun buildAtlasTexture(): Int {
