@@ -152,3 +152,4 @@ jobs:
           name: drosh-so-${{ matrix.abi }}
           path: native/target/aarch64-linux-android/release/libdrosh.so
           if-no-files-found: error
+          retention-days: 1

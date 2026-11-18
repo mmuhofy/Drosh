@@ -333,6 +333,8 @@ release when it ships.
   CREDITS and the license map were brought in line with the code
 - `docs/STATUS.md` is the single feature/release inventory, with a roadmap and
   a one-tag release plan
+- Actions artifacts expire after one day; the previous debug and release APKs
+  lingered for 14 and 30 days and everything else for the repository default
 
 ### Known issues
 
