@@ -58,6 +58,35 @@ pub enum PtyError {
 /// and is small enough to stay resident.
 pub(crate) const READ_CHUNK: usize = 64 * 1024;
 
+/// One non-blocking read from the master side.
+///
+/// Split out from `Pty::read` so the cached read can use the same loop without
+/// borrowing the `Pty` twice.
+fn read_fd(fd: RawFd, buffer: &mut [u8]) -> io::Result<usize> {
+    if fd < 0 {
+        return Err(io::Error::from_raw_os_error(libc::EBADF));
+    }
+    loop {
+        let n = unsafe { libc::read(fd, buffer.as_mut_ptr() as *mut libc::c_void, buffer.len()) };
+        if n > 0 {
+            return Ok(n as usize);
+        }
+        if n == 0 {
+            return Ok(0);
+        }
+        let error = io::Error::last_os_error();
+        match error.raw_os_error() {
+            // No data right now.
+            Some(libc::EAGAIN) => return Ok(0),
+            // The child is gone and the slave side closed: a clean end, not a
+            // failure.
+            Some(libc::EIO) => return Ok(0),
+            Some(libc::EINTR) => continue,
+            _ => return Err(error),
+        }
+    }
+}
+
 /// A pseudoterminal pair and the child process on the slave side.
 pub struct Pty {
     /// The master side: the app reads and writes this.
@@ -178,35 +207,6 @@ impl Pty {
         self.scratch.truncate(read);
         Ok(&self.scratch)
     }
-
-    /// One non-blocking read from the master side.
-///
-/// Split out from `Pty::read` so the cached read can use the same loop without
-/// borrowing the `Pty` twice.
-fn read_fd(fd: RawFd, buffer: &mut [u8]) -> io::Result<usize> {
-    if fd < 0 {
-        return Err(io::Error::from_raw_os_error(libc::EBADF));
-    }
-    loop {
-        let n = unsafe { libc::read(fd, buffer.as_mut_ptr() as *mut libc::c_void, buffer.len()) };
-        if n > 0 {
-            return Ok(n as usize);
-        }
-        if n == 0 {
-            return Ok(0);
-        }
-        let error = io::Error::last_os_error();
-        match error.raw_os_error() {
-            // No data right now.
-            Some(libc::EAGAIN) => return Ok(0),
-            // The child is gone and the slave side closed: a clean end, not a
-            // failure.
-            Some(libc::EIO) => return Ok(0),
-            Some(libc::EINTR) => continue,
-            _ => return Err(error),
-        }
-    }
-}
 
 /// Write all of `bytes`, or fail.
     ///
