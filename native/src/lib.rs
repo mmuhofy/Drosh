@@ -28,6 +28,9 @@
 // `engine` feature the crate is only the renderer's rules — which is what
 // the tests build, because the engine's library is an Android library and
 // a test binary on a build machine cannot link it.
+// `block` is engine-independent: the OSC 133 recorder and its wire format are
+// pure Rust, so the host's test run exercises them too.
+pub mod block;
 #[cfg(feature = "engine")]
 pub mod bell;
 #[cfg(feature = "engine")]

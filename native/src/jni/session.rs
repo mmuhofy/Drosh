@@ -552,6 +552,56 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativ
     session.shell_phase() as jint
 }
 
+/// Take the block records the engine has accumulated since the last drain.
+///
+/// Records are newline-separated; every text field is hex-encoded UTF-8 so a
+/// tab or a newline inside command output cannot split a record. The format is
+/// defined in `crate::block` and parsed by `EngineBlockBridge` on the Kotlin
+/// side.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeDrainBlockEvents(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let Some(mut session) = session_lock(handle) else {
+        return new_string(&mut env, "");
+    };
+    let wire = session.drain_block_events();
+    new_string(&mut env, &wire)
+}
+
+/// The exit status of the last finished command, or -1 when none was reported.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeExitStatus(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jint {
+    let Some(session) = session_lock(handle) else {
+        return -1;
+    };
+    session.block_exit_status()
+}
+
+/// True while the alternate screen is active: a TUI owns the surface, so the UI
+/// falls back to the classic terminal rather than rendering command blocks.
+#[no_mangle]
+pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeAltScreen(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jboolean {
+    let Some(session) = session_lock(handle) else {
+        return 0;
+    };
+    if session.active_screen() == ghostty::GHOSTTY_TERMINAL_SCREEN_ALTERNATE {
+        1
+    } else {
+        0
+    }
+}
+
 /// The working directory the shell last reported, or an empty string.
 #[no_mangle]
 pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSession_nativeWorkingDirectory(

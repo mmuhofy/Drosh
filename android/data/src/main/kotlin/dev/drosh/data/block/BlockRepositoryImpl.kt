@@ -6,6 +6,8 @@ import dev.drosh.domain.block.Block
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.BlockState
 import dev.drosh.domain.block.CommandBoundaryDetector
+import dev.drosh.domain.block.StyledLine
+import dev.drosh.domain.block.StyledSpan
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +32,8 @@ import javax.inject.Singleton
  * Output buffering: incoming chunks are split on `\n`. The last partial line
  * is held back until the next chunk arrives or the command completes, so a
  * logical line is never split across two output entries. The partial line is
- * buffered per session too.
+ * buffered per session too. Styled lines are buffered in parallel with the
+ * plain text, so [Block.outputRich] and [Block.outputLines] stay in step.
  *
  * UNTESTED — verify before use.
  */
@@ -52,6 +55,13 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
          * everything written so far.
          */
         val liveLines: MutableList<String> = mutableListOf(),
+        /** Styled counterpart of [liveLines], filled when the engine sends styles. */
+        val liveRichLines: MutableList<StyledLine> = mutableListOf(),
+        /**
+         * Spans of a line that ended without a newline. The next chunk continues
+         * that line; the parser's style state carries across chunks too.
+         */
+        val partialRichSpans: MutableList<StyledSpan> = mutableListOf(),
     )
 
     private val _blocks = MutableStateFlow<List<Block>>(emptyList())
@@ -119,8 +129,13 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
         val running = stored.running
         // A running block's lines live in liveLines until they are published,
         // so the block the UI sees is the buffer frozen into a list.
-        val snapshot = if (running != null && stored.liveLines.isNotEmpty()) {
-            running.copy(outputLines = stored.liveLines.toList())
+        val snapshot = if (running != null &&
+            (stored.liveLines.isNotEmpty() || stored.liveRichLines.isNotEmpty())
+        ) {
+            running.copy(
+                outputLines = stored.liveLines.toList(),
+                outputRich = stored.liveRichLines.toList(),
+            )
         } else {
             null
         }
@@ -147,30 +162,99 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
             startTxBytes = startTxBytes,
         )
         mutate(publishImmediately = true) { current ->
-            current.copy(
-                blocks = capped(current.blocks + newBlock),
+            // The engine's S event can arrive while a UI-initiated command is
+            // still marked running. Close it first: two running blocks would
+            // make output land in whichever one happened to be published last.
+            val closed = closeRunning(current)
+            closed.copy(
+                blocks = capped(closed.blocks + newBlock),
                 running = newBlock,
                 partialLine = StringBuilder(),
                 liveLines = mutableListOf(),
+                liveRichLines = mutableListOf(),
+                partialRichSpans = mutableListOf(),
             )
         }
     }
 
-    override fun onOutputChunk(chunk: String) {
-        if (chunk.isEmpty()) return
+    /**
+     * Finalise a running block that has not reported a finish, and clear its
+     * in-flight buffers. Cancelled says what happened honestly: no status was
+     * reported, so calling it a success would invent one.
+     */
+    private fun closeRunning(current: SessionBlocks): SessionBlocks {
+        val running = current.running ?: return current
+        val trailing = current.partialLine.toString()
+        val lines = if (trailing.isNotEmpty()) current.liveLines + trailing else current.liveLines.toList()
+        val rich = finalRichLines(current)
+        val interrupted = running.copy(
+            outputLines = lines,
+            outputRich = rich,
+            state = BlockState.Cancelled,
+            completedAtMs = System.currentTimeMillis(),
+        )
+        return current.copy(
+            blocks = replaceIn(current.blocks, interrupted),
+            running = null,
+            partialLine = StringBuilder(),
+            liveLines = mutableListOf(),
+            liveRichLines = mutableListOf(),
+            partialRichSpans = mutableListOf(),
+        )
+    }
+
+    /** The styled lines to publish when a command ends, including a trailing partial. */
+    private fun finalRichLines(current: SessionBlocks): List<StyledLine> {
+        val partial = current.partialRichSpans
+        return if (partial.isNotEmpty()) {
+            current.liveRichLines + StyledLine(partial.toList())
+        } else {
+            current.liveRichLines.toList()
+        }
+    }
+
+    override fun onOutputChunk(chunk: String, lines: List<StyledLine>) {
+        if (chunk.isEmpty() && lines.isEmpty()) return
 
         mutate { current ->
             // No command running: there is nothing for output to belong to.
             if (current.running == null) return@mutate current
-            current.partialLine.append(chunk)
-            val parts = current.partialLine.toString().split('\n')
-            // All but the last part are complete lines; the last is the
-            // partial line that may continue in the next chunk.
-            val completeLines = parts.dropLast(1)
-            if (completeLines.isEmpty()) return@mutate current
 
-            current.liveLines.addAll(completeLines)
-            current.copy(partialLine = StringBuilder(parts.last()))
+            // Plain text keeps the existing line buffering, so copy and search
+            // see exactly what the terminal printed.
+            val partial = current.partialLine
+            if (chunk.isNotEmpty()) {
+                partial.append(chunk)
+                val parts = partial.toString().split('\n')
+                current.liveLines.addAll(parts.dropLast(1))
+                partial.clear()
+                partial.append(parts.last())
+            }
+
+            // The styled parser emits a final line for a trailing partial. Hold
+            // it back until the rest of that line arrives, merging it into the
+            // first styled line of the next chunk.
+            var richPartial = current.partialRichSpans
+            if (lines.isNotEmpty()) {
+                val hasTail = !chunk.endsWith("\n")
+                val completeRich = if (hasTail) lines.dropLast(1) else lines
+                val tail = if (hasTail) lines.lastOrNull() else null
+                if (completeRich.isNotEmpty()) {
+                    val first = completeRich.first()
+                    val merged = if (richPartial.isEmpty()) {
+                        first
+                    } else {
+                        first.copy(spans = richPartial + first.spans)
+                    }
+                    current.liveRichLines.add(merged)
+                    current.liveRichLines.addAll(completeRich.drop(1))
+                    richPartial = mutableListOf()
+                }
+                if (tail != null) {
+                    richPartial = (richPartial + tail.spans).toMutableList()
+                }
+            }
+            current.copy(partialLine = partial, partialRichSpans = richPartial)
         }
     }
 
@@ -223,6 +307,7 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
                 if (exitCode == 0) BlockState.Success(exitCode) else BlockState.Error(exitCode)
             val completed = running.copy(
                 outputLines = finalLines,
+                outputRich = finalRichLines(current),
                 state = finalState,
                 completedAtMs = System.currentTimeMillis(),
             )
@@ -231,6 +316,8 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
                 running = null,
                 partialLine = StringBuilder(),
                 liveLines = mutableListOf(),
+                liveRichLines = mutableListOf(),
+                partialRichSpans = mutableListOf(),
             )
         }
     }
@@ -241,6 +328,7 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
             val trailing = current.partialLine.toString()
             val cancelled = running.copy(
                 outputLines = if (trailing.isNotEmpty()) current.liveLines + trailing else current.liveLines.toList(),
+                outputRich = finalRichLines(current),
                 state = BlockState.Cancelled,
                 completedAtMs = System.currentTimeMillis(),
             )
@@ -249,6 +337,8 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
                 running = null,
                 partialLine = StringBuilder(),
                 liveLines = mutableListOf(),
+                liveRichLines = mutableListOf(),
+                partialRichSpans = mutableListOf(),
             )
         }
     }

@@ -91,6 +91,30 @@ object NativeSession {
     }
 
     /**
+     * Take the block records produced since the last drain.
+     *
+     * Records are separated by `\n`, fields by one space, and every text field
+     * is hex-encoded UTF-8. The format is defined once in `native/src/block.rs`
+     * and parsed here by `BlockWireParser`.
+     */
+    fun drainBlockEvents(handle: Long): String {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return ""
+        return nativeDrainBlockEvents(handle)
+    }
+
+    /** The last command's exit status, or -1 when the shell reported none. */
+    fun exitStatus(handle: Long): Int {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return -1
+        return nativeExitStatus(handle)
+    }
+
+    /** True while a TUI owns the alternate screen. */
+    fun altScreen(handle: Long): Boolean {
+        if (handle == 0L || !NativeLibraries.ensureLoaded()) return false
+        return nativeAltScreen(handle)
+    }
+
+    /**
      * The scrollbar's position: `(history rows, viewport offset)`.
      *
      * The engine reports both as one struct; splitting it here keeps the caller
@@ -349,4 +373,7 @@ object NativeSession {
     private external fun nativeHyperlink(handle: Long, row: Int, column: Int): String?
     private external fun nativeShellPhase(handle: Long): Int
     private external fun nativeWorkingDirectory(handle: Long): String
+    private external fun nativeDrainBlockEvents(handle: Long): String
+    private external fun nativeExitStatus(handle: Long): Int
+    private external fun nativeAltScreen(handle: Long): Boolean
 }

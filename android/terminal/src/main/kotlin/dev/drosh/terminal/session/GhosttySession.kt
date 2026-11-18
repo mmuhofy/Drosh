@@ -309,12 +309,19 @@ class GhosttySession(
         if (handle == 0L) return null
         val phase = dev.drosh.terminal.engine.shell.Phase.of(NativeSession.shellPhase(handle))
         val directory = NativeSession.workingDirectory(handle).takeIf { it.isNotBlank() }
+        // The D mark's status is recorded alongside the blocks. Native uses -1
+        // for "the shell sent none", which is an absence, not an exit code.
+        val exitStatus = NativeSession.exitStatus(handle).takeIf { it >= 0 }
         val shellPhase = phase.toShellPhase()
-        if (shellPhase == dev.drosh.domain.block.ShellPhase.UNKNOWN && directory == null) {
+        if (shellPhase == dev.drosh.domain.block.ShellPhase.UNKNOWN &&
+            directory == null &&
+            exitStatus == null
+        ) {
             return null
         }
         return dev.drosh.domain.block.ShellState(
             phase = shellPhase,
+            exitStatus = exitStatus,
             workingDirectory = directory,
             editorTarget = editorTarget(),
         )
