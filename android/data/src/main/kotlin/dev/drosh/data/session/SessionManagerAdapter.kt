@@ -1,9 +1,19 @@
 package dev.drosh.data.session
 
+import android.app.ActivityManager
+import android.content.Context
+import android.os.SystemClock
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
+import dev.drosh.domain.session.ResourceSnapshot
+import dev.drosh.domain.session.SessionProcessInfo
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
+import dev.drosh.domain.session.SessionTelemetry
+import dev.drosh.terminal.engine.bench.RenderBench
+import dev.drosh.terminal.engine.diagnostics.EngineDiagnostics
+import dev.drosh.terminal.session.GhosttySession
 import dev.drosh.terminal.session.SessionLifecycleCallbacks
 import dev.drosh.terminal.session.TerminalManager
 import kotlinx.coroutines.CoroutineScope
@@ -15,8 +25,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,14 +50,16 @@ import javax.inject.Singleton
  */
 @Singleton
 class SessionManagerAdapter @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val sessionRepository: SessionRepositoryImpl,
     private val terminalManager: TerminalManager,
     @dev.drosh.data.di.ApplicationScope private val appScope: CoroutineScope,
-) : SessionLifecycleCallbacks {
+) : SessionLifecycleCallbacks, SessionTelemetry {
 
     private var reconcileJob: Job? = null
     private var activeJob: Job? = null
     private var tickerJob: Job? = null
+    private var telemetryJob: Job? = null
 
     private var lastNames: Map<String, String> = emptyMap()
 
@@ -67,6 +81,15 @@ class SessionManagerAdapter @Inject constructor(
 
     private val _activeId = MutableStateFlow<String?>(null)
     val activeIdFlow: StateFlow<String?> = _activeId.asStateFlow()
+
+    private val _processes = MutableStateFlow<List<SessionProcessInfo>>(emptyList())
+    override val processes: StateFlow<List<SessionProcessInfo>> = _processes.asStateFlow()
+
+    private val _resources = MutableStateFlow(ResourceSnapshot())
+    override val resources: StateFlow<ResourceSnapshot> = _resources.asStateFlow()
+
+    private val activityManager: ActivityManager? =
+        context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
 
     fun start() {
         stop()
@@ -114,6 +137,16 @@ class SessionManagerAdapter @Inject constructor(
                 captureLivePreviews()
             }
         }
+
+        telemetryJob = appScope.launch {
+            // One sample a second, cancellable with the adapter. Cancelled here
+            // rather than tied to a screen: the sheet that reads it can come and
+            // go without restarting the sampler.
+            while (isActive) {
+                sampleTelemetry()
+                delay(RESOURCE_SAMPLE_INTERVAL_MS)
+            }
+        }
     }
 
     /**
@@ -159,6 +192,117 @@ class SessionManagerAdapter @Inject constructor(
             if (lines.isEmpty()) continue
             sessionRepository.updateLivePreview(id, lines)
         }
+    }
+
+    // UNTESTED — verify before use: the /proc and frame-counter sampling below
+    // has not been run on a device; a device may refuse /proc reads or report a
+    // frame count that does not advance while the screen is off. Everything here
+    // degrades to zero/null rather than blocking the adapter's ticker.
+    private suspend fun sampleTelemetry() {
+        // The manager's session table is main-thread state; take a short snapshot
+        // there, then do the /proc reads off the main thread.
+        val live = withContext(Dispatchers.Main.immediate) {
+            terminalManager.liveSessions().map { LiveProcessRef(it.persistentId, it) }
+        }
+        _processes.value = live.map { ref ->
+            val session = ref.session
+            val resolvedName = session.currentProcessName()?.takeIf { it.isNotBlank() }
+                ?: session.name
+            SessionProcessInfo(
+                sessionId = ref.id,
+                name = resolvedName,
+                pid = session.processId.takeIf { it > 0 },
+                // The engine has no job list; see SessionProcessInfo. No invented jobs.
+                jobs = emptyList(),
+            )
+        }
+
+        val memory = readMemoryMb()
+        val frames = readFrameStats()
+        _resources.value = ResourceSnapshot(
+            cpuPercent = readCpuPercent(),
+            ramUsedMb = memory.first,
+            ramTotalMb = memory.second,
+            fps = frames.first,
+            frameMs = frames.second,
+        )
+    }
+
+    private data class LiveProcessRef(val id: String, val session: GhosttySession)
+
+    /**
+     * System-wide CPU utilisation from the aggregate line of `/proc/stat`.
+     *
+     * The line is cumulative jiffies, so the percentage is the non-idle share of
+     * the delta since the previous sample. The first sample has no delta and is
+     * honestly reported as 0f.
+     */
+    private fun readCpuPercent(): Float {
+        val line = runCatching { File("/proc/stat").useLines { it.firstOrNull() } }
+            .getOrNull() ?: return 0f
+        val fields = line.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (fields.firstOrNull() != "cpu" || fields.size < 5) return 0f
+        val values = runCatching { fields.drop(1).map { it.toLong() } }.getOrNull() ?: return 0f
+
+        // user, nice, system, idle, iowait, ... — iowait counts as idle here.
+        val idle = values[3] + values[4]
+        val total = values.sum()
+        val previous = lastCpuTotals
+        lastCpuTotals = idle to total
+        if (previous == null) return 0f
+
+        val (previousIdle, previousTotal) = previous
+        val deltaTotal = total - previousTotal
+        if (deltaTotal <= 0L) return 0f
+        val deltaIdle = (idle - previousIdle).coerceAtLeast(0L)
+        val busy = (deltaTotal - deltaIdle).coerceAtLeast(0L)
+        return (busy * 100f / deltaTotal).coerceIn(0f, 100f)
+    }
+
+    private var lastCpuTotals: Pair<Long, Long>? = null
+
+    /** Device-wide memory, in MiB: used and total. Zero when the service is missing. */
+    private fun readMemoryMb(): Pair<Long, Long> {
+        val info = ActivityManager.MemoryInfo()
+        activityManager?.getMemoryInfo(info)
+        val total = info.totalMem / BYTES_PER_MB
+        val used = (total - info.availMem / BYTES_PER_MB).coerceAtLeast(0L)
+        return used to total
+    }
+
+    private var lastFrameCount: Int = 0
+    private var lastFrameSampleAtMs: Long = 0L
+
+    /**
+     * Renderer FPS and mean frame work.
+     *
+     * The diagnostics live report is a human string: if it ever grows a stable
+     * `fps:` / `frame ... ms` line, that is read first. Today it does not, so the
+     * numeric counters behind [RenderBench] are the source. FPS is derived from
+     * the frame-count delta between samples, not from the mean work time — the
+     * two answer different questions.
+     */
+    private fun readFrameStats(): Pair<Float?, Float?> {
+        parseFrameLine(EngineDiagnostics.liveReport())?.let { return it }
+
+        val frames = RenderBench.frameCount()
+        val now = SystemClock.elapsedRealtime()
+        val fps = if (lastFrameSampleAtMs > 0L && frames > lastFrameCount) {
+            val elapsed = now - lastFrameSampleAtMs
+            if (elapsed > 0L) (frames - lastFrameCount) * 1000f / elapsed else null
+        } else {
+            null
+        }
+        lastFrameCount = frames
+        lastFrameSampleAtMs = now
+        val frameMs = RenderBench.averageFrameWorkMs().takeIf { it > 0f }
+        return fps to frameMs
+    }
+
+    private fun parseFrameLine(report: String): Pair<Float?, Float?>? {
+        val fps = FRAME_FPS_REGEX.find(report)?.groupValues?.getOrNull(1)?.toFloatOrNull()
+        val frameMs = FRAME_MS_REGEX.find(report)?.groupValues?.getOrNull(1)?.toFloatOrNull()
+        return if (fps == null && frameMs == null) null else fps to frameMs
     }
 
     /**
@@ -250,9 +394,11 @@ class SessionManagerAdapter @Inject constructor(
         reconcileJob?.cancel()
         activeJob?.cancel()
         tickerJob?.cancel()
+        telemetryJob?.cancel()
         reconcileJob = null
         activeJob = null
         tickerJob = null
+        telemetryJob = null
     }
 
     /**
@@ -362,6 +508,21 @@ class SessionManagerAdapter @Inject constructor(
 
     private companion object {
         const val SNAPSHOT_TICK_MS = 500L
+
+        /** How often the process/resource sample is refreshed. */
+        const val RESOURCE_SAMPLE_INTERVAL_MS = 1_000L
+
+        const val BYTES_PER_MB = 1024L * 1024L
+
+        /** Optional fields in the engine's human report; no match today. */
+        val FRAME_FPS_REGEX = Regex(
+            """fps\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)""",
+            RegexOption.IGNORE_CASE,
+        )
+        val FRAME_MS_REGEX = Regex(
+            """frame(?:Ms| time| work)?\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)\s*ms""",
+            RegexOption.IGNORE_CASE,
+        )
 
         /**
          * How many lines of a session's output a card's thumbnail holds.

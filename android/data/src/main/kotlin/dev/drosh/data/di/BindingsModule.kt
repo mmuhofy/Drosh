@@ -6,6 +6,8 @@ import dev.drosh.data.input.InputPreferencesRepositoryImpl
 import dev.drosh.data.input.SubmitRawByteUseCaseImpl
 import dev.drosh.data.session.ObserveActiveSessionUseCaseImpl
 import dev.drosh.data.session.DeviceIdentityRepositoryImpl
+import dev.drosh.data.session.PersistentSessionStoreImpl
+import dev.drosh.data.session.SessionManagerAdapter
 import dev.drosh.data.session.SessionRepositoryImpl
 import dev.drosh.data.agent.AgentChatRepositoryImpl
 import dev.drosh.data.agent.LlmProviderRepositoryImpl
@@ -44,7 +46,9 @@ import dev.drosh.domain.input.InputPreferencesRepository
 import dev.drosh.domain.input.SubmitRawByteUseCase
 import dev.drosh.domain.session.ObserveActiveSessionUseCase
 import dev.drosh.domain.session.DeviceIdentityRepository
+import dev.drosh.domain.session.PersistentSessionStore
 import dev.drosh.domain.session.SessionRepository
+import dev.drosh.domain.session.SessionTelemetry
 import dev.drosh.domain.settings.BackgroundImageStore
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.SettingsRepository
@@ -113,6 +117,18 @@ abstract class BindingsModule {
     abstract fun bindObserveActiveSession(
         impl: ObserveActiveSessionUseCaseImpl,
     ): ObserveActiveSessionUseCase
+
+    @Binds
+    @Singleton
+    abstract fun bindPersistentSessionStore(
+        impl: PersistentSessionStoreImpl,
+    ): PersistentSessionStore
+
+    @Binds
+    @Singleton
+    abstract fun bindSessionTelemetry(
+        impl: SessionManagerAdapter,
+    ): SessionTelemetry
 
     @Binds
     @Singleton
