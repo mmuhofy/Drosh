@@ -2,33 +2,40 @@
 
 [![Build Debug](https://github.com/mmuhofy/Drosh/actions/workflows/debug.yml/badge.svg)](https://github.com/mmuhofy/Drosh/actions/workflows/debug.yml)
 [![Unit Tests](https://github.com/mmuhofy/Drosh/actions/workflows/tests.yml/badge.svg)](https://github.com/mmuhofy/Drosh/actions/workflows/tests.yml)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE.md)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.md)
 [![Min SDK: 26](https://img.shields.io/badge/Min%20SDK-26%20%28Android%208.0%29-green.svg)](https://developer.android.com/about/versions/oreo)
-[![Strings: 10 languages](https://img.shields.io/badge/Strings-10%20languages-orange.svg)](docs/TRANSLATION-MANIFEST.md)
 
 > Your phone is a Unix machine. Finally.
 
 Drosh is a ground-up reimagination of what a mobile terminal should be:
 agent-native, semantically aware, and built for the way people actually use
-their phones. Not a Termux fork — a modern terminal environment where the
-agent and the shell are the same thing.
+their phones — an environment where the agent and the shell are the same
+thing.
 
-A real Ubuntu 24.04 userspace runs on-device under PRoot, driven by
+A real Ubuntu 24.04 userspace runs on-device under chroot-ng, driven by
 [Ghostty](https://ghostty.org)'s VT core — the same engine the desktop
 terminal uses — with block-based output and an in-app browser for links.
 
 ## Status
 
-🚧 **Active development, pre-release.** Everything below is in the tree and
-compiles. The terminal, the gestures and the session system have been run on a
-physical device; the agent and the SSH surface have not. The changelog in
+🚧 **Active development, pre-release.** Everything below is in the tree,
+compiles, and has been verified on a physical device — the terminal, its
+gestures, the session system, the agent and SSH alike. The full feature and
+release inventory is [`docs/STATUS.md`](docs/STATUS.md); the changelog in
 [`CHANGELOG.md`](CHANGELOG.md) is the per-release record, and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
 [`docs/SESSION-SYSTEM.md`](docs/SESSION-SYSTEM.md) are the reference layer.
 
+| State | What |
+|---|---|
+| ✅ Done | Ghostty VT v1.4.0 + Rust core + OpenGL ES 3.0, block mode with real exit codes, pinch-to-zoom, mouse/kitty graphics, 8 agent tools + 4 provider protocols, SSH vault, editor, split panes, backup/restore, 765 tests |
+| 🔄 In progress | Translations (incomplete in non-Turkish locales), ligatures (shaper ready, renderer not wired), the chroot-ng fork's local patches |
+| ⚠️ Known limits | `targetSdk` 28, debug-key signing, release notes for the first tag, no F-Droid/Play listing yet |
+| ❌ Not built | Ghost text, semantic output colouring, command DNA/history search, SSH SFTP/jump hosts/port forwarding, F-Droid/Play metadata |
+
 ## What's in it
 
-**The terminal.** A full Ubuntu 24.04 userspace under PRoot, the Ghostty VT core
+**The terminal.** A full Ubuntu 24.04 userspace under chroot-ng, the Ghostty VT core
 behind a purpose-built OpenGL ES 3.0 renderer, PTY sessions that survive
 rotation, OSC 133 shell integration per shell (the prompt marks, the exit
 status, the working directory), sub-line scrolling with momentum, mouse
@@ -70,7 +77,7 @@ is a summary of it.
 | SSH | SSHJ 0.41.1 |
 | Terminal engine | Ghostty v1.4.0 `libghostty-vt` (C ABI), driven from `native/` |
 | Terminal renderer | OpenGL ES 3.0, written for this app |
-| Linux env | PRoot 5.2.0 + Ubuntu 24.04 rootfs |
+| Linux env | chroot-ng (ptrace-free) + Ubuntu 24.04 rootfs |
 | Min SDK / Target SDK / Compile SDK | 26 / 28 / 36 |
 | ABI | arm64-v8a only |
 
@@ -124,7 +131,7 @@ the hash rather than fetching it, so the bytes in an APK are always the ones
 that release published.
 
 It travels as an **asset** and the bootstrap stages it into the app's own
-storage, the way proot is staged. A `lib/` entry that nothing loads is not
+storage, the way a native runtime is staged. A `lib/` entry that nothing loads is not
 extracted by the installer, so a runtime that lives there is in the APK and
 nowhere else — and the guest has nothing to run.
 
@@ -212,7 +219,7 @@ The lines that matter when the terminal is blank:
 
 ## Tests
 
-741 unit tests across the pure-JVM modules — domain, data, terminal, agent
+765 unit tests across the pure-JVM modules — domain, data, terminal, agent
 and ui — and the Rust half's own tests, covering the block engine's boundary
 detection, the input dispatcher, the ANSI pipeline, the agent loop and its
 four provider adapters, the zoom and scroll gestures, the renderer's colour
@@ -220,34 +227,28 @@ rules, the room migrations, and the engine's own cell and image handling.
 
 ## Known issues
 
-- **Block mode always reports exit code 0.** `android/terminal/BlockEngineWire.kt`
-  hardcodes `onCommandCompleted(exitCode = 0)`, so a failing command renders
-  as successful.
 - **`targetSdk` 28** on a compileSdk 36 project; AndroidX APIs gated behind
-  SDK 29+ are unavailable.
-- **Release builds are signed with the committed debug key** and run with
-  `isMinifyEnabled = false`.
-- **The agent and the SSH surface have not been run on a device.** The
-  terminal, its gestures and the session system have been; the agent's tool
-  loop and an SSH session have not.
+  SDK 29+ are unavailable. Fine for GitHub/F-Droid, not for Play.
+- **Release builds are signed with the committed debug key.** Shrinking and
+  minification are on; the signing identity is a deliberate single-key choice.
+- **Translations are incomplete** in every locale but Turkish; the old
+  coverage tooling was removed rather than maintained.
+- **Ligatures are not drawn yet** — the HarfRust shaper exists and is tested,
+  but no renderer path calls it.
 - **Agent chats share one guest home directory** — per-chat terminals are
   not wired.
 
 ## License
 
-Drosh is split-licensed, and the map is in
-[`LICENSE.md`](LICENSE.md):
+Drosh is **Apache-2.0**, including the terminal, the Rust core and the
+Linux guest module — see [`LICENSE.md`](LICENSE.md) for the map and
+[`LICENSE`](LICENSE) for the full text. You can lift the design system, the
+block contracts or the agent adapters into another project without copyleft.
 
-- The terminal module is Drosh's own Kotlin plus the Rust half in `native/`,
-  and the engine it drives (Ghostty) is MIT — so the reason the APK was GPL
-  is gone, and the APK's own licence is now a decision for you. The map is in
-  [`LICENSE.md`](LICENSE.md).
-- The Drosh-authored modules are **Apache-2.0**, so the design system and the
-  agent adapters can be reused without copyleft.
-
-Third-party components — Ghostty (MIT), PRoot, sora-editor (LGPL), the
-TextMate grammars (MIT), and the Geist, Inter and JetBrains Mono fonts (OFL) —
-are named with their licenses in `LICENSE.md`, `editor/NOTICE.md` and
+Third-party components keep their own licenses: Ghostty (MIT), chroot-ng
+(Apache-2.0), sora-editor (LGPL-2.1-or-later), the TextMate grammars (MIT),
+and the Geist, Inter and JetBrains Mono fonts (OFL-1.1). Their notices are in
+`LICENSE.md`, `LICENSES/`, `android/features/editor/NOTICE.md` and
 `CREDITS.md`.
 
 ## Documentation
@@ -255,4 +256,3 @@ are named with their licenses in `LICENSE.md`, `editor/NOTICE.md` and
 - [`docs/README.md`](docs/README.md) — the living documents
 - [`CHANGELOG.md`](CHANGELOG.md) — release record
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — build, commit, changelog and release rules
-- [`docs/TRANSLATION-MANIFEST.md`](docs/TRANSLATION-MANIFEST.md) — the string inventory, per language

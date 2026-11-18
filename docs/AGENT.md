@@ -192,7 +192,7 @@ DroshTool implementation
       ↓ (if write_file)
 DiffApproveEvent → UI DiffCard → User Approve / Reject
       ↓ (if bash)
-PRoot subprocess → output streamed → BashBlock in terminal
+chroot-ng guest command → output streamed → BashBlock in terminal
       ↓ (if ask_user)
 AskCard in agent tab → blocks until answered
       ↓
@@ -266,7 +266,7 @@ sealed class ToolResult {
 
 ### Tool Rules
 - `write_file` → always triggers `DiffApproveEvent` before writing, no exceptions
-- `bash` → PRoot subprocess execution, output streams to terminal block
+- `bash` → chroot-ng guest command, output streams to terminal block
 - `ask_user` → AskCard in agent tab, agent coroutine suspends until answered
 - New tools added one at a time per Muhofy's spec — no speculative tools
 
@@ -279,7 +279,7 @@ sealed class ToolResult {
 
 ### Core Tool Set (Phase 6 — Agent Intelligence)
 ```
-bash         → PRoot subprocess, output to terminal block
+bash         → chroot-ng guest command, output to terminal block
 read_file    → file content into agent context
 write_file   → diff + approve flow, write only after approval
 ask_user     → AskCard, suspends until answered
@@ -308,7 +308,6 @@ When porting a module from Iris Code:
 ### Portability Status
 | Module | Status | Notes |
 |--------|--------|-------|
-| `ProotRunner.kt` | ✅ Direct port | Package rename only |
 | `UbuntuBootstrap.kt` | ✅ Direct port | Package rename only |
 | `TerminalManager.kt` | 🔧 Adapt | Multi-session support needed |
 | `AgentLoop.kt` | ✅ Direct port | Phase 6 |
@@ -317,7 +316,6 @@ When porting a module from Iris Code:
 | `WebSearchTool.kt` | ✅ Direct port | Phase 6 |
 | `BashTool.kt` | 🔧 Adapt | Block output instead of BashCard |
 | Visual Identity | ✅ Direct port | Colors differ — gold not purple |
-| termux-view JNI | ⛔ Gone | the engine is Ghostty's now — see `native/` |
 
 ---
 
@@ -419,11 +417,11 @@ Phase 6 — Agent Intelligence ← last
 | Annotation | KSP | match Kotlin `2.2.0` |
 | Terminal engine | Ghostty `libghostty-vt` | v1.4.0, MIT, fetched + verified |
 | Terminal renderer | OpenGL ES 3.0 | ours, in `engine/render/` |
-| Linux | PRoot `5.2.0` + Ubuntu `24.04` | runtime download |
+| Linux | chroot-ng (ptrace-free) + Ubuntu `24.04` | pinned runtime asset + rootfs download |
 | LLM (Phase 6 v1.0) | Gemini 3.5 Flash | Google GenAI SDK |
 | LLM (Phase 6 v1.1+) | + Anthropic, OpenAI, OpenRouter | — |
 | LLM (Phase 6 v2.0+) | + Ollama, llama.cpp | local optional |
-| License | Split: GPL-3.0 for the APK and `android/terminal/`, Apache-2.0 for the Drosh modules — see `LICENSE.md` | — |
+| License | Apache-2.0 for Drosh; upstream MIT/LGPL/OFL components named in `LICENSE.md` | — |
 
 > ⚠️ Always confirm versions against `android/gradle/libs.versions.toml` before referencing any API.
 > ⚠️ Gemini model strings change frequently — always verify before use.

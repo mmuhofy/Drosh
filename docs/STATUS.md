@@ -1,172 +1,139 @@
-# Drosh — Release Status
+# Drosh — Status & Roadmap
 
-_Snapshot: 2026-11-18, GitHub `main` @ `23d1d547` (source of truth for this file)._
+_Snapshot: 2026-11-18. Base: GitHub `main` @ `23d1d547`; this file also records
+the release-cleanup work on branch `docs/release-status`. Code is the reference;
+where a document disagrees with it, the document is a bug._
 
-This is a **single, code-verified inventory**: what is in the tree, what is
-still missing, and what stands between the current code and a public release.
-Every mark is backed by a path; `[~]` means present but incomplete or not
-proven end-to-end. Where a document disagrees with the code, **the code wins**;
-the stale documents are listed in §7 rather than trusted.
-
-Legend: `[x]` implemented · `[~]` partial / unverified · `[ ]` absent or broken.
+Legend: `[x]` done · `[~]` partial / in progress / needs a decision · `[ ]` absent.
 
 ---
 
-## 1. Release blockers — must be cleared before shipping
+## 1. Release readiness — what is fixed, what is still open
 
-| | Blocker | Evidence / why it blocks |
+**Fixed in this cleanup pass**
+
+| | Item | Evidence |
 |---|---|---|
-| [ ] | **Production app id is `dev.drosh.my` on `main`** | `android/app/build.gradle.kts:36`. The side-by-side dev identity was merged into the release branch. A tag build would ship the dev app, not `dev.drosh`; authority and launcher name also follow it. Revert to `dev.drosh` (or decide the dev build lives only on its branch) before any release. |
-| [ ] | **i18n coverage collapsed** | `tools/i18n-coverage.sh`: 754 base keys; `tr` 736/754, the other eight locales **418/754 (336 missing)**. `android/ui/src/main/res/values/drosh_strings.xml` has 667 keys; `values-de/drosh_strings.xml` 331; `values-tr` 649. Missing examples: `about_*`, `agent_attach_*`, `settings_font_custom_*`. |
-| [ ] | **`i18n.mjs check` crashes** | `tools/i18n.mjs:182` → `Error: base missing: editor/values/strings.xml`. The editor module moved to `android/features/editor/`; the tool still looks at the old path. The placeholder/escaping gate therefore does not run at all. |
-| [ ] | **No i18n gate in CI** | `grep -ri i18n .github/workflows/` → no matches. Nothing prevents the next PR from adding more untranslated strings. |
-| [ ] | **Tagging cannot produce release notes** | `.github/workflows/release.yml:118-127` requires a `## [vX.Y.Z]` section in `CHANGELOG.md`; the file currently has only `## [Unreleased]` (`CHANGELOG.md:7`). The first tag push would fail. |
-| [ ] | **License decision left to the owner** | `LICENSE.md:8-16` says the APK is no longer GPL-derived and that the choice is Muhofy's; root `LICENSE` still says GPL-3.0; README's badge says GPL-3.0; `LICENSES/` has Apache + fonts but **no MIT text** for Ghostty. `CREDITS.md:8` still credits Termux as the terminal engine. Choose and reconcile before an F-Droid or Play submission. |
-| [~] | **Device-verification claim is wrong in the README** | `README.md:22-24` says only the terminal, gestures and sessions were run on a physical device, not the agent/SSH. Per Muhofy (2026-11-18) **everything has been device-verified**. The README needs the correction; the code cannot prove the claim either way. |
-| [ ] | **No release marketing assets** | No screenshot or GIF in the repo (`README.md` has badges only, no `![]` preview). Three real device JPEGs exist only as untracked files in the old `termux-to-rust` worktree and show raw test states (chroot-ng warnings, font test), not a hero shot. |
-| [ ] | **No distribution metadata** | No F-Droid `.fdroid.yml`/metadata, no fastlane/Play listing, no privacy policy or data-safety form in the repo. Description and 10 topics are set (`gh api`), so repo-level marketing is partly done. |
-| [~] | **Release identity / signing** | `.github/workflows/release.yml:70-72` signs with the committed debug key on purpose. Fine for GitHub/F-Droid; not acceptable for Play. `targetSdk = 28` (`android/app/build.gradle.kts:38`) likewise blocks Play. Decide the channel first. |
+| [x] | Production identity restored to `dev.drosh` | `android/app/build.gradle.kts` (`applicationId`), `AndroidManifest.xml`, `CommandStateProvider.AUTHORITY`, `KeyboardWindowMode.PERMISSION_SEND_KEYBOARD_MODE`, `tools/bench-render.sh` |
+| [x] | Drosh is Apache-2.0 everywhere it is ours | root `LICENSE` = Apache-2.0; `LICENSE.md` rewritten; `LICENSES/MIT-Ghostty.txt` added; `CONTRIBUTING.md`, `README.md`, `docs/AGENT.md`, `android/features/editor/NOTICE.md` updated |
+| [x] | No Termux/PRoot as active dependencies in the docs | `CREDITS.md`, `LICENSE.md`, `README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/SESSION-SYSTEM.md`, `docs/AGENT.md` — remaining mentions are historical (`CHANGELOG.md`, `docs/archive/`) or explicit "we no longer use" statements |
+| [x] | Dead i18n tooling removed | `tools/i18n-{coverage,mjs,merge}` and `docs/TRANSLATION-*` deleted; references in `README.md` and `.github/PULL_REQUEST_TEMPLATE.md` cleaned |
+| [x] | README corrected | device verification: everything verified on device; release minify is ON; 765 tests; no false exit-code bug; short what-is/what-isn't table added |
+| [x] | Historical memory-bank/TODO docs absent in this tree | `docs/MEMORYBANK.md` and `docs/TODO.md` do not exist on current `main` |
+
+**Still open before a tag**
+
+| | Item | Why |
+|---|---|---|
+| [ ] | **CHANGELOG needs a version section** | `.github/workflows/release.yml:118-127` requires `## [vX.Y.Z]`; only `[Unreleased]` exists today |
+| [~] | **Translations incomplete** | 754 base keys; `tr` 736/754, eight other locales 418/754 (336 missing). The old tooling was deleted by decision; the gap stays in the resource files until translated by hand |
+| [ ] | **No launch assets** | no hero screenshot or GIF in the repo; repo description and 10 topics are set |
+| [ ] | **No distribution metadata** | no F-Droid metadata, Play listing or privacy policy |
+| [~] | **Channel decision** | GitHub/F-Droid works with debug-key signing and `targetSdk` 28; Play would need a real key, targetSdk 34+, privacy policy and data-safety form |
 
 ---
 
-## 2. Terminal core — Ghostty VT + Rust + OpenGL
+## 2. Terminal — Ghostty VT + Rust + OpenGL
 
-The engine is **Ghostty v1.4.0 `libghostty-vt`** (MIT, C ABI), fetched from
+Engine: **Ghostty v1.4.0 `libghostty-vt`** (MIT, C ABI), fetched from
 `ancientcatz/libghostty-android` and verified against the release's
-`SHA256SUMS` (`tools/fetch-ghostty-vt.sh:23-25`, `docs/ARCHITECTURE.md:8`).
-The pixels are ours: OpenGL ES 3.0 (`EglCore.kt:83-87`, `#version 300 es`
-shaders, `GLES30.glDrawArraysInstanced` in `FrameRenderer.kt:1020-1060`).
-The Rust half is `native/` (`libdrosh.so`, GPL-3.0 crate metadata) and the
-Kotlin half is `android/terminal/.../engine/`.
-
-| | Feature | Evidence / state |
-|---|---|---|
-| [x] | Ghostty VT v1.4.0, checksum-verified fetch, not committed binary | `tools/fetch-ghostty-vt.sh:23-25,70-78`; CI: `.github/workflows/native.yml:106-128` |
-| [x] | JNI boundary: PTY, session, input, search, selection, smoke | `native/src/jni/{pty,session,input,search,selection,smoke}.rs` (`Java_dev_drosh_...` exports); parity checked by `tools/check-jni-symbols.py` in `tests.yml:67-68` |
-| [x] | PTY: spawn/read/write/resize/try-wait/pid | `native/src/jni/pty.rs:24-209`; `native/src/pty.rs` |
-| [x] | Grid, scrollback, modes, damage — engine-owned | `native/src/renderer/{frame,row,cell}.rs`; `docs/ARCHITECTURE.md:63` |
-| [x] | Wide chars (CJK/emoji) use the engine's cell width | `CHANGELOG.md` "Cells carry the engine's own width" |
-| [x] | Instanced GL cell/glyph rendering, R8 glyph atlas | `engine/render/FrameRenderer.kt:187,1020-1060`; `engine/gl/GlTexture.kt:113` |
-| [x] | Italic / bold / strikethrough / overline / underline | Recent commits `f190cf30` (italic), `4a652f7f` (strike/overline); atlas `engine/font/ColorAtlas.kt` |
-| [x] | Background images | `native/src/renderer/image.rs`; `FrameRenderer.kt` image pass |
-| [x] | Kitty graphics protocol | `native/src/png.rs`, `native/src/renderer/image.rs:3-27`; `CHANGELOG.md` |
-| [x] | Cursor styles + blink | `native/src/jni/session.rs:230`; blink commit `e712ace9` |
-| [x] | Bell / OSC 52 clipboard, clipboard opt-in | `native/src/bell.rs:48`; `native/src/clipboard.rs:1,81,180-238` |
-| [x] | Mouse reporting (click/hold/drag/wheel) | `native/src/jni/input.rs:287,353`; `CHANGELOG.md` |
-| [~] | Kitty keyboard protocol | Flags exposed (`native/src/ghostty.rs:164-165`, `jni/session.rs:429`, `jni/input.rs:8`); full protocol behavior not verified |
-| [ ] | **Ligatures at runtime** | `harfrust = "=0.16.0"` and a shaped-glyph module with 5 tests exist (`native/src/font/mod.rs:3-45,330-365`, exported at `native/src/lib.rs:35`), but **no caller outside that module** (grep for `shape_run`/`Font::` → nothing), and no ligature path in the Kotlin glyph pipeline. The font assets even ship an `NL` (no-ligature) variant (`assets/fonts/README.md:20-24`). Shaper: ready; rendering: not wired. |
-| [x] | OSC 133 prompt/command/exit marks, OSC 7 cwd, OSC 1339 editor | `native/src/shell.rs:3-13`; `android/terminal/.../DroshShellIntegration.kt:159-194,236` |
-| [x] | Real exit codes in blocks (old "always 0" bug gone) | `domain/block/ShellState.kt:18` (`exitStatus`) ← OSC 133 `D` in `native/src/shell.rs:42`; `CommandStatePublisher.kt:123-149` maps success/failure and publishes `exitCode` |
-| [x] | Block engine / prompt cards from shell marks | `BlockEngineWire.kt` uses `ShellStateSource` for phase/cwd/editor target; transcript diff fallback retained |
-| [x] | Search (viewport matches, next/prev, match count) | `native/src/jni/search.rs:12-156`; `engine/native/NativeSearch.kt` |
-| [x] | URL detection | `engine/shell/Scanner.kt`; engine URL API in session |
-| [x] | Text selection: word, line, all, drag handles | `native/src/jni/selection.rs:28-241`; `engine/input/Selection.kt` |
-| [x] | Pinch-to-zoom (focal anchor, 0.1sp steps, chip, fling gear) | `engine/input/PinchMachine.kt:29-92`; recent commits `f6b47075`, `23d1d547` |
-| [x] | Smooth scroll / fling with friction | `engine/input/ScrollMachine.kt:50`; `fix(scroll): a fling ends where friction says…` |
-| [x] | Diagnostics eye with numbers + copy button | commit `8add2eba`; `engine/diagnostics/EngineDiagnostics.kt` |
-| [x] | Render benchmark log | `docs/RENDER-BENCHMARK.md`; `engine/bench/{BenchmarkLog,RenderBench}.kt` |
-| [x] | Termux engine removed from code | `grep '^import com.termux' android/` → none; remaining `termux/` paths are backup-migration code (`data/backup/termux/`) |
-| [ ] | Semantic output classification (ERROR/WARN/OK colors) | no classifier class found; palette tokens exist in `core/DroshPalette.kt` |
-| [ ] | Ghost-text autocomplete | no matching class in `android/` |
-| [ ] | Command DNA / history search | no `CommandDna` type in `android/` |
-
----
-
-## 3. Features outside the terminal
+`SHA256SUMS` (`tools/fetch-ghostty-vt.sh:23-25,70-78`).
+Pixels: our OpenGL ES 3.0 renderer (`engine/render/EglCore.kt:83-87`,
+`FrameRenderer.kt:1020-1060`, `#version 300 es` shaders).
+Rust half: `native/` (`libdrosh.so`); Kotlin half: `android/terminal/.../engine/`.
 
 | | Feature | Evidence |
 |---|---|---|
-| [x] | 8 agent tools: `shell`, `read_file`, `write_file`, `grep`, `move_file`, `ask_user`, `update_todo`, `web_search` | `android/features/agent/.../tool/impl/*Tool.kt`, `NAME` constants |
-| [x] | 4 provider protocols (OpenAI-compatible, Anthropic, Gemini, OpenAI Responses) | `agent/provider/{OpenAiCompat,Anthropic,Gemini,OpenAiResponses}Adapter.kt`; 225-provider catalog (`EffortMapper.kt:19`) |
-| [x] | Bounded agent loop, tool registry, streaming, API vault, per-model reasoning effort | `android/features/agent/`, `android/domain/.../agent/Safety.kt:13-28` (PLAN/BUILD/AUTO + AUTO_SAFE) |
-| [x] | Diff + approval before write, ask-user cards, todo cards | agent tool implementations + UI cards |
-| [x] | Image input, session logs to agent, web-result cards, chat compaction | agent feature tree + recent commits |
-| [x] | SSH: hosts, keys, encrypted credential vault, TOFU, sessions bridged to terminal | `android/data/.../ssh/Ssh{Host,Key}RepositoryImpl.kt`, `SshCredentialVaultImpl.kt`, `SshSessionLauncherImpl.kt`, `features/ssh/SshSessionFactoryImpl.kt` |
-| [ ] | SSH SFTP / jump hosts / port forwarding / Mosh | not found in the tree |
-| [x] | Editor `editor <path>` with syntax highlighting (bundled TextMate grammars) | `android/features/editor/src/main/assets/textmate/*.tmLanguage.json`, `EditorLanguage.kt`, `TextMateSetup.kt`; LGPL sign-off still open |
-| [x] | Backup/restore: app data, rootfs archive, Termux→glibc migration importer | `android/data/.../backup/*`, `android/ui/.../BackupRestoreScreen.kt`, tests |
-| [x] | Session sidebar, projects/workspaces, split panes, floating/overlay window | `android/ui/.../session/`, `WorkspaceScreen.kt`, `SplitPaneHost.kt`, `pane/PaneLayoutViewModel.kt`, `ui/keyboard/KeyboardWindowMode.kt` |
-| [x] | Onboarding + recovery, settings categories, theme store, fonts (Geist/Inter/JetBrains Mono), background images | `SetupFlowScreen.kt`, `SetupRecoveryScreen.kt`, `SettingsHomeScreen.kt`, `ThemeStoreScreen.kt`, `theme/` |
-| [x] | 4-digit PIN lock, biometric gating, foreground service, DocumentsProvider, in-app browser | `ui/pin/PinEntryScreen.kt`, `MainActivity.kt`, `DocumentsProvider` (1 file), `WebViewSheet.kt` (2 files) |
-| [x] | FlatKeyBar input, modifier state, keyboard bridge, snippets | `ui/input/FlatKeyBar.kt`, `domain/input/StickyModifierState.kt`, `session/SnippetsStore.kt` |
-| [x] | 765 Kotlin unit tests + 12 Rust tests; CI green on latest `main` | `grep -rh '@Test' android/` = 765; `grep -rh '#\[test\]' native/src` = 12; `gh run list`: Build Debug ✅, Unit Tests ✅ (2026-11-18) |
+| [x] | Ghostty VT v1.4.0, checksum-verified fetch; not committed | fetch script above; `native.yml:106-128` |
+| [x] | JNI boundary: PTY, session, input, search, selection | `native/src/jni/{pty,session,input,search,selection}.rs`; parity gate `tests.yml:67-68` |
+| [x] | PTY spawn/read/write/resize/try-wait/pid | `native/src/jni/pty.rs:24-209` |
+| [x] | Grid, scrollback, modes, damage owned by the engine | `native/src/renderer/{frame,row,cell}.rs` |
+| [x] | Wide chars (CJK/emoji) use engine cell widths | `CHANGELOG.md` Added |
+| [x] | Instanced GL cells/glyphs, R8 atlas, cursor, blink | `FrameRenderer.kt:187,1020-1060`; `GlTexture.kt:113` |
+| [x] | Italic / bold / strikethrough / overline / underline | recent commits `f190cf30`, `4a652f7f` |
+| [x] | Kitty graphics + background images | `native/src/png.rs`, `renderer/image.rs:3-27` |
+| [x] | Mouse reporting, bell, OSC 52 clipboard (opt-in) | `jni/input.rs:287,353`; `bell.rs:48`; `clipboard.rs:81,180-238` |
+| [~] | Kitty keyboard protocol | flags in `ghostty.rs:164-165`, `jni/session.rs:429`; full behavior unverified |
+| [x] | OSC 133 prompt/command/**exit status**, OSC 7 cwd, OSC 1339 editor | `native/src/shell.rs:3-13`; `DroshShellIntegration.kt:159-194` |
+| [x] | Real exit codes in block mode (old hardcoded-0 bug gone) | `domain/block/ShellState.kt:18` ← OSC 133 `D`; `CommandStatePublisher.kt:123-149` |
+| [x] | Block engine, prompt cards, per-block menu | `BlockEngineWire.kt` + `ShellStateSource` |
+| [x] | Search (viewport matches, next/prev, count), URL detection | `jni/search.rs:12-156`; `engine/shell/Scanner.kt` |
+| [x] | Selection: word, line, all, drag handles | `jni/selection.rs:28-241` |
+| [x] | Pinch-to-zoom (0.1sp, focal anchor, chip, double-tap reset) | `engine/input/PinchMachine.kt:29-92` |
+| [x] | Sub-line scroll with friction-based fling | `engine/input/ScrollMachine.kt:50` |
+| [x] | Diagnostics eye + render benchmark log | `EngineDiagnostics.kt`, `engine/bench/`, `docs/RENDER-BENCHMARK.md` |
+| [ ] | **Ligatures at runtime** | `harfrust 0.16.0` + 5 tests in `native/src/font/mod.rs:3-45,330-365`, but **no JNI export and no caller**: all `Java_dev_drosh_*` exports are in `jni/` (none for font), and `engine/font/TextAtlas.kt:15-20` says the atlas switched from the Rust shaper to Android `Paint`. The `CHANGELOG` "ligatures" entry above describes an intent that is not in the current code |
+| [ ] | Semantic output colouring (ERROR/WARN/OK) | no classifier class; palette tokens only |
+| [ ] | Ghost-text autocomplete, Command DNA/history search | no such types in `android/` |
+| [x] | Old terminal engine code gone | `grep '^import com.termux' android/` → none; only backup-migration code under `data/backup/termux/` |
 
 ---
 
-## 4. i18n — needs a repair pass, not a translation pass only
+## 3. The rest of the app
 
-- **Coverage**: 754 base keys; `tr` 736/754; `de/es/pt/ru/zh/ja/ar/fil` 418/754.
-  The 336-key gap is mostly newer app/about/agent/settings surfaces, not a
-  single screen. `docs/TRANSLATION-MANIFEST.md:18` still claims 413/413 — stale.
-- **Tooling**: `tools/i18n-coverage.sh` runs (slowly, >2 min), `tools/i18n.mjs`
-  crashes on `editor/values/strings.xml` (`tools/i18n.mjs:182`), and
-  `tools/i18n-merge.mjs` exists for staged batches.
-- **Hardcoded UI strings remain**, including Turkish in provider picker
-  (`android/ui/.../agent/components/ProviderPicker.kt:185,194`) and English in
-  search/rename/PIN screens (`DraggableSearchBar.kt:188`,
-  `RenameSessionDialog.kt:81,123`, `PinEntryScreen.kt:181`).
-- **CI does not check any of it** — no i18n step in `.github/workflows/`.
-- `fr` is listed in a picker but has no `values-fr/` (known, pre-existing).
-
-**Repair order**: fix `i18n.mjs` path → re-run the check and fix escaping →
-translate the 336-key gap × 8 + 18 remaining `tr` → regenerate the manifest →
-add the coverage+placeholder gate to `tests.yml`.
+| | Feature | Evidence |
+|---|---|---|
+| [x] | 8 agent tools: `shell`, `read_file`, `write_file`, `grep`, `move_file`, `ask_user`, `update_todo`, `web_search` | `features/agent/.../tool/impl/*Tool.kt` |
+| [x] | 4 provider protocols, 225-provider catalog, per-model effort, encrypted keys | `agent/provider/*Adapter.kt`, `EffortMapper.kt:19`, `Safety.kt:13-28` (PLAN/BUILD/AUTO) |
+| [x] | Bounded loop, streaming, diff+approval, ask cards, todos, image input, session logs, compaction | `features/agent/`, `ui/agent/` |
+| [x] | SSH hosts/keys/vault/TOFU, bridged sessions; editor with TextMate grammars | `data/ssh/*`, `features/ssh/SshSessionFactoryImpl.kt`, `features/editor/src/main/assets/textmate/` |
+| [x] | Backup/restore incl. rootfs archive and Termux→chroot migration | `data/backup/*`, `ui/.../BackupRestoreScreen.kt` |
+| [x] | Sessions/projects, split panes, floating overlay, theme store, fonts, backgrounds, PIN/biometric, service, DocumentsProvider, in-app browser, onboarding/recovery | `ui/` screens, `SplitPaneHost.kt`, `PinEntryScreen.kt` |
+| [x] | 765 Kotlin tests + 12 Rust tests; CI green on `main` | `grep @Test` / `grep '#[test]'`; `gh run list` 2026-11-18 |
+| [ ] | SSH SFTP/jump hosts/port forwarding/Mosh | not in the tree |
 
 ---
 
-## 5. CI / build / distribution
+## 4. Roadmap — ne var, ne yok, ne devam ediyor
+
+| Durum | Alan |
+|---|---|
+| ✅ **Var** | Ghostty VT + Rust core + OpenGL renderer; blok modu ve gerçek exit code; pinch-zoom, fling, selection, search, URL, mouse, kitty graphics; 8 agent tool + 4 protokol; SSH vault; editör + syntax highlighting; yedekleme/restore; split pane + floating window; tema store; PIN; 10 dilde kaynaklar |
+| 🔄 **Devam ediyor** | Çeviri açığı (8 dilde 336 anahtar); ligature (shaper hazır, renderer bağlantısı yok); `mmuhofy/chroot-ng` fork'una yerel patch planı; dağıtım kanalı kararı |
+| ⚠️ **Sorunlu / karar bekliyor** | `targetSdk` 28; debug anahtarıyla imza; ilk sürüm notları (CHANGELOG'da sürüm bölümü yok); README'de görsel yok; Play için privacy policy/data-safety; F-Droid metadata |
+| ❌ **Yok** | Ghost text, semantic output colouring, Command DNA, SSH SFTP/jump host/port forwarding, kendi imzalı release anahtarımız, F-Droid/Play varlığı, i18n doğrulama aracı (bilerek silindi) |
+
+---
+
+## 5. CI ve dağıtım
 
 | | Item | State |
 |---|---|---|
-| [x] | `debug.yml` — native build + debug APK on push/PR/dispatch; checksum-verified Ghostty fetch; JNI libs staged | `.github/workflows/debug.yml:20-134` |
-| [x] | `tests.yml` — module-boundary check, import resolver, JNI symbol parity, all module tests, Rust tests | `.github/workflows/tests.yml:52-98` |
-| [x] | `native.yml` — pinned NDK, Ghostty fetch, `libdrosh.so` for ABIs, artifact upload | `.github/workflows/native.yml:38-152` |
-| [x] | `release.yml` — tag → versionName, changelog section required, checksum, GitHub Release artifact | `.github/workflows/release.yml:80,105,118-138` |
-| [x] | Release is minified/shrunk; debug is not | `android/app/build.gradle.kts:89-104` (`release: true`) |
-| [~] | Signing with the committed debug key | documented trade in `release.yml:70-72`; fine for GitHub, not Play |
-| [ ] | No publish automation beyond GitHub Release artifact; no F-Droid/Play pipeline | workflows list |
-| [ ] | No i18n gate in CI | §4 |
-| [ ] | README says `isMinifyEnabled = false` as a known issue | `README.md:229` — stale; release is now `true` |
+| [x] | `debug.yml`, `tests.yml`, `native.yml`, `release.yml` | push/PR/tag/dispatch; native `.so` build + Ghostty fetch; JNI parity; module boundaries; checksum + GitHub Release artifact |
+| [x] | Minify/shrink | release açık, debug kapalı (`app/build.gradle.kts:103-104`) |
+| [~] | Debug-key signing | GitHub/F-Droid için yeterli; Play için değil |
+| [ ] | i18n CI gate | araçlar silindi; yerine kural: yeni string tüm locale'lere eklenir (PR template) |
 
 ---
 
-## 6. Marketing / docs done vs missing
+## 6. Sürüm planı — hangi commit, hangi sürüm?
 
-**Done:** repo description + 10 topics; CI badges; Keep-a-Changelog file with
-an `Unreleased` section; `CONTRIBUTING.md`, `SECURITY.md`, issue/PR templates;
-`LICENSE.md` map and `LICENSES/` texts; docs index and architecture/session
-reference layer.
+Commit başına sürüm **yok**. `v0.1.0` (`8f5b9330`, 2026-09-09) Ghostty öncesi
+kodun etiketi ve aradan **1349 commit** geçti — bu yüzden eski etiketi
+taşımak ya da ona ekleme yapmak yanlış olur.
 
-**Missing / stale:**
+Öneri: **tek bir etiket**, temizlik işi bittikten sonra:
 
-| | Item | Note |
-|---|---|---|
-| [ ] | Hero screenshot + feature GIFs in README | none; decide the set (terminal, agent, split panes, SSH, editor, sidebar; GIF: pinch-zoom, agent streaming) |
-| [ ] | F-Droid metadata / Play listing / privacy policy | channel decision first |
-| [ ] | Release notes for the first real version | `CHANGELOG.md` has only `[Unreleased]`; tag workflow requires `[vX.Y.Z]` |
-| [~] | README device-verification claim | §1 — needs the corrected sentence |
-| [~] | README minify claim | §5 |
-| [~] | `CREDITS.md:8` credits the Termux engine | engine is Ghostty + ours now |
-| [~] | `LICENSE.md:30` points at `native/ghostty/SHA256SUMS` | that directory is created by the fetch script, not committed |
-| [~] | `LICENSES/` has no MIT license text for Ghostty | add before distribution |
-| [~] | `docs/TRANSLATION-MANIFEST.md:18` says 413/413 | actual base is 754 |
-| [~] | Root `LICENSE` (GPL-3.0) vs `LICENSE.md` (Apache-2.0 / open choice) | owner decision, §1 |
+1. Bu dalda kalan maddeleri bitir (CHANGELOG sürüm bölümü, kanal kararı,
+   istenirse bir tur daha cihaz/görsel çalışması).
+2. `CHANGELOG.md`'de `## [0.2.0]` bölümünü `[Unreleased]` içeriğinden oluştur.
+3. `v0.2.0` etiketini **bir kez** at → `release.yml` sürüm adını tag'den alır,
+   notları CHANGELOG'dan okur, checksum + artifact üretir.
+4. Sonraki işler yine `[Unreleased]` altında birikir; bir sonraki etiket
+   `v0.3.0` (yeni özellik) ya da `v0.2.1` (sadece düzeltme) olur.
+
+`v1.0.0` için ölçüt önerisi: dağıtım kanalı netleşip ilk gerçek sürüm
+yayınlandıktan ve geri bildirim turu geçtikten sonra — şu an "public release"
+daha önce gelmeli.
 
 ---
 
-## 7. Document trust table
+## 7. Doküman güveni
 
-| Document | Trust | Why |
+| Doküman | Güven | Not |
 |---|---|---|
-| `docs/ARCHITECTURE.md` | high | matches the Ghostty/Rust/OpenGL code and enforces module boundaries in CI |
-| `docs/SESSION-SYSTEM.md` | high | session invariants referenced from code |
-| `CHANGELOG.md` | high for shipped work | only `[Unreleased]` — no released version yet |
-| `README.md` | medium | engine/stack current; device claim and minify claim stale; no visuals |
-| `LICENSE.md` | medium | map is current in spirit; `native/ghostty/` path is not; license choice open |
-| `CREDITS.md` | low | still describes the pre-Ghostty Termux engine |
-| `docs/TRANSLATION-MANIFEST.md` | low | 413/413 is three generations behind 754 keys |
-
-Safer plan for release day: fix blockers in §1 in this order —
-**app id → license/channel decision → i18n tooling+coverage+CI gate →
-CHANGELOG version section → README/CREDITS corrections → marketing assets →
-tag**. CI builds are green today, so none of this requires new engine work.
+| `docs/ARCHITECTURE.md`, `docs/SESSION-SYSTEM.md` | yüksek | kodla uyumlu, CI'da doğrulanan kurallar |
+| `CHANGELOG.md` | yüksek (geçmiş) / dikkat (şimdi) | geçmiş girdiler tarihsel; `Known issues` ve ligature girdisi güncel kodla çelişiyordu, düzeltildi |
+| `README.md`, `CONTRIBUTING.md`, `docs/AGENT.md` | yüksek | bu turda güncellendi |
+| `LICENSE.md`, `CREDITS.md` | yüksek | Apache-2.0 + upstream atıfları güncel |
+| `docs/archive/*` | düşük (tarihsel) | eski tasarım notları; referans alınmaz |

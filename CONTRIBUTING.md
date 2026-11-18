@@ -2,22 +2,20 @@
 
 Drosh is a single-developer project with an agent doing much of the typing, so
 this file exists mainly to make the *rules* legible — to a future collaborator,
-and to an agent that just joined the session. Read `LICENSE.md` first: the
-project is split-licensed, and what you may do with a file depends on which
-directory it is in.
+and to an agent that just joined the session. Read `LICENSE.md` first: it is the
+map of what is ours and what comes from upstream.
 
-- The APK and everything under `android/terminal/` are **GPL-3.0**
-  (Termux-derived).
-- The Drosh-authored modules (`android/app/`, `android/ui/`, `android/data/`,
-  `android/domain/`, `android/features/agent/`, `android/features/ssh/`, `android/core/`,
-  `android/theme/`, `android/features/editor/`) are **Apache-2.0**.
-- Contributions to the Apache-2.0 modules are accepted under Apache-2.0 (see
-  §5 of that license).
+- **All Drosh-authored source is Apache-2.0**, including `android/terminal/`
+  and the Rust half in `native/`. Contributions are accepted under Apache-2.0
+  (see §5 of that license).
+- Third-party components keep their own terms: Ghostty (MIT), chroot-ng
+  (Apache-2.0), sora-editor (LGPL-2.1-or-later), TextMate grammars (MIT),
+  fonts (OFL-1.1). They are named in `LICENSE.md` and `CREDITS.md`.
 
 ## Building
 
 You need JDK 17 and the Android SDK. The app is arm64-only and needs a device
-or emulator with that ABI — most of Drosh (PRoot, PTY) does not work on x86_64
+or emulator with that ABI — the guest runtime and PTY do not work on x86_64
 emulators.
 
 ```bash

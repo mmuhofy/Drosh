@@ -6,6 +6,7 @@ edit, not a deletion.
 
 | Document | What it is |
 |----------|------------|
+| `STATUS.md` | what is in the tree, what is still open, and the release plan |
 | `ARCHITECTURE.md` | the module graph, the naming contract, and where the engine's C ABI meets Kotlin |
 | `AGENT.md` | rules for working in this codebase |
 | `SESSION-SYSTEM.md` | the session model: the record, the live session, the pane, and the foreground/background rule — cited from `data` and `ui` |

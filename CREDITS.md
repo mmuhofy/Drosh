@@ -1,29 +1,28 @@
 # CREDITS.md
 
-Drosh stands on a few big shoulders, and the APK carries their code. This file
-is where they are named — the licenses in `LICENSE.md` say what the terms are,
-this file says where the work came from.
+Drosh stands on a few big shoulders. This file says where the borrowed work
+came from; [`LICENSE.md`](LICENSE.md) says what the terms are.
 
 | What | Where it lives in this project |
 |---|---|
-| **Termux** — the terminal engine, the PTY stack, the shell tooling this app was rebuilt from | `android/terminal/` (vendored, modified) |
-| **chroot-ng** — the ptrace-free chroot/bind emulation that runs the guest, upstreamed from `sylirre/fake-chroot-ng` | fetched from its own release into `android/terminal/src/main/jniLibs/` |
-| **PRoot** — the userspace that lets Ubuntu run without root | `android/app/src/main/assets/proot` |
-| **Ubuntu 24.04** — the Linux environment itself | downloaded on first launch |
-| **sora-editor** (Rosemoe) — the native code editor | `:editor` dependency |
-| **TextMate grammars** — syntax highlighting for the editor | `android/features/editor/src/main/assets/textmate/` |
-| **Geist** (Vercel × basement.studio), **Inter** (Rasmus Andersson), **JetBrains Mono** (JetBrains) — the typefaces | `android/theme/src/main/res/font/` |
+| **Ghostty** — the VT core (`libghostty-vt` v1.4.0) that parses the terminal's output and owns the grid, modes and scrollback | downloaded and checksum-verified by `tools/fetch-ghostty-vt.sh`, shipped as `libghostty-vt.so`; license in `LICENSES/MIT-Ghostty.txt` |
+| **chroot-ng** — the ptrace-free, seccomp-based guest runtime; upstream [`sylirre/fake-chroot-ng`](https://github.com/sylirre/fake-chroot-ng), built here as the fork [`mmuhofy/chroot-ng`](https://github.com/mmuhofy/chroot-ng) | pinned release asset staged from `android/linux/src/main/assets/libchrootng.so`; license beside it |
+| **Ubuntu 24.04** — the Linux userspace | downloaded on first launch, never vendored |
+| **sora-editor** (Rosemoe) — the native code editor and its TextMate module | `:features:editor` dependency, used unmodified — `android/features/editor/NOTICE.md` |
+| **TextMate grammars** — syntax highlighting for the editor | `android/features/editor/src/main/assets/textmate/`, provenance beside them |
+| **Geist** (Vercel × basement.studio), **Inter** (Rasmus Andersson), **JetBrains Mono** (JetBrains) — the typefaces | `android/theme/src/main/res/font/`, licenses in `LICENSES/fonts/` |
 
-Full licenses: `LICENSE.md`, `LICENSES/`, `android/features/editor/NOTICE.md`,
-`android/features/editor/src/main/assets/textmate/PROVENANCE.md`.
+Drosh does not ship the former Termux terminal engine or the former PRoot
+binary. Both were replaced: the engine by Ghostty plus Drosh's Rust/OpenGL
+core, the guest runtime by chroot-ng.
 
 ## The credit line
 
-The Drosh-authored modules are Apache-2.0, so nobody owes a visible credit in
-an app that ships them — the license is the whole deal. But Apache-2.0 has a
-hat on top of its requirements: the NOTICE file. If you redistribute a
-Derivative Work of this code, keep `android/features/editor/NOTICE.md` and the third-party
-notices with it.
+All Drosh-authored code is Apache-2.0, so no visible credit is required in an
+app that ships it — the license is the whole deal. Apache-2.0 does have a hat
+on top of its requirements: the NOTICE file. If you redistribute a Derivative
+Work, keep `android/features/editor/NOTICE.md` and the third-party notices
+with it.
 
 And if you built something with Drosh's pieces — the design system, the block
 engine contracts, the agent adapters — a line in your README is the whole

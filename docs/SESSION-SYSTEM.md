@@ -92,7 +92,7 @@ oturum **ön plandadır**; gösterilmeyen her canlı oturum **arka plandadır**.
 
 ## 5. Karşılaştırma
 
-| | Termux | kitty | Drosh |
+| | classic terminals | kitty | Drosh |
 |---|---|---|---|
 | Oturum pane kapanınca | yaşar | yaşar | yaşar |
 | Izgara / sekme listesi | sekmeler | sekmeler | oturum kartları + pane'ler |

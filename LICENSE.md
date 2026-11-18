@@ -1,73 +1,47 @@
 # Drosh — the license map
 
-Drosh is not one license, because it is not one kind of code. Some of it is
-the engine's, some of it is the Linux environment's, and some of it is
-Drosh's own. This file is the map; each row says who owns what and under
-which terms. The full texts live in `LICENSES/`.
+**Drosh is Apache-2.0.** The full text is in [`LICENSE`](LICENSE) at the root
+and in [`LICENSES/Apache-2.0.txt`](LICENSES/Apache-2.0.txt). This file is the
+map: it says which parts are Drosh's, which parts come from somewhere else,
+and where the upstream license texts live.
 
-## The one thing to know first
-
-**The reason the APK was GPL-3.0 is gone.** `:terminal` used to contain code
-modified from Termux, and Termux is GPLv3. The terminal is now Drosh's own
-Kotlin plus the Rust half in `native/`, driving Ghostty — which is MIT. The
-root `LICENSE` file still says GPLv3, and **changing the APK's licence is your
-call, not a mechanical consequence**: the source it covers is no longer
-copyleft, but the PRoot binary the app ships is GPL-2.0, and the decision
-covers what you want it to cover.
-
-**The Drosh-authored source is Apache-2.0.** Everything the project wrote
-itself — the app, the UI, the domain models, the data layer, the agent, the
-design system, the terminal — is Apache-2.0. That means the reusable parts (the
-block engine contracts, the agent adapters, the Compose design system, the
-terminal) can be lifted into another project without dragging copyleft along.
+There is no GPL copyleft in the APK. The terminal is Drosh's own Kotlin plus
+the Rust half in `native/`, driving Ghostty's VT core (MIT). The Linux guest
+runs under chroot-ng (Apache-2.0), not PRoot. Neither the old Termux engine
+nor the old PRoot binary is in the tree or in the APK.
 
 ## The map
 
 | Component | Location | License | Why |
 |---|---|---|---|
-| Terminal (Kotlin) | `android/terminal/` | **Apache-2.0** | Drosh-authored |
-| Terminal native half | `native/` (`libdrosh.so`) | **Apache-2.0** | Drosh-authored |
-| VT engine | `native/ghostty/` (`libghostty-vt.so`) | **MIT** | Ghostty, fetched and checksum-verified — see `native/ghostty/SHA256SUMS` |
-| chroot-ng guest runtime | its own release, shipped as `android/linux/src/main/assets/libchrootng.so` | **Apache-2.0** | third-party binary, unmodified — see `android/terminal/src/main/assets/licenses/` |
-| Drosh source | `android/app/` `android/ui/` `android/data/` `android/domain/` `android/features/agent/` `android/features/ssh/` `android/core/` `android/theme/` | **Apache-2.0** | Drosh-authored |
-| Linux userland | `android/linux/` | **Apache-2.0**, except the rootfs archive format | Drosh-authored; `backup/RootfsArchive{Reader,Writer}.kt` are GPL-3.0 |
-| Editor wrapper | `android/features/editor/` (Drosh code) | **Apache-2.0** | Drosh-authored; the editor it wraps is LGPL — see `android/features/editor/NOTICE.md` |
-| Editor component | sora-editor (`io.github.rosemoe:editor`, `language-textmate`) | **LGPL-2.1-or-later** | third-party dependency, unmodified |
-| TextMate grammars | `android/features/editor/src/main/assets/textmate/` | **MIT** | microsoft/vscode + fwcd/vscode-kotlin — see `android/features/editor/src/main/assets/textmate/PROVENANCE.md` |
-| Fonts | `android/theme/src/main/res/font/` | **OFL-1.1** | Geist, Inter, JetBrains Mono — see `LICENSES/fonts/` |
-| PRoot binary | `android/app/src/main/assets/proot` | **GPL-2.0** | third-party binary, unmodified |
-| talloc library | `android/app/src/main/assets/libtalloc.so.2` | **LGPL** | Samba talloc, unmodified |
-| Ubuntu 24.04 userspace | downloaded on first launch, never in this repo | various (Ubuntu community licenses) | see the note below |
+| All Drosh-authored source — app, UI, domain, data, agent, SSH, theme, core, terminal, editor wrapper, Linux guest, Rust half | `android/`, `native/` | **Apache-2.0** | written by the project; reuse without copyleft |
+| VT engine | `libghostty-vt.so`, fetched by `tools/fetch-ghostty-vt.sh` | **MIT** | Ghostty v1.4.0, checksum-verified, not committed — [`LICENSES/MIT-Ghostty.txt`](LICENSES/MIT-Ghostty.txt) |
+| Guest runtime | `android/linux/src/main/assets/libchrootng.so` | **Apache-2.0** | pinned release of `mmuhofy/chroot-ng` (a fork of [`sylirre/fake-chroot-ng`](https://github.com/sylirre/fake-chroot-ng)); copy in `android/linux/src/main/assets/licenses/chroot-ng-LICENSE.txt` |
+| Editor component | `io.github.rosemoe:editor`, `language-textmate` | **LGPL-2.1-or-later** | third-party dependency, used unmodified — [`android/features/editor/NOTICE.md`](android/features/editor/NOTICE.md) |
+| TextMate grammars | `android/features/editor/src/main/assets/textmate/` | **MIT** | upstream grammars, unmodified — `PROVENANCE.md` beside them |
+| Fonts | `android/theme/src/main/res/font/` | **OFL-1.1** | Geist, Inter, JetBrains Mono — [`LICENSES/fonts/`](LICENSES/fonts/), shipped under their reserved names |
+| Ubuntu 24.04 userspace | downloaded on first launch, never in this repo | various (Ubuntu community licenses) | packages keep their own licenses; none are vendored here |
 
-## Notes on specific rows
+## Notes
 
-**Ubuntu userspace.** The rootfs is downloaded at runtime rather than shipped,
-so its packages (each under its own license — GPL, LGPL, Apache, MIT and
-others) never enter this repository. The download source is recorded in
-`android/linux/.../UbuntuBootstrap`.
+**The guest runtime.** Drosh moved off PRoot because its ptrace-based syscall
+interception cost too much on a phone. chroot-ng is ptrace-free: seccomp traps
+only path-bearing syscalls and its own ELF loader runs static, Go and Rust
+guest binaries. Upstream is `sylirre/fake-chroot-ng`; Drosh consumes its own
+fork, `mmuhofy/chroot-ng`, as a pinned release asset with a verified SHA-256.
+Local patches to that fork are planned. If a patched binary is ever shipped,
+its source stays public and the Apache-2.0 NOTICE requirements follow it —
+see [`CREDITS.md`](CREDITS.md).
 
-**Fonts.** The OFL is not a software license and does not mix into the GPL
-question: fonts are data. What the OFL does require is that each copy carry the
-copyright notice and the license, which is what `LICENSES/fonts/` is for, and
-that reserved font names are not reused by derivatives — Drosh ships them
-under their own names (Geist, Inter, JetBrains Mono) and never renames them.
+**The fonts.** The OFL is a font license, not a software license: it does not
+mix into the code's terms. Each copy ships with its copyright notice and
+license in `LICENSES/fonts/`, and Drosh does not rename the reserved families.
 
-**The vendored binaries.** `proot` and `libtalloc.so.2` ship unmodified. If
-either is ever patched in-tree, its source must be offered alongside; that is
-what GPL-2.0 and the LGPL require, and it is easier to keep them pristine.
+**No license headers in every source file.** `LICENSE.md` is the single source
+of truth: a file is Apache-2.0 unless it is a third-party asset named above.
+New files use the short notice from the appendix of `LICENSES/Apache-2.0.txt`;
+upstream files keep the headers their authors gave them.
 
-## How this shows up in code
-
-There are no license headers in the Kotlin sources, on purpose: 335 files
-carrying a 13-line block each is 4,000 lines that can drift from this file and
-be wrong. `LICENSE.md` is the single source of truth — a file is under the
-license of the directory it lives in, as the map above says. New files added by
-the project use the short Apache notice from the appendix of
-`LICENSES/Apache-2.0.txt`; vendored files keep whatever headers upstream
-shipped them with.
-
-## What this license map is not
-
-This is a summary written so a reader can find the right license fast, not
-legal advice, and in any conflict the full text in `LICENSES/` and the upstream
-licenses of the third-party components govern.
+**Not legal advice.** This map is written to make the terms findable. Where it
+and a full license text disagree, the full text in `LICENSES/` or the upstream
+project governs.

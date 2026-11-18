@@ -17,7 +17,7 @@ disclosure is the slow part.
   than it should)
 - Credential exposure — the SSH vault, API keys, the clipboard bridge
 - The PIN lock as authentication rather than as a screen lock
-- Anything in the Proot/PTY layer that escapes the guest
+- Anything in the chroot-ng/PTY layer that escapes the guest
 
 ## What does not
 

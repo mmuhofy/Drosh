@@ -5,9 +5,9 @@ where the Rust/Kotlin boundary sits. This document is normative: the
 `checkModuleBoundaries` task fails the build when §3 is broken, so a rule here
 that nobody enforces is a bug in this file.
 
-The terminal is **Ghostty's VT core** (v1.4.0, MIT) driven from `native/`.
-It replaced a vendored Termux engine, and the rules below were written for
-that one — what is here is the same shape, one engine further along.
+The terminal is **Ghostty's VT core** (v1.4.0, MIT) driven from `native/`,
+with Drosh's OpenGL ES 3.0 renderer drawing the pixels. The guest runs under
+chroot-ng, a ptrace-free seccomp runtime; PRoot is gone.
 
 ---
 
@@ -105,7 +105,7 @@ or panic may cross the boundary; the panic hook is installed at load.
 4. `:terminal` imports no Compose, no `:ui`, no `:app`.
 5. `:ui` imports neither `:terminal` nor `:terminal`.
 6. Only `android/terminal/engine/.../native/` (today `android/terminal/engine/.../core/`) declares `external fun`.
-7. No module imports `com.termux.*` once Termux is removed (P3).
+7. The only VT core is `libghostty-vt`, driven from `native/`.
 
 Run `./gradlew checkModuleBoundaries` (it is also part of every `check`).
 
@@ -195,8 +195,8 @@ Current overruns, all scheduled: `TerminalScreen.kt` 2238 (P6), `TerminalManager
 | P0 | this document, `checkModuleBoundaries`, baseline | `check` green, boundary breach proven red |
 | P1 | Rust: selection, search, URL, block, tint, text | `cargo test` + clippy + cross-check |
 | P2 | `:terminal` view becomes the product view | device checklist |
-| P3 | `:terminal` rewritten, Termux deleted | both paths build; device checklist |
-| P4 | `:linux` extracted, chroot-ng replaces PRoot | clean install, `uname -a`, backup round-trip |
+| P3 | `:terminal` rewritten; the old view is deleted | engine is the only terminal path; device checklist |
+| P4 | `:linux` extracted; chroot-ng is the only guest backend | clean install, `uname -a`, backup round-trip |
 | P5 | `:ssh` over bridged sessions | SSH session checklist |
 | P6 | `:app` terminal feature split | tabs/panes/zoom/find/links |
 | P7 | docs, CHANGELOG, dead adapter removal | `check` + full device pass |
@@ -209,9 +209,9 @@ build moved under `android/` and the Cargo crate under `rust/` (now `native/`).
 It was a pure move — module names, Kotlin packages and the cdylib name did not
 change — so no import, Hilt binding or `System.loadLibrary` call was affected.
 
-What changed since: the terminal engine itself. The vendored Termux engine and
-its Kotlin view are gone; Ghostty's VT core is driven from `native/` and the
-pixels are drawn by our own OpenGL ES renderer. The cdylib is `libdrosh.so`
+What changed since: the terminal engine itself. Ghostty's VT core is driven
+from `native/`, the pixels are drawn by our own OpenGL ES renderer, and the
+guest runs under chroot-ng instead of PRoot. The cdylib is `libdrosh.so`
 alongside `libghostty-vt.so`.
 
 The guest runtime left the repository with P4 (2026-10-20): chroot-ng is built

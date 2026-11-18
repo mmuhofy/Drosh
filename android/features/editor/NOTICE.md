@@ -12,10 +12,10 @@ io.github.rosemoe:language-textmate  (sora's TextMate module, same project)
 ```
 
 Both are used **unmodified** as dependencies. They are licensed
-LGPL-2.1-or-later, which is compatible with the GPLv3 app this module is
-compiled into — but the module's own code is Apache-2.0, not GPLv3, which is
-the point of having this file at all: a fork of `:editor` may take the Drosh
-code under Apache-2.0 terms, while sora-editor itself remains whatever it was.
+LGPL-2.1-or-later; Drosh is Apache-2.0 and links to them without modifying
+them, so the two stay separate. That is the point of this file: a fork of
+`:features:editor` may take the Drosh code under Apache-2.0 terms, while
+sora-editor itself remains LGPL.
 
 This is also an open item: accepting an
 LGPL component inside the app. Its terms are satisfied — unmodified use,
