@@ -191,6 +191,9 @@ release when it ships.
 
 ### Fixed
 
+- The cold-start splash is a single static `>_` prompt now. The typed name,
+  the per-letter colour flash and the progress hairline are gone; the screen
+  still waits for the first-launch flag and the settings read before it leaves
 - The terminal screen's ground is the terminal's colour. The chrome floats
   over the terminal, and what was behind it was the app's background: in the
   light theme a near-white field, so a dark terminal had a white strip at the
