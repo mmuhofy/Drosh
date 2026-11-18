@@ -12,6 +12,8 @@
 
     <string name="session_screen_tab_groups">Groups</string>
     <string name="session_screen_tab_singles">Sessions</string>
+    <!-- Accessibility label for the chevron that opens the two-way card filter. -->
+    <string name="session_screen_filter">Change view</string>
 
     <string name="session_screen_new">New session</string>
     <string name="session_screen_add">Add session</string>

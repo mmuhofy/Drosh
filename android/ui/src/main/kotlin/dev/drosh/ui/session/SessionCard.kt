@@ -2,6 +2,7 @@ package dev.drosh.ui.session
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -32,8 +33,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
@@ -46,28 +49,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import dev.drosh.domain.session.SessionSnapshot
-import dev.drosh.domain.session.SessionState
 import dev.drosh.theme.DroshBorderSubtle
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSuccess
-import dev.drosh.theme.DroshSurfaceContainerLowest
+import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshSurfaceVariant
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
-import dev.drosh.theme.DroshTextSecondary
-import dev.drosh.theme.DroshWarning
-import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 
 /**
- * One session, as a tall card with a small simulated terminal render.
+ * One session, as a tall card with the last screenshot of its terminal.
  *
- * The render is not a screenshot: the terminal is a GL surface that may not be
- * on screen at all, so no pixels can be sampled from it. Short coloured lines
- * in a mono font are an honest stand-in — they say "this is a terminal" without
- * pretending to be this session's actual output.
+ * The preview is the real thing, captured by the terminal and handed to the
+ * ViewModel as an [ImageBitmap]. No simulated coloured lines: a session with no
+ * screenshot yet shows a neutral surface instead of pretending to have output.
  *
  * The drag is a long press followed by movement, reported in root coordinates
  * because the screen — not the card — decides what the finger is over. A drag
@@ -77,8 +75,9 @@ import dev.drosh.ui.R
 internal fun SessionCard(
     session: SessionSnapshot,
     displayName: String,
+    /** The last screenshot of this session's terminal, or null if none yet. */
+    thumbnail: ImageBitmap?,
     isActive: Boolean,
-    isBackground: Boolean,
     /** The title the program asked for, or null. */
     title: String?,
     isPinned: Boolean,
@@ -124,15 +123,13 @@ internal fun SessionCard(
     )
     val background = lerpColor(DroshSurfaceVariant, DroshSurfaceHigh, cardSurface)
 
-    // Status pills were removed. The border says "active" and the left-hand
-    // glyph identifies the session; nothing else is a status chip.
-    val description = remember(isActive, isBackground, session.state, displayName) {
-        buildString {
-            append(displayName)
-            append(", ")
-            if (isActive) append("active, ")
-            if (isBackground) append("running in background, ")
-            append(stateLabel(session.state))
+    // No status or recency labels. The border says "active", the left-hand glyph
+    // identifies the session, and the accessibility text is just its name.
+    val description = remember(displayName, title) {
+        if (title.isNullOrBlank() || title == displayName) {
+            displayName
+        } else {
+            "$displayName, $title"
         }
     }
 
@@ -187,10 +184,13 @@ internal fun SessionCard(
                     onDragCancel = { onDragEnd() },
                 )
             }
-            .padding(8.dp),
+            // Equal padding on every side; the header gets a little extra room
+            // above it inside the card so it can breathe.
+            .padding(CARD_PADDING),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(
+            modifier = Modifier.padding(top = HEADER_EXTRA_TOP),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -206,7 +206,7 @@ internal fun SessionCard(
                 Icon(
                     imageVector = DroshIcons.SquareTerminal,
                     contentDescription = null,
-                    tint = stateColor(session.state),
+                    tint = DroshTextMuted,
                     modifier = Modifier.size(13.dp),
                 )
             }
@@ -231,6 +231,21 @@ internal fun SessionCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                // Toggle chips stay, but they are not status/recency labels.
+                if (isPinned || isPersistent) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        if (isPinned) {
+                            StateChip(label = stringResource(R.string.session_screen_chip_pin), tint = DroshPrimary)
+                        }
+                        if (isPersistent) {
+                            StateChip(
+                                label = stringResource(R.string.session_screen_chip_persistent),
+                                tint = DroshSuccess,
+                            )
+                        }
+                    }
+                }
             }
             SessionCardActionsButton(
                 sessionName = displayName,
@@ -245,45 +260,21 @@ internal fun SessionCard(
             )
         }
 
-        // A rounded, pre-like box with short coloured lines: a small "render"
-        // of a terminal rather than a transcript of the session's output.
+        // The real preview. The bitmap fills the whole area; until one exists
+        // the neutral surface is the entire placeholder, with no fake content.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .clip(RoundedCornerShape(9.dp))
-                .background(DroshSurfaceContainerLowest),
+                .background(DroshSurface),
         ) {
-            TerminalPreview(
-                lines = previewLines(session),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 7.dp, vertical = 6.dp),
-            )
-        }
-
-        val meta = remember(session.lastUsedAtMs, session.state) {
-            cardMeta(session)
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            Text(
-                text = meta,
-                color = DroshTextSecondary,
-                fontSize = 10.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            if (isPinned) {
-                StateChip(label = stringResource(R.string.session_screen_chip_pin), tint = DroshPrimary)
-            }
-            if (isPersistent) {
-                StateChip(
-                    label = stringResource(R.string.session_screen_chip_persistent),
-                    tint = DroshSuccess,
+            if (thumbnail != null) {
+                Image(
+                    bitmap = thumbnail,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
@@ -308,103 +299,6 @@ private fun StateChip(label: String, tint: Color) {
     }
 }
 
-/** A short line of the simulated render, and the tone it is drawn in. */
-private data class PreviewLineSpec(val text: String, val tone: PreviewTone)
-
-private enum class PreviewTone { Prompt, Output, Success, Warning, Muted }
-
-@Composable
-private fun PreviewTone.color(): Color = when (this) {
-    PreviewTone.Prompt -> DroshPrimary
-    PreviewTone.Output -> DroshTextSecondary
-    PreviewTone.Success -> DroshSuccess
-    PreviewTone.Warning -> DroshWarning
-    PreviewTone.Muted -> DroshTextMuted
-}
-
-/**
- * A fixed, deterministic render for a card. Running sessions show a build; the
- * rest show a shell prompt. It is decoration, not real session output.
- */
-private fun previewLines(session: SessionSnapshot): List<PreviewLineSpec> =
-    if (session.state == SessionState.Running) {
-        listOf(
-            PreviewLineSpec("\$ ${session.name.take(14)} --watch", PreviewTone.Prompt),
-            PreviewLineSpec("resolving dependencies...", PreviewTone.Muted),
-            PreviewLineSpec("[ok] core:compile", PreviewTone.Success),
-            PreviewLineSpec("[ok] ui:compile", PreviewTone.Success),
-            PreviewLineSpec("warn: 2 deprecated calls", PreviewTone.Warning),
-            PreviewLineSpec("BUILD SUCCESSFUL in 8s", PreviewTone.Success),
-            PreviewLineSpec("drosh@device:~$ ▌", PreviewTone.Prompt),
-        )
-    } else {
-        listOf(
-            PreviewLineSpec("drosh@device:~$ ls", PreviewTone.Prompt),
-            PreviewLineSpec("build.gradle  README.md", PreviewTone.Output),
-            PreviewLineSpec("drosh@device:~$ echo ready", PreviewTone.Prompt),
-            PreviewLineSpec("ready", PreviewTone.Success),
-            PreviewLineSpec("drosh@device:~$ ▌", PreviewTone.Prompt),
-        )
-    }
-
-/**
- * The simulated render, drawn small rather than scaled: sizing the glyphs at
- * the size they are shown keeps the mono shapes readable.
- */
-@Composable
-private fun TerminalPreview(lines: List<PreviewLineSpec>, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        lines.forEach { line ->
-            Text(
-                text = line.text,
-                color = line.tone.color(),
-                fontFamily = LocalFontSet.current.mono,
-                fontSize = 9.sp,
-                lineHeight = 12.sp,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Clip,
-            )
-        }
-    }
-}
-
-/** The card's under-render line: state in words, then recency. */
-private fun cardMeta(session: SessionSnapshot): String {
-    val time = relativeTime(session.lastUsedAtMs, System.currentTimeMillis())
-    return "${stateLabel(session.state)} · $time"
-}
-
-/**
- * Recency as a short human phrase, computed once per change of [thenMs] rather
- * than every time the grid recomposes for a search or a gesture.
- */
-private fun relativeTime(thenMs: Long, nowMs: Long): String {
-    val minutes = ((nowMs - thenMs).coerceAtLeast(0L)) / 60_000L
-    return when {
-        minutes < 1L -> "now"
-        minutes < 60L -> "$minutes m ago"
-        minutes < MINUTES_PER_DAY -> "${minutes / 60L} h ago"
-        else -> "${minutes / MINUTES_PER_DAY} d ago"
-    }
-}
-
-private fun stateLabel(state: SessionState): String = when (state) {
-    SessionState.Running -> "Running"
-    SessionState.Idle -> "Idle"
-    SessionState.Closed -> "Closed"
-}
-
-@Composable
-private fun stateColor(state: SessionState): Color = when (state) {
-    SessionState.Running -> DroshSuccess
-    SessionState.Closed -> DroshTextMuted.copy(alpha = 0.5f)
-    SessionState.Idle -> DroshTextSecondary
-}
-
 /** A naive two-colour blend, enough for a surface that brightens on activation. */
 private fun lerpColor(from: Color, to: Color, fraction: Float): Color =
     Color(
@@ -417,8 +311,11 @@ private fun lerpColor(from: Color, to: Color, fraction: Float): Color =
 /** A card is deliberately vertical: 200dp tall at the grid's two-column width. */
 private val CARD_HEIGHT = 200.dp
 
-/** Where "m" hands over to "h" and "h" to "d", in minutes. */
-private const val MINUTES_PER_DAY = 60L * 24L
+/** Equal padding on all four sides of the card's content. */
+private val CARD_PADDING = 12.dp
+
+/** A little extra top room so the header is not crowded by the card's edge. */
+private val HEADER_EXTRA_TOP = 2.dp
 
 private const val HELD_SCALE = 1.04f
 private const val HELD_ALPHA = 0.92f

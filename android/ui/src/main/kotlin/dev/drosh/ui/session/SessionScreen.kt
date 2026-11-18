@@ -15,13 +15,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.domain.session.SessionState
@@ -51,8 +52,16 @@ import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshSurfaceVariant
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
+import dev.drosh.ui.DroshDropdownMenu
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.DroshMenuItem
 import dev.drosh.ui.R
+
+/**
+ * The two card filters. They used to be a row of tabs above the grid; now they
+ * are the only two entries in the dropdown off the header title.
+ */
+internal enum class SessionTab { Groups, Singles }
 
 /**
  * The name a card shows, in the same order Termux names a session.
@@ -84,7 +93,7 @@ private fun sessionDisplayName(
         ?: fallbackName
 
 /**
- * Every session, as a card with a small picture of its terminal.
+ * Every session, as a card with the last screenshot of its terminal.
  *
  * ## Hierarchy
  *
@@ -127,9 +136,8 @@ fun SessionScreen(
     /**
      * The sessions that are running but not on screen.
      *
-     * Kept in the public signature so the call site is a pure rename. The card
-     * uses it for its accessibility description only; there is no status chip
-     * any more.
+     * Kept in the public signature so the call site is a pure rename. Cards no
+     * longer carry status chips or recency labels, so this is not rendered.
      */
     backgroundIds: Set<String> = emptySet(),
     /**
@@ -150,8 +158,11 @@ fun SessionScreen(
 ) {
     // Rename reaches the existing domain API (SessionSwitcherViewModel.rename ->
     // SessionRepository.rename) through this ViewModel; the call site does not
-    // need a new callback parameter.
+    // need a new callback parameter. The same ViewModel owns the card thumbnails
+    // and the persistent toggle.
     val switcherViewModel: SessionSwitcherViewModel = hiltViewModel()
+    val thumbnails by switcherViewModel.thumbnails.collectAsStateWithLifecycle()
+    val persistentIds by switcherViewModel.persistentIds.collectAsStateWithLifecycle()
     val fallbackName = stringResource(R.string.session_screen_default_name)
 
     var query by rememberSaveable { mutableStateOf("") }
@@ -160,12 +171,10 @@ fun SessionScreen(
     var savedTab by rememberSaveable { mutableStateOf(SessionTab.Singles.name) }
     val tab = SessionTab.entries.firstOrNull { it.name == savedTab } ?: SessionTab.Singles
 
-    // TODO: persist — no domain field exists for pin / persistent. These stay
-    // UI-local and reset when the screen leaves composition. Rename (the display
-    // name) is persisted through SessionSwitcherViewModel -> SessionRepository.
+    // TODO: persist — no domain field exists for pin. It stays UI-local and
+    // resets when the screen leaves composition. Persistent is owned by the
+    // ViewModel and is OFF by default; rename is persisted through the repository.
     var pinnedIds by remember { mutableStateOf(setOf<String>()) }
-    var persistentIds by remember { mutableStateOf(emptySet<String>()) }
-    // Persistent is OFF by default: it is only ever switched on from the menu.
     // Staged rename shown immediately; the same value is written through to the
     // repository in the rename dialog's confirm handler below.
     var localNames by remember { mutableStateOf(emptyMap<String, String>()) }
@@ -273,6 +282,8 @@ fun SessionScreen(
     Column(modifier = modifier.fillMaxSize()) {
         SessionScreenHeader(
             count = live.size,
+            tab = tab,
+            onSelectTab = { savedTab = it.name },
             onCloseAll = {
                 if (live.isNotEmpty()) {
                     pendingCloseAll = true
@@ -280,24 +291,12 @@ fun SessionScreen(
                 // Nothing left to close, and a dialog saying so would be noise:
                 // the empty state is already on screen.
             },
-            onNewSession = onNewSession,
-        )
-
-        SessionSearchPill(
-            query = query,
-            onQueryChange = { query = it },
-        )
-
-        SessionTabs(
-            selected = tab,
-            onSelect = { savedTab = it.name },
         )
 
         if (visibleItems.isEmpty()) {
             SessionScreenEmpty(
                 tab = tab,
                 hasQuery = query.isNotBlank(),
-                onNewSession = onNewSession,
                 onClearQuery = { query = "" },
             )
         } else {
@@ -315,8 +314,8 @@ fun SessionScreen(
                             SessionCard(
                                 session = session,
                                 displayName = sessionDisplayName(session.id, localNames, titles, fallbackName, session.name),
+                                thumbnail = thumbnails[session.id],
                                 isActive = session.id == activeId,
-                                isBackground = session.id in backgroundIds,
                                 title = titles[session.id],
                                 isPinned = session.id in pinnedIds,
                                 isPersistent = session.id in persistentIds,
@@ -362,11 +361,8 @@ fun SessionScreen(
                                     }
                                 },
                                 onTogglePersistent = {
-                                    persistentIds = if (session.id in persistentIds) {
-                                        persistentIds - session.id
-                                    } else {
-                                        persistentIds + session.id
-                                    }
+                                    // Persistent is owned by the ViewModel, OFF by default.
+                                    switcherViewModel.setPersistent(session.id, session.id !in persistentIds)
                                 },
                                 onRename = { renameTargetId = session.id },
                                 onClose = { pendingCloseId = session.id },
@@ -419,7 +415,12 @@ fun SessionScreen(
             }
         }
 
-        SessionScreenFooter(onNewSession = onNewSession)
+        // One bar, at the bottom: the search pill and exactly one `+`.
+        SessionBottomBar(
+            query = query,
+            onQueryChange = { query = it },
+            onNewSession = onNewSession,
+        )
     }
 
     splitSourceId?.let { sourceId ->
@@ -468,7 +469,8 @@ fun SessionScreen(
     }
 
     // The close confirmation, drawn outside the grid so a scroll underneath it
-    // cannot move the question out from under the finger.
+    // cannot move the question out from under the finger. One dialog serves both
+    // a single close and close-all; the destructive call is not fired by the tap.
     if (pendingCloseId != null || pendingCloseAll) {
         val targetName = pendingCloseId
             ?.let { id -> live.firstOrNull { it.id == id }?.name }
@@ -540,12 +542,19 @@ internal fun mergeIntoGroup(
         SessionGroup(merged)
 }
 
+/**
+ * The header. A small chevron sits next to the title and opens the two-way
+ * filter; the ⋮ at the end holds the only destructive action left up here.
+ */
 @Composable
 private fun SessionScreenHeader(
     count: Int,
+    tab: SessionTab,
+    onSelectTab: (SessionTab) -> Unit,
     onCloseAll: () -> Unit,
-    onNewSession: () -> Unit,
 ) {
+    var filterExpanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -553,20 +562,61 @@ private fun SessionScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.session_screen_title),
-                color = DroshText,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.session_screen_title),
+                    color = DroshText,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Box {
+                    IconButton(
+                        onClick = { filterExpanded = true },
+                        modifier = Modifier.size(30.dp),
+                    ) {
+                        Icon(
+                            imageVector = DroshIcons.ChevronDown,
+                            contentDescription = stringResource(R.string.session_screen_filter),
+                            tint = DroshTextMuted,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    // The old ▦ / ▢ tab row is gone. These two entries filter the
+                    // grid exactly the way those tabs did; dispatch uses the
+                    // stable id, never the translated label.
+                    DroshDropdownMenu(
+                        expanded = filterExpanded,
+                        onDismissRequest = { filterExpanded = false },
+                        items = listOf(
+                            DroshMenuItem(
+                                id = "filter_singles",
+                                label = stringResource(R.string.session_screen_tab_singles),
+                                icon = DroshIcons.Square,
+                            ),
+                            DroshMenuItem(
+                                id = "filter_groups",
+                                label = stringResource(R.string.session_screen_tab_groups),
+                                icon = DroshIcons.SessionGrid,
+                            ),
+                        ),
+                        onItemClick = { item ->
+                            filterExpanded = false
+                            when (item.id) {
+                                "filter_singles" -> onSelectTab(SessionTab.Singles)
+                                "filter_groups" -> onSelectTab(SessionTab.Groups)
+                            }
+                        },
+                    )
+                }
+            }
             Text(
                 text = stringResource(R.string.session_screen_count, count),
                 color = DroshTextMuted,
                 fontSize = 12.sp,
             )
         }
-        // The old eye-off icon is gone: the ⋮ button is the one menu door.
-        HeaderMenuButton(onNewSession = onNewSession, onCloseAll = onCloseAll)
+        // New-session lives only in the bottom bar now; this menu keeps close-all.
+        HeaderMenuButton(onCloseAll = onCloseAll)
     }
 }
 
@@ -574,13 +624,12 @@ private fun SessionScreenHeader(
  * The grid with nothing in it.
  *
  * An empty box says "broken". This says "start here": what happened and the one
- * action that moves forward.
+ * action that moves forward — the `+` in the bottom bar, which is always there.
  */
 @Composable
 private fun SessionScreenEmpty(
     tab: SessionTab,
     hasQuery: Boolean,
-    onNewSession: () -> Unit,
     onClearQuery: () -> Unit,
 ) {
     Column(
@@ -632,16 +681,8 @@ private fun SessionScreenEmpty(
             lineHeight = 19.sp,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(20.dp))
         if (hasQuery) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                NewSessionButton(onNewSession)
-                TransparentAddButton(onNewSession)
-            }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(20.dp))
             Box(
                 modifier = Modifier
                     .height(40.dp)
@@ -661,67 +702,33 @@ private fun SessionScreenEmpty(
                     fontSize = 13.sp,
                 )
             }
-        } else {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                NewSessionButton(onNewSession)
-                TransparentAddButton(onNewSession)
-            }
         }
     }
 }
 
 /**
- * The "add a session" pill, shared by the empty state and the footer so the
- * two cannot drift apart on how the action looks.
+ * The bottom bar: the glass search pill fills the row and one glass `+` sits
+ * beside it. No other new-session button exists on this screen.
  */
 @Composable
-private fun NewSessionButton(onNewSession: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .height(48.dp)
-            .clip(RoundedCornerShape(percent = 50))
-            .background(DroshSurfaceHigh)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                role = Role.Button,
-                onClick = onNewSession,
-            )
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            imageVector = DroshIcons.Plus,
-            contentDescription = null,
-            tint = DroshText,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            text = stringResource(R.string.session_screen_new),
-            color = DroshText,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-@Composable
-private fun SessionScreenFooter(onNewSession: () -> Unit) {
+private fun SessionBottomBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onNewSession: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        NewSessionButton(onNewSession)
-        Spacer(Modifier.width(8.dp))
-        // Transparent + beside the existing pill, as requested.
-        TransparentAddButton(onNewSession)
+        SessionSearchPill(
+            query = query,
+            onQueryChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+        )
+        TransparentAddButton(onNewSession = onNewSession)
     }
 }
 
