@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dashboard drawer -->
+    <string name="sidebar_dashboard_brand">DROSH</string>
+    <string name="sidebar_dashboard_section">FEATURES</string>
+    <string name="sidebar_close">Close menu</string>
+
+    <string name="sidebar_tile_processes">Processes</string>
+    <string name="sidebar_tile_processes_subtitle">Live sessions and what they are doing</string>
+    <string name="sidebar_tile_resources">Resource Monitor</string>
+    <string name="sidebar_tile_resources_subtitle">Session counts and the engine report</string>
+
+    <!-- Processes sheet -->
+    <string name="sidebar_processes_title">Processes</string>
+    <string name="sidebar_processes_desc">Live sessions from the session store. Snapshots carry no PID, so each row shows its state.</string>
+    <string name="sidebar_processes_empty">No live sessions right now</string>
+    <string name="sidebar_processes_ended">%1$d ended session(s) not shown</string>
+    <string name="sidebar_processes_detail">%1$s · %2$s</string>
+    <string name="sidebar_active">ACTIVE</string>
+    <string name="sidebar_state_idle">Idle</string>
+    <string name="sidebar_state_running">Running</string>
+    <string name="sidebar_state_ended">Ended</string>
+
+    <!-- Resource monitor sheet -->
+    <string name="sidebar_resource_title">Resource Monitor</string>
+    <string name="sidebar_resource_desc">Counts come from the session store. No memory or frame-rate samples here.</string>
+    <string name="sidebar_resource_live">Live</string>
+    <string name="sidebar_resource_background">Background</string>
+    <string name="sidebar_resource_ended">Ended</string>
+    <string name="sidebar_resource_breakdown">%1$d running · %2$d idle</string>
+    <string name="sidebar_resource_active">Active: %1$s</string>
+    <string name="sidebar_resource_diagnostics">Open diagnostics</string>
+    <string name="sidebar_resource_diagnostics_note">Full engine report, built by the terminal screen.</string>
+</resources>
