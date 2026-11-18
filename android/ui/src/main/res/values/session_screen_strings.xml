@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Session screen strings (English base only; no i18n tooling in this repo). -->
+<resources>
+    <string name="session_screen_title">Sessions</string>
+    <string name="session_screen_count">%1$d open</string>
+
+    <string name="session_screen_search_hint">Search sessions</string>
+    <string name="session_screen_search_clear">Clear search</string>
+    <string name="session_screen_clear_search">Clear search</string>
+
+    <string name="session_screen_tab_groups">Groups</string>
+    <string name="session_screen_tab_singles">Sessions</string>
+
+    <string name="session_screen_new">New session</string>
+    <string name="session_screen_add">Add session</string>
+
+    <string name="session_screen_empty_title">No sessions</string>
+    <string name="session_screen_empty_body">Open a new shell and its card appears here.</string>
+    <string name="session_screen_empty_groups_title">No groups yet</string>
+    <string name="session_screen_empty_groups_body">Drag one session card onto another to make a group.</string>
+    <string name="session_screen_empty_search_title">No matches</string>
+    <string name="session_screen_empty_search_body">No session matches this search.</string>
+
+    <string name="session_screen_group_title">Group · %1$d sessions</string>
+    <string name="session_screen_group_open">Tap to open group</string>
+    <string name="session_screen_group_empty">This group has no live sessions.</string>
+    <string name="session_screen_group_close">Close</string>
+
+    <string name="session_screen_split_title">Split with…</string>
+    <string name="session_screen_split_subtitle">Choose the session to split with.</string>
+    <string name="session_screen_split_empty">There is no other session to split with.</string>
+    <string name="session_screen_split_cancel">Cancel</string>
+
+    <string name="session_screen_header_menu">More options</string>
+    <string name="session_screen_overflow">Session options</string>
+    <string name="session_screen_menu_split">Split with…</string>
+    <string name="session_screen_menu_pin">Pin</string>
+    <string name="session_screen_menu_unpin">Unpin</string>
+    <string name="session_screen_menu_persistent">Persistent</string>
+    <string name="session_screen_menu_rename">Rename</string>
+    <string name="session_screen_menu_close">Close</string>
+    <string name="session_screen_menu_close_all">Close all sessions</string>
+
+    <string name="session_screen_chip_pin">PIN</string>
+    <string name="session_screen_chip_persistent">PERSISTENT</string>
+</resources>

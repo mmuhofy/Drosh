@@ -1,0 +1,751 @@
+package dev.drosh.ui.session
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import dev.drosh.domain.session.SessionSnapshot
+import dev.drosh.domain.session.SessionState
+import dev.drosh.theme.DroshBorderSubtle
+import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshSurfaceHigh
+import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
+
+/**
+ * Every session, as a card with a small picture of its terminal.
+ *
+ * ## Hierarchy
+ *
+ * Three kinds of card and they must not look alike:
+ *
+ *  - **The active one** wears the accent border, so "you are here" survives a
+ *    glance back after scrolling. Status pills were removed: the border is the
+ *    only marker, and the card's left-hand icon identifies the session.
+ *  - **A card the grouping gesture is over** also wears the accent, but over a
+ *    tinted surface — the tint is what separates it from plain "you are here".
+ *  - **Everything else** is a quiet card on a subtle border.
+ *
+ * ## Grouping and splitting are different now
+ *
+ * Dragging one card onto another makes a *UI group*, the way a Chrome tab group
+ * gathers tabs. It does not touch the terminal's panes. Group membership is
+ * local state — [SessionGroup] — and a tap on a group card opens a centred
+ * overlay listing its members.
+ *
+ * A split still goes through [onGroupSessions], but only from the card's
+ * overflow menu: `Split with…` → choose a session. Drag never calls it.
+ *
+ * ## What a group is not
+ *
+ * The screen does not own the split. The terminal's pane layout is what shows
+ * two sessions at once, and it holds exactly two panes. Only the menu's split
+ * asks the terminal for that; the drag group is a shell around cards.
+ *
+ * ## Closing
+ *
+ * A close — one card, from its menu, or all at once from the header — never
+ * fires on the tap that asked for it. It lands in [pendingCloseId] /
+ * [pendingCloseAll] and a dialog asks once, because the transcript it erases is
+ * not recoverable.
+ */
+@Composable
+fun SessionScreen(
+    sessions: List<SessionSnapshot>,
+    activeId: String?,
+    /**
+     * The sessions that are running but not on screen.
+     *
+     * Kept in the public signature so the call site is a pure rename. The card
+     * uses it for its accessibility description only; there is no status chip
+     * any more.
+     */
+    backgroundIds: Set<String> = emptySet(),
+    /**
+     * The titles the programs asked for, by session id (`OSC 0` / `OSC 2`).
+     * Also used by the search pill, so a search for the program's title works.
+     */
+    titles: Map<String, String> = emptyMap(),
+    onOpen: (String) -> Unit,
+    onClose: (String) -> Unit,
+    onNewSession: () -> Unit,
+    onCloseAll: () -> Unit,
+    /**
+     * Joins two sessions into a split. Called only by `Split with…`.
+     * The first id is the session whose menu was opened, the second the choice.
+     */
+    onGroupSessions: (String, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    // Stored as a string so the saved state survives a process death without
+    // relying on a custom Saver for an enum.
+    var savedTab by rememberSaveable { mutableStateOf(SessionTab.Singles.name) }
+    val tab = SessionTab.entries.firstOrNull { it.name == savedTab } ?: SessionTab.Singles
+
+    // TODO: persist — no domain field exists for pin / persistent / display name.
+    // These stay UI-local and reset when the screen leaves composition.
+    var pinnedIds by remember { mutableStateOf(setOf<String>()) }
+    var persistentIds by remember { mutableStateOf(emptySet<String>()) }
+    // Persistent is OFF by default: it is only ever switched on from the menu.
+    var localNames by remember { mutableStateOf(emptyMap<String, String>()) }
+
+    // TODO: persist — UI tab groups only. The terminal owns the real splits.
+    var groups by remember { mutableStateOf(emptyList<SessionGroup>()) }
+
+    /**
+     * A close waiting for its confirmation. The two never set together — the
+     * dialog is modal — but stay separate so confirming can read which one it
+     * serves.
+     */
+    var pendingCloseId by remember { mutableStateOf<String?>(null) }
+    var pendingCloseAll by remember { mutableStateOf(false) }
+
+    /** The source of a split whose partner is being chosen, or null. */
+    var splitSourceId by remember { mutableStateOf<String?>(null) }
+    /** The session whose rename dialog is open, or null. */
+    var renameTargetId by remember { mutableStateOf<String?>(null) }
+    /** The group whose overlay is open, or null. */
+    var overlayGroup by remember { mutableStateOf<SessionGroup?>(null) }
+
+    /** The card under a held finger, or null. */
+    var heldId by remember { mutableStateOf<String?>(null) }
+    /** Where the finger is, in root coordinates. */
+    var pointer by remember { mutableStateOf(Offset.Zero) }
+    /** The card the finger is over, when it is over one and not the held one. */
+    var dropTarget by remember { mutableStateOf<String?>(null) }
+
+    /**
+     * Every card's rectangle, in root coordinates.
+     *
+     * Root coordinates because the only common frame between a card and the
+     * card under the finger is the window. A plain map rather than Compose
+     * state: it is written during layout and read during a gesture, and routing
+     * it through state would invalidate layout on every frame of a drag.
+     */
+    val bounds = remember { mutableMapOf<String, Rect>() }
+
+    val live = remember(sessions) {
+        sessions
+            .filter { it.state != SessionState.Closed }
+            .sortedByDescending { it.lastUsedAtMs }
+    }
+
+    // The search matches the user's name, the program's title and a rename made
+    // in this screen, so all three ways of naming a session work in one pill.
+    val matchedIds = remember(live, query, titles, localNames) {
+        if (query.isBlank()) {
+            live.map { it.id }.toSet()
+        } else {
+            val needle = query.trim()
+            live.filter { session ->
+                val name = localNames[session.id] ?: session.name
+                name.contains(needle, ignoreCase = true) ||
+                    titles[session.id]?.contains(needle, ignoreCase = true) == true
+            }.map { it.id }.toSet()
+        }
+    }
+
+    // Keep groups in the order they were made; a set here would reshuffle the
+    // grid on every merge.
+    val groupItems = remember(groups, live, matchedIds) {
+        groups.mapNotNull { group ->
+            val members = live.filter { it.id in group.memberIds }
+            if (members.size >= 2 && members.any { it.id in matchedIds }) {
+                SessionGridItem.Group(
+                    group = group.copy(memberIds = members.map { it.id }),
+                    members = members,
+                )
+            } else {
+                null
+            }
+        }
+    }
+
+    val gridItems = remember(live, groupItems, matchedIds) {
+        buildList<SessionGridItem> {
+            val addedGroups = mutableSetOf<SessionGridItem.Group>()
+            live.forEach { session ->
+                val group = groupItems.firstOrNull { session.id in it.group.memberIds }
+                when {
+                    group != null && group.group.memberIds.first() == session.id -> {
+                        add(group)
+                        addedGroups += group
+                    }
+                    group == null && session.id in matchedIds -> {
+                        add(SessionGridItem.Single(session))
+                    }
+                }
+            }
+            // A group whose first member was filtered out still has matching
+            // members, so give it a slot at the end rather than losing it.
+            groupItems.forEach { group -> if (group !in addedGroups) add(group) }
+        }
+    }
+
+    val visibleItems = remember(gridItems, tab) {
+        when (tab) {
+            SessionTab.Groups -> gridItems.filterIsInstance<SessionGridItem.Group>()
+            SessionTab.Singles -> gridItems.filterIsInstance<SessionGridItem.Single>()
+        }
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        SessionScreenHeader(
+            count = live.size,
+            onCloseAll = {
+                if (live.isNotEmpty()) {
+                    pendingCloseAll = true
+                }
+                // Nothing left to close, and a dialog saying so would be noise:
+                // the empty state is already on screen.
+            },
+            onNewSession = onNewSession,
+        )
+
+        SessionSearchPill(
+            query = query,
+            onQueryChange = { query = it },
+        )
+
+        SessionTabs(
+            selected = tab,
+            onSelect = { savedTab = it.name },
+        )
+
+        if (visibleItems.isEmpty()) {
+            SessionScreenEmpty(
+                tab = tab,
+                hasQuery = query.isNotBlank(),
+                onNewSession = onNewSession,
+                onClearQuery = { query = "" },
+            )
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(visibleItems, key = { it.key }) { item ->
+                    when (item) {
+                        is SessionGridItem.Single -> {
+                            val session = item.snapshot
+                            SessionCard(
+                                session = session,
+                                displayName = localNames[session.id] ?: session.name,
+                                isActive = session.id == activeId,
+                                isBackground = session.id in backgroundIds,
+                                title = titles[session.id],
+                                isPinned = session.id in pinnedIds,
+                                isPersistent = session.id in persistentIds,
+                                isDropTarget = session.id == dropTarget,
+                                isHeld = session.id == heldId,
+                                pointer = pointer,
+                                onBounds = { bounds[session.id] = it },
+                                onTap = { onOpen(session.id) },
+                                onLongPress = { /* reserved: the ⋮ button is the menu door */ },
+                                onDragStart = { position ->
+                                    heldId = session.id
+                                    pointer = position
+                                    dropTarget = null
+                                },
+                                onDrag = { position ->
+                                    pointer = position
+                                    // UNTESTED — verify before use: hit-testing
+                                    // compares window-space rectangles against
+                                    // the finger's window-space position.
+                                    dropTarget = bounds.entries
+                                        .firstOrNull { (id, rect) ->
+                                            id != session.id && rect.contains(position)
+                                        }
+                                        ?.key
+                                },
+                                onDragEnd = {
+                                    val target = dropTarget
+                                    val held = heldId
+                                    heldId = null
+                                    dropTarget = null
+                                    if (target != null && held != null) {
+                                        // UNTESTED — verify before use: dragging
+                                        // merges UI groups; it never splits.
+                                        groups = mergeIntoGroup(groups, held, target)
+                                    }
+                                },
+                                onSplitWith = { splitSourceId = session.id },
+                                onTogglePin = {
+                                    pinnedIds = if (session.id in pinnedIds) {
+                                        pinnedIds - session.id
+                                    } else {
+                                        pinnedIds + session.id
+                                    }
+                                },
+                                onTogglePersistent = {
+                                    persistentIds = if (session.id in persistentIds) {
+                                        persistentIds - session.id
+                                    } else {
+                                        persistentIds + session.id
+                                    }
+                                },
+                                onRename = { renameTargetId = session.id },
+                                onClose = { pendingCloseId = session.id },
+                                onCloseAll = {
+                                    if (live.isNotEmpty()) pendingCloseAll = true
+                                },
+                            )
+                        }
+                        is SessionGridItem.Group -> {
+                            SessionGroupCard(
+                                group = item.group,
+                                members = item.members,
+                                isDropTarget = item.group.memberIds.firstOrNull() == dropTarget,
+                                isHeld = item.group.memberIds.firstOrNull() == heldId,
+                                pointer = pointer,
+                                onBounds = { rect ->
+                                    item.group.memberIds.firstOrNull()?.let { bounds[it] = rect }
+                                },
+                                onTap = { overlayGroup = item.group },
+                                onDragStart = { position ->
+                                    heldId = item.group.memberIds.firstOrNull()
+                                    pointer = position
+                                    dropTarget = null
+                                },
+                                onDrag = { position ->
+                                    pointer = position
+                                    // UNTESTED — verify before use: see SessionCard.
+                                    val held = item.group.memberIds.firstOrNull()
+                                    dropTarget = bounds.entries
+                                        .firstOrNull { (id, rect) ->
+                                            id != held && rect.contains(position)
+                                        }
+                                        ?.key
+                                },
+                                onDragEnd = {
+                                    val target = dropTarget
+                                    val held = heldId
+                                    heldId = null
+                                    dropTarget = null
+                                    if (target != null && held != null) {
+                                        // UNTESTED — verify before use: dragging
+                                        // merges UI groups; it never splits.
+                                        groups = mergeIntoGroup(groups, held, target)
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        SessionScreenFooter(onNewSession = onNewSession)
+    }
+
+    splitSourceId?.let { sourceId ->
+        SplitWithDialog(
+            candidates = live.filter { it.id != sourceId },
+            onDismiss = { splitSourceId = null },
+            onChoose = { partnerId ->
+                onGroupSessions(sourceId, partnerId)
+                splitSourceId = null
+            },
+        )
+    }
+
+    renameTargetId?.let { id ->
+        live.firstOrNull { it.id == id }?.let { session ->
+            RenameSessionDialog(
+                initialValue = localNames[id] ?: session.name,
+                onConfirm = { newName ->
+                    // TODO: persist — rename is UI-local until a domain field exists.
+                    localNames = localNames + (id to newName)
+                    renameTargetId = null
+                },
+                onDismiss = { renameTargetId = null },
+            )
+        }
+    }
+
+    overlayGroup?.let { group ->
+        SessionGroupOverlay(
+            group = group,
+            members = live.filter { it.id in group.memberIds },
+            onDismiss = { overlayGroup = null },
+            onOpen = { id ->
+                overlayGroup = null
+                onOpen(id)
+            },
+        )
+    }
+
+    // The close confirmation, drawn outside the grid so a scroll underneath it
+    // cannot move the question out from under the finger.
+    if (pendingCloseId != null || pendingCloseAll) {
+        val targetName = pendingCloseId
+            ?.let { id -> live.firstOrNull { it.id == id }?.name }
+            ?: "Session"
+        CloseSessionDialog(
+            title = if (pendingCloseAll) "Tüm session'lar kapatılsın mı?" else "Session kapatılsın mı?",
+            message = if (pendingCloseAll) {
+                "${live.size} açık session'ın tamamı kapanacak."
+            } else {
+                "\"$targetName\" kapatılacak. Çıktısı geri alınamaz."
+            },
+            onConfirm = {
+                val id = pendingCloseId
+                if (id != null) {
+                    onClose(id)
+                } else {
+                    onCloseAll()
+                }
+                pendingCloseId = null
+                pendingCloseAll = false
+            },
+            onDismiss = {
+                pendingCloseId = null
+                pendingCloseAll = false
+            },
+        )
+    }
+}
+
+/** One slot in the grid: either a session or a local UI group of sessions. */
+internal sealed interface SessionGridItem {
+    val key: String
+
+    data class Single(val snapshot: SessionSnapshot) : SessionGridItem {
+        override val key: String get() = "session:${snapshot.id}"
+    }
+
+    data class Group(
+        val group: SessionGroup,
+        val members: List<SessionSnapshot>,
+    ) : SessionGridItem {
+        override val key: String get() = "group:${group.memberIds.firstOrNull().orEmpty()}"
+    }
+}
+
+/**
+ * Merges two cards into one UI group.
+ *
+ * UNTESTED — verify before use. The merge is deliberately idempotent: dropping
+ * a member back onto its own group leaves the group alone. When both cards
+ * already belong to different groups the two are joined rather than replaced.
+ */
+internal fun mergeIntoGroup(
+    groups: List<SessionGroup>,
+    first: String,
+    second: String,
+): List<SessionGroup> {
+    if (first == second) return groups
+    val firstGroup = groups.firstOrNull { first in it.memberIds }
+    val secondGroup = groups.firstOrNull { second in it.memberIds }
+    val merged: List<String> = when {
+        firstGroup != null && secondGroup != null && firstGroup !== secondGroup ->
+            (firstGroup.memberIds + secondGroup.memberIds).distinct()
+        firstGroup != null -> (firstGroup.memberIds + second).distinct()
+        secondGroup != null -> (secondGroup.memberIds + first).distinct()
+        else -> listOf(first, second)
+    }
+    return groups.filterNot { it === firstGroup || it === secondGroup } +
+        SessionGroup(merged)
+}
+
+@Composable
+private fun SessionScreenHeader(
+    count: Int,
+    onCloseAll: () -> Unit,
+    onNewSession: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.session_screen_title),
+                color = DroshText,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.session_screen_count, count),
+                color = DroshTextMuted,
+                fontSize = 12.sp,
+            )
+        }
+        // The old eye-off icon is gone: the ⋮ button is the one menu door.
+        HeaderMenuButton(onNewSession = onNewSession, onCloseAll = onCloseAll)
+    }
+}
+
+/**
+ * The grid with nothing in it.
+ *
+ * An empty box says "broken". This says "start here": what happened and the one
+ * action that moves forward.
+ */
+@Composable
+private fun SessionScreenEmpty(
+    tab: SessionTab,
+    hasQuery: Boolean,
+    onNewSession: () -> Unit,
+    onClearQuery: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(DroshSurfaceVariant)
+                .border(1.dp, DroshBorderSubtle, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (tab == SessionTab.Groups) DroshIcons.SessionGrid else DroshIcons.Terminal,
+                contentDescription = null,
+                tint = DroshTextMuted,
+                modifier = Modifier.size(26.dp),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(
+                when {
+                    hasQuery -> R.string.session_screen_empty_search_title
+                    tab == SessionTab.Groups -> R.string.session_screen_empty_groups_title
+                    else -> R.string.session_screen_empty_title
+                },
+            ),
+            color = DroshText,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = stringResource(
+                when {
+                    hasQuery -> R.string.session_screen_empty_search_body
+                    tab == SessionTab.Groups -> R.string.session_screen_empty_groups_body
+                    else -> R.string.session_screen_empty_body
+                },
+            ),
+            color = DroshTextMuted,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
+        if (hasQuery) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                NewSessionButton(onNewSession)
+                TransparentAddButton(onNewSession)
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onClearQuery,
+                    )
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.session_screen_clear_search),
+                    color = DroshTextMuted,
+                    fontSize = 13.sp,
+                )
+            }
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                NewSessionButton(onNewSession)
+                TransparentAddButton(onNewSession)
+            }
+        }
+    }
+}
+
+/**
+ * The "add a session" pill, shared by the empty state and the footer so the
+ * two cannot drift apart on how the action looks.
+ */
+@Composable
+private fun NewSessionButton(onNewSession: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(DroshSurfaceHigh)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+                onClick = onNewSession,
+            )
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = DroshIcons.Plus,
+            contentDescription = null,
+            tint = DroshText,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = stringResource(R.string.session_screen_new),
+            color = DroshText,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun SessionScreenFooter(onNewSession: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NewSessionButton(onNewSession)
+        Spacer(Modifier.width(8.dp))
+        // Transparent + beside the existing pill, as requested.
+        TransparentAddButton(onNewSession)
+    }
+}
+
+/**
+ * The close question. Kept from the original screen: it is the single point
+ * where a destructive session action is confirmed, whatever opened it.
+ */
+@Composable
+private fun CloseSessionDialog(
+    title: String,
+    message: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(22.dp))
+                .background(DroshSurfaceHigh)
+                .padding(20.dp),
+        ) {
+            Text(
+                text = title,
+                color = DroshText,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = message,
+                color = DroshText,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+            )
+            Spacer(Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DialogButton("İptal", DroshTextMuted, onDismiss)
+                DialogButton("Kapat", DroshError, onConfirm)
+            }
+        }
+    }
+}
+
+/** A dialog action, sized to the 48dp floor and coloured by its caller. */
+@Composable
+private fun DialogButton(
+    label: String,
+    tint: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(horizontal = 18.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = tint,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
