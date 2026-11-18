@@ -110,6 +110,7 @@ import dev.drosh.domain.session.DEFAULT_SESSION_NAME
 import dev.drosh.domain.terminal.PaneSlot
 import dev.drosh.linux.UbuntuSetupState
 import dev.drosh.ui.block.BlockEngineViewModel
+import dev.drosh.ui.block.BlockScreen
 import dev.drosh.ui.block.BlockInputField
 import dev.drosh.ui.block.PromptBlock
 import dev.drosh.ui.block.PromptDivider
@@ -1955,6 +1956,12 @@ private fun TerminalPaneBody(
     // pane says nothing about this one.
     val altBufferActive = terminalManager.isAltBufferActive(paneSlot)
 
+    // Block mode renders the engine's own structured output. The bridge fills
+    // these from OSC 133 events, not from a transcript diff.
+    val blockList by blockEngineViewModel.blocks.collectAsState()
+    val runningBlock by blockEngineViewModel.runningBlock.collectAsState()
+    val paneContext = LocalContext.current
+
     // Which session this slot shows. Read from the flow, not from a lookup: a
     // plain function call is not a state read, so the grid could open a session
     // and the screen would never hear about it.
@@ -2020,6 +2027,21 @@ private fun TerminalPaneBody(
             // One engine, one host. The old Rust engine's library is not in
             // the APK any more, so the switch that chose between them was a
             // choice between the one engine and a missing library.
+            if (useBlockEngine) {
+                BlockScreen(
+                    blocks = blockList,
+                    runningBlock = runningBlock,
+                    isAltScreen = altBufferActive,
+                    onCopy = { text -> paneContext.copyToClipboard("Drosh", text) },
+                    onCollapse = { id, collapsed ->
+                        if (blockList.firstOrNull { it.id == id }?.isCollapsed != collapsed) {
+                            blockEngineViewModel.onToggleCollapsed(id)
+                        }
+                    },
+                    onClassicFallback = { /* classic surface stays mounted below */ },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
             GhosttyTerminalHost(
                 paneSlot = paneSlot,
                 terminalManager = terminalManager,
@@ -2057,6 +2079,8 @@ private fun TerminalPaneBody(
                 onUrlClick = onUrlClick,
                 modifier = Modifier.fillMaxSize(),
             )
+
+            }
 
             // The scrim, over the terminal and under nothing else.
             if (transitionAlpha.value > 0f) {

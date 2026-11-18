@@ -147,17 +147,12 @@ class BlockEngineViewModel @Inject constructor(
     }
 
     fun onCommandSubmitted(prompt: String, command: String) {
-        val (rx, tx) = trafficStats.snapshotTotals()
-        val resolvedPrompt = prompt.takeIf { it.isNotBlank() } ?: blockEngineState.lastPrompt
         if (command.trim() == "clear" || command.trim() == "ctrl+l") {
             blockRepository.clear()
         }
-        blockRepository.onCommandSubmitted(
-            prompt = resolvedPrompt,
-            command = command,
-            startRxBytes = rx,
-            startTxBytes = tx,
-        )
+        // The engine taps OSC 133 and emits the real Started record; opening a
+        // speculative block here would be closed as Cancelled when that record
+        // arrives. Only write the command to the PTY — the bridge owns blocks.
         viewModelScope.launch { submitCommand.submit(command) }
     }
 
