@@ -10,7 +10,7 @@ import java.io.File
  * The override is a file in the app's own storage, so it can be set from a
  * shell without a build or without touching the setup wizard:
  *
- *     adb shell run-as dev.drosh.my sh -c 'echo chroot_ng > files/guest_backend'
+ *     adb shell run-as dev.drosh sh -c 'echo chroot_ng > files/guest_backend'
  *
  * It wins over the user's setting, because a test that cannot be sure which
  * engine it is testing is not a test. A file that names something else is

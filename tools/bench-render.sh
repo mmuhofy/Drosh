@@ -39,7 +39,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-PACKAGE="dev.drosh.my"
+PACKAGE="dev.drosh"
 ACTIVITY="dev.drosh.MainActivity"
 BENCH_TAG="DroshBench"
 

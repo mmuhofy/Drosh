@@ -928,7 +928,7 @@ class TerminalManager(
      * storage, which wins over the setting — a test that cannot be sure which
      * engine it is testing is not a test:
      *
-     *     adb shell run-as dev.drosh.my sh -c 'echo chroot_ng > files/guest_backend'
+     *     adb shell run-as dev.drosh sh -c 'echo chroot_ng > files/guest_backend'
      */
     @Volatile
     private var guestIsolation: GuestIsolation = GuestIsolation.DEFAULT

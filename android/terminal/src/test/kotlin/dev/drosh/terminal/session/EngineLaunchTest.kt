@@ -81,12 +81,12 @@ class EngineLaunchTest {
             GuestCommand(
                 executable = "/bin/sh",
                 argv = listOf("/bin/sh"),
-                cwd = "/data/data/dev.drosh.my/files/rootfs",
+                cwd = "/data/data/dev.drosh/files/rootfs",
                 environment = emptyList(),
             ),
         )
 
-        assertEquals("/data/data/dev.drosh.my/files/rootfs", launch.cwd)
+        assertEquals("/data/data/dev.drosh/files/rootfs", launch.cwd)
     }
 
     @Test
