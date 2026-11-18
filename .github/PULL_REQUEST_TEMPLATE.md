@@ -18,9 +18,7 @@ with the code, in the same PR.
 
 - [ ] `./gradlew assembleDebug` and `testDebugUnitTest` pass locally, or CI
       will say it for you
-- [ ] New user-facing strings follow the localization rules in
-      `CONTRIBUTING.md` — English and Turkish at minimum, and `tools/i18n.mjs
-      check` passes
+- [ ] New user-facing strings are added to the resource files in every locale
 - [ ] No build output, screenshots, recordings or design mockups in the diff
 - [ ] If this is a milestone, `CHANGELOG.md`'s `Unreleased` section is updated
       (user-facing bullets, no hashes, no PR numbers)
