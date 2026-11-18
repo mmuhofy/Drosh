@@ -1774,6 +1774,8 @@ private fun ReadyScreen(
                 dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.report()
             resourceDiagnosticsOpen = true
         },
+        onOpenSettings = onOpenSettings,
+        onOpenKeyboard = { toggleKeyboard() },
     )
 
     if (resourceDiagnosticsOpen) {
