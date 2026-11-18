@@ -101,7 +101,7 @@ fn with_selection(handle: jlong, row: jint, column: jint, word: bool) -> Option<
     if !ghostty::ok(result) {
         return None;
     }
-
+    install(&session, &selection);
     format(&session, selection)
 }
 
@@ -300,6 +300,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeSelection_nat
         return std::ptr::null_mut();
     }
 
+    install(&session, &selection);
     match format(&session, selection) {
         Some(text) => new_string(&mut env, &text),
         None => std::ptr::null_mut(),
@@ -400,7 +401,25 @@ fn select_all(handle: jlong) -> Option<String> {
     if !ghostty::ok(result) {
         return None;
     }
+    install(&session, &selection);
     format(&session, selection)
+}
+
+/// Install a selection snapshot as the terminal's active selection.
+///
+/// The engine's select/word/line APIs hand back a snapshot; they do not make
+/// it active. Until it is installed the frame carries no selected cells and
+/// there is nothing to highlight or copy. `transcript` is the deliberate
+/// exception — it formats the whole scrollback for a preview and must not
+/// change what the user has selected.
+fn install(session: &Session, selection: &ghostty::GhosttySelection) {
+    unsafe {
+        ghostty::ghostty_terminal_set(
+            session.terminal(),
+            ghostty::GHOSTTY_TERMINAL_OPT_SELECTION,
+            selection as *const _ as *const std::ffi::c_void,
+        );
+    }
 }
 
 /// Format a selection snapshot into a string.

@@ -96,6 +96,13 @@ internal class FrameRenderer {
     /** The emoji of this frame: a square per cell, drawn over the text. */
     private val colorGlyphs = ArrayList<ImageDraw>()
 
+    /** When the emoji list was last built, so a clean frame can keep it. */
+    private var colorGlyphCellWidth = -1f
+    private var colorGlyphCellHeight = -1f
+    private var colorGlyphRows = -1
+    private var colorGlyphColumns = -1
+    private var colorGlyphGeneration = -1
+
     /** Cell size, in pixels — the line box, which is what a cell is drawn at. */
     private var cellWidth = 1f
     private var cellHeight = 1f
@@ -1429,7 +1436,29 @@ internal class FrameRenderer {
      * stretched into that rectangle is a wide face rather than a face.
      */
     private fun buildColorGlyphs(frame: Frame, dirty: BooleanArray) {
+        // The engine only marks a row dirty when its *text* changes. An emoji
+        // is text too, but a frame with nothing new has no dirty rows at all —
+        // and clearing the list here made the emoji vanish the moment the
+        // output stopped, then reappear as soon as something scrolled. Keep
+        // the last list until the grid, the cell or the atlas actually changes.
+        val anyDirty = dirty.any { it }
+        val sizeChanged = cellWidth != colorGlyphCellWidth ||
+            cellHeight != colorGlyphCellHeight
+        val gridChanged = colorGlyphRows != frame.rowCount ||
+            colorGlyphColumns != frame.columns
+        val atlasChanged = colorGlyphGeneration != colorAtlas.generation
+        if (!anyDirty && !sizeChanged && !gridChanged && !atlasChanged &&
+            colorGlyphs.isNotEmpty()
+        ) {
+            return
+        }
+
         colorGlyphs.clear()
+        colorGlyphCellWidth = cellWidth
+        colorGlyphCellHeight = cellHeight
+        colorGlyphRows = frame.rowCount
+        colorGlyphColumns = frame.columns
+        colorGlyphGeneration = colorAtlas.generation
         for (row in 0 until frame.rowCount) {
             if (!dirty[row]) continue
             val gridRow = row + frame.firstRowY

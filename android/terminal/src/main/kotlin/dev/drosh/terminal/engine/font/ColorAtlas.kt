@@ -76,6 +76,16 @@ internal class ColorAtlas(
     /** The size the current glyphs were rasterised at, in texels. */
     private var rasterPx: Float = 0f
 
+    /** The factor the current glyphs were rasterised at. */
+    private var rasterScale: Float = 1f
+
+    /** The drawn size is [rasterPx] divided by this. */
+    val scale: Float get() = rasterScale
+
+    /** Incremented on every reset, so a consumer knows its rects are stale. */
+    var generation: Int = 0
+        private set
+
     /** The same packer the text atlas uses, for the same reason. */
     private val packer = Skyline(size, size)
 
@@ -137,6 +147,7 @@ internal class ColorAtlas(
         dirtyTopY = Int.MAX_VALUE
         fullDirty = true
         dirty = true
+        generation += 1
     }
 
     /**
@@ -147,9 +158,16 @@ internal class ColorAtlas(
      * only starts over when it is full.
      */
     private fun beginSize(px: Float) {
-        val rounded = if (px <= 0f) 0f else kotlin.math.round(px)
-        if (rounded == rasterPx) return
+        // The same rule as the text atlas: a small glyph rasterised at its own
+        // size loses its colour edges between texels. Twice the size, drawn at
+        // half on the GPU, keeps them.
+        val scale = if (px > 0f && px <= SUPERSAMPLE_BELOW_PX) 2f else 1f
+        val rounded = if (px <= 0f) 0f else kotlin.math.round(px * scale)
+        if (rounded == rasterPx && scale == rasterScale) return
+        // The size is in the cache key, so the sizes a pinch wanders back over
+        // are still there — no new atlas on every step of a gesture.
         rasterPx = rounded
+        rasterScale = scale
         paint.textSize = rounded
     }
 
@@ -209,5 +227,8 @@ internal class ColorAtlas(
     private companion object {
         /** 1024² at four bytes is four megabytes: room for every emoji at once. */
         const val ATLAS_SIZE = 1024
+
+        /** Below this cell height an emoji is rasterised twice as large. */
+        const val SUPERSAMPLE_BELOW_PX = 24f
     }
 }

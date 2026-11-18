@@ -738,17 +738,47 @@ impl Session {
         if !ghostty::ok(result) && result != ghostty::NO_VALUE {
             return None;
         }
-        if !ghostty::ok(result) {
-            return None;
+
+        if ghostty::ok(result) {
+            // The gesture hands back a *snapshot*. The header is explicit that
+            // it is not installed: the embedder decides what to do with it.
+            // Installing it is what puts CELL_FLAG_SELECTED in the next frame —
+            // without this a long press cannot be seen, and the text cannot be
+            // copied either, because both read the terminal's selection.
+            unsafe {
+                ghostty::ghostty_terminal_set(
+                    self.terminal,
+                    ghostty::GHOSTTY_TERMINAL_OPT_SELECTION,
+                    &selection as *const _ as *const c_void,
+                );
+            }
+            return Some(SelectionCells {
+                start_row: selection.start.y,
+                start_column: selection.start.x,
+                end_row: selection.end.y,
+                end_column: selection.end.x,
+            });
         }
 
-        // The cells the selection covers, so the chrome knows where to hang
-        // its menu and which cells to mark.
+        // The gesture ended. Report the selection that is installed now so the
+        // host's handles and menu follow the final answer.
+        let mut current: ghostty::GhosttySelection = unsafe { std::mem::zeroed() };
+        current.size = std::mem::size_of::<ghostty::GhosttySelection>();
+        let current_result = unsafe {
+            ghostty::ghostty_terminal_get(
+                self.terminal,
+                ghostty::GHOSTTY_TERMINAL_DATA_SELECTION,
+                &mut current as *mut _ as *mut c_void,
+            )
+        };
+        if !ghostty::ok(current_result) {
+            return None;
+        }
         Some(SelectionCells {
-            start_row: selection.start.y,
-            start_column: selection.start.x,
-            end_row: selection.end.y,
-            end_column: selection.end.x,
+            start_row: current.start.y,
+            start_column: current.start.x,
+            end_row: current.end.y,
+            end_column: current.end.x,
         })
     }
 

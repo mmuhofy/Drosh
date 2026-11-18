@@ -281,6 +281,20 @@ pub const GHOSTTY_SCROLL_VIEWPORT_ROW: GhosttyTerminalScrollViewportTag =
 pub const GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT: GhosttyTerminalScrollViewportTag =
     GhosttyTerminalScrollViewportTag_GHOSTTY_SCROLL_VIEWPORT_DELTA_PROMPT;
 
+// --- selection --------------------------------------------------------------
+
+/// Install a selection snapshot on the active screen.
+///
+/// A gesture returns a snapshot; it does not install it. Without this the
+/// terminal has no selection, the frame carries no selected cells, and a long
+/// press that worked perfectly still draws nothing.
+pub const GHOSTTY_TERMINAL_OPT_SELECTION: GhosttyTerminalOption =
+    GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_SELECTION;
+
+/// Read the selection the terminal holds now.
+pub const GHOSTTY_TERMINAL_DATA_SELECTION: GhosttyTerminalData =
+    GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_SELECTION;
+
 // --- the system interface ---------------------------------------------------
 
 /// Install a PNG decoder callback for the kitty graphics protocol.

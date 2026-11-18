@@ -826,6 +826,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     performHapticFeedback(
                         android.view.HapticFeedbackConstants.LONG_PRESS,
                     )
+                    // The engine just changed its selection; the frame that
+                    // draws the highlight has to be produced now, not on the
+                    // next blink or the next output.
+                    renderThread.invalidate()
                 }
             }
 
