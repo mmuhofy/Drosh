@@ -1145,7 +1145,8 @@ internal class FrameRenderer {
             } else {
                 val attributes = frame.attributes(index)
                 val bold = attributes and FrameFormat.ATTR_BOLD != 0
-                val entry = atlas.glyph(codepoint, bold, rasterPx)
+                val italic = attributes and FrameFormat.ATTR_ITALIC != 0
+                val entry = atlas.glyph(codepoint, bold, italic, rasterPx)
                 if (entry == null || entry.isBlank) {
                     false
                 } else {

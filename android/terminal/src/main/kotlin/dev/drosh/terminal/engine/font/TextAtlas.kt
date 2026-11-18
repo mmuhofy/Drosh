@@ -47,8 +47,27 @@ internal class TextAtlas(
         color = 0xFFFFFFFF.toInt()
     }
 
+    // The four faces a terminal's styles ask for. A style is a *face*, not a
+    // filter: bold is a heavier draw and italic is a slanted one, and the
+    // rasteriser is what knows the difference.
     private val boldPaint = Paint(paint).apply {
         this.typeface = Typeface.create(typeface, Typeface.BOLD)
+    }
+
+    private val italicPaint = Paint(paint).apply {
+        this.typeface = Typeface.create(typeface, Typeface.ITALIC)
+    }
+
+    private val boldItalicPaint = Paint(paint).apply {
+        this.typeface = Typeface.create(typeface, Typeface.BOLD_ITALIC)
+    }
+
+    /** The face a pair of style flags is drawn with. */
+    private fun paintFor(bold: Boolean, italic: Boolean): Paint = when {
+        bold && italic -> boldItalicPaint
+        bold -> boldPaint
+        italic -> italicPaint
+        else -> paint
     }
 
     /**
@@ -61,6 +80,8 @@ internal class TextAtlas(
         if (paint.typeface == typeface) return
         paint.typeface = typeface
         boldPaint.typeface = Typeface.create(typeface, Typeface.BOLD)
+        italicPaint.typeface = Typeface.create(typeface, Typeface.ITALIC)
+        boldItalicPaint.typeface = Typeface.create(typeface, Typeface.BOLD_ITALIC)
         reset()
     }
 
@@ -139,6 +160,8 @@ internal class TextAtlas(
         rasterScale = scale
         paint.textSize = rounded
         boldPaint.textSize = rounded
+        italicPaint.textSize = rounded
+        boldItalicPaint.textSize = rounded
     }
 
     /**
@@ -151,17 +174,18 @@ internal class TextAtlas(
     val scale: Float get() = rasterScale
 
     /**
-     * The cache key for a mask: the character, its weight, and the size it was
-     * rasterised at.
+     * The cache key for a mask: the character, its weight, its slant, and the
+     * size it was rasterised at.
      *
      * The size is part of the key because the size is part of the mask. A key
      * without it returned the mask from the *previous* size after a pinch — the
      * glyphs stayed the size they were while the cells around them grew, which
      * is a terminal whose letters no longer fit their own cells.
      */
-    private fun keyFor(codepoint: Int, bold: Boolean): Long =
-        (codepoint.toLong() shl 17) or
-            ((if (bold) 1L else 0L) shl 16) or
+    private fun keyFor(codepoint: Int, bold: Boolean, italic: Boolean): Long =
+        (codepoint.toLong() shl 18) or
+            ((if (bold) 1L else 0L) shl 17) or
+            ((if (italic) 1L else 0L) shl 16) or
             rasterPx.toLong()
 
     /**
@@ -226,24 +250,24 @@ internal class TextAtlas(
      * The mask for a codepoint at the current size, or null when the font has
      * no glyph for it.
      */
-    fun glyph(codepoint: Int, bold: Boolean, px: Float): GlyphMask? {
+    fun glyph(codepoint: Int, bold: Boolean, italic: Boolean, px: Float): GlyphMask? {
         beginSize(px)
         if (rasterPx <= 0f) return null
 
-        val key = keyFor(codepoint, bold)
+        val key = keyFor(codepoint, bold, italic)
         cache[key]?.let { return it }
         if (cache.containsKey(key)) return null
 
-        val mask = rasterise(codepoint, bold)
+        val mask = rasterise(codepoint, bold, italic)
         cache[key] = mask
         return mask
     }
 
-    private fun rasterise(codepoint: Int, bold: Boolean): GlyphMask? {
+    private fun rasterise(codepoint: Int, bold: Boolean, italic: Boolean): GlyphMask? {
         if (codepoint <= 0 || codepoint > Character.MAX_CODE_POINT) return null
 
         val text = String(Character.toChars(codepoint))
-        val p = if (bold) boldPaint else paint
+        val p = paintFor(bold, italic)
 
         val advance = p.measureText(text)
         val metrics = p.fontMetrics
