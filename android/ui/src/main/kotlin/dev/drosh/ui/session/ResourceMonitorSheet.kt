@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.domain.session.SessionState
+import dev.drosh.domain.session.ResourceSnapshot
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshSurfaceVariant
@@ -38,11 +38,12 @@ import dev.drosh.theme.DroshTextMuted
 import dev.drosh.ui.R
 
 /**
- * Bottom sheet with the session counts we can actually verify. There are no
- * RAM or frame-rate samples in the session store, so none are shown: the bar
- * is a proportion of running to idle sessions and nothing else. The full
- * engine report is built by the terminal screen and reached through
- * [onOpenDiagnostics].
+ * Bottom sheet with the numbers we actually have: CPU load, used/total RAM and
+ * frame timing, all from the [ResourceSnapshot] published by
+ * [SessionSwitcherViewModel]. Nullable samples render as an em dash rather
+ * than a made-up zero. Stock Android exposes no GPU utilisation figure, so
+ * that line says so instead of showing a fabricated percentage. The full
+ * engine report stays behind [onOpenDiagnostics].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,16 +52,18 @@ fun ResourceMonitorSheet(
     onOpenDiagnostics: () -> Unit,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
-    val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
-    val activeId by viewModel.activeId.collectAsStateWithLifecycle()
+    val resources by viewModel.resources.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val running = sessions.count { it.state == SessionState.Running }
-    val idle = sessions.count { it.state == SessionState.Idle }
-    val live = running + idle
-    val ended = sessions.count { it.state == SessionState.Closed }
-    val background = sessions.count { it.state != SessionState.Closed && it.id != activeId }
-    val active = sessions.firstOrNull { it.id == activeId }
+    val unavailable = stringResource(R.string.sidebar_resource_unavailable)
+    val fpsText = resources.fps?.let { stringResource(R.string.sidebar_resource_fps_value, it) } ?: unavailable
+    val frameText = resources.frameMs?.let { stringResource(R.string.sidebar_resource_frame_value, it) } ?: unavailable
+    // Guard a zero/unknown total: an honest empty bar, never a divide by zero.
+    val ramFraction = if (resources.ramTotalMb > 0) {
+        (resources.ramUsedMb.toFloat() / resources.ramTotalMb.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -88,68 +91,62 @@ fun ResourceMonitorSheet(
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatCard(
-                    value = live,
-                    label = stringResource(R.string.sidebar_resource_live),
+                MetricCard(
+                    value = stringResource(R.string.sidebar_resource_cpu_value, resources.cpuPercent),
+                    label = stringResource(R.string.sidebar_resource_cpu),
                     modifier = Modifier.weight(1f),
                 )
-                StatCard(
-                    value = background,
-                    label = stringResource(R.string.sidebar_resource_background),
-                    modifier = Modifier.weight(1f),
-                )
-                StatCard(
-                    value = ended,
-                    label = stringResource(R.string.sidebar_resource_ended),
+                MetricCard(
+                    value = fpsText,
+                    label = stringResource(R.string.sidebar_resource_fps),
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            if (active != null) {
-                Text(
-                    text = stringResource(R.string.sidebar_resource_active, active.name),
-                    color = DroshText,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 14.dp),
-                )
-            }
-
-            // Only session counts feed this bar. Zero-count segments are not
-            // emitted at all, because a `weight(0f)` is invalid in a Row.
-            if (live > 0) {
-                Text(
-                    text = stringResource(R.string.sidebar_resource_breakdown, running, idle),
-                    color = DroshTextMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(DroshSurfaceHigh),
-                ) {
-                    if (running > 0) {
-                        Box(
-                            modifier = Modifier
-                                .weight(running.toFloat())
-                                .fillMaxHeight()
-                                .background(DroshPrimary),
-                        )
-                    }
-                    if (idle > 0) {
-                        Box(
-                            modifier = Modifier
-                                .weight(idle.toFloat())
-                                .fillMaxHeight()
-                                .background(DroshTextMuted.copy(alpha = 0.55f)),
-                        )
-                    }
+            Text(
+                text = stringResource(
+                    R.string.sidebar_resource_ram,
+                    resources.ramUsedMb,
+                    resources.ramTotalMb,
+                ),
+                color = DroshText,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
+            )
+            // The filled portion is the used fraction of the reported total.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(DroshSurfaceHigh),
+            ) {
+                if (ramFraction > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(ramFraction)
+                            .background(DroshPrimary),
+                    )
                 }
             }
+
+            Text(
+                text = stringResource(R.string.sidebar_resource_frame, frameText),
+                color = DroshTextMuted,
+                fontSize = 12.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            Text(
+                text = stringResource(R.string.sidebar_resource_gpu_unavailable),
+                color = DroshTextMuted,
+                fontSize = 12.5.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
 
             Spacer(Modifier.height(20.dp))
             Button(
@@ -174,8 +171,8 @@ fun ResourceMonitorSheet(
 }
 
 @Composable
-private fun StatCard(
-    value: Int,
+private fun MetricCard(
+    value: String,
     label: String,
     modifier: Modifier = Modifier,
 ) {
@@ -187,7 +184,7 @@ private fun StatCard(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = value.toString(),
+            text = value,
             color = DroshText,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
