@@ -14,7 +14,7 @@ use crate::pty::{Pty, Winsize};
 
 /// Maximum bytes one read can move. A frame's worth of output is usually a few
 /// hundred; a `cat` of a large file is not.
-const READ_CHUNK: usize = 64 * 1024;
+const READ_CHUNK: usize = crate::pty::READ_CHUNK;
 
 /// Spawn a child on a new pseudoterminal.
 ///
@@ -106,19 +106,22 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativePty_nativeRea
     }
     let pty = unsafe { &mut *(handle as usize as *mut Pty) };
 
-    let wanted = (capacity as usize).min(READ_CHUNK);
-    let mut buffer = vec![0u8; wanted];
-    match pty.read(&mut buffer) {
-        Ok(0) => 0,
-        Ok(read) => {
+    // The scratch is the PTY's own and is reused from read to read: a read is
+    // the most frequent call in the process, and a buffer per call is allocator
+    // churn in the middle of a frame.
+    match pty.read_cached(capacity as usize) {
+        Ok(bytes) => {
+            if bytes.is_empty() {
+                return 0;
+            }
             if env.set_byte_array_region(&out, 0, unsafe {
-                std::slice::from_raw_parts(buffer.as_ptr() as *const i8, read)
+                std::slice::from_raw_parts(bytes.as_ptr() as *const i8, bytes.len())
             })
             .is_err()
             {
                 return -2;
             }
-            read as jint
+            bytes.len() as jint
         }
         Err(error) => {
             log::debug!("drosh-native: the pty read failed: {error}");

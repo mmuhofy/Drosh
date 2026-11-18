@@ -658,6 +658,11 @@ class RenderThread(
             // and is not says so on the screen: the engine's answer and the
             // frame's answer are two different places to look, and which one
             // is wrong is the question.
+            //
+            // Built only when someone is listening: the sample is four
+            // formatted strings, and a format is an allocation — sixty of them
+            // a second is garbage the GC collects in the middle of a frame.
+            val report = onFrameShape ?: return@let
             val sample = buildString {
                 for (i in 0 until minOf(4, it.cellCount)) {
                     append(' ')
@@ -667,7 +672,7 @@ class RenderThread(
                     ))
                 }
             }
-            onFrameShape?.invoke(
+            report.invoke(
                 it.columns,
                 it.rows,
                 it.cellCount,

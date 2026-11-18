@@ -52,6 +52,12 @@ pub enum PtyError {
     NotOpen,
 }
 
+/// The most one read can move.
+///
+/// A frame's worth of output is usually a few kilobytes; 64 KB covers a flood
+/// and is small enough to stay resident.
+pub(crate) const READ_CHUNK: usize = 64 * 1024;
+
 /// A pseudoterminal pair and the child process on the slave side.
 pub struct Pty {
     /// The master side: the app reads and writes this.
@@ -60,6 +66,12 @@ pub struct Pty {
     child: libc::pid_t,
     /// The size last set, so a resize to the same size is free.
     size: Winsize,
+    /// The read scratch, reused from read to read.
+    ///
+    /// A read runs every few milliseconds while a program runs and moves up to
+    /// [READ_CHUNK] bytes: a buffer allocated per call is tens of megabytes of
+    /// allocator churn a second, and that is latency in the middle of a frame.
+    scratch: Vec<u8>,
 }
 
 impl Pty {
@@ -139,6 +151,7 @@ impl Pty {
             master,
             child: pid,
             size,
+            scratch: Vec::with_capacity(READ_CHUNK),
         })
     }
 
@@ -147,37 +160,55 @@ impl Pty {
     /// Zero means "nothing right now", which is the normal state between
     /// keystrokes and is not an error.
     pub fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-        if self.master < 0 {
-            return Err(io::Error::from_raw_os_error(libc::EBADF));
-        }
-        loop {
-            let n = unsafe {
-                libc::read(
-                    self.master,
-                    buffer.as_mut_ptr() as *mut libc::c_void,
-                    buffer.len(),
-                )
-            };
-            if n > 0 {
-                return Ok(n as usize);
-            }
-            if n == 0 {
-                return Ok(0);
-            }
-            let error = io::Error::last_os_error();
-            match error.raw_os_error() {
-                // No data right now.
-                Some(libc::EAGAIN) => return Ok(0),
-                // The child is gone and the slave side closed: a clean end, not
-                // a failure.
-                Some(libc::EIO) => return Ok(0),
-                Some(libc::EINTR) => continue,
-                _ => return Err(error),
-            }
-        }
+        read_fd(self.master, buffer)
     }
 
-    /// Write all of `bytes`, or fail.
+    /// Read into the PTY's own scratch and hand back the bytes.
+    ///
+    /// The reader loop calls this; the alternative of handing it a fresh buffer
+    /// puts an allocation on every read, and reads are the most frequent call in
+    /// the process.
+    pub fn read_cached(&mut self, wanted: usize) -> io::Result<&[u8]> {
+        let len = wanted.min(READ_CHUNK);
+        self.scratch.resize(len, 0);
+        if len == 0 {
+            return Ok(&self.scratch);
+        }
+        let read = read_fd(self.master, &mut self.scratch)?;
+        self.scratch.truncate(read);
+        Ok(&self.scratch)
+    }
+
+    /// One non-blocking read from the master side.
+///
+/// Split out from `Pty::read` so the cached read can use the same loop without
+/// borrowing the `Pty` twice.
+fn read_fd(fd: RawFd, buffer: &mut [u8]) -> io::Result<usize> {
+    if fd < 0 {
+        return Err(io::Error::from_raw_os_error(libc::EBADF));
+    }
+    loop {
+        let n = unsafe { libc::read(fd, buffer.as_mut_ptr() as *mut libc::c_void, buffer.len()) };
+        if n > 0 {
+            return Ok(n as usize);
+        }
+        if n == 0 {
+            return Ok(0);
+        }
+        let error = io::Error::last_os_error();
+        match error.raw_os_error() {
+            // No data right now.
+            Some(libc::EAGAIN) => return Ok(0),
+            // The child is gone and the slave side closed: a clean end, not a
+            // failure.
+            Some(libc::EIO) => return Ok(0),
+            Some(libc::EINTR) => continue,
+            _ => return Err(error),
+        }
+    }
+}
+
+/// Write all of `bytes`, or fail.
     ///
     /// A partial write is retried rather than truncated: a truncated escape
     /// sequence leaves the parser mid-state and the next byte is read as its
