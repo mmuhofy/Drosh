@@ -223,10 +223,35 @@ jobs:
           unzip -l "$APK" | grep -q "assets/libchrootng.so"
           echo "$APK contains libchrootng.so"
 
-      - name: Upload debug APK
+      # Pull requests (especially from forks) cannot use the private-repo
+      # secret, so their APK stays a short-lived Actions artifact. Branch and
+      # dispatch builds go to the private repo instead: a public repo's
+      # artifacts are downloadable by anyone with read access.
+      - name: Upload debug APK (pull requests)
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: drosh-debug-arm64-v8a-apk
           path: android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
           if-no-files-found: warn
           retention-days: 1
+
+      - name: Publish debug APK to the private build repo
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_RELEASE_TOKEN }}
+          PRIVATE_REPO: mmuhofy/Drosh-builds
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk"
+          SUM="android/app/build/outputs/apk/debug/drosh-debug-arm64-v8a-debug.apk.sha256"
+          test -f "$APK"
+          sha256sum "$APK" > "$SUM"
+          TAG="debug-${GITHUB_SHA::7}"
+          NOTES="Debug build of ${GITHUB_SHA} (${GITHUB_REF_NAME})"
+          if gh release view "$TAG" --repo "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$SUM" --repo "$PRIVATE_REPO" --clobber
+          else
+            gh release create "$TAG" "$APK" "$SUM" \
+              --repo "$PRIVATE_REPO" --title "$TAG" --notes "$NOTES"
+          fi
