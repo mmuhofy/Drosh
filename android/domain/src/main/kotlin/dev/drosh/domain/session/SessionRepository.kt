@@ -28,6 +28,14 @@ interface SessionRepository {
      * a retention policy would be a better answer but is a product decision.
      */
     suspend fun purgeEnded(keepActiveId: String?)
+
+    /**
+     * Delete every session row that is not in [keepIds], along with its in-memory
+     * preview state. Called once, when the foreground service is destroyed —
+     * the app-fully-closed moment. Pinned rows survive with their metadata.
+     */
+    suspend fun deleteNonPersistentSessions(keepIds: Set<String>)
+
     suspend fun restoreSession(snapshot: SessionSnapshot, activate: Boolean = false)
     suspend fun touch(id: String)
     suspend fun updateLivePreview(id: String, lines: List<String>)

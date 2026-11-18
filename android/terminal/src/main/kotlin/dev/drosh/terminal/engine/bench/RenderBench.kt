@@ -123,6 +123,18 @@ object RenderBench {
         return stats.logLine()
     }
 
+    /** Frames drawn so far, for sampling FPS without scraping [summary]. */
+    fun frameCount(): Int = stats.frameCount()
+
+    /**
+     * Mean render work per drawn frame, in milliseconds.
+     *
+     * Work, not the interval between frames: the interval contains idle time and
+     * belongs to the display, while this is the part the renderer actually costs.
+     */
+    fun averageFrameWorkMs(): Float =
+        stats.averagePump() + stats.averageBuild() + stats.averageUpload() + stats.averageDraw()
+
     /** The status line, for the diagnostics screen. */
     fun summary(): String = stats.summary()
 
