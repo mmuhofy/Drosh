@@ -66,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import dev.drosh.ui.LocalDroshActivity
@@ -1272,6 +1273,9 @@ private fun ReadyScreen(
                     customFontUri = customFontUri,
                     onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
+                    onThumbnail = { id, bitmap ->
+                        sessionSwitcherViewModel.setThumbnail(id, bitmap)
+                    },
                 )
             },
             secondary = {
@@ -1329,6 +1333,9 @@ private fun ReadyScreen(
                     // not looking at.
                     onBoundsChanged = {},
                     onUrlClick = { browserUrl = it },
+                    onThumbnail = { id, bitmap ->
+                        sessionSwitcherViewModel.setThumbnail(id, bitmap)
+                    },
                 )
             },
         )
@@ -1949,6 +1956,8 @@ private fun TerminalPaneBody(
     customFontUri: String,
     onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
+    /** Told this pane's last frame, for the session grid's card. */
+    onThumbnail: (String, ImageBitmap) -> Unit,
 ) {
     // A TUI (nano, vim, htop) takes over the alternate screen buffer, so the raw
     // terminal view has to be shown rather than the block list — the shell is
@@ -2077,6 +2086,7 @@ private fun TerminalPaneBody(
                 // resolves the cell against the engine and hands the URI up;
                 // the screen decides what opening it means.
                 onUrlClick = onUrlClick,
+                onThumbnail = onThumbnail,
                 modifier = Modifier.fillMaxSize(),
             )
 
