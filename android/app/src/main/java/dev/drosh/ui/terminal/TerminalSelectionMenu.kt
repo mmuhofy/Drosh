@@ -72,8 +72,9 @@ fun TerminalSelectionMenu(
     modifier: Modifier = Modifier,
 ) {
     // Sized in dp and converted to pixels at draw time, so the handle keeps its
-    // size whatever the screen's density. 18 dp reads as a grip, not a dot.
-    val handleSize = 18.dp
+    // size whatever the screen's density. 22 dp is a finger-sized grip: the
+    // 18 dp one was a dot next to a thumb and hard to catch on the first try.
+    val handleSize = 22.dp
     val density = LocalDensity.current
     val handleSizePx = with(density) { handleSize.toPx() }
 
@@ -170,10 +171,10 @@ private fun Handle(
                 )
             }
             .size(size)
-            .shadow(elevation = 3.dp, shape = CircleShape, clip = false)
+            .shadow(elevation = 5.dp, shape = CircleShape, clip = false)
             .clip(CircleShape)
             .background(handleFill)
-            .border(1.dp, handleStroke, CircleShape)
+            .border(2.dp, handleStroke, CircleShape)
             .pointerInput(Unit) {
                 detectDragGestures { change, _ ->
                     change.consume()

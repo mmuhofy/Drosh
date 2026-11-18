@@ -270,6 +270,7 @@ fun GhosttyTerminalHost(
                 appendLine("frames drawn: ${pane.view.framesDrawn}")
                 appendLine("last frame: ${pane.view.lastFrameShape}")
                 appendLine("renderer failure: ${pane.view.rendererFailure ?: "none"}")
+                appendLine("fling gear: ${pane.view.flingGear}")
             }
             diagnosticsText = live
 
