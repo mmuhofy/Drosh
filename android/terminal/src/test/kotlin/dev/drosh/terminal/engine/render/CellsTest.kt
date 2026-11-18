@@ -121,6 +121,8 @@ class CellsTest {
             row = 1,
             colour = { 0xFF203040.toInt() },
             underline = { 0 },
+            strikethrough = { 0 },
+            overline = { 0 },
         )
 
         val record = cells.backgroundAt(1, 2)
@@ -131,6 +133,34 @@ class CellsTest {
         assertEquals(0x40, cells.backgrounds.get(record + 4).toInt() and 0xff)
         assertEquals(0x30, cells.backgrounds.get(record + 5).toInt() and 0xff)
         assertEquals(0x20, cells.backgrounds.get(record + 6).toInt() and 0xff)
+    }
+
+    @Test
+    fun `a background record carries the three rules`() {
+        // The rules are the cell's decorations, and a rule the cell does not
+        // have is transparent. Their offsets are the whole contract: a stride
+        // that is one vec4 out puts every rule in another rule's place, and
+        // the screen shows an underline across a line that only struck through.
+        val cells = Cells()
+        val frame = frame(columns = 4, viewportRows = 3, text = { _, _ -> ' ' })
+        cells.resize(frame)
+
+        cells.buildBackgroundRow(
+            frame = frame,
+            row = 1,
+            colour = { 0 },
+            underline = { 0xFF111111.toInt() },
+            strikethrough = { 0xFF222222.toInt() },
+            overline = { 0xFF333333.toInt() },
+        )
+
+        val record = cells.backgroundAt(1, 0)
+        // Four vec4s after the two u16s: colour, underline, strikethrough,
+        // overline.
+        assertEquals(0x11, cells.backgrounds.get(record + 8).toInt() and 0xff)
+        assertEquals(0x22, cells.backgrounds.get(record + 12).toInt() and 0xff)
+        assertEquals(0x33, cells.backgrounds.get(record + 16).toInt() and 0xff)
+        assertEquals(20, Cells.BACKGROUND_BYTES)
     }
 
     @Test

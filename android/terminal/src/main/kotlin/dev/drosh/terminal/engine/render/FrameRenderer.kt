@@ -466,6 +466,23 @@ internal class FrameRenderer {
                         Cells.TRANSPARENT
                     }
                 },
+                // The two rules the frame carries and nothing drew. They take
+                // the cell's own foreground, like the underline: a program that
+                // coloured the text expects the rule through it to match.
+                strikethrough = { index ->
+                    if (frame.attributes(index) and FrameFormat.ATTR_STRIKETHROUGH != 0) {
+                        foregroundOf(frame, index)
+                    } else {
+                        Cells.TRANSPARENT
+                    }
+                },
+                overline = { index ->
+                    if (frame.attributes(index) and FrameFormat.ATTR_OVERLINE != 0) {
+                        foregroundOf(frame, index)
+                    } else {
+                        Cells.TRANSPARENT
+                    }
+                },
             )
         }
     }
@@ -1203,10 +1220,18 @@ internal class FrameRenderer {
         GLES30.glVertexAttribPointer(1, 4, GLES30.GL_UNSIGNED_BYTE, true, stride, 4)
         GLES30.glVertexAttribDivisor(1, 1)
 
-        // The underline's colour: transparent when the cell has none.
+        // The decorations: transparent when the cell has none.
         GLES30.glEnableVertexAttribArray(2)
         GLES30.glVertexAttribPointer(2, 4, GLES30.GL_UNSIGNED_BYTE, true, stride, 8)
         GLES30.glVertexAttribDivisor(2, 1)
+
+        GLES30.glEnableVertexAttribArray(3)
+        GLES30.glVertexAttribPointer(3, 4, GLES30.GL_UNSIGNED_BYTE, true, stride, 12)
+        GLES30.glVertexAttribDivisor(3, 1)
+
+        GLES30.glEnableVertexAttribArray(4)
+        GLES30.glVertexAttribPointer(4, 4, GLES30.GL_UNSIGNED_BYTE, true, stride, 16)
+        GLES30.glVertexAttribDivisor(4, 1)
 
         GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, frame.cellCount)
         return 1

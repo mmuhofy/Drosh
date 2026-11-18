@@ -124,12 +124,16 @@ internal class Cells {
      * @param row the captured row.
      * @param colour the colour a cell is painted with.
      * @param underline the colour of a cell's underline rule, or transparent.
+     * @param strikethrough the colour of a cell's strikethrough, or transparent.
+     * @param overline the colour of a cell's overline, or transparent.
      */
     fun buildBackgroundRow(
         frame: Frame,
         row: Int,
         colour: (Int) -> Int,
         underline: (Int) -> Int,
+        strikethrough: (Int) -> Int,
+        overline: (Int) -> Int,
     ) {
         val base = row * columns
         for (column in 0 until columns) {
@@ -139,6 +143,8 @@ internal class Cells {
             backgrounds.putShort((row + firstRowY).toShort())
             putColour(backgrounds, colour(index))
             putColour(backgrounds, underline(index))
+            putColour(backgrounds, strikethrough(index))
+            putColour(backgrounds, overline(index))
         }
     }
 
@@ -198,8 +204,15 @@ internal class Cells {
     }
 
     companion object {
-        /** `u16 column, u16 gridRow, vec4 colour, vec4 underline`. */
-        const val BACKGROUND_BYTES = 12
+        /**
+         * `u16 column, u16 gridRow, vec4 colour, vec4 underline,
+         * vec4 strikethrough, vec4 overline`.
+         *
+         * A decoration is a rule that belongs to the cell rather than to the
+         * character in it, so it travels with the cell's background. A rule the
+         * cell does not have is transparent and the shader draws nothing.
+         */
+        const val BACKGROUND_BYTES = 20
 
         /**
          * `u16×2 atlasRect, u16×2 glyphSize, i16×2 offset, u16×2 gridPos,

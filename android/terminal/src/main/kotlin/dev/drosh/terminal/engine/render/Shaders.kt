@@ -43,6 +43,8 @@ internal object Shaders {
         layout(location = 0) in uvec2 aGridPos;
         layout(location = 1) in vec4 aColor;
         layout(location = 2) in vec4 aUnderline;
+        layout(location = 3) in vec4 aStrikethrough;
+        layout(location = 4) in vec4 aOverline;
         uniform vec4 uProjection;
         uniform vec2 uCellSize;
         // A varying that both stages declare must declare the same precision
@@ -51,6 +53,8 @@ internal object Shaders {
         // error, not a warning.
         out highp vec4 vColor;
         out highp vec4 vUnderline;
+        out highp vec4 vStrikethrough;
+        out highp vec4 vOverline;
         // Where the fragment sits inside its cell, in cells.
         out highp vec2 vLocal;
         void main() {
@@ -70,6 +74,8 @@ internal object Shaders {
             );
             vColor = aColor;
             vUnderline = aUnderline;
+            vStrikethrough = aStrikethrough;
+            vOverline = aOverline;
             vLocal = corner;
         }
     """.trimIndent()
@@ -80,21 +86,30 @@ internal object Shaders {
         // The same precision the vertex stage declares them with.
         in highp vec4 vColor;
         in highp vec4 vUnderline;
+        in highp vec4 vStrikethrough;
+        in highp vec4 vOverline;
         in highp vec2 vLocal;
         out vec4 fragColor;
         void main() {
             fragColor = vColor;
-            // The underline, if the cell has one.
+            // The decorations, if the cell has them.
             //
-            // It is drawn here, in the cell's own quad, rather than as a
-            // glyph: an underline is a rule under the text, and the rule
-            // belongs to the cell, not to the character in it. The alpha says
-            // whether there is one at all — a cell with no underline carries
-            // a transparent colour and nothing is drawn.
-            // 0.06 of the cell's height, and never more than a twentieth of
-            // it: on a small cell a thicker rule would start eating the text
-            // above it.
-            if (vUnderline.a > 0.0 && vLocal.y > 0.94) {
+            // They are drawn here, in the cell's own quad, rather than as
+            // glyphs: a rule belongs to the cell, not to the character in it.
+            // Each colour's alpha says whether there is one at all — a cell
+            // without it carries a transparent colour and nothing is drawn.
+            //
+            // The rule is 0.06 of the cell's height: on a small cell a thicker
+            // one would start eating the text around it.
+            float rule = 0.06;
+            if (vOverline.a > 0.0 && vLocal.y < rule) {
+                fragColor = vOverline;
+            } else if (vStrikethrough.a > 0.0 && abs(vLocal.y - 0.35) < rule * 0.5) {
+                // Through the middle of the lowercase letters, which is where a
+                // strikethrough reads as one rather than as an underline that
+                // happened to be short.
+                fragColor = vStrikethrough;
+            } else if (vUnderline.a > 0.0 && vLocal.y > 1.0 - rule) {
                 fragColor = vUnderline;
             }
         }
