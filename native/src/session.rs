@@ -36,6 +36,7 @@ const KITTY_STORAGE_BYTES: u64 = 128 * 1024 * 1024;
 pub(crate) const MOUSE_BUFFER_LEN: usize = 64;
 use std::sync::{Mutex, MutexGuard};
 
+use crate::block::BlockRecorder;
 use crate::renderer::{FrameError, FrameSource};
 use crate::ghostty;
 use crate::shell::{Phase, Scanner};
@@ -89,6 +90,10 @@ pub struct Session {
     keys: Option<ghostty::GhosttyKeyEncoder>,
     mouse: Option<ghostty::GhosttyMouseEncoder>,
     shell: Scanner,
+    /// The command blocks recorded from the same `OSC 133` marks the shell
+    /// scanner reads. Separate from it: the block recorder needs byte offsets,
+    /// and the phase scanner's contract must not shift with it.
+    block: BlockRecorder,
     /// The engine's own search, bound to this terminal.
     ///
     /// Created lazily: a terminal that never opens the find bar never pays
@@ -180,6 +185,7 @@ impl Session {
             keys: None,
             mouse: None,
             shell: Scanner::new(),
+            block: BlockRecorder::new(),
             search: None,
         })
     }
@@ -200,10 +206,25 @@ impl Session {
     /// Feed a byte stream to the parser.
     ///
     /// The shell's marks are scanned first: the tap observes the bytes and never
-    /// changes them, so the parser sees exactly what the child wrote.
+    /// changes them, so the parser sees exactly what the child wrote. The block
+    /// recorder then sees the same bytes, after the parser, so it can ask the
+    /// terminal whether a TUI took the alternate screen in this very read.
     pub fn write(&mut self, bytes: &[u8]) {
         let _ = self.shell.scan(bytes);
         unsafe { ghostty::ghostty_terminal_vt_write(self.terminal, bytes.as_ptr(), bytes.len()) };
+        let alternate = self.active_screen() == ghostty::GHOSTTY_TERMINAL_SCREEN_ALTERNATE;
+        let cwd = self.shell.directory();
+        self.block.observe(bytes, alternate, cwd);
+    }
+
+    /// Take the wire records the block recorder has produced since the last drain.
+    pub fn drain_block_events(&mut self) -> String {
+        self.block.drain()
+    }
+
+    /// The exit status the last `D` mark carried, or -1 when the shell sent none.
+    pub fn block_exit_status(&self) -> i32 {
+        self.block.last_exit_status()
     }
 
     pub fn resize(&mut self, columns: u16, rows: u16, cell_width: u32, cell_height: u32) -> bool {
