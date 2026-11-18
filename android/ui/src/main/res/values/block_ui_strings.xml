@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Block UI strings (English base only; no i18n tooling in this repo). -->
+<resources>
+    <!-- Per-block overflow menu. -->
+    <string name="block_ui_menu_cd">Block actions</string>
+    <string name="block_ui_menu_copy_command">Copy command</string>
+    <string name="block_ui_menu_copy_output">Copy output</string>
+    <string name="block_ui_menu_copy_both">Copy both</string>
+    <string name="block_ui_menu_collapse">Collapse output</string>
+    <string name="block_ui_menu_expand">Expand output</string>
+
+    <!-- Compact sticky command bar shown after scrolling up into a long block. -->
+    <string name="block_ui_sticky_cd">Jump to command start</string>
+
+    <!-- Card meta row. -->
+    <string name="block_ui_exit_code">exit %1$d</string>
+    <string name="block_ui_network_delta">↓ %1$s  ↑ %2$s</string>
+    <string name="block_ui_collapsed_hint">Output collapsed</string>
+
+    <!-- Replaced by the classic terminal when a full-screen program owns the PTY. -->
+    <string name="block_ui_alt_screen_placeholder">Full-screen program — classic terminal</string>
+</resources>
