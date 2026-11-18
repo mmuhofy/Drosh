@@ -1038,7 +1038,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             (event.actionMasked == MotionEvent.ACTION_UP ||
                 event.actionMasked == MotionEvent.ACTION_CANCEL)
         ) {
-            settleScroll()
+            // The old Drosh view did not snap here, and it was right: the
+            // picture is where the finger left it, and rounding to a row at
+            // the lift is a visible jump at the end of every drag.
+            finishScroll()
         }
         return true
     }
@@ -1253,6 +1256,12 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * and the last line of the output is cut in half. This is the moment to
      * settle: the picture goes onto the row it is nearest.
      */
+    /** End a gesture without moving the picture: publish the shift as it is. */
+    private fun finishScroll() {
+        renderThread.post(RenderThread.Command.ScrollOffset(scrollMachine.shift()))
+        renderThread.invalidate()
+    }
+
     private fun settleScroll() {
         val session = sessionHandle
         if (session == 0L) return
@@ -1304,9 +1313,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val step = object : Runnable {
             override fun run() {
                 if (scroller.isFinished) {
-                    // The coast is over: the picture goes back onto a row
-                    // boundary, so the last line of the output is whole.
-                    settleScroll()
+                    // No snap: the coast ends where the friction says it ends.
+                    // The engine keeps the sub-line remainder, so the picture
+                    // does not jump a row at the end of a flick.
+                    finishScroll()
                     return
                 }
                 scroller.computeScrollOffset()
@@ -1316,7 +1326,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 // The coast ends at the edge: the engine refuses the move and
                 // the picture cannot be pulled further.
                 if (lastScrollPinned) {
-                    settleScroll()
+                    finishScroll()
                     return
                 }
                 postOnAnimation(this)
