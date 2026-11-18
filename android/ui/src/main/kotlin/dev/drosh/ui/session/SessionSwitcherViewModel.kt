@@ -1,13 +1,20 @@
 package dev.drosh.ui.session
 
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.session.ObserveActiveSessionUseCase
+import dev.drosh.domain.session.PersistentSessionStore
+import dev.drosh.domain.session.ResourceSnapshot
+import dev.drosh.domain.session.SessionProcessInfo
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.domain.session.SessionSnapshot
+import dev.drosh.domain.session.SessionTelemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -17,7 +24,31 @@ import javax.inject.Inject
 class SessionSwitcherViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val activeSession: ObserveActiveSessionUseCase,
+    private val persistentSessionStore: PersistentSessionStore,
+    sessionTelemetry: SessionTelemetry,
 ) : ViewModel() {
+
+    private val _thumbnails = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    /** Last captured frame per session, keyed by persistent id. */
+    val thumbnails: StateFlow<Map<String, ImageBitmap>> = _thumbnails.asStateFlow()
+
+    fun setThumbnail(sessionId: String, bitmap: ImageBitmap) {
+        if (sessionId.isEmpty()) return
+        _thumbnails.value = _thumbnails.value + (sessionId to bitmap)
+    }
+
+    /** Live process rows from the engine, sampled in :data. */
+    val processes: StateFlow<List<SessionProcessInfo>> = sessionTelemetry.processes
+
+    /** Live device and renderer sample from :data. */
+    val resources: StateFlow<ResourceSnapshot> = sessionTelemetry.resources
+
+    /** Sessions pinned to survive a full app teardown. Empty means none. */
+    val persistentIds: StateFlow<Set<String>> = persistentSessionStore.persistentIds
+
+    fun setPersistent(sessionId: String, enabled: Boolean) {
+        viewModelScope.launch { persistentSessionStore.setPersistent(sessionId, enabled) }
+    }
 
     val allSessions: StateFlow<List<SessionSnapshot>> =
         sessionRepository.observeAll()

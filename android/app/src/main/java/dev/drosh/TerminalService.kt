@@ -14,10 +14,13 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import dev.drosh.domain.session.PersistentSessionStore
 import dev.drosh.domain.session.SessionRepository
 import dev.drosh.core.TerminalConstants
+import dev.drosh.data.di.ApplicationScope
 import dev.drosh.terminal.session.TerminalManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -36,6 +39,15 @@ class TerminalService : LifecycleService() {
 
     @Inject
     lateinit var sessionRepository: SessionRepository
+
+    @Inject
+    lateinit var persistentSessionStore: PersistentSessionStore
+
+    // The service is being torn down; lifecycleScope is being destroyed with it,
+    // so the sweep runs on the process-wide scope instead.
+    @Inject
+    @field:ApplicationScope
+    lateinit var appScope: CoroutineScope
 
     private val binder = LocalBinder()
 
@@ -128,6 +140,19 @@ class TerminalService : LifecycleService() {
         contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_COMMAND), null)
         contentResolver.notifyChange(Uri.parse(CommandStateProvider.URI_SNIPPETS), null)
         terminalManager.destroy()
+
+        // The user chose the foreground service's death as "the app fully
+        // closed": it is the moment the shells are gone and the process has no
+        // reason to come back. A recents swipe is deliberately NOT the trigger —
+        // it only removes the activity, and the service (and its shells) keeps
+        // running. Sweeping there would throw away session history every time
+        // the user switched apps, which is the opposite of what a terminal is
+        // for. Here, unpinned metadata is removed; pinned rows and their previews
+        // survive for the next launch.
+        appScope.launch {
+            val keep = persistentSessionStore.snapshot()
+            sessionRepository.deleteNonPersistentSessions(keep)
+        }
         super.onDestroy()
     }
 

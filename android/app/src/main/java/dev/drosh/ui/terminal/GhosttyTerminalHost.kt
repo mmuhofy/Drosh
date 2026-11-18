@@ -1,11 +1,16 @@
 package dev.drosh.ui.terminal
 
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
+import android.view.PixelCopy
+import android.view.Surface
 import android.view.View
 import android.view.ViewConfiguration
 import androidx.compose.foundation.layout.Box
@@ -23,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +47,7 @@ import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
@@ -111,6 +119,13 @@ fun GhosttyTerminalHost(
      */
     backgroundFile: java.io.File? = null,
     backgroundOpacity: Int = 255,
+    /**
+     * Told the last captured frame of a session, for the session grid's card.
+     *
+     * The host owns the only SurfaceView showing that session, so it is the only
+     * place a picture can be taken. Without a session id nothing is captured.
+     */
+    onThumbnail: (String, ImageBitmap) -> Unit = { _, _ -> },
     /**
      * The colour a search match is drawn in.
      *
@@ -475,6 +490,42 @@ fun GhosttyTerminalHost(
 
     pane.onSessionExited = { code -> status = "session ended ($code)" }
 
+    // Thumbnails. The surface is only readable while the host is on screen; the
+    // last frame before a session is switched away (or the app backgrounds) is
+    // kept for the grid's card. The callbacks are read live so these effects do
+    // not have to be rebuilt when the caller changes.
+    var hostVisible by remember { mutableStateOf(true) }
+    val currentSessionId = rememberUpdatedState(sessionId)
+    val currentOnThumbnail = rememberUpdatedState(onThumbnail)
+    val captureThumbnail: (String) -> Unit = { id ->
+        val surface = runCatching { pane.view.holder.surface }.getOrNull()
+        if (surface != null) {
+            captureSessionThumbnail(
+                surface = surface,
+                viewWidth = pane.view.width,
+                viewHeight = pane.view.height,
+                sessionId = id,
+                onThumbnail = currentOnThumbnail.value,
+            )
+        }
+    }
+
+    LaunchedEffect(hostVisible, pane, sessionId) {
+        if (!hostVisible || sessionId.isEmpty()) return@LaunchedEffect
+        while (isActive && hostVisible) {
+            delay(THUMBNAIL_CAPTURE_INTERVAL_MS)
+            captureThumbnail(sessionId)
+        }
+    }
+
+    DisposableEffect(pane, sessionId) {
+        onDispose {
+            // One last frame for the session that is leaving this pane. Declared
+            // before the release effect below, so the surface is still ours.
+            captureThumbnail(sessionId)
+        }
+    }
+
     DisposableEffect(pane) {
         onDispose {
             terminalManager.unregisterPane(paneSlot)
@@ -485,8 +536,15 @@ fun GhosttyTerminalHost(
     DisposableEffect(lifecycleOwner, pane) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> pane.onHostResume()
-                Lifecycle.Event.ON_PAUSE -> pane.onHostPause()
+                Lifecycle.Event.ON_RESUME -> {
+                    hostVisible = true
+                    pane.onHostResume()
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    hostVisible = false
+                    pane.onHostPause()
+                    captureThumbnail(currentSessionId.value)
+                }
                 else -> Unit
             }
         }
@@ -602,6 +660,53 @@ fun GhosttyTerminalHost(
 }
 
 private const val TAG = "GhosttyTerminalHost"
+
+/** How often a visible session's last frame is refreshed. */
+private const val THUMBNAIL_CAPTURE_INTERVAL_MS = 2_000L
+
+/** Longest edge of a thumbnail. A card is a few hundred dp at most. */
+private const val THUMBNAIL_MAX_WIDTH = 160
+
+/**
+ * Copy one frame from the pane's surface into a small bitmap and hand it up.
+ *
+ * // UNTESTED — verify before use
+ * PixelCopy is asynchronous and reports through a listener on the main looper;
+ * neither the copy nor a failure waits on the render thread. A secure or already
+ * destroyed surface can refuse the request — that is logged and dropped, never
+ * retried in a tight loop and never allowed to block a frame.
+ */
+private fun captureSessionThumbnail(
+    surface: Surface,
+    viewWidth: Int,
+    viewHeight: Int,
+    sessionId: String,
+    onThumbnail: (String, ImageBitmap) -> Unit,
+) {
+    // UNTESTED — verify before use
+    if (sessionId.isEmpty() || viewWidth <= 0 || viewHeight <= 0 || !surface.isValid) return
+    val scale = (THUMBNAIL_MAX_WIDTH.toFloat() / viewWidth).coerceAtMost(1f)
+    val width = (viewWidth * scale).toInt().coerceAtLeast(1)
+    val height = (viewHeight * scale).toInt().coerceAtLeast(1)
+    val bitmap = runCatching {
+        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    }.getOrElse { error ->
+        Log.w(TAG, "thumbnail bitmap allocation failed: ${error.message}")
+        return
+    }
+    PixelCopy.request(
+        surface,
+        bitmap,
+        { result ->
+            if (result == PixelCopy.SUCCESS) {
+                onThumbnail(sessionId, bitmap.asImageBitmap())
+            } else {
+                Log.w(TAG, "PixelCopy failed for $sessionId: $result")
+            }
+        },
+        Handler(Looper.getMainLooper()),
+    )
+}
 
 /** How often the open panel reads the moving numbers again. */
 private const val DIAGNOSTICS_REFRESH_MS = 500L

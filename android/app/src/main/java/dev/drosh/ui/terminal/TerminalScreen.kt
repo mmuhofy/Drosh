@@ -66,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import dev.drosh.ui.LocalDroshActivity
@@ -497,9 +498,30 @@ private fun ReadyScreen(
         if (immersive) {
             controller.hide(WindowInsetsCompat.Type.systemBars())
         } else {
-            controller.show(WindowInsetsCompat.Type.systemBars())
+            // The status bar belongs to the screen-scoped effect below while
+            // this screen is composed; only the navigation bar follows the
+            // immersive state here. Showing systemBars() here would put the
+            // status bar's text back over the pill row on every scroll.
+            controller.show(WindowInsetsCompat.Type.navigationBars())
         }
     }
+
+    // The status bar's clock and icons share the strip the pill row floats in.
+    // Hide them for as long as this screen is composed — the session grid is a
+    // child of this composition, so it needs no second effect — and restore them
+    // when the screen leaves. Only statusBars() is owned here; the immersive
+    // effect above keeps its fullscreen decision and the navigation bar.
+    DisposableEffect(activity) {
+        val window = (activity as? android.app.Activity)?.window
+        val controller = if (window != null) {
+            WindowCompat.getInsetsController(window, window.decorView)
+        } else {
+            null
+        }
+        controller?.hide(WindowInsetsCompat.Type.statusBars())
+        onDispose { controller?.show(WindowInsetsCompat.Type.statusBars()) }
+    }
+
     var sidebarOpen by remember { mutableStateOf(false) }
     // Resource Monitor'un açtığı engine diagnostics raporu.
     var resourceDiagnosticsOpen by remember { mutableStateOf(false) }
@@ -588,7 +610,6 @@ private fun ReadyScreen(
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
     val backgroundFile by terminalViewModel.backgroundFile.collectAsStateWithLifecycle()
-    val shouldExit by sessionSwitcherViewModel.shouldExit.collectAsState()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
     val noSessionsLeft by terminalManager.noSessionsLeft.collectAsState()
@@ -1272,6 +1293,9 @@ private fun ReadyScreen(
                     customFontUri = customFontUri,
                     onBoundsChanged = { terminalBounds = it },
                     onUrlClick = { browserUrl = it },
+                    onThumbnail = { id, bitmap ->
+                        sessionSwitcherViewModel.setThumbnail(id, bitmap)
+                    },
                 )
             },
             secondary = {
@@ -1329,6 +1353,9 @@ private fun ReadyScreen(
                     // not looking at.
                     onBoundsChanged = {},
                     onUrlClick = { browserUrl = it },
+                    onThumbnail = { id, bitmap ->
+                        sessionSwitcherViewModel.setThumbnail(id, bitmap)
+                    },
                 )
             },
         )
@@ -1639,6 +1666,11 @@ private fun ReadyScreen(
             }
         }
 
+        // The single exit confirmation lives here. MainActivity does not show a
+        // second one when the last session goes — its two dialogs are the PIN
+        // gate and the external-settings-change notice — so there is nothing to
+        // consolidate. The stale `shouldExit` read this screen used to collect
+        // was never shown, and has been dropped so this remains the one dialog.
         // Only shown when the last session is gone, whether by typing `exit`, by
         // closing from the toolbar, or by deleting from the sidebar. A session
         // exiting while siblings remain is routine and says nothing here; the
@@ -1949,6 +1981,8 @@ private fun TerminalPaneBody(
     customFontUri: String,
     onBoundsChanged: (Rect) -> Unit,
     onUrlClick: (String) -> Unit,
+    /** Told this pane's last frame, for the session grid's card. */
+    onThumbnail: (String, ImageBitmap) -> Unit,
 ) {
     // A TUI (nano, vim, htop) takes over the alternate screen buffer, so the raw
     // terminal view has to be shown rather than the block list — the shell is
@@ -2077,6 +2111,7 @@ private fun TerminalPaneBody(
                 // resolves the cell against the engine and hands the URI up;
                 // the screen decides what opening it means.
                 onUrlClick = onUrlClick,
+                onThumbnail = onThumbnail,
                 modifier = Modifier.fillMaxSize(),
             )
 

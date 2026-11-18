@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.ripple
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
@@ -219,6 +221,10 @@ private val PILL_SHAPE = RoundedCornerShape(percent = 50)
  * button still belongs to the row.
  */
 private val SESSION_BUTTON_SHAPE = RoundedCornerShape(14.dp)
+
+/** How far a pill shrinks while it is held, and how long the shrink takes. */
+private const val PILL_PRESSED_SCALE = 0.92f
+private const val PILL_PRESS_ANIMATION_MILLIS = 200
 
 /**
  * A pill's width, equal to its height, so the buttons read as full circles.
@@ -497,80 +503,55 @@ fun TerminalTopBar(
             Spacer(Modifier.weight(1f))
 
 
-            // ── Right: one body, two discs ────────────────────────────────────
+            // ── Right: the sessions square and the overflow circle ───────────
             // Same Row as the left group rather than a sibling Box aligned by
-            // hand. Two separate parents let the clusters settle on different
-            // baselines whenever their content differed in height, which is why
-            // the left and right buttons looked vertically offset.
+            // hand: two parents let the clusters settle on different baselines
+            // whenever their content differed in height.
             //
-            // One body, two buttons.
-            //
-            // The pair reads as a single control with two actions in it: the
-            // surface carries the fill and the gradient edge, so the silhouette
-            // is one shape rather than two that happen to touch. Inside it each
-            // button is its own tap target with its own ripple, so a press is
-            // never ambiguous about which of the two it meant.
-            Box(
-                modifier = Modifier
-                    .height(rowHeight)
-                    .clip(PILL_SHAPE)
-                    .background(PILL_SURFACE)
-                    .pillEdge(PILL_SHAPE),
+            // The sessions button carries its OWN surface now. It used to sit
+            // inside a capsule body with a second, smaller square drawn over it;
+            // the outer silhouette stayed a circle, which is not the soft-cornered
+            // square the control is meant to be. Giving the button the rounded
+            // square shape and letting it draw its own fill and edge removes the
+            // duplicate inner square and makes the silhouette the shape itself.
+            Row(
+                modifier = Modifier.height(rowHeight),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(
-                    modifier = Modifier.height(rowHeight),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(0.dp),
-                ) {
-                    GlassPillButton(
-                        backdrop = backdrop,
-                        terminalBounds = terminalBounds,
-                        contentDescription = stringResource(dev.drosh.ui.R.string.topbar_sessions),
-                        width = rowHeight,
-                        height = rowHeight,
-                        iconSize = pillIconSize,
-                        ownSurface = false,
-                        content = {
-                            // The sessions button is a soft-cornered square with
-                            // the number of sessions in it.
-                            //
-                            // It used to be an eye with a count over it, and the
-                            // eye was saying the same thing twice: a switcher
-                            // with a number on it is a view of what is there.
-                            // The square says "a set of things" and the number
-                            // says how many — one sign, not two.
-                            Box(
-                                modifier = Modifier
-                                    .size(pillIconSize)
-                                    .clip(SESSION_BUTTON_SHAPE)
-                                    .background(PILL_CONTENT.copy(alpha = 0.10f)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = if (sessionCount > 0) sessionCount.toString() else "-",
-                                    color = PILL_CONTENT,
-                                    fontFamily = LocalFontSet.current.sans,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                )
-                            }
-                        },
-                        onClick = onOpenSessions,
-                    )
+                GlassPillButton(
+                    backdrop = backdrop,
+                    terminalBounds = terminalBounds,
+                    contentDescription = stringResource(dev.drosh.ui.R.string.topbar_sessions),
+                    width = rowHeight,
+                    height = rowHeight,
+                    iconSize = pillIconSize,
+                    shape = SESSION_BUTTON_SHAPE,
+                    content = {
+                        // Hollow interior: the count sits on the button's own
+                        // translucent surface, with no second square behind it.
+                        Text(
+                            text = if (sessionCount > 0) sessionCount.toString() else "-",
+                            color = PILL_CONTENT,
+                            fontFamily = LocalFontSet.current.sans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                        )
+                    },
+                    onClick = onOpenSessions,
+                )
 
-                    GlassPillButton(
-                        backdrop = backdrop,
-                        terminalBounds = terminalBounds,
-                        icon = DroshIcons.EllipsisVertical,
-                        contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
-                        width = PILL_WIDTH,
-                        height = rowHeight,
-                        iconSize = pillIconSize,
-                        ownSurface = false,
-                        onClick = { moreExpanded = true },
-                    )
-                }
+                GlassPillButton(
+                    backdrop = backdrop,
+                    terminalBounds = terminalBounds,
+                    icon = DroshIcons.EllipsisVertical,
+                    contentDescription = stringResource(dev.drosh.ui.R.string.topbar_more_actions),
+                    width = PILL_WIDTH,
+                    height = rowHeight,
+                    iconSize = pillIconSize,
+                    onClick = { moreExpanded = true },
+                )
             }
         }
         }
@@ -677,9 +658,11 @@ private fun MoreActionsDropdown(
 /**
  * The row's pill button.
  *
- * An opaque disc with a gradient edge. It used to be frosted glass — a blurred
- * slice of the terminal behind it — and the doc here claimed a press-scale that
- * was never implemented; the ripple is the whole of the press feedback.
+ * An opaque shape with a gradient edge and a short scale-down while held. It
+ * used to be frosted glass — a blurred slice of the terminal behind it — and the
+ * doc here claimed a press-scale that was never implemented. Both the shrink
+ * and the ripple now come from [GlassSurface]'s interaction source, so every
+ * button in the row (the sessions square included) answers a press the same way.
  */
 @Composable
 private fun GlassPillButton(
@@ -791,9 +774,16 @@ private fun GlassSurface(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) PILL_PRESSED_SCALE else 1f,
+        animationSpec = tween(PILL_PRESS_ANIMATION_MILLIS),
+        label = "pillPressScale",
+    )
 
     Box(
         modifier = modifier
+            .graphicsLayer(scaleX = pressScale, scaleY = pressScale)
             .clip(shape)
             .then(if (ownSurface) Modifier.background(PILL_SURFACE) else Modifier)
             .then(

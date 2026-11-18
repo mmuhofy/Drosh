@@ -237,6 +237,17 @@ class GhosttySession(
         }
     }
 
+    /**
+     * The child's name as the kernel knows it right now, or null when the pid is
+     * not set or `/proc` cannot be read.
+     *
+     * The probe above uses the same read once at start to name the session. This
+     * is the on-demand form, for the process sheet's periodic sample — it reports
+     * the exec that happened later without keeping a second copy of the name.
+     */
+    fun currentProcessName(): String? =
+        if (processId > 0) readProcessName(processId) else null
+
     /** The child's name, as the kernel knows it, or null when it cannot be read. */
     private fun readProcessName(pid: Int): String? =
         runCatching {

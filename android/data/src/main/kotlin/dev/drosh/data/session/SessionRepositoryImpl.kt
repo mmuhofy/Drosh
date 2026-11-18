@@ -121,6 +121,30 @@ class SessionRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun deleteNonPersistentSessions(keepIds: Set<String>) {
+        val rows = dao.observeAll().first()
+        val doomed = rows.map { it.id }.toSet() - keepIds
+        if (doomed.isEmpty()) return
+
+        doomed.forEach { dao.delete(it) }
+        // The preview map is in-memory state belonging to these rows. Leaving it
+        // behind would keep closed sessions alive in the grid's ticker until the
+        // process died, which is exactly what this sweep is meant to prevent.
+        _livePreviews.update { current -> current.filterKeys { it !in doomed } }
+
+        val activeId = dataStore.data.map { it[KEY_ACTIVE_SESSION_ID] }.first()
+        if (activeId in doomed) {
+            // Point at a surviving pinned row if there is one; a relaunch then
+            // opens the session the user chose to keep instead of falling back
+            // to whichever row happens to be first.
+            val survivor = rows.firstOrNull { it.id in keepIds }?.id
+            dataStore.edit { prefs ->
+                if (survivor != null) prefs[KEY_ACTIVE_SESSION_ID] = survivor
+                else prefs.remove(KEY_ACTIVE_SESSION_ID)
+            }
+        }
+    }
+
     override suspend fun restoreSession(snapshot: SessionSnapshot, activate: Boolean) {
         dao.upsert(
             SessionEntity(
