@@ -117,9 +117,9 @@ import dev.drosh.ui.input.InputBarViewModel
 import dev.drosh.ui.pane.PaneLayoutViewModel
 import dev.drosh.ui.pane.SplitPaneHost
 import dev.drosh.domain.session.SessionState
-import dev.drosh.ui.session.SessionGrid
+import dev.drosh.ui.session.SessionScreen
 import dev.drosh.ui.session.SessionLogTarget
-import dev.drosh.ui.session.SessionSidebar
+import dev.drosh.ui.session.Sidebar
 import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.session.rememberSidebarPushState
 import dev.drosh.ui.session.sidebarPush
@@ -498,6 +498,9 @@ private fun ReadyScreen(
         }
     }
     var sidebarOpen by remember { mutableStateOf(false) }
+    // Resource Monitor'un açtığı engine diagnostics raporu.
+    var resourceDiagnosticsOpen by remember { mutableStateOf(false) }
+    var resourceDiagnosticsText by remember { mutableStateOf("") }
 
     /**
      * Whether the session grid is showing.
@@ -1529,7 +1532,7 @@ private fun ReadyScreen(
         ) {
             BackHandler { sessionsGridOpen = false }
 
-            SessionGrid(
+            SessionScreen(
                 backgroundIds = backgroundSessionIds,
                 titles = sessionTitles,
                 sessions = sessions,
@@ -1727,103 +1730,34 @@ private fun ReadyScreen(
         }
     }
 
-    SessionSidebar(
+    Sidebar(
         isOpen = sidebarOpen,
-        onOpenSettings = onOpenSettings,
-        onOpenAgent = onOpenAgent,
-        onOpenSsh = onOpenSsh,
-        onOpenProjects = onOpenProjects,
-        pushState = sidebarPush,
-        // Offered only when there is something to split into. With one live
-        // session the grip would open a pane that can only ever be empty, and
-        // the split would refuse it anyway.
-        onSplitSession = if (liveSessionIds.size >= 2) {
-            { id ->
-                // The primary pane shows the active session, so the session
-                // that stays up has to become the active one.
-                activeId?.let { sessionSwitcherViewModel.activate(it) }
-                paneLayoutViewModel.openSplit(id, activeId)
-            }
-        } else {
-            null
-        },
-        onFloatSession = if (liveSessionIds.size >= 2) {
-            { id -> paneLayoutViewModel.openFloating(id, activeId) }
-        } else {
-            null
-        },
-        isSplit = paneLayout.isSplit,
-        isFloatingPane = paneLayout.isFloating,
-        // The drawer's keyboard button, reaching the same toggle the top
-        // bar's own control does — the drawer is simply the one place that
-        // stays reachable while the keyboard is up.
-        onToggleKeyboard = ::toggleKeyboard,
-        /**
-         * A card carried out of the drawer and dropped on the terminal.
-         *
-         * The same split the row menu's "Split below" makes, so the gesture and
-         * the menu agree about what they do. Offered when there is a second
-         * session to make a pair with, which is the same condition the row's
-         * own grip uses.
-         */
-        onHoldChange = { id -> heldSessionId = id },
-        onCycleSplit = paneLayoutViewModel::cycleSplitFraction,
-        onDropOnTerminal = if (liveSessionIds.size >= 2) {
-            { id ->
-                activeId?.let { sessionSwitcherViewModel.activate(it) }
-                paneLayoutViewModel.openSplit(id, activeId)
-            }
-        } else {
-            null
-        },
-        /**
-         * Ids, not names, and in the order they are drawn: the upper pane
-         * first. The drawer's pair card mirrors the screen, and a swap changes
-         * that order — a pair of names could not express it, so the card would
-         * show the old arrangement while the terminal had already swapped.
-         *
-         * The upper pane is **the primary pane**, which is not the same thing as
-         * the active session. [activeId] follows focus, and with the split up the
-         * user taps the lower pane more often than not — so reading it here named
-         * the lower session on *both* halves of the card, made both of its taps
-         * activate the same session, and left the upper session listed as an
-         * ordinary row. [PaneSlot.PRIMARY]'s own session is the only value that
-         * answers "which one is on top".
-         *
-         * A split missing either session is not drawn rather than drawn with a
-         * blank half: a card naming one session and an empty space beside it is
-         * worse than no card.
-         */
-        splitSessions = paneLayout.secondarySessionId?.let { secondary ->
-            val primaryId = terminalManager.sessionIdForSlot(PaneSlot.PRIMARY)
-            if (primaryId != null && primaryId != secondary) {
-                if (paneLayout.secondarySwapped) secondary to primaryId
-                else primaryId to secondary
-            } else {
-                null
-            }
-        },
-        onCloseSplit = { paneLayoutViewModel.closeSplit() },
-        onSwapPanes = { paneLayoutViewModel.swapPanes() },
-        /**
-         * The row menu's "Dock pane", on a row that is already a floating
-         * window. It was drawn with nothing behind it before, so it did
-         * nothing when tapped.
-         */
-        onDock = { paneLayoutViewModel.dock() },
-        /**
-         * The press-and-drop split: hold one session, tap another, and the two
-         * share the screen with the held one on top.
-         *
-         * Which one goes on top follows the gesture rather than the terminal's
-         * current session, because the gesture is the whole instruction — hold a
-         * card, drop it on another, and the card you held is the one you were
-         * pointing at.
-         */
-        onDragSplit = { draggedId, targetId ->
-            paneLayoutViewModel.splitWithPrimary(draggedId, targetId)
+        onClose = { sidebarOpen = false },
+        onOpenDiagnostics = {
+            sidebarOpen = false
+            resourceDiagnosticsText =
+                dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.report()
+            resourceDiagnosticsOpen = true
         },
     )
+
+    if (resourceDiagnosticsOpen) {
+        AlertDialog(
+            onDismissRequest = { resourceDiagnosticsOpen = false },
+            title = { Text("Engine diagnostics") },
+            text = {
+                Text(
+                    resourceDiagnosticsText,
+                    modifier = androidx.compose.foundation.verticalScroll(
+                        androidx.compose.foundation.rememberScrollState(),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { resourceDiagnosticsOpen = false }) { Text("Close") }
+            },
+        )
+    }
 
     }
 }
