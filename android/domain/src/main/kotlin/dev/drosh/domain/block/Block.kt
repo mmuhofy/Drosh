@@ -41,6 +41,12 @@ data class Block(
     val currentTxBytes: Long = startTxBytes,
     /** Output collapsed by user? Body output row hidden if true. */
     val isCollapsed: Boolean = false,
+    /**
+     * Styled output, one [StyledLine] per logical line. The engine's ANSI parser
+     * fills this; [outputLines] stays the plain-text projection used by copy and
+     * search. Empty for blocks recorded before the engine supplied styles.
+     */
+    val outputRich: List<StyledLine> = emptyList(),
 ) {
     /**
      * Elapsed time in milliseconds.

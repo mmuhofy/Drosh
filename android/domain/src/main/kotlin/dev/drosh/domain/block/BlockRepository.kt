@@ -38,8 +38,12 @@ interface BlockRepository {
     /**
      * Stream a chunk of output text. Lines are split on `\n`; trailing
      * partial lines are buffered until the next chunk.
+     *
+     * [lines] is the engine's styled projection of the same chunk. When it is
+     * supplied, the repository keeps it in [Block.outputRich] alongside the
+     * plain text. Callers without a styled source may leave it empty.
      */
-    fun onOutputChunk(chunk: String)
+    fun onOutputChunk(chunk: String, lines: List<StyledLine> = emptyList())
 
     /**
      * Append output to a shell-only "boot" block that has no command.
@@ -70,8 +74,8 @@ interface BlockRepository {
 
     /**
      * Currently-running block's command string, or null if no block is
-     * running. Used by [BlockEngineWire] to identify the echoed line
-     * that the shell prints as the user types and strip it from output.
+     * running. Kept for echo suppression by legacy callers; engine-driven
+     * blocks arrive with their own command text and do not need it.
      */
     fun currentCommand(): String?
 
