@@ -31,17 +31,17 @@ class UbuntuBootstrap(private val context: Context) {
     val rootfsDir: File get() = File(baseDir, "rootfs")
     private val tmpDir: File get() = File(baseDir, "tmp")
 
-    /** Marker file written by `rootfs-optimize.sh` once bootstrap completes. */
+    /** Marker file written by `setup.sh` once bootstrap completes. */
     private val setupMarker: File
         get() = File(rootfsDir, "var/lib/drosh/.setup_complete")
 
     /**
      * Whether the guest's filesystem is installed.
      *
-     * The rootfs is the guest's, and it does not belong to an engine: chroot-ng and
-     * chroot-ng run the same filesystem, they only differ in how they enter it.
+     * The rootfs is the guest's, and it does not belong to an engine: every
+     * launcher enters the same filesystem, they only differ in how they do it.
      *
-     * Asking about one engine's binary here tied the two together, so choosing
+     * Asking about one launcher's binary here tied the two together, so choosing
      * chroot-ng on a device where it had never been staged said "no guest" —
      * and the terminal came up empty, with the vendored terminal quietly
      * falling back to a plain shell and hiding it.
@@ -144,28 +144,19 @@ class UbuntuBootstrap(private val context: Context) {
                 }
                 onLog("✓ Rootfs extracted.")
 
-                onLog("→ Preparing bash…")
+                onLog("→ Configuring guest (network, bash, completion marker)…")
                 onState(UbuntuSetupState.Configuring)
                 lastFailedStep = "Configure"
-                runScriptInGuest(SCRIPTS_CONFIGURE, onLog = onLog)
-                lastFailedStep = "Bash"
-                runScriptInGuest(
-                    SCRIPTS_BASHRC,
-                    onLog = onLog,
-                    envExtras = mapOf("IRIS_USERNAME" to preferences.userName),
-                )
-                onLog("✓ Bash configured for ${preferences.userName}.")
-
-                onLog("→ Finalizing rootfs (deb cache purge, marker write)…")
-                onState(UbuntuSetupState.Optimizing)
-                lastFailedStep = "Optimize"
                 val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
                 runScriptInGuest(
-                    SCRIPTS_OPTIMIZE,
+                    SCRIPT_SETUP,
                     onLog = onLog,
-                    envExtras = mapOf("ABI" to abi),
+                    envExtras = mapOf(
+                        "IRIS_USERNAME" to preferences.userName,
+                        "ABI" to abi,
+                    ),
                 )
-                onLog("✓ Rootfs optimized.")
+                onLog("✓ Guest configured for ${preferences.userName}.")
 
                 onLog("✓ Bootstrap complete. Ready.")
                 onState(UbuntuSetupState.Ready)
@@ -181,10 +172,8 @@ class UbuntuBootstrap(private val context: Context) {
     }
 
 
-    // The pipeline is deliberately just three script calls: rootfs-configure.sh
-    // makes the guest usable, bashrc-write.sh prepares the bash prompt, and
-    // rootfs-optimize.sh writes the completion marker. All of them live under
-    // linux/src/main/assets/shell-scripts/setup/ and are streamed to the guest
+    // One script does all guest configuration. It lives under
+    // linux/src/main/assets/shell-scripts/setup/ and is streamed to the guest
     // via stdin (`bash -s`) — see `runScriptInGuest`.
 
     // ─── Guest script loading & execution ─────────────────────────
@@ -364,11 +353,9 @@ class UbuntuBootstrap(private val context: Context) {
             "x86" to "i386"
         )
 
-        // Asset script filenames under linux/src/main/assets/shell-scripts/setup/.
-        // Each is shipped in the APK and streamed to the guest via stdin (`bash -s`).
-        private const val SCRIPTS_CONFIGURE = "rootfs-configure.sh"
-        private const val SCRIPTS_BASHRC = "bashrc-write.sh"
-        private const val SCRIPTS_OPTIMIZE = "rootfs-optimize.sh"
+        // The single setup script, shipped in the APK and streamed to the
+        // guest via stdin (`bash -s`).
+        private const val SCRIPT_SETUP = "setup.sh"
     }
 
     // ─── tar.gz extraction (no system binary dependency) ─────────────────────
