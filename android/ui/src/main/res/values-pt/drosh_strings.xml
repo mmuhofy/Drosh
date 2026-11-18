@@ -241,7 +241,6 @@
     <string name="terminal_preparing">Preparando…</string>
     <string name="terminal_extracting_rootfs">Extraindo rootfs do Ubuntu…</string>
     <string name="terminal_configuring">Configurando o sistema…</string>
-    <string name="terminal_installing_packages">Instalando pacotes…</string>
     <string name="terminal_cleaning">Limpando…</string>
     <string name="terminal_ready">Pronto</string>
     <string name="terminal_setting_up">Configurando o terminal</string>

@@ -59,7 +59,6 @@ import dev.drosh.domain.settings.MotdMode
 import dev.drosh.domain.settings.PinLockRepository
 import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.ThemeMode
-import dev.drosh.domain.terminal.PackageProfile
 import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.LocalDroshActivity

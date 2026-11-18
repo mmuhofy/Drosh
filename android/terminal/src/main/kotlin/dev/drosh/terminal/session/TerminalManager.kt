@@ -987,18 +987,15 @@ class TerminalManager(
     var projectPath: String? = null
 
     /**
-     * Detects the effective shell: if Oh My Zsh is installed, use zsh;
-     * otherwise fall back to bash. This handles the case where zsh was chosen
-     * but the OMZ install failed during bootstrap.
+     * Legacy recovery hook, kept as a no-op — engine panes handle their own
+     * fallback sessions.
      */
     private fun recoverFallbackSessions() {
         // Termux fallback sessions removed — engine panes handle their own.
     }
 
-    private fun effectiveShellPath(): String {
-        val omzDir = File(ubuntuBootstrap.rootfsDir, "home/.oh-my-zsh")
-        return if (omzDir.exists()) "/bin/zsh" else "/bin/bash"
-    }
+    /** Setup installs bash and nothing else, so sessions always exec bash. */
+    private fun effectiveShellPath(): String = "/bin/bash"
 
     init {
         // The guest's launchers are staged on their own, in the background:
@@ -2419,8 +2416,8 @@ class TerminalManager(
         val zshrc = File(homeDir, ".zshrc")
         val omzPath = File(homeDir, ".oh-my-zsh")
 
-        // If Oh My Zsh is present, a full .zshrc was already written by
-        // zshrc-write.sh during bootstrap — don't clobber it.
+        // A pre-existing full .zshrc (from an older install or the user) is
+        // theirs — setup no longer writes one, so never clobber it.
         if (zshrc.exists() && omzPath.exists()) return
 
         // ── MOTD file ──────────────────────────────────────────────────────────

@@ -30,17 +30,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.theme.LocalFontSet
+import dev.drosh.ui.R
 import dev.drosh.ui.setup.theme.SetupPalette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -79,7 +80,7 @@ fun LiveLogCard(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "Live Log",
+                text = stringResource(R.string.setup_log_title),
                 color = SetupPalette.TextSecondary,
                 style = TextStyle(
                     fontFamily = LocalFontSet.current.sans,
@@ -89,7 +90,11 @@ fun LiveLogCard(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "${lines.size} ${if (lines.size == 1) "line" else "lines"}",
+                text = if (lines.size == 1) {
+                    stringResource(R.string.setup_log_lines_one, lines.size)
+                } else {
+                    stringResource(R.string.setup_log_lines_other, lines.size)
+                },
                 color = SetupPalette.TextMuted,
                 style = TextStyle(
                     fontFamily = LocalFontSet.current.sans,
@@ -154,7 +159,7 @@ private fun EmptyLogHint() {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "Waiting for logs…",
+            text = stringResource(R.string.setup_log_waiting),
             color = SetupPalette.TextMuted,
             style = TextStyle(
                 fontFamily = LocalFontSet.current.mono,

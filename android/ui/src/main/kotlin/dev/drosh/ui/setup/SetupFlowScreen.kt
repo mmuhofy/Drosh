@@ -1,5 +1,6 @@
 package dev.drosh.ui.setup
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -25,11 +26,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.theme.DroshBackground
-import dev.drosh.ui.setup.onboarding.scenes.TerminalReadyScene
-import dev.drosh.ui.setup.onboarding.scenes.WelcomeScene
 import dev.drosh.ui.setup.onboarding.components.WormPageIndicator
-import dev.drosh.ui.setup.stages.BootstrapStage
 
+/**
+ * The two-screen onboarding flow: a presentation of Drosh, then the one-time
+ * install. There is no theme page and no third "ready" page — the install
+ * screen hands straight off to the terminal when the bootstrap finishes.
+ *
+ * Failure leaves the flow entirely: [onSetupFailed] opens the recovery route,
+ * which stays available as the diagnostic path.
+ */
 @Composable
 fun SetupFlowScreen(
     onReady: () -> Unit,
@@ -45,14 +51,13 @@ fun SetupFlowScreen(
         return
     }
 
-    // The bootstrap finishing is what opens the last page: the stage below
-    // shows the work, and the moment it reports ready the flow moves on its
-    // own rather than asking the user to find a button in the log drawer's
-    // shadow. Keyed on readiness alone so a retry that ends ready again does
-    // not drag the user back out of the page they are already reading.
-    LaunchedEffect(progress.isReady) {
+    // The bootstrap finishing is the hand-off. Keyed on the page as well as
+    // readiness: a device that was already installed can report ready before
+    // the user leaves the welcome screen, and the transition into the setup
+    // page must still open the terminal rather than showing a finished bar.
+    LaunchedEffect(progress.isReady, currentPage) {
         if (progress.isReady && currentPage == 1) {
-            currentPage = 2
+            onReady()
         }
     }
 
@@ -65,7 +70,7 @@ fun SetupFlowScreen(
             .fillMaxSize()
             .background(DroshBackground),
     ) {
-        androidx.compose.animation.AnimatedContent(
+        AnimatedContent(
             targetState = currentPage,
             transitionSpec = {
                 val isForward = targetState > initialState
@@ -77,46 +82,26 @@ fun SetupFlowScreen(
                     animationSpec = tween(durationMillis = durationExit),
                     targetOffsetX = { if (isForward) slideDistance else -slideDistance },
                 )
-                val fadeInSpec = fadeIn(animationSpec = tween(durationMillis = durationEnter))
-                val fadeOutSpec = fadeOut(animationSpec = tween(durationMillis = durationExit))
-
-                (slideIn + fadeInSpec) togetherWith (slideOut + fadeOutSpec)
+                (slideIn + fadeIn(animationSpec = tween(durationMillis = durationEnter))) togetherWith
+                    (slideOut + fadeOut(animationSpec = tween(durationMillis = durationExit)))
             },
             label = "setup-flow",
         ) { page ->
             when (page) {
-                0 -> WelcomeScene(
-                    onNext = {
-                        // The theme is picked on this page, so the bootstrap it
-                        // starts is launched with the palette already held in
-                        // the wizard — the write happens when the rootfs lands,
-                        // and the terminal opens in it.
+                0 -> WelcomeScreen(
+                    onGetStarted = {
+                        // One action: start the shell-script pipeline with its
+                        // defaults, then show its progress. No choices to collect.
                         viewModel.startBootstrap()
                         currentPage = 1
                     },
-                    viewModel = viewModel,
                 )
-                1 -> BootstrapStage(
-                    onSetupFailed = onSetupFailed,
-                    viewModel = viewModel,
-                )
-                2 -> TerminalReadyScene(
-                    // Applying the theme is the last thing before the terminal
-                    // opens, and the callback is what orders them: the session
-                    // that appears is already drawn in the palette that was
-                    // picked, rather than the default for a moment and then the
-                    // right one. The write is idempotent — the wizard already
-                    // fired it when the bootstrap reported ready — so this is
-                    // the ordering guarantee, not a second write.
-                    onReady = {
-                        viewModel.applySelectedTheme(onApplied = onReady)
-                    },
-                )
+                1 -> SetupScreen(viewModel = viewModel)
             }
         }
 
         WormPageIndicator(
-            pageCount = 3,
+            pageCount = 2,
             currentPage = currentPage,
             modifier = Modifier
                 .align(Alignment.TopCenter)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Iris Shell final bashrc writer.
-#   bashrc-write.sh — runs INSIDE proot. Writes the shell prompt config to
+# Drosh bashrc writer.
+#   bashrc-write.sh — runs INSIDE the guest. Writes the shell prompt config to
 #   /root/.bashrc (and /home/.bashrc if /home exists).
 #
 # Idempotent: overwrites the file every time, but no destructive ops.
@@ -12,8 +12,8 @@ IRIS_USERNAME="${IRIS_USERNAME:-user}"
 write_bashrc() {
     local target="$1"
     cat > "$target" <<BASHRC
-# ─── Iris Shell .bashrc ──────────────────────────────────────
-export PS1="${IRIS_USERNAME}@iris:\\w\\$ "
+# ─── Drosh .bashrc ───────────────────────────────────────────
+export PS1="${IRIS_USERNAME}@drosh:\\w\\$ "
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export HOME=/home
 export TERM=xterm-256color

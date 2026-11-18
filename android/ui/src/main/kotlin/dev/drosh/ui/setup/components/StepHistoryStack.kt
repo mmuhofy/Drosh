@@ -2,9 +2,6 @@ package dev.drosh.ui.setup.components
 
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,23 +17,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.theme.DroshBackground
-import dev.drosh.theme.DroshBorderSubtle
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
-import dev.drosh.theme.DroshSurfaceVariant
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.domain.terminal.BootstrapStep
 import dev.drosh.domain.terminal.StepState
+import dev.drosh.ui.R
 import dev.drosh.ui.setup.label
 
 @Composable
@@ -47,8 +41,6 @@ fun StepHistoryStack(
     val ordered = listOf(
         BootstrapStep.Extracting,
         BootstrapStep.Configuring,
-        BootstrapStep.InstallingPackages,
-        BootstrapStep.InstallingOhMyZsh,
         BootstrapStep.Optimizing,
     )
 
@@ -61,7 +53,7 @@ fun StepHistoryStack(
     Column(modifier = modifier.fillMaxWidth()) {
         if (completed.isNotEmpty()) {
             Text(
-                text = "Completed",
+                text = stringResource(R.string.setup_completed),
                 color = DroshTextMuted,
                 style = TextStyle(
                     fontFamily = LocalFontSet.current.sans,
@@ -89,7 +81,6 @@ fun StepHistoryStack(
                 step = activeStep,
                 message = progress.currentMessage,
                 subSteps = progress.stepStates.mapKeys { it.key.label() },
-                percent = progress.percent,
             )
         }
     }
@@ -137,7 +128,6 @@ private fun ActiveStepCard(
     step: BootstrapStep,
     message: String,
     subSteps: Map<String, StepState>,
-    percent: Int,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -171,16 +161,6 @@ private fun ActiveStepCard(
                     ),
                     modifier = Modifier.weight(1f),
                 )
-
-                Text(
-                    text = "$percent%",
-                    color = DroshTextMuted,
-                    style = TextStyle(
-                        fontFamily = LocalFontSet.current.sans,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -195,32 +175,6 @@ private fun ActiveStepCard(
                 ),
             )
 
-            if (step == BootstrapStep.InstallingPackages) {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(DroshSurfaceVariant),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(fraction = percent.coerceIn(0, 100) / 100f)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        DroshPrimary,
-                                        DroshPrimary.copy(alpha = 0.7f),
-                                    ),
-                                ),
-                            ),
-                    )
-                }
-            }
         }
     }
 }

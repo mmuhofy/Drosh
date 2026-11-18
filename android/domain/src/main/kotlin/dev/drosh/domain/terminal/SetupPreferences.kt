@@ -1,49 +1,18 @@
 package dev.drosh.domain.terminal
 
-import dev.drosh.domain.settings.DroshTheme
-
 /**
- * Captures the user's onboarding choices and threads them through the bootstrap
- * pipeline.
+ * The one setup value that reaches the shell-script pipeline: the name used in
+ * the bash prompt.
  *
- * Created from the local state collected in SetupFlowScreen, then passed to
- * [TriggerBootstrapUseCase.start] so the bootstrap (guest runtime + Ubuntu rootfs)
- * can honour:
- *   - the shell for the guest (Zsh → install Oh My Zsh; Bash → skip it) — no
- *     longer an onboarding question; the wizard always sends [ShellChoice.Zsh]
- *   - the username for the shell prompt
- *   - the package profile — also no longer an onboarding question; the wizard
- *     sends [PackageProfile.Standard] with no extras, which is the install the
- *     pipeline's base-package step performs regardless
- *
- * This type is in `:domain` so that `ui/` → `domain/` → `data/` → `terminal/`
- * can flow without the UI importing `:terminal` directly.
- *
- * **[themeId] is carried but not consumed by the bootstrap.** The rootfs does
- * not exist while these choices are being made, and `.drosh/themes/` lives
- * inside it, so a theme cannot be written during setup. What setup can do is
- * remember the choice here, and the layer that watches for bootstrap to finish
- * writes it into `settings.toml` once the directory is really there. Holding it
- * in this value is what makes the choice part of the recorded setup rather than
- * a field a screen happens to own: a retry re-runs with
- * [defaults] for everything the bootstrap itself needs, and the theme is
- * re-applied from the wizard that still holds the answer.
+ * Onboarding no longer collects choices. The shell is bash, there is no package
+ * profile, and the theme is applied later from Settings — so [defaults] is the
+ * only shape the bootstrap needs. This type stays in `:domain` so `ui/` can
+ * hand a value to the use case without importing `:linux`.
  */
 data class SetupPreferences(
-    val userName: String,
-    val shellChoice: ShellChoice,
-    val packageProfile: PackageProfile,
-    val customPackages: Set<String>,
-    /** Id of the palette picked in onboarding; see [DroshTheme]. */
-    val themeId: String = DroshTheme.DEFAULT.id,
+    val userName: String = "user",
 ) {
     companion object {
-        fun defaults(): SetupPreferences = SetupPreferences(
-            userName = "user",
-            shellChoice = ShellChoice.Zsh,
-            packageProfile = PackageProfile.Standard,
-            customPackages = emptySet(),
-            themeId = DroshTheme.DEFAULT.id,
-        )
+        fun defaults(): SetupPreferences = SetupPreferences()
     }
 }

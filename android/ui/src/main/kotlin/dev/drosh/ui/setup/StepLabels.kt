@@ -12,10 +12,8 @@ import dev.drosh.domain.terminal.BootstrapStep
 fun BootstrapStep.label(): String = when (this) {
     BootstrapStep.Idle -> "Preparing"
     BootstrapStep.Extracting -> "Extracting rootfs"
-    BootstrapStep.Configuring -> "Configuring rootfs"
-    BootstrapStep.InstallingPackages -> "Installing packages"
-    BootstrapStep.InstallingOhMyZsh -> "Installing Oh My Zsh"
-    BootstrapStep.Optimizing -> "Optimizing"
+    BootstrapStep.Configuring -> "Preparing bash"
+    BootstrapStep.Optimizing -> "Finalizing rootfs"
     BootstrapStep.Ready -> "Ready"
     BootstrapStep.Failed -> "Failed"
 }

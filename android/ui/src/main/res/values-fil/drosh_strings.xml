@@ -241,7 +241,6 @@
     <string name="terminal_preparing">Naghahanda…</string>
     <string name="terminal_extracting_rootfs">Kinukuha ang Ubuntu rootfs…</string>
     <string name="terminal_configuring">Kino-configure ang system…</string>
-    <string name="terminal_installing_packages">Nag-iinstall ng mga package…</string>
     <string name="terminal_cleaning">Nililinis…</string>
     <string name="terminal_ready">Handa na</string>
     <string name="terminal_setting_up">Sineset up ang terminal</string>

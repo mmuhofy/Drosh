@@ -235,11 +235,6 @@
     <string name="setup_report_label">GitHub\'da sorun bildir</string>
     <string name="setup_report_sublabel">Tanılama paketini panoya kopyalar.</string>
     <string name="setup_diagnostic_copied">Tanılama panoya kopyalandı</string>
-    <string name="setup_theme_title">Tema</string>
-    <string name="setup_theme_subtitle">Bir renk paleti seç. Daha sonra Ayarlar bölümünden değiştirebilirsin.</string>
-    <string name="setup_theme_continue">Devam et</string>
-    <string name="setup_theme_applied">Palet kaydedildi. Terminalin bu paletle açılacak.</string>
-    <string name="setup_theme_builtin">Dahili</string>
     <string name="terminal_delete_last_session_title">Son oturum silinsin mi?</string>
     <string name="terminal_engine_session_exited">Terminalin oturumu sona erdi (çıkış %1$d).</string>
     <string name="terminal_engine_unavailable">Terminal motoru başlatılamadı: %1$s</string>
@@ -263,7 +258,6 @@
     <string name="settings_speed_slow">Yavaş</string>
     <string name="settings_speed_fast">Hızlı</string>
     <string name="terminal_preparing">Hazırlanıyor…</string>
-    <string name="terminal_installing_packages">Paketler kuruluyor…</string>
     <string name="terminal_ready">Hazır</string>
     <string name="action_apply">Uygula</string>
     <string name="action_close">Kapat</string>

@@ -36,8 +36,6 @@ class TriggerBootstrap @Inject constructor(
 
     override fun start() = run(SetupPreferences.defaults())
 
-    override fun start(preferences: SetupPreferences) = run(preferences)
-
     override fun retry() = run(SetupPreferences.defaults())
 
     override fun reDownloadRootfs() = run(SetupPreferences.defaults())

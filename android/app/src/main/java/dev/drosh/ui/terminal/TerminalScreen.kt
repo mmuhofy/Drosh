@@ -246,8 +246,6 @@ fun TerminalScreen(
         UbuntuSetupState.Idle,
         UbuntuSetupState.Extracting,
         UbuntuSetupState.Configuring,
-        is UbuntuSetupState.InstallingPackages,
-        is UbuntuSetupState.InstallingOhMyZsh,
         UbuntuSetupState.Optimizing -> {
             if (showProgress) {
                 SetupProgress(
@@ -1844,16 +1842,6 @@ private fun SetupProgress(
 
         UbuntuSetupState.Configuring ->
             stringResource(R.string.terminal_configuring)
-
-        is UbuntuSetupState.InstallingPackages ->
-            if (state.message.isNotEmpty()) {
-                state.message
-            } else {
-                stringResource(R.string.terminal_installing_packages)
-            }
-
-        is UbuntuSetupState.InstallingOhMyZsh ->
-            state.message
 
         UbuntuSetupState.Optimizing ->
             stringResource(R.string.terminal_cleaning)

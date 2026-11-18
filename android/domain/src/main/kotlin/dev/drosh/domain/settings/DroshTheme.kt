@@ -32,10 +32,9 @@ data class ThemePalette(
      * deliberate and is why this field is separate from the twenty-two terminal
      * colours: a palette is a statement about output, and repainting every
      * settings row and dialog the moment someone changes their terminal colours
-     * is a surprise the settings screen is not in a position to explain. The one
-     * place the accent is shown live is the onboarding theme page, which
-     * overrides the token for its own subtree and nothing else — see
-     * `AccentPreview` in `ui/setup/onboarding/components`.
+     * is a surprise the settings screen is not in a position to explain. It used
+     * to be previewed on an onboarding theme page; onboarding is now two screens
+     * with no theme step, so this is carried data rather than a live chrome tint.
      */
     val accent: String = "#3B82F6",
     val black: String = "#000000",

@@ -5,21 +5,14 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Use case that triggers / re-triggers the bootstrap pipeline.
  *
- * The UI calls this from the Retry / Re-download / Reset buttons on the recovery
- * screen, and from the onboarding wizard's final "Continue" button.
- *
- * [start] without arguments uses [SetupPreferences.defaults] — this is the
- * path taken when [dev.drosh.MainActivity] triggers bootstrap on a
- * warm start (preferences were saved during onboarding).
- *
- * [start] with [SetupPreferences] is the path taken from onboarding — the
- * wizard's choices (theme; the shell and package set it sends as defaults)
- * are forwarded to the bootstrap pipeline.
+ * The UI calls this from "Get started" on the welcome screen, and from the
+ * Retry / Re-download / Reset buttons on the recovery screen. Every route uses
+ * [SetupPreferences.defaults]: setup has no choices to carry any more, so the
+ * argument-taking overload was removed with the theme and package picks.
  */
 interface TriggerBootstrapUseCase {
     val state: State
     fun start()
-    fun start(preferences: SetupPreferences)
     fun retry()
     fun reDownloadRootfs()
     fun resetEverything()

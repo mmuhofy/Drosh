@@ -241,7 +241,6 @@
     <string name="terminal_preparing">正在准备…</string>
     <string name="terminal_extracting_rootfs">正在解压 Ubuntu rootfs…</string>
     <string name="terminal_configuring">正在配置系统…</string>
-    <string name="terminal_installing_packages">正在安装软件包…</string>
     <string name="terminal_cleaning">正在清理…</string>
     <string name="terminal_ready">已就绪</string>
     <string name="terminal_setting_up">正在设置终端</string>

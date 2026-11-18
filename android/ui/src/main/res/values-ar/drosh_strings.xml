@@ -241,7 +241,6 @@
     <string name="terminal_preparing">جارٍ التحضير…</string>
     <string name="terminal_extracting_rootfs">جارٍ استخراج rootfs الخاص بـ Ubuntu…</string>
     <string name="terminal_configuring">جارٍ تهيئة النظام…</string>
-    <string name="terminal_installing_packages">جارٍ تثبيت الحزم…</string>
     <string name="terminal_cleaning">جارٍ التنظيف…</string>
     <string name="terminal_ready">جاهز</string>
     <string name="terminal_setting_up">جارٍ إعداد الطرفية</string>

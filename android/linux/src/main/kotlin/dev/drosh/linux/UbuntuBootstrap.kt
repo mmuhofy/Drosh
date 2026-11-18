@@ -4,7 +4,6 @@ import android.content.Context
 import android.system.Os
 import android.util.Log
 import dev.drosh.domain.terminal.SetupPreferences
-import dev.drosh.domain.terminal.ShellChoice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -117,18 +116,18 @@ class UbuntuBootstrap(private val context: Context) {
                 libDir.mkdirs()
                 tmpDir.mkdirs()
 
-                onLog("→ Extracting PRoot binary and Ubuntu rootfs…")
+                onLog("→ Extracting Ubuntu rootfs…")
                 onState(UbuntuSetupState.Extracting)
 
                 // The launchers first, on their own: a device that has the
                 // rootfs but not the runtime gets it without the rootfs being
                 // extracted again.
+                lastFailedStep = "Rootfs"
                 stageRuntimes()
                 onLog("  · Guest launchers staged.")
 
                 // Ubuntu rootfs (try multiple asset names, fallback to download)
                 rootfsDir.mkdirs()
-                lastFailedStep = "Rootfs"
                 val rootfsStream = try {
                     context.assets.open("ubuntu_rootfs")
                 } catch (_: Exception) {
@@ -145,77 +144,26 @@ class UbuntuBootstrap(private val context: Context) {
                 }
                 onLog("✓ Rootfs extracted.")
 
-                onLog("→ Configuring rootfs (apt sources, resolv.conf, shells)…")
+                onLog("→ Preparing bash…")
                 onState(UbuntuSetupState.Configuring)
                 lastFailedStep = "Configure"
                 runScriptInGuest(SCRIPTS_CONFIGURE, onLog = onLog)
-                onLog("✓ Rootfs configured.")
-
-                // Always install base packages — ensures zsh is available
-                // regardless of PackageProfile (Minimal / Developer / Custom).
-                onLog("→ Installing base packages…")
-                onState(UbuntuSetupState.InstallingPackages("apt", "Installing packages..."))
-                lastFailedStep = "Packages"
+                lastFailedStep = "Bash"
                 runScriptInGuest(
-                    SCRIPTS_PACKAGES,
+                    SCRIPTS_BASHRC,
                     onLog = onLog,
-                    envExtras = mapOf(
-                        "IRIS_CUSTOM_PACKAGES" to preferences.customPackages.joinToString(","),
-                    ),
+                    envExtras = mapOf("IRIS_USERNAME" to preferences.userName),
                 )
-                onLog("✓ Base packages installed.")
+                onLog("✓ Bash configured for ${preferences.userName}.")
 
-                // `dedit` ships as a real package so the command exists in the
-                // terminal the way a user expects. dpkg-deb and apt are used
-                // inside the guest rather than by hand; see dedit-install.sh.
-                onLog("→ Installing the dedit package…")
-                installDeditPackage(onLog)
-
-                val shellChoice = preferences.shellChoice
-                if (shellChoice == ShellChoice.Zsh) {
-                    onLog("→ Installing Oh My Zsh + plugins…")
-                    onState(UbuntuSetupState.InstallingOhMyZsh("Installing Oh My Zsh..."))
-                    lastFailedStep = "OhMyZsh"
-                    var omzSuccess = false
-                    try {
-                        val rc1 = runScriptInGuest(SCRIPTS_SET_DEFAULT_SHELL, onLog = onLog)
-                        if (rc1 != 0) throw Exception("set-default-shell exited $rc1")
-                        val rc2 = runScriptInGuest(SCRIPTS_OMZ, onLog = onLog)
-                        if (rc2 != 0) throw Exception("omz-install exited $rc2")
-                        val rc3 = runScriptInGuest(SCRIPTS_ZSHRC, onLog = onLog)
-                        if (rc3 != 0) throw Exception("zshrc-write exited $rc3")
-                        onLog("✓ Oh My Zsh ready.")
-                        omzSuccess = true
-                    } catch (e: Exception) {
-                        onLog("⚠ Oh My Zsh install failed (${e.message}); falling back to bash.")
-                    }
-                    // If OMZ failed, reset default shell to bash so /etc/passwd
-                    // is consistent with the bash .bashrc we write next.
-                    if (!omzSuccess) {
-                        runScriptInGuest(SCRIPTS_RESET_SHELL_TO_BASH, onLog = onLog)
-                        runScriptInGuest(SCRIPTS_BASHRC, onLog = onLog)
-                        onLog("✓ Fallback to bash configured for ${preferences.userName}.")
-                    }
-                } else {
-                    onLog("→ Bash selected — skipping Oh My Zsh and set-default-shell.")
-                    onState(UbuntuSetupState.Optimizing)
-                    lastFailedStep = "Bash"
-                    runScriptInGuest(SCRIPTS_BASHRC, onLog = onLog)
-                    onLog("✓ .bashrc configured for ${preferences.userName}.")
-                }
-
-                onLog("→ Optimizing rootfs (deb cache purge, marker write)…")
+                onLog("→ Finalizing rootfs (deb cache purge, marker write)…")
                 onState(UbuntuSetupState.Optimizing)
                 lastFailedStep = "Optimize"
                 val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
                 runScriptInGuest(
                     SCRIPTS_OPTIMIZE,
                     onLog = onLog,
-                    envExtras = mapOf(
-                        "ABI" to abi,
-                        "IRIS_USERNAME" to preferences.userName,
-                        "IRIS_CUSTOM_PACKAGES" to preferences.customPackages.joinToString(","),
-                    ),
+                    envExtras = mapOf("ABI" to abi),
                 )
                 onLog("✓ Rootfs optimized.")
 
@@ -233,41 +181,13 @@ class UbuntuBootstrap(private val context: Context) {
     }
 
 
-    // All installation / configuration logic is now in shell scripts under
-    // terminal/src/main/assets/shell-scripts/setup/. Kotlin only orchestrates
-    // the pipeline and forwards logs — see `runScriptInGuest`.
+    // The pipeline is deliberately just three script calls: rootfs-configure.sh
+    // makes the guest usable, bashrc-write.sh prepares the bash prompt, and
+    // rootfs-optimize.sh writes the completion marker. All of them live under
+    // linux/src/main/assets/shell-scripts/setup/ and are streamed to the guest
+    // via stdin (`bash -s`) — see `runScriptInGuest`.
 
     // ─── Guest script loading & execution ─────────────────────────
-
-    /**
-     * Stages and installs the `dedit` package.
-     *
-     * Best effort by design. A broken `dedit` should cost the user the command,
-     * not the whole rootfs — bootstrap has already downloaded and configured
-     * Ubuntu by this point, and failing the install step would send a working
-     * terminal back to the recovery screen over a package the user may not even
-     * have asked for yet.
-     */
-    private fun installDeditPackage(onLog: (String) -> Unit) {
-        // The shebang has to be a path the host kernel can resolve, so it is
-        // built from the real filesDir rather than assumed to be
-        // /data/data/<pkg>/files. See DeditPackage for why it is host-absolute.
-        val hostShell = File(rootfsDir, "bin/sh").absolutePath
-        if (!DeditPackage.stage(context, hostShell)) {
-            onLog("  · Could not stage dedit; skipping.")
-            return
-        }
-        val repoDir = File(baseDir, "dedit-repo").apply { mkdirs() }
-        val rc = runScriptInGuest(
-            SCRIPTS_DEDIT,
-            onLog = onLog,
-            envExtras = mapOf(
-                "DEDIT_SRC" to DeditPackage.stagingDir(context).absolutePath,
-                "DEDIT_REPO" to repoDir.absolutePath,
-            ),
-        )
-        if (rc != 0) onLog("  · dedit install exited $rc; the command may be unavailable.")
-    }
 
     private fun loadAssetScript(scriptName: String): String {
         val path = "shell-scripts/setup/$scriptName"
@@ -444,15 +364,9 @@ class UbuntuBootstrap(private val context: Context) {
             "x86" to "i386"
         )
 
-        // Asset script filenames under terminal/src/main/assets/shell-scripts/setup/.
+        // Asset script filenames under linux/src/main/assets/shell-scripts/setup/.
         // Each is shipped in the APK and streamed to the guest via stdin (`bash -s`).
         private const val SCRIPTS_CONFIGURE = "rootfs-configure.sh"
-        private const val SCRIPTS_PACKAGES = "packages-install.sh"
-        private const val SCRIPTS_DEDIT = "dedit-install.sh"
-        private const val SCRIPTS_SET_DEFAULT_SHELL = "set-default-shell.sh"
-        private const val SCRIPTS_RESET_SHELL_TO_BASH = "reset-shell-to-bash.sh"
-        private const val SCRIPTS_OMZ = "omz-install.sh"
-        private const val SCRIPTS_ZSHRC = "zshrc-write.sh"
         private const val SCRIPTS_BASHRC = "bashrc-write.sh"
         private const val SCRIPTS_OPTIMIZE = "rootfs-optimize.sh"
     }

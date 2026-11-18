@@ -241,7 +241,6 @@
     <string name="terminal_preparing">Wird vorbereitet…</string>
     <string name="terminal_extracting_rootfs">Ubuntu rootfs wird entpackt…</string>
     <string name="terminal_configuring">System wird konfiguriert…</string>
-    <string name="terminal_installing_packages">Pakete werden installiert…</string>
     <string name="terminal_cleaning">Wird aufgeräumt…</string>
     <string name="terminal_ready">Bereit</string>
     <string name="terminal_setting_up">Terminal wird eingerichtet</string>

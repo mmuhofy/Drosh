@@ -248,11 +248,6 @@
     <string name="setup_report_label">Report issue on GitHub</string>
     <string name="setup_report_sublabel">Copies a diagnostic bundle to your clipboard.</string>
     <string name="setup_diagnostic_copied">Diagnostic copied to clipboard</string>
-    <string name="setup_theme_title">Theme</string>
-    <string name="setup_theme_subtitle">Pick a colour palette. You can change it later in Settings.</string>
-    <string name="setup_theme_continue">Continue</string>
-    <string name="setup_theme_applied">Palette saved. Your terminal will open in it.</string>
-    <string name="setup_theme_builtin">Built in</string>
     <string name="terminal_delete_last_session_title">Delete the last session?</string>
     <string name="terminal_engine_session_exited">The terminal\'s session ended (exit %1$d).</string>
     <string name="settings_terminal_engine">Ghostty engine</string>
@@ -281,7 +276,6 @@
     <string name="settings_speed_slow">Slow</string>
     <string name="settings_speed_fast">Fast</string>
     <string name="terminal_preparing">Preparing…</string>
-    <string name="terminal_installing_packages">Installing packages…</string>
     <string name="terminal_ready">Ready</string>
     <string name="action_apply">Apply</string>
     <string name="action_close">Close</string>
@@ -669,4 +663,41 @@ no terminal session needed.</string>
     <string name="projects_error_restore">The project could not be restored.</string>
     <string name="projects_error_assign">The session could not be moved.</string>
     <string name="projects_error_new_session">A new session could not be created.</string>
+
+    <!-- Two-screen onboarding: the presentation and the direct setup. -->
+    <string name="welcome_brand">DROSH</string>
+    <string name="welcome_headline">Your phone is a\nUnix machine.</string>
+    <string name="welcome_headline_accent">Finally.</string>
+    <string name="welcome_subtitle">A real Ubuntu workstation in your pocket — terminal, agent, editor and SSH, built for the long session.</string>
+    <string name="welcome_features_title">WHAT\'S INSIDE</string>
+    <string name="welcome_feature_terminal_title">Terminal</string>
+    <string name="welcome_feature_terminal_detail">Ghostty VT core, OpenGL renderer</string>
+    <string name="welcome_feature_agent_title">Agent</string>
+    <string name="welcome_feature_agent_detail">8 tools · 4 provider protocols</string>
+    <string name="welcome_feature_ssh_title">SSH</string>
+    <string name="welcome_feature_ssh_detail">Remote hosts and key vault</string>
+    <string name="welcome_feature_editor_title">Editor</string>
+    <string name="welcome_feature_editor_detail">Syntax-aware code editing</string>
+    <string name="welcome_feature_panes_title">Split panes</string>
+    <string name="welcome_feature_panes_detail">Two shells, one screen</string>
+    <string name="welcome_feature_backup_title">Backup</string>
+    <string name="welcome_feature_backup_detail">Save and restore your setup</string>
+    <string name="welcome_feature_shell_title">Ubuntu 24.04</string>
+    <string name="welcome_feature_shell_detail">A real bash rootfs</string>
+    <string name="welcome_feature_locales_title">10 languages</string>
+    <string name="welcome_feature_locales_detail">Drosh speaks your language</string>
+    <string name="welcome_get_started">Get started</string>
+    <string name="welcome_setup_note">One-time setup: extract Ubuntu, prepare bash, open the terminal.</string>
+
+    <string name="setup_title">Setting up Drosh</string>
+    <string name="setup_subtitle">Extracting Ubuntu and preparing bash. This runs once.</string>
+    <string name="setup_keep_open_note">Keep Drosh open until the terminal opens.</string>
+    <string name="setup_completed">Completed</string>
+    <string name="setup_log_title">Live log</string>
+    <string name="setup_log_lines_one">%1$d line</string>
+    <string name="setup_log_lines_other">%1$d lines</string>
+    <string name="setup_log_waiting">Waiting for logs…</string>
+    <string name="setup_progress_done">Done</string>
+    <string name="setup_progress_finalizing">Finalizing…</string>
+    <string name="setup_progress_eta">~%1$d s left</string>
 </resources>

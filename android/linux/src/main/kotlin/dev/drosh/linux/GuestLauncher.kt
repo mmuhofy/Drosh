@@ -42,8 +42,8 @@ interface GuestLauncher {
 data class GuestSpec(
     /** Where the guest starts, as a guest path; null means the default home. */
     val workingDirectory: String? = null,
-    /** The shell to run. */
-    val shell: String = "/bin/zsh",
+    /** The shell to run. Setup installs bash; a caller may still override it. */
+    val shell: String = "/bin/bash",
     /** A command to run instead of the shell (the agent's shell tool). */
     val command: String = "",
     /** Extra environment variables for the guest. */

@@ -93,10 +93,7 @@ class BootstrapObserver @Inject constructor(
 
     private fun stepFromName(name: String): BootstrapStep = when (name) {
         "Rootfs" -> BootstrapStep.Extracting
-        "Configure" -> BootstrapStep.Configuring
-        "Packages" -> BootstrapStep.InstallingPackages
-        "OhMyZsh" -> BootstrapStep.InstallingOhMyZsh
-        "Bash" -> BootstrapStep.InstallingPackages
+        "Configure", "Bash" -> BootstrapStep.Configuring
         "Optimize" -> BootstrapStep.Optimizing
         else -> BootstrapStep.Configuring
     }
@@ -105,8 +102,6 @@ class BootstrapObserver @Inject constructor(
         UbuntuSetupState.Idle -> BootstrapStep.Idle
         UbuntuSetupState.Extracting -> BootstrapStep.Extracting
         UbuntuSetupState.Configuring -> BootstrapStep.Configuring
-        is UbuntuSetupState.InstallingPackages -> BootstrapStep.InstallingPackages
-        is UbuntuSetupState.InstallingOhMyZsh -> BootstrapStep.InstallingOhMyZsh
         UbuntuSetupState.Optimizing -> BootstrapStep.Optimizing
         UbuntuSetupState.Ready -> BootstrapStep.Ready
         is UbuntuSetupState.Failed -> BootstrapStep.Failed
@@ -116,8 +111,6 @@ class BootstrapObserver @Inject constructor(
         val ordered = listOf(
             BootstrapStep.Extracting,
             BootstrapStep.Configuring,
-            BootstrapStep.InstallingPackages,
-            BootstrapStep.InstallingOhMyZsh,
             BootstrapStep.Optimizing,
         )
         val currentIdx = mapCurrent(state).ordinalHint
@@ -136,10 +129,8 @@ class BootstrapObserver @Inject constructor(
         val pct = when (state) {
             UbuntuSetupState.Idle -> 0
             UbuntuSetupState.Extracting -> 15
-            UbuntuSetupState.Configuring -> 35
-            is UbuntuSetupState.InstallingPackages -> 55
-            is UbuntuSetupState.InstallingOhMyZsh -> 80
-            UbuntuSetupState.Optimizing -> 92
+            UbuntuSetupState.Configuring -> 55
+            UbuntuSetupState.Optimizing -> 90
             UbuntuSetupState.Ready -> 100
             is UbuntuSetupState.Failed -> 0
         }
@@ -150,10 +141,8 @@ class BootstrapObserver @Inject constructor(
     private fun messageFor(state: UbuntuSetupState): String = when (state) {
         UbuntuSetupState.Idle -> "Preparing…"
         UbuntuSetupState.Extracting -> "Extracting Ubuntu rootfs…"
-        UbuntuSetupState.Configuring -> "Configuring rootfs (apt, resolv.conf, shells)…"
-        is UbuntuSetupState.InstallingPackages -> state.message
-        is UbuntuSetupState.InstallingOhMyZsh -> state.message
-        UbuntuSetupState.Optimizing -> "Optimizing rootfs…"
+        UbuntuSetupState.Configuring -> "Preparing bash (resolv.conf, shell config)…"
+        UbuntuSetupState.Optimizing -> "Finalizing rootfs…"
         UbuntuSetupState.Ready -> "Ready."
         is UbuntuSetupState.Failed -> "Setup failed: ${state.error}"
     }
