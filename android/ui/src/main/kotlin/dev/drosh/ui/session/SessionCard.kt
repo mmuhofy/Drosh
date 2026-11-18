@@ -210,15 +210,28 @@ internal fun SessionCard(
                     modifier = Modifier.size(13.dp),
                 )
             }
-            Text(
-                text = displayName,
-                color = DroshText,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = displayName,
+                    color = DroshText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // Termux's second line: the OSC 0/2 title. Shown only when a user
+                // rename makes it distinct from the name above, and never as an
+                // empty line when the program set no title.
+                if (!title.isNullOrBlank() && title != displayName) {
+                    Text(
+                        text = title,
+                        color = DroshTextMuted,
+                        fontSize = 10.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             SessionCardActionsButton(
                 sessionName = displayName,
                 isPinned = isPinned,
@@ -249,8 +262,8 @@ internal fun SessionCard(
             )
         }
 
-        val meta = remember(session.lastUsedAtMs, title, session.state) {
-            cardMeta(session, title)
+        val meta = remember(session.lastUsedAtMs, session.state) {
+            cardMeta(session)
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -360,13 +373,9 @@ private fun TerminalPreview(lines: List<PreviewLineSpec>, modifier: Modifier = M
 }
 
 /** The card's under-render line: state in words, then recency. */
-private fun cardMeta(session: SessionSnapshot, title: String?): String {
+private fun cardMeta(session: SessionSnapshot): String {
     val time = relativeTime(session.lastUsedAtMs, System.currentTimeMillis())
-    return if (title.isNullOrBlank()) {
-        "${stateLabel(session.state)} · $time"
-    } else {
-        "$title · ${stateLabel(session.state)} · $time"
-    }
+    return "${stateLabel(session.state)} · $time"
 }
 
 /**
