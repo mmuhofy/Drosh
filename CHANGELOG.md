@@ -236,6 +236,10 @@ release when it ships.
   learns a ligature exists. The terminal's font ships with the ligature
   tables this time — the setting decides, and the shaper switches them off
   when it says so
+  - _Status 2026-11-18:_ the Rust shaper is still in the tree with its tests,
+    but the renderer now builds its atlas through Android `Paint` and nothing
+    calls the shaper. Ligatures are therefore **not drawn** today; see
+    `docs/STATUS.md`
 - The terminal can use a font of your own: pick a font file in the settings
   and the terminal is drawn in it, measured from it
 - The engine finds the URLs on the screen, with the same rules the app's own
@@ -310,18 +314,38 @@ release when it ships.
 - Session lifecycle: no zero-session state while the app runs, a relaunch
   creates a session again, the last session closes for real
 
+### Release cleanup (2026-11-18)
+
+- The production identity is `dev.drosh` again; the side-by-side `dev.drosh.my`
+  build identity was accidentally on `main` and is now confined to history
+- Drosh is **Apache-2.0** across its own source, including the terminal and the
+  Rust core. The root `LICENSE` is Apache-2.0, Ghostty's MIT text is bundled,
+  and the license map no longer describes a Termux/PRoot-derived APK
+- The chroot-ng story is stated plainly: upstream `sylirre/fake-chroot-ng`,
+  Drosh's fork `mmuhofy/chroot-ng`, pinned and verified; local patches are
+  planned and the reason for the move (ptrace overhead) is documented
+- The broken i18n tools and the stale translation manifest are gone from the
+  repository; the translations themselves remain in the resource files
+- README, CONTRIBUTING, AGENT, ARCHITECTURE, SESSION-SYSTEM, SECURITY,
+  CREDITS and the license map were brought in line with the code
+- `docs/STATUS.md` is the single feature/release inventory, with a roadmap and
+  a one-tag release plan
+
 ### Known issues
 
-- Block mode reports exit code 0 for every command — `BlockEngineWire`
-  hardcodes it, so a failing command renders as successful
-- Block mode does not pinch-zoom; it renders in Compose with no `TerminalView`
+- Block mode does not pinch-zoom; it renders in Compose with no terminal view
   behind it
 - Agent chats run in the guest home directory; per-chat terminals are not
   wired yet
 - Command DNA (history search), ghost-text autocomplete and semantic output
-  classification are not built
-- `targetSdk` is deliberately 28 on a compileSdk 36 project; release builds are
-  signed with the committed debug key and run without R8
-- Nothing has been verified on a physical device yet
+  classification are not built; ligatures are not drawn (the Rust shaper is
+  not on the renderer's path)
+- Translations are incomplete in every locale but Turkish; there is no
+  coverage tooling after the old tools were removed
+- `targetSdk` is deliberately 28 on a compileSdk 36 project, and release
+  builds are signed with the committed debug key — fine for GitHub/F-Droid,
+  not for Play. Minification and shrinking **are** on
+- Everything has been verified on a physical device (Muhofy, 2026-11-18);
+  the old claim that the agent and SSH were unverified was wrong
 
 [Unreleased]: https://github.com/mmuhofy/Drosh/compare/v0.1.0...HEAD
