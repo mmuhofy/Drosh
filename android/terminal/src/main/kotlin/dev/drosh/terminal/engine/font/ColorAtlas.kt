@@ -178,7 +178,12 @@ internal class ColorAtlas(
         // An emoji is drawn into a square the cell's height, which is the box
         // it occupies on the grid: a terminal gives an emoji two columns and
         // one row.
-        val extent = kotlin.math.ceil(rasterPx).toInt()
+        // The emoji font draws outside the nominal em box: a glyph measured at
+        // N pixels can cover more than N. A slot of exactly N cut the edges off
+        // — "kesik kesik" — and two neighbouring slots bled into each other.
+        // Reserve a padded square and draw the glyph in its centre; the pad is
+        // transparent and disappears when the quad is sampled.
+        val extent = kotlin.math.ceil(rasterPx * GLYPH_PAD).toInt()
         if (extent <= 0 || extent > size) return null
 
         var slot = reserve(extent, extent)
@@ -230,5 +235,8 @@ internal class ColorAtlas(
 
         /** Below this cell height an emoji is rasterised twice as large. */
         const val SUPERSAMPLE_BELOW_PX = 24f
+
+        /** Room around an emoji so its ink cannot be clipped by the slot. */
+        const val GLYPH_PAD = 1.4f
     }
 }

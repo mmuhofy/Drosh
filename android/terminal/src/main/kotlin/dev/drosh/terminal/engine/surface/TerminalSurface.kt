@@ -258,6 +258,13 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.post(RenderThread.Command.BellColour(argb))
     }
 
+    /** The selection's rectangle, published after the frame that drew it. */
+    var onSelectionBounds: ((android.graphics.Rect?) -> Unit)?
+        get() = renderThread.onSelectionBounds
+        set(value) {
+            renderThread.onSelectionBounds = value
+        }
+
     fun bell() {
         renderThread.post(RenderThread.Command.Bell)
         renderThread.invalidate()
@@ -348,11 +355,11 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             )
             if (text.isEmpty()) return false
             selected = text
-            setSelectedCells(anchor.first, anchor.second, 1)
+            setSelectedCells(anchor.first, anchor.second, 1, chrome = true)
             renderThread.invalidate()
             return true
         }
-        setSelectedCells(result[0], result[1], selectionLength(result))
+        setSelectedCells(result[0], result[1], selectionLength(result), chrome = true)
         setSelectionEnd(result[2], result[3])
         val engineText = NativeSelection.text(session)
         if (engineText.isNotEmpty()) selected = engineText
@@ -818,10 +825,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     // the menu hangs on them, and the drag that follows grows
                     // the selection from the anchor.
                     if (pressed.size >= 4) {
-                        setSelectedCells(pressed[0], pressed[1], selectionLength(pressed))
+                        setSelectedCells(pressed[0], pressed[1], selectionLength(pressed), chrome = true)
                         setSelectionEnd(pressed[2], pressed[3])
                     } else {
-                        setSelectedCells(cell.first, cell.second, 1)
+                        setSelectedCells(cell.first, cell.second, 1, chrome = true)
                     }
                     performHapticFeedback(
                         android.view.HapticFeedbackConstants.LONG_PRESS,
@@ -865,7 +872,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                         )
                         if (text.isNotEmpty()) {
                             selected = text
-                            setSelectedCells(anchor.first, anchor.second, 1)
+                            setSelectedCells(anchor.first, anchor.second, 1, chrome = true)
                         }
                         renderThread.invalidate()
                         return true
@@ -982,7 +989,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                     NativeSelection.BEHAVIOR_WORD,
                 )
                 if (cells != null && cells.size >= 4) {
-                    setSelectedCells(cells[0], cells[1], selectionLength(cells))
+                    setSelectedCells(cells[0], cells[1], selectionLength(cells), chrome = true)
                     setSelectionEnd(cells[2], cells[3])
                 }
             }
@@ -1091,7 +1098,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
         selected = NativeSelection.text(session)
         selectionRect = null
-        setSelectedCells(cells[0], cells[1], selectionLength(cells))
+        setSelectedCells(cells[0], cells[1], selectionLength(cells), chrome = false)
         setSelectionEnd(cells[2], cells[3])
         renderThread.invalidate()
         return selected.isNotEmpty()
@@ -1459,6 +1466,16 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     @Volatile
     private var selected: String = ""
 
+    /**
+     * Whether this selection owns the menu and the draggable grips.
+     *
+     * A click selection is ordinary terminal text selection: the engine
+     * inverts the cells and nothing floats over them. A long press is the
+     * other kind — the same text, plus a menu and two grips. Keeping the two
+     * apart is why a double tap no longer litters the screen with handles.
+     */
+    private var chromeSelection: Boolean = false
+
     @Volatile
     private var selectionRect: android.graphics.Rect? = null
 
@@ -1526,9 +1543,15 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      * The row and the column are the grid's; the length is how many cells the
      * selection covers.
      */
-    private fun setSelectedCells(row: Int, column: Int, length: Int) {
+    private fun setSelectedCells(row: Int, column: Int, length: Int, chrome: Boolean) {
         selectedCells = Triple(row, column, length.coerceAtLeast(1))
-        onSelectionChanged?.invoke(true)
+        if (chrome) {
+            chromeSelection = true
+            onSelectionChanged?.invoke(true)
+        } else if (chromeSelection) {
+            chromeSelection = false
+            onSelectionChanged?.invoke(false)
+        }
     }
 
     /** Records the selection's end, from the engine's own answer. */
@@ -1548,6 +1571,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         if (session == 0L) return false
         selected = NativeSelection.selectAll(session)
         selectionRect = null
+        setSelectedCells(0, 0, 1, chrome = true)
         renderThread.invalidate()
         return selected.isNotEmpty()
     }
@@ -1557,6 +1581,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         selected = ""
         selectionRect = null
         selectedCells = null
+        if (chromeSelection) {
+            chromeSelection = false
+            onSelectionChanged?.invoke(false)
+        }
         onSelectionChanged?.invoke(false)
         renderThread.invalidate()
     }
@@ -1583,7 +1611,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         selectionRect = null
         // The cells the selection covers: the text's own length is the width of
         // a word, and a line is as long as the text it holds.
-        setSelectedCells(row, column, selected.length.coerceAtLeast(1))
+        setSelectedCells(row, column, selected.length.coerceAtLeast(1), chrome = false)
         renderThread.invalidate()
         return selected.isNotEmpty()
     }

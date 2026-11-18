@@ -96,13 +96,6 @@ internal class FrameRenderer {
     /** The emoji of this frame: a square per cell, drawn over the text. */
     private val colorGlyphs = ArrayList<ImageDraw>()
 
-    /** When the emoji list was last built, so a clean frame can keep it. */
-    private var colorGlyphCellWidth = -1f
-    private var colorGlyphCellHeight = -1f
-    private var colorGlyphRows = -1
-    private var colorGlyphColumns = -1
-    private var colorGlyphGeneration = -1
-
     /** Cell size, in pixels — the line box, which is what a cell is drawn at. */
     private var cellWidth = 1f
     private var cellHeight = 1f
@@ -392,7 +385,7 @@ internal class FrameRenderer {
         cells.resize(frame)
         buildBackgrounds(frame, dirty)
         val foregroundCount = buildForegrounds(frame, dirty)
-        buildColorGlyphs(frame, dirty)
+        buildColorGlyphs(frame)
 
         val buildEnd = System.nanoTime()
 
@@ -1435,32 +1428,14 @@ internal class FrameRenderer {
      * covers: a terminal gives it two columns and one row, and an emoji
      * stretched into that rectangle is a wide face rather than a face.
      */
-    private fun buildColorGlyphs(frame: Frame, dirty: BooleanArray) {
-        // The engine only marks a row dirty when its *text* changes. An emoji
-        // is text too, but a frame with nothing new has no dirty rows at all —
-        // and clearing the list here made the emoji vanish the moment the
-        // output stopped, then reappear as soon as something scrolled. Keep
-        // the last list until the grid, the cell or the atlas actually changes.
-        val anyDirty = dirty.any { it }
-        val sizeChanged = cellWidth != colorGlyphCellWidth ||
-            cellHeight != colorGlyphCellHeight
-        val gridChanged = colorGlyphRows != frame.rowCount ||
-            colorGlyphColumns != frame.columns
-        val atlasChanged = colorGlyphGeneration != colorAtlas.generation
-        if (!anyDirty && !sizeChanged && !gridChanged && !atlasChanged &&
-            colorGlyphs.isNotEmpty()
-        ) {
-            return
-        }
-
+    private fun buildColorGlyphs(frame: Frame) {
+        // Every row, not just the dirty ones. The engine's dirty flags answer
+        // "did the text change", and a frame with no new output has no dirty
+        // rows at all — but it still has to draw the emoji it already had.
+        // Walking a few thousand cells is cheap; losing the emoji the moment
+        // the shell goes quiet is not.
         colorGlyphs.clear()
-        colorGlyphCellWidth = cellWidth
-        colorGlyphCellHeight = cellHeight
-        colorGlyphRows = frame.rowCount
-        colorGlyphColumns = frame.columns
-        colorGlyphGeneration = colorAtlas.generation
         for (row in 0 until frame.rowCount) {
-            if (!dirty[row]) continue
             val gridRow = row + frame.firstRowY
             val base = row * frame.columns
             for (column in 0 until frame.columns) {
@@ -1471,8 +1446,10 @@ internal class FrameRenderer {
                 if (glyph.isBlank) continue
 
                 val span = if (frame.width(index) == 2) 2 else 1
-                val box = span * cellWidth
-                val side = cellHeight
+                // The padded atlas square maps onto the emoji's whole grid
+                // box: two columns wide for a double-width emoji, one row
+                // high. The glyph keeps its aspect inside the pad, and no ink
+                // is cut at a slot edge.
                 colorGlyphs.add(
                     ImageDraw(
                         texture = colorAtlasTexture,
@@ -1480,10 +1457,10 @@ internal class FrameRenderer {
                         z = 0,
                         col = 0,
                         row = 0,
-                        offsetX = (column * cellWidth + (box - side) / 2f).toInt(),
+                        offsetX = (column * cellWidth).toInt(),
                         offsetY = (gridRow * cellHeight).toInt(),
-                        width = side.toInt(),
-                        height = side.toInt(),
+                        width = (span * cellWidth).toInt(),
+                        height = cellHeight.toInt(),
                         sourceU = glyph.x.toFloat() / colorAtlas.size.toFloat(),
                         sourceV = glyph.y.toFloat() / colorAtlas.size.toFloat(),
                         sourceU2 = (glyph.x + glyph.width).toFloat() / colorAtlas.size.toFloat(),

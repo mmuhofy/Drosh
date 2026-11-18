@@ -134,6 +134,13 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         view.onSelectionChanged = { hasSelection ->
             selectionListener?.invoke(hasSelection)
         }
+        // The bounds arrive from the render thread after the frame that drew
+        // them. Without this the chrome is told "there is a selection" while
+        // the rectangle is still null, and never told again — which is why a
+        // long press highlighted the word but drew no grips or menu.
+        view.onSelectionBounds = { bounds ->
+            selectionListener?.invoke(bounds != null)
+        }
     }
 
     // --- identity ----------------------------------------------------------

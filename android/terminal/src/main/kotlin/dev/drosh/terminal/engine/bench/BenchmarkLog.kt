@@ -1,7 +1,6 @@
 package dev.drosh.terminal.engine.bench
 
 import android.content.Context
-import dev.drosh.terminal.engine.guest.Rootfs
 import java.io.File
 import java.io.IOException
 
@@ -32,8 +31,18 @@ object BenchmarkLog {
     /** Whether a recording is in progress. */
     fun isRecording(): Boolean = active
 
-    /** Where the file is, whether or not a recording is running. */
-    fun path(context: Context): String = File(Rootfs.dir(context), NAME).absolutePath
+    /**
+     * Where the file is, whether or not a recording is running.
+     *
+     * The same `.drosh` directory the settings file uses inside the guest, so
+     * a shell can read the log where it actually lives rather than in the
+     * app's private root. `UbuntuBootstrap` puts the rootfs under `ubuntu/`,
+     * which is the part a second copy of the path would get wrong.
+     */
+    fun path(context: Context): String = File(droshDir(context), NAME).absolutePath
+
+    private fun droshDir(context: Context): File =
+        File(File(File(File(context.filesDir, "ubuntu"), "rootfs"), "home"), ".drosh")
 
     /**
      * Start a new run: the old file is replaced, so a report never mixes two
@@ -41,11 +50,11 @@ object BenchmarkLog {
      */
     @Throws(IOException::class)
     fun start(context: Context, label: String = "") {
-        val rootfs = Rootfs.dir(context)
-        if (!rootfs.exists() && !rootfs.mkdirs()) {
-            throw IOException("cannot create ${rootfs.absolutePath}")
+        val dir = droshDir(context)
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw IOException("cannot create ${dir.absolutePath}")
         }
-        val file = File(rootfs, NAME)
+        val file = File(dir, NAME)
         synchronized(lock) {
             file.writeText("")
             file.appendText(
