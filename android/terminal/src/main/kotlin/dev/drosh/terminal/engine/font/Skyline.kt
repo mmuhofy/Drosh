@@ -46,7 +46,7 @@ internal class Skyline(
 
     /** A free span: [width] texels starting at ([x], [y]). */
     private class Node(
-        val x: Int,
+        var x: Int,
         var y: Int,
         var width: Int,
     )
