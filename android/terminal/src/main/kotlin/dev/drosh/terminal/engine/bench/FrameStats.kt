@@ -71,6 +71,19 @@ internal class FrameStats {
 
     private var lastFrameNanos = 0L
 
+    /**
+     * A bounded ring of the last [SAMPLE_COUNT] frames, for percentiles.
+     *
+     * The counters above are deliberately monotone: the frozen report must not
+     * change under the reader's feet. A percentile cannot be computed from a
+     * counter, so this ring lives beside them and is never used for the headline
+     * numbers. It is read only when the diagnostics panel asks for detail.
+     */
+    private val workSamples = FloatArray(SAMPLE_COUNT)
+    private val intervalSamples = FloatArray(SAMPLE_COUNT)
+    private var sampleCursor = 0
+    private var sampleCount = 0
+
     /** While frozen, [record] is ignored: the numbers stop moving. */
     var isFrozen = false
         private set
@@ -115,6 +128,12 @@ internal class FrameStats {
         val drawMillis = millis(uploadEndNanos, drawEndNanos)
         val total = pumpMillis + buildMillis + uploadMillis + drawMillis
 
+        // The percentile ring. Absolute puts: no cursor arithmetic can leave a
+        // stale value in a slot the next reader would mistake for a sample.
+        workSamples[sampleCursor] = total
+        sampleCursor = (sampleCursor + 1) % SAMPLE_COUNT
+        sampleCount = minOf(sampleCount + 1, SAMPLE_COUNT)
+
         pumpTotal += pumpMillis
         buildTotal += buildMillis
         uploadTotal += uploadMillis
@@ -148,6 +167,7 @@ internal class FrameStats {
             val gap = millis(lastFrameNanos, startNanos)
             maxInterval = maxOf(maxInterval, gap)
             interval[bucket(gap)] += 1
+            intervalSamples[(sampleCursor - 1 + SAMPLE_COUNT) % SAMPLE_COUNT] = gap
         }
         lastFrameNanos = startNanos
     }
@@ -179,6 +199,10 @@ internal class FrameStats {
         partialFrames = 0
         fullFrames = 0
         lastFrameNanos = 0L
+        workSamples.fill(0f)
+        intervalSamples.fill(0f)
+        sampleCursor = 0
+        sampleCount = 0
     }
 
     /** Frames whose work exceeded 8 ms — the acceptance criterion's numerator. */
@@ -238,6 +262,41 @@ internal class FrameStats {
      */
     fun partialShare(): Float =
         if (frames == 0) 0f else partialFrames * 100f / frames
+
+    /**
+     * The distribution behind the headline numbers.
+     *
+     * The acceptance criteria talk about p50 and p99; a bucket count cannot
+     * answer that. This is read only when someone opens the diagnostics panel,
+     * so sorting a few hundred floats is not on the render loop's path.
+     */
+    fun detail(): String {
+        if (sampleCount == 0) return "no frame samples yet"
+        val work = sortedSamples(workSamples)
+        val gap = sortedSamples(intervalSamples)
+        return String.format(
+            Locale.ROOT,
+            "samples %d · work p50 %.2f p95 %.2f p99 %.2f · gap p50 %.2f p95 %.2f p99 %.2f ms",
+            sampleCount,
+            work.percentile(50),
+            work.percentile(95),
+            work.percentile(99),
+            gap.percentile(50),
+            gap.percentile(95),
+            gap.percentile(99),
+        )
+    }
+
+    private fun sortedSamples(source: FloatArray): FloatArray =
+        source.copyOfRange(0, sampleCount).apply { sort() }
+
+    private fun FloatArray.percentile(percent: Int): Float {
+        if (isEmpty()) return 0f
+        // Nearest rank: an index that always names a sample we actually took,
+        // rather than an interpolation between two of them.
+        val rank = (percent * size / 100f).toInt().coerceIn(0, size - 1)
+        return this[rank]
+    }
 
     /** The status line: compact, and nothing in it moves backwards. */
     fun summary(): String {
@@ -321,6 +380,8 @@ internal class FrameStats {
 
     private companion object {
         const val BUCKETS = 6
+        /** How many samples the percentile ring keeps. */
+        private const val SAMPLE_COUNT = 600
         const val NANOS_PER_MILLI = 1_000_000f
 
         /**

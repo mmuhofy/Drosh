@@ -126,6 +126,9 @@ object RenderBench {
     /** The status line, for the diagnostics screen. */
     fun summary(): String = stats.summary()
 
+    /** The distribution behind the status line, for the expanded panel. */
+    fun detail(): String = stats.detail()
+
     /** The numbers as one line, for the log. */
     fun logLine(): String = stats.logLine()
 

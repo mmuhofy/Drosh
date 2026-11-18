@@ -463,10 +463,16 @@ internal class FrameRenderer {
                 row = row,
                 colour = { index -> backgroundColour(frame, index) },
                 underline = { index ->
-                    if (frame.attributes(index) and FrameFormat.ATTR_UNDERLINE_MASK != 0) {
-                        foregroundOf(frame, index)
-                    } else {
+                    val attributes = frame.attributes(index)
+                    val style = (attributes and FrameFormat.ATTR_UNDERLINE_MASK) shr
+                        FrameFormat.ATTR_UNDERLINE_SHIFT
+                    if (style == 0) {
                         Cells.TRANSPARENT
+                    } else {
+                        // The style travels in the alpha byte: the shader
+                        // recovers it as an integer and draws the right rule.
+                        // The colour is the cell's own foreground, as before.
+                        (foregroundOf(frame, index) and 0x00ffffff) or (style shl 24)
                     }
                 },
                 // The two rules the frame carries and nothing drew. They take

@@ -524,6 +524,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val session = sessionHandle
         val pty = ptyHandle
         if (session == 0L || pty == 0L) return false
+        val started = System.nanoTime()
         val written = NativeInput.encodeWriteMouse(
             session = session,
             pty = pty,
@@ -536,6 +537,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             cellWidth = cellWidth.toInt().coerceAtLeast(1),
             cellHeight = cellHeight.toInt().coerceAtLeast(1),
             buttonPressed = buttonPressed,
+        )
+        dev.drosh.terminal.engine.input.InputStats.mouse(
+            action, written, System.nanoTime() - started,
         )
         return written > 0
     }
@@ -1360,7 +1364,8 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val pty = ptyHandle
         if (pty == 0L) return
 
-        NativeInput.encodeWriteKey(
+        val started = System.nanoTime()
+        val written = NativeInput.encodeWriteKey(
             session = session,
             pty = pty,
             keyCode = event.keyCode,
@@ -1373,6 +1378,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             // Zero when the key produced no character; the engine reads the
             // character's own bytes from it, so no String is made per key.
             unicode = event.unicodeChar,
+        )
+        dev.drosh.terminal.engine.input.InputStats.key(
+            event.keyCode, written, System.nanoTime() - started,
         )
     }
 
@@ -1407,6 +1415,9 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val pty = ptyHandle
         if (pty == 0L) return
         NativePty.write(pty, bytes)
+        // Text from the IME and pastes both come through here, unlike keys and
+        // mouse events which are written by the encoder in one crossing.
+        dev.drosh.terminal.engine.input.InputStats.paste(bytes.size)
     }
 
     // --- selection ---------------------------------------------------------

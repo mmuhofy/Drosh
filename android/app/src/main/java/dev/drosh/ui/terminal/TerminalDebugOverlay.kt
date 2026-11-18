@@ -2,89 +2,91 @@ package dev.drosh.ui.terminal
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.terminal.engine.render.FrameReport
+import dev.drosh.ui.DroshIcons
 
 /**
- * A corner of numbers describing the last frame.
+ * The diagnostics eye, and the panel behind it.
  *
- * The terminal is drawn by a Rust engine through a GL surface, and every
- * symptom of it going wrong — a black pane, a missing row of colour, text that
- * stops updating — looks the same from outside: an empty rectangle. This is the
- * one place the frame says what it did: how long the build and the draw took,
- * how many cells carried a colour, how full the glyph atlas is.
+ * The terminal is drawn on its own EGL surface, so every way it can go wrong —
+ * a black pane, a missing row, text that stops updating — looks the same from
+ * outside. This is the one place the engine says what it did.
  *
- * Toggled with Ctrl+Shift+D, and never focusable: it must not take a touch the
- * terminal underneath wanted.
+ * The eye is always there, in the corner, and it is the only part that takes a
+ * touch while the panel is closed: a terminal owns every gesture on its
+ * surface, and a full-size invisible box here would swallow them. Open, the
+ * panel is a scrollable column with the whole report and a copy button, so a
+ * number a user saw on a phone can be pasted into a bug report unchanged.
  */
 @Composable
 fun TerminalDebugOverlay(
-    report: FrameReport?,
+    report: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onCopy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (report == null) {
-        return
-    }
-
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.78f))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .background(Color.Black.copy(alpha = 0.84f))
+            .padding(horizontal = 4.dp, vertical = 2.dp),
     ) {
-        // `String.format` reads a space between `%` and a conversion as a
-        // flag, and two in a row is a duplicate — so the numbers are composed,
-        // not formatted together.
-        Line(
-            "frame " + report.frames +
-                "  " + one(report.frameMillis) + " ms" +
-                "  build " + one(report.buildMillis) +
-                "  draw " + one(report.drawMillis),
-        )
-        Line("grid ${report.columns}x${report.rows}  damage ${report.damage}")
-        Line("glyphs ${report.glyphs}  coloured ${report.coloredCells}")
-        // The pinch's own numbers: the scale the frame was drawn at, the step
-        // it was drawn with, and the surface it was drawn on. A zoom that
-        // reports `scale 1.0` on every frame is a zoom that never reached the
-        // renderer, which is a different bug from a zoom that draws at the
-        // wrong size.
-        Line(
-            "scale " + one(report.pinchScale) +
-                "  step " + one(report.cellStepX) + "x" + one(report.cellStepY) +
-                "  surface ${report.surfaceWidth}x${report.surfaceHeight}",
-        )
-        Line(
-            "atlas " + report.atlasPercent + "%  bg #" +
-                (report.background and 0xffffff).toString(16).padStart(6, '0'),
-        )
-        if (report.samples.isNotEmpty()) {
-            Line("bgs " + report.samples.joinToString("  "))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onToggle) {
+                Icon(
+                    imageVector = if (expanded) DroshIcons.EyeOff else DroshIcons.Eye,
+                    contentDescription = if (expanded) "hide diagnostics" else "show diagnostics",
+                    tint = Color(0xFFB0FFB0),
+                )
+            }
+            if (expanded) {
+                Text(
+                    text = "diagnostics",
+                    color = Color(0xFFB0FFB0),
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+                IconButton(onClick = onCopy) {
+                    Icon(
+                        imageVector = DroshIcons.Copy,
+                        contentDescription = "copy diagnostics",
+                        tint = Color(0xFFB0FFB0),
+                    )
+                }
+            }
         }
-        Line(report.gl)
+
+        if (expanded) {
+            Text(
+                text = if (report.isEmpty()) "collecting…" else report,
+                color = Color(0xFFB0FFB0),
+                fontSize = 9.sp,
+                lineHeight = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+            )
+        }
     }
-}
-
-/** One decimal place, without `String.format`'s flag parsing. */
-private fun one(value: Float): String {
-    val tenths = (value * 10f).toInt()
-    return (tenths / 10).toString() + "." + (tenths % 10)
-}
-
-@Composable
-private fun Line(text: String) {
-    Text(
-        text = text,
-        color = androidx.compose.ui.graphics.Color(0xFFB0FFB0),
-        fontSize = 10.sp,
-        lineHeight = 12.sp,
-        fontFamily = FontFamily.Monospace,
-    )
 }

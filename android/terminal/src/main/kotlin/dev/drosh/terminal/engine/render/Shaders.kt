@@ -102,15 +102,39 @@ internal object Shaders {
             // The rule is 0.06 of the cell's height: on a small cell a thicker
             // one would start eating the text around it.
             float rule = 0.06;
+
+            // The underline's style is packed in the alpha byte as a small
+            // integer: 1 single, 2 double, 3 curly, 4 dotted, 5 dashed. The
+            // same vec4 carries the rule's colour in rgb.
+            bool underlined = false;
+            if (vUnderline.a > 0.0) {
+                float style = floor(vUnderline.a * 255.0 + 0.5);
+                float x = vLocal.x;
+                float y = vLocal.y;
+                if (style < 1.5) {
+                    underlined = y > 1.0 - rule;
+                } else if (style < 2.5) {
+                    underlined = y > 1.0 - rule ||
+                        (y > 1.0 - 3.0 * rule && y < 1.0 - 2.0 * rule);
+                } else if (style < 3.5) {
+                    float wave = 1.0 - 1.6 * rule + sin(x * 25.0) * rule;
+                    underlined = abs(y - wave) < rule * 0.5;
+                } else if (style < 4.5) {
+                    underlined = y > 1.0 - rule && mod(x * 28.0, 2.0) < 1.0;
+                } else {
+                    underlined = y > 1.0 - rule && mod(x * 10.0, 2.0) < 1.2;
+                }
+            }
+
             if (vOverline.a > 0.0 && vLocal.y < rule) {
-                fragColor = vOverline;
+                fragColor = vec4(vOverline.rgb, 1.0);
             } else if (vStrikethrough.a > 0.0 && abs(vLocal.y - 0.35) < rule * 0.5) {
                 // Through the middle of the lowercase letters, which is where a
                 // strikethrough reads as one rather than as an underline that
                 // happened to be short.
-                fragColor = vStrikethrough;
-            } else if (vUnderline.a > 0.0 && vLocal.y > 1.0 - rule) {
-                fragColor = vUnderline;
+                fragColor = vec4(vStrikethrough.rgb, 1.0);
+            } else if (underlined) {
+                fragColor = vec4(vUnderline.rgb, 1.0);
             }
         }
     """.trimIndent()

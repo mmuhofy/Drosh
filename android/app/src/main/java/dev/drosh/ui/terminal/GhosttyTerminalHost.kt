@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,6 +35,7 @@ import dev.drosh.terminal.session.TerminalManager
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.LocalFontSet
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
@@ -217,6 +219,34 @@ fun GhosttyTerminalHost(
 
     var status by remember { mutableStateOf<String?>("preparing") }
     var zoomSizeSp by remember { mutableStateOf(0f) }
+
+    // The diagnostics eye. The panel is off by default: a terminal's surface
+    // owns every gesture, and a full-size debug box on it would steal them.
+    // The eye itself is a couple of buttons in the corner.
+    var diagnosticsOpen by remember { mutableStateOf(false) }
+    var diagnosticsText by remember { mutableStateOf("") }
+
+    // Refresh only while open. The self tests run once; the moving numbers —
+    // frames, their distribution, keys, bytes — come from the live report.
+    LaunchedEffect(diagnosticsOpen) {
+        if (!diagnosticsOpen) return@LaunchedEffect
+        val statics = dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.staticReport()
+        while (diagnosticsOpen) {
+            val session = pane.session
+            val live = buildString {
+                appendLine(statics)
+                appendLine(dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.liveReport())
+                appendLine("--- session ---")
+                appendLine("bytes read: ${session?.bytesRead ?: 0}")
+                appendLine("frames drawn: ${pane.view.framesDrawn}")
+                appendLine("last frame: ${pane.view.lastFrameShape}")
+                appendLine("renderer failure: ${pane.view.rendererFailure ?: "none"}")
+            }
+            diagnosticsText = live
+            delay(DIAGNOSTICS_REFRESH_MS)
+        }
+    }
+    val clipboard = LocalClipboardManager.current
 
     // The tap that follows a hyperlink.
     //
@@ -487,10 +517,27 @@ fun GhosttyTerminalHost(
                     .padding(12.dp),
             )
         }
+
+        TerminalDebugOverlay(
+            report = diagnosticsText,
+            expanded = diagnosticsOpen,
+            onToggle = { diagnosticsOpen = !diagnosticsOpen },
+            onCopy = {
+                clipboard.setText(
+                    android.content.ClipData.newPlainText("drosh diagnostics", diagnosticsText),
+                )
+            },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 64.dp, end = 4.dp),
+        )
     }
 }
 
 private const val TAG = "GhosttyTerminalHost"
+
+/** How often the open panel reads the moving numbers again. */
+private const val DIAGNOSTICS_REFRESH_MS = 500L
 
 /** How many half-seconds the status line stays up before it gets out of the way. */
 private const val STATUS_TICKS = 40

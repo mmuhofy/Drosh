@@ -29,8 +29,16 @@ import dev.drosh.terminal.engine.native.NativeSmoke
  */
 object EngineDiagnostics {
 
-    /** One line per step, ending with `PASS` or the step that failed. */
-    fun report(): String = buildString {
+    /** The whole report, for the log and for a one-shot copy. */
+    fun report(): String = staticReport() + "\n" + liveReport()
+
+    /**
+     * The parts that do not change while the app runs.
+     *
+     * The self tests create terminals, so they are run once when the panel is
+     * opened, not on every refresh.
+     */
+    fun staticReport(): String = buildString {
         appendLine("--- libraries ---")
         appendLine(libraryReport())
         appendLine()
@@ -43,11 +51,20 @@ object EngineDiagnostics {
         appendLine("--- layout ---")
         appendLine(layoutReport())
         appendLine()
+        appendLine("--- probe ---")
+        appendLine(NativeSmoke.probe())
+    }
+
+    /** The parts that move: the renderer, its distribution, and the input. */
+    fun liveReport(): String = buildString {
         appendLine("--- render ---")
         appendLine(renderReport())
         appendLine()
-        appendLine("--- probe ---")
-        appendLine(NativeSmoke.probe())
+        appendLine("--- distribution ---")
+        appendLine(dev.drosh.terminal.engine.bench.RenderBench.detail())
+        appendLine()
+        appendLine("--- input ---")
+        appendLine(dev.drosh.terminal.engine.input.InputStats.report())
     }
 
     /**
