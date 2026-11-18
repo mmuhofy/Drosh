@@ -52,8 +52,9 @@ release when it ships.
   re-laying the atlas under itself
 - **The styles the frame carries are the styles that are drawn.** Italic is a
   face of its own — regular, bold, italic and bold-italic are rasterised
-  separately — and strikethrough and overline join the underline as rules in
-  the cell
+  separately — strikethrough and overline join the underline as rules in the
+  cell, and a blinking glyph dims on the blink clock instead of being a flag
+  the renderer never looked at
 - **The emoji are drawn in colour.** The platform's emoji font rasterises them
   into a second atlas — a colour one, next to the grayscale text atlas — and
   they are drawn as pictures over the text: two cells wide, centred, at the

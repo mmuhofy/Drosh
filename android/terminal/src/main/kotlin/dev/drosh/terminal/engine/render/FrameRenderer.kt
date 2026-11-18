@@ -60,6 +60,8 @@ internal class FrameRenderer {
 
     /** The factor the atlas's masks are rasterised at. */
     private var foregroundAtlasScale = 0
+    /** How much of its colour a blinking glyph keeps this frame. */
+    private var foregroundBlinkAlpha = 0
 
     /** The text atlas's texture: one byte a texel, [TextAtlas.size] square. */
     private val atlasTexture = GlTexture()
@@ -180,6 +182,7 @@ internal class FrameRenderer {
         foregroundAtlasSize = foregroundProgram.uniform("uAtlasSize")
         foregroundAtlas = foregroundProgram.uniform("uAtlas")
         foregroundAtlasScale = foregroundProgram.uniform("uAtlasScale")
+        foregroundBlinkAlpha = foregroundProgram.uniform("uBlinkAlpha")
 
         atlasTexture.create(atlas.size, atlas.size, GLES30.GL_R8)
         colorAtlasTexture.create(colorAtlas.size, colorAtlas.size, GLES20.GL_RGBA)
@@ -1163,6 +1166,7 @@ internal class FrameRenderer {
                 val attributes = frame.attributes(index)
                 val bold = attributes and FrameFormat.ATTR_BOLD != 0
                 val italic = attributes and FrameFormat.ATTR_ITALIC != 0
+                val blink = attributes and FrameFormat.ATTR_BLINK != 0
                 val entry = atlas.glyph(codepoint, bold, italic, rasterPx)
                 if (entry == null || entry.isBlank) {
                     false
@@ -1188,7 +1192,7 @@ internal class FrameRenderer {
                     buffer.putShort(column.toShort())
                     buffer.putShort(gridRow.toShort())
                     putColor(buffer, foregroundOf(frame, index))
-                    buffer.putShort(FLAG_NONE.toShort())
+                    buffer.putShort((if (blink) FLAG_BLINK else FLAG_NONE).toShort())
                     buffer.putShort((if (frame.width(index) == 2) 2 else 1).toShort())
                     true
                 }
@@ -1299,6 +1303,13 @@ internal class FrameRenderer {
         // font's strokes survive being sampled between texels. The shader
         // divides the mask's size by this to get the size to draw at.
         GLES20.glUniform1f(foregroundAtlasScale, atlas.scale)
+        // A blinking glyph is dimmed, not hidden: the cell still says where a
+        // word is while it blinks. The loop wakes on the blink clock, so this
+        // uniform is re-read on the frame that flips the phase.
+        GLES20.glUniform1f(
+            foregroundBlinkAlpha,
+            if (RenderClock.blinkVisible()) 1f else BLINK_DIM_ALPHA,
+        )
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         atlasTexture.bind()
@@ -1575,6 +1586,12 @@ internal class FrameRenderer {
         const val UNDERLINE_HEIGHT = 0.1f
 
         const val FLAG_NONE = 0
+
+        /** The sprite's glyph is a blinking one. Bit zero is the UV inset. */
+        const val FLAG_BLINK = 1 shl 1
+
+        /** A blinking glyph at half brightness in the dark phase. */
+        const val BLINK_DIM_ALPHA = 0.18f
 
         /** The terminal's own ground, until the theme says otherwise. */
         const val DEFAULT_BACKGROUND_R = 0.094f

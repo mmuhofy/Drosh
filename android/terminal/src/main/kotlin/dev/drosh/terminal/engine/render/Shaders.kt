@@ -152,6 +152,9 @@ internal object Shaders {
         // stage's are mediump, and a mismatch is a link error.
         out highp vec2 vTexCoord;
         out highp vec4 vColor;
+        // One when the glyph is a blinking one; the fragment dims it in the
+        // dark half of the blink.
+        out highp float vBlink;
         void main() {
             vec2 corner = vec2(
                 float(gl_VertexID == 1 || gl_VertexID == 3),
@@ -196,6 +199,7 @@ internal object Shaders {
                 ? (vec2(aAtlasRect) + 0.5) / uAtlasSize
                 : (vec2(aAtlasRect) + 0.5 + corner * max(natural - 1.0, vec2(0.0))) / uAtlasSize;
             vColor = aColor;
+            vBlink = float((aFlags & 2u) != 0u);
         }
     """.trimIndent()
 
@@ -322,11 +326,15 @@ internal object Shaders {
         // The same precision the vertex stage declares them with.
         in highp vec2 vTexCoord;
         in highp vec4 vColor;
+        in highp float vBlink;
         uniform sampler2D uAtlas;
+        // How much of its colour a blinking glyph keeps this frame.
+        uniform float uBlinkAlpha;
         out vec4 fragColor;
         void main() {
             float coverage = texture(uAtlas, vTexCoord).r;
-            fragColor = vec4(vColor.rgb, vColor.a * coverage);
+            float blink = mix(1.0, uBlinkAlpha, vBlink);
+            fragColor = vec4(vColor.rgb, vColor.a * coverage * blink);
         }
     """.trimIndent()
 }
