@@ -34,6 +34,8 @@ class TriggerBootstrap @Inject constructor(
     override val state: TriggerBootstrapUseCase.State
         get() = _state.value
 
+    override fun isInstalled(): Boolean = port.isInstalled()
+
     override fun start() = run(SetupPreferences.defaults())
 
     override fun retry() = run(SetupPreferences.defaults())

@@ -33,6 +33,14 @@ class BootstrapStatePort(private val bootstrap: UbuntuBootstrap) {
     val logs: SharedFlow<String> = _logs.asSharedFlow()
 
     /**
+     * Whether the guest's filesystem is actually installed — the rootfs and
+     * its completion marker, not the first-launch flag. Lets the navigation
+     * gate send a device with a stale flag but an incomplete guest back to
+     * setup instead of into an empty terminal.
+     */
+    fun isInstalled(): Boolean = bootstrap.isInstalled
+
+    /**
      * Drives the bootstrap pipeline. Safe to call multiple times — if the
      * rootfs is already installed, this is a no-op (state stays `Ready`) and
      * avoids flashing the stepper UI on subsequent app starts.

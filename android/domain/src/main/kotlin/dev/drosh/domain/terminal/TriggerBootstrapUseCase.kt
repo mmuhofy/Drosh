@@ -12,6 +12,10 @@ import kotlinx.coroutines.flow.Flow
  */
 interface TriggerBootstrapUseCase {
     val state: State
+
+    /** True only when the guest is really installed, independent of the first-launch flag. */
+    fun isInstalled(): Boolean
+
     fun start()
     fun retry()
     fun reDownloadRootfs()

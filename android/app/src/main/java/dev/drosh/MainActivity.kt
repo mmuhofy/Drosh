@@ -570,8 +570,13 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
         ) {
             composable("loading") {
+                // The first-launch flag alone is not enough: an older build
+                // could write it before bootstrap finished, and a crash then
+                // left a completed flag over an incomplete guest. Require the
+                // guest itself as well — that is the only way back into setup.
+                val needsSetup = firstCompleted != true || !triggerBootstrap.isInstalled()
                 val destination = when {
-                    firstCompleted != true -> "setup_flow"
+                    needsSetup -> "setup_flow"
                     locked.value && pinEnabled -> "lock"
                     else -> "terminal"
                 }
@@ -579,8 +584,9 @@ class MainActivity : ComponentActivity() {
                 var left by rememberSaveable { mutableStateOf(false) }
 
                 // Three halves now: the word, the stored flag, and the file's
-                // first read. Any one of them alone races.
-                LaunchedEffect(splashDone, firstCompleted, settingsReady) {
+                // first read. Any one of them alone races. `needsSetup` is a key
+                // so the effect runs with the destination it last observed.
+                LaunchedEffect(splashDone, firstCompleted, settingsReady, needsSetup) {
                     if (splashDone && firstCompleted != null && settingsReady && !left) {
                         left = true
                         navController.navigate(destination) {
@@ -635,7 +641,9 @@ class MainActivity : ComponentActivity() {
                         // swiping through the pages, and then the flag was never
                         // written and every later launch opened onboarding again.
                         // Reaching the terminal is the actual signal that setup
-                        // is done, so mark it here.
+                        // is done, so mark it here. This is the only write of
+                        // the flag; the loading gate independently checks that
+                        // the guest is installed before trusting it.
                         coroutineScope.launch { firstLaunchUseCase.markCompleted() }
                         navController.navigate("terminal") {
                             popUpTo("setup_flow") { inclusive = true }
