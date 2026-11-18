@@ -1,6 +1,9 @@
 package dev.drosh.ui.terminal
 
 import android.util.Log
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -224,14 +227,39 @@ fun GhosttyTerminalHost(
     // The diagnostics eye. The panel is off by default: a terminal's surface
     // owns every gesture, and a full-size debug box on it would steal them.
     // The eye itself is a couple of buttons in the corner.
+    // The terminal runs edge to edge. A shown navigation bar is transparent,
+    // but the window behind it is not — the app's base colour shows through as
+    // a band along the bottom of the grid. Hide the bar for as long as a
+    // terminal is on screen; a swipe still brings it back transiently.
+    val terminalActivity = LocalContext.current as? android.app.Activity
+    DisposableEffect(terminalActivity) {
+        val view = terminalActivity?.window?.decorView
+        val controller = if (terminalActivity != null && view != null) {
+            WindowCompat.getInsetsController(terminalActivity.window, view)
+        } else {
+            null
+        }
+        if (controller != null) {
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.navigationBars())
+        }
+        onDispose {
+            controller?.show(WindowInsetsCompat.Type.navigationBars())
+        }
+    }
+
     var diagnosticsOpen by remember { mutableStateOf(false) }
     var diagnosticsText by remember { mutableStateOf("") }
+    var benchmarkRecording by remember { mutableStateOf(false) }
+    var benchmarkStatus by remember { mutableStateOf("") }
 
     // Refresh only while open. The self tests run once; the moving numbers —
     // frames, their distribution, keys, bytes — come from the live report.
     LaunchedEffect(diagnosticsOpen) {
         if (!diagnosticsOpen) return@LaunchedEffect
         val statics = dev.drosh.terminal.engine.diagnostics.EngineDiagnostics.staticReport()
+        var lastSampleAt = 0L
         while (diagnosticsOpen) {
             val session = pane.session
             val live = buildString {
@@ -244,6 +272,19 @@ fun GhosttyTerminalHost(
                 appendLine("renderer failure: ${pane.view.rendererFailure ?: "none"}")
             }
             diagnosticsText = live
+
+            // One complete line per second of a recording. The loop wakes
+            // twice as often so the panel itself stays fresh.
+            val now = System.currentTimeMillis()
+            if (dev.drosh.terminal.engine.bench.BenchmarkLog.isRecording() &&
+                now - lastSampleAt >= BENCHMARK_SAMPLE_MS
+            ) {
+                lastSampleAt = now
+                dev.drosh.terminal.engine.bench.BenchmarkLog.sample(
+                    dev.drosh.terminal.engine.bench.RenderBench.summary() +
+                        " | " + dev.drosh.terminal.engine.bench.RenderBench.detail(),
+                )
+            }
             delay(DIAGNOSTICS_REFRESH_MS)
         }
     }
@@ -522,9 +563,35 @@ fun GhosttyTerminalHost(
         TerminalDebugOverlay(
             report = diagnosticsText,
             expanded = diagnosticsOpen,
+            recording = benchmarkRecording,
+            status = benchmarkStatus,
             onToggle = { diagnosticsOpen = !diagnosticsOpen },
             onCopy = {
                 clipboard.setText(AnnotatedString(diagnosticsText))
+            },
+            onRecord = {
+                try {
+                    dev.drosh.terminal.engine.bench.BenchmarkLog.start(
+                        context,
+                        "session ${pane.session?.persistentId ?: "none"}",
+                    )
+                    dev.drosh.terminal.engine.bench.RenderBench.reset()
+                    dev.drosh.terminal.engine.input.InputStats.reset()
+                    benchmarkRecording = true
+                    benchmarkStatus =
+                        "recording to ${dev.drosh.terminal.engine.bench.BenchmarkLog.path(context)}"
+                } catch (error: java.io.IOException) {
+                    benchmarkStatus = "cannot start: ${error.message}"
+                }
+            },
+            onStop = {
+                dev.drosh.terminal.engine.bench.BenchmarkLog.stop()
+                benchmarkRecording = false
+                benchmarkStatus = "stopped"
+            },
+            onFinish = {
+                benchmarkStatus = dev.drosh.terminal.engine.bench.BenchmarkLog.finish()
+                benchmarkRecording = false
             },
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -537,6 +604,9 @@ private const val TAG = "GhosttyTerminalHost"
 
 /** How often the open panel reads the moving numbers again. */
 private const val DIAGNOSTICS_REFRESH_MS = 500L
+
+/** One line in benchmark.log per second. */
+private const val BENCHMARK_SAMPLE_MS = 1_000L
 
 /** How many half-seconds the status line stays up before it gets out of the way. */
 private const val STATUS_TICKS = 40

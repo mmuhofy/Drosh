@@ -899,6 +899,10 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     private var fling: android.widget.Scroller? = null
 
+    /** The coast's speed factor, exposed through the diagnostics. */
+    var flingGear: Float = 0f
+        private set
+
     /**
      * Whether a long press is growing a selection.
      *
@@ -1199,6 +1203,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             maxRow = maxRow,
         )
 
+        // At the live edge, ask the engine for the bottom rather than trusting
+        // the row arithmetic. The last prompt is one row plus the descending
+        // part of the line box; a viewport that stops one row short leaves it
+        // cut off, which is exactly what "I cannot see the prompt" looks like.
+        // SCROLL_BOTTOM is the engine's own answer to where the bottom is.
+        if (target.pinned && distancePx < 0f) {
+            NativeSession.scroll(session, NativeSession.SCROLL_BOTTOM, 0)
+            scrollMachine.reset()
+            renderThread.post(RenderThread.Command.ScrollOffset(0f))
+            renderThread.invalidate()
+            lastScrollPinned = true
+            return
+        }
+
         // The engine moves by a delta, never to an absolute row: a delta
         // cannot be refused half-way, and the engine's answer is the truth
         // about where the viewport is.
@@ -1252,18 +1270,26 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private fun startFling(velocityY: Float) {
         val scroller = fling ?: android.widget.Scroller(context).also { fling = it }
         if (!scroller.isFinished) return
-        // The detector's velocities are tuned for lists; a terminal that moved
-        // at that speed scrolled a screenful per flick. The vendored view used
-        // a quarter of it, and so does this.
-        // The flick continues the drag.
-        //
+        // The flick is a coast, and its length follows how hard the finger
+        // moved. A slow flick is a line or two, a fast one crosses a screen —
+        // the old view's "gears", without a setting anyone has to choose. The
+        // tiers also cap a violent flick: a raw list velocity would throw the
+        // output past a hundred rows and make the picture impossible to read.
+        val speed = kotlin.math.abs(velocityY)
+        val gear = when {
+            speed < 1_200f -> 0.22f
+            speed < 2_800f -> 0.38f
+            speed < 5_000f -> 0.55f
+            else -> 0.75f
+        }
+        flingGear = gear
         // The detector's velocity is positive when the finger moved up, and up
         // means the content keeps moving up — a negative distance for the drag
         // path. The scroller's position therefore has to shrink, which is a
         // negative velocity.
         scroller.fling(
             0, 0,
-            0, -(velocityY * FLING_SCALE).toInt(),
+            0, -(velocityY * gear).toInt(),
             0, 0,
             Int.MIN_VALUE, Int.MAX_VALUE,
         )
@@ -1621,9 +1647,6 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         const val AXIS_NONE = 0
         const val AXIS_VERTICAL = 1
         const val AXIS_HORIZONTAL = 2
-
-        /** How much of the detector's fling velocity a terminal uses. */
-        const val FLING_SCALE = 0.25f
 
         /**
          * The step the live size moves in while the fingers are moving.

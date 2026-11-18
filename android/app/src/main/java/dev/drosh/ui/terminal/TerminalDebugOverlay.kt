@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,15 +33,20 @@ import dev.drosh.ui.DroshIcons
  * The eye is always there, in the corner, and it is the only part that takes a
  * touch while the panel is closed: a terminal owns every gesture on its
  * surface, and a full-size invisible box here would swallow them. Open, the
- * panel is a scrollable column with the whole report and a copy button, so a
- * number a user saw on a phone can be pasted into a bug report unchanged.
+ * panel is a scrollable column with the whole report, a copy button, and the
+ * three controls of a benchmark run.
  */
 @Composable
 fun TerminalDebugOverlay(
     report: String,
     expanded: Boolean,
+    recording: Boolean,
+    status: String,
     onToggle: () -> Unit,
     onCopy: () -> Unit,
+    onRecord: () -> Unit,
+    onStop: () -> Unit,
+    onFinish: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -59,8 +65,8 @@ fun TerminalDebugOverlay(
             }
             if (expanded) {
                 Text(
-                    text = "diagnostics",
-                    color = Color(0xFFB0FFB0),
+                    text = if (recording) "diagnostics ● REC" else "diagnostics",
+                    color = if (recording) Color(0xFFFF8080) else Color(0xFFB0FFB0),
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                 )
@@ -75,6 +81,22 @@ fun TerminalDebugOverlay(
         }
 
         if (expanded) {
+            // A run is explicit: REC starts a fresh log and zeroes the numbers,
+            // STOP pauses the file, FIN closes it and says where it landed.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BenchButton("REC", onRecord)
+                BenchButton("STOP", onStop)
+                BenchButton("FIN", onFinish)
+            }
+            if (status.isNotEmpty()) {
+                Text(
+                    text = status,
+                    color = Color(0xFFFFD070),
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                )
+            }
             Text(
                 text = if (report.isEmpty()) "collecting…" else report,
                 color = Color(0xFFB0FFB0),
@@ -88,5 +110,17 @@ fun TerminalDebugOverlay(
                     .padding(horizontal = 6.dp, vertical = 4.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun BenchButton(text: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Text(
+            text = text,
+            color = Color(0xFFB0FFB0),
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+        )
     }
 }
