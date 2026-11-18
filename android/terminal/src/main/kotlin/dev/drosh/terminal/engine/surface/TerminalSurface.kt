@@ -378,6 +378,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         renderThread.invalidate()
     }
 
+    /**
+     * Ask the render loop to draw the session's next frame.
+     *
+     * Not [invalidate]: this view draws on its own EGL surface from a thread,
+     * so the view system's invalidation repaints nothing. The terminal's output
+     * is produced by the session's reader thread — a keystroke's echo, a
+     * prompt, a program's flood — and nothing else tells the loop about it.
+     * Without this the loop waits for the cursor's blink, which is up to half
+     * a second, and the screen trails the child by that much.
+     */
+    fun invalidateFrame() {
+        renderThread.invalidate()
+    }
+
     /** Detach both, without freeing them: the host owns their lifetime. */
     fun detach() {
         ptyHandle = 0

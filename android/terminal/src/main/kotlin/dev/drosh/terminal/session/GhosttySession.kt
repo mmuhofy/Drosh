@@ -57,6 +57,22 @@ class GhosttySession(
     var onExit: ((Int) -> Unit)? = null
 
     /**
+     * Told after the reader has fed output to the grid.
+     *
+     * The reader thread is where a terminal's output arrives, and the render
+     * loop is a different thread that cannot see it happen. The pane showing
+     * this session sets this to wake its own loop; without it the loop waits
+     * for the cursor's blink — up to half a second — and the screen trails the
+     * child by that much.
+     *
+     * Invoked on the reader thread, once per read that carried bytes. A flood
+     * of output therefore wakes the loop once per read, and the loop coalesces
+     * them into one frame per refresh.
+     */
+    @Volatile
+    var onOutput: (() -> Unit)? = null
+
+    /**
      * The child's process id, or 0 while there is none.
      *
      * The kernel knows the child as this number, and the app's facts about the
@@ -234,6 +250,9 @@ class GhosttySession(
                 read > 0 -> {
                     bytesRead += read
                     feed(readBuffer, read)
+                    // The grid changed; the loop that draws it is on another
+                    // thread and has to be told.
+                    onOutput?.invoke()
                 }
                 // Nothing right now. The child's exit is the signal that this
                 // is done, not an empty read.
@@ -350,6 +369,7 @@ class GhosttySession(
         val handle = terminalHandle
         if (handle == 0L) return
         NativeSession.write(handle, bytes, length)
+        onOutput?.invoke()
     }
 
     /** Write bytes to the child. */

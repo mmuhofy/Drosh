@@ -170,7 +170,12 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
      * running and keeps its output — so the grid can show it again later.
      */
     override fun showSession(session: RenderedSession) {
-        this.session = session as? GhosttySession
+        val shown = session as? GhosttySession
+        // The pane that was showing the old session stops being its listener:
+        // the session keeps running and keeps producing output, but a pane
+        // that is no longer showing it has no reason to draw.
+        this.session?.onOutput = null
+        this.session = shown
         sessionHandle = session.terminalHandle
         ptyHandle = session.ptyHandle
         cellWidth = session.cellWidth
@@ -179,6 +184,8 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
         // The session is new to this pane, whatever opened it: the theme is
         // the pane's, and the terminal it points at has never heard it.
         applyTheme()
+        // Its output has to wake this pane's loop, not the last one's.
+        shown?.onOutput = { view.invalidateFrame() }
     }
 
     /**
@@ -274,8 +281,9 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     /** Feed bytes to the grid. Used by a bridged session's transport. */
     override fun feed(bytes: ByteArray, length: Int) {
         val shown = session ?: return
+        // The session wakes the loop itself, through the callback this pane
+        // installed when it started showing it.
         shown.feed(bytes, length)
-        view.invalidate()
     }
 
     /** Write bytes to the child. Used by the keyboard and the paste path. */
@@ -317,6 +325,7 @@ class GhosttyTerminal(context: Context) : TerminalEngine {
     override fun stop() {
         if (!state.canStop) return
         view.detach()
+        session?.onOutput = null
         session = null
         sessionHandle = 0
         ptyHandle = 0
