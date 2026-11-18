@@ -41,6 +41,19 @@ release when it ships.
   released before the frame is built, the frame is written into the renderer's
   own buffer instead of a Java array, and only the rows the engine says changed
   are extracted, built and uploaded
+- **The screen follows the child.** Output wakes the render loop the moment it
+  arrives rather than waiting for the cursor's blink — up to half a second of
+  latency on a keystroke's echo — and the reader reuses its buffer instead of
+  allocating 64 KB on every read. The per-frame diagnostic sample is only built
+  when something is reading it
+- **The atlas is packed the way Ghostty packs its own**: a skyline of free
+  spans rather than shelves that throw the whole texture away when the next
+  glyph does not fit. A pinch can walk through every size it likes without
+  re-laying the atlas under itself
+- **The styles the frame carries are the styles that are drawn.** Italic is a
+  face of its own — regular, bold, italic and bold-italic are rasterised
+  separately — and strikethrough and overline join the underline as rules in
+  the cell
 - **The emoji are drawn in colour.** The platform's emoji font rasterises them
   into a second atlas — a colour one, next to the grayscale text atlas — and
   they are drawn as pictures over the text: two cells wide, centred, at the

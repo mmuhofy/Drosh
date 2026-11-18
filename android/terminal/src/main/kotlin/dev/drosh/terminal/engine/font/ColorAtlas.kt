@@ -36,9 +36,8 @@ internal class ColorGlyph(
  *
  * ## The packing
  *
- * Shelves, like the text atlas: fill a row, then start the next below the
- * tallest glyph in it. Emoji are square-ish and all the same size, so the rows
- * pack almost perfectly.
+ * Skyline-packed, like the text atlas ([Skyline]): emoji are square-ish and
+ * all the same size, so they pack tightly and the atlas rarely starts over.
  */
 internal class ColorAtlas(
     val size: Int = ATLAS_SIZE,
@@ -77,16 +76,15 @@ internal class ColorAtlas(
     /** The size the current glyphs were rasterised at, in texels. */
     private var rasterPx: Float = 0f
 
-    private var penX = 0
-    private var penY = 0
-    private var shelfHeight = 0
+    /** The same packer the text atlas uses, for the same reason. */
+    private val packer = Skyline(size, size)
 
     /** Glyphs, keyed by codepoint and the size they were drawn at. */
     private val cache = HashMap<Long, ColorGlyph?>(64)
 
     /** How much of the atlas is in use, for the diagnostic surface. */
     val usedPercent: Int
-        get() = if (size <= 0) 0 else (penY * 100) / size
+        get() = if (size <= 0) 0 else (packer.usedBottom * 100) / size
 
     /**
      * The glyph for [codepoint] at [px], or null when the platform has none.
@@ -117,7 +115,7 @@ internal class ColorAtlas(
         if (fullDirty) return 0 until size
         if (dirtyTopY == Int.MAX_VALUE) return null
         val top = dirtyTopY.coerceIn(0, size)
-        val bottom = (penY + shelfHeight).coerceIn(top, size)
+        val bottom = packer.usedBottom.coerceIn(top, size)
         if (bottom <= top) return null
         return top until bottom
     }
@@ -131,9 +129,7 @@ internal class ColorAtlas(
     /** Drop every glyph. A new size is a new glyph, and the old ones are wrong. */
     fun reset() {
         cache.clear()
-        penX = 0
-        penY = 0
-        shelfHeight = 0
+        packer.reset()
         pixels.clear()
         for (index in 0 until pixels.capacity()) pixels.put(index, 0)
         pixels.clear()
@@ -204,17 +200,8 @@ internal class ColorAtlas(
     }
 
     private fun reserve(width: Int, height: Int): Slot? {
-        if (width > size || height > size) return null
-        if (penX + width > size) {
-            penX = 0
-            penY += shelfHeight
-            shelfHeight = 0
-        }
-        if (penY + height > size) return null
-        val slot = Slot(penX, penY)
-        penX += width
-        if (height > shelfHeight) shelfHeight = height
-        return slot
+        val rect = packer.reserve(width, height) ?: return null
+        return Slot(rect.x, rect.y)
     }
 
     private class Slot(val x: Int, val y: Int)
