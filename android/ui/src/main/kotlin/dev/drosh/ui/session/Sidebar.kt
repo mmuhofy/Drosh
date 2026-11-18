@@ -101,20 +101,24 @@ fun Modifier.sidebarPush(state: SidebarPushState): Modifier = this.graphicsLayer
 }
 
 /**
- * The slide-in drawer, now a small feature dashboard rather than a session
- * list. Its whole purpose is two tiles — [ProcessesSheet] and
- * [ResourceMonitorSheet] — plus the device header and a close control.
+ * The slide-in drawer: a small feature dashboard with four tiles —
+ * [ProcessesSheet], [ResourceMonitorSheet], Drosh Keyboard and Settings — plus
+ * the device header and a close control.
  *
  * Session management, navigation and the terminal's keyboard/log controls all
- * left this drawer; session switching lives in its own grid screen, and the
+ * left this drawer; session switching lives in its own grid screen. The
  * diagnostics report is built by the terminal screen and reached through
- * [onOpenDiagnostics].
+ * [onOpenDiagnostics]. Keyboard and Settings are the two restored entries and
+ * are handed straight to the platform through [onOpenKeyboard] and
+ * [onOpenSettings].
  */
 @Composable
 fun Sidebar(
     isOpen: Boolean,
     onClose: () -> Unit,
     onOpenDiagnostics: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenKeyboard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val deviceIdentityViewModel: DeviceIdentityViewModel = hiltViewModel()
@@ -177,6 +181,20 @@ fun Sidebar(
                 title = stringResource(R.string.sidebar_tile_resources),
                 subtitle = stringResource(R.string.sidebar_tile_resources_subtitle),
                 onClick = { resourcesOpen = true },
+            )
+            Spacer(Modifier.height(10.dp))
+            DashboardTile(
+                icon = DroshIcons.Keyboard,
+                title = stringResource(R.string.sidebar_tile_keyboard),
+                subtitle = stringResource(R.string.sidebar_tile_keyboard_subtitle),
+                onClick = onOpenKeyboard,
+            )
+            Spacer(Modifier.height(10.dp))
+            DashboardTile(
+                icon = DroshIcons.Settings,
+                title = stringResource(R.string.sidebar_tile_settings),
+                subtitle = stringResource(R.string.sidebar_tile_settings_subtitle),
+                onClick = onOpenSettings,
             )
         }
     }
@@ -276,7 +294,8 @@ private fun SidebarHeader(
 
 /**
  * One feature entry. The whole band is the target; pressing deepens its
- * surface, because a ripple on an already-dark row reads as nothing at all.
+ * surface and nudges it down to 0.97f, because a ripple on an already-dark row
+ * reads as nothing at all.
  */
 @Composable
 private fun DashboardTile(
@@ -293,10 +312,22 @@ private fun DashboardTile(
         animationSpec = tween(durationMillis = 120),
         label = "dashboardTilePress",
     )
+    // UNTESTED — verify before use: the press scale reads the same
+    // interactionSource as the surface state; 120ms with FastOutSlowInEasing
+    // settles without overshoot, so there is no bounce on release.
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
+        label = "dashboardTileScale",
+    )
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(RoundedCornerShape(14.dp))
             .background(DroshSurfaceVariant.copy(alpha = 0.55f + 0.45f * surface))
             .clickable(

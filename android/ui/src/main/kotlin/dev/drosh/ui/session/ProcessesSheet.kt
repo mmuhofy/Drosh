@@ -23,7 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,8 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.drosh.domain.session.SessionSnapshot
-import dev.drosh.domain.session.SessionState
+import dev.drosh.domain.session.SessionProcessInfo
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshSurfaceVariant
@@ -43,17 +41,12 @@ import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.ui.R
 
-/** The label a session's state gets in this sheet. */
-internal fun SessionState.labelRes(): Int = when (this) {
-    SessionState.Idle -> R.string.sidebar_state_idle
-    SessionState.Running -> R.string.sidebar_state_running
-    SessionState.Closed -> R.string.sidebar_state_ended
-}
-
 /**
- * Bottom sheet listing the live processes, read straight from the session
- * store. `SessionSnapshot` has no pid and no cwd field, so each row shows the
- * session's name, its state and a short id rather than invented process data.
+ * Bottom sheet listing the open sessions' processes. The data is the
+ * [SessionProcessInfo] stream published by [SessionSwitcherViewModel]; it
+ * carries a name, an optional pid and the jobs running in that session.
+ * Nothing here is inferred from session snapshots — if a value is missing the
+ * row says so instead of inventing one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,16 +54,8 @@ fun ProcessesSheet(
     onDismiss: () -> Unit,
 ) {
     val viewModel: SessionSwitcherViewModel = hiltViewModel()
-    val sessions by viewModel.allSessions.collectAsStateWithLifecycle()
-    val activeId by viewModel.activeId.collectAsStateWithLifecycle()
+    val processes by viewModel.processes.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    val live = remember(sessions) {
-        sessions
-            .filter { it.state != SessionState.Closed }
-            .sortedByDescending { it.lastUsedAtMs }
-    }
-    val endedCount = sessions.count { it.state == SessionState.Closed }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -97,7 +82,7 @@ fun ProcessesSheet(
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
             )
 
-            if (live.isEmpty()) {
+            if (processes.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -115,36 +100,32 @@ fun ProcessesSheet(
                     modifier = Modifier.heightIn(max = 400.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(items = live, key = { it.id }) { snapshot ->
-                        ProcessRow(snapshot = snapshot, isActive = snapshot.id == activeId)
+                    items(items = processes, key = { it.sessionId }) { info ->
+                        ProcessRow(info = info)
                     }
                 }
             }
 
-            if (endedCount > 0) {
-                Text(
-                    text = stringResource(R.string.sidebar_processes_ended, endedCount),
-                    color = DroshTextMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-            }
             Spacer(Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun ProcessRow(
-    snapshot: SessionSnapshot,
-    isActive: Boolean,
-) {
-    val stateLabel = stringResource(snapshot.state.labelRes())
+private fun ProcessRow(info: SessionProcessInfo) {
+    val pidLabel = info.pid?.let { stringResource(R.string.sidebar_processes_pid, it) }
+        ?: stringResource(R.string.sidebar_processes_pid_unknown)
+    val jobsLabel = if (info.jobs.isEmpty()) {
+        stringResource(R.string.sidebar_processes_no_jobs)
+    } else {
+        info.jobs.joinToString(" · ")
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(DroshSurfaceHigh.copy(alpha = if (isActive) 0.9f else 0.5f))
+            .background(DroshSurfaceHigh)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -152,12 +133,12 @@ private fun ProcessRow(
             modifier = Modifier
                 .size(8.dp)
                 .clip(CircleShape)
-                .background(if (snapshot.state == SessionState.Running) DroshPrimary else DroshTextMuted),
+                .background(DroshPrimary),
         )
         Spacer(Modifier.width(11.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = snapshot.name,
+                text = info.name,
                 color = DroshText,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -165,23 +146,18 @@ private fun ProcessRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(
-                    R.string.sidebar_processes_detail,
-                    stateLabel,
-                    snapshot.id.take(8),
-                ),
+                text = pidLabel,
                 color = DroshTextMuted,
                 fontSize = 11.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-        if (isActive) {
             Text(
-                text = stringResource(R.string.sidebar_active),
-                color = DroshPrimary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
+                text = stringResource(R.string.sidebar_processes_jobs, jobsLabel),
+                color = DroshTextMuted,
+                fontSize = 11.5.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

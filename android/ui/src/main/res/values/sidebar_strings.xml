@@ -2,33 +2,39 @@
 <resources>
     <!-- Dashboard drawer -->
     <string name="sidebar_dashboard_brand">DROSH</string>
-    <string name="sidebar_dashboard_section">FEATURES</string>
+    <string name="sidebar_dashboard_section">Features</string>
     <string name="sidebar_close">Close menu</string>
 
     <string name="sidebar_tile_processes">Processes</string>
-    <string name="sidebar_tile_processes_subtitle">Live sessions and what they are doing</string>
+    <string name="sidebar_tile_processes_subtitle">Open sessions, PIDs and their jobs</string>
     <string name="sidebar_tile_resources">Resource Monitor</string>
-    <string name="sidebar_tile_resources_subtitle">Session counts and the engine report</string>
+    <string name="sidebar_tile_resources_subtitle">CPU, memory and frame timing</string>
+    <string name="sidebar_tile_keyboard">Keyboard</string>
+    <string name="sidebar_tile_keyboard_subtitle">Open Drosh Keyboard settings</string>
+    <string name="sidebar_tile_settings">Settings</string>
+    <string name="sidebar_tile_settings_subtitle">Appearance, terminal and app settings</string>
 
     <!-- Processes sheet -->
     <string name="sidebar_processes_title">Processes</string>
-    <string name="sidebar_processes_desc">Live sessions from the session store. Snapshots carry no PID, so each row shows its state.</string>
-    <string name="sidebar_processes_empty">No live sessions right now</string>
-    <string name="sidebar_processes_ended">%1$d ended session(s) not shown</string>
-    <string name="sidebar_processes_detail">%1$s · %2$s</string>
-    <string name="sidebar_active">ACTIVE</string>
-    <string name="sidebar_state_idle">Idle</string>
-    <string name="sidebar_state_running">Running</string>
-    <string name="sidebar_state_ended">Ended</string>
+    <string name="sidebar_processes_desc">Open sessions with their process ID and running jobs.</string>
+    <string name="sidebar_processes_empty">No processes are running right now</string>
+    <string name="sidebar_processes_pid">PID %1$d</string>
+    <string name="sidebar_processes_pid_unknown">PID unavailable</string>
+    <string name="sidebar_processes_jobs">Jobs: %1$s</string>
+    <string name="sidebar_processes_no_jobs">No jobs</string>
 
     <!-- Resource monitor sheet -->
     <string name="sidebar_resource_title">Resource Monitor</string>
-    <string name="sidebar_resource_desc">Counts come from the session store. No memory or frame-rate samples here.</string>
-    <string name="sidebar_resource_live">Live</string>
-    <string name="sidebar_resource_background">Background</string>
-    <string name="sidebar_resource_ended">Ended</string>
-    <string name="sidebar_resource_breakdown">%1$d running · %2$d idle</string>
-    <string name="sidebar_resource_active">Active: %1$s</string>
+    <string name="sidebar_resource_desc">Live CPU, memory and frame timing from the renderer.</string>
+    <string name="sidebar_resource_cpu">CPU</string>
+    <string name="sidebar_resource_cpu_value">%1$.1f%%</string>
+    <string name="sidebar_resource_fps">FPS</string>
+    <string name="sidebar_resource_fps_value">%1$.1f</string>
+    <string name="sidebar_resource_ram">Memory: %1$d / %2$d MB</string>
+    <string name="sidebar_resource_frame">Frame time: %1$s</string>
+    <string name="sidebar_resource_frame_value">%1$.1f ms</string>
+    <string name="sidebar_resource_unavailable">—</string>
+    <string name="sidebar_resource_gpu_unavailable">GPU utilisation data is not available on stock Android.</string>
     <string name="sidebar_resource_diagnostics">Open diagnostics</string>
     <string name="sidebar_resource_diagnostics_note">Full engine report, built by the terminal screen.</string>
 </resources>
