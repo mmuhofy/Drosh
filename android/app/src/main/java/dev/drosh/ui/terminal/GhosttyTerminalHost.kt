@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -523,9 +524,7 @@ fun GhosttyTerminalHost(
             expanded = diagnosticsOpen,
             onToggle = { diagnosticsOpen = !diagnosticsOpen },
             onCopy = {
-                clipboard.setText(
-                    android.content.ClipData.newPlainText("drosh diagnostics", diagnosticsText),
-                )
+                clipboard.setText(AnnotatedString(diagnosticsText))
             },
             modifier = Modifier
                 .align(Alignment.TopEnd)
