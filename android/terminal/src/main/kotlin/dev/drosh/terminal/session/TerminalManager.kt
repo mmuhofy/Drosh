@@ -390,13 +390,10 @@ class TerminalManager(
     /**
      * Whether the block engine is following this session's output at all.
      *
-     * The wire is a transcript poller: on every chunk of output it serialises
-     * the whole transcript, strips ANSI from it, diffs it against the previous
-     * one and runs the prompt regexes. That work is proportional to the size of
-     * the scrollback, and it was paid on every chunk whether or not the user
-     * was looking at blocks — so a long `apt install` in classic mode kept
-     * re-reading its own backlog, once per 64 KB of output, long after the
-     * install was over.
+     * The wire used to poll a rendered transcript: every chunk serialised the
+     * whole scrollback, stripped it and diffed it against the previous frame.
+     * It now drains the engine's own block records — a handful of short strings
+     * per command — so the work no longer grows with the scrollback.
      *
      * Classic mode never reads anything the wire produces (the input bar that
      * consumes `awaitingShellInput` lives on the block side of the screen), so
@@ -1067,11 +1064,10 @@ class TerminalManager(
             .onEach { enabled ->
                 if (blockEngineEnabled == enabled) return@onEach
                 blockEngineEnabled = enabled
-                // Turning the engine on mid-session: the wire stopped following
-                // the screen while it was off, so its diff anchor describes a
-                // transcript from before. Without a re-seed the first chunk
-                // after the switch would diff the whole backlog and post all of
-                // it as new output.
+                // Turning the engine on mid-session: the recorder kept
+                // producing records while the wire was off, so a re-seed drops
+                // those stale records rather than replaying output from before
+                // the switch.
                 if (enabled) reanchorBlockWire()
             }
             .launchIn(managerScope)
@@ -1088,11 +1084,11 @@ class TerminalManager(
     }
 
     /**
-     * Re-seeds the wire's diff anchor against every live session.
+     * Drops the engine's queued block records for every live session.
      *
      * Only meaningful when the engine is on; called the moment it is turned
-     * back on, because everything the wire knew about the screen went stale
-     * while it was off.
+     * back on, because records produced while it was off describe output the
+     * UI never showed.
      */
     private fun reanchorBlockWire() {
         val wire = blockEngineWire ?: return
@@ -1252,9 +1248,9 @@ class TerminalManager(
         _selectionBounds.value = null
         _hasSelection.value = false
         activatePane(pane)
-        // The block engine reads the shell's state from the engine's marks
-        // when the session runs on the engine; a vendored session has no
-        // marks to read and the wire keeps inferring from the screen.
+        // State (phase, directory) still comes from the engine's marks. Block
+        // boundaries no longer do — those are drained from the engine's own
+        // records in startEngineWatch.
         onBlockSessionChanged(null, ShellStateSource(pane.shellSession()))
         publishAltBufferState()
         publishActiveId()
@@ -1393,14 +1389,13 @@ class TerminalManager(
                         val sessionId = pane.persistentId
                         if (sessionId.isNotEmpty()) {
                             val wire = blockEngineWire
-                            // The block engine reads the transcript of the old
-                            // engine's session object; the new one has none
-                            // until the transcript tap is wired, so it is a
-                            // no-op there rather than a `!!`.
+                            // The engine records block boundaries on the PTY
+                            // tap. The wire only drains the records; no
+                            // transcript is read and no prompt regex is run.
                             val session = pane.shellSession()
                             if (session != null) {
                                 withContext(Dispatchers.IO) {
-                                    wire?.onShellSessionTextChanged(session, sessionId)
+                                    wire?.drainEvents(session, sessionId)
                                 }
                             }
                         }
