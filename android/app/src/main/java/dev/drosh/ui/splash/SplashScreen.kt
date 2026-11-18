@@ -22,8 +22,11 @@ import dev.drosh.theme.DroshBackground
 import dev.drosh.theme.LocalFontSet
 import kotlinx.coroutines.delay
 
-/** Minimum time the splash stays on screen, so it never appears as a 0-frame flash. */
-private const val MINIMUM_HOLD_MS = 550L
+/**
+ * Minimum time the splash stays on screen: longer than the fade-in so the
+ * prompt finishes brightening before navigation can take it away.
+ */
+private const val MINIMUM_HOLD_MS = 900L
 
 /** Duration of the one-shot fade-in of the prompt, in milliseconds. */
 private const val FADE_IN_DURATION_MS = 700
