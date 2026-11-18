@@ -23,9 +23,12 @@ import java.nio.ByteOrder
  *
  * ## The packing
  *
- * Shelves: fill a row left to right, then start the next below the tallest
- * glyph in it. Simple, and a terminal's glyphs are all about the same height,
- * so the rows pack almost perfectly.
+ * A skyline, the way Ghostty packs its atlas (`src/font/Atlas.zig`): the free
+ * space is kept as spans and a glyph goes wherever it fits lowest. A shelf
+ * packer fills a row and then the next, and when the atlas is full it starts
+ * over — which a pinch reaches, because it re-rasterises at every size it
+ * passes through. The skyline only gives up when the texture really is full.
+ * See [Skyline].
  *
  * ## The format
  *
@@ -102,17 +105,15 @@ internal class TextAtlas(
     /** The factor the current masks were rasterised at. */
     private var rasterScale: Float = 1f
 
-    /** The shelf being filled, and where the next one starts. */
-    private var penX = 0
-    private var penY = 0
-    private var shelfHeight = 0
+    /** Where the masks go. */
+    private val packer = Skyline(size, size)
 
     /** Masks, keyed by codepoint and weight. */
     private val cache = HashMap<Long, GlyphMask?>(256)
 
     /** How much of the atlas is in use, for a diagnostic surface. */
     val usedPercent: Int
-        get() = if (size <= 0) 0 else (penY * 100) / size
+        get() = if (size <= 0) 0 else (packer.usedBottom * 100) / size
 
     /**
      * Start a new generation at [px].
@@ -173,7 +174,9 @@ internal class TextAtlas(
         if (fullDirty) return 0 until size
         if (dirtyTopY == Int.MAX_VALUE) return null
         val top = dirtyTopY.coerceIn(0, size)
-        val bottom = (penY + shelfHeight).coerceIn(top, size)
+        // The skyline's bottom, not a shelf's: a glyph can sit in a notch well
+        // above the deepest one, and the rows below the deepest never changed.
+        val bottom = packer.usedBottom.coerceIn(top, size)
         if (bottom <= top) return null
         return top until bottom
     }
@@ -187,9 +190,7 @@ internal class TextAtlas(
     /** Drop every mask. The font changed, and a mask of the wrong face is the wrong mask. */
     fun reset() {
         cache.clear()
-        penX = 0
-        penY = 0
-        shelfHeight = 0
+        packer.reset()
         pixels.clear()
         dirtyTopY = Int.MAX_VALUE
         // The whole texture is new: a reset that is not uploaded leaves the
@@ -312,20 +313,8 @@ internal class TextAtlas(
 
     /** A free rectangle, or null when the atlas is full. */
     private fun reserve(width: Int, height: Int): Slot? {
-        if (width > size || height > size) return null
-
-        if (penX + width > size) {
-            // Next shelf.
-            penX = 0
-            penY += shelfHeight
-            shelfHeight = 0
-        }
-        if (penY + height > size) return null
-
-        val slot = Slot(penX, penY)
-        penX += width
-        if (height > shelfHeight) shelfHeight = height
-        return slot
+        val rect = packer.reserve(width, height) ?: return null
+        return Slot(rect.x, rect.y)
     }
 
     private class Slot(val x: Int, val y: Int)
