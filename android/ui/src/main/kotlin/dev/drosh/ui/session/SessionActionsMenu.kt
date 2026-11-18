@@ -113,12 +113,12 @@ internal fun SessionCardActionsButton(
 }
 
 /**
- * The header's ⋮ menu. This replaces the old eye-off button: close-all and
- * new-session are menu entries, not an icon whose meaning has to be guessed.
+ * The header's ⋮ menu. New-session now lives only in the bottom bar beside the
+ * search pill, so the one action left up here is close-all — a destructive
+ * action kept behind a confirmation rather than a guessable icon.
  */
 @Composable
 internal fun HeaderMenuButton(
-    onNewSession: () -> Unit,
     onCloseAll: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -141,23 +141,14 @@ internal fun HeaderMenuButton(
             onDismissRequest = { expanded = false },
             items = listOf(
                 DroshMenuItem(
-                    id = "new",
-                    label = stringResource(R.string.session_screen_new),
-                    icon = DroshIcons.Plus,
-                ),
-                DroshMenuItem(
                     id = "close_all",
                     label = stringResource(R.string.session_screen_menu_close_all),
                     icon = DroshIcons.Trash2,
                     style = DroshMenuItemStyle.Destructive,
-                    dividerBefore = true,
                 ),
             ),
             onItemClick = { item ->
-                when (item.id) {
-                    "new" -> onNewSession()
-                    "close_all" -> onCloseAll()
-                }
+                if (item.id == "close_all") onCloseAll()
             },
         )
     }
