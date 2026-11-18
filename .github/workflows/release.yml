@@ -104,16 +104,6 @@ jobs:
         working-directory: android
         run: sha256sum app/build/outputs/apk/release/app-arm64-v8a-release.apk > app/build/outputs/apk/release/drosh-release-arm64-v8a-release.apk.sha256
 
-      - name: Upload release APK + SHA-256
-        uses: actions/upload-artifact@v4
-        with:
-          name: drosh-release-arm64-v8a-apk
-          path: |
-            android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
-            android/app/build/outputs/apk/release/drosh-release-arm64-v8a-release.apk.sha256
-          if-no-files-found: warn
-          retention-days: 1
-
       - name: Extract release notes from CHANGELOG (tag push)
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -128,6 +118,38 @@ jobs:
           fi
           echo "--- notes for $VERSION ---"
           head -5 release-notes.md
+
+      # The APK is the build output, not a public Actions artifact: anyone with
+      # read access to a public repository can download its artifacts. It goes
+      # to a private build repo instead, where only the maintainer can reach
+      # it. The public GitHub Release further down is the official distribution
+      # for tagged versions and stays public on purpose.
+      - name: Publish APK to the private build repo
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_RELEASE_TOKEN }}
+          PRIVATE_REPO: mmuhofy/Drosh-builds
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+          SUM="android/app/build/outputs/apk/release/drosh-release-arm64-v8a-release.apk.sha256"
+          test -f "$APK"
+          test -f "$SUM"
+
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            TAG="$GITHUB_REF_NAME"
+            NOTES_FILE="release-notes.md"
+          else
+            TAG="dev-${GITHUB_SHA::7}"
+            NOTES_FILE="private-notes.md"
+            printf 'Manual build of %s\n' "$GITHUB_SHA" > "$NOTES_FILE"
+          fi
+
+          if gh release view "$TAG" --repo "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$SUM" --repo "$PRIVATE_REPO" --clobber
+          else
+            gh release create "$TAG" "$APK" "$SUM" \
+              --repo "$PRIVATE_REPO" --title "$TAG" --notes-file "$NOTES_FILE"
+          fi
 
       - name: Create GitHub Release (tag push)
         if: startsWith(github.ref, 'refs/tags/v')
