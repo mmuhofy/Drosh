@@ -18,6 +18,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -1748,9 +1750,7 @@ private fun ReadyScreen(
             text = {
                 Text(
                     resourceDiagnosticsText,
-                    modifier = androidx.compose.foundation.verticalScroll(
-                        androidx.compose.foundation.rememberScrollState(),
-                    ),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
                 )
             },
             confirmButton = {
