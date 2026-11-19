@@ -55,6 +55,15 @@ interface BlockRepository {
     fun onBootOutput(chunk: String)
 
     /**
+     * Seeds one read-only [BlockState.History] block from [lines] — a bounded
+     * snapshot of the grid the screen already showed — so switching to block
+     * mode is not blank before the first OSC 133 mark. No command, exit code or
+     * mark is fabricated, and a session is seeded at most once. Idempotent, and
+     * a no-op once real engine-driven blocks exist.
+     */
+    fun seedHistorySnapshot(lines: List<String>)
+
+    /**
      * Mark the running block as completed with the given exit code.
      * Idempotent — calling twice has no effect.
      */

@@ -1102,6 +1102,26 @@ class TerminalManager(
     }
 
     /**
+     * Fills a blank block view with the current session's existing output.
+     *
+     * Block mode is driven by OSC 133 marks, but a shell prints its welcome and
+     * earlier commands before those marks exist for a freshly-attached session.
+     * Switching from classic mode then shows an empty screen even though the
+     * grid has a full transcript. Seed one bounded, read-only history block from
+     * that transcript; the repository does it at most once per session and never
+     * invents a mark, a command or an exit code. The caller is Compose, so the
+     * blocking transcript read is moved off the main thread.
+     */
+    fun seedBlockHistorySnapshotForActiveSession() {
+        val wire = blockEngineWire ?: return
+        val sessionId = activePersistentId() ?: return
+        managerScope.launch(Dispatchers.IO) {
+            val lines = transcriptTail(sessionId, BLOCK_HISTORY_SNAPSHOT_LINES)
+            if (lines.isNotEmpty()) wire.seedHistorySnapshot(sessionId, lines)
+        }
+    }
+
+    /**
      * Points the wire at a different session, when it is following at all.
      *
      * Re-seeding costs a full transcript read, which is the very work the
@@ -2563,6 +2583,9 @@ class TerminalManager(
     private companion object {
         /** The log tag the terminal's own messages go out under. */
         const val TAG = "DroshTerminal"
+
+        /** Lines of existing output copied into a block-mode history snapshot. */
+        const val BLOCK_HISTORY_SNAPSHOT_LINES = 200
 
         /**
          * A pane with no session.

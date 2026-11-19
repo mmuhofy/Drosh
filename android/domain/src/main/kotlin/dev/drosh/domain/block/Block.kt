@@ -54,7 +54,7 @@ data class Block(
      * - Completed: time between `startedAtMs` and `completedAtMs`.
      */
     fun elapsedMs(now: Long): Long = when (state) {
-        is BlockState.Success, is BlockState.Error, BlockState.Cancelled ->
+        is BlockState.Success, is BlockState.Error, BlockState.Cancelled, BlockState.History ->
             (completedAtMs ?: startedAtMs) - startedAtMs
         BlockState.Idle, BlockState.Running -> now - startedAtMs
     }
