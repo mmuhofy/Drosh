@@ -15,7 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.focusTarget
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -293,7 +293,7 @@ fun SettingsTile(
             .clip(shape)
             .background(background)
             .border(width = if (focused) 2.dp else 1.dp, color = outlineColor, shape = shape)
-            .then(if (onClick != null) Modifier.focusTarget() else Modifier)
+            .then(if (onClick != null) Modifier.focusable() else Modifier)
             .then(
                 when {
                     onClick != null && onLongClick != null -> Modifier.combinedClickable(
