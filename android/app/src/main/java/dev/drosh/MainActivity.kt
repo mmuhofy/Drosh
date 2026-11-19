@@ -15,8 +15,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import androidx.core.view.WindowCompat
 import android.os.SystemClock
+import android.view.View
+import android.view.ViewTreeObserver
+import android.view.Window
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.AnimatedVisibility
@@ -160,7 +164,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        // One place owns the app's immersive state, called again whenever a
+        // window can change it — see applyImmersiveWindow / onWindowFocusChanged.
+        applyImmersiveWindow(window)
 
         // The terminal reports itself as a text editor, so Android opened the
         // keyboard every time the view took focus — and the terminal takes focus
@@ -172,24 +178,6 @@ class MainActivity : ComponentActivity() {
             android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
                 android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN,
         )
-
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
-            // A shown status bar over the terminal has to be see-through for the
-            // clock to sit on the output rather than on a grey slab. Below API 35
-            // Android paints a translucent scrim behind the bar on its own the
-            // moment it is shown over content, and no amount of
-            // `statusBarColor = TRANSPARENT` suppresses it. The terminal screen
-            // shows the bar whenever the viewport is at the live edge, so this
-            // would be a bar appearing and disappearing with its own background.
-            window.isStatusBarContrastEnforced = false
-        }
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
-        }
 
         setContent {
             // Captured before the locale provider replaces the context, because
@@ -270,6 +258,11 @@ class MainActivity : ComponentActivity() {
      * never disposes this effect, and restoring on a screen change was the
      * original flicker.
      *
+     * A layout listener keeps re-asserting the state: a screen can ask the
+     * controller to show a bar, and the next layout pass puts it back without a
+     * full focus change. New windows (dialogs, bottom sheets) are handled in
+     * [onWindowFocusChanged], which reaches windows the activity does not own.
+     *
      * // UNTESTED — verify before use on a device with gesture navigation.
      */
     @Composable
@@ -279,25 +272,46 @@ class MainActivity : ComponentActivity() {
         // window owns the bars.
         DisposableEffect(activity) {
             val window = activity.window
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-            val controller = WindowCompat.getInsetsController(window, window.decorView)
-            controller.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            controller.hide(
-                WindowInsetsCompat.Type.statusBars() or
-                    WindowInsetsCompat.Type.navigationBars()
-            )
+            applyImmersiveWindow(window)
+            val observer = window.decorView.viewTreeObserver
+            val reapply = ViewTreeObserver.OnGlobalLayoutListener {
+                // Idempotent, and cheap: the controller only writes when the
+                // requested state actually differs.
+                applyImmersiveWindow(window)
+            }
+            observer.addOnGlobalLayoutListener(reapply)
             onDispose {
+                runCatching {
+                    window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(reapply)
+                }
                 // Only a real exit restores them. Ordinary navigation never
                 // disposes this effect; a configuration change is a new window.
                 if (activity.isFinishing || activity.isDestroyed) {
-                    controller.show(
-                        WindowInsetsCompat.Type.statusBars() or
-                            WindowInsetsCompat.Type.navigationBars()
-                    )
+                    WindowCompat.getInsetsController(window, window.decorView)
+                        .show(
+                            WindowInsetsCompat.Type.statusBars() or
+                                WindowInsetsCompat.Type.navigationBars()
+                        )
                 }
             }
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // A dialog or bottom sheet takes focus into a window of its own. Reapply
+        // everywhere now — including that new window — so the gesture bar does
+        // not appear over the sheet. System back still works: this only touches
+        // bar visibility, never the window's input or focus policy.
+        applyImmersiveToAllWindows(window)
+        if (hasFocus) {
+            window.decorView.post { applyImmersiveWindow(window) }
+        }
+    }
+
+    private fun applyImmersiveToAllWindows(window: Window) {
+        applyImmersiveWindow(window)
+        hideBarsOnOtherWindows()
     }
 
     override fun onStart() {
@@ -871,4 +885,78 @@ private fun Activity.restartApp() {
  */
 private fun NavHostController.openEditor(guestPath: String) {
     navigate("editor?guestPath=${android.net.Uri.encode(guestPath)}")
+}
+
+/**
+ * Puts one window in the app's immersive state: draw under the bars, keep the
+ * gesture nav transparent and unconstrained, hide status + navigation bars, and
+ * leave the transient-by-swipe escape hatch so a swipe still reveals them (and
+ * the system back gesture is untouched).
+ *
+ * Called on the activity window from [MainActivity.onCreate], on every layout
+ * pass from [MainActivity.SystemBarsGlobal], on focus changes, and on dialog /
+ * sheet windows discovered by `hideBarsOnOtherWindows`.
+ *
+ * // UNTESTED — verify before use on a device with gesture navigation.
+ */
+private fun applyImmersiveWindow(window: Window?) {
+    if (window == null) return
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    window.statusBarColor = android.graphics.Color.TRANSPARENT
+    window.navigationBarColor = android.graphics.Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        window.isNavigationBarContrastEnforced = false
+        window.isStatusBarContrastEnforced = false
+    }
+    val bars = WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars()
+    WindowCompat.getInsetsController(window, window.decorView).apply {
+        isAppearanceLightStatusBars = false
+        isAppearanceLightNavigationBars = false
+        systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // Only write when a bar is actually showing: this runs on every layout
+        // pass, and a redundant hide() can itself provoke another layout.
+        val insets = ViewCompat.getRootWindowInsets(window.decorView)
+        if (insets == null || insets.isVisible(bars)) hide(bars)
+    }
+}
+
+/**
+ * Reapplies the immersive state to other root windows this process owns —
+ * Compose dialogs and bottom sheets create their own [Window], with their own
+ * insets controller, so the activity's controller does not reach them and the
+ * gesture bar would otherwise show over a sheet. The activity window itself is
+ * handled by [applyImmersiveWindow], called alongside this from the focus hook.
+ *
+ * // UNTESTED — verify before use. Enumerating root windows goes through
+ * // WindowManagerGlobal, which is not public API; every reflective lookup is
+ * // guarded, so a platform that blocks it leaves the activity window immersive
+ * // (the common case) rather than crashing.
+ */
+private fun hideBarsOnOtherWindows() {
+    runCatching {
+        val manager = Class.forName("android.view.WindowManagerGlobal")
+            .getMethod("getInstance")
+            .invoke(null) ?: return
+        val cls = manager.javaClass
+        val roots: List<View> = runCatching {
+            @Suppress("UNCHECKED_CAST")
+            cls.getMethod("getWindowViews").invoke(manager) as? List<View>
+        }.getOrNull() ?: run {
+            val count = cls.getMethod("getViewCount").invoke(manager) as? Int ?: return
+            val getView = cls.getMethod("getView", java.lang.Integer.TYPE)
+            (0 until count).mapNotNull { getView.invoke(manager, it) as? View }
+        }
+        roots.forEach { root ->
+            runCatching {
+                ViewCompat.getWindowInsetsController(root)?.apply {
+                    systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    hide(
+                        WindowInsetsCompat.Type.statusBars() or
+                            WindowInsetsCompat.Type.navigationBars()
+                    )
+                }
+            }
+        }
+    }
 }
