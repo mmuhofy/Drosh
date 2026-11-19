@@ -12,6 +12,9 @@
     <!-- Compact sticky command bar shown after scrolling up into a long block. -->
     <string name="block_ui_sticky_cd">Jump to command start</string>
 
+    <!-- Command input pinned below the block list. -->
+    <string name="block_ui_input_cd">Command input</string>
+
     <!-- Card meta row. -->
     <string name="block_ui_exit_code">exit %1$d</string>
     <string name="block_ui_network_delta">↓ %1$s  ↑ %2$s</string>

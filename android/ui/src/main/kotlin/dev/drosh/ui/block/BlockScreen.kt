@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,6 +44,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -76,6 +79,7 @@ import dev.drosh.ui.DroshDropdownMenu
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.DroshMenuItem
 import dev.drosh.ui.R
+import dev.drosh.ui.keyboard.droshNavigationBarPadding
 import kotlinx.coroutines.launch
 
 /**
@@ -86,8 +90,12 @@ import kotlinx.coroutines.launch
  * stack upward. A long block whose command header has scrolled away gets a
  * compact sticky bar at the top; tapping it jumps back to the command.
  *
- * The caller owns the input field and the clipboard — this screen only renders
- * cards and reports copy/collapse intents back through the callbacks.
+ * The input field is pinned below the cards; submitting a line is reported
+ * through [onSubmitCommand] and the caller decides what to do with it. While a
+ * block is running the field stays available for interactive programs, and it is
+ * up to the caller whether that input feeds the program or starts a new block.
+ * The caller owns the clipboard — this screen reports copy/collapse intents back
+ * through the callbacks.
  *
  * Before the first OSC 133 mark there are no blocks at all. That is a real state,
  * not an error, and it gets its own empty view instead of a blank surface.
@@ -104,6 +112,8 @@ fun BlockScreen(
     onClassicFallback: () -> Unit,
     /** Leaves block mode for the classic terminal when the guest has no marks. */
     onBackToClassic: () -> Unit,
+    /** A submitted command line; the caller routes it to the shell or program. */
+    onSubmitCommand: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -126,74 +136,123 @@ fun BlockScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(DroshBackground)) {
-        if (isAltScreen) {
-            // A full-screen program (less, vim, htop) owns the PTY now. The caller
-            // switches to the classic terminal; render a neutral placeholder here.
-            LaunchedEffect(Unit) { onClassicFallback() }
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = stringResource(R.string.block_ui_alt_screen_placeholder),
-                    color = DroshTextMuted,
-                    fontFamily = LocalFontSet.current.mono,
-                    fontSize = OUTPUT_FONT_SIZE,
-                )
-            }
-        } else if (displayBlocks.isEmpty()) {
-            // No session yet, or a session whose shell has not emitted its first
-            // OSC 133 mark. A blank surface read as a broken terminal, so say what
-            // has to happen instead — and never invent a block to fill the space.
-            BlockEmptyState(onBackToClassic = onBackToClassic)
-        } else {
-            LazyColumn(
-                state = listState,
-                reverseLayout = true,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = LIST_VERTICAL_PADDING),
-                verticalArrangement = Arrangement.spacedBy(BLOCK_SPACING),
-            ) {
-                items(items = displayBlocks, key = { it.id }) { block ->
-                    BlockCard(
-                        block = block,
-                        onCopy = onCopy,
-                        onCollapse = onCollapse,
+        // UNTESTED — verify before use: IME/nav-bar inset composition. imePadding
+        // shrinks the column while the keyboard is open so the input cannot cover
+        // the list; droshNavigationBarPadding reserves only the visible bar and
+        // adds nothing while the IME is up, so the two never double-count.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+                .droshNavigationBarPadding(),
+        ) {
+            if (isAltScreen) {
+                // A full-screen program (less, vim, htop) owns the PTY now. The caller
+                // switches to the classic terminal; render a neutral placeholder here.
+                LaunchedEffect(Unit) { onClassicFallback() }
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.block_ui_alt_screen_placeholder),
+                        color = DroshTextMuted,
+                        fontFamily = LocalFontSet.current.mono,
+                        fontSize = OUTPUT_FONT_SIZE,
                     )
                 }
-            }
-
-            // UNTESTED — verify before use: reverseLayout sticky-command geometry.
-            // With reverseLayout, index 0 is the newest block at the bottom and a
-            // greater first-visible index means the user scrolled up toward older
-            // output. The topmost visible card is the one with the largest index;
-            // its command header is gone once its top edge passes the viewport top.
-            val stickyIndex by remember(listState, displayBlocks) {
-                derivedStateOf {
-                    val layout = listState.layoutInfo
-                    val topItem = layout.visibleItemsInfo.maxByOrNull { it.index }
-                        ?: return@derivedStateOf null
-                    if (listState.firstVisibleItemIndex <= 0) return@derivedStateOf null
-                    if (topItem.offset >= layout.viewportStartOffset) return@derivedStateOf null
-                    val candidate = displayBlocks.getOrNull(topItem.index) ?: return@derivedStateOf null
-                    if (candidate.outputLineCount <= LONG_OUTPUT_LINE_THRESHOLD) return@derivedStateOf null
-                    topItem.index
-                }
-            }
-
-            val stickyBlock = stickyIndex?.let { displayBlocks.getOrNull(it) }
-            if (stickyBlock != null) {
-                StickyCommandBar(
-                    command = stickyBlock.command,
-                    onClick = {
-                        // UNTESTED — verify before use: animating in a reversed list.
-                        scope.launch {
-                            val index = stickyIndex ?: return@launch
-                            listState.animateScrollToItem(index = index)
+            } else {
+                // The list (or the empty view) owns the space above the input, so the
+                // two never overlap. The extra bottom padding keeps the newest card
+                // clear of the input bar even while the field is focused.
+                Box(modifier = Modifier.weight(1f)) {
+                    if (displayBlocks.isEmpty()) {
+                        // No session yet, or a session whose shell has not emitted its first
+                        // OSC 133 mark. A blank surface read as a broken terminal, so say what
+                        // has to happen instead — and never invent a block to fill the space.
+                        BlockEmptyState(onBackToClassic = onBackToClassic)
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            reverseLayout = true,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                top = LIST_VERTICAL_PADDING,
+                                bottom = LIST_VERTICAL_PADDING + LIST_INPUT_BOTTOM_PADDING,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(BLOCK_SPACING),
+                        ) {
+                            items(items = displayBlocks, key = { it.id }) { block ->
+                                BlockCard(
+                                    block = block,
+                                    onCopy = onCopy,
+                                    onCollapse = onCollapse,
+                                )
+                            }
                         }
-                    },
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
+
+                        // UNTESTED — verify before use: reverseLayout sticky-command geometry.
+                        // With reverseLayout, index 0 is the newest block at the bottom and a
+                        // greater first-visible index means the user scrolled up toward older
+                        // output. The topmost visible card is the one with the largest index;
+                        // its command header is gone once its top edge passes the viewport top.
+                        val stickyIndex by remember(listState, displayBlocks) {
+                            derivedStateOf {
+                                val layout = listState.layoutInfo
+                                val topItem = layout.visibleItemsInfo.maxByOrNull { it.index }
+                                    ?: return@derivedStateOf null
+                                if (listState.firstVisibleItemIndex <= 0) return@derivedStateOf null
+                                if (topItem.offset >= layout.viewportStartOffset) return@derivedStateOf null
+                                val candidate = displayBlocks.getOrNull(topItem.index) ?: return@derivedStateOf null
+                                if (candidate.outputLineCount <= LONG_OUTPUT_LINE_THRESHOLD) return@derivedStateOf null
+                                topItem.index
+                            }
+                        }
+
+                        val stickyBlock = stickyIndex?.let { displayBlocks.getOrNull(it) }
+                        if (stickyBlock != null) {
+                            StickyCommandBar(
+                                command = stickyBlock.command,
+                                onClick = {
+                                    // UNTESTED — verify before use: animating in a reversed list.
+                                    scope.launch {
+                                        val index = stickyIndex ?: return@launch
+                                        listState.animateScrollToItem(index = index)
+                                    }
+                                },
+                                modifier = Modifier.align(Alignment.TopCenter),
+                            )
+                        }
+                    }
+                }
+
+                // Pinned below the list: a subtle surface with a hairline divider so
+                // the editor reads as part of the terminal, not a floating box.
+                val inputDescription = stringResource(R.string.block_ui_input_cd)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = DroshSurface,
+                            shape = RoundedCornerShape(
+                                topStart = INPUT_CORNER_RADIUS,
+                                topEnd = INPUT_CORNER_RADIUS,
+                            ),
+                        ),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(INPUT_DIVIDER_HEIGHT)
+                            .background(DroshBorderSubtle),
+                    )
+                    BlockInputField(
+                        onSubmit = onSubmitCommand,
+                        modifier = Modifier.semantics {
+                            contentDescription = inputDescription
+                        },
+                    )
+                }
             }
         }
     }
@@ -614,6 +673,9 @@ private val ACCENT_STRIP_WIDTH = 3.dp
 private val CARD_PADDING = 12.dp
 private val BLOCK_SPACING = 6.dp
 private val LIST_VERTICAL_PADDING = 6.dp
+private val LIST_INPUT_BOTTOM_PADDING = 8.dp
+private val INPUT_CORNER_RADIUS = 12.dp
+private val INPUT_DIVIDER_HEIGHT = 1.dp
 private val OUTPUT_PADDING = 14.dp
 private val OUTPUT_VERTICAL_PADDING = 2.dp
 private val MENU_BUTTON_SIZE = 32.dp
