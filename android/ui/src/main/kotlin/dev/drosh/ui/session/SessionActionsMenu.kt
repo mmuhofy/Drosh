@@ -74,7 +74,7 @@ internal fun SessionCardActionsButton(
                         if (isPinned) R.string.session_screen_menu_unpin
                         else R.string.session_screen_menu_pin,
                     ),
-                    icon = DroshIcons.Shield,
+                    icon = DroshIcons.Pin,
                 ),
                 DroshMenuItem(
                     id = "persistent",

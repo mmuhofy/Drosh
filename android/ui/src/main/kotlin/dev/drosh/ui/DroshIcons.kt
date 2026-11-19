@@ -57,6 +57,7 @@ import compose.icons.lucideicons.PanelLeft
 import compose.icons.lucideicons.Package
 import compose.icons.lucideicons.Pencil
 import compose.icons.lucideicons.Play
+import compose.icons.lucideicons.Pin
 import compose.icons.lucideicons.Plus
 import compose.icons.lucideicons.RotateCw
 import compose.icons.lucideicons.Search
@@ -135,6 +136,7 @@ object DroshIcons {
     val PanelLeft: ImageVector get() = LucideIcons.PanelLeft
     val PanelBottom: ImageVector get() = LucideIcons.PanelBottom
     val Pencil: ImageVector get() = LucideIcons.Pencil
+    val Pin: ImageVector get() = LucideIcons.Pin
     val Play: ImageVector get() = LucideIcons.Play
     val Plus: ImageVector get() = LucideIcons.Plus
     val RotateCw: ImageVector get() = LucideIcons.RotateCw

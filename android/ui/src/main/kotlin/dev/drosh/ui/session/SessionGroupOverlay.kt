@@ -203,6 +203,7 @@ internal fun SessionGroupCard(
                         SessionStateChip(
                             label = stringResource(R.string.session_screen_chip_pin),
                             tint = DroshPrimary,
+                            icon = DroshIcons.Pin,
                         )
                     }
                     if (member.id in persistentIds) {
@@ -308,6 +309,7 @@ internal fun SessionGroupOverlay(
                             SessionStateChip(
                                 label = stringResource(R.string.session_screen_chip_pin),
                                 tint = DroshPrimary,
+                                icon = DroshIcons.Pin,
                             )
                         }
                         if (member.id in persistentIds) {
