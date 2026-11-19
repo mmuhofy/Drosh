@@ -1,12 +1,12 @@
 package dev.drosh.ui.session
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -35,10 +36,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -67,9 +65,10 @@ import dev.drosh.ui.R
  * ViewModel as an [ImageBitmap]. No simulated coloured lines: a session with no
  * screenshot yet shows a neutral surface instead of pretending to have output.
  *
- * The drag is a long press followed by movement, reported in root coordinates
- * because the screen — not the card — decides what the finger is over. A drag
- * makes a UI group; splitting is only done from the ⋮ menu.
+ * The drag is a long press plus a movement threshold, reported in window
+ * coordinates because the screen — not the card — decides what the finger is
+ * over. A drag reorders within a section or adds to a group; splitting is only
+ * done from the ⋮ menu.
  */
 @Composable
 internal fun SessionCard(
@@ -84,7 +83,6 @@ internal fun SessionCard(
     isPersistent: Boolean,
     isDropTarget: Boolean,
     isHeld: Boolean,
-    pointer: Offset,
     onBounds: (Rect) -> Unit,
     onTap: () -> Unit,
     onLongPress: () -> Unit,
@@ -100,6 +98,7 @@ internal fun SessionCard(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val dragDelta = remember { mutableStateOf(Offset.Zero) }
 
     val borderWidth by animateFloatAsState(
         targetValue = if (isActive || isDropTarget) 2f else 1f,
@@ -121,6 +120,23 @@ internal fun SessionCard(
         animationSpec = tween(200),
         label = "cardPress",
     )
+    // UNTESTED — verify before use: the held scale and the drag translation both
+    // use a stiff, non-bouncing spring so release settles without overshoot.
+    val dragScale by animateFloatAsState(
+        targetValue = if (isHeld) HELD_SCALE else 1f,
+        animationSpec = spring(dampingRatio = 1f, stiffness = SETTLE_STIFFNESS),
+        label = "cardDragScale",
+    )
+    val settleX by animateFloatAsState(
+        targetValue = if (isHeld) dragDelta.value.x else 0f,
+        animationSpec = spring(dampingRatio = 1f, stiffness = SETTLE_STIFFNESS),
+        label = "cardSettleX",
+    )
+    val settleY by animateFloatAsState(
+        targetValue = if (isHeld) dragDelta.value.y else 0f,
+        animationSpec = spring(dampingRatio = 1f, stiffness = SETTLE_STIFFNESS),
+        label = "cardSettleY",
+    )
     val background = lerpColor(DroshSurfaceVariant, DroshSurfaceHigh, cardSurface)
 
     // No status or recency labels. The border says "active", the left-hand glyph
@@ -133,32 +149,33 @@ internal fun SessionCard(
         }
     }
 
-    // The card's origin in the window, captured at layout. The gesture reports
-    // positions in this node's own space; the screen decides the drop target in
-    // the window's. One offset is the whole translation between them.
-    val origin = remember { mutableStateOf(Offset.Zero) }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(CARD_HEIGHT)
-            .onGloballyPositioned {
-                origin.value = it.boundsInRoot().topLeft
-                onBounds(it.boundsInRoot())
-            }
+            .sessionDrag(
+                dragKey = session.id,
+                dragDelta = dragDelta,
+                onBounds = onBounds,
+                onStart = onDragStart,
+                onDrag = onDrag,
+                onEnd = onDragEnd,
+            )
             .semantics { stateDescription = description }
             .zIndex(if (isHeld) 1f else 0f)
             .graphicsLayer {
-                val scale = if (isHeld) HELD_SCALE else pressScale
+                val scale = dragScale * pressScale
                 scaleX = scale
                 scaleY = scale
+                translationX = settleX
+                translationY = settleY
             }
             .alpha(if (isHeld) HELD_ALPHA else 1f)
             .clip(RoundedCornerShape(16.dp))
             .background(background)
             .then(
                 if (isDropTarget) {
-                    Modifier.background(DroshPrimary.copy(alpha = 0.08f))
+                    Modifier.background(DroshPrimary.copy(alpha = 0.12f))
                 } else {
                     Modifier
                 },
@@ -171,26 +188,15 @@ internal fun SessionCard(
                 onClick = onTap,
                 onLongClick = onLongPress,
             )
-            // UNTESTED — verify before use: the drag detector is unchanged from
-            // the original grid; grouping now consumes its drop instead of split.
-            .pointerInput(session.id) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { local -> onDragStart(local + origin.value) },
-                    onDrag = { change, _ ->
-                        change.consume()
-                        onDrag(change.position + origin.value)
-                    },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
-                )
-            }
-            // Equal padding on every side; the header gets a little extra room
-            // above it inside the card so it can breathe.
-            .padding(CARD_PADDING),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(
+                start = CARD_SIDE_INSET,
+                top = CARD_TOP_INSET,
+                end = CARD_SIDE_INSET,
+                bottom = CARD_BOTTOM_INSET,
+            ),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
-            modifier = Modifier.padding(top = HEADER_EXTRA_TOP),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -236,10 +242,13 @@ internal fun SessionCard(
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         if (isPinned) {
-                            StateChip(label = stringResource(R.string.session_screen_chip_pin), tint = DroshPrimary)
+                            SessionStateChip(
+                                label = stringResource(R.string.session_screen_chip_pin),
+                                tint = DroshPrimary,
+                            )
                         }
                         if (isPersistent) {
-                            StateChip(
+                            SessionStateChip(
                                 label = stringResource(R.string.session_screen_chip_persistent),
                                 tint = DroshSuccess,
                             )
@@ -260,20 +269,50 @@ internal fun SessionCard(
             )
         }
 
-        // The real preview. The bitmap fills the whole area; until one exists
-        // the neutral surface is the entire placeholder, with no fake content.
-        Box(
+        // The real preview: keyed by session id, no alpha animation, no fake
+        // content. It occupies most of the now-taller card.
+        SessionThumbnail(
+            sessionId = session.id,
+            bitmap = thumbnail,
+            contentDescription = stringResource(R.string.session_screen_thumbnail, displayName),
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(9.dp))
+                .weight(1f),
+        )
+    }
+}
+
+/**
+ * The stable terminal preview.
+ *
+ * A short gap in the thumbnail flow must not blank a card that already has a
+ * frame, so the last good bitmap is remembered per session id. The composable
+ * is keyed by that id too: a reordered grid slot never reuses another card's
+ * image node, which is what made previews flicker and look soft.
+ */
+@Composable
+internal fun SessionThumbnail(
+    sessionId: String,
+    bitmap: ImageBitmap?,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    val lastGood = remember(sessionId) { mutableStateOf<ImageBitmap?>(null) }
+    if (bitmap != null) lastGood.value = bitmap
+    val shown = bitmap ?: lastGood.value
+
+    key(sessionId) {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(PREVIEW_CORNER))
                 .background(DroshSurface),
         ) {
-            if (thumbnail != null) {
+            if (shown != null) {
                 Image(
-                    bitmap = thumbnail,
-                    contentDescription = null,
+                    bitmap = shown,
+                    contentDescription = contentDescription,
                     contentScale = ContentScale.Crop,
+                    alignment = Alignment.TopCenter,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -283,7 +322,7 @@ internal fun SessionCard(
 
 /** A small chip for a toggle that is on. PIN / PERSISTENT, nothing else. */
 @Composable
-private fun StateChip(label: String, tint: Color) {
+internal fun SessionStateChip(label: String, tint: Color) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(percent = 50))
@@ -308,15 +347,21 @@ private fun lerpColor(from: Color, to: Color, fraction: Float): Color =
         alpha = from.alpha + (to.alpha - from.alpha) * fraction,
     )
 
-/** A card is deliberately vertical: 200dp tall at the grid's two-column width. */
-private val CARD_HEIGHT = 200.dp
+/** Taller than the old 200dp card so the terminal preview dominates the slot. */
+private val CARD_HEIGHT = 300.dp
 
-/** Equal padding on all four sides of the card's content. */
-private val CARD_PADDING = 12.dp
+/** The preview sits only 5dp inside the card on its sides and bottom. */
+private val CARD_SIDE_INSET = 5.dp
+private val CARD_BOTTOM_INSET = 5.dp
 
-/** A little extra top room so the header is not crowded by the card's edge. */
-private val HEADER_EXTRA_TOP = 2.dp
+/** A little more breathing room above the header inside the card. */
+private val CARD_TOP_INSET = 12.dp
+
+private val PREVIEW_CORNER = 9.dp
 
 private const val HELD_SCALE = 1.04f
 private const val HELD_ALPHA = 0.92f
 private const val PRESS_SCALE = 0.98f
+
+/** High stiffness + full damping: tracks the finger, then settles without a bounce. */
+private const val SETTLE_STIFFNESS = 1100f

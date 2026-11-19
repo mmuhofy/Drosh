@@ -244,8 +244,8 @@ internal fun TransparentAddButton(onNewSession: () -> Unit) {
     }
 }
 
-/** Both controls in the bottom bar are this tall, so they align. */
-private val PILL_HEIGHT = 40.dp
+/** Both controls in the bottom bar are this tall, so they align at the 48dp floor. */
+private val PILL_HEIGHT = 48.dp
 
 /** Press shrinks to 94%; the tween has no overshoot, so there is no bounce. */
 private const val PRESS_SCALE = 0.94f
