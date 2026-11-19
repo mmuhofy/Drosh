@@ -45,8 +45,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.timber)
 
-    // The rootfs is downloaded over HTTPS.
+    // The rootfs is downloaded over HTTPS as a .tar.xz and decoded here.
     implementation(libs.okhttp)
+    implementation(libs.xz)
 
     testImplementation(libs.junit)
 }

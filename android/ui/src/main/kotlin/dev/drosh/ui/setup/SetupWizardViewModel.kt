@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
+import dev.drosh.domain.terminal.RootfsDownloadProgress
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +54,16 @@ class SetupWizardViewModel @Inject constructor(
     private val _liveLogs = MutableStateFlow<List<String>>(emptyList())
     val liveLogs: StateFlow<List<String>> = _liveLogs.asStateFlow()
 
+    /**
+     * Latest byte sample from the process-scoped download flow.
+     *
+     * Null until the first sample, so the screen does not show an empty bar
+     * before the download starts. An Activity recreation re-collects the same
+     * `ObserveBootstrapUseCase` flow and picks up where the service is now.
+     */
+    private val _rootfsDownload = MutableStateFlow<RootfsDownloadProgress?>(null)
+    val rootfsDownload: StateFlow<RootfsDownloadProgress?> = _rootfsDownload.asStateFlow()
+
     private val _isLogDrawerOpen = MutableStateFlow(false)
     val isLogDrawerOpen: StateFlow<Boolean> = _isLogDrawerOpen.asStateFlow()
 
@@ -64,6 +75,9 @@ class SetupWizardViewModel @Inject constructor(
             .onEach { line ->
                 _liveLogs.value = (_liveLogs.value + line).takeLast(LOG_DRAWER_LIMIT)
             }
+            .launchIn(viewModelScope)
+        observeBootstrap.rootfsDownload()
+            .onEach { _rootfsDownload.value = it }
             .launchIn(viewModelScope)
     }
 
@@ -78,10 +92,11 @@ class SetupWizardViewModel @Inject constructor(
     fun startBootstrap() {
         viewModelScope.launch {
             try {
-                // MainActivity may already have started the install because the
-                // flag was set while the guest was still incomplete. The state
-                // is in memory only, so "Running" here means a live install;
-                // never extract a second rootfs over the same directory.
+                // The service de-duplicates a second start: an already-running
+                // job is not relaunched, so a recreated screen cannot double-
+                // download the same rootfs. Clear the old sample so the new
+                // attempt starts its bar from zero.
+                _rootfsDownload.value = null
                 if (triggerBootstrap.state != TriggerBootstrapUseCase.State.Running) {
                     triggerBootstrap.start()
                 }
@@ -90,6 +105,12 @@ class SetupWizardViewModel @Inject constructor(
                 _errorMessage.value = e.message ?: "Unknown error"
             }
         }
+    }
+
+    /** The only thing that stops a background setup: an explicit user action. */
+    fun cancelSetup() {
+        triggerBootstrap.cancelSetup()
+        _rootfsDownload.value = null
     }
 
     fun retry() {

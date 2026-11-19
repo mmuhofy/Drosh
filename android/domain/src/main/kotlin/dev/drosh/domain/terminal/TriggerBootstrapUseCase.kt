@@ -21,6 +21,9 @@ interface TriggerBootstrapUseCase {
     fun reDownloadRootfs()
     fun resetEverything()
 
+    /** Explicitly cancels a running background setup; backgrounding the app never does. */
+    fun cancelSetup()
+
     enum class State { NotStarted, Running }
     val stateFlow: Flow<State>
 }

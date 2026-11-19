@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -34,6 +36,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.domain.terminal.BootstrapStep
+import dev.drosh.domain.terminal.RootfsDownloadProgress
 import dev.drosh.domain.terminal.StepState
 import dev.drosh.theme.DroshBackground
 import dev.drosh.theme.DroshBorderSubtle
@@ -65,12 +68,15 @@ fun SetupScreen(
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val logs by viewModel.liveLogs.collectAsStateWithLifecycle()
     val logDrawerOpen by viewModel.isLogDrawerOpen.collectAsStateWithLifecycle()
+    val rootfsDownload by viewModel.rootfsDownload.collectAsStateWithLifecycle()
 
     SetupContent(
         progress = progress,
         logs = logs,
         logDrawerOpen = logDrawerOpen,
+        rootfsDownload = rootfsDownload,
         onToggleLogDrawer = viewModel::toggleLogDrawer,
+        onCancelDownload = viewModel::cancelSetup,
         modifier = modifier,
     )
 }
@@ -80,7 +86,9 @@ private fun SetupContent(
     progress: BootstrapProgress,
     logs: List<String>,
     logDrawerOpen: Boolean,
+    rootfsDownload: RootfsDownloadProgress?,
     onToggleLogDrawer: () -> Unit,
+    onCancelDownload: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize().background(DroshBackground)) {
@@ -151,6 +159,13 @@ private fun SetupContent(
 
             ProgressBar(progress = progress)
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            RootfsDownloadIndicator(
+                download = rootfsDownload,
+                onCancel = onCancelDownload,
+            )
+
             Spacer(modifier = Modifier.height(20.dp))
 
             StepHistoryStack(progress = progress)
@@ -175,6 +190,72 @@ private fun SetupContent(
                 color = DroshTextMuted,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+/**
+ * Byte-level progress for the large Ubuntu Server archive.
+ *
+ * Hidden until the first sample arrives and once the download is complete:
+ * before that there is nothing honest to show, and after it the stepper carries
+ * the rest of the install. MB are decimal (bytes / 1_000_000), matching what the
+ * release directory reports.
+ */
+@Composable
+private fun RootfsDownloadIndicator(
+    download: RootfsDownloadProgress?,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (download == null) return
+    if (download.totalBytes > 0L && download.downloadedBytes >= download.totalBytes) return
+    val fraction = if (download.totalBytes > 0L) {
+        (download.downloadedBytes.toFloat() / download.totalBytes.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    Column(modifier = modifier.fillMaxWidth()) {
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = DroshPrimary,
+            trackColor = DroshBorderSubtle.copy(alpha = 0.4f),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = if (download.totalBytes > 0L) {
+                    stringResource(
+                        R.string.setup_download_progress,
+                        download.downloadedBytes / BYTES_PER_MB,
+                        download.totalBytes / BYTES_PER_MB,
+                        download.bytesPerSecond / BYTES_PER_MB,
+                    )
+                } else {
+                    stringResource(
+                        R.string.setup_download_progress_unknown,
+                        download.downloadedBytes / BYTES_PER_MB,
+                        download.bytesPerSecond / BYTES_PER_MB,
+                    )
+                },
+                style = TextStyle(
+                    fontFamily = LocalFontSet.current.sans,
+                    fontSize = 12.sp,
+                ),
+                color = DroshTextSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onCancel) {
+                Text(
+                    text = stringResource(R.string.setup_cancel),
+                    color = DroshPrimary,
+                    fontSize = 12.sp,
+                )
+            }
         }
     }
 }
@@ -249,6 +330,14 @@ private fun SetupScreenPreview() {
         ),
         logs = listOf("→ Extracting Ubuntu rootfs…", "✓ Rootfs extracted."),
         logDrawerOpen = false,
+        rootfsDownload = RootfsDownloadProgress(
+            downloadedBytes = 84_300_000L,
+            totalBytes = 216_215_656L,
+            bytesPerSecond = 12_400_000L,
+        ),
         onToggleLogDrawer = {},
+        onCancelDownload = {},
     )
 }
+
+private const val BYTES_PER_MB = 1_000_000f
