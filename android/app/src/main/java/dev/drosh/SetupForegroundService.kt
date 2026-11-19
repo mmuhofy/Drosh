@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import dev.drosh.core.TerminalConstants
 
 /**
  * Owns the Ubuntu setup while the Activity is gone.
