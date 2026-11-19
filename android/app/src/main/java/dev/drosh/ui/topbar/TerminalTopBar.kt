@@ -60,7 +60,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.drosh.ui.DroshIcons
 import dev.drosh.theme.DroshBackground
 import dev.drosh.ui.DroshDropdownMenu
-import dev.drosh.ui.DroshMenuDensity
 import dev.drosh.ui.DroshMenuItem
 import dev.drosh.theme.LocalFontSet
 import dev.drosh.ui.session.SessionSwitcherViewModel
@@ -599,7 +598,10 @@ fun TerminalTopBar(
  *
  * The session's name is the menu's title: these actions act on that terminal, and
  * a menu that does not say which one is a menu the user has to remember the
- * context of.
+ * context of. An empty name means no title — the same rule the session card's
+ * menu uses. This deliberately asks for the default compact card: the menu must
+ * have the same corners, item shapes, colours and ripple as the card menu, and
+ * only DroshDropdownMenu decides what those are.
  */
 @Composable
 private fun MoreActionsDropdown(
@@ -615,10 +617,9 @@ private fun MoreActionsDropdown(
     DroshDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
-        title = sessionName?.takeIf { it.isNotBlank() } ?: "Drosh",
-        // The slim card: long and thin, so it covers as little of the terminal
-        // as it can, with each entry pressing in a pill.
-        density = DroshMenuDensity.Slim,
+        title = sessionName.orEmpty(),
+        // No density or colour overrides: the session card's menu and this one
+        // are the same card, so they ship the same shape and press feedback.
         // Further below the button than the default: the menu is a card, not a
         // tooltip hanging off the icon, and it should clear the row entirely
         // rather than crowd the button that opened it.
@@ -629,15 +630,17 @@ private fun MoreActionsDropdown(
             // sits in a menu for the first one is a control the user has to
             // reason their way to, and it was two screens' worth of entries
             // in one four-item list.
-            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = "refresh"))
-            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_find), icon = DroshIcons.Search, id = "find"))
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_refresh), icon = DroshIcons.RotateCw, id = MENU_REFRESH))
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_find), icon = DroshIcons.Search, id = MENU_FIND))
             // The prompts: the shell reports them, and they are the only way
             // back to a command that scrolled out of the history.
-            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_previous_prompt), icon = DroshIcons.ArrowUp, id = "prev_prompt"))
-            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_next_prompt), icon = DroshIcons.ArrowDown, id = "next_prompt"))
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_previous_prompt), icon = DroshIcons.ArrowUp, id = MENU_PREVIOUS_PROMPT))
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_next_prompt), icon = DroshIcons.ArrowDown, id = MENU_NEXT_PROMPT))
             // The row's buttons, out of the way: the terminal is what the
-            // user is looking at, and a tap brings them back.
-            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_shrink_buttons), icon = DroshIcons.EyeOff, id = "shrink"))
+            // user is looking at, and a tap brings them back. A divider before
+            // it groups the one chrome action the way the card menu groups its
+            // own last entry.
+            add(DroshMenuItem(label = stringResource(dev.drosh.ui.R.string.topbar_shrink_buttons), icon = DroshIcons.EyeOff, id = MENU_SHRINK, dividerBefore = true))
             // Settings is gone from here. It is reachable from the drawer, and
             // an overflow entry that duplicates a drawer item gives two ways to
             // open the same screen.
@@ -645,15 +648,22 @@ private fun MoreActionsDropdown(
         onItemClick = { item ->
             onDismiss()
             when (item.id) {
-                "refresh" -> onRefresh()
-                "find" -> onFindInOutput()
-                "prev_prompt" -> onPreviousPrompt()
-                "next_prompt" -> onNextPrompt()
-                "shrink" -> onToggleButtons()
+                MENU_REFRESH -> onRefresh()
+                MENU_FIND -> onFindInOutput()
+                MENU_PREVIOUS_PROMPT -> onPreviousPrompt()
+                MENU_NEXT_PROMPT -> onNextPrompt()
+                MENU_SHRINK -> onToggleButtons()
             }
         },
     )
 }
+
+/** Stable routing ids, matching the card menu's habit of never dispatching on a label. */
+private const val MENU_REFRESH = "refresh"
+private const val MENU_FIND = "find"
+private const val MENU_PREVIOUS_PROMPT = "prev_prompt"
+private const val MENU_NEXT_PROMPT = "next_prompt"
+private const val MENU_SHRINK = "shrink"
 
 /**
  * The row's pill button.

@@ -2,9 +2,6 @@ package dev.drosh.ui.terminal
 
 import android.graphics.Bitmap
 import android.util.Log
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -242,27 +239,10 @@ fun GhosttyTerminalHost(
     // The diagnostics eye. The panel is off by default: a terminal's surface
     // owns every gesture, and a full-size debug box on it would steal them.
     // The eye itself is a couple of buttons in the corner.
-    // The terminal runs edge to edge. A shown navigation bar is transparent,
-    // but the window behind it is not — the app's base colour shows through as
-    // a band along the bottom of the grid. Hide the bar for as long as a
-    // terminal is on screen; a swipe still brings it back transiently.
-    val terminalActivity = LocalContext.current as? android.app.Activity
-    DisposableEffect(terminalActivity) {
-        val view = terminalActivity?.window?.decorView
-        val controller = if (terminalActivity != null && view != null) {
-            WindowCompat.getInsetsController(terminalActivity.window, view)
-        } else {
-            null
-        }
-        if (controller != null) {
-            controller.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            controller.hide(WindowInsetsCompat.Type.navigationBars())
-        }
-        onDispose {
-            controller?.show(WindowInsetsCompat.Type.navigationBars())
-        }
-    }
+    //
+    // The system bars used to be hidden here, which made this host fight the
+    // terminal screen and the activity over the same window flags. They are now
+    // owned once, globally, by MainActivity for every route in the app.
 
     var diagnosticsOpen by remember { mutableStateOf(false) }
     var diagnosticsText by remember { mutableStateOf("") }
@@ -497,7 +477,12 @@ fun GhosttyTerminalHost(
     var hostVisible by remember { mutableStateOf(true) }
     val currentSessionId = rememberUpdatedState(sessionId)
     val currentOnThumbnail = rememberUpdatedState(onThumbnail)
+    val thumbnailPublisher = remember { ThumbnailPublisher(THUMBNAIL_CAPTURE_INTERVAL_MS) }
     val captureThumbnail: (String) -> Unit = { id ->
+        // The surface is the only thing that can be sampled, and the id is the
+        // only key the grid can store it under. Neither being ready is a silent
+        // no-op, never a publish under an empty key.
+        if (id.isEmpty()) return@let
         val surface = runCatching { pane.view.holder.surface }.getOrNull()
         if (surface != null) {
             captureSessionThumbnail(
@@ -505,6 +490,7 @@ fun GhosttyTerminalHost(
                 viewWidth = pane.view.width,
                 viewHeight = pane.view.height,
                 sessionId = id,
+                shouldPublish = thumbnailPublisher::shouldPublish,
                 onThumbnail = currentOnThumbnail.value,
             )
         }
@@ -664,11 +650,21 @@ private const val TAG = "GhosttyTerminalHost"
 /** How often a visible session's last frame is refreshed. */
 private const val THUMBNAIL_CAPTURE_INTERVAL_MS = 2_000L
 
-/** Longest edge of a thumbnail. A card is a few hundred dp at most. */
-private const val THUMBNAIL_MAX_WIDTH = 160
+/**
+ * Capture width for a session card.
+ *
+ * A card is a few hundred dp wide on the grid, and the old 160px capture was
+ * being scaled up into it — the source of the soft, shifting previews. Capture
+ * above the card's size so the downscale is done by the decoder, at a fixed
+ * width so the bitmap's shape does not change with the pane's layout.
+ */
+private const val THUMBNAIL_WIDTH = 480
+
+/** Guard against an absurdly tall bitmap for a very narrow pane. */
+private const val THUMBNAIL_MAX_HEIGHT = 960
 
 /**
- * Copy one frame from the pane's surface into a small bitmap and hand it up.
+ * Copy one frame from the pane's surface into a stable bitmap and hand it up.
  *
  * // UNTESTED — verify before use
  * PixelCopy is asynchronous and reports through a listener on the main looper;
@@ -681,13 +677,15 @@ private fun captureSessionThumbnail(
     viewWidth: Int,
     viewHeight: Int,
     sessionId: String,
+    shouldPublish: (String, Bitmap) -> Boolean,
     onThumbnail: (String, ImageBitmap) -> Unit,
 ) {
     // UNTESTED — verify before use
     if (sessionId.isEmpty() || viewWidth <= 0 || viewHeight <= 0 || !surface.isValid) return
-    val scale = (THUMBNAIL_MAX_WIDTH.toFloat() / viewWidth).coerceAtMost(1f)
-    val width = (viewWidth * scale).toInt().coerceAtLeast(1)
-    val height = (viewHeight * scale).toInt().coerceAtLeast(1)
+    val width = THUMBNAIL_WIDTH
+    val height = (width.toFloat() * viewHeight / viewWidth)
+        .toInt()
+        .coerceIn(1, THUMBNAIL_MAX_HEIGHT)
     val bitmap = runCatching {
         Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     }.getOrElse { error ->
@@ -699,7 +697,14 @@ private fun captureSessionThumbnail(
         bitmap,
         { result ->
             if (result == PixelCopy.SUCCESS) {
-                onThumbnail(sessionId, bitmap.asImageBitmap())
+                // UNTESTED — verify before use: an idle terminal returns the same
+                // pixels on every tick, and republishing those reallocated the
+                // card's image at 2s intervals, which read as a flicker.
+                if (shouldPublish(sessionId, bitmap)) {
+                    onThumbnail(sessionId, bitmap.asImageBitmap())
+                } else {
+                    Log.d(TAG, "thumbnail unchanged for $sessionId — not published")
+                }
             } else {
                 Log.w(TAG, "PixelCopy failed for $sessionId: $result")
             }
@@ -707,6 +712,67 @@ private fun captureSessionThumbnail(
         Handler(Looper.getMainLooper()),
     )
 }
+
+/**
+ * De-duplicates and throttles thumbnails before they reach the session grid.
+ *
+ * // UNTESTED — verify before use
+ * A signature is a sparse sample of the frame rather than a full pixel compare:
+ * a terminal is mostly still between keystrokes, and two 480px bitmaps are
+ * cheap to compare this way on the main looper. A transparent capture is dropped
+ * because the surface can exist before its first frame — publishing that gave
+ * the card an empty picture.
+ */
+private class ThumbnailPublisher(private val minIntervalMs: Long) {
+    private var lastSessionId: String? = null
+    private var lastSignature: IntArray? = null
+    private var lastPublishedAtMs = 0L
+
+    fun shouldPublish(sessionId: String, bitmap: Bitmap): Boolean {
+        if (sessionId.isEmpty() || bitmap.isRecycled) return false
+        if (bitmap.width <= 0 || bitmap.height <= 0 || !bitmap.hasVisiblePixels()) return false
+
+        val signature = bitmap.signature()
+        if (sessionId == lastSessionId && signature.contentEquals(lastSignature)) return false
+        val now = SystemClock.elapsedRealtime()
+        if (sessionId == lastSessionId && now - lastPublishedAtMs < minIntervalMs) return false
+
+        lastSessionId = sessionId
+        lastSignature = signature
+        lastPublishedAtMs = now
+        return true
+    }
+}
+
+/** Sparse sample of a bitmap, stable enough to tell a changed frame from a still one. */
+private fun Bitmap.signature(): IntArray {
+    val samples = THUMBNAIL_SIGNATURE_SAMPLES
+    val out = IntArray(samples * samples)
+    for (y in 0 until samples) {
+        val py = y * (height - 1) / (samples - 1)
+        for (x in 0 until samples) {
+            val px = x * (width - 1) / (samples - 1)
+            out[y * samples + x] = getPixel(px, py)
+        }
+    }
+    return out
+}
+
+/** True when any sampled pixel is not fully transparent. */
+private fun Bitmap.hasVisiblePixels(): Boolean {
+    val samples = THUMBNAIL_SIGNATURE_SAMPLES
+    for (y in 0 until samples) {
+        val py = y * (height - 1) / (samples - 1)
+        for (x in 0 until samples) {
+            val px = x * (width - 1) / (samples - 1)
+            if (getPixel(px, py) and OPAQUE_ALPHA_MASK != 0) return true
+        }
+    }
+    return false
+}
+
+private const val THUMBNAIL_SIGNATURE_SAMPLES = 16
+private const val OPAQUE_ALPHA_MASK = -0x1000000
 
 /** How often the open panel reads the moving numbers again. */
 private const val DIAGNOSTICS_REFRESH_MS = 500L

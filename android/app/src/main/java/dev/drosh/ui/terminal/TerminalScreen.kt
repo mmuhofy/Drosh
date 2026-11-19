@@ -141,9 +141,6 @@ import dev.drosh.ui.topbar.rememberTerminalTopPadding
 import dev.drosh.ui.topbar.TerminalTopBar
 import dev.drosh.ui.topbar.TOP_BAR_BACKDROP_STRIP
 import dev.drosh.ui.topbar.rememberTerminalBackdrop
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import dev.drosh.domain.settings.SettingsRepository
 // Termux view removed — engine is the only terminal now.
 import kotlinx.coroutines.delay
@@ -484,43 +481,10 @@ private fun ReadyScreen(
         ClipboardSink.allowWrites = allowClipboardWrites
     }
 
-    val activity = LocalDroshActivity.current
-    LaunchedEffect(immersive) {
-        val window = (activity as? android.app.Activity)?.window ?: return@LaunchedEffect
-        val controller = WindowInsetsControllerCompat(window, window.decorView)
-        // BEHAVIOR_DEFAULT, not BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE. The pills
-        // live at the very top of the screen — which is where Android's edge
-        // gesture lives — and the transient behaviour reveals the bars *over the
-        // app* and then times itself out, so on a slow upward scroll the system
-        // drew a status bar across the row over and over. With this one, a
-        // deliberate top-edge swipe brings the bars back for good.
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-        if (immersive) {
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-        } else {
-            // The status bar belongs to the screen-scoped effect below while
-            // this screen is composed; only the navigation bar follows the
-            // immersive state here. Showing systemBars() here would put the
-            // status bar's text back over the pill row on every scroll.
-            controller.show(WindowInsetsCompat.Type.navigationBars())
-        }
-    }
-
-    // The status bar's clock and icons share the strip the pill row floats in.
-    // Hide them for as long as this screen is composed — the session grid is a
-    // child of this composition, so it needs no second effect — and restore them
-    // when the screen leaves. Only statusBars() is owned here; the immersive
-    // effect above keeps its fullscreen decision and the navigation bar.
-    DisposableEffect(activity) {
-        val window = (activity as? android.app.Activity)?.window
-        val controller = if (window != null) {
-            WindowCompat.getInsetsController(window, window.decorView)
-        } else {
-            null
-        }
-        controller?.hide(WindowInsetsCompat.Type.statusBars())
-        onDispose { controller?.show(WindowInsetsCompat.Type.statusBars()) }
-    }
+    // The system bars are hidden globally by MainActivity's root effect, on
+    // every route. This screen used to hide the status bar and toggle the
+    // navigation bar on scroll; both are gone so the two owners cannot fight.
+    // `immersive` still drives the pill row's position and the grid's clearance.
 
     var sidebarOpen by remember { mutableStateOf(false) }
     // Resource Monitor'un açtığı engine diagnostics raporu.

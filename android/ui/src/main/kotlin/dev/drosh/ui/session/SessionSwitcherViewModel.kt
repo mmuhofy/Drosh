@@ -33,7 +33,10 @@ class SessionSwitcherViewModel @Inject constructor(
     val thumbnails: StateFlow<Map<String, ImageBitmap>> = _thumbnails.asStateFlow()
 
     fun setThumbnail(sessionId: String, bitmap: ImageBitmap) {
-        if (sessionId.isEmpty()) return
+        // Defence in depth: the capture site already filters these, but a bad
+        // caller must not be able to put an empty picture on a session card.
+        if (sessionId.isEmpty() || bitmap.width <= 0 || bitmap.height <= 0) return
+        if (_thumbnails.value[sessionId] === bitmap) return
         _thumbnails.value = _thumbnails.value + (sessionId to bitmap)
     }
 
