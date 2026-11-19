@@ -347,8 +347,12 @@ private fun lerpColor(from: Color, to: Color, fraction: Float): Color =
         alpha = from.alpha + (to.alpha - from.alpha) * fraction,
     )
 
-/** Taller than the old 200dp card so the terminal preview dominates the slot. */
-private val CARD_HEIGHT = 300.dp
+/**
+ * 336dp leaves ~260dp for the preview after the 12dp top inset, 48dp header,
+ * 8dp gap and 5dp bottom inset. Taller than the old 200dp card so the real
+ * terminal capture dominates the slot.
+ */
+private val CARD_HEIGHT = 336.dp
 
 /** The preview sits only 5dp inside the card on its sides and bottom. */
 private val CARD_SIDE_INSET = 5.dp

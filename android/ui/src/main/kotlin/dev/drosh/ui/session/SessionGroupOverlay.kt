@@ -385,7 +385,8 @@ internal fun SessionGroupOverlay(
     }
 }
 
-private val GROUP_CARD_HEIGHT = 300.dp
+/** Matches a single card's height so the grid keeps its rhythm. */
+private val GROUP_CARD_HEIGHT = 336.dp
 private val CARD_SIDE_INSET = 5.dp
 private val CARD_TOP_INSET = 12.dp
 private val CARD_BOTTOM_INSET = 5.dp
