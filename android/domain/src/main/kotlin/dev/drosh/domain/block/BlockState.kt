@@ -24,4 +24,11 @@ sealed class BlockState {
 
     /** User interrupted before completion. */
     object Cancelled : BlockState()
+
+    /**
+     * A read-only snapshot of output the screen already showed before block
+     * mode was opened. No command ran under it and no exit code was reported —
+     * it is history, not a fabricated OSC 133 mark.
+     */
+    object History : BlockState()
 }

@@ -107,6 +107,22 @@ class EngineBlockBridge(
     }
 
     /**
+     * Seeds one read-only history block when block mode is first shown for a
+     * session that already has output but no OSC 133 marks yet.
+     *
+     * The marks start when the shell sends them; anything printed before that is
+     * on the grid but would be invisible in a block list. [lines] is the grid's
+     * bounded transcript tail, not a set of invented marks, and the repository
+     * seeds at most one snapshot per session with no fabricated exit code.
+     */
+    fun seedHistorySnapshot(sessionId: String, lines: List<String>) {
+        if (sessionId.isEmpty() || lines.isEmpty()) return
+        activeSessionId = sessionId
+        blockRepository.setActiveSession(sessionId)
+        blockRepository.seedHistorySnapshot(lines)
+    }
+
+    /**
      * Re-seed after a restart. The engine's recorder belongs to the new process,
      * so there is no transcript to re-anchor — just drop records from the old
      * handle that a restart may have left queued.

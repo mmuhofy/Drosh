@@ -582,6 +582,16 @@ private fun ReadyScreen(
         blockClassicOverride = true
         scope.launch { settingsRepository.setUseBlockEngine(false) }
     }
+
+    // Classic → block: the grid holds output the OSC 133 marks never described,
+    // so the block view would be blank. Seed one bounded, read-only history
+    // snapshot of the current session's transcript. The repository seeds at most
+    // once per session, so navigating or toggling never stacks snapshots.
+    LaunchedEffect(effectiveUseBlockEngine, activeId) {
+        if (effectiveUseBlockEngine) {
+            terminalManager.seedBlockHistorySnapshotForActiveSession()
+        }
+    }
     val backgroundFile by terminalViewModel.backgroundFile.collectAsStateWithLifecycle()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
@@ -2053,6 +2063,13 @@ private fun TerminalPaneBody(
                     },
                     onClassicFallback = { /* classic surface stays mounted below */ },
                     onBackToClassic = onBackToClassic,
+                    // Same path BlockEngineViewModel uses for commands: its
+                    // onCommandSubmitted forwards to SubmitBlockCommandUseCase,
+                    // which writes to the PTY. The engine's marks still own the
+                    // block, so no speculative card is opened here.
+                    onSubmitCommand = { command ->
+                        blockEngineViewModel.onCommandSubmitted("", command)
+                    },
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {

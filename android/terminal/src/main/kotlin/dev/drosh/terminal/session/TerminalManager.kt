@@ -1102,6 +1102,26 @@ class TerminalManager(
     }
 
     /**
+     * Fills a blank block view with the current session's existing output.
+     *
+     * Block mode is driven by OSC 133 marks, but a shell prints its welcome and
+     * earlier commands before those marks exist for a freshly-attached session.
+     * Switching from classic mode then shows an empty screen even though the
+     * grid has a full transcript. Seed one bounded, read-only history block from
+     * that transcript; the repository does it at most once per session and never
+     * invents a mark, a command or an exit code. The caller is Compose, so the
+     * blocking transcript read is moved off the main thread.
+     */
+    fun seedBlockHistorySnapshotForActiveSession() {
+        val wire = blockEngineWire ?: return
+        val sessionId = activePersistentId() ?: return
+        managerScope.launch(Dispatchers.IO) {
+            val lines = transcriptTail(sessionId, BLOCK_HISTORY_SNAPSHOT_LINES)
+            if (lines.isNotEmpty()) wire.seedHistorySnapshot(sessionId, lines)
+        }
+    }
+
+    /**
      * Points the wire at a different session, when it is following at all.
      *
      * Re-seeding costs a full transcript read, which is the very work the
@@ -2053,11 +2073,6 @@ class TerminalManager(
     }
 
     /**
-     * Switch to the session identified by [persistentId]. No-op when
-     * the id is unknown. Used by [SessionManagerAdapter] when the UI
-     * asks to change the active session.
-     */
-    /**
      * Show this session in the focused slot.
      *
      * This used to be an empty body: the grid's "open" did nothing, and the
@@ -2071,13 +2086,47 @@ class TerminalManager(
     fun switchSessionById(persistentId: String) {
         val slot = focusedPane.value
 
+        // The grid's ids come from Room, the terminal's from its own session
+        // table. They are the same UUIDs (see SessionRepositoryImpl.create and
+        // addTabWithId), so no translation is needed here — but a stale row can
+        // still name a session this process has never seen. Log it instead of
+        // binding an id nothing can open, which looks exactly like a dead tap.
+        val target = liveSessions[persistentId]
+        val targetName = target?.name
+            ?: engineSessions.firstOrNull { it.persistentId == persistentId }?.name.orEmpty()
+        val known = target != null || engineSessions.any { it.persistentId == persistentId }
+        if (!known) {
+            // A row can be written to the store before the manager has recorded
+            // it on first launch. Log the gap, but still bind the slot: the host
+            // opens a session for an unknown id on the next composition, and a
+            // hard return here would strand a brand-new session with no pane.
+            Log.w(
+                TAG,
+                "switchSessionById: id=$persistentId is not in the terminal table yet " +
+                    "(live=${liveSessions.keys}, focused=$slot); binding slot anyway",
+            )
+        }
+
         // A session already on the other pane must not be bound here too: two
-        // views on one session fight over its scroll position. Refuse rather
-        // than create a duplicate binding.
+        // views on one session fight over its scroll position. In a split the
+        // right answer is to focus the pane that already shows it, not to do
+        // nothing — a tap that is a silent no-op is the reported bug.
         val other = PaneSlot.entries.firstOrNull { it != slot }
         if (other != null) {
             val otherId = sessionIdForSlot(other) ?: enginePanes[other]?.persistentId
-            if (otherId == persistentId) return
+            if (otherId == persistentId) {
+                Log.d(TAG, "switchSessionById: id=$persistentId already in $other, focusing it")
+                focusPane(other)
+                if (focusedPane.value != other) {
+                    // The other slot has no pane to take focus (a stale binding
+                    // from a closed split). Bind here instead, or the published
+                    // id would still be the old one and the switch would revert.
+                    setSlotSession(slot, persistentId)
+                    enginePanes[slot]?.bindIdentity(persistentId, targetName)
+                }
+                publishActiveId()
+                return
+            }
         }
 
         // The slot points at the session, whether or not it is running: the
@@ -2091,16 +2140,27 @@ class TerminalManager(
         // pointed anywhere, and the screen never changed.
         setSlotSession(slot, persistentId)
         val pane = enginePanes[slot]
-
-        // A session that is alive is shown at once. It keeps running and keeps
-        // its output, so coming back to it shows what it printed while it was
-        // away.
-        liveSessions[persistentId]?.let { session ->
-            pane?.showSession(session)
-            pane?.bindIdentity(session.persistentId, session.name)
+        if (pane == null) {
+            // Not a failure: the slot is bound and the host registers a pane on
+            // recomposition. Logged so a tap that never opens anything can be
+            // told apart from one that did.
+            Log.d(TAG, "switchSessionById: id=$persistentId bound to $slot, no pane yet")
         }
 
+        // A live session is shown at once. It keeps running and keeps its
+        // output, so coming back to it shows what it printed while it was away.
+        if (target != null && pane != null) {
+            pane.showSession(target)
+        }
+
+        // Bind the identity even when there is no live engine session yet — a
+        // background row restored from Room is in engineSessions but not in
+        // liveSessions until the host opens it. Without this the pane kept the
+        // old id and publishActiveId wrote the old session back to the store.
+        pane?.bindIdentity(persistentId, targetName)
+
         publishActiveId()
+        Log.d(TAG, "switchSessionById: id=$persistentId -> $slot (name=$targetName)")
     }
 
 
@@ -2108,22 +2168,20 @@ class TerminalManager(
     /**
      * Currently-active session's persistent id, or null if unknown.
      *
-     * The focused pane's, not the primary pane's: this is what the sidebar
+     * The focused slot's binding, not the pane's own id: [switchSessionById]
+     * writes the slot first and the pane catches up on the next composition.
+     * Reading the pane here emitted the *old* id during that gap, the adapter
+     * wrote it straight back to the store, and the store pushed the old id back
+     * into [switchSessionById] — a tap on another session undid itself. A pane
+     * can also still name a session whose live engine grid has not been opened
+     * yet (a background row restored from the database); its id is stale until
+     * the host binds it.
+     *
+     * The focused slot's, not the primary pane's: this is what the sidebar
      * highlights and what survives a relaunch, and both should follow what the
      * user was last looking at.
-     *
-     * Null for an engine-backed pane: the engine's session is not a row in
-     * the app's store, so there is no id to report, and reporting the id of
-     * a session that is on no screen would be worse than reporting nothing.
      */
-    fun activePersistentId(): String? {
-        val slot = focusedPane.value
-        val engine = enginePanes[slot]
-        if (engine != null) {
-            return engine.persistentId.ifEmpty { null }
-        }
-        return sessionIdForSlot(slot)
-    }
+    fun activePersistentId(): String? = sessionIdForSlot(focusedPane.value)
 
     /**
      * Snippets for the keyboard. Read fresh on every call — the file is
@@ -2563,6 +2621,9 @@ class TerminalManager(
     private companion object {
         /** The log tag the terminal's own messages go out under. */
         const val TAG = "DroshTerminal"
+
+        /** Lines of existing output copied into a block-mode history snapshot. */
+        const val BLOCK_HISTORY_SNAPSHOT_LINES = 200
 
         /**
          * A pane with no session.

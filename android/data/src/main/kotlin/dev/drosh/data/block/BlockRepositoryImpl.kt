@@ -62,6 +62,8 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
          * that line; the parser's style state carries across chunks too.
          */
         val partialRichSpans: MutableList<StyledSpan> = mutableListOf(),
+        /** A session gets one history snapshot, never one per mode switch. */
+        val historySeeded: Boolean = false,
     )
 
     private val _blocks = MutableStateFlow<List<Block>>(emptyList())
@@ -258,6 +260,33 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
         }
     }
 
+    override fun seedHistorySnapshot(lines: List<String>) {
+        val snapshot = lines.takeLast(HISTORY_SNAPSHOT_MAX_LINES)
+        if (snapshot.isEmpty()) return
+
+        mutate(publishImmediately = true) { current ->
+            // One snapshot per session, and only while the view is still empty:
+            // a real engine-driven block is a better record than a snapshot of
+            // the same screen and must never be buried under one.
+            if (current.historySeeded || current.running != null || current.blocks.isNotEmpty()) {
+                return@mutate current
+            }
+            val now = System.currentTimeMillis()
+            val history = Block(
+                id = java.util.UUID.randomUUID().toString(),
+                prompt = HISTORY_SNAPSHOT_LABEL,
+                command = "",
+                outputLines = snapshot,
+                state = BlockState.History,
+                startedAtMs = now,
+                completedAtMs = now,
+                startRxBytes = 0L,
+                startTxBytes = 0L,
+            )
+            current.copy(blocks = capped(current.blocks + history), historySeeded = true)
+        }
+    }
+
     override fun onBootOutput(chunk: String) {
         if (chunk.isEmpty()) return
 
@@ -421,6 +450,12 @@ class BlockRepositoryImpl @Inject constructor() : BlockRepository {
 
     private companion object {
         const val MAX_BLOCKS = 200
+
+        /** Upper bound on a history snapshot's lines, independent of the caller. */
+        const val HISTORY_SNAPSHOT_MAX_LINES = 200
+
+        /** Visible label on the read-only history block. */
+        const val HISTORY_SNAPSHOT_LABEL = "history snapshot"
 
         /** One frame. Output chunks land faster than this; the display does not. */
         const val PUBLISH_FRAME_MS = 16L
