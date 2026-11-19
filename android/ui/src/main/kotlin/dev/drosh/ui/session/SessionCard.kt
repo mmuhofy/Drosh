@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -64,8 +65,10 @@ import dev.drosh.ui.R
  * The preview is the real thing, captured by the terminal and handed to the
  * ViewModel as an [ImageBitmap]. No simulated coloured lines: a session with no
  * screenshot yet shows a neutral surface instead of pretending to have output.
+ * Every card receives its own `thumbnails[session.id]`; the preview composable
+ * is keyed by that id so a grid slot can never inherit a neighbour's bitmap.
  *
- * The drag is a long press plus a movement threshold, reported in window
+ * The drag is a still hold plus a movement threshold, reported in window
  * coordinates because the screen — not the card — decides what the finger is
  * over. A drag reorders within a section or adds to a group; splitting is only
  * done from the ⋮ menu.
@@ -73,19 +76,19 @@ import dev.drosh.ui.R
 @Composable
 internal fun SessionCard(
     session: SessionSnapshot,
+    /** The program's OSC 0/2 title, or the user rename, or "shell". */
     displayName: String,
+    /** The user rename when the title took the first line, or null. */
+    subtitle: String?,
     /** The last screenshot of this session's terminal, or null if none yet. */
     thumbnail: ImageBitmap?,
     isActive: Boolean,
-    /** The title the program asked for, or null. */
-    title: String?,
     isPinned: Boolean,
     isPersistent: Boolean,
     isDropTarget: Boolean,
     isHeld: Boolean,
     onBounds: (Rect) -> Unit,
     onTap: () -> Unit,
-    onLongPress: () -> Unit,
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
@@ -140,12 +143,13 @@ internal fun SessionCard(
     val background = lerpColor(DroshSurfaceVariant, DroshSurfaceHigh, cardSurface)
 
     // No status or recency labels. The border says "active", the left-hand glyph
-    // identifies the session, and the accessibility text is just its name.
-    val description = remember(displayName, title) {
-        if (title.isNullOrBlank() || title == displayName) {
+    // identifies the session, and the accessibility text is just its name plus
+    // the rename when one is visible.
+    val description = remember(displayName, subtitle) {
+        if (subtitle.isNullOrBlank() || subtitle == displayName) {
             displayName
         } else {
-            "$displayName, $title"
+            "$displayName, $subtitle"
         }
     }
 
@@ -186,7 +190,9 @@ internal fun SessionCard(
                 indication = null,
                 role = Role.Button,
                 onClick = onTap,
-                onLongClick = onLongPress,
+                // The ⋮ button is the menu door. A hold alone opens nothing;
+                // holding and moving is what starts the drag in sessionDrag.
+                onLongClick = { /* reserved */ },
             )
             .padding(
                 start = CARD_SIDE_INSET,
@@ -225,12 +231,13 @@ internal fun SessionCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // Termux's second line: the OSC 0/2 title. Shown only when a user
-                // rename makes it distinct from the name above, and never as an
-                // empty line when the program set no title.
-                if (!title.isNullOrBlank() && title != displayName) {
+                // Termux shows the program title as the session identity, so the
+                // OSC title takes the first line. A user rename still lives in
+                // session.name and is shown here instead of being lost, but only
+                // when it is distinct from the title above — never an empty line.
+                if (!subtitle.isNullOrBlank() && subtitle != displayName) {
                     Text(
-                        text = title,
+                        text = subtitle,
                         color = DroshTextMuted,
                         fontSize = 10.5.sp,
                         maxLines = 1,
@@ -245,6 +252,7 @@ internal fun SessionCard(
                             SessionStateChip(
                                 label = stringResource(R.string.session_screen_chip_pin),
                                 tint = DroshPrimary,
+                                icon = DroshIcons.Pin,
                             )
                         }
                         if (isPersistent) {
@@ -285,10 +293,10 @@ internal fun SessionCard(
 /**
  * The stable terminal preview.
  *
+ * The remembered last-good frame lives INSIDE the id-keyed subgroup, so a grid
+ * slot reused for another session can never inherit the previous card's bitmap.
  * A short gap in the thumbnail flow must not blank a card that already has a
- * frame, so the last good bitmap is remembered per session id. The composable
- * is keyed by that id too: a reordered grid slot never reuses another card's
- * image node, which is what made previews flicker and look soft.
+ * frame; a card with no frame at all draws a neutral placeholder surface.
  */
 @Composable
 internal fun SessionThumbnail(
@@ -297,38 +305,71 @@ internal fun SessionThumbnail(
     contentDescription: String,
     modifier: Modifier = Modifier,
 ) {
-    val lastGood = remember(sessionId) { mutableStateOf<ImageBitmap?>(null) }
+    key(sessionId) {
+        SessionThumbnailContent(bitmap, contentDescription, modifier)
+    }
+}
+
+@Composable
+private fun SessionThumbnailContent(
+    bitmap: ImageBitmap?,
+    contentDescription: String,
+    modifier: Modifier,
+) {
+    val lastGood = remember { mutableStateOf<ImageBitmap?>(null) }
     if (bitmap != null) lastGood.value = bitmap
     val shown = bitmap ?: lastGood.value
 
-    key(sessionId) {
-        Box(
-            modifier = modifier
-                .clip(RoundedCornerShape(PREVIEW_CORNER))
-                .background(DroshSurface),
-        ) {
-            if (shown != null) {
-                Image(
-                    bitmap = shown,
-                    contentDescription = contentDescription,
-                    contentScale = ContentScale.Crop,
-                    alignment = Alignment.TopCenter,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(PREVIEW_CORNER))
+            .background(DroshSurface),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (shown != null) {
+            Image(
+                bitmap = shown,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            // Neutral placeholder: a terminal mark on the surface, not a fake
+            // transcript. Once a real frame arrives this is replaced in place.
+            Icon(
+                imageVector = DroshIcons.SquareTerminal,
+                contentDescription = null,
+                tint = DroshTextMuted.copy(alpha = 0.35f),
+                modifier = Modifier.size(PREVIEW_PLACEHOLDER_ICON),
+            )
         }
     }
 }
 
 /** A small chip for a toggle that is on. PIN / PERSISTENT, nothing else. */
 @Composable
-internal fun SessionStateChip(label: String, tint: Color) {
-    Box(
+internal fun SessionStateChip(
+    label: String,
+    tint: Color,
+    icon: ImageVector? = null,
+) {
+    Row(
         modifier = Modifier
             .clip(RoundedCornerShape(percent = 50))
             .background(tint.copy(alpha = 0.16f))
             .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(CHIP_ICON_SIZE),
+            )
+        }
         Text(
             text = label,
             color = tint,
@@ -362,6 +403,8 @@ private val CARD_BOTTOM_INSET = 5.dp
 private val CARD_TOP_INSET = 12.dp
 
 private val PREVIEW_CORNER = 9.dp
+private val PREVIEW_PLACEHOLDER_ICON = 28.dp
+private val CHIP_ICON_SIZE = 9.dp
 
 private const val HELD_SCALE = 1.04f
 private const val HELD_ALPHA = 0.92f
