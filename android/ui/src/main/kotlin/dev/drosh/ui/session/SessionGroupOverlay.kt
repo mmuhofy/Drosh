@@ -1,11 +1,11 @@
 package dev.drosh.ui.session
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -26,10 +28,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +41,7 @@ import androidx.compose.ui.zIndex
 import dev.drosh.domain.session.SessionSnapshot
 import dev.drosh.theme.DroshBorderSubtle
 import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSuccess
 import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshSurfaceVariant
 import dev.drosh.theme.DroshText
@@ -59,61 +60,90 @@ internal data class SessionGroup(val memberIds: List<String>)
 /**
  * One group, occupying a single card slot in the grid.
  *
- * UNTESTED — verify before use: the drag hit-testing mirrors SessionCard, with
- * the group's first member id standing in for a single session's id.
+ * UNTESTED — verify before use: the shared long-press drag mirrors SessionCard,
+ * with the group's first member id standing in for a single session's id. Every
+ * member is drawn as a small tile; a `+N more` line keeps an unlimited group
+ * inside a fixed-height card, and the overlay lists all of them.
  */
 @Composable
 internal fun SessionGroupCard(
     group: SessionGroup,
     members: List<SessionSnapshot>,
+    thumbnails: Map<String, ImageBitmap>,
+    displayNames: Map<String, String>,
+    pinnedIds: Set<String>,
+    persistentIds: Set<String>,
     isDropTarget: Boolean,
     isHeld: Boolean,
-    pointer: Offset,
     onBounds: (Rect) -> Unit,
     onTap: () -> Unit,
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
 ) {
-    val origin = remember { mutableStateOf(Offset.Zero) }
+    val dragDelta = remember { mutableStateOf(Offset.Zero) }
     val borderColor = if (isDropTarget) DroshPrimary else DroshPrimary.copy(alpha = 0.45f)
+
+    // UNTESTED — verify before use: same stiff, damped spring as a single card,
+    // so the held group tracks the finger and settles without overshoot.
+    val dragScale by animateFloatAsState(
+        targetValue = if (isHeld) GROUP_HELD_SCALE else 1f,
+        animationSpec = spring(dampingRatio = 1f, stiffness = GROUP_SETTLE_STIFFNESS),
+        label = "groupDragScale",
+    )
+    val settleX by animateFloatAsState(
+        targetValue = if (isHeld) dragDelta.value.x else 0f,
+        animationSpec = spring(dampingRatio = 1f, stiffness = GROUP_SETTLE_STIFFNESS),
+        label = "groupSettleX",
+    )
+    val settleY by animateFloatAsState(
+        targetValue = if (isHeld) dragDelta.value.y else 0f,
+        animationSpec = spring(dampingRatio = 1f, stiffness = GROUP_SETTLE_STIFFNESS),
+        label = "groupSettleY",
+    )
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(GROUP_CARD_HEIGHT)
-            .onGloballyPositioned {
-                origin.value = it.boundsInRoot().topLeft
-                onBounds(it.boundsInRoot())
-            }
+            .sessionDrag(
+                dragKey = group.memberIds.firstOrNull(),
+                dragDelta = dragDelta,
+                onBounds = onBounds,
+                onStart = onDragStart,
+                onDrag = onDrag,
+                onEnd = onDragEnd,
+            )
             .zIndex(if (isHeld) 1f else 0f)
             .graphicsLayer {
-                val scale = if (isHeld) GROUP_HELD_SCALE else 1f
-                scaleX = scale
-                scaleY = scale
+                scaleX = dragScale
+                scaleY = dragScale
+                translationX = settleX
+                translationY = settleY
             }
             .alpha(if (isHeld) GROUP_HELD_ALPHA else 1f)
             .clip(RoundedCornerShape(16.dp))
             .background(DroshSurfaceVariant)
+            .then(
+                if (isDropTarget) {
+                    Modifier.background(DroshPrimary.copy(alpha = 0.12f))
+                } else {
+                    Modifier
+                },
+            )
             .border(1.dp, borderColor, RoundedCornerShape(16.dp))
             .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null,
                 role = Role.Button,
                 onClick = onTap,
             )
-            .pointerInput(group.memberIds.firstOrNull()) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { local -> onDragStart(local + origin.value) },
-                    onDrag = { change, _ ->
-                        change.consume()
-                        onDrag(change.position + origin.value)
-                    },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
-                )
-            }
-            .padding(10.dp),
+            .padding(
+                start = CARD_SIDE_INSET,
+                top = CARD_TOP_INSET,
+                end = CARD_SIDE_INSET,
+                bottom = CARD_BOTTOM_INSET,
+            ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
@@ -137,35 +167,58 @@ internal fun SessionGroupCard(
             )
         }
 
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .clip(RoundedCornerShape(9.dp))
                 .background(DroshSurfaceHigh.copy(alpha = 0.5f))
-                .padding(8.dp),
+                .padding(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                members.take(MAX_PREVIEW_MEMBERS).forEach { member ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Icon(
-                            imageVector = DroshIcons.SquareTerminal,
-                            contentDescription = null,
-                            tint = DroshPrimary.copy(alpha = 0.8f),
-                            modifier = Modifier.size(12.dp),
+            members.take(MAX_TILES).forEach { member ->
+                val name = displayNames[member.id] ?: member.name
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(MEMBER_TILE_HEIGHT),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    SessionThumbnail(
+                        sessionId = member.id,
+                        bitmap = thumbnails[member.id],
+                        contentDescription = stringResource(R.string.session_screen_thumbnail, name),
+                        modifier = Modifier.size(MEMBER_TILE_THUMBNAIL),
+                    )
+                    Text(
+                        text = name,
+                        color = DroshText,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (member.id in pinnedIds) {
+                        SessionStateChip(
+                            label = stringResource(R.string.session_screen_chip_pin),
+                            tint = DroshPrimary,
                         )
-                        Text(
-                            text = member.name,
-                            color = DroshText,
-                            fontSize = 10.5.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                    }
+                    if (member.id in persistentIds) {
+                        SessionStateChip(
+                            label = stringResource(R.string.session_screen_chip_persistent),
+                            tint = DroshSuccess,
                         )
                     }
                 }
+            }
+            if (members.size > MAX_TILES) {
+                Text(
+                    text = stringResource(R.string.session_screen_group_more, members.size - MAX_TILES),
+                    color = DroshTextMuted,
+                    fontSize = 10.sp,
+                )
             }
         }
 
@@ -178,15 +231,23 @@ internal fun SessionGroupCard(
 }
 
 /**
- * The centred overlay a tap on a group card opens. It lists the grouped
- * sessions; picking one opens it.
+ * The centred overlay a tap on a group card opens. It lists every grouped
+ * session, opens one on tap, and offers the way back out of the group — removing
+ * one member or dissolving the whole group — so grouping is never a one-way
+ * door out of the singles view.
  */
 @Composable
 internal fun SessionGroupOverlay(
     group: SessionGroup,
     members: List<SessionSnapshot>,
+    displayNames: Map<String, String>,
+    thumbnails: Map<String, ImageBitmap>,
+    pinnedIds: Set<String>,
+    persistentIds: Set<String>,
     onDismiss: () -> Unit,
     onOpen: (String) -> Unit,
+    onRemoveMember: (String) -> Unit,
+    onUngroupAll: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Column(
@@ -214,34 +275,58 @@ internal fun SessionGroupOverlay(
 
             Column(modifier = Modifier.padding(top = 12.dp)) {
                 members.forEach { member ->
+                    val name = displayNames[member.id] ?: member.name
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(percent = 50))
                             .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                 indication = null,
                                 role = Role.Button,
                                 onClick = { onOpen(member.id) },
                             )
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                            .padding(start = 8.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Icon(
-                            imageVector = DroshIcons.SquareTerminal,
-                            contentDescription = null,
-                            tint = DroshTextMuted,
-                            modifier = Modifier.size(15.dp),
+                        SessionThumbnail(
+                            sessionId = member.id,
+                            bitmap = thumbnails[member.id],
+                            contentDescription = stringResource(R.string.session_screen_thumbnail, name),
+                            modifier = Modifier.size(30.dp),
                         )
                         Text(
-                            text = member.name,
+                            text = name,
                             color = DroshText,
                             fontSize = 14.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
+                        if (member.id in pinnedIds) {
+                            SessionStateChip(
+                                label = stringResource(R.string.session_screen_chip_pin),
+                                tint = DroshPrimary,
+                            )
+                        }
+                        if (member.id in persistentIds) {
+                            SessionStateChip(
+                                label = stringResource(R.string.session_screen_chip_persistent),
+                                tint = DroshSuccess,
+                            )
+                        }
+                        IconButton(
+                            onClick = { onRemoveMember(member.id) },
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                imageVector = DroshIcons.X,
+                                contentDescription = stringResource(R.string.session_screen_group_remove),
+                                tint = DroshTextMuted,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                 }
                 if (members.isEmpty()) {
@@ -257,11 +342,33 @@ internal fun SessionGroupOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
+                    .padding(top = 8.dp)
+                    .height(48.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .border(1.dp, DroshBorderSubtle, RoundedCornerShape(percent = 50))
                     .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onUngroupAll,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.session_screen_group_ungroup),
+                    color = DroshTextMuted,
+                    fontSize = 14.sp,
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                         indication = null,
                         role = Role.Button,
                         onClick = onDismiss,
@@ -278,7 +385,15 @@ internal fun SessionGroupOverlay(
     }
 }
 
-private val GROUP_CARD_HEIGHT = 200.dp
+private val GROUP_CARD_HEIGHT = 300.dp
+private val CARD_SIDE_INSET = 5.dp
+private val CARD_TOP_INSET = 12.dp
+private val CARD_BOTTOM_INSET = 5.dp
+private val MEMBER_TILE_HEIGHT = 36.dp
+private val MEMBER_TILE_THUMBNAIL = 28.dp
 private const val GROUP_HELD_SCALE = 1.04f
 private const val GROUP_HELD_ALPHA = 0.92f
-private const val MAX_PREVIEW_MEMBERS = 4
+private const val GROUP_SETTLE_STIFFNESS = 1100f
+
+/** Four tiles fit the card; the overlay always shows the full membership. */
+private const val MAX_TILES = 4
