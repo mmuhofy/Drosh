@@ -1,7 +1,6 @@
 package dev.drosh.ui.settings
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -12,9 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
-import dev.drosh.theme.DroshText
 import dev.drosh.ui.R
 
 /**
@@ -60,8 +57,7 @@ fun <T> SettingsSelectRow(
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { (value, label) ->
                 DropdownMenuItem(
-                    modifier = Modifier.heightIn(min = 48.dp),
-                    text = { Text(label, color = DroshText) },
+                    text = { Text(label) },
                     leadingIcon = if (value == selected) {
                         { SettingsCheck() }
                     } else {

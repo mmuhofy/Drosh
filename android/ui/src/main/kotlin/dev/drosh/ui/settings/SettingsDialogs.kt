@@ -1,7 +1,6 @@
 package dev.drosh.ui.settings
 
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -21,7 +20,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import dev.drosh.theme.DroshError
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurfaceVariant
 import dev.drosh.theme.DroshText
@@ -76,12 +74,12 @@ fun SettingsTextInputDialog(
             )
         },
         confirmButton = {
-            TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = { onConfirm(text.trim()) }) {
+            TextButton(onClick = { onConfirm(text.trim()) }) {
                 Text(stringResource(R.string.settings_dialog_save), color = DroshPrimary)
             }
         },
         dismissButton = {
-            TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = onDismiss) {
+            TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.settings_dialog_cancel), color = DroshTextSecondary)
             }
         },
@@ -134,7 +132,7 @@ fun SettingsListInputDialog(
             )
         },
         confirmButton = {
-            TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = {
+            TextButton(onClick = {
                 onConfirm(
                     text.lineSequence()
                         .map { it.trim() }
@@ -146,7 +144,7 @@ fun SettingsListInputDialog(
             }
         },
         dismissButton = {
-            TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = onDismiss) {
+            TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.settings_dialog_cancel), color = DroshTextSecondary)
             }
         },
@@ -178,14 +176,12 @@ fun SettingsConfirmDialog(
         title = { Text(title, color = DroshText, fontWeight = FontWeight.Bold) },
         text = { Text(body, color = DroshTextSecondary) },
         confirmButton = {
-            // The label names the act ("Remove"); the danger colour reinforces
-            // it without being the only signal.
-            TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = onConfirm) {
-                Text(confirmLabel, color = DroshError)
+            TextButton(onClick = onConfirm) {
+                Text(confirmLabel, color = DroshPrimary)
             }
         },
         dismissButton = {
-            TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = onDismiss) {
+            TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.settings_dialog_cancel), color = DroshTextSecondary)
             }
         },

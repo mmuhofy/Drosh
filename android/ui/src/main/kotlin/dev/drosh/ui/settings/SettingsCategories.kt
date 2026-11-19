@@ -66,8 +66,7 @@ import dev.drosh.ui.R
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-/** Section rhythm: 32dp between groups, 8dp inside one group. */
-internal val GROUP_GAP = 32.dp
+internal val GROUP_GAP = 22.dp
 
 /** Content clearance for the system bar, without insetting the background. */
 @Composable
@@ -150,8 +149,6 @@ fun AppearanceCategory(
     ) { uri -> uri?.let { viewModel.importBackgroundImage(it) } }
 
     val context = LocalContext.current
-    // Removing the background file is destructive: ask before deleting it.
-    var showRemoveBackgroundConfirm by rememberSaveable { mutableStateOf(false) }
 
     // The user's own font file. The system picker gives a URI, and the
     // permission to read it is taken for as long as the app lives — without
@@ -297,7 +294,7 @@ fun AppearanceCategory(
                     icon = DroshIcons.Smartphone,
                     supporting = stringResource(R.string.settings_session_surface_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.appearance.sessionSurface,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(appearance = it.appearance.copy(sessionSurface = on)) }
@@ -320,7 +317,7 @@ fun AppearanceCategory(
                     icon = DroshIcons.Type,
                     supporting = stringResource(R.string.settings_bold_brightens_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.terminal.boldBrightens,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(terminal = it.terminal.copy(boldBrightens = on)) }
@@ -334,7 +331,7 @@ fun AppearanceCategory(
                     icon = DroshIcons.Type,
                     supporting = stringResource(R.string.settings_ligatures_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.terminal.ligatures,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(terminal = it.terminal.copy(ligatures = on)) }
@@ -348,7 +345,7 @@ fun AppearanceCategory(
                     icon = DroshIcons.Monitor,
                     supporting = stringResource(R.string.settings_dim_inactive_panes_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.terminal.dimInactivePanes,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(terminal = it.terminal.copy(dimInactivePanes = on)) }
@@ -362,7 +359,7 @@ fun AppearanceCategory(
                     icon = DroshIcons.Maximize,
                     supporting = stringResource(R.string.settings_immersive_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.terminal.immersive,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(terminal = it.terminal.copy(immersive = on)) }
@@ -400,7 +397,7 @@ fun AppearanceCategory(
                     title = stringResource(R.string.settings_background_remove),
                     icon = DroshIcons.Trash2,
                     supporting = stringResource(R.string.settings_background_remove_desc),
-                    onClick = { showRemoveBackgroundConfirm = true },
+                    onClick = { viewModel.removeBackgroundImage() },
                 )
 
                 2 -> SettingsTile(
@@ -489,19 +486,6 @@ fun AppearanceCategory(
             }
         }
     }
-
-    if (showRemoveBackgroundConfirm) {
-        SettingsConfirmDialog(
-            title = stringResource(R.string.settings_background_remove),
-            body = stringResource(R.string.settings_background_remove_confirm_body),
-            confirmLabel = stringResource(R.string.settings_background_remove_confirm),
-            onConfirm = {
-                showRemoveBackgroundConfirm = false
-                viewModel.removeBackgroundImage()
-            },
-            onDismiss = { showRemoveBackgroundConfirm = false },
-        )
-    }
 }
 
 
@@ -516,9 +500,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
     ) {
         SettingsGroupColumn(
             label = stringResource(R.string.settings_section_terminal),
-            // Six rows, six slots. The old count of eight left two empty tiles
-            // behind after the backend and scrollback rows were removed.
-            items = 6,
+            items = 8,
         ) { index, cap ->
             when (index) {
                 0 -> SettingsTile(
@@ -615,7 +597,7 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     icon = DroshIcons.Eye,
                     supporting = stringResource(R.string.settings_terminal_keep_awake_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.terminal.keepAwake,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(terminal = it.terminal.copy(keepAwake = on)) }
@@ -628,13 +610,13 @@ fun TerminalCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                 // one engine and a crash. There is one engine now, and the
                 // setting that could not be turned off is gone with it.
 
-                5 -> SettingsTile(
+                6 -> SettingsTile(
                     cap = cap,
                     title = stringResource(R.string.settings_terminal_keep_position),
                     icon = DroshIcons.ArrowUp,
                     supporting = stringResource(R.string.settings_terminal_keep_position_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.terminal.keepPositionWhileReading,
                         onCheckedChange = { on ->
                             onUpdate {
@@ -667,7 +649,7 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     icon = DroshIcons.Keyboard,
                     supporting = stringResource(R.string.settings_input_extra_keys_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.input.extraKeysBar,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(input = it.input.copy(extraKeysBar = on)) }
@@ -681,7 +663,7 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     icon = DroshIcons.Cursor,
                     supporting = stringResource(R.string.settings_input_mouse_reporting_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.input.mouseReporting,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(input = it.input.copy(mouseReporting = on)) }
@@ -695,7 +677,7 @@ fun KeyboardCategory(settings: DroshSettings, onBack: () -> Unit, onUpdate: OnSe
                     icon = DroshIcons.ClipboardPaste,
                     supporting = stringResource(R.string.settings_input_clipboard_writes_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.input.allowClipboardWrites,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(input = it.input.copy(allowClipboardWrites = on)) }
@@ -826,7 +808,7 @@ fun SecurityCategory(
                     icon = DroshIcons.Shield,
                     supporting = stringResource(R.string.settings_pin_lock_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = isPinLockEnabled,
                         onCheckedChange = { enabled ->
                             if (enabled) {
@@ -873,7 +855,7 @@ fun SecurityCategory(
                     icon = DroshIcons.EyeOff,
                     supporting = stringResource(R.string.settings_security_screenshots_desc),
                 ) {
-                    SettingsLabeledSwitch(
+                    SettingsSwitch(
                         checked = settings.security.blockScreenshots,
                         onCheckedChange = { on ->
                             onUpdate { it.copy(security = it.security.copy(blockScreenshots = on)) }
