@@ -478,7 +478,7 @@ fun GhosttyTerminalHost(
     val currentSessionId = rememberUpdatedState(sessionId)
     val currentOnThumbnail = rememberUpdatedState(onThumbnail)
     val thumbnailPublisher = remember { ThumbnailPublisher(THUMBNAIL_CAPTURE_INTERVAL_MS) }
-    val captureThumbnail: (String) -> Unit = { id ->
+    val captureThumbnail: (String, Boolean) -> Unit = { id, force ->
         // The surface is the only thing that can be sampled, and the id is the
         // only key the grid can store it under. Neither being ready is a silent
         // no-op, never a publish under an empty key.
@@ -490,18 +490,29 @@ fun GhosttyTerminalHost(
                     viewWidth = pane.view.width,
                     viewHeight = pane.view.height,
                     sessionId = id,
-                    shouldPublish = thumbnailPublisher::shouldPublish,
+                    shouldPublish = { key, bitmap -> thumbnailPublisher.shouldPublish(key, bitmap, force) },
                     onThumbnail = currentOnThumbnail.value,
                 )
             }
         }
     }
 
+    // The active session is refreshed at the normal interval. The dedupe and
+    // throttle are per session now, so publishing a background session's final
+    // frame cannot disturb the active one's cadence.
     LaunchedEffect(hostVisible, pane, sessionId) {
         if (!hostVisible || sessionId.isEmpty()) return@LaunchedEffect
         while (isActive && hostVisible) {
             delay(THUMBNAIL_CAPTURE_INTERVAL_MS)
-            captureThumbnail(sessionId)
+            captureThumbnail(sessionId, false)
+        }
+    }
+
+    // A session that loses pane focus in a split still has a live surface, so a
+    // final frame here keeps its card honest even if it is polled less often.
+    LaunchedEffect(focusedPane, sessionId) {
+        if (focusedPane != paneSlot && sessionId.isNotEmpty()) {
+            captureThumbnail(sessionId, true)
         }
     }
 
@@ -509,7 +520,9 @@ fun GhosttyTerminalHost(
         onDispose {
             // One last frame for the session that is leaving this pane. Declared
             // before the release effect below, so the surface is still ours.
-            captureThumbnail(sessionId)
+            // Forced: the session's last normal capture may have been inside the
+            // 2s throttle window, but a card must keep a last-good picture.
+            captureThumbnail(sessionId, true)
         }
     }
 
@@ -530,7 +543,10 @@ fun GhosttyTerminalHost(
                 Lifecycle.Event.ON_PAUSE -> {
                     hostVisible = false
                     pane.onHostPause()
-                    captureThumbnail(currentSessionId.value)
+                    // Going to the background is the last chance to sample this
+                    // surface. Force past the 2s throttle; transparency and
+                    // per-session dedupe still apply inside the publisher.
+                    captureThumbnail(currentSessionId.value, true)
                 }
                 else -> Unit
             }
@@ -723,24 +739,35 @@ private fun captureSessionThumbnail(
  * cheap to compare this way on the main looper. A transparent capture is dropped
  * because the surface can exist before its first frame — publishing that gave
  * the card an empty picture.
+ *
+ * State is kept per session: this single publisher serves every live session's
+ * captures (polled ones and the final frames of ones going background), so a
+ * global "last session" would either throttle the wrong card or republish an
+ * unchanged one. All calls arrive on the main looper — PixelCopy's listener and
+ * the polling coroutine both run there — so the map needs no lock.
  */
 private class ThumbnailPublisher(private val minIntervalMs: Long) {
-    private var lastSessionId: String? = null
-    private var lastSignature: IntArray? = null
-    private var lastPublishedAtMs = 0L
+    private data class Published(val signature: IntArray, val atMs: Long)
 
-    fun shouldPublish(sessionId: String, bitmap: Bitmap): Boolean {
+    private val published = HashMap<String, Published>()
+
+    /**
+     * [force] skips only the throttle: a final capture of a session leaving the
+     * pane must land even when its last normal capture was seconds ago. Dedupe
+     * and the transparency check are unchanged, so an unchanged or empty frame
+     * is never published.
+     */
+    fun shouldPublish(sessionId: String, bitmap: Bitmap, force: Boolean = false): Boolean {
         if (sessionId.isEmpty() || bitmap.isRecycled) return false
         if (bitmap.width <= 0 || bitmap.height <= 0 || !bitmap.hasVisiblePixels()) return false
 
         val signature = bitmap.signature()
-        if (sessionId == lastSessionId && signature.contentEquals(lastSignature)) return false
+        val previous = published[sessionId]
+        if (previous != null && signature.contentEquals(previous.signature)) return false
         val now = SystemClock.elapsedRealtime()
-        if (sessionId == lastSessionId && now - lastPublishedAtMs < minIntervalMs) return false
+        if (!force && previous != null && now - previous.atMs < minIntervalMs) return false
 
-        lastSessionId = sessionId
-        lastSignature = signature
-        lastPublishedAtMs = now
+        published[sessionId] = Published(signature, now)
         return true
     }
 }
