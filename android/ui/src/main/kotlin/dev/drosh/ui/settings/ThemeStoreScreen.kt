@@ -1,10 +1,14 @@
 package dev.drosh.ui.settings
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,13 +60,16 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.luminance
 import dev.drosh.theme.DroshBackground
+import dev.drosh.theme.DroshBorderSubtle
 import dev.drosh.theme.DroshOutline
 import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSuccess
 import dev.drosh.theme.DroshSurfaceVariant
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.DroshTile
+import dev.drosh.theme.DroshTilePressed
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 
@@ -215,54 +222,24 @@ fun ThemeStoreScreen(
 
 private enum class StoreRoom { Store, Library }
 
-/** The two rooms, as a segmented bar rather than as two screens. */
+/** The two rooms, as the same segmented control the other settings use. */
 @Composable
 private fun StoreRoomBar(
     room: StoreRoom,
     installedCount: Int,
     onRoomChange: (StoreRoom) -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(DroshSurfaceVariant),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        StoreRoom.entries.forEach { entry ->
-            val selected = entry == room
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(4.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (selected) DroshPrimary else Color.Transparent)
-                    .clickable { onRoomChange(entry) }
-                    .padding(vertical = 9.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(
-                        if (entry == StoreRoom.Store) R.string.settings_theme_room_store
-                        else R.string.settings_theme_room_library,
-                    ),
-                    color = if (selected) DroshTile else DroshTextSecondary,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                if (entry == StoreRoom.Library) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "$installedCount",
-                        color = if (selected) DroshTile.copy(alpha = 0.8f) else DroshTextMuted,
-                        fontSize = 12.sp,
-                    )
-                }
-            }
-        }
-    }
+    val storeLabel = stringResource(R.string.settings_theme_room_store)
+    val libraryLabel = stringResource(R.string.settings_theme_room_library)
+    SettingsSegmented(
+        options = listOf(
+            StoreRoom.Store to storeLabel,
+            StoreRoom.Library to "$libraryLabel ($installedCount)",
+        ),
+        selected = room,
+        onSelect = onRoomChange,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
 }
 
 /** The catalogue: a grid of covers, and a way to reload it. */
@@ -324,12 +301,26 @@ private fun ThemeStoreCard(
     busy: Boolean,
     onClick: () -> Unit,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val cardBackground by animateColorAsState(
+        targetValue = if (pressed) DroshTilePressed else DroshSurfaceVariant,
+        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        label = "themeCardBg",
+    )
+    val shape = RoundedCornerShape(20.dp)
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(DroshSurfaceVariant)
-            .clickable(enabled = !installed && !busy, onClick = onClick)
-            .padding(10.dp),
+            .clip(shape)
+            .background(cardBackground)
+            .border(1.dp, DroshBorderSubtle, shape)
+            .clickable(
+                enabled = !installed && !busy,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(12.dp),
     ) {
         // The palette as a band of colour: the index carries it, so a cover
         // costs a draw and not a request.
@@ -416,7 +407,7 @@ private fun ThemeLibrary(
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(installed.size, key = { installed[it].id }) { index ->
             val theme = installed[index]
@@ -444,7 +435,19 @@ private fun ThemeLibrary(
                 // a delete button on every row is a row that deletes by accident.
                 onLongClick = { onRemove(theme.id) },
             ) {
-                if (active) SettingsCheck() else SettingsChevron()
+                // "Run green" from the generated system is reserved for the
+                // theme that is actually running; blue stays the selection
+                // and interaction accent everywhere else.
+                if (active) {
+                    Icon(
+                        imageVector = DroshIcons.Check,
+                        contentDescription = stringResource(R.string.settings_a11y_selected),
+                        tint = DroshSuccess,
+                        modifier = Modifier.size(20.dp),
+                    )
+                } else {
+                    SettingsChevron()
+                }
             }
         }
 

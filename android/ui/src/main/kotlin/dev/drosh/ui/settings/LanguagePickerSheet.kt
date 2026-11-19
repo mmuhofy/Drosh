@@ -1,7 +1,11 @@
 package dev.drosh.ui.settings
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +55,7 @@ import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.DroshTrack
 import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
 
 /**
  * Language picker as a sheet with a search field over the list.
@@ -96,9 +104,9 @@ fun LanguagePickerSheet(
     ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Text(
-                text = "Language",
+                text = stringResource(R.string.settings_language),
                 color = DroshText,
-                fontSize = 17.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 12.dp),
             )
@@ -123,7 +131,7 @@ fun LanguagePickerSheet(
                 Box(modifier = Modifier.weight(1f)) {
                     if (query.isEmpty()) {
                         Text(
-                            text = "Search languages",
+                            text = stringResource(R.string.settings_language_search),
                             color = DroshTextMuted,
                             fontSize = 14.5.sp,
                         )
@@ -166,18 +174,30 @@ private fun LanguageOptionRow(
     onClick: () -> Unit,
 ) {
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val rowBackground by animateColorAsState(
+        targetValue = when {
+            pressed -> DroshTilePressed
+            selected -> DroshTileSelected
+            else -> androidx.compose.ui.graphics.Color.Transparent
+        },
+        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        label = "languageRowBg",
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 56.dp)
             .padding(horizontal = 14.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) DroshTileSelected else androidx.compose.ui.graphics.Color.Transparent)
+            .background(rowBackground)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .semantics { this.selected = selected }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(

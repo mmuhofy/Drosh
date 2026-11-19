@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings home: section tiers between the device card and the rows. -->
+    <string name="settings_home_section_general">General</string>
+    <string name="settings_home_section_more">More</string>
+
+    <!--
+        These two were hard-coded in the home screen. They live here so the
+        redesigned screen has no mixed sources of user-facing text; the text is
+        kept verbatim so the redesign does not change what a row says.
+    -->
+    <string name="settings_backup_restore">Yedekle ve geri yükle</string>
+    <string name="settings_backup_restore_desc">Uygulama verisi ve Linux dizini yedeği</string>
+
+    <!-- Screen-reader state for the selected terminal-mode card. -->
+    <string name="settings_a11y_selected">Selected</string>
+
+    <!-- Destructive background removal is confirmed before the file is deleted. -->
+    <string name="settings_background_remove_confirm_body">The background file leaves .drosh. The theme colour shows again.</string>
+    <string name="settings_background_remove_confirm">Remove</string>
+</resources>
