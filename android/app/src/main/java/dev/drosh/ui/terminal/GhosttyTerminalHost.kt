@@ -482,17 +482,18 @@ fun GhosttyTerminalHost(
         // The surface is the only thing that can be sampled, and the id is the
         // only key the grid can store it under. Neither being ready is a silent
         // no-op, never a publish under an empty key.
-        if (id.isEmpty()) return@captureThumbnail
-        val surface = runCatching { pane.view.holder.surface }.getOrNull()
-        if (surface != null) {
-            captureSessionThumbnail(
-                surface = surface,
-                viewWidth = pane.view.width,
-                viewHeight = pane.view.height,
-                sessionId = id,
-                shouldPublish = thumbnailPublisher::shouldPublish,
-                onThumbnail = currentOnThumbnail.value,
-            )
+        if (id.isNotEmpty()) {
+            val surface = runCatching { pane.view.holder.surface }.getOrNull()
+            if (surface != null) {
+                captureSessionThumbnail(
+                    surface = surface,
+                    viewWidth = pane.view.width,
+                    viewHeight = pane.view.height,
+                    sessionId = id,
+                    shouldPublish = thumbnailPublisher::shouldPublish,
+                    onThumbnail = currentOnThumbnail.value,
+                )
+            }
         }
     }
 
