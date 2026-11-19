@@ -24,9 +24,11 @@ import dev.drosh.ui.R
  * The card's ⋮ button and its dropdown, in one box so the menu anchors to the
  * button and not to the whole card (which spans half the grid).
  *
- * `Split with…` opens the partner picker; it does not split by itself. Pin and
- * Persistent are toggles, and both show a chip on the card when on. Persistent
- * starts off — it is never switched on implicitly.
+ * `Split with…` opens the existing [SplitWithDialog] partner picker directly —
+ * this dropdown dismisses before it calls `onSplitWith`, so no second menu is
+ * ever stacked on top of it. Pin and Persistent are toggles, and both show a
+ * chip on the card when on. Persistent starts off — it is never switched on
+ * implicitly.
  */
 @Composable
 internal fun SessionCardActionsButton(
@@ -45,7 +47,7 @@ internal fun SessionCardActionsButton(
     Box {
         IconButton(
             onClick = { expanded = true },
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(48.dp),
         ) {
             Icon(
                 imageVector = DroshIcons.EllipsisVertical,

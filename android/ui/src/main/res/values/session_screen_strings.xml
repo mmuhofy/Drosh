@@ -28,6 +28,10 @@
     <string name="session_screen_group_title">Group · %1$d sessions</string>
     <string name="session_screen_group_open">Tap to open group</string>
     <string name="session_screen_group_empty">This group has no live sessions.</string>
+    <!-- Extra members beyond the small tiles drawn inside a fixed-height card. -->
+    <string name="session_screen_group_more">+%1$d more</string>
+    <string name="session_screen_group_remove">Remove from group</string>
+    <string name="session_screen_group_ungroup">Ungroup all</string>
     <string name="session_screen_group_close">Close</string>
 
     <string name="session_screen_split_title">Split with…</string>
@@ -38,7 +42,7 @@
     <string name="session_screen_header_menu">More options</string>
     <string name="session_screen_overflow">Session options</string>
     <string name="session_screen_menu_split">Split with…</string>
-    <string name="session_screen_menu_pin">Pin</string>
+    <string name="session_screen_menu_pin">Pin to top</string>
     <string name="session_screen_menu_unpin">Unpin</string>
     <string name="session_screen_menu_persistent">Persistent</string>
     <string name="session_screen_menu_rename">Rename</string>
@@ -47,4 +51,7 @@
 
     <string name="session_screen_chip_pin">PIN</string>
     <string name="session_screen_chip_persistent">PERSISTENT</string>
+
+    <!-- Accessibility label for the real captured terminal preview on a card. -->
+    <string name="session_screen_thumbnail">Terminal preview for %1$s</string>
 </resources>

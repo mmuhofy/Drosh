@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -106,21 +108,16 @@ private fun sessionDisplayName(
  *    tinted surface — the tint is what separates it from plain "you are here".
  *  - **Everything else** is a quiet card on a subtle border.
  *
- * ## Grouping and splitting are different now
+ * ## Reordering, grouping and splitting are different
  *
- * Dragging one card onto another makes a *UI group*, the way a Chrome tab group
- * gathers tabs. It does not touch the terminal's panes. Group membership is
- * local state — [SessionGroup] — and a tap on a group card opens a centred
- * overlay listing its members.
+ * A long press followed by a drag reorders a card in its section. Dropping on a
+ * *group* card adds the held card (or the whole held group) to that group;
+ * dropping on a normal card reorders. A group is a UI group, like a Chrome tab
+ * group — it never touches the terminal's panes. A tap on a group card opens a
+ * centred overlay that can also remove a member or dissolve the group.
  *
  * A split still goes through [onGroupSessions], but only from the card's
- * overflow menu: `Split with…` → choose a session. Drag never calls it.
- *
- * ## What a group is not
- *
- * The screen does not own the split. The terminal's pane layout is what shows
- * two sessions at once, and it holds exactly two panes. Only the menu's split
- * asks the terminal for that; the drag group is a shell around cards.
+ * overflow menu: `Split with…` opens the partner picker directly.
  *
  * ## Closing
  *
@@ -172,14 +169,16 @@ fun SessionScreen(
     val tab = SessionTab.entries.firstOrNull { it.name == savedTab } ?: SessionTab.Singles
 
     // TODO: persist — no domain field exists for pin. It stays UI-local and
-    // resets when the screen leaves composition. Persistent is owned by the
-    // ViewModel and is OFF by default; rename is persisted through the repository.
+    // resets when the screen leaves composition. A pin only sorts to the top of
+    // its section; it never locks the card.
     var pinnedIds by remember { mutableStateOf(setOf<String>()) }
     // Staged rename shown immediately; the same value is written through to the
     // repository in the rename dialog's confirm handler below.
     var localNames by remember { mutableStateOf(emptyMap<String, String>()) }
 
-    // TODO: persist — UI tab groups only. The terminal owns the real splits.
+    // TODO: persist — UI-local drag order and groups. The terminal owns the real
+    // splits. Pinned cards are sorted to the top at render time, not reordered.
+    var order by remember { mutableStateOf(emptyList<String>()) }
     var groups by remember { mutableStateOf(emptyList<SessionGroup>()) }
 
     /**
@@ -199,8 +198,6 @@ fun SessionScreen(
 
     /** The card under a held finger, or null. */
     var heldId by remember { mutableStateOf<String?>(null) }
-    /** Where the finger is, in root coordinates. */
-    var pointer by remember { mutableStateOf(Offset.Zero) }
     /** The card the finger is over, when it is over one and not the held one. */
     var dropTarget by remember { mutableStateOf<String?>(null) }
 
@@ -219,6 +216,18 @@ fun SessionScreen(
             .filter { it.state != SessionState.Closed }
             .sortedByDescending { it.lastUsedAtMs }
     }
+    val liveIds = remember(live) { live.map { it.id } }
+
+    // Reconcile the remembered drag order against closed/new sessions, and drop
+    // closed members from groups. A group under two live members dissolves and
+    // its sessions return to the singles view.
+    val orderedIds = remember(order, live) { reconcileSessionOrder(order, liveIds) }
+    val groupsLive = remember(groups, live) { liveSessionGroups(groups, liveIds.toSet()) }
+    val groupBySlot = remember(groupsLive) { groupsLive.associateBy { it.memberIds.first() } }
+
+    val displayNames = remember(live, titles, localNames, fallbackName) {
+        live.associate { it.id to sessionDisplayName(it.id, localNames, titles, fallbackName, it.name) }
+    }
 
     // The search matches the user's name, the program's title and a rename made
     // in this screen, so all three ways of naming a session work in one pill.
@@ -235,49 +244,42 @@ fun SessionScreen(
         }
     }
 
-    // Keep groups in the order they were made; a set here would reshuffle the
-    // grid on every merge.
-    val groupItems = remember(groups, live, matchedIds) {
-        groups.mapNotNull { group ->
-            val members = live.filter { it.id in group.memberIds }
-            if (members.size >= 2 && members.any { it.id in matchedIds }) {
-                SessionGridItem.Group(
-                    group = group.copy(memberIds = members.map { it.id }),
-                    members = members,
-                )
-            } else {
-                null
-            }
-        }
-    }
-
-    val gridItems = remember(live, groupItems, matchedIds) {
+    // One slot per session, with a group taking the slot of its first member.
+    // Pinned slots are stably moved to the front of their section.
+    val slots = remember(orderedIds, live, groupBySlot, matchedIds, pinnedIds) {
         buildList<SessionGridItem> {
-            val addedGroups = mutableSetOf<SessionGridItem.Group>()
-            live.forEach { session ->
-                val group = groupItems.firstOrNull { session.id in it.group.memberIds }
+            orderedIds.forEach { id ->
+                val group = groupBySlot[id]
                 when {
-                    group != null && group.group.memberIds.first() == session.id -> {
-                        add(group)
-                        addedGroups += group
+                    group != null -> {
+                        val members = live.filter { it.id in group.memberIds }
+                        // A group whose first member was filtered out still gets a
+                        // slot when any other member matches the search.
+                        if (members.size >= MIN_GROUP_MEMBERS && members.any { it.id in matchedIds }) {
+                            add(SessionGridItem.Group(group, members))
+                        }
                     }
-                    group == null && session.id in matchedIds -> {
-                        add(SessionGridItem.Single(session))
+                    id in matchedIds -> {
+                        live.firstOrNull { it.id == id }?.let { add(SessionGridItem.Single(it)) }
                     }
                 }
             }
-            // A group whose first member was filtered out still has matching
-            // members, so give it a slot at the end rather than losing it.
-            groupItems.forEach { group -> if (group !in addedGroups) add(group) }
+        }.let { items ->
+            val pinned = items.filter { it.memberIds.any { id -> id in pinnedIds } }
+            val others = items.filterNot { it.memberIds.any { id -> id in pinnedIds } }
+            pinned + others
         }
     }
 
-    val visibleItems = remember(gridItems, tab) {
+    // "Sessions" shows ungrouped cards only. "Groups" shows the groups AND the
+    // remaining single cards, so a single can always be dragged onto a group.
+    val visibleItems = remember(slots, tab) {
         when (tab) {
-            SessionTab.Groups -> gridItems.filterIsInstance<SessionGridItem.Group>()
-            SessionTab.Singles -> gridItems.filterIsInstance<SessionGridItem.Single>()
+            SessionTab.Groups -> slots
+            SessionTab.Singles -> slots.filterIsInstance<SessionGridItem.Single>()
         }
     }
+    val visibleSlotIds = remember(visibleItems) { visibleItems.map { it.slotId }.toSet() }
 
     Column(modifier = modifier.fillMaxSize()) {
         SessionScreenHeader(
@@ -303,7 +305,14 @@ fun SessionScreen(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp),
+                // The floating bar is lifted 24dp and ~40dp tall; the extra
+                // inset below keeps the last row clear of it and of the IME.
+                contentPadding = PaddingValues(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = 4.dp,
+                    bottom = BOTTOM_BAR_CLEARANCE,
+                ),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -313,7 +322,7 @@ fun SessionScreen(
                             val session = item.snapshot
                             SessionCard(
                                 session = session,
-                                displayName = sessionDisplayName(session.id, localNames, titles, fallbackName, session.name),
+                                displayName = displayNames[session.id] ?: session.name,
                                 thumbnail = thumbnails[session.id],
                                 isActive = session.id == activeId,
                                 title = titles[session.id],
@@ -321,23 +330,21 @@ fun SessionScreen(
                                 isPersistent = session.id in persistentIds,
                                 isDropTarget = session.id == dropTarget,
                                 isHeld = session.id == heldId,
-                                pointer = pointer,
-                                onBounds = { bounds[session.id] = it },
+                                onBounds = { bounds[item.slotId] = it },
                                 onTap = { onOpen(session.id) },
                                 onLongPress = { /* reserved: the ⋮ button is the menu door */ },
                                 onDragStart = { position ->
                                     heldId = session.id
-                                    pointer = position
                                     dropTarget = null
                                 },
                                 onDrag = { position ->
-                                    pointer = position
                                     // UNTESTED — verify before use: hit-testing
                                     // compares window-space rectangles against
-                                    // the finger's window-space position.
+                                    // the finger's window-space position, and
+                                    // ignores stale bounds of offscreen cards.
                                     dropTarget = bounds.entries
                                         .firstOrNull { (id, rect) ->
-                                            id != session.id && rect.contains(position)
+                                            id != session.id && id in visibleSlotIds && rect.contains(position)
                                         }
                                         ?.key
                                 },
@@ -346,10 +353,22 @@ fun SessionScreen(
                                     val held = heldId
                                     heldId = null
                                     dropTarget = null
-                                    if (target != null && held != null) {
-                                        // UNTESTED — verify before use: dragging
-                                        // merges UI groups; it never splits.
-                                        groups = mergeIntoGroup(groups, held, target)
+                                    if (target != null && held != null && target != held) {
+                                        // UNTESTED — verify before use: dropping on
+                                        // a group adds a member; on a single card
+                                        // it reorders. Neither ever splits.
+                                        val targetGroup = groupsLive.firstOrNull { target in it.memberIds }
+                                        val heldGroup = groupsLive.firstOrNull { held in it.memberIds }
+                                        if (targetGroup != null) {
+                                            val incoming = heldGroup?.memberIds?.filterNot { it == target }
+                                                ?: listOf(held)
+                                            groups = addToGroup(groups, targetGroup, incoming)
+                                        } else {
+                                            // A grouped member is represented by its
+                                            // group's slot, so move that slot instead.
+                                            val heldSlot = heldGroup?.memberIds?.first() ?: held
+                                            order = moveSlot(order, heldSlot, target)
+                                        }
                                     }
                                 },
                                 onSplitWith = { splitSourceId = session.id },
@@ -375,25 +394,23 @@ fun SessionScreen(
                             SessionGroupCard(
                                 group = item.group,
                                 members = item.members,
+                                thumbnails = thumbnails,
+                                displayNames = displayNames,
+                                pinnedIds = pinnedIds,
+                                persistentIds = persistentIds,
                                 isDropTarget = item.group.memberIds.firstOrNull() == dropTarget,
                                 isHeld = item.group.memberIds.firstOrNull() == heldId,
-                                pointer = pointer,
-                                onBounds = { rect ->
-                                    item.group.memberIds.firstOrNull()?.let { bounds[it] = rect }
-                                },
+                                onBounds = { bounds[item.slotId] = it },
                                 onTap = { overlayGroup = item.group },
-                                onDragStart = { position ->
-                                    heldId = item.group.memberIds.firstOrNull()
-                                    pointer = position
+                                onDragStart = { _ ->
+                                    heldId = item.slotId
                                     dropTarget = null
                                 },
                                 onDrag = { position ->
-                                    pointer = position
                                     // UNTESTED — verify before use: see SessionCard.
-                                    val held = item.group.memberIds.firstOrNull()
                                     dropTarget = bounds.entries
                                         .firstOrNull { (id, rect) ->
-                                            id != held && rect.contains(position)
+                                            id != item.slotId && id in visibleSlotIds && rect.contains(position)
                                         }
                                         ?.key
                                 },
@@ -402,10 +419,22 @@ fun SessionScreen(
                                     val held = heldId
                                     heldId = null
                                     dropTarget = null
-                                    if (target != null && held != null) {
-                                        // UNTESTED — verify before use: dragging
-                                        // merges UI groups; it never splits.
-                                        groups = mergeIntoGroup(groups, held, target)
+                                    if (target != null && held != null && target != held) {
+                                        // UNTESTED — verify before use: a group
+                                        // dropped on a group merges; on a single
+                                        // card it reorders. Never splits.
+                                        val targetGroup = groupsLive.firstOrNull { target in it.memberIds }
+                                        val heldGroup = groupsLive.firstOrNull { held in it.memberIds }
+                                        if (targetGroup != null) {
+                                            val incoming = heldGroup?.memberIds?.filterNot { it == target }
+                                                ?: listOf(held)
+                                            groups = addToGroup(groups, targetGroup, incoming)
+                                        } else {
+                                            // A grouped member is represented by its
+                                            // group's slot, so move that slot instead.
+                                            val heldSlot = heldGroup?.memberIds?.first() ?: held
+                                            order = moveSlot(order, heldSlot, target)
+                                        }
                                     }
                                 },
                             )
@@ -415,7 +444,7 @@ fun SessionScreen(
             }
         }
 
-        // One bar, at the bottom: the search pill and exactly one `+`.
+        // A centred, iOS-like floating control rather than a full-width bar.
         SessionBottomBar(
             query = query,
             onQueryChange = { query = it },
@@ -456,16 +485,42 @@ fun SessionScreen(
         }
     }
 
-    overlayGroup?.let { group ->
-        SessionGroupOverlay(
-            group = group,
-            members = live.filter { it.id in group.memberIds },
-            onDismiss = { overlayGroup = null },
-            onOpen = { id ->
-                overlayGroup = null
-                onOpen(id)
-            },
-        )
+    // Re-resolve the overlay against the live groups: a closed member, a removal
+    // or an ungroup closes it instead of showing a stale membership.
+    overlayGroup?.let { stored ->
+        groupsLive.firstOrNull { it.sameMembersAs(stored) }?.let { current ->
+            SessionGroupOverlay(
+                group = current,
+                members = live.filter { it.id in current.memberIds },
+                displayNames = displayNames,
+                thumbnails = thumbnails,
+                pinnedIds = pinnedIds,
+                persistentIds = persistentIds,
+                onDismiss = { overlayGroup = null },
+                onOpen = { id ->
+                    overlayGroup = null
+                    onOpen(id)
+                },
+                onRemoveMember = { id ->
+                    // UNTESTED — verify before use: removing the last-but-one
+                    // member dissolves the group back into two single cards.
+                    val remaining = current.memberIds.filterNot { it == id }
+                    val updated = removeFromGroup(groups, current, id)
+                    groups = updated
+                    overlayGroup = if (remaining.size >= MIN_GROUP_MEMBERS) {
+                        updated.firstOrNull { it.memberIds.toSet() == remaining.toSet() }
+                    } else {
+                        null
+                    }
+                },
+                onUngroupAll = {
+                    // UNTESTED — verify before use: every member returns to the
+                    // singles view, so grouping is never a one-way door.
+                    groups = ungroup(groups, current)
+                    overlayGroup = null
+                },
+            )
+        }
     }
 
     // The close confirmation, drawn outside the grid so a scroll underneath it
@@ -502,10 +557,17 @@ fun SessionScreen(
 
 /** One slot in the grid: either a session or a local UI group of sessions. */
 internal sealed interface SessionGridItem {
+    /** Stable identity for the LazyVerticalGrid key. */
     val key: String
+    /** The id used by drag hit-testing and the remembered order. */
+    val slotId: String
+    /** Every session represented by this slot, for the pinned-first sort. */
+    val memberIds: List<String>
 
     data class Single(val snapshot: SessionSnapshot) : SessionGridItem {
         override val key: String get() = "session:${snapshot.id}"
+        override val slotId: String get() = snapshot.id
+        override val memberIds: List<String> get() = listOf(snapshot.id)
     }
 
     data class Group(
@@ -513,38 +575,14 @@ internal sealed interface SessionGridItem {
         val members: List<SessionSnapshot>,
     ) : SessionGridItem {
         override val key: String get() = "group:${group.memberIds.firstOrNull().orEmpty()}"
+        override val slotId: String get() = group.memberIds.first()
+        override val memberIds: List<String> get() = group.memberIds
     }
 }
 
 /**
- * Merges two cards into one UI group.
- *
- * UNTESTED — verify before use. The merge is deliberately idempotent: dropping
- * a member back onto its own group leaves the group alone. When both cards
- * already belong to different groups the two are joined rather than replaced.
- */
-internal fun mergeIntoGroup(
-    groups: List<SessionGroup>,
-    first: String,
-    second: String,
-): List<SessionGroup> {
-    if (first == second) return groups
-    val firstGroup = groups.firstOrNull { first in it.memberIds }
-    val secondGroup = groups.firstOrNull { second in it.memberIds }
-    val merged: List<String> = when {
-        firstGroup != null && secondGroup != null && firstGroup !== secondGroup ->
-            (firstGroup.memberIds + secondGroup.memberIds).distinct()
-        firstGroup != null -> (firstGroup.memberIds + second).distinct()
-        secondGroup != null -> (secondGroup.memberIds + first).distinct()
-        else -> listOf(first, second)
-    }
-    return groups.filterNot { it === firstGroup || it === secondGroup } +
-        SessionGroup(merged)
-}
-
-/**
- * The header. A small chevron sits next to the title and opens the two-way
- * filter; the ⋮ at the end holds the only destructive action left up here.
+ * The header. The whole title — label AND chevron — is one button that opens the
+ * two-way filter. The ⋮ at the end holds the only destructive action left up here.
  */
 @Composable
 private fun SessionScreenHeader(
@@ -562,52 +600,61 @@ private fun SessionScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.session_screen_title),
-                    color = DroshText,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Box {
-                    IconButton(
+            Box(
+                modifier = Modifier
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        role = Role.Button,
                         onClick = { filterExpanded = true },
-                        modifier = Modifier.size(30.dp),
-                    ) {
-                        Icon(
-                            imageVector = DroshIcons.ChevronDown,
-                            contentDescription = stringResource(R.string.session_screen_filter),
-                            tint = DroshTextMuted,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                    // The old ▦ / ▢ tab row is gone. These two entries filter the
-                    // grid exactly the way those tabs did; dispatch uses the
-                    // stable id, never the translated label.
-                    DroshDropdownMenu(
-                        expanded = filterExpanded,
-                        onDismissRequest = { filterExpanded = false },
-                        items = listOf(
-                            DroshMenuItem(
-                                id = "filter_singles",
-                                label = stringResource(R.string.session_screen_tab_singles),
-                                icon = DroshIcons.Square,
-                            ),
-                            DroshMenuItem(
-                                id = "filter_groups",
-                                label = stringResource(R.string.session_screen_tab_groups),
-                                icon = DroshIcons.SessionGrid,
-                            ),
-                        ),
-                        onItemClick = { item ->
-                            filterExpanded = false
-                            when (item.id) {
-                                "filter_singles" -> onSelectTab(SessionTab.Singles)
-                                "filter_groups" -> onSelectTab(SessionTab.Groups)
-                            }
-                        },
+                    ),
+            ) {
+                Row(
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.session_screen_title),
+                        color = DroshText,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        imageVector = DroshIcons.ChevronDown,
+                        contentDescription = stringResource(R.string.session_screen_filter),
+                        tint = DroshTextMuted,
+                        modifier = Modifier.size(16.dp),
                     )
                 }
+                // The old ▦ / ▢ tab row is gone. These two entries filter the
+                // grid exactly the way those tabs did; dispatch uses the stable
+                // id, never the translated label.
+                DroshDropdownMenu(
+                    expanded = filterExpanded,
+                    onDismissRequest = { filterExpanded = false },
+                    items = listOf(
+                        DroshMenuItem(
+                            id = "filter_singles",
+                            label = stringResource(R.string.session_screen_tab_singles),
+                            icon = DroshIcons.Square,
+                        ),
+                        DroshMenuItem(
+                            id = "filter_groups",
+                            label = stringResource(R.string.session_screen_tab_groups),
+                            icon = DroshIcons.SessionGrid,
+                        ),
+                    ),
+                    onItemClick = { item ->
+                        filterExpanded = false
+                        when (item.id) {
+                            "filter_singles" -> onSelectTab(SessionTab.Singles)
+                            "filter_groups" -> onSelectTab(SessionTab.Groups)
+                        }
+                    },
+                )
             }
             Text(
                 text = stringResource(R.string.session_screen_count, count),
@@ -707,8 +754,8 @@ private fun SessionScreenEmpty(
 }
 
 /**
- * The bottom bar: the glass search pill fills the row and one glass `+` sits
- * beside it. No other new-session button exists on this screen.
+ * A centred, floating control: a moderate-width glass search pill and one glass
+ * `+` beside it. Not full width, lifted off the bottom, and pushed above the IME.
  */
 @Composable
 private fun SessionBottomBar(
@@ -716,26 +763,29 @@ private fun SessionBottomBar(
     onQueryChange: (String) -> Unit,
     onNewSession: () -> Unit,
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(bottom = BOTTOM_BAR_LIFT)
+            .imePadding(),
+        contentAlignment = Alignment.Center,
     ) {
-        SessionSearchPill(
-            query = query,
-            onQueryChange = onQueryChange,
-            modifier = Modifier.weight(1f),
-        )
-        TransparentAddButton(onNewSession = onNewSession)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SessionSearchPill(
+                query = query,
+                onQueryChange = onQueryChange,
+                modifier = Modifier.width(SEARCH_PILL_WIDTH),
+            )
+            TransparentAddButton(onNewSession = onNewSession)
+        }
     }
 }
 
-/**
- * The close question. Kept from the original screen: it is the single point
- * where a destructive session action is confirmed, whatever opened it.
- */
+/** The close question. Kept from the original screen: it is the single point
+ * where a destructive session action is confirmed, whatever opened it. */
 @Composable
 private fun CloseSessionDialog(
     title: String,
@@ -804,3 +854,12 @@ private fun DialogButton(
         )
     }
 }
+
+/** How far the floating bar sits above the very bottom of the screen. */
+private val BOTTOM_BAR_LIFT = 24.dp
+
+/** Grid inset: lift (24) + control height (40) + breathing room (32). */
+private val BOTTOM_BAR_CLEARANCE = 96.dp
+
+/** Moderate pill width — the bar stays centred rather than filling the row. */
+private val SEARCH_PILL_WIDTH = 240.dp
