@@ -1,10 +1,12 @@
 package dev.drosh.data.terminal
 
-import dev.drosh.data.di.ApplicationScope
-import dev.drosh.domain.terminal.SetupPreferences
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.drosh.domain.terminal.BackgroundSetup
 import dev.drosh.domain.terminal.TriggerBootstrapUseCase
 import dev.drosh.linux.BootstrapStatePort
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,19 +14,20 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Drives the bootstrap pipeline via [BootstrapStatePort].
+ * Hands setup to the app's foreground service instead of running it in an
+ * Activity-scoped coroutine.
  *
- * Each public method ([start], [retry], [reDownloadRootfs], [resetEverything])
- * re-runs `UbuntuBootstrap.install`. The terminal module's port owns the
- * idempotency: if everything is already installed, it short-circuits to
- * `Ready` and emits a single line to logs.
+ * The service is named by component rather than by class so `:data` does not
+ * depend on `:app`. The work itself lives in the process-scoped
+ * [BootstrapStatePort], so a recreated setup screen re-binds to the same
+ * download instead of starting a second one.
  */
 // Inspired by: github.com/termux/termux-app (asset staging)
 // Adapted for Drosh — dev.drosh
 @Singleton
 class TriggerBootstrap @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val port: BootstrapStatePort,
-    @ApplicationScope private val scope: CoroutineScope,
 ) : TriggerBootstrapUseCase {
 
     private val _state = MutableStateFlow(TriggerBootstrapUseCase.State.NotStarted)
@@ -36,16 +39,20 @@ class TriggerBootstrap @Inject constructor(
 
     override fun isInstalled(): Boolean = port.isInstalled()
 
-    override fun start() = run(SetupPreferences.defaults())
+    override fun start() = send(BackgroundSetup.ACTION_START)
 
-    override fun retry() = run(SetupPreferences.defaults())
+    override fun retry() = send(BackgroundSetup.ACTION_START)
 
-    override fun reDownloadRootfs() = run(SetupPreferences.defaults())
+    override fun reDownloadRootfs() = send(BackgroundSetup.ACTION_START)
 
-    override fun resetEverything() = run(SetupPreferences.defaults())
+    override fun resetEverything() = send(BackgroundSetup.ACTION_START)
 
-    private fun run(preferences: SetupPreferences) {
+    override fun cancelSetup() = send(BackgroundSetup.ACTION_CANCEL)
+
+    private fun send(action: String) {
         _state.value = TriggerBootstrapUseCase.State.Running
-        port.runBootstrap(scope = scope, preferences = preferences)
+        val intent = Intent(action)
+            .setComponent(ComponentName(context, BackgroundSetup.SERVICE_CLASS))
+        context.startForegroundService(intent)
     }
 }

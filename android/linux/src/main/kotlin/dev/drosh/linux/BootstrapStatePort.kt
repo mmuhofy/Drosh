@@ -1,14 +1,14 @@
 package dev.drosh.linux
 
+import dev.drosh.domain.terminal.RootfsDownloadProgress
 import dev.drosh.domain.terminal.SetupPreferences
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
 /**
  * Internal bridge that lets `:data` observe bootstrap state + logs without
@@ -33,6 +33,18 @@ class BootstrapStatePort(private val bootstrap: UbuntuBootstrap) {
     val logs: SharedFlow<String> = _logs.asSharedFlow()
 
     /**
+     * Byte progress from the running download. Dropping the oldest sample is
+     * deliberate: the UI only needs the newest, and a slow observer must never
+     * stall a chunk writer. The flow is process-scoped, so a recreated Activity
+     * rebinds to the same ongoing download.
+     */
+    private val _rootfsDownload = MutableSharedFlow<RootfsDownloadProgress>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val rootfsDownload: SharedFlow<RootfsDownloadProgress> = _rootfsDownload.asSharedFlow()
+
+    /**
      * Whether the guest's filesystem is actually installed — the rootfs and
      * its completion marker, not the first-launch flag. Lets the navigation
      * gate send a device with a stale flag but an incomplete guest back to
@@ -41,25 +53,24 @@ class BootstrapStatePort(private val bootstrap: UbuntuBootstrap) {
     fun isInstalled(): Boolean = bootstrap.isInstalled
 
     /**
-     * Drives the bootstrap pipeline. Safe to call multiple times — if the
-     * rootfs is already installed, this is a no-op (state stays `Ready`) and
-     * avoids flashing the stepper UI on subsequent app starts.
+     * Drives the whole pipeline in the caller's coroutine, so a foreground
+     * service (not an Activity) owns the lifetime and cancellation. Safe to call
+     * more than once: an installed guest short-circuits to `Ready`.
      */
-    fun runBootstrap(
-        scope: CoroutineScope,
+    suspend fun runBootstrap(
         preferences: SetupPreferences = SetupPreferences.defaults(),
-    ) {
+    ): UbuntuSetupState {
         if (bootstrap.isInstalled) {
             _state.value = UbuntuSetupState.Ready
-            return
+            return UbuntuSetupState.Ready
         }
-        scope.launch {
-            _state.value = UbuntuSetupState.Idle
-            bootstrap.install(
-                preferences = preferences,
-                onState = { _state.value = it },
-                onLog = { _logs.tryEmit(it) },
-            )
-        }
+        _state.value = UbuntuSetupState.Idle
+        bootstrap.install(
+            preferences = preferences,
+            onState = { _state.value = it },
+            onLog = { _logs.tryEmit(it) },
+            onDownloadProgress = { _rootfsDownload.tryEmit(it) },
+        )
+        return _state.value
     }
 }

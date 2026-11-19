@@ -29,6 +29,20 @@ import dev.drosh.terminal.engine.native.NativeSmoke
  */
 object EngineDiagnostics {
 
+    /**
+     * Command-start marks the bridge has drained so far.
+     *
+     * A block view with no cards is either a shell that never emits OSC 133 or a
+     * drain that never runs. Both look identical on screen; this counter tells
+     * them apart without the bridge and this object having to know each other.
+     */
+    private val blocksRecorded = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** Called by the block bridge once per batch of drained engine records. */
+    fun recordBlockMarks(count: Int) {
+        if (count > 0) blocksRecorded.addAndGet(count)
+    }
+
     /** The whole report, for the log and for a one-shot copy. */
     fun report(): String = staticReport() + "\n" + liveReport()
 
@@ -65,6 +79,9 @@ object EngineDiagnostics {
         appendLine()
         appendLine("--- input ---")
         appendLine(dev.drosh.terminal.engine.input.InputStats.report())
+        appendLine()
+        appendLine("--- blocks ---")
+        appendLine("blocks recorded: ${blocksRecorded.get()}")
     }
 
     /**

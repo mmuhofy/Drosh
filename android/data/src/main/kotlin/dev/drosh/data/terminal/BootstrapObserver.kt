@@ -6,6 +6,7 @@ import dev.drosh.domain.terminal.BootstrapProgress
 import dev.drosh.domain.terminal.BootstrapStep
 import dev.drosh.domain.terminal.ObserveBootstrapUseCase
 import dev.drosh.domain.terminal.RecoveryAction
+import dev.drosh.domain.terminal.RootfsDownloadProgress
 import dev.drosh.domain.terminal.StepState
 import dev.drosh.linux.BootstrapStatePort
 import dev.drosh.linux.UbuntuSetupState
@@ -62,6 +63,8 @@ class BootstrapObserver @Inject constructor(
         .stateIn(scope, SharingStarted.Eagerly, translate(port.state.value))
 
     override fun liveLogs(): Flow<String> = _ring.asSharedFlow()
+
+    override fun rootfsDownload(): Flow<RootfsDownloadProgress> = port.rootfsDownload
 
     private fun translate(state: UbuntuSetupState): BootstrapProgress {
         val stepStates = stepStatesFor(state)

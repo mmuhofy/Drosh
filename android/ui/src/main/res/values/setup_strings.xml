@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Setup download strings (English base only; no i18n tooling in this repo). -->
+<resources>
+    <string name="setup_service_title">Ubuntu setup</string>
+    <string name="setup_download_progress">Downloading Ubuntu 24.04 — %1$.1f / %2$.1f MB (%3$.1f MB/s)</string>
+    <string name="setup_download_progress_unknown">Downloading Ubuntu 24.04 — %1$.1f MB (%2$.1f MB/s)</string>
+    <string name="setup_installing">Installing Ubuntu…</string>
+    <string name="setup_complete">Setup complete</string>
+    <string name="setup_failed_short">Setup failed</string>
+    <string name="setup_cancelled">Setup cancelled</string>
+    <string name="setup_cancel">Cancel download</string>
+</resources>

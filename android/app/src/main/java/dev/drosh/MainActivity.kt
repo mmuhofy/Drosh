@@ -33,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -89,7 +90,6 @@ import dev.drosh.ui.theme.DroshTheme
 import dev.drosh.ui.agent.AgentChatScreen
 import dev.drosh.ui.agent.AgentHomeScreen
 import dev.drosh.ui.agent.AgentSettingsScreen
-import dev.drosh.ui.agent.AgentWindowChrome
 import dev.drosh.ui.settings.AboutCategory
 import dev.drosh.ui.settings.AppearanceCategory
 import dev.drosh.domain.settings.DroshSettings
@@ -239,7 +239,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             color = DroshBackground,
                         ) {
-                            SystemBarsFollowChat()
+                            SystemBarsGlobal(activity)
                             DroshNavHost()
                         }
                     }
@@ -255,42 +255,47 @@ class MainActivity : ComponentActivity() {
     private var keyboardModeReceiver: BroadcastReceiver? = null
 
     /**
-     * Applies a screen's window preference for the system navigation bar.
+     * The single owner of the system bars, for the whole app.
      *
-     * The agent chat screen asks for a barless bottom edge: the composer is
-     * floating and there is nothing below it, and a system bar sitting under a
-     * shadow is a seam where there should be none. It is the screen that says
-     * so — see `AgentChatChrome` — and this is the one place that can act on it,
-     * because the bar belongs to the activity window and the navigation graph
-     * lives inside it.
+     * Status and navigation bars are hidden on every route — terminal, session
+     * grid, settings, agent, setup — because a bar appearing only on some
+     * screens was a seam that moved with navigation. The terminal screen and the
+     * terminal host used to each own a piece of this and fight over it; both are
+     * gone, and the root of this composition is the only place that touches the
+     * window flags now.
      *
-     * Deliberately a small composable of its own rather than code in the nav
-     * graph: the flag is read here and nowhere else, so the flag turning over
-     * recomposes this and nothing above it. A read inside `DroshNavGraph` would
-     * recompose the whole host on every navigation-transition of the bar.
+     * The bars are revealed by an edge swipe (transient-by-swipe behaviour), so
+     * gesture navigation still works and nothing is locked away. They are put
+     * back only when the activity is actually going away: ordinary navigation
+     * never disposes this effect, and restoring on a screen change was the
+     * original flicker.
      *
-     * Leaving it as the terminal found it: the terminal asks for its own
-     * preference as soon as it composes, so restoring here is a default and not
-     * a decision.
+     * // UNTESTED — verify before use on a device with gesture navigation.
      */
     @Composable
-    private fun SystemBarsFollowChat() {
-        val hideNavigationBar by AgentWindowChrome.navigationBarHidden
-        // Captured outside the LaunchedEffect for the same reason the activity is
-        // captured in the setContent block above: this runs on the window that
-        // exists right now, not on whatever a recomposition happens to see.
-        val controller = WindowCompat.getInsetsController(window, window.decorView)
-        LaunchedEffect(hideNavigationBar) {
-            // Transient by swipe, so hiding the bar is never a lock-out. The
-            // terminal sets the default behaviour for its own reason and takes it
-            // back when it composes; this is the chat screen's, and it lasts as
-            // long as the chat screen does.
+    private fun SystemBarsGlobal(activity: ComponentActivity) {
+        // Passed in, not read from LocalContext: ProvideLocale wraps the context
+        // below setContent, and the wrapped context is not the Activity whose
+        // window owns the bars.
+        DisposableEffect(activity) {
+            val window = activity.window
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
             controller.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            if (hideNavigationBar) {
-                controller.hide(WindowInsetsCompat.Type.navigationBars())
-            } else {
-                controller.show(WindowInsetsCompat.Type.navigationBars())
+            controller.hide(
+                WindowInsetsCompat.Type.statusBars() or
+                    WindowInsetsCompat.Type.navigationBars()
+            )
+            onDispose {
+                // Only a real exit restores them. Ordinary navigation never
+                // disposes this effect; a configuration change is a new window.
+                if (activity.isFinishing || activity.isDestroyed) {
+                    controller.show(
+                        WindowInsetsCompat.Type.statusBars() or
+                            WindowInsetsCompat.Type.navigationBars()
+                    )
+                }
             }
         }
     }

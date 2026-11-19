@@ -15,4 +15,7 @@ import kotlinx.coroutines.flow.Flow
 interface ObserveBootstrapUseCase {
     fun progress(): Flow<BootstrapProgress>
     fun liveLogs(): Flow<String>
+
+    /** Byte-level progress of the rootfs archive, while it is being fetched. */
+    fun rootfsDownload(): Flow<RootfsDownloadProgress>
 }
