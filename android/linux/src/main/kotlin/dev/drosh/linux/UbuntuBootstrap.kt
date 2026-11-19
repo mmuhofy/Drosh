@@ -402,22 +402,22 @@ class UbuntuBootstrap(private val context: Context) {
         if (part.exists()) {
             val recordedTotal = meta.readTextOrNull()?.toLongOrNull() ?: -1L
             resumeFrom = when {
-                recordedTotal != head.total || head.total <= 0L -> {
+                recordedTotal != head.totalBytes || head.totalBytes <= 0L -> {
                     part.delete(); meta.delete(); 0L
                 }
-                part.length() >= head.total -> {
+                part.length() >= head.totalBytes -> {
                     part.delete(); meta.delete(); 0L
                 }
                 else -> part.length()
             }
         }
-        if (head.total > 0L && !meta.exists()) meta.writeText(head.total.toString())
-        if (resumeFrom > 0L) onLog("  · Resuming download at $resumeFrom of ${head.total} bytes.")
+        if (head.totalBytes > 0L && !meta.exists()) meta.writeText(head.totalBytes.toString())
+        if (resumeFrom > 0L) onLog("  · Resuming download at $resumeFrom of ${head.totalBytes} bytes.")
 
-        if (head.supportsRanges && head.total > 0L) {
-            downloadRanges(url, part, head.total, resumeFrom, onProgress)
+        if (head.supportsRanges && head.totalBytes > 0L) {
+            downloadRanges(url, part, head.totalBytes, resumeFrom, onProgress)
         } else {
-            downloadSingle(url, part, head.total, resumeFrom, onProgress)
+            downloadSingle(url, part, head.totalBytes, resumeFrom, onProgress)
         }
         // A checksum mismatch deletes the partial; a network failure leaves it
         // alone on purpose, so the next launch can resume it.
