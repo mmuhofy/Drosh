@@ -19,4 +19,9 @@
 
     <!-- Replaced by the classic terminal when a full-screen program owns the PTY. -->
     <string name="block_ui_alt_screen_placeholder">Full-screen program — classic terminal</string>
+
+    <!-- Shown when there are no blocks: no session yet, or no OSC 133 marks yet. -->
+    <string name="block_ui_empty_title">No commands yet</string>
+    <string name="block_ui_empty_hint">Run a command — its input and output will appear here.</string>
+    <string name="block_ui_empty_back">Back to classic terminal</string>
 </resources>

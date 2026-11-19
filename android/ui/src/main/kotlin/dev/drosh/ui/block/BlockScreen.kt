@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -43,6 +45,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -61,6 +64,7 @@ import dev.drosh.domain.block.StyledSpan
 import dev.drosh.theme.DroshBackground
 import dev.drosh.theme.DroshBorderSubtle
 import dev.drosh.theme.DroshError
+import dev.drosh.theme.DroshOnPrimary
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurface
 import dev.drosh.theme.DroshSurfaceVariant
@@ -85,6 +89,9 @@ import kotlinx.coroutines.launch
  * The caller owns the input field and the clipboard — this screen only renders
  * cards and reports copy/collapse intents back through the callbacks.
  *
+ * Before the first OSC 133 mark there are no blocks at all. That is a real state,
+ * not an error, and it gets its own empty view instead of a blank surface.
+ *
  * UNTESTED — verify before use (scroll and sticky-header geometry especially).
  */
 @Composable
@@ -95,6 +102,8 @@ fun BlockScreen(
     onCopy: (String) -> Unit,
     onCollapse: (String, Boolean) -> Unit,
     onClassicFallback: () -> Unit,
+    /** Leaves block mode for the classic terminal when the guest has no marks. */
+    onBackToClassic: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -132,6 +141,11 @@ fun BlockScreen(
                     fontSize = OUTPUT_FONT_SIZE,
                 )
             }
+        } else if (displayBlocks.isEmpty()) {
+            // No session yet, or a session whose shell has not emitted its first
+            // OSC 133 mark. A blank surface read as a broken terminal, so say what
+            // has to happen instead — and never invent a block to fill the space.
+            BlockEmptyState(onBackToClassic = onBackToClassic)
         } else {
             LazyColumn(
                 state = listState,
@@ -181,6 +195,67 @@ fun BlockScreen(
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
             }
+        }
+    }
+}
+
+/**
+ * What the block view shows before the first command mark arrives.
+ *
+ * A terminal glyph stands in for the output that is not there yet; the hint says
+ * what produces it, and the button is the way out for a guest whose shell never
+ * emits the marks. This is deliberately a state, not a placeholder block: the
+ * first real mark is what fills the list.
+ */
+@Composable
+private fun BlockEmptyState(
+    onBackToClassic: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(BLOCK_EMPTY_PADDING),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = DroshIcons.Terminal,
+            contentDescription = null,
+            tint = DroshTextMuted.copy(alpha = EMPTY_GLYPH_ALPHA),
+            modifier = Modifier.size(EMPTY_GLYPH_SIZE),
+        )
+        Spacer(Modifier.height(EMPTY_TITLE_SPACING))
+        Text(
+            text = stringResource(R.string.block_ui_empty_title),
+            color = DroshText,
+            fontFamily = LocalFontSet.current.sans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = EMPTY_TITLE_FONT_SIZE,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(EMPTY_HINT_SPACING))
+        Text(
+            text = stringResource(R.string.block_ui_empty_hint),
+            color = DroshTextMuted,
+            fontFamily = LocalFontSet.current.sans,
+            fontSize = EMPTY_HINT_FONT_SIZE,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(EMPTY_BUTTON_SPACING))
+        Button(
+            onClick = onBackToClassic,
+            shape = RoundedCornerShape(EMPTY_BUTTON_CORNER_RADIUS),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = DroshPrimary,
+                contentColor = DroshOnPrimary,
+            ),
+        ) {
+            Text(
+                text = stringResource(R.string.block_ui_empty_back),
+                fontFamily = LocalFontSet.current.sans,
+                fontSize = EMPTY_BUTTON_FONT_SIZE,
+            )
         }
     }
 }
@@ -549,12 +624,22 @@ private val STICKY_BAR_PADDING = 10.dp
 private val STICKY_ICON_SIZE = 16.dp
 private val STICKY_ICON_GAP = 8.dp
 private val STICKY_DIVIDER_HEIGHT = 1.dp
+private val BLOCK_EMPTY_PADDING = 32.dp
+private val EMPTY_GLYPH_SIZE = 56.dp
+private val EMPTY_TITLE_SPACING = 18.dp
+private val EMPTY_HINT_SPACING = 8.dp
+private val EMPTY_BUTTON_SPACING = 24.dp
+private val EMPTY_BUTTON_CORNER_RADIUS = 12.dp
 
 private val OUTPUT_FONT_SIZE = 13.sp
 private val OUTPUT_LINE_HEIGHT = 18.sp
 private val META_FONT_SIZE = 11.sp
 private val STICKY_FONT_SIZE = 12.sp
+private val EMPTY_TITLE_FONT_SIZE = 18.sp
+private val EMPTY_HINT_FONT_SIZE = 13.sp
+private val EMPTY_BUTTON_FONT_SIZE = 14.sp
 
+private const val EMPTY_GLYPH_ALPHA = 0.45f
 private const val COMMAND_MAX_LINES = 2
 private const val LONG_OUTPUT_LINE_THRESHOLD = 20
 private const val ERROR_CARD_TINT_ALPHA = 0.08f

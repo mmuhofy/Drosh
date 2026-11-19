@@ -4,6 +4,7 @@ import dev.drosh.domain.block.BlockEngineState
 import dev.drosh.domain.block.BlockRepository
 import dev.drosh.domain.block.ShellPhase
 import dev.drosh.domain.block.ShellStateSource
+import dev.drosh.terminal.engine.diagnostics.EngineDiagnostics
 import dev.drosh.terminal.engine.native.NativeSession
 
 /**
@@ -53,9 +54,11 @@ class EngineBlockBridge(
         val wire = NativeSession.drainBlockEvents(handle)
         if (wire.isEmpty()) return
 
+        var started = 0
         for (record in BlockWireParser.parse(wire, styles)) {
             when (record) {
                 is ParsedRecord.Started -> {
+                    started++
                     lastPrompt = record.prompt
                     lastCwd = record.cwd
                     activeId = record.id
@@ -81,6 +84,9 @@ class EngineBlockBridge(
                 }
             }
         }
+        // Cheap diagnostic only: a zero next to an empty block list says the
+        // marks never arrived, rather than leaving the user to guess.
+        EngineDiagnostics.recordBlockMarks(started)
     }
 
     /**

@@ -609,6 +609,15 @@ private fun ReadyScreen(
     val colorProps by terminalViewModel.colorProps.collectAsState()
     val activeId by sessionSwitcherViewModel.activeId.collectAsState()
     val useBlockEngine by terminalViewModel.useBlockEngine.collectAsState()
+    // Block mode's escape hatch. Immediate for this composition's panes, and
+    // persisted so the next launch does not drop the user back into a blank
+    // block view. The setting flow alone would wait for the write to land.
+    var blockClassicOverride by remember { mutableStateOf(false) }
+    val effectiveUseBlockEngine = useBlockEngine && !blockClassicOverride
+    val onBackToClassic: () -> Unit = {
+        blockClassicOverride = true
+        scope.launch { settingsRepository.setUseBlockEngine(false) }
+    }
     val backgroundFile by terminalViewModel.backgroundFile.collectAsStateWithLifecycle()
     val inputBarState by inputBarViewModel.uiState.collectAsState()
     val processExitEvent by terminalManager.processExitEvent.collectAsState()
@@ -1269,7 +1278,8 @@ private fun ReadyScreen(
                     blockEngineViewModel = blockEngineViewModel,
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
-                    useBlockEngine = useBlockEngine,
+                    useBlockEngine = effectiveUseBlockEngine,
+                    onBackToClassic = onBackToClassic,
                     // The pane the chrome actually floats over. The pill row
                     // and the status bar are both above it, so it is the one
                     // pane that has to clear them: without this the first
@@ -1321,7 +1331,8 @@ private fun ReadyScreen(
                     blockEngineViewModel = blockEngineViewModel,
                     inputBarViewModel = inputBarViewModel,
                     extraKeyState = extraKeyState,
-                    useBlockEngine = useBlockEngine,
+                    useBlockEngine = effectiveUseBlockEngine,
+                    onBackToClassic = onBackToClassic,
                     // The pane below the seam, and it clears nothing: what
                     // sits above it is the divider line, and the pane's grid
                     // starts directly on that line. Giving it the chrome
@@ -1942,6 +1953,8 @@ private fun TerminalPaneBody(
     inputBarViewModel: InputBarViewModel,
     extraKeyState: dev.drosh.terminal.session.ExtraKeyState?,
     useBlockEngine: Boolean,
+    /** Leaves block mode for the classic terminal from the block empty state. */
+    onBackToClassic: () -> Unit,
     /**
      * The grid's top padding, already animated in step with the pill row.
      *
@@ -2075,6 +2088,7 @@ private fun TerminalPaneBody(
                         }
                     },
                     onClassicFallback = { /* classic surface stays mounted below */ },
+                    onBackToClassic = onBackToClassic,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
