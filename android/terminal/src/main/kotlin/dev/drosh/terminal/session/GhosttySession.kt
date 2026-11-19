@@ -202,13 +202,13 @@ class GhosttySession(
     /**
      * Reads the child's process name and reports it as the session's default.
      *
-     * The session's child is the guest launcher first and the shell only after
-     * its exec, which lands a moment after the fork — so the first read of
-     * `/proc/<pid>/comm` may answer `chroot-ng` where the shell's name is
-     * wanted. The probe reads again on a short interval and reports as soon as
-     * a read differs from the one before it, which is the exec having happened;
-     * when the window closes with no transition it reports what it last saw,
-     * because by then that is whatever the process really is.
+     * The PTY's child is the guest runtime, which forks the real shell a moment
+     * later. Each read resolves through the runtime's children to the shell, so
+     * the first read may still be only the OSC title. The probe reads again on a
+     * short interval and reports as soon as a read differs from the one before
+     * it — the shell having appeared, or the title having been set; when the
+     * window closes with no transition it reports what it last saw. A null read
+     * (no shell and no title yet) is retried, not treated as a final answer.
      *
      * On its own short-lived thread: the read is a filesystem poll, and the
      * reader thread already has a job of its own.
@@ -220,10 +220,16 @@ class GhosttySession(
             var latest: String? = null
             var attempt = 0
             while (attempt < PROCESS_NAME_ATTEMPTS) {
-                val read = readProcessName(pid) ?: return@Thread
-                latest = read
-                if (previous != null && read != previous) break
-                previous = read
+                // A null read is not a reason to abandon the probe: on the first
+                // ticks the runtime has not forked its guest shell yet and the
+                // program has not set an OSC title either. Keep polling inside
+                // the same bounded window until a real name appears.
+                val read = readProcessName(pid)
+                if (read != null) {
+                    latest = read
+                    if (previous != null && read != previous) break
+                    previous = read
+                }
                 attempt += 1
                 if (attempt < PROCESS_NAME_ATTEMPTS) {
                     runCatching { Thread.sleep(PROCESS_NAME_RETRY_MS) }
@@ -238,21 +244,69 @@ class GhosttySession(
     }
 
     /**
-     * The child's name as the kernel knows it right now, or null when the pid is
-     * not set or `/proc` cannot be read.
+     * The name to show for the session's process, or null when nothing but the
+     * guest runtime could be read.
      *
-     * The probe above uses the same read once at start to name the session. This
-     * is the on-demand form, for the process sheet's periodic sample — it reports
-     * the exec that happened later without keeping a second copy of the name.
+     * The pid the PTY spawned is the runtime (`libchroot-ng.so`), which forks and
+     * execs the real shell as its child. Reading `/proc/<pid>/comm` straight would
+     * therefore name the runtime, which is never a valid session name. Resolve the
+     * guest shell through the runtime's children first, then fall back to the
+     * program's OSC title. A runtime name is never returned to the caller.
+     *
+     * The probe above uses this once at start to name the session. This is also
+     * the on-demand form for the process sheet's periodic sample — it reports the
+     * exec that happened later without keeping a second copy of the name.
      */
     fun currentProcessName(): String? =
         if (processId > 0) readProcessName(processId) else null
 
-    /** The child's name, as the kernel knows it, or null when it cannot be read. */
+    /**
+     * The display name for [pid]: the guest shell under the runtime, else the OSC
+     * title, else null. Never a runtime binary's own name.
+     */
     private fun readProcessName(pid: Int): String? =
+        resolveGuestProcessName(pid)
+            ?: title?.takeIf { it.isNotBlank() && !isRuntimeName(it) }
+
+    /**
+     * Walk down from the runtime pid through its direct children to the first
+     * program that is not a runtime or a wrapper shell.
+     *
+     * The kernel exposes the direct children at `/proc/<pid>/task/<pid>/children`
+     * when `CONFIG_PROC_CHILDREN` is on. chroot-ng execs the guest shell as a
+     * child, and sometimes an `sh -c` wrapper above it, so a bounded walk finds
+     * the shell in one or two steps. The depth cap keeps a malformed `/proc` from
+     * turning the probe into an unbounded filesystem walk.
+     */
+    private fun resolveGuestProcessName(pid: Int): String? {
+        var current = pid
+        repeat(PROCESS_CHILD_MAX_DEPTH) {
+            val comm = commOf(current) ?: return null
+            if (!isRuntimeName(comm)) return comm
+            current = firstChildOf(current) ?: return null
+        }
+        // Every name on the way was a runtime or wrapper: no real shell to show.
+        return null
+    }
+
+    /** The kernel's name for [pid], or null when `/proc` cannot be read. */
+    private fun commOf(pid: Int): String? =
         runCatching {
             File("/proc/$pid/comm").readText().trim()
         }.getOrNull()?.takeIf { it.isNotEmpty() }
+
+    /** The first direct child of [pid], or null when the children file is absent. */
+    private fun firstChildOf(pid: Int): Int? =
+        runCatching {
+            File("/proc/$pid/task/$pid/children").readText()
+                .split(Regex("\\s+"))
+                .firstOrNull { it.isNotEmpty() }
+                ?.toIntOrNull()
+        }.getOrNull()?.takeIf { it > 0 }
+
+    /** Whether [name] is a launcher binary or a wrapper, never a display name. */
+    private fun isRuntimeName(name: String): Boolean =
+        name in RUNTIME_PROCESS_NAMES || name == WRAPPER_SHELL_NAME
 
     private fun readLoop(pty: Long) {
         while (reading.get()) {
@@ -549,6 +603,28 @@ class GhosttySession(
 
         /** How long a reader is given to notice it should stop. */
         const val READER_STOP_TIMEOUT_MS = 500L
+
+        /**
+         * Guest-runtime binaries. The PTY spawns one of these, and it goes on to
+         * fork the real shell. None of them may become a displayed session name.
+         */
+        val RUNTIME_PROCESS_NAMES = setOf(
+            "libchroot-ng.so",
+            "chroot-ng",
+            "chroot-ng.so",
+            "proot",
+            "fake-chroot-ng",
+        )
+
+        /**
+         * `sh` is a wrapper when it sits under a runtime — chroot-ng execs it to
+         * run a `-c` command before the real shell. Treated as a runtime while
+         * walking the process tree so it cannot become the display name either.
+         */
+        const val WRAPPER_SHELL_NAME = "sh"
+
+        /** How many levels of runtime children the name probe walks. */
+        const val PROCESS_CHILD_MAX_DEPTH = 3
 
         /**
          * How many times the process-name probe reads `/proc`, and how long it
