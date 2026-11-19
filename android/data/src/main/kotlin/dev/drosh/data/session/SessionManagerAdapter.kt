@@ -104,7 +104,14 @@ class SessionManagerAdapter @Inject constructor(
         // stored value cannot drift from the live one — which is what made the
         // sidebar highlight a different session than the one on screen.
         terminalManager.onActiveSessionChanged = { id ->
-            appScope.launch { sessionRepository.setActiveId(id) }
+            // The manager publishes after a switch; the store mirrors it. Skip an
+            // unchanged id so a publish cannot write a stale value back while the
+            // UI's own write for a tap is still landing — that round trip was
+            // reverting the switch before the new pane was bound.
+            if (id != _activeId.value) {
+                Log.d("SessionManagerAdapter", "manager published active id=$id, persisting")
+                appScope.launch { sessionRepository.setActiveId(id) }
+            }
         }
 
         reconcileJob = appScope.launch {
@@ -123,6 +130,10 @@ class SessionManagerAdapter @Inject constructor(
             sessionRepository.observeActiveId().collectLatest { id ->
                 _activeId.value = id
                 if (id != null) {
+                    // The Write from a card tap arrives here. Logged so a tap
+                    // that never reaches the terminal can be told from one that
+                    // reaches it but fails (TerminalManager logs that case).
+                    Log.d("SessionManagerAdapter", "active id=$id -> switchSessionById")
                     withContext(Dispatchers.Main.immediate) {
                         terminalManager.switchSessionById(id)
                     }
