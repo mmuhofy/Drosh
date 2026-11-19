@@ -1,7 +1,12 @@
 package dev.drosh.ui.settings
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,12 +29,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.core.ShellLocaleCatalog
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshTilePressed
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.DroshTextSecondary
@@ -81,15 +89,29 @@ fun ShellLocaleSheet(
             LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
                 items(ShellLocaleCatalog.options) { option ->
                     val selected = option.tag == currentTag
+                    val interaction = remember { MutableInteractionSource() }
+                    val pressed by interaction.collectIsPressedAsState()
+                    val rowBackground by animateColorAsState(
+                        targetValue = if (pressed) DroshTilePressed else androidx.compose.ui.graphics.Color.Transparent,
+                        animationSpec = tween(180, easing = FastOutSlowInEasing),
+                        label = "localeRowBg",
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                onSelect(option.tag)
-                                onDismiss()
-                            }
-                            .padding(horizontal = 12.dp, vertical = 13.dp),
+                            .heightIn(min = 56.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(rowBackground)
+                            .clickable(
+                                interactionSource = interaction,
+                                indication = null,
+                                onClick = {
+                                    onSelect(option.tag)
+                                    onDismiss()
+                                },
+                            )
+                            .semantics { this.selected = selected }
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(

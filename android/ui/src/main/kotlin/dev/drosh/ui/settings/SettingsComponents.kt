@@ -1,20 +1,23 @@
 package dev.drosh.ui.settings
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -55,6 +59,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -71,6 +77,7 @@ import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.DroshTextDisabled
 import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshTrack
 import dev.drosh.theme.DroshWarning
 import dev.drosh.theme.LocalFontSet
 import androidx.compose.ui.graphics.Color
@@ -88,16 +95,26 @@ fun SettingsSection(
     content: @Composable () -> Unit,
 ) {
     Column(modifier = modifier) {
-        Text(
-            text = label.uppercase(),
-            color = DroshTextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.2.sp,
-            fontFamily = LocalFontSet.current.sans,
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 3.dp, height = 13.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(DroshPrimary),
+            )
+            Spacer(Modifier.width(9.dp))
+            Text(
+                text = label.uppercase(),
+                color = DroshTextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp,
+                fontFamily = LocalFontSet.current.mono,
+            )
+        }
         content()
     }
 }
@@ -111,7 +128,8 @@ fun SettingsSectionContainer(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(DroshSurface),
+            .background(DroshSurface)
+            .border(1.dp, DroshBorderSubtle, RoundedCornerShape(20.dp)),
     ) {
         content()
     }
@@ -129,12 +147,12 @@ fun SettingsSubRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(36.dp)
                 .clip(RoundedCornerShape(100))
                 .background(bgTint),
             contentAlignment = Alignment.Center,
@@ -143,7 +161,7 @@ fun SettingsSubRow(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
         Spacer(Modifier.width(12.dp))
@@ -182,14 +200,14 @@ fun SettingsSliderRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(36.dp)
                     .clip(RoundedCornerShape(100))
                     .background(bgTint),
                 contentAlignment = Alignment.Center,
@@ -198,7 +216,7 @@ fun SettingsSliderRow(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -240,14 +258,14 @@ fun SettingsCommandFieldRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(36.dp)
                     .clip(RoundedCornerShape(100))
                     .background(bgTint),
                 contentAlignment = Alignment.Center,
@@ -256,7 +274,7 @@ fun SettingsCommandFieldRow(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -329,42 +347,50 @@ fun SegmentControl(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val trackHeight = 32.dp
     Row(
         modifier = modifier
-            .height(trackHeight)
-            .background(DroshSurfaceHigh, RoundedCornerShape(16.dp))
-            .padding(horizontal = 2.dp),
+            .height(48.dp)
+            .background(DroshSurfaceHigh, RoundedCornerShape(999.dp))
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         options.forEachIndexed { index, opt ->
             val isSelected = index == selectedIndex
+            val interaction = remember { MutableInteractionSource() }
+            val pressed by interaction.collectIsPressedAsState()
             val animColor by animateColorAsState(
-                targetValue = if (isSelected) DroshPrimary else Color.Transparent,
-                animationSpec = tween(200),
+                targetValue = when {
+                    pressed -> DroshTilePressed
+                    isSelected -> DroshPrimary
+                    else -> Color.Transparent
+                },
+                animationSpec = tween(180, easing = FastOutSlowInEasing),
                 label = "segment_color_$index",
             )
             val animTextColor by animateColorAsState(
                 targetValue = if (isSelected) DroshOnPrimary else DroshTextSecondary,
-                animationSpec = tween(200),
+                animationSpec = tween(180, easing = FastOutSlowInEasing),
                 label = "segment_text_$index",
             )
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(100))
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(999.dp))
                     .background(animColor)
                     .clickable(
+                        interactionSource = interaction,
+                        indication = null,
                         onClick = { onSelect(index) },
                     )
-                    .padding(vertical = 6.dp),
+                    .semantics { this.selected = isSelected },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = opt,
                     color = animTextColor,
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                     fontFamily = LocalFontSet.current.sans,
                 )
             }
@@ -487,14 +513,27 @@ fun TerminalPreviewCard(
 @Composable
 fun BlinkingCursor(visible: Boolean, rateMs: Int, style: String, fontSizeSp: Float) {
     if (visible) {
+        // The skill's validation pass flags continuous animation: a blinking
+        // cursor is a faithful preview of terminal behaviour, not decoration,
+        // but it still has to stop when the user asks for reduced motion.
+        val context = LocalContext.current
+        val reducedMotion = remember(context) {
+            android.provider.Settings.Global.getFloat(
+                context.contentResolver,
+                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f,
+            ) == 0f
+        }
         var isVisible by remember { mutableStateOf(true) }
-        LaunchedEffect(rateMs, style) {
-            while (isActive) {
-                delay(rateMs.toLong())
-                isVisible = !isVisible
+        if (!reducedMotion) {
+            LaunchedEffect(rateMs, style) {
+                while (isActive) {
+                    delay(rateMs.toLong())
+                    isVisible = !isVisible
+                }
             }
         }
-        val color = if (isVisible) DroshPrimary else Color.Transparent
+        val color = if (isVisible || reducedMotion) DroshPrimary else Color.Transparent
         val cursorHeightDp = fontSizeSp * 1.15f
 
         val widthDp: Float
@@ -610,13 +649,13 @@ fun ThinSlider(
         valueRange = valueRange,
         steps = steps,
         colors = SliderDefaults.colors(
-            thumbColor = Color.White,
+            thumbColor = DroshPrimary,
             activeTrackColor = DroshPrimary,
-            inactiveTrackColor = DroshSurfaceHigh,
+            inactiveTrackColor = DroshTrack,
             activeTickColor = Color.Transparent,
             inactiveTickColor = Color.Transparent,
         ),
-        modifier = modifier.height(20.dp),
+        modifier = modifier.height(48.dp),
     )
 }
 
@@ -625,40 +664,9 @@ fun SettingsToggleSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    val trackColor by animateColorAsState(
-        targetValue = if (checked) DroshPrimary else DroshSurfaceHigh,
-        animationSpec = tween(200),
-        label = "toggle_track",
-    )
-    val thumbOffset by animateFloatAsState(
-        targetValue = if (checked) 18f else 2f,
-        animationSpec = tween(200),
-        label = "toggle_thumb_offset",
-    )
-
-    Box(
-        modifier = Modifier
-            .size(44.dp, 26.dp)
-            .clip(RoundedCornerShape(13.dp))
-            .background(trackColor)
-            .clickable(
-                onClick = { onCheckedChange(!checked) },
-            )
-            .padding(2.dp),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .offset(x = thumbOffset.dp)
-                .clip(RoundedCornerShape(100)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Canvas(modifier = Modifier.size(22.dp)) {
-                drawCircle(color = Color.White, radius = 10f)
-            }
-        }
-    }
+    // One switch in the settings language: the semantic primitive owns the
+    // hit area, the state announcement and the thumb motion.
+    SettingsSwitch(checked = checked, onCheckedChange = onCheckedChange)
 }
 
 @Composable
@@ -676,12 +684,12 @@ fun SettingsNavigationRow(
             .clickable(
                 onClick = onClick,
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(36.dp)
                 .clip(RoundedCornerShape(100))
                 .background(DroshSurfaceHigh),
             contentAlignment = Alignment.Center,
@@ -690,7 +698,7 @@ fun SettingsNavigationRow(
                 imageVector = icon,
                 contentDescription = null,
                 tint = DroshTextSecondary,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
         Spacer(Modifier.width(12.dp))
@@ -720,7 +728,7 @@ fun SettingsNavigationRow(
                 imageVector = DroshIcons.ArrowRight,
                 contentDescription = null,
                 tint = DroshTextDisabled,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
         } else if (trailingText != null) {
             Text(
@@ -735,7 +743,7 @@ fun SettingsNavigationRow(
                     imageVector = DroshIcons.ArrowRight,
                     contentDescription = null,
                     tint = DroshTextDisabled,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
         } else if (showTrailingIcon) {
@@ -743,7 +751,7 @@ fun SettingsNavigationRow(
                 imageVector = DroshIcons.ArrowRight,
                 contentDescription = null,
                 tint = DroshTextDisabled,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
     }
@@ -820,7 +828,7 @@ fun MotdTextDialog(
                 }
             }
         },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         containerColor = DroshSurface,
     )
 }
@@ -854,7 +862,7 @@ fun DeviceHeaderCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DeviceBadge(

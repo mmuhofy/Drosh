@@ -28,7 +28,6 @@ import dev.drosh.domain.settings.TerminalMode
 import dev.drosh.domain.settings.ThemeMode
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import dev.drosh.ui.session.DeviceBadge
 import dev.drosh.ui.session.DeviceIdentityViewModel
 
 /** Content clearance for the system bar, without insetting the background. */
@@ -89,24 +88,16 @@ fun SettingsHomeScreen(
         ) {
             SettingsTopBar(title = stringResource(R.string.settings_title), onBack = onBack)
 
-            SettingsGroupColumn(label = null, items = 1) { _, cap ->
-                SettingsTile(
-                    cap = cap,
-                    title = deviceName(deviceIdentity?.marketingName),
-                    leading = {
-                        DeviceBadge(
-                            imageUrl = deviceIdentity?.visualUrl,
-                            fallbackLetter = (deviceIdentity?.marketingName ?: "?")
-                                .firstOrNull()?.uppercase() ?: "?",
-                            size = 46.dp,
-                        )
-                    },
-                )
-            }
+            // The device is the answer to "what am I running this on", so it
+            // leads as a card rather than as one row in a list of links.
+            DeviceHeaderCard(identity = deviceIdentity)
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = null, items = 8) { index, cap ->
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_home_section_general),
+                items = 8,
+            ) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
@@ -162,9 +153,9 @@ fun SettingsHomeScreen(
                     // security rows below it raise and cannot answer.
                     6 -> SettingsTile(
                         cap = cap,
-                        title = "Yedekle ve geri yükle",
+                        title = stringResource(R.string.settings_backup_restore),
                         icon = DroshIcons.Archive,
-                        supporting = "Uygulama verisi ve Linux dizini yedeği",
+                        supporting = stringResource(R.string.settings_backup_restore_desc),
                         onClick = { onOpenBackupRestore() },
                     ) { SettingsChevron() }
 
@@ -180,7 +171,10 @@ fun SettingsHomeScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = null, items = 2) { index, cap ->
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_home_section_more),
+                items = 2,
+            ) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
@@ -262,7 +256,3 @@ private fun languageSummary(settings: DroshSettings): String =
     dev.drosh.core.LanguageCatalog.options
         .firstOrNull { it.tag == settings.appearance.language }?.displayName
         ?: stringResource(R.string.settings_language_system)
-
-@Composable
-private fun deviceName(marketing: String?): String =
-    marketing?.takeIf { it.isNotBlank() } ?: stringResource(R.string.this_device)

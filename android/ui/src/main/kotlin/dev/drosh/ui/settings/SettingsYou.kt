@@ -1,18 +1,23 @@
 package dev.drosh.ui.settings
 
+// Design foundation: ui-ux-pro-max `--design-system "developer terminal settings
+// android dark minimal content-first tools"` — Minimal Single Column + Vibrant &
+// Block-based. The generated slate/green palette is a direction, not a new
+// brand: Drosh keeps its blue accent and theme tokens, and green is reserved
+// for the active (running) theme. Typography comes from LocalFontSet — mono
+// for section labels, sans for body — instead of adding the suggested font.
+// Validation pass: `--domain ux "animation accessibility touch"`.
+
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.focusTarget
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,46 +28,39 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.drosh.ui.DroshIcons
-import dev.drosh.ui.R
-import dev.drosh.ui.agent.components.AgentIconPill
+import dev.drosh.theme.DroshBorderSubtle
+import dev.drosh.theme.DroshOnPrimary
 import dev.drosh.theme.DroshPrimary
+import dev.drosh.theme.DroshSurfaceHigh
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.DroshTextSecondary
@@ -70,16 +68,20 @@ import dev.drosh.theme.DroshTile
 import dev.drosh.theme.DroshTilePressed
 import dev.drosh.theme.DroshTileSelected
 import dev.drosh.theme.DroshTrack
+import dev.drosh.theme.LocalFontSet
+import dev.drosh.ui.DroshIcons
+import dev.drosh.ui.R
+import dev.drosh.ui.agent.components.AgentIconPill
 
 /**
- * Settings, built as a flat list of tiles on the page — no card behind them,
- * no strokes, and the grouping done with the corner radius instead of a
- * container.
+ * Settings, built as a flat list of tiles on the page — no heavy card behind
+ * them, only a token hairline for depth, and the grouping done with the corner
+ * radius instead of a container.
  *
  * The radius is the structure. A group is not a filled box; it is a run of tiles
  * whose ends are rounded and whose middle is not, so the run reads as one object
  * that opens and closes. Inside a group there are no dividers at all: the
- * separation is the gutter and the step in tone between the page and the tile.
+ * separation is the 8dp gutter and the step in tone between the page and the tile.
  *
  * The second idea is that a row's shape depends on what it carries. A switch, a
  * value or a chevron sits beside the label. A segmented control or a slider
@@ -134,17 +136,36 @@ fun SettingsGroupColumn(
 ) {
     Column(
         modifier = modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        // 8dp between tiles clears the touch-spacing guideline while the end
+        // caps still make a run read as one grouped object.
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (label != null) {
-            Text(
-                text = label.uppercase(),
-                color = DroshTextMuted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.9.sp,
-                modifier = Modifier.padding(start = 6.dp, bottom = 5.dp),
-            )
+            // A section label is a hierarchy cue, not a sentence: a short accent
+            // rule plus tracked uppercase text reads as a tier above the tiles
+            // without adding a second fill or a shadow to the page.
+            Row(
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 3.dp, height = 13.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(DroshPrimary),
+                )
+                Spacer(Modifier.width(9.dp))
+                Text(
+                    text = label.uppercase(),
+                    color = DroshTextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    // Mono section labels carry the "code" half of the
+                    // generated system without adding a new font file.
+                    fontFamily = LocalFontSet.current.mono,
+                )
+            }
         }
         for (index in 0 until items) {
             content(index, tileCapFor(index, items))
@@ -170,26 +191,41 @@ fun SettingsTopBar(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AgentIconPill(
-            icon = DroshIcons.ArrowLeft,
-            contentDescription = stringResource(R.string.action_back),
-            onClick = onBack,
-            tint = DroshTextSecondary,
-        )
+    // One bar for every screen that borrows the settings chrome. The title is
+    // the only large text on the page; a hairline under it separates the fixed
+    // header from the scrolled content without adding a second type scale.
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // AgentIconPill already draws a 34dp face inside a 48dp hit area.
+            AgentIconPill(
+                icon = DroshIcons.ArrowLeft,
+                contentDescription = stringResource(R.string.action_back),
+                onClick = onBack,
+                tint = DroshTextSecondary,
+            )
 
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = title,
-            color = DroshText,
-            fontSize = 27.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.3).sp,
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = title,
+                color = DroshText,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.4).sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = LocalFontSet.current.sans,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(DroshBorderSubtle),
         )
     }
 }
@@ -226,6 +262,10 @@ fun SettingsTile(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    // UNTESTED — verify before use (CI is the build gate): keyboard focus is
+    // drawn as a 2dp accent ring rather than relying on the default ripple,
+    // which is disabled below so the pressed tint stays the only press cue.
+    val focused by interaction.collectIsFocusedAsState()
     val base = if (selected) DroshTileSelected else DroshTile
     val background by animateColorAsState(
         targetValue = when {
@@ -233,17 +273,27 @@ fun SettingsTile(
             selected -> DroshTileSelected
             else -> base
         },
-        animationSpec = tween(durationMillis = 140),
+        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
         label = "tileBg",
+    )
+    // The generated system warns against flat design without depth. A token
+    // hairline gives each tile an edge in both themes; keyboard focus swaps it
+    // for a thicker accent ring without changing the tile's bounds.
+    val outlineColor by animateColorAsState(
+        targetValue = if (focused) DroshPrimary else DroshBorderSubtle,
+        animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
+        label = "tileOutline",
     )
     val shape = tileShape(cap)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 60.dp)
+            .defaultMinSize(minHeight = 64.dp)
             .clip(shape)
             .background(background)
+            .border(width = if (focused) 2.dp else 1.dp, color = outlineColor, shape = shape)
+            .then(if (onClick != null) Modifier.focusTarget() else Modifier)
             .then(
                 when {
                     onClick != null && onLongClick != null -> Modifier.combinedClickable(
@@ -260,7 +310,7 @@ fun SettingsTile(
                     else -> Modifier
                 }
             )
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         // Built once so both arrangements share it. A control that fills its
         // row cannot be a sibling of a weighted text column: in a Row it wins
@@ -275,7 +325,7 @@ fun SettingsTile(
                     imageVector = icon,
                     contentDescription = null,
                     tint = DroshTextSecondary,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(24.dp),
                 )
                 Spacer(Modifier.width(14.dp))
             }
@@ -283,17 +333,20 @@ fun SettingsTile(
                 Text(
                     text = title,
                     color = if (selected) DroshPrimary else DroshText,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    fontFamily = LocalFontSet.current.sans,
                 )
                 if (!supporting.isNullOrBlank()) {
                     Text(
                         text = supporting,
                         color = DroshTextMuted,
-                        fontSize = 12.5.sp,
-                        lineHeight = 16.sp,
+                        fontSize = 13.sp,
+                        lineHeight = 17.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                        fontFamily = LocalFontSet.current.sans,
                     )
                 }
             }
@@ -341,10 +394,11 @@ fun <T> SettingsSegmented(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val track = MaterialTheme.colorScheme.surface
+    val track = DroshSurfaceHigh
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(track)
             .padding(4.dp),
@@ -352,28 +406,34 @@ fun <T> SettingsSegmented(
     ) {
         options.forEach { (value, label) ->
             val isOn = value == selected
+            val interaction = remember { MutableInteractionSource() }
+            val pressed by interaction.collectIsPressedAsState()
             val background by animateColorAsState(
-                targetValue = if (isOn) DroshPrimary.copy(alpha = 0.15f) else Color.Transparent,
-                animationSpec = tween(durationMillis = 160),
+                targetValue = when {
+                    pressed -> DroshTilePressed
+                    isOn -> DroshPrimary.copy(alpha = 0.16f)
+                    else -> Color.Transparent
+                },
+                animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
                 label = "segBg",
             )
             val content by animateColorAsState(
                 targetValue = if (isOn) DroshPrimary else DroshTextSecondary,
-                animationSpec = tween(durationMillis = 160),
+                animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
                 label = "segFg",
             )
-            val interaction = remember { MutableInteractionSource() }
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(38.dp)
+                    .height(40.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(background)
                     .clickable(
                         interactionSource = interaction,
                         indication = null,
                         onClick = { onSelect(value) },
-                    ),
+                    )
+                    .semantics { this.selected = isOn },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -382,6 +442,7 @@ fun <T> SettingsSegmented(
                     fontSize = 13.5.sp,
                     fontWeight = if (isOn) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 1,
+                    fontFamily = LocalFontSet.current.sans,
                 )
             }
         }
@@ -413,238 +474,88 @@ fun SettingsSlider(
     steps: Int = 0,
     onValueChangeFinished: (() -> Unit)? = null,
 ) {
-    val span = valueRange.endInclusive - valueRange.start
-    val divisions = steps + 1
-    val step = if (steps > 0 && divisions > 0) span / divisions else 0f
-    val onChange by rememberUpdatedState(onValueChange)
-    val onFinished by rememberUpdatedState(onValueChangeFinished)
-    val trackColor = DroshTrack
-    val accent = DroshPrimary
-
-    // The drawn position eases toward the value, so a detent reads as being
-    // pulled in rather than as a jump.
-    val targetFraction = if (span <= 0f) 0f else ((value - valueRange.start) / span).coerceIn(0f, 1f)
-    var drawnFraction by remember { mutableFloatStateOf(targetFraction) }
-    val smoothFraction by animateFloatAsState(
-        targetValue = targetFraction,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
-        label = "sliderPos",
-    )
-    LaunchedEffect(targetFraction) { drawnFraction = targetFraction }
-
-    var dragging by remember { mutableStateOf(false) }
-
-    // Press and release are not the same gesture, so they do not get the same
-    // spring. Pressing is fast and definite — a stiff spring that reaches full
-    // size immediately, because the thumb has to feel like it is under the
-    // finger. Releasing is soft and slightly elastic, so the thumb settles back
-    // with one small overshoot instead of stopping dead. One spec for both
-    // directions is what made the old thumb read as a plain rectangle.
-    val handleWidth by animateDpAsState(
-        targetValue = if (dragging) 10.dp else 8.dp,
-        animationSpec = if (dragging) {
-            spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium,
-            )
-        } else {
-            spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-            )
-        },
-        label = "handleWidth",
-    )
-    val handleHeight by animateDpAsState(
-        targetValue = if (dragging) 30.dp else 22.dp,
-        animationSpec = if (dragging) {
-            spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium,
-            )
-        } else {
-            spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-            )
-        },
-        label = "handleHeight",
-    )
-    val glow by animateFloatAsState(
-        targetValue = if (dragging) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "handleGlow",
-    )
-
-    // Pointer input cannot read the layout size, and the draw pass needs it,
-    // so it is measured here and read by both.
-    var trackWidth by remember { mutableIntStateOf(1) }
-
-    fun quantise(raw: Float): Float {
-        if (step <= 0f) return raw.coerceIn(valueRange.start, valueRange.endInclusive)
-        val snapped = valueRange.start + ((raw - valueRange.start) / step).let {
-            Math.round(it.toDouble()).toFloat()
-        } * step
-        return snapped.coerceIn(valueRange.start, valueRange.endInclusive)
-    }
-
-    Box(
+    // A semantic Material 3 Slider: it announces its current value, supports
+    // keyboard adjustment and keeps a 48dp touch target. The old canvas version
+    // drew a good-looking thumb but was invisible to screen readers and had no
+    // keyboard path. Detents stay through [steps]; the row's supporting text is
+    // the value label, so no number is shown twice.
+    // UNTESTED — verify before use (CI is the build gate).
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
         modifier = modifier
             .fillMaxWidth()
-            // Room for the thumb to grow under the finger without clipping
-            // against the tile edge — and no more than that. This was 56dp for
-            // a 34dp thumb, which left 11dp of nothing above and below the
-            // control on every row that carried one, and a page of settings
-            // reads as a page of gaps when the gap is bigger than the control.
-            .height(46.dp)
-            .onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
-            .drawBehind {
-                val w = trackWidth.toFloat()
-                val cy = size.height / 2f
-                val track = TRACK_THICKNESS.toPx()
-                val half = handleWidth.toPx() / 2f
-                val gap = HANDLE_GAP.toPx()
-                val centre = w * smoothFraction
-                val top = cy - handleHeight.toPx() / 2f
-
-                // Glow first, so it sits behind the thumb rather than over it.
-                if (glow > 0.01f) {
-                    drawCircle(
-                        color = accent.copy(alpha = 0.22f * glow),
-                        radius = handleHeight.toPx() * 0.78f,
-                        center = Offset(centre, cy),
-                    )
-                }
-
-                val leftEnd = (centre - half - gap).coerceAtLeast(0f)
-                if (leftEnd > 0f) {
-                    drawLine(
-                        color = accent,
-                        start = Offset(0f, cy),
-                        end = Offset(leftEnd, cy),
-                        strokeWidth = track,
-                        cap = StrokeCap.Round,
-                    )
-                }
-                val rightStart = (centre + half + gap).coerceAtMost(w)
-                if (w - rightStart > 0f) {
-                    drawLine(
-                        color = trackColor,
-                        start = Offset(rightStart, cy),
-                        end = Offset(w, cy),
-                        strokeWidth = track,
-                        cap = StrokeCap.Round,
-                    )
-                }
-                // Two-tone: the track is thick and reads as the value itself —
-                // accent to the left, track colour to the right — and the
-                // handle is a white grip standing on it. The ring is what
-                // separates the grip from the fill under it; without it the
-                // thumb reads as a gap in the track rather than a thing
-                // holding it.
-                drawRoundRect(
-                    color = Color.White,
-                    topLeft = Offset(centre - half, top),
-                    size = androidx.compose.ui.geometry.Size(handleWidth.toPx(), handleHeight.toPx()),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(handleWidth.toPx() / 2f),
-                )
-                drawRoundRect(
-                    color = trackColor,
-                    topLeft = Offset(centre - half, top),
-                    size = androidx.compose.ui.geometry.Size(handleWidth.toPx(), handleHeight.toPx()),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(handleWidth.toPx() / 2f),
-                    style = Stroke(width = 2.dp.toPx()),
-                )
-            }
-            .pointerInput(steps) {
-                detectHorizontalDragGestures(
-                    onDragStart = { dragging = true },
-                    onDragEnd = {
-                        dragging = false
-                        onFinished?.invoke()
-                    },
-                    onDragCancel = {
-                        dragging = false
-                        onFinished?.invoke()
-                    },
-                    onHorizontalDrag = { change, _ ->
-                        change.consume()
-                        val f = (change.position.x / trackWidth).coerceIn(0f, 1f)
-                        val raw = valueRange.start + f * span
-                        onChange(quantise(raw))
-                    },
-                )
-            }
-            .pointerInput(steps) {
-                detectTapGestures { offset ->
-                    val f = (offset.x / trackWidth).coerceIn(0f, 1f)
-                    onChange(quantise(valueRange.start + f * span))
-                    onFinished?.invoke()
-                }
-            },
+            .heightIn(min = 48.dp),
+        valueRange = valueRange,
+        steps = steps,
+        onValueChangeFinished = onValueChangeFinished,
+        colors = SliderDefaults.colors(
+            thumbColor = DroshPrimary,
+            activeTrackColor = DroshPrimary,
+            inactiveTrackColor = DroshTrack,
+            activeTickColor = Color.Transparent,
+            inactiveTickColor = Color.Transparent,
+        ),
     )
 }
 
-private val TRACK_THICKNESS = 22.dp
-private val HANDLE_GAP = 2.dp
 
-
-/** Switch with the accent fill and a soft drop on the thumb. */
+/**
+ * Semantic switch. Material 3 owns the thumb, the 48dp touch target, the
+ * on/off announcement and the keyboard path; only the palette is Drosh's.
+ * The state is spatial (thumb position) as well as chromatic (track fill), so
+ * it never relies on colour alone.
+ * UNTESTED — verify before use (CI is the build gate).
+ */
 @Composable
 fun SettingsSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val track by animateColorAsState(
-        targetValue = if (checked) DroshPrimary else DroshTrack,
-        animationSpec = tween(180),
-        label = "swTrack",
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = DroshOnPrimary,
+            checkedTrackColor = DroshPrimary,
+            checkedBorderColor = Color.Transparent,
+            uncheckedThumbColor = DroshTextSecondary,
+            uncheckedTrackColor = DroshTrack,
+            uncheckedBorderColor = Color.Transparent,
+        ),
     )
-    Box(
-        modifier = modifier
-            .size(width = 50.dp, height = 30.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(track)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = { onCheckedChange(!checked) },
-            ),
+}
+
+/**
+ * A switch with an explicit On/Off label, for settings rows that carry state.
+ *
+ * The label is the "value" beside the control: it keeps a row legible when the
+ * accent fill is dimmed in a sunlight screenshot, and it reads correctly to a
+ * screen reader without the user having to activate the switch first.
+ */
+@Composable
+fun SettingsLabeledSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        val offset by animateDpAsState(
-            targetValue = if (checked) 20.dp else 0.dp,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-            ),
-            label = "swThumb",
+        Text(
+            text = stringResource(if (checked) R.string.settings_summary_on else R.string.settings_summary_off),
+            color = DroshTextSecondary,
+            fontSize = 13.sp,
+            // A reserved width keeps the switch from moving when On becomes Off.
+            modifier = Modifier.width(34.dp),
+            textAlign = TextAlign.End,
+            fontFamily = LocalFontSet.current.sans,
         )
-        Box(
-            modifier = Modifier
-                .padding(start = 3.dp, top = 3.dp)
-                .offset(x = offset)
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(Color.White)
-                .then(
-                    if (checked) {
-                        Modifier.drawBehind {
-                            drawCircle(
-                                color = Color.Black.copy(alpha = 0.18f),
-                                radius = 12.dp.toPx(),
-                                center = center,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()),
-                            )
-                        }
-                    } else {
-                        Modifier
-                    }
-                ),
-        )
+        SettingsSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -744,7 +655,8 @@ private fun TerminalModeCard(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(9.dp),
+            .semantics { this.selected = selected }
+            .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -784,15 +696,29 @@ private fun TerminalModeCard(
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = label,
-            color = if (selected) DroshPrimary else DroshTextSecondary,
-            fontSize = 12.5.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Spacer(Modifier.height(10.dp))
+        // The chosen card is named, not just tinted: a check mark next to the
+        // label keeps the selection readable without colour.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                color = if (selected) DroshPrimary else DroshTextSecondary,
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = LocalFontSet.current.sans,
+            )
+            if (selected) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = DroshIcons.Check,
+                    contentDescription = stringResource(R.string.settings_a11y_selected),
+                    tint = DroshPrimary,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
     }
 }
 
