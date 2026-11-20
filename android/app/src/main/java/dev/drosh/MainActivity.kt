@@ -93,7 +93,6 @@ import dev.drosh.ui.pin.PinEntryScreen
 import dev.drosh.ui.theme.DroshTheme
 import dev.drosh.ui.agent.AgentChatScreen
 import dev.drosh.ui.agent.AgentHomeScreen
-import dev.drosh.ui.agent.AgentSettingsScreen
 import dev.drosh.ui.settings.AboutCategory
 import dev.drosh.ui.settings.AppearanceCategory
 import dev.drosh.domain.settings.DroshSettings
@@ -103,7 +102,6 @@ import dev.drosh.ui.settings.SecurityCategory
 import dev.drosh.ui.settings.SettingsCategoryRoute
 import dev.drosh.ui.settings.OnSettingsUpdate
 import dev.drosh.ui.settings.SettingsHomeScreen
-import dev.drosh.ui.session.DeviceIdentityViewModel
 import dev.drosh.ui.session.SessionLogTarget
 import dev.drosh.ui.session.SessionSwitcherViewModel
 import dev.drosh.ui.settings.SettingsViewModel
@@ -111,7 +109,6 @@ import dev.drosh.ui.settings.ShellCategory
 import dev.drosh.ui.settings.TerminalCategory
 import dev.drosh.ui.settings.ThemeStoreScreen
 import dev.drosh.ui.backup.BackupRestoreRoute
-import dev.drosh.ui.workspace.WorkspaceScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -695,7 +692,6 @@ class MainActivity : ComponentActivity() {
                     onOpenEditor = { path -> navController.openEditor(path) },
                     onOpenAgent = { navController.navigate("agent_home") },
                     onOpenSsh = { navController.navigate("ssh") },
-                    onOpenProjects = { navController.navigate("workspace") },
                 )
             }
 
@@ -705,7 +701,10 @@ class MainActivity : ComponentActivity() {
                     onOpenChat = { id -> navController.navigate("agent_chat/$id") },
                     onNewChat = { navController.navigate("agent_chat/new") },
                     onBack = { navController.popBackStack() },
-                    onOpenSettings = { navController.navigate("agent_settings") },
+                    // The agent's own settings screen is gone; its gear lands
+                    // on the settings home instead of a route that no longer
+                    // exists.
+                    onOpenSettings = { navController.navigate("settings") },
                 )
             }
 
@@ -741,7 +740,9 @@ class MainActivity : ComponentActivity() {
                 AgentChatScreen(
                     chatId = chatId,
                     onBack = { navController.popBackStack() },
-                    onOpenSettings = { navController.navigate("agent_settings") },
+                    // Same as the home screen: the agent's settings screen was
+                    // removed, so the gear opens the settings home.
+                    onOpenSettings = { navController.navigate("settings") },
                     // A chat created on the first send replaces this entry rather
                     // than stacking on it, so Back from it returns to Agent Home
                     // instead of to a placeholder chat that no longer exists.
@@ -759,10 +760,6 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            composable("agent_settings") {
-                AgentSettingsScreen(onBack = { navController.popBackStack() })
-            }
-
             composable("settings") {
                 SettingsHomeScreen(
                     onBack = { navController.popBackStack() },
@@ -773,10 +770,6 @@ class MainActivity : ComponentActivity() {
                     onOpenCategory = { category ->
                         navController.navigate("settings/${category.id}")
                     },
-                    onOpenProjects = { navController.navigate("workspace") },
-                    // Reached from Settings rather than from a gear on the agent
-                    // screens: an OpenRouter key is the user's, not a chat's.
-                    onOpenAgentSettings = { navController.navigate("agent_settings") },
                     onOpenBackupRestore = { navController.navigate("backup_restore") },
                 )
             }
@@ -797,22 +790,12 @@ class MainActivity : ComponentActivity() {
                 BackupRestoreRoute(onBack = { navController.popBackStack() })
             }
 
-            // Projects — workspaces and the sessions filed under them. Reached
-            // from Settings, which is why opening a session from here has to pop
-            // all the way back to the terminal rather than just one entry.
             // SSH hosts: sidebar → SSH opens this route; tapping a host
             // connects and drops back into the terminal with the live session.
             composable("ssh") {
                 dev.drosh.ui.ssh.SshHomeScreen(
                     onBack = { navController.popBackStack() },
                     onConnected = { navController.popBackStack() },
-                )
-            }
-
-            composable("workspace") {
-                WorkspaceScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenSession = { navController.returnToTerminal() },
                 )
             }
 
@@ -843,23 +826,6 @@ class MainActivity : ComponentActivity() {
 /** Blank means "follow the system", where no override applies. */
 private fun String.toLocaleOrNull() =
     takeIf { it.isNotBlank() }?.let { java.util.Locale.forLanguageTag(it) }
-
-/**
- * Come back to a terminal from a screen the user reached through Settings.
- *
- * The stack when this is called is terminal → settings → workspace, so a single
- * `popBackStack()` would land on Settings — the screen they left to do
- * something else, and the one thing they are not waiting for. Popping to the
- * named destination clears everything in between. `popBackStack` reports
- * whether it found the destination, so the fallback is a real check rather
- * than a guess — and reaching for the terminal still has to leave something on
- * the stack for Back to work.
- */
-private fun NavHostController.returnToTerminal() {
-    if (!popBackStack(TERMINAL_ROUTE, inclusive = false)) navigate(TERMINAL_ROUTE)
-}
-
-private const val TERMINAL_ROUTE = "terminal"
 
 /**
  * Starts the app again from its launcher intent.

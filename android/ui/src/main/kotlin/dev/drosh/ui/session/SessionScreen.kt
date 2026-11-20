@@ -125,11 +125,13 @@ private fun sessionSubtitle(
  *
  * ## Reordering, grouping and splitting are different
  *
- * A long press followed by a drag reorders a card in its section. Dropping on a
- * *group* card adds the held card (or the whole held group) to that group;
- * dropping on a normal card reorders. A group is a UI group, like a Chrome tab
- * group — it never touches the terminal's panes. A tap on a group card opens a
- * centred overlay that can also remove a member or dissolve the group.
+ * A long press followed by a drag reorders or groups. Dropping on a *group*
+ * card adds the held card (or the whole held group) to that group; dropping a
+ * group on a single card reorders it; dropping one single card on another
+ * creates a group, target first so the group card takes the target's slot. A
+ * group is a UI group, like a Chrome tab group — it never touches the
+ * terminal's panes. A tap on a group card opens a centred overlay that can
+ * also remove a member or dissolve the group.
  *
  * A split still goes through [onGroupSessions], but only from the card's
  * overflow menu: `Split with…` opens the partner picker directly.
@@ -239,6 +241,11 @@ fun SessionScreen(
     val orderedIds = remember(order, live) { reconcileSessionOrder(order, liveIds) }
     val groupsLive = remember(groups, live) { liveSessionGroups(groups, liveIds.toSet()) }
     val groupBySlot = remember(groupsLive) { groupsLive.associateBy { it.memberIds.first() } }
+    // Every member of every group, not just the first. [groupBySlot] only
+    // maps a group's first member — that is the group's slot — so without
+    // this set a non-first member falls through to the single branch below
+    // and renders twice: once inside the group card and once as its own card.
+    val groupedMemberIds = remember(groupsLive) { groupsLive.flatMap { it.memberIds }.toSet() }
 
     val displayNames = remember(live, titles, localNames, fallbackName) {
         live.associate { it.id to sessionDisplayName(it.id, localNames, titles, fallbackName, it.name) }
@@ -261,7 +268,7 @@ fun SessionScreen(
 
     // One slot per session, with a group taking the slot of its first member.
     // Pinned slots are stably moved to the front of their section.
-    val slots = remember(orderedIds, live, groupBySlot, matchedIds, pinnedIds) {
+    val slots = remember(orderedIds, live, groupBySlot, groupedMemberIds, matchedIds, pinnedIds) {
         buildList<SessionGridItem> {
             orderedIds.forEach { id ->
                 val group = groupBySlot[id]
@@ -274,7 +281,9 @@ fun SessionScreen(
                             add(SessionGridItem.Group(group, members))
                         }
                     }
-                    id in matchedIds -> {
+                    // A member already shown inside its group card has no slot
+                    // of its own; only ungrouped sessions are singles.
+                    id in matchedIds && id !in groupedMemberIds -> {
                         live.firstOrNull { it.id == id }?.let { add(SessionGridItem.Single(it)) }
                     }
                 }
@@ -295,6 +304,42 @@ fun SessionScreen(
         }
     }
     val visibleSlotIds = remember(visibleItems) { visibleItems.map { it.slotId }.toSet() }
+
+    /**
+     * Applies one completed drop: extend the target group, reorder a group
+     * onto a single card, or — two ungrouped cards — create a new group.
+     *
+     * The three cases are chosen from the groups that are live *at drop
+     * time*, so they cannot overlap: a target that is a group takes the first
+     * branch whatever is being held, and a held group on a single card
+     * reorders. Neither ever splits a group.
+     *
+     * UNTESTED — verify before use.
+     */
+    fun applyDrop(held: String, target: String) {
+        if (held == target) return
+        val targetGroup = groupsLive.firstOrNull { target in it.memberIds }
+        val heldGroup = groupsLive.firstOrNull { held in it.memberIds }
+        when {
+            targetGroup != null -> {
+                // Dropped on a group: the held card — or the whole held
+                // group, merged member by member — joins it.
+                val incoming = heldGroup?.memberIds?.filterNot { it == target }
+                    ?: listOf(held)
+                groups = addToGroup(groups, targetGroup, incoming)
+            }
+            heldGroup != null -> {
+                // A grouped member is represented by its group's slot, so
+                // move that slot: a group dropped on a single reorders.
+                order = moveSlot(order, heldGroup.memberIds.first(), target)
+            }
+            else -> {
+                // Two singles become a group, target first so the group card
+                // takes the target's slot. UNTESTED — verify before use.
+                groups = groupTwoSessions(groups, target, held)
+            }
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         SessionScreenHeader(
@@ -372,22 +417,11 @@ fun SessionScreen(
                                     val held = heldId
                                     heldId = null
                                     dropTarget = null
-                                    if (target != null && held != null && target != held) {
-                                        // UNTESTED — verify before use: dropping on
-                                        // a group adds a member; on a single card
-                                        // it reorders. Neither ever splits.
-                                        val targetGroup = groupsLive.firstOrNull { target in it.memberIds }
-                                        val heldGroup = groupsLive.firstOrNull { held in it.memberIds }
-                                        if (targetGroup != null) {
-                                            val incoming = heldGroup?.memberIds?.filterNot { it == target }
-                                                ?: listOf(held)
-                                            groups = addToGroup(groups, targetGroup, incoming)
-                                        } else {
-                                            // A grouped member is represented by its
-                                            // group's slot, so move that slot instead.
-                                            val heldSlot = heldGroup?.memberIds?.first() ?: held
-                                            order = moveSlot(order, heldSlot, target)
-                                        }
+                                    // UNTESTED — verify before use: a single
+                                    // dropped on a single creates a group; on a
+                                    // group it joins it. Never splits.
+                                    if (target != null && held != null) {
+                                        applyDrop(held, target)
                                     }
                                 },
                                 onSplitWith = { splitSourceId = session.id },
@@ -438,22 +472,11 @@ fun SessionScreen(
                                     val held = heldId
                                     heldId = null
                                     dropTarget = null
-                                    if (target != null && held != null && target != held) {
-                                        // UNTESTED — verify before use: a group
-                                        // dropped on a group merges; on a single
-                                        // card it reorders. Never splits.
-                                        val targetGroup = groupsLive.firstOrNull { target in it.memberIds }
-                                        val heldGroup = groupsLive.firstOrNull { held in it.memberIds }
-                                        if (targetGroup != null) {
-                                            val incoming = heldGroup?.memberIds?.filterNot { it == target }
-                                                ?: listOf(held)
-                                            groups = addToGroup(groups, targetGroup, incoming)
-                                        } else {
-                                            // A grouped member is represented by its
-                                            // group's slot, so move that slot instead.
-                                            val heldSlot = heldGroup?.memberIds?.first() ?: held
-                                            order = moveSlot(order, heldSlot, target)
-                                        }
+                                    // UNTESTED — verify before use: a group
+                                    // dropped on a group merges; on a single
+                                    // card it reorders. Never splits.
+                                    if (target != null && held != null) {
+                                        applyDrop(held, target)
                                     }
                                 },
                             )
