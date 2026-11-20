@@ -14,7 +14,7 @@ import org.junit.Test
  */
 class BlockWireParserTest {
 
-    private val hex = BlockWireParser.encodeHex
+    private val hex = BlockWireParser::encodeHex
 
     @Test
     fun `hex round trips wide text and control bytes`() {
