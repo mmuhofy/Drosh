@@ -68,7 +68,7 @@ class BlockWireParserTest {
         val first = parser.parse("\u001b[1;31mhello\n")
         val hello = first.single().spans.single()
         assertEquals("hello", hello.text)
-        assertEquals((0xffff0000).toInt(), hello.fg)
+        assertEquals((0xffcd3131).toInt(), hello.fg)
         assertEquals(true, hello.bold)
 
         // The style set in the previous chunk still applies; resetting it after
@@ -76,7 +76,7 @@ class BlockWireParserTest {
         val second = parser.parse("world\u001b[0m\nplain\n")
         val world = second[0].spans.single()
         assertEquals("world", world.text)
-        assertEquals((0xffff0000).toInt(), world.fg)
+        assertEquals((0xffcd3131).toInt(), world.fg)
         assertEquals(true, world.bold)
         val plain = second[1].spans.single()
         assertEquals("plain", plain.text)

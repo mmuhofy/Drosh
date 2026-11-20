@@ -73,7 +73,7 @@ internal object BlockWireParser {
                     if (fields.size != 4) return@mapNotNull null
                     ParsedRecord.Finished(
                         id = fields[1],
-                        exitCode = fields[2].toIntOrNull() ?: -1,
+                        exitCode = fields[2].toIntOrNull() ?: return@mapNotNull null,
                         completedAtMs = fields[3].toLongOrNull() ?: 0L,
                     )
                 }
