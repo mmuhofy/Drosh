@@ -98,8 +98,8 @@ fun LanguagePickerSheet(
             Text(
                 text = "Language",
                 color = DroshText,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 12.dp),
             )
 

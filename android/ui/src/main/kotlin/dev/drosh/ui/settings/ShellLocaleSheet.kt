@@ -23,13 +23,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.core.ShellLocaleCatalog
 import dev.drosh.theme.DroshPrimary
-import dev.drosh.theme.DroshSurfaceVariant
+import dev.drosh.theme.DroshTile
+import dev.drosh.theme.DroshTileSelected
+import dev.drosh.theme.DroshTrack
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.DroshTextSecondary
@@ -57,7 +60,16 @@ fun ShellLocaleSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = DroshSurfaceVariant,
+        containerColor = DroshTile,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .size(width = 38.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(DroshTrack),
+            )
+        },
     ) {
         Column(
             modifier = Modifier
@@ -68,7 +80,7 @@ fun ShellLocaleSheet(
             Text(
                 text = stringResource(R.string.settings_shell_locale),
                 color = DroshText,
-                fontSize = 18.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(bottom = 4.dp),
             )
@@ -84,7 +96,8 @@ fun ShellLocaleSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (selected) DroshTileSelected else Color.Transparent)
                             .clickable {
                                 onSelect(option.tag)
                                 onDismiss()

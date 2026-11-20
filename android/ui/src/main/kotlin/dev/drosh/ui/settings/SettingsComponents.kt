@@ -71,6 +71,7 @@ import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.DroshTextDisabled
 import dev.drosh.theme.DroshTextSecondary
+import dev.drosh.theme.DroshTile
 import dev.drosh.theme.DroshWarning
 import dev.drosh.theme.LocalFontSet
 import androidx.compose.ui.graphics.Color
@@ -787,14 +788,8 @@ fun MotdTextDialog(
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
                     ),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = DroshOutline,
-                        focusedBorderColor = DroshPrimary.copy(alpha = 0.4f),
-                        cursorColor = DroshPrimary,
-                        unfocusedTextColor = DroshText,
-                        focusedTextColor = DroshText,
-                    ),
+                    shape = SettingsFieldCorner,
+                    colors = settingsFieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp),
@@ -803,25 +798,19 @@ fun MotdTextDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            SettingsDialogConfirmButton(stringResource(R.string.action_done)) {
                 onConfirm(text)
                 onDismiss()
-            }) {
-                Text(stringResource(R.string.action_done), color = DroshPrimary, fontFamily = LocalFontSet.current.sans)
             }
         },
         dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onRestoreDefault) {
-                    Text(stringResource(R.string.action_restore_default), color = DroshTextSecondary, fontSize = 12.sp, fontFamily = LocalFontSet.current.sans)
-                }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.action_cancel), color = DroshTextSecondary, fontSize = 12.sp, fontFamily = LocalFontSet.current.sans)
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                SettingsDialogDismissButton(stringResource(R.string.action_restore_default), onRestoreDefault)
+                SettingsDialogDismissButton(stringResource(R.string.action_cancel), onDismiss)
             }
         },
-        shape = RoundedCornerShape(16.dp),
-        containerColor = DroshSurface,
+        shape = SettingsDialogShape,
+        containerColor = DroshTile,
     )
 }
 
@@ -899,33 +888,26 @@ fun StartupCommandDialog(
     var text by rememberSaveable { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DroshSurfaceVariant,
-        shape = RoundedCornerShape(20.dp),
-        title = { Text(stringResource(R.string.settings_startup_command), color = DroshText, fontWeight = FontWeight.Bold) },
+        containerColor = DroshTile,
+        shape = SettingsDialogShape,
+        title = { Text(stringResource(R.string.settings_startup_command), color = DroshText, fontWeight = FontWeight.SemiBold, fontSize = 20.sp) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 singleLine = true,
                 placeholder = { Text(stringResource(R.string.settings_startup_default), color = DroshTextMuted) },
-                textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = DroshPrimary,
-                    unfocusedBorderColor = DroshBorderSubtle,
-                    cursorColor = DroshPrimary,
-                ),
+                shape = SettingsFieldCorner,
+                textStyle = TextStyle(color = DroshText, fontSize = 15.sp),
+                colors = settingsFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text.trim()) }) {
-                Text(stringResource(R.string.action_save), color = DroshPrimary)
-            }
+            SettingsDialogConfirmButton(stringResource(R.string.action_save)) { onConfirm(text.trim()) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_cancel), color = DroshTextSecondary)
-            }
+            SettingsDialogDismissButton(stringResource(R.string.action_cancel), onDismiss)
         },
     )
 }

@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -49,7 +51,12 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -61,7 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
-import dev.drosh.ui.agent.components.AgentIconPill
+import dev.drosh.theme.DroshBackground
 import dev.drosh.theme.DroshPrimary
 import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
@@ -124,7 +131,12 @@ internal fun tileCapFor(index: Int, count: Int): TileCap = when {
     else -> TileCap.Middle
 }
 
-/** A labelled run of tiles with no fill behind it. */
+/**
+ * A labelled run of tiles with no fill behind it.
+ *
+ * The label is sentence case and quiet, the tiles sit 2dp apart: the hairline
+ * between them is the page showing through, not a divider drawn on it.
+ */
 @Composable
 fun SettingsGroupColumn(
     label: String?,
@@ -134,16 +146,15 @@ fun SettingsGroupColumn(
 ) {
     Column(
         modifier = modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         if (label != null) {
             Text(
-                text = label.uppercase(),
+                text = label,
                 color = DroshTextMuted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.9.sp,
-                modifier = Modifier.padding(start = 6.dp, bottom = 5.dp),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 6.dp),
             )
         }
         for (index in 0 until items) {
@@ -153,16 +164,10 @@ fun SettingsGroupColumn(
 }
 
 /**
- * Large top bar.
+ * Top bar: a bare back arrow and a title, nothing drawn behind either.
  *
- * The back control is the agent's [AgentIconPill], not a second variant of it.
- * The agent home and the agent chat both lead with that pill — 44dp capsule, one
- * flat fill, one hairline glass edge, a fill change and nothing else under the
- * finger — and this screen had its own: a 44dp circle with a 1dp outline and a
- * 0.92 scale spring on press. Same size, three different chrome. A user who has
- * learned what the back control feels like on one screen should not have to
- * learn a second one here, so the reference is used rather than copied, and the
- * two now cannot drift apart again.
+ * The control is an icon on the page, not a capsule on it — the same weight
+ * the title has, so the bar reads as one line of text with an arrow in front.
  */
 @Composable
 fun SettingsTopBar(
@@ -173,23 +178,30 @@ fun SettingsTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
+            .padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AgentIconPill(
-            icon = DroshIcons.ArrowLeft,
-            contentDescription = stringResource(R.string.action_back),
-            onClick = onBack,
-            tint = DroshTextSecondary,
-        )
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onBack),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = DroshIcons.ArrowLeft,
+                contentDescription = stringResource(R.string.action_back),
+                tint = DroshText,
+                modifier = Modifier.size(24.dp),
+            )
+        }
 
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(8.dp))
         Text(
             text = title,
             color = DroshText,
-            fontSize = 27.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.3).sp,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Medium,
         )
     }
 }
@@ -241,7 +253,7 @@ fun SettingsTile(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 60.dp)
+            .defaultMinSize(minHeight = 58.dp)
             .clip(shape)
             .background(background)
             .then(
@@ -260,7 +272,7 @@ fun SettingsTile(
                     else -> Modifier
                 }
             )
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
         // Built once so both arrangements share it. A control that fills its
         // row cannot be a sibling of a weighted text column: in a Row it wins
@@ -275,16 +287,16 @@ fun SettingsTile(
                     imageVector = icon,
                     contentDescription = null,
                     tint = DroshTextSecondary,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(24.dp),
                 )
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(16.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     color = if (selected) DroshPrimary else DroshText,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -292,8 +304,8 @@ fun SettingsTile(
                     Text(
                         text = supporting,
                         color = DroshTextMuted,
-                        fontSize = 12.5.sp,
-                        lineHeight = 16.sp,
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
                     )
                 }
             }
@@ -308,7 +320,7 @@ fun SettingsTile(
                 )
                 if (control != null) {
                     Spacer(Modifier.height(16.dp))
-                    Box(modifier = Modifier.fillMaxWidth()) { control() }
+                    Column(modifier = Modifier.fillMaxWidth()) { control() }
                 }
             }
         } else {
@@ -333,7 +345,10 @@ fun SettingsTile(
     }
 }
 
-/** Pill segmented control. Selection is a tint, never a solid fill. */
+/**
+ * Pill segmented control. The chosen segment is a solid light pill with dark
+ * text on a recessed track — one glance says which one is on.
+ */
 @Composable
 fun <T> SettingsSegmented(
     options: List<Pair<T, String>>,
@@ -341,24 +356,23 @@ fun <T> SettingsSegmented(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val track = MaterialTheme.colorScheme.surface
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(999.dp))
-            .background(track)
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .background(DroshTrack)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         options.forEach { (value, label) ->
             val isOn = value == selected
             val background by animateColorAsState(
-                targetValue = if (isOn) DroshPrimary.copy(alpha = 0.15f) else Color.Transparent,
+                targetValue = if (isOn) DroshText else Color.Transparent,
                 animationSpec = tween(durationMillis = 160),
                 label = "segBg",
             )
             val content by animateColorAsState(
-                targetValue = if (isOn) DroshPrimary else DroshTextSecondary,
+                targetValue = if (isOn) DroshBackground else DroshTextSecondary,
                 animationSpec = tween(durationMillis = 160),
                 label = "segFg",
             )
@@ -379,7 +393,7 @@ fun <T> SettingsSegmented(
                 Text(
                     text = label,
                     color = content,
-                    fontSize = 13.5.sp,
+                    fontSize = 14.sp,
                     fontWeight = if (isOn) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 1,
                 )
@@ -412,6 +426,11 @@ fun SettingsSlider(
     modifier: Modifier = Modifier,
     steps: Int = 0,
     onValueChangeFinished: (() -> Unit)? = null,
+    /**
+     * The share of the track, from the right, that cannot be reached — drawn
+     * hatched, as a limit the control has and the value does not.
+     */
+    unavailableFraction: Float = 0f,
 ) {
     val span = valueRange.endInclusive - valueRange.start
     val divisions = steps + 1
@@ -419,7 +438,8 @@ fun SettingsSlider(
     val onChange by rememberUpdatedState(onValueChange)
     val onFinished by rememberUpdatedState(onValueChangeFinished)
     val trackColor = DroshTrack
-    val accent = DroshPrimary
+    val fillColor = DroshText
+    val hatchColor = DroshTextMuted.copy(alpha = 0.55f)
 
     // The drawn position eases toward the value, so a detent reads as being
     // pulled in rather than as a jump.
@@ -444,7 +464,7 @@ fun SettingsSlider(
     // with one small overshoot instead of stopping dead. One spec for both
     // directions is what made the old thumb read as a plain rectangle.
     val handleWidth by animateDpAsState(
-        targetValue = if (dragging) 10.dp else 8.dp,
+        targetValue = if (dragging) 6.dp else 4.dp,
         animationSpec = if (dragging) {
             spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -459,7 +479,7 @@ fun SettingsSlider(
         label = "handleWidth",
     )
     val handleHeight by animateDpAsState(
-        targetValue = if (dragging) 30.dp else 22.dp,
+        targetValue = if (dragging) 36.dp else 30.dp,
         animationSpec = if (dragging) {
             spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -473,12 +493,6 @@ fun SettingsSlider(
         },
         label = "handleHeight",
     )
-    val glow by animateFloatAsState(
-        targetValue = if (dragging) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "handleGlow",
-    )
-
     // Pointer input cannot read the layout size, and the draw pass needs it,
     // so it is measured here and read by both.
     var trackWidth by remember { mutableIntStateOf(1) }
@@ -499,7 +513,7 @@ fun SettingsSlider(
             // a 34dp thumb, which left 11dp of nothing above and below the
             // control on every row that carried one, and a page of settings
             // reads as a page of gaps when the gap is bigger than the control.
-            .height(46.dp)
+            .height(48.dp)
             .onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
             .drawBehind {
                 val w = trackWidth.toFloat()
@@ -510,53 +524,63 @@ fun SettingsSlider(
                 val centre = w * smoothFraction
                 val top = cy - handleHeight.toPx() / 2f
 
-                // Glow first, so it sits behind the thumb rather than over it.
-                if (glow > 0.01f) {
-                    drawCircle(
-                        color = accent.copy(alpha = 0.22f * glow),
-                        radius = handleHeight.toPx() * 0.78f,
-                        center = Offset(centre, cy),
-                    )
-                }
+                // Grok-style: a thick pill that is the value itself — light to
+                // the left, recessed to the right — with a thin light bar
+                // standing in the gap between them as the grip.
+                val trackTop = cy - track / 2f
+                val trackRadius = CornerRadius(track / 2f)
 
                 val leftEnd = (centre - half - gap).coerceAtLeast(0f)
                 if (leftEnd > 0f) {
-                    drawLine(
-                        color = accent,
-                        start = Offset(0f, cy),
-                        end = Offset(leftEnd, cy),
-                        strokeWidth = track,
-                        cap = StrokeCap.Round,
+                    drawRoundRect(
+                        color = fillColor,
+                        topLeft = Offset(0f, trackTop),
+                        size = Size(leftEnd, track),
+                        cornerRadius = trackRadius,
                     )
                 }
                 val rightStart = (centre + half + gap).coerceAtMost(w)
                 if (w - rightStart > 0f) {
-                    drawLine(
+                    drawRoundRect(
                         color = trackColor,
-                        start = Offset(rightStart, cy),
-                        end = Offset(w, cy),
-                        strokeWidth = track,
-                        cap = StrokeCap.Round,
+                        topLeft = Offset(rightStart, trackTop),
+                        size = Size(w - rightStart, track),
+                        cornerRadius = trackRadius,
                     )
+                    val hatchStart = (w * (1f - unavailableFraction)).coerceAtLeast(rightStart)
+                    if (unavailableFraction > 0f && w - hatchStart > 0f) {
+                        val clip = Path().apply {
+                            addRoundRect(
+                                RoundRect(
+                                    left = rightStart,
+                                    top = trackTop,
+                                    right = w,
+                                    bottom = trackTop + track,
+                                    cornerRadius = trackRadius,
+                                ),
+                            )
+                        }
+                        clipPath(clip) {
+                            val stroke = 2.dp.toPx()
+                            val pitch = 6.dp.toPx()
+                            var x = hatchStart - track
+                            while (x < w) {
+                                drawLine(
+                                    color = hatchColor,
+                                    start = Offset(x, trackTop + track),
+                                    end = Offset(x + track, trackTop),
+                                    strokeWidth = stroke,
+                                )
+                                x += pitch
+                            }
+                        }
+                    }
                 }
-                // Two-tone: the track is thick and reads as the value itself —
-                // accent to the left, track colour to the right — and the
-                // handle is a white grip standing on it. The ring is what
-                // separates the grip from the fill under it; without it the
-                // thumb reads as a gap in the track rather than a thing
-                // holding it.
                 drawRoundRect(
-                    color = Color.White,
+                    color = fillColor,
                     topLeft = Offset(centre - half, top),
-                    size = androidx.compose.ui.geometry.Size(handleWidth.toPx(), handleHeight.toPx()),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(handleWidth.toPx() / 2f),
-                )
-                drawRoundRect(
-                    color = trackColor,
-                    topLeft = Offset(centre - half, top),
-                    size = androidx.compose.ui.geometry.Size(handleWidth.toPx(), handleHeight.toPx()),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(handleWidth.toPx() / 2f),
-                    style = Stroke(width = 2.dp.toPx()),
+                    size = Size(handleWidth.toPx(), handleHeight.toPx()),
+                    cornerRadius = CornerRadius(handleWidth.toPx() / 2f),
                 )
             }
             .pointerInput(steps) {
@@ -588,11 +612,15 @@ fun SettingsSlider(
     )
 }
 
-private val TRACK_THICKNESS = 22.dp
-private val HANDLE_GAP = 2.dp
+private val TRACK_THICKNESS = 16.dp
+private val HANDLE_GAP = 6.dp
 
 
-/** Switch with the accent fill and a soft drop on the thumb. */
+/**
+ * Switch, Grok-style: on is a light track with a large dark thumb, off is a
+ * recessed track with a small light dot. The state is carried by light and
+ * size, not by an accent colour, so it reads the same in every theme.
+ */
 @Composable
 fun SettingsSwitch(
     checked: Boolean,
@@ -600,63 +628,65 @@ fun SettingsSwitch(
     modifier: Modifier = Modifier,
 ) {
     val track by animateColorAsState(
-        targetValue = if (checked) DroshPrimary else DroshTrack,
+        targetValue = if (checked) DroshText else DroshTrack,
         animationSpec = tween(180),
         label = "swTrack",
     )
+    val thumbColor by animateColorAsState(
+        targetValue = if (checked) DroshBackground else DroshTextSecondary,
+        animationSpec = tween(180),
+        label = "swThumbColor",
+    )
+    val thumbSize by animateDpAsState(
+        targetValue = if (checked) 24.dp else 14.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "swThumbSize",
+    )
+    val offset by animateDpAsState(
+        targetValue = if (checked) 24.dp else 9.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "swThumb",
+    )
     Box(
         modifier = modifier
-            .size(width = 50.dp, height = 30.dp)
+            .size(width = 52.dp, height = 32.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(track)
-            .clickable(
-                indication = null,
+            .toggleable(
+                value = checked,
                 interactionSource = remember { MutableInteractionSource() },
-                onClick = { onCheckedChange(!checked) },
+                indication = null,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
             ),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        val offset by animateDpAsState(
-            targetValue = if (checked) 20.dp else 0.dp,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-            ),
-            label = "swThumb",
-        )
         Box(
             modifier = Modifier
-                .padding(start = 3.dp, top = 3.dp)
                 .offset(x = offset)
-                .size(24.dp)
+                .size(thumbSize)
                 .clip(CircleShape)
-                .background(Color.White)
-                .then(
-                    if (checked) {
-                        Modifier.drawBehind {
-                            drawCircle(
-                                color = Color.Black.copy(alpha = 0.18f),
-                                radius = 12.dp.toPx(),
-                                center = center,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()),
-                            )
-                        }
-                    } else {
-                        Modifier
-                    }
-                ),
+                .background(thumbColor),
         )
     }
 }
 
-/** Chevron used on rows that open something. */
+/**
+ * Trailing mark of a row that opens something.
+ *
+ * Draws nothing: the rows that open a screen or a dialog are told apart by
+ * what they say, not by an arrow on every one of them. Kept as a call site so
+ * a row that needs the arrow back changes this one function.
+ */
 @Composable
 fun SettingsChevron(modifier: Modifier = Modifier) {
-    Icon(
-        imageVector = dev.drosh.ui.DroshIcons.ChevronRight,
-        contentDescription = null,
-        tint = DroshTextMuted,
-        modifier = modifier.size(20.dp),
-    )
+    Spacer(modifier = modifier)
 }
 
 /** Check used on the chosen row. */

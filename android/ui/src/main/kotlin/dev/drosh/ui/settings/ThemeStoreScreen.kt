@@ -63,6 +63,7 @@ import dev.drosh.theme.DroshText
 import dev.drosh.theme.DroshTextMuted
 import dev.drosh.theme.DroshTextSecondary
 import dev.drosh.theme.DroshTile
+import dev.drosh.theme.DroshTrack
 import dev.drosh.ui.DroshIcons
 import dev.drosh.ui.R
 
@@ -226,8 +227,8 @@ private fun StoreRoomBar(
         modifier = Modifier
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(DroshSurfaceVariant),
+            .clip(RoundedCornerShape(999.dp))
+            .background(DroshTrack),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         StoreRoom.entries.forEach { entry ->
@@ -235,9 +236,9 @@ private fun StoreRoomBar(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(4.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (selected) DroshPrimary else Color.Transparent)
+                    .padding(3.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (selected) DroshText else Color.Transparent)
                     .clickable { onRoomChange(entry) }
                     .padding(vertical = 9.dp),
                 horizontalArrangement = Arrangement.Center,
@@ -248,15 +249,15 @@ private fun StoreRoomBar(
                         if (entry == StoreRoom.Store) R.string.settings_theme_room_store
                         else R.string.settings_theme_room_library,
                     ),
-                    color = if (selected) DroshTile else DroshTextSecondary,
-                    fontSize = 13.5.sp,
+                    color = if (selected) DroshBackground else DroshTextSecondary,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 if (entry == StoreRoom.Library) {
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = "$installedCount",
-                        color = if (selected) DroshTile.copy(alpha = 0.8f) else DroshTextMuted,
+                        color = if (selected) DroshBackground.copy(alpha = 0.7f) else DroshTextMuted,
                         fontSize = 12.sp,
                     )
                 }
@@ -326,8 +327,8 @@ private fun ThemeStoreCard(
 ) {
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(DroshSurfaceVariant)
+            .clip(RoundedCornerShape(24.dp))
+            .background(DroshTile)
             .clickable(enabled = !installed && !busy, onClick = onClick)
             .padding(10.dp),
     ) {
@@ -530,13 +531,12 @@ fun ThemeGridLogo(
 private fun SettingsMessageDialog(text: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DroshSurfaceVariant,
-        title = { Text(stringResource(R.string.settings_theme_store), color = DroshText) },
-        text = { Text(text, color = DroshTextSecondary) },
+        containerColor = DroshTile,
+        shape = SettingsDialogShape,
+        title = { Text(stringResource(R.string.settings_theme_store), color = DroshText, fontWeight = FontWeight.SemiBold, fontSize = 20.sp) },
+        text = { Text(text, color = DroshTextSecondary, fontSize = 15.sp) },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.settings_dialog_save), color = DroshPrimary)
-            }
+            SettingsDialogConfirmButton(stringResource(R.string.settings_dialog_save), onDismiss)
         },
     )
 }
@@ -567,8 +567,9 @@ private fun ThemeCreatorDialog(
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DroshSurfaceVariant,
-        title = { Text(stringResource(R.string.settings_theme_create), color = DroshText) },
+        containerColor = DroshTile,
+        shape = SettingsDialogShape,
+        title = { Text(stringResource(R.string.settings_theme_create), color = DroshText, fontWeight = FontWeight.SemiBold, fontSize = 20.sp) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 CreatorField(
@@ -620,16 +621,12 @@ private fun ThemeCreatorDialog(
             }
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(
-                onClick = { onSave(name, author, description) },
-            ) {
-                Text(stringResource(R.string.settings_dialog_save), color = DroshPrimary)
+            SettingsDialogConfirmButton(stringResource(R.string.settings_dialog_save)) {
+                onSave(name, author, description)
             }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.settings_dialog_cancel), color = DroshTextSecondary)
-            }
+            SettingsDialogDismissButton(stringResource(R.string.settings_dialog_cancel), onDismiss)
         },
     )
 }
@@ -645,14 +642,9 @@ private fun CreatorField(
         onValueChange = onValueChange,
         label = { Text(label) },
         singleLine = true,
-        textStyle = TextStyle(color = DroshText, fontSize = 14.sp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = DroshPrimary,
-            unfocusedBorderColor = DroshOutline,
-            cursorColor = DroshPrimary,
-            focusedTextColor = DroshText,
-            unfocusedTextColor = DroshText,
-        ),
+        shape = SettingsFieldCorner,
+        textStyle = TextStyle(color = DroshText, fontSize = 15.sp),
+        colors = settingsFieldColors(),
         modifier = Modifier.fillMaxWidth(),
     )
 }

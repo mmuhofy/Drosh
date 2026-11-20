@@ -1,6 +1,25 @@
 package dev.drosh.ui.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.drosh.theme.DroshText
+import dev.drosh.theme.DroshTextMuted
+import dev.drosh.theme.DroshTile
+import dev.drosh.theme.DroshTrack
+import dev.drosh.ui.DroshIcons
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -49,12 +68,16 @@ fun <T> SettingsSelectRow(
             cap = cap,
             title = title,
             icon = icon,
-            supporting = supporting ?: options.firstOrNull { it.first == selected }?.second,
+            supporting = supporting,
             onClick = { expanded = true },
         ) {
-            SettingsChevron()
+            SettingsValuePill(text = options.firstOrNull { it.first == selected }?.second.orEmpty())
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(DroshTile, RoundedCornerShape(16.dp)),
+        ) {
             options.forEach { (value, label) ->
                 DropdownMenuItem(
                     text = { Text(label) },
@@ -70,6 +93,43 @@ fun <T> SettingsSelectRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * The current value, as a pill with a downward arrow, at the end of a row.
+ *
+ * It says "this row is a choice" and shows the choice in the same place, so the
+ * row needs no second line of text for it. The arrow is the right-pointing
+ * chevron turned a quarter-turn; there is one chevron glyph in the icon set and
+ * it is not worth a second for this.
+ */
+@Composable
+fun SettingsValuePill(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(DroshTrack)
+            .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            color = DroshText,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            imageVector = DroshIcons.ChevronRight,
+            contentDescription = null,
+            tint = DroshTextMuted,
+            modifier = Modifier.size(18.dp).rotate(90f),
+        )
     }
 }
 
