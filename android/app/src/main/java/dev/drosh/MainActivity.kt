@@ -147,6 +147,12 @@ class MainActivity : ComponentActivity() {
     private var backgroundedAt = 0L
 
     /**
+     * True only while a settings route is on screen: the status bar belongs
+     * there, while the terminal and the session screen stay fully edge-to-edge.
+     */
+    private val showStatusBar = MutableStateFlow(false)
+
+    /**
      * The auto-lock timeout as a duration. Collected once per start rather
      * than read per tick — the setting changes from the settings screen, and
      * the next backgrounding is soon enough.
@@ -264,17 +270,21 @@ class MainActivity : ComponentActivity() {
      */
     @Composable
     private fun SystemBarsGlobal(activity: ComponentActivity) {
+        val settingsStatusBar by showStatusBar.collectAsStateWithLifecycle()
+        LaunchedEffect(settingsStatusBar) {
+            applyImmersiveWindow(activity.window, settingsStatusBar)
+        }
         // Passed in, not read from LocalContext: ProvideLocale wraps the context
         // below setContent, and the wrapped context is not the Activity whose
         // window owns the bars.
         DisposableEffect(activity) {
             val window = activity.window
-            applyImmersiveWindow(window)
+            applyImmersiveWindow(window, showStatusBar.value)
             val observer = window.decorView.viewTreeObserver
             val reapply = ViewTreeObserver.OnGlobalLayoutListener {
                 // Idempotent, and cheap: the controller only writes when the
                 // requested state actually differs.
-                applyImmersiveWindow(window)
+                applyImmersiveWindow(window, showStatusBar.value)
             }
             observer.addOnGlobalLayoutListener(reapply)
             onDispose {
@@ -302,12 +312,12 @@ class MainActivity : ComponentActivity() {
         // bar visibility, never the window's input or focus policy.
         applyImmersiveToAllWindows(window)
         if (hasFocus) {
-            window.decorView.post { applyImmersiveWindow(window) }
+            window.decorView.post { applyImmersiveWindow(window, showStatusBar.value) }
         }
     }
 
     private fun applyImmersiveToAllWindows(window: Window) {
-        applyImmersiveWindow(window)
+        applyImmersiveWindow(window, showStatusBar.value)
         hideBarsOnOtherWindows()
     }
 
@@ -517,6 +527,10 @@ class MainActivity : ComponentActivity() {
         // terminal as destinations, so the lock never waits on a terminal that
         // has not been built yet.
         val currentRoute by navController.currentBackStackEntryAsState()
+        LaunchedEffect(currentRoute?.destination?.route) {
+            val route = currentRoute?.destination?.route
+            showStatusBar.value = route == "settings" || route == "settings/{category}"
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             DroshNavGraph(navController, coroutineScope)
 
@@ -865,7 +879,7 @@ private fun NavHostController.openEditor(guestPath: String) {
  *
  * // UNTESTED — verify before use on a device with gesture navigation.
  */
-private fun applyImmersiveWindow(window: Window?) {
+private fun applyImmersiveWindow(window: Window?, statusBarVisible: Boolean = false) {
     if (window == null) return
     WindowCompat.setDecorFitsSystemWindows(window, false)
     window.statusBarColor = android.graphics.Color.TRANSPARENT
@@ -874,15 +888,21 @@ private fun applyImmersiveWindow(window: Window?) {
         window.isNavigationBarContrastEnforced = false
         window.isStatusBarContrastEnforced = false
     }
-    val bars = WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars()
+    val navBars = WindowInsetsCompat.Type.navigationBars()
+    val statusBars = WindowInsetsCompat.Type.statusBars()
     WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = false
         isAppearanceLightNavigationBars = false
         systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        // Only write when a bar is actually showing: this runs on every layout
-        // pass, and a redundant hide() can itself provoke another layout.
+        // Only write when a bar's state actually differs: this runs on every
+        // layout pass, and a redundant hide()/show() can provoke another one.
         val insets = ViewCompat.getRootWindowInsets(window.decorView)
-        if (insets == null || insets.isVisible(bars)) hide(bars)
+        if (statusBarVisible) {
+            if (insets == null || !insets.isVisible(statusBars)) show(statusBars)
+        } else if (insets == null || insets.isVisible(statusBars)) {
+            hide(statusBars)
+        }
+        if (insets == null || insets.isVisible(navBars)) hide(navBars)
     }
 }
 
