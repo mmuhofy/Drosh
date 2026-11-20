@@ -174,27 +174,31 @@ class UbuntuBootstrap(private val context: Context) {
                 stageRuntimes()
                 onLog("  · Guest launchers staged.")
 
-                // Full Ubuntu Server root filesystem, downloaded and verified
-                // before a single entry is written. There are no bundled rootfs
-                // assets in this build, so the download is the only path — and
-                // keeping it the only path is what makes "never extract
-                // unverified bytes" true rather than a convention.
+                // The full Ubuntu Server root filesystem. The normal path
+                // downloads and verifies it before extracting. If an earlier
+                // attempt already extracted it (e.g. setup.sh failed later),
+                // the extracted tree is reused as-is so an update re-runs
+                // setup.sh instead of re-downloading and re-extracting.
                 rootfsDir.mkdirs()
-                val rootfsArch = rootfsArchForAbi()
-                val archive = downloadRootfs(rootfsArch, onLog, onDownloadProgress)
-                try {
-                    onLog("  · Extracting verified root filesystem…")
-                    FileInputStream(archive).use { raw ->
-                        XZInputStream(raw).use { xz ->
-                            extractTar(xz, rootfsDir)
+                if (guestShell.exists()) {
+                    onLog("  · Reusing extracted rootfs.")
+                } else {
+                    val rootfsArch = rootfsArchForAbi()
+                    val archive = downloadRootfs(rootfsArch, onLog, onDownloadProgress)
+                    try {
+                        onLog("  · Extracting verified root filesystem…")
+                        FileInputStream(archive).use { raw ->
+                            XZInputStream(raw).use { xz ->
+                                extractTar(xz, rootfsDir)
+                            }
                         }
+                    } finally {
+                        archive.delete()
+                        partFile(rootfsArch).delete()
+                        partMetaFile(rootfsArch).delete()
                     }
-                } finally {
-                    archive.delete()
-                    partFile(rootfsArch).delete()
-                    partMetaFile(rootfsArch).delete()
+                    onLog("✓ Rootfs extracted.")
                 }
-                onLog("✓ Rootfs extracted.")
 
                 onLog("→ Configuring guest (network, bash, completion marker)…")
                 onState(UbuntuSetupState.Configuring)
