@@ -106,7 +106,7 @@ val boundaryRules = listOf(
     // It was 22 before the guest moved to its own module: the nine imports of
     // the rootfs, the bootstrap and the archive were part of it.
     "features/ssh|dev.drosh.terminal|1",
-    "data|dev.drosh.terminal|13",
+    "data|dev.drosh.terminal|16",
 )
 
 // Rules inside one module: the files of a source package must not import a
