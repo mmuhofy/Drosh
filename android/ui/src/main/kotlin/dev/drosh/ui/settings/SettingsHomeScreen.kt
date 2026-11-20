@@ -42,8 +42,8 @@ private fun statusBarInset(): Dp =
  * One row per category, each carrying a one-line summary of what is in it —
  * the same reason the terminal rows carry their current value: a settings
  * screen you have to open to read is a settings screen you open twice. The
- * agent, the projects and the backup rows leave for their own screens;
- * everything else edits the file in place behind [SettingsCategoryRoute].
+ * backup row leaves for its own screen; everything else edits the file in
+ * place behind [SettingsCategoryRoute].
  */
 enum class SettingsCategoryRoute(val id: String) {
     Appearance("appearance"),
@@ -66,8 +66,6 @@ enum class SettingsCategoryRoute(val id: String) {
 fun SettingsHomeScreen(
     onBack: () -> Unit,
     onOpenCategory: (SettingsCategoryRoute) -> Unit,
-    onOpenProjects: () -> Unit,
-    onOpenAgentSettings: () -> Unit,
     onOpenBackupRestore: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -106,7 +104,7 @@ fun SettingsHomeScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = null, items = 8) { index, cap ->
+            SettingsGroupColumn(label = null, items = 6) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
@@ -140,27 +138,10 @@ fun SettingsHomeScreen(
                         onClick = { onOpenCategory(SettingsCategoryRoute.Shell) },
                     ) { SettingsChevron() }
 
-                    4 -> SettingsTile(
-                        cap = cap,
-                        title = stringResource(R.string.settings_projects),
-                        icon = DroshIcons.Folder,
-                        supporting = stringResource(R.string.settings_projects_desc),
-                        onClick = onOpenProjects,
-                    ) { SettingsChevron() }
-
-                    5 -> SettingsTile(
-                        cap = cap,
-                        title = stringResource(R.string.settings_agent),
-                        icon = DroshIcons.Code,
-                        supporting = stringResource(R.string.settings_agent_desc),
-                        onClick = onOpenAgentSettings,
-                    ) { SettingsChevron() }
-
-                    // Between the agent and security, where the two rows that
-                    // also leave for somewhere else sit. Backup is the answer
-                    // to "what happens when this phone dies" — a question the
+                    // Backup sits just above security: it is the answer to
+                    // "what happens when this phone dies" — a question the
                     // security rows below it raise and cannot answer.
-                    6 -> SettingsTile(
+                    4 -> SettingsTile(
                         cap = cap,
                         title = "Yedekle ve geri yükle",
                         icon = DroshIcons.Archive,
