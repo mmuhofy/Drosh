@@ -2390,7 +2390,18 @@ class TerminalManager(
             reportMissingGuestRuntime()
             return null
         }
-        if (!ubuntuBootstrap.isInstalled) return null
+        if (!ubuntuBootstrap.isInstalled) {
+            // The reason, not just "no guest": a missing setup marker and a
+            // rootfs without a shell are different failures, and only setup
+            // can fix either. One line, because the screen shows its own
+            // message and the log is for whoever has to debug this.
+            Log.w(
+                TAG,
+                "guest command unavailable: " +
+                    (ubuntuBootstrap.installUnavailableReason ?: "the guest is not installed"),
+            )
+            return null
+        }
 
         ensureShellRc()
 
@@ -2451,7 +2462,8 @@ class TerminalManager(
         !ubuntuBootstrap.isChrootNgAvailable ->
             "the guest runtime is not in this build — reinstall the app"
         !ubuntuBootstrap.isInstalled ->
-            "the Ubuntu rootfs is not installed — run setup from the sidebar"
+            ubuntuBootstrap.installUnavailableReason
+                ?: "the Ubuntu rootfs is not installed — run setup from the sidebar"
         else -> null
     }
 
