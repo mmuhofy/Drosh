@@ -48,11 +48,13 @@ data class SessionEntity(
     @ColumnInfo(name = "last_snapshot")
     val lastSnapshot: String,
 
+    // Legacy column — workspace feature removed
     /**
-     * The workspace this session is filed under, null when it is in none.
-     *
      * Nullable on purpose: most sessions are never grouped, and an empty string
      * would have to be special-cased everywhere the column is read.
+     *
+     * Kept for schema compatibility — Room's identity hash covers this column
+     * and its index, so removing either would break installed databases.
      */
     @ColumnInfo(name = "workspace_id")
     val workspaceId: String? = null,
