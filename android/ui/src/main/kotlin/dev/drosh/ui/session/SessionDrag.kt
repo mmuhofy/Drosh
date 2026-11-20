@@ -9,8 +9,10 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -58,10 +60,22 @@ internal fun Modifier.sessionDrag(
     val thresholdPx = with(LocalDensity.current) { DRAG_THRESHOLD.toPx() }
     val origin = remember { mutableStateOf(Offset.Zero) }
 
+    // UNTESTED — verify before use: the pointerInput block below restarts only
+    // when [dragKey] changes, so it captured the callbacks of the first
+    // composition — and with them the first composition's slot order, group
+    // list and visible ids, which are empty before the first layout. The drop
+    // then hit-tested against stale state and never found a target, which read
+    // as "drag does nothing". Reading each callback through
+    // rememberUpdatedState at event time always sees the latest composition.
+    val currentOnBounds by rememberUpdatedState(onBounds)
+    val currentOnStart by rememberUpdatedState(onStart)
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnEnd by rememberUpdatedState(onEnd)
+
     return this
         .onGloballyPositioned {
             origin.value = it.boundsInRoot().topLeft
-            onBounds(it.boundsInRoot())
+            currentOnBounds(it.boundsInRoot())
         }
         .pointerInput(dragKey) {
             awaitEachGesture {
@@ -99,12 +113,12 @@ internal fun Modifier.sessionDrag(
                         if (!started) {
                             started = true
                             startAbsolute = change.position + origin.value
-                            onStart(startAbsolute)
+                            currentOnStart(startAbsolute)
                         }
                         dragDelta.value = change.position - down.position
-                        onDrag(change.position + origin.value)
+                        currentOnDrag(change.position + origin.value)
                     }
-                    if (started) onEnd()
+                    if (started) currentOnEnd()
                     dragDelta.value = Offset.Zero
                 }
             }
