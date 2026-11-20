@@ -4,23 +4,20 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+// Schema-compat stub — workspace feature removed; do not delete (Room identity hash)
 /**
- * A workspace, as persisted.
+ * Kept solely so the exported schema JSON and the Room identity hash stay
+ * byte-identical to the shipped version-6 schema.
  *
- * ## What is not stored here
+ * Dropping this entity would change the hash Room stores in
+ * `room_master_table`, and an installed database carrying the old hash fails to
+ * open with `IllegalStateException: Room cannot verify the data integrity`.
+ * The `workspaces` table and `sessions.workspace_id` therefore remain part of
+ * the schema, and `MIGRATION_2_3` still creates them for upgrades. No feature
+ * code reads or writes this entity any more.
  *
- * Sessions, and anything a session owns.
- *
- * The grouping is a nullable foreign key on the session row rather than a
- * collection column here ([dev.drosh.data.session.SessionEntity.workspaceId]).
- * A workspace can hold many sessions but is not *made of* them, and a column of
- * ids on this side would need its own consistency rules for every write that
- * touched either table.
- *
- * [rootPath] is a label. Nothing reads it to decide where to run a shell, and it
- * is stored normalised by
- * [dev.drosh.domain.workspace.WorkspacePath.normalise] so two spellings of one
- * directory cannot become two workspaces.
+ * Do not delete without a schema version bump, a matching migration and a
+ * regenerated `IDENTITY_HASH` / `6.json`.
  */
 @Entity(tableName = "workspaces")
 data class WorkspaceEntity(
@@ -38,7 +35,7 @@ data class WorkspaceEntity(
     @ColumnInfo(name = "description")
     val description: String,
 
-    /** Index into a fixed palette; see `WORKSPACE_COLOR_SEED_COUNT`. */
+    /** Index into a fixed palette. Retained for column shape only. */
     @ColumnInfo(name = "color_seed")
     val colorSeed: Int,
 
