@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_home_group_app">التطبيق</string>
+    <string name="settings_home_group_terminal">الطرفية</string>
+    <string name="settings_home_group_privacy">الخصوصية والبيانات</string>
+    <string name="settings_home_group_about">حول</string>
+</resources>

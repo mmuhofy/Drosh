@@ -96,7 +96,7 @@ fun SettingsHomeScreen(
                             imageUrl = deviceIdentity?.visualUrl,
                             fallbackLetter = (deviceIdentity?.marketingName ?: "?")
                                 .firstOrNull()?.uppercase() ?: "?",
-                            size = 46.dp,
+                            size = 44.dp,
                         )
                     },
                 )
@@ -104,7 +104,10 @@ fun SettingsHomeScreen(
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = null, items = 6) { index, cap ->
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_home_group_app),
+                items = 2,
+            ) { index, cap ->
                 when (index) {
                     0 -> SettingsTile(
                         cap = cap,
@@ -114,7 +117,24 @@ fun SettingsHomeScreen(
                         onClick = { onOpenCategory(SettingsCategoryRoute.Appearance) },
                     ) { SettingsChevron() }
 
-                    1 -> SettingsTile(
+                    else -> SettingsTile(
+                        cap = cap,
+                        title = stringResource(R.string.settings_language),
+                        icon = DroshIcons.Languages,
+                        supporting = languageSummary(settings),
+                        onClick = { onOpenCategory(SettingsCategoryRoute.Language) },
+                    ) { SettingsChevron() }
+                }
+            }
+
+            Spacer(Modifier.height(GROUP_GAP))
+
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_home_group_terminal),
+                items = 3,
+            ) { index, cap ->
+                when (index) {
+                    0 -> SettingsTile(
                         cap = cap,
                         title = stringResource(R.string.settings_category_terminal),
                         icon = DroshIcons.SquareTerminal,
@@ -122,7 +142,7 @@ fun SettingsHomeScreen(
                         onClick = { onOpenCategory(SettingsCategoryRoute.Terminal) },
                     ) { SettingsChevron() }
 
-                    2 -> SettingsTile(
+                    1 -> SettingsTile(
                         cap = cap,
                         title = stringResource(R.string.settings_category_keyboard),
                         icon = DroshIcons.Keyboard,
@@ -130,55 +150,57 @@ fun SettingsHomeScreen(
                         onClick = { onOpenCategory(SettingsCategoryRoute.Keyboard) },
                     ) { SettingsChevron() }
 
-                    3 -> SettingsTile(
+                    else -> SettingsTile(
                         cap = cap,
                         title = stringResource(R.string.settings_category_shell),
                         icon = DroshIcons.Terminal,
                         supporting = shellSummary(settings),
                         onClick = { onOpenCategory(SettingsCategoryRoute.Shell) },
                     ) { SettingsChevron() }
+                }
+            }
 
-                    // Backup sits just above security: it is the answer to
-                    // "what happens when this phone dies" — a question the
-                    // security rows below it raise and cannot answer.
-                    4 -> SettingsTile(
-                        cap = cap,
-                        title = "Yedekle ve geri yükle",
-                        icon = DroshIcons.Archive,
-                        supporting = "Uygulama verisi ve Linux dizini yedeği",
-                        onClick = { onOpenBackupRestore() },
-                    ) { SettingsChevron() }
+            Spacer(Modifier.height(GROUP_GAP))
 
-                    else -> SettingsTile(
+            // Security above backup: backup is the answer to "what happens
+            // when this phone dies", and security is what the person came
+            // here worried about first.
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_home_group_privacy),
+                items = 2,
+            ) { index, cap ->
+                when (index) {
+                    0 -> SettingsTile(
                         cap = cap,
                         title = stringResource(R.string.settings_category_security),
                         icon = DroshIcons.Shield,
                         supporting = securitySummary(settings),
                         onClick = { onOpenCategory(SettingsCategoryRoute.Security) },
                     ) { SettingsChevron() }
+
+                    else -> SettingsTile(
+                        cap = cap,
+                        title = "Yedekle ve geri yükle",
+                        icon = DroshIcons.Archive,
+                        supporting = "Uygulama verisi ve Linux dizini yedeği",
+                        onClick = { onOpenBackupRestore() },
+                    ) { SettingsChevron() }
                 }
             }
 
             Spacer(Modifier.height(GROUP_GAP))
 
-            SettingsGroupColumn(label = null, items = 2) { index, cap ->
-                when (index) {
-                    0 -> SettingsTile(
-                        cap = cap,
-                        title = stringResource(R.string.settings_language),
-                        icon = DroshIcons.Languages,
-                        supporting = languageSummary(settings),
-                        onClick = { onOpenCategory(SettingsCategoryRoute.Language) },
-                    ) { SettingsChevron() }
-
-                    else -> SettingsTile(
-                        cap = cap,
-                        title = stringResource(R.string.settings_category_about),
-                        icon = DroshIcons.Info,
-                        supporting = stringResource(R.string.settings_default_build_description),
-                        onClick = { onOpenCategory(SettingsCategoryRoute.About) },
-                    ) { SettingsChevron() }
-                }
+            SettingsGroupColumn(
+                label = stringResource(R.string.settings_home_group_about),
+                items = 1,
+            ) { _, cap ->
+                SettingsTile(
+                    cap = cap,
+                    title = stringResource(R.string.settings_category_about),
+                    icon = DroshIcons.Info,
+                    supporting = stringResource(R.string.settings_default_build_description),
+                    onClick = { onOpenCategory(SettingsCategoryRoute.About) },
+                ) { SettingsChevron() }
             }
 
             Spacer(Modifier.height(32.dp))

@@ -98,9 +98,9 @@ import dev.drosh.theme.DroshTrack
 /** The corner a tile takes, from its position in the group. */
 enum class TileCap { First, Middle, Last, Only }
 
-/** 24dp at the ends, 4dp in the middle — see the note on the file. */
-private val CAP_RADIUS = 24.dp
-private val FLOW_RADIUS = 4.dp
+/** 14dp at the ends, 3dp in the middle: cut, not pillowed — see the note on the file. */
+private val CAP_RADIUS = 14.dp
+private val FLOW_RADIUS = 3.dp
 
 internal fun tileShape(cap: TileCap) = when (cap) {
     TileCap.First -> RoundedCornerShape(
@@ -152,9 +152,9 @@ fun SettingsGroupColumn(
             Text(
                 text = label,
                 color = DroshTextMuted,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 6.dp),
+                modifier = Modifier.padding(start = 12.dp, top = 2.dp, bottom = 6.dp),
             )
         }
         for (index in 0 until items) {
@@ -178,7 +178,7 @@ fun SettingsTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
+            .padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -200,7 +200,7 @@ fun SettingsTopBar(
         Text(
             text = title,
             color = DroshText,
-            fontSize = 22.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Medium,
         )
     }
@@ -220,6 +220,8 @@ fun SettingsTile(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     supporting: String? = null,
+    /** A short value at the right of the title line — the number a slider is at. */
+    value: String? = null,
     stacked: Boolean = false,
     selected: Boolean = false,
     onClick: (() -> Unit)? = null,
@@ -253,7 +255,7 @@ fun SettingsTile(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 58.dp)
+            .defaultMinSize(minHeight = 52.dp)
             .clip(shape)
             .background(background)
             .then(
@@ -272,7 +274,7 @@ fun SettingsTile(
                     else -> Modifier
                 }
             )
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 11.dp),
     ) {
         // Built once so both arrangements share it. A control that fills its
         // row cannot be a sibling of a weighted text column: in a Row it wins
@@ -287,15 +289,15 @@ fun SettingsTile(
                     imageVector = icon,
                     contentDescription = null,
                     tint = DroshTextSecondary,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(22.dp),
                 )
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(14.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     color = if (selected) DroshPrimary else DroshText,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -304,10 +306,20 @@ fun SettingsTile(
                     Text(
                         text = supporting,
                         color = DroshTextMuted,
-                        fontSize = 14.sp,
-                        lineHeight = 18.sp,
+                        fontSize = 13.sp,
+                        lineHeight = 17.sp,
                     )
                 }
+            }
+            if (!value.isNullOrBlank()) {
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = value,
+                    color = DroshTextSecondary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                )
             }
         }
 
@@ -319,7 +331,7 @@ fun SettingsTile(
                     content = head,
                 )
                 if (control != null) {
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(12.dp))
                     Column(modifier = Modifier.fillMaxWidth()) { control() }
                 }
             }
@@ -359,7 +371,7 @@ fun <T> SettingsSegmented(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(11.dp))
             .background(DroshTrack)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -380,8 +392,8 @@ fun <T> SettingsSegmented(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(999.dp))
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(background)
                     .clickable(
                         interactionSource = interaction,
@@ -393,7 +405,7 @@ fun <T> SettingsSegmented(
                 Text(
                     text = label,
                     color = content,
-                    fontSize = 14.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = if (isOn) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 1,
                 )
@@ -479,7 +491,7 @@ fun SettingsSlider(
         label = "handleWidth",
     )
     val handleHeight by animateDpAsState(
-        targetValue = if (dragging) 36.dp else 30.dp,
+        targetValue = if (dragging) 28.dp else 24.dp,
         animationSpec = if (dragging) {
             spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -513,7 +525,7 @@ fun SettingsSlider(
             // a 34dp thumb, which left 11dp of nothing above and below the
             // control on every row that carried one, and a page of settings
             // reads as a page of gaps when the gap is bigger than the control.
-            .height(48.dp)
+            .height(40.dp)
             .onSizeChanged { trackWidth = it.width.coerceAtLeast(1) }
             .drawBehind {
                 val w = trackWidth.toFloat()
@@ -612,8 +624,8 @@ fun SettingsSlider(
     )
 }
 
-private val TRACK_THICKNESS = 16.dp
-private val HANDLE_GAP = 6.dp
+private val TRACK_THICKNESS = 12.dp
+private val HANDLE_GAP = 5.dp
 
 
 /**
@@ -638,7 +650,7 @@ fun SettingsSwitch(
         label = "swThumbColor",
     )
     val thumbSize by animateDpAsState(
-        targetValue = if (checked) 24.dp else 14.dp,
+        targetValue = if (checked) 20.dp else 12.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessMediumLow,
@@ -646,7 +658,7 @@ fun SettingsSwitch(
         label = "swThumbSize",
     )
     val offset by animateDpAsState(
-        targetValue = if (checked) 24.dp else 9.dp,
+        targetValue = if (checked) 22.dp else 8.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
@@ -655,7 +667,7 @@ fun SettingsSwitch(
     )
     Box(
         modifier = modifier
-            .size(width = 52.dp, height = 32.dp)
+            .size(width = 46.dp, height = 28.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(track)
             .toggleable(
@@ -696,7 +708,7 @@ fun SettingsCheck(modifier: Modifier = Modifier) {
         imageVector = dev.drosh.ui.DroshIcons.Check,
         contentDescription = null,
         tint = DroshPrimary,
-        modifier = modifier.size(20.dp),
+        modifier = modifier.size(18.dp),
     )
 }
 
