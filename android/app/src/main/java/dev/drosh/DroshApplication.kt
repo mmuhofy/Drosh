@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import dev.drosh.core.LocaleHelper
 import dev.drosh.data.session.SessionManagerAdapter
+import dev.drosh.terminal.engine.native.NativeLibraries
 import dev.drosh.domain.settings.SettingsStore
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,9 @@ class DroshApplication : Application() {
         // The terminal's clipboard sink needs a context before any session can
         // ask it to write; attaching here is the earliest point it exists.
         ClipboardSink.attach(this)
+        // The component store needs a context before the first JNI call; the
+        // application is the earliest point it exists.
+        NativeLibraries.appContext = this
         // The persisted setting is the authority: a session may be created
         // (and a program may write) before any terminal screen is composed, so
         // the sink's gate is seeded from the store synchronously, then kept in

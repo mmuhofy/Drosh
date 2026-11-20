@@ -48,6 +48,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Guard: targetSdk stays 28
+        run: |
+          set -euo pipefail
+          v=$(grep -oP 'TARGET_SDK\s*=\s*\K[0-9]+' android/build-logic/src/main/kotlin/dev/drosh/DroshBuildConfig.kt)
+          if [ "$v" != "28" ]; then
+            echo "::error::targetSdk must stay 28 for native hot-update (W^X)"
+            exit 1
+          fi
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:

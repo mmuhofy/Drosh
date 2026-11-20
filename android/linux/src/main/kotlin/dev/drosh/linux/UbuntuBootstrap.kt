@@ -39,7 +39,14 @@ class UbuntuBootstrap(private val context: Context) {
      * APK and nowhere else, and the guest has nothing to run. The runtime is staged
      * from an asset for the same reason, and it works.
      */
-    val chrootNgFile: File get() = File(baseDir, "bin/libchrootng.so")
+    val chrootNgFile: File get() {
+        val override = System.getProperty("dev.drosh.chrootNg.override")
+        if (!override.isNullOrBlank()) {
+            val file = File(override)
+            if (file.isFile) return file
+        }
+        return File(baseDir, "bin/libchrootng.so")
+    }
     val libDir: File get() = File(baseDir, "lib")
     val rootfsDir: File get() = File(baseDir, "rootfs")
     private val tmpDir: File get() = File(baseDir, "tmp")

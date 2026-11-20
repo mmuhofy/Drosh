@@ -1,0 +1,64 @@
+package dev.drosh.terminal.engine.update
+
+/**
+ * The app's own APK from the main repository.
+ *
+ * The APK carries Rust and Kotlin together, so it is the only thing that
+ * updates both at once. Nightly builds are published from `main` daily;
+ * releases are tagged.
+ */
+class ApkRepository : UpdateRepository {
+    override val id = ComponentId.APK
+
+    override fun supports(channel: UpdateChannel): Boolean = true
+
+    override suspend fun latest(channel: UpdateChannel, abi: String): ComponentRelease? {
+        val releases = releases() ?: return null
+        for (release in releases) {
+            if (release.draft) continue
+            val tag = release.tag_name
+            val matched = when (channel) {
+                UpdateChannel.RELEASE -> tag.startsWith("v")
+                UpdateChannel.NIGHTLY -> tag.startsWith("nightly-")
+            }
+            if (!matched) continue
+            val assetName = "app-$abi-release.apk"
+            val asset = release.assets.firstOrNull { it.name == assetName } ?: continue
+            val digest = digestFor(release, assetName) ?: continue
+            return ComponentRelease(
+                id = id.key,
+                version = tag.removePrefix("v").removePrefix("nightly-"),
+                abi = abi,
+                sha256 = digest,
+                sizeBytes = asset.size,
+                url = asset.url,
+                publishedAt = release.published_at ?: "",
+            )
+        }
+        return null
+    }
+
+    override suspend fun download(release: ComponentRelease): ByteArray? =
+        httpGetBytes(release.url)
+
+    private suspend fun releases(): List<GhRelease>? {
+        val body = httpGetText("https://api.github.com/repos/mmuhofy/Drosh/releases?per_page=20")
+            ?: return null
+        return runCatching { UpdateJson.decodeFromString<List<GhRelease>>(body) }.getOrNull()
+    }
+
+    private suspend fun digestFor(release: GhRelease, fileName: String): String? {
+        val shaAsset = release.assets.firstOrNull { it.name == "$fileName.sha256" }
+        if (shaAsset != null) {
+            val body = httpGetText(shaAsset.url) ?: return null
+            return body.trim().split(Regex("\\s+")).firstOrNull()?.lowercase()
+        }
+        val sums = release.assets.firstOrNull { it.name == "SHA256SUMS" } ?: return null
+        val body = httpGetText(sums.url) ?: return null
+        for (line in body.lineSequence()) {
+            val parts = line.trim().split(Regex("\\s+"))
+            if (parts.size >= 2 && parts[1] == fileName) return parts[0].lowercase()
+        }
+        return null
+    }
+}

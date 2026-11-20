@@ -19,6 +19,14 @@ package dev.drosh.terminal.engine.native
  */
 object NativeLibraries {
 
+    /** The application context, for the component store. Set at startup. */
+    @Volatile
+    var appContext: android.content.Context? = null
+
+    /** The component store, created from the context on first use. */
+    @Volatile
+    var store: dev.drosh.terminal.engine.update.ComponentStore? = null
+
     /** True once both libraries are loaded and the entry points are bound. */
     @Volatile
     var loaded: Boolean = false
@@ -38,17 +46,23 @@ object NativeLibraries {
         if (loaded) return true
         failure?.let { return false }
 
-        return try {
-            // The dependency first: libdrosh.so has it in DT_NEEDED.
-            System.loadLibrary("ghostty-vt")
-            System.loadLibrary("drosh")
-            loaded = true
-            true
-        } catch (error: UnsatisfiedLinkError) {
-            // The message is the only diagnosis a device will give: it names
-            // the library and the symbol or the missing dependency.
-            failure = error.message ?: error.javaClass.name
-            false
+        val context = appContext
+        return if (context != null) {
+            val componentStore = store ?: dev.drosh.terminal.engine.update.ComponentStore(context)
+                .also { store = it }
+            dev.drosh.terminal.engine.update.ComponentLoader.load(context, componentStore)
+        } else {
+            // No context yet — fall back to the bundled copy so the terminal
+            // still opens. The component store is not consulted.
+            try {
+                System.loadLibrary("ghostty-vt")
+                System.loadLibrary("drosh")
+                loaded = true
+                true
+            } catch (error: UnsatisfiedLinkError) {
+                failure = error.message ?: error.javaClass.name
+                false
+            }
         }
     }
 }
