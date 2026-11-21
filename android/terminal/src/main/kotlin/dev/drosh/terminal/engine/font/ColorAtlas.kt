@@ -101,15 +101,16 @@ internal class ColorAtlas(
      *
      * @param px the cell's height, which is the box an emoji is fitted into.
      */
-    fun glyph(codepoint: Int, px: Float): ColorGlyph? {
+    fun glyph(codepoint: Int, span: Int, px: Float): ColorGlyph? {
         beginSize(px)
         if (rasterPx <= 0f) return null
+        val s = span.coerceAtLeast(1)
 
-        val key = (codepoint.toLong() shl 20) or rasterPx.toLong()
+        val key = (codepoint.toLong() shl 20) or (s.toLong() shl 18) or rasterPx.toLong()
         cache[key]?.let { return it }
         if (cache.containsKey(key)) return null
 
-        val glyph = rasterise(codepoint)
+        val glyph = rasterise(codepoint, s)
         cache[key] = glyph
         return glyph
     }
@@ -171,42 +172,39 @@ internal class ColorAtlas(
         paint.textSize = rounded
     }
 
-    private fun rasterise(codepoint: Int): ColorGlyph? {
+    private fun rasterise(codepoint: Int, span: Int): ColorGlyph? {
         if (codepoint <= 0 || codepoint > Character.MAX_CODE_POINT) return null
         val text = String(Character.toChars(codepoint))
 
-        // An emoji is drawn into a square the cell's height, which is the box
-        // it occupies on the grid: a terminal gives an emoji two columns and
-        // one row.
-        // The emoji font draws outside the nominal em box: a glyph measured at
-        // N pixels can cover more than N. A slot of exactly N cut the edges off
-        // — "kesik kesik" — and two neighbouring slots bled into each other.
-        // Reserve a padded square and draw the glyph in its centre; the pad is
-        // transparent and disappears when the quad is sampled.
-        val extent = kotlin.math.ceil(rasterPx * GLYPH_PAD).toInt()
-        if (extent <= 0 || extent > size) return null
+        // The emoji occupies span cells wide and one cell high. The slot is
+        // rasterised at that aspect ratio (with padding) so the quad maps 1:1
+        // instead of stretching the ink. The padding keeps the glyph's edges
+        // from being clipped, which is what made emoji look "kesik kesik".
+        val widthPx = kotlin.math.ceil(rasterPx * span * GLYPH_PAD).toInt()
+        val heightPx = kotlin.math.ceil(rasterPx * GLYPH_PAD).toInt()
+        if (widthPx <= 0 || heightPx <= 0 || widthPx > size || heightPx > size) return null
 
-        var slot = reserve(extent, extent)
+        var slot = reserve(widthPx, heightPx)
         if (slot == null) {
             reset()
-            slot = reserve(extent, extent) ?: return null
+            slot = reserve(widthPx, heightPx) ?: return null
         }
 
         val canvas = Canvas(bitmap)
         canvas.save()
-        canvas.clipRect(slot.x, slot.y, slot.x + extent, slot.y + extent)
+        canvas.clipRect(slot.x, slot.y, slot.x + widthPx, slot.y + heightPx)
         val metrics = paint.fontMetrics
-        // Centred in the square: a glyph drawn from the pen would hang below
+        // Centred in the box: a glyph drawn from the pen would hang below
         // the box and be clipped.
-        val baseline = slot.y + extent / 2f - (metrics.ascent + metrics.descent) / 2f
-        canvas.drawText(text, slot.x + extent / 2f, baseline, paint)
+        val baseline = slot.y + heightPx / 2f - (metrics.ascent + metrics.descent) / 2f
+        canvas.drawText(text, slot.x + widthPx / 2f, baseline, paint)
         canvas.restore()
 
         // Only the slot is copied out: the whole bitmap is four megabytes.
-        val row = IntArray(extent)
-        for (line in 0 until extent) {
-            bitmap.getPixels(row, 0, extent, slot.x, slot.y + line, extent, 1)
-            for (column in 0 until extent) {
+        val row = IntArray(widthPx)
+        for (line in 0 until heightPx) {
+            bitmap.getPixels(row, 0, widthPx, slot.x, slot.y + line, widthPx, 1)
+            for (column in 0 until widthPx) {
                 val colour = row[column]
                 val base = ((slot.y + line) * size + slot.x + column) * 4
                 pixels.put(base, (colour ushr 16 and 0xff).toByte())
@@ -219,7 +217,7 @@ internal class ColorAtlas(
         dirty = true
         if (slot.y < dirtyTopY) dirtyTopY = slot.y
 
-        return ColorGlyph(x = slot.x, y = slot.y, width = extent, height = extent)
+        return ColorGlyph(x = slot.x, y = slot.y, width = widthPx, height = heightPx)
     }
 
     private fun reserve(width: Int, height: Int): Slot? {

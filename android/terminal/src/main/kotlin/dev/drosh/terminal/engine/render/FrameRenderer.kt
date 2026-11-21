@@ -1450,14 +1450,12 @@ internal class FrameRenderer {
                 val index = base + column
                 val codepoint = frame.codepoint(index)
                 if (codepoint == 0 || !Emoji.isEmoji(codepoint)) continue
-                val glyph = colorAtlas.glyph(codepoint, cellHeight) ?: continue
+                val span = if (frame.width(index) == 2) 2 else 1
+                val glyph = colorAtlas.glyph(codepoint, span, cellHeight) ?: continue
                 if (glyph.isBlank) continue
 
-                val span = if (frame.width(index) == 2) 2 else 1
-                // The padded atlas square maps onto the emoji's whole grid
-                // box: two columns wide for a double-width emoji, one row
-                // high. The glyph keeps its aspect inside the pad, and no ink
-                // is cut at a slot edge.
+                // The atlas slot is rasterised at span×1, so the source UV
+                // covers the whole slot and the quad maps it 1:1 — no stretch.
                 colorGlyphs.add(
                     ImageDraw(
                         texture = colorAtlasTexture,
