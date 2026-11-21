@@ -1292,13 +1292,12 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // the old view's "gears", without a setting anyone has to choose. The
         // tiers also cap a violent flick: a raw list velocity would throw the
         // output past a hundred rows and make the picture impossible to read.
-        val speed = kotlin.math.abs(velocityY)
-        val gear = when {
-            speed < 1_200f -> 0.22f
-            speed < 2_800f -> 0.38f
-            speed < 5_000f -> 0.55f
-            else -> 0.75f
-        }
+        // The old Drosh view used a constant 0.25: the detector's velocity
+        // is measured for a list, and a terminal that moved at that speed
+        // scrolled a screenful per flick. The fling then goes through the same
+        // pixel path as a drag, so it carries the sub-line remainder and the
+        // ends ease instead of slamming.
+        val gear = 0.25f
         flingGear = gear
         // The detector's velocity is positive when the finger moved up, and up
         // means the content keeps moving up — a negative distance for the drag
