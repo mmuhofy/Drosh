@@ -1,5 +1,6 @@
 package dev.drosh.ui.terminal
 
+import android.content.ClipboardManager
 import android.graphics.Bitmap
 import android.util.Log
 import android.os.Handler
@@ -17,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
@@ -25,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -234,6 +238,30 @@ fun GhosttyTerminalHost(
     }
 
     var status by remember { mutableStateOf<String?>("preparing") }
+
+    // The selection's chrome. It is drawn here, next to the view that owns the
+    // gesture, rather than in the screen that hosts this one: the rectangle the
+    // renderer measures is in this pane's own pixels, and a menu placed by an
+    // ancestor would have to be told where the pane is before it could sit on
+    // the selection.
+    val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
+    val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
+    val selectionText by remember(hasSelection, selectionBounds) {
+        derivedStateOf {
+            if (!hasSelection) {
+                null
+            } else {
+                pane.selectionText().takeIf { it.isNotEmpty() }
+            }
+        }
+    }
+    val selectionUrl = remember(selectionText) {
+        selectionText?.let { dev.drosh.domain.UrlDetector.findUrls(it).singleOrNull()?.url }
+    }
+    val hasClipboardText = remember(hasSelection) {
+        if (!hasSelection) return@remember false
+        context.getSystemService(ClipboardManager::class.java)?.hasPrimaryClip() == true
+    }
     var zoomSizeSp by remember { mutableStateOf(0f) }
 
     // The diagnostics eye. The panel is off by default: a terminal's surface
@@ -599,6 +627,24 @@ fun GhosttyTerminalHost(
                 }
             },
         )
+
+        // The selection's grips and menu. Drawn after the terminal so it sits
+        // on top of the text it is about; `paneOrigin` is zero because this Box
+        // *is* the pane, and the bounds are already in the pane's pixels.
+        if (hasSelection && selectionBounds != null) {
+            TerminalSelectionMenu(
+                bounds = selectionBounds,
+                paneOrigin = Offset.Zero,
+                hasClipboardText = hasClipboardText,
+                url = selectionUrl,
+                onCopy = { pane.copySelection() },
+                onPaste = { pane.pasteClipboard() },
+                onSelectAll = { pane.selectAll() },
+                onOpenUrl = { /* handled by the host's own link tap */ },
+                onExtend = { x, y, fromEnd -> pane.extendSelectionTo(x, y, fromEnd) },
+                terminalBackground = Color(backgroundColor),
+            )
+        }
 
         // The size, while the fingers are on the screen.
         //

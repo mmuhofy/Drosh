@@ -1,7 +1,6 @@
 package dev.drosh.ui.terminal
 
 import android.app.ActivityManager
-import android.content.ClipboardManager
 import android.content.Context
 import android.os.StatFs
 import android.util.Log
@@ -52,7 +51,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -73,7 +71,6 @@ import dev.drosh.ui.LocalDroshActivity
 import java.io.File
 import android.os.Build
 import android.view.WindowManager
-import dev.drosh.domain.UrlDetector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import dev.drosh.core.copyToClipboard
@@ -1031,39 +1028,8 @@ private fun ReadyScreen(
         highlightMatch(findState)
     }
 
-    // Text selection menu. The platform ActionMode is switched off when the
-    // view registers — see TerminalManager.bindSelectionMenu — and this draws
-    // the replacement, so it can use the app's own surface and a real blur of
-    // the output behind it.
-    val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
-    val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
-
-    val context = LocalContext.current
-    /**
-     * The selected text, or null when there is no selection.
-     *
-     * The vendored view's own selection, or the engine pane's: the manager
-     * publishes the bounds for both kinds of terminal, and each one knows
-     * its own text. The vendored view is asked first, so the path the app
-     * has always taken is unchanged.
-     */
-    val selectionText by remember(hasSelection, selectionBounds) {
-        derivedStateOf {
-            if (!hasSelection) {
-                null
-            } else {
-                terminalManager.focusedTerminal()?.selectionText()?.takeIf { it.isNotEmpty() }
-            }
-        }
-    }
-    val selectionUrl = remember(selectionText) {
-        selectionText?.let { UrlDetector.findUrls(it).singleOrNull()?.url }
-    }
-    val hasClipboardText = remember(hasSelection) {
-        if (!hasSelection) return@remember false
-        context.getSystemService(ClipboardManager::class.java)
-            ?.hasPrimaryClip() == true
-    }
+    // The selection's menu is drawn by the pane's own host; see the note where
+    // it used to be composed here.
 
     // Only the classic path has a View to sample; the block engine is a
     // LazyColumn and the alt buffer is a TUI, neither of which needs this.
@@ -1493,39 +1459,12 @@ private fun ReadyScreen(
             )
         }
 
-        // The selection's menu and its handles.
-        //
-        // Drawn over the terminal, where the selection is: the menu is a
-        // control over that text and nothing else, and a control the user has
-        // to look for is a control they will not find.
-        val selectionRect = selectionBounds
-        if (hasSelection && selectionRect != null) {
-            TerminalSelectionMenu(
-                bounds = selectionRect,
-                paneOrigin = Offset(
-                    terminalBounds?.left?.toFloat() ?: 0f,
-                    terminalBounds?.top?.toFloat() ?: 0f,
-                ),
-                hasClipboardText = hasClipboardText,
-                url = selectionUrl,
-                onCopy = {
-                    terminalManager.focusedTerminal()?.copySelection()
-                },
-                onPaste = {
-                    terminalManager.focusedTerminal()?.pasteClipboard()
-                },
-                onSelectAll = {
-                    terminalManager.focusedTerminal()?.selectAll()
-                },
-                onOpenUrl = { url ->
-                    browserUrl = url
-                },
-                onExtend = { x, y, fromEnd ->
-                    terminalManager.focusedTerminal()?.extendSelectionTo(x, y, fromEnd)
-                },
-                terminalBackground = Color(hexToColorInt(appearance.terminal.palette.background)),
-            )
-        }
+        // The selection's menu and its handles are drawn by the pane's own
+        // host (`GhosttyTerminalHost`), next to the view that owns the gesture.
+        // They used to be drawn here, an ancestor of the host: the rectangle is
+        // in the pane's pixels, and a menu placed from outside the pane had to
+        // be told where the pane sat before it could sit on the selection —
+        // which is why the grips never appeared.
 
         // The session grid, over everything.
         //
