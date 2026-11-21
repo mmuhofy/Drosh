@@ -51,4 +51,18 @@ object TerminalFont {
 
     /** The bold face of the same family. */
     fun bold(context: Context): Typeface = Typeface.create(of(context), Typeface.BOLD)
+
+    /**
+     * The font's bytes, for the engine's own shaper.
+     *
+     * The terminal's shaper lives in Rust and never sees the `Typeface`
+     * Android gave us; it needs the file the APK ships. Reading it here keeps
+     * the two on the same font, which is the only thing that matters: a
+     * shaper that shaped with one face and a rasteriser that drew with another
+     * is text that does not fit its own advance.
+     */
+    fun bytes(context: Context): ByteArray {
+        val res = context.applicationContext.resources
+        return res.openRawResource(R.font.jetbrains_mono_nerd).use { it.readBytes() }
+    }
 }
