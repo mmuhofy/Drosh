@@ -637,7 +637,7 @@ fun GhosttyTerminalHost(
         // *is* the pane, and the bounds are already in the pane's pixels.
         if (hasSelection && selectionBounds != null) {
             TerminalSelectionMenu(
-                bounds = selectionBounds,
+                bounds = selectionBounds!!,
                 paneOrigin = Offset.Zero,
                 hasClipboardText = hasClipboardText,
                 url = selectionUrl,
