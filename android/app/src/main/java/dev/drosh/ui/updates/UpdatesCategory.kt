@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -81,6 +82,11 @@ class UpdatesViewModel @Inject constructor(
     private val _status = MutableStateFlow("")
     val status: StateFlow<String> = _status.asStateFlow()
 
+    private val _pendingRestart = MutableStateFlow(false)
+    val pendingRestart: StateFlow<Boolean> = _pendingRestart.asStateFlow()
+
+    fun clearPendingRestart() { _pendingRestart.value = false }
+
     private val _installApk = MutableSharedFlow<java.io.File>(extraBufferCapacity = 1)
     val installApk: SharedFlow<java.io.File> = _installApk.asSharedFlow()
 
@@ -145,6 +151,7 @@ class UpdatesViewModel @Inject constructor(
             }
             val activated = withContext(Dispatchers.IO) { store.activate(id, installed) }
             _status.value = if (activated) "installed ${release.version} — restart to apply" else "activation failed"
+            if (activated && id == ComponentId.GHOSTTY_VT) _pendingRestart.value = true
             _busy.value = null
             check()
         }
@@ -187,6 +194,7 @@ fun UpdatesCategory(
     val latest by viewModel.latest.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
+    val pendingRestart by viewModel.pendingRestart.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.check() }
 
@@ -199,6 +207,22 @@ fun UpdatesCategory(
     ) {
         Text(text = "Updates & Version Management", color = Color.White)
         Text(text = status, color = Color(0xFFB0FFB0), fontSize = 12.sp)
+
+        if (pendingRestart) {
+            AlertDialog(
+                onDismissRequest = { viewModel.clearPendingRestart() },
+                title = { Text("Restart needed") },
+                text = { Text("The VT engine was updated. Restart the app now to use it, or apply it on the next start.") },
+                confirmButton = {
+                    Button(onClick = { android.os.Process.killProcess(android.os.Process.myPid()) }) {
+                        Text("Restart now")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.clearPendingRestart() }) { Text("Later") }
+                },
+            )
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { viewModel.setChannel(UpdateChannel.RELEASE); viewModel.check() }) {
