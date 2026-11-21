@@ -100,6 +100,7 @@ import dev.drosh.ui.settings.KeyboardCategory
 import dev.drosh.ui.settings.LanguageCategory
 import dev.drosh.ui.settings.SecurityCategory
 import dev.drosh.ui.settings.SettingsCategoryRoute
+import dev.drosh.ui.updates.UpdatesCategory
 import dev.drosh.ui.settings.OnSettingsUpdate
 import dev.drosh.ui.settings.SettingsHomeScreen
 import dev.drosh.ui.session.SessionLogTarget
@@ -477,6 +478,8 @@ class MainActivity : ComponentActivity() {
                     versionCode = BuildConfig.VERSION_CODE,
                     gitSha = BuildConfig.GIT_SHA,
                 )
+            SettingsCategoryRoute.Updates ->
+                UpdatesCategory(onBack = onBack)
         }
     }
 

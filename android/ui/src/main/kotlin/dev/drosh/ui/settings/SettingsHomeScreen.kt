@@ -54,6 +54,7 @@ enum class SettingsCategoryRoute(val id: String) {
     Language("language"),
     About("about"),
     ThemeStore("theme_store"),
+    Updates("updates"),
     ;
 
     companion object {
@@ -186,6 +187,21 @@ fun SettingsHomeScreen(
                         onClick = { onOpenBackupRestore() },
                     ) { SettingsChevron() }
                 }
+            }
+
+            Spacer(Modifier.height(GROUP_GAP))
+
+            SettingsGroupColumn(
+                label = "Updates & Version Management",
+                items = 1,
+            ) { _, cap ->
+                SettingsTile(
+                    cap = cap,
+                    title = "Updates & Version Management",
+                    icon = DroshIcons.Download,
+                    supporting = "components, channels, rollback",
+                    onClick = { onOpenCategory(SettingsCategoryRoute.Updates) },
+                ) { SettingsChevron() }
             }
 
             Spacer(Modifier.height(GROUP_GAP))
