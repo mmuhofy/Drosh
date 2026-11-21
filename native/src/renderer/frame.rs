@@ -752,6 +752,21 @@ impl FrameSource {
             &mut selected as *mut bool as *mut c_void,
         );
 
+        // Whether this cell is part of the app's own selection. Computed here
+        // so the colour swap below can use it: the selection is the terminal's
+        // two colours swapped, which is what makes it read as a highlight
+        // instead of as a white block.
+        let cell_index_for_app = (at - HEADER_BYTES) / CELL_BYTES;
+        let viewport_row_for_app = self.viewport_row(cell_index_for_app);
+        let cell_column_for_app = cell_index_for_app % self.columns.max(1) as usize;
+        let app_selected = if let Some((row, from, length)) = self.app_selection {
+            viewport_row_for_app == row as i64
+                && cell_column_for_app >= from as usize
+                && cell_column_for_app < (from as usize) + length as usize
+        } else {
+            false
+        };
+
         // The colours the cell is drawn with, by Ghostty's own rule.
         //
         // Reverse video is a *rendering* instruction the engine hands to the
@@ -782,7 +797,7 @@ impl FrameSource {
         // the selection is a region of the terminal's foreground on its
         // background, which is what a selection has to look like wherever the
         // text under it happens to be.
-        if selected {
+        if selected || app_selected {
             colors.foreground = crate::renderer::cell::Rgb::new(
                 self.default_bg.r,
                 self.default_bg.g,
@@ -837,17 +852,8 @@ impl FrameSource {
             flags |= CELL_FLAG_SELECTED;
         }
 
-        // The user's own selection: the cells the app asked to be marked.
-        if let Some((row, from, length)) = self.app_selection {
-            let cell_index = (at - HEADER_BYTES) / CELL_BYTES;
-            let viewport_row = self.viewport_row(cell_index);
-            let cell_column = cell_index % self.columns.max(1) as usize;
-            if viewport_row == row as i64
-                && cell_column >= from as usize
-                && cell_column < (from as usize) + length as usize
-            {
-                flags |= CELL_FLAG_APP_SELECTED;
-            }
+        if app_selected {
+            flags |= CELL_FLAG_APP_SELECTED;
         }
 
         // The search match, if this cell is part of it.

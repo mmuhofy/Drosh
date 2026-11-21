@@ -120,6 +120,10 @@ class Frame private constructor(
     fun isSelected(index: Int): Boolean =
         flags(index) and FrameFormat.CELL_FLAG_SELECTED != 0
 
+    /** True when the cell is part of the app's own selection. */
+    fun isAppSelected(index: Int): Boolean =
+        flags(index) and FrameFormat.CELL_FLAG_APP_SELECTED != 0
+
     /** True when the cell is part of the search match. */
     fun isHighlighted(index: Int): Boolean =
         flags(index) and FrameFormat.CELL_FLAG_HIGHLIGHT != 0

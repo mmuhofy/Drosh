@@ -1533,7 +1533,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         val session = sessionHandle
         if (session != 0L) {
             val engineText = NativeSelection.text(session)
-            if (engineText.isNotEmpty()) return engineText
+            if (engineText.isNotEmpty()) return engineText.lines().joinToString("\n") { it.trimEnd() }
         }
         return selected
     }

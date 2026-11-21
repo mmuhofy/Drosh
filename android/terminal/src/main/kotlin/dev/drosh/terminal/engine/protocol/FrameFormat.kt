@@ -151,6 +151,9 @@ object FrameFormat {
     const val CELL_FLAG_SELECTED = 1 shl 0
     const val CELL_FLAG_GRAPHEME = 1 shl 1
 
+    /** The cell is part of the app's own selection. */
+    const val CELL_FLAG_APP_SELECTED = 1 shl 3
+
     /** The cell is part of the search match and is drawn highlighted. */
     const val CELL_FLAG_HIGHLIGHT = 1 shl 2
 

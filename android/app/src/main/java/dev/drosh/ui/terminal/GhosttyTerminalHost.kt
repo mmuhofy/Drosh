@@ -645,6 +645,16 @@ fun GhosttyTerminalHost(
                 onPaste = { pane.pasteClipboard() },
                 onSelectAll = { pane.selectAll() },
                 onOpenUrl = { /* handled by the host's own link tap */ },
+                onShare = {
+                    val text = pane.selectionText()
+                    if (text.isNotEmpty()) {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, text)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, null))
+                    }
+                },
                 onExtend = { x, y, fromEnd -> pane.extendSelectionTo(x, y, fromEnd) },
                 terminalBackground = Color(backgroundColor),
             )

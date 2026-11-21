@@ -65,6 +65,8 @@ fun TerminalSelectionMenu(
     onPaste: () -> Unit,
     onSelectAll: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    /** Share the selection. */
+    onShare: () -> Unit = {},
     /** A handle was dragged: the pane's own pixels, and which end moved. */
     onExtend: (x: Float, y: Float, fromEnd: Boolean) -> Unit,
     /** The terminal's background, so the handles can contrast with it. */
@@ -126,6 +128,7 @@ fun TerminalSelectionMenu(
             if (url != null) {
                 MenuAction("Bağlantı", DroshPrimary) { onOpenUrl(url) }
             }
+            MenuAction("Paylaş") { onShare() }
         }
     }
 }
