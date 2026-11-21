@@ -1,0 +1,144 @@
+name: Build Nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: build-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native-build:
+    name: libdrosh.so (arm64-v8a)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - name: Install libclang
+        run: |
+          set -euo pipefail
+          found=""
+          if pip install --user --quiet libclang; then
+            clang_dir=$(python -c "import clang, os; print(os.path.join(os.path.dirname(clang.__file__), 'native'))")
+            if compgen -G "$clang_dir/libclang*.so" > /dev/null; then
+              echo "LIBCLANG_PATH=$clang_dir" >> "$GITHUB_ENV"
+              found="wheel"
+            fi
+          fi
+          if [ -z "$found" ]; then
+            sudo apt-get -o Acquire::Retries=5 update -qq
+            sudo apt-get -o Acquire::Retries=5 install -y -qq libclang-dev
+          fi
+      - name: Install pinned NDK
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
+      - name: Fetch and verify libghostty-vt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./tools/fetch-ghostty-vt.sh
+      - name: Build libdrosh.so
+        working-directory: native
+        env:
+          DROSH_ABI: arm64-v8a
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_HOME/ndk/28.2.13676358"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android26-clang"
+          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+          cargo build --release --target aarch64-linux-android
+      - name: Upload the library
+        uses: actions/upload-artifact@v4
+        with:
+          name: drosh-so
+          path: native/target/aarch64-linux-android/release/libdrosh.so
+          if-no-files-found: error
+          retention-days: 1
+
+  nightly:
+    name: Nightly APK + checksum
+    needs: [native-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check the chroot-ng guest runtime
+        env:
+          CHROOT_NG_SHA256: 29473e3609c9e7692a3b9ab3613129dbdb46f9a1fa393c52b49fc601d2c7a01e
+        run: |
+          set -euo pipefail
+          runtime="android/linux/src/main/assets/libchrootng.so"
+          test -f "$runtime"
+          echo "${CHROOT_NG_SHA256}  ${runtime}" | sha256sum -c -
+
+      - name: Fetch libghostty-vt
+        env:
+          GHOSTTY_VT_ABIS: arm64-v8a
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./tools/fetch-ghostty-vt.sh
+
+      - name: Fetch our own native half
+        uses: actions/download-artifact@v4
+        with:
+          name: drosh-so
+          path: android/terminal/src/main/jniLibs/arm64-v8a
+
+      - name: Stage libghostty-vt into jniLibs
+        run: |
+          set -euo pipefail
+          dest=android/terminal/src/main/jniLibs/arm64-v8a
+          mkdir -p "$dest"
+          cp native/ghostty/lib/arm64-v8a/libghostty-vt.so "$dest/"
+          test -f "$dest/libdrosh.so"
+          test -f "$dest/libghostty-vt.so"
+
+      - name: Assemble nightly
+        working-directory: android
+        run: |
+          set -euo pipefail
+          ./gradlew clean assembleRelease --no-daemon --stacktrace --max-workers=2
+
+      - name: Generate nightly SHA-256
+        working-directory: android
+        run: sha256sum app/build/outputs/apk/release/app-arm64-v8a-release.apk > app/build/outputs/apk/release/drosh-nightly-arm64-v8a-release.apk.sha256
+
+      - name: Publish nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="nightly-$(date -u +%Y%m%d)"
+          APK="android/app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+          SUM="android/app/build/outputs/apk/release/drosh-nightly-arm64-v8a-release.apk.sha256"
+          test -f "$APK"
+          if gh release view "$TAG" --repo mmuhofy/Drosh >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$SUM" --repo mmuhofy/Drosh --clobber
+          else
+            gh release create "$TAG" "$APK" "$SUM" \
+              --repo mmuhofy/Drosh --title "$TAG" --notes "Nightly build of $(git rev-parse HEAD)"
+          fi
