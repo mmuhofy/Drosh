@@ -1,17 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Placeholder vector drawable for the launcher icon foreground.
-  To be replaced by the real icon (Open Decision #5 — MEMORYBANK.md §787).
--->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Eyes (> and _) are holes (evenOdd) so the themed monochrome icon keeps them -->
     <path
-        android:fillColor="#E8C547"
-        android:pathData="M54,30 C40,30 30,40 30,54 C30,68 40,78 54,78 C68,78 78,68 78,54 C78,40 68,30 54,30 Z M54,38 C63,38 70,45 70,54 C70,63 63,70 54,70 C45,70 38,63 38,54 C38,45 45,38 54,38 Z" />
-    <path
-        android:fillColor="#E8C547"
-        android:pathData="M48,46 L48,62 L62,54 Z" />
+        android:fillColor="#5795F0"
+        android:fillType="evenOdd"
+        android:pathData="M36,30h6v6h-6zM30,24h6v6h-6zM66,30h6v6h-6zM72,24h6v6h-6zM30,36h48v48h-48zM39,45h6v6h-6zM45,51h6v6h-6zM39,57h6v6h-6zM57,57h6v6h-6zM63,57h6v6h-6z" />
 </vector>
