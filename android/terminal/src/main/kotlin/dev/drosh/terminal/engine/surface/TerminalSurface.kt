@@ -5,6 +5,9 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceHolder
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import android.view.SurfaceView
 import dev.drosh.domain.terminal.TerminalZoom
 import dev.drosh.terminal.engine.input.PinchMachine
@@ -1477,6 +1480,18 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private var selected: String = ""
 
     /**
+     * The selection's rectangle in this pane's own pixels, updated the moment
+     * a selection is made — not after the next frame is drawn.
+     *
+     * The chrome's handles and menu hang on this. Driving them from the frame
+     * measurement (the old way) meant they waited for a frame that might never
+     * come, or came a blink later; the menu then had nothing to hang on and
+     * never appeared.
+     */
+    private val _selectionBounds = MutableStateFlow<android.graphics.Rect?>(null)
+    val selectionBoundsFlow: StateFlow<android.graphics.Rect?> = _selectionBounds.asStateFlow()
+
+    /**
      * Whether this selection owns the menu and the draggable grips.
      *
      * A click selection is ordinary terminal text selection: the engine
@@ -1526,6 +1541,20 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     /** True when something is selected. */
     fun hasSelection(): Boolean = selectedText().isNotEmpty()
 
+    /** The selection's bounds in pixels, computed synchronously. */
+    private fun computeSelectionBounds(): android.graphics.Rect? {
+        val cells = selectedCells ?: return null
+        val cellW = cellWidth.coerceAtLeast(1f)
+        val cellH = cellHeight.coerceAtLeast(1f)
+        val top = cells.first * cellH - renderThread.scrollOffsetPx
+        return android.graphics.Rect(
+            (cells.second * cellW).toInt(),
+            top.toInt(),
+            ((cells.second + cells.third) * cellW).toInt(),
+            (top + cellH).toInt(),
+        )
+    }
+
     /** The selection's bounds in pixels, or null. */
     fun selectionBounds(): android.graphics.Rect? {
         // The renderer's rectangle first: the engine marks the selected cells
@@ -1555,6 +1584,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
      */
     private fun setSelectedCells(row: Int, column: Int, length: Int, chrome: Boolean) {
         selectedCells = Triple(row, column, length.coerceAtLeast(1))
+        _selectionBounds.value = computeSelectionBounds()
         if (chrome) {
             chromeSelection = true
             onSelectionChanged?.invoke(true)
@@ -1591,6 +1621,7 @@ class TerminalSurface(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         selected = ""
         selectionRect = null
         selectedCells = null
+        _selectionBounds.value = null
         if (chromeSelection) {
             chromeSelection = false
             onSelectionChanged?.invoke(false)

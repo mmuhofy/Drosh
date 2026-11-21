@@ -244,8 +244,12 @@ fun GhosttyTerminalHost(
     // renderer measures is in this pane's own pixels, and a menu placed by an
     // ancestor would have to be told where the pane is before it could sit on
     // the selection.
-    val selectionBounds by terminalManager.selectionBounds.collectAsStateWithLifecycle()
-    val hasSelection by terminalManager.hasSelection.collectAsStateWithLifecycle()
+    // The selection is owned by the surface: its bounds are updated the
+    // moment a gesture installs them, not after the next frame is drawn. The
+    // manager's flow lags the gesture by a frame, which is why the grips never
+    // appeared.
+    val selectionBounds by pane.view.selectionBoundsFlow.collectAsStateWithLifecycle()
+    val hasSelection = selectionBounds != null
     val selectionText by remember(hasSelection, selectionBounds) {
         derivedStateOf {
             if (!hasSelection) {
