@@ -77,8 +77,8 @@ class ComponentStore(private val context: Context) {
             Log.w(TAG, "could not create $dir")
             return null
         }
-        val target = File(dir, fileName(release.id))
-        val temporary = File(dir, "${fileName(release.id)}.tmp")
+        val target = File(dir, fileName(ComponentId.fromKey(release.id)))
+        val temporary = File(dir, "${fileName(ComponentId.fromKey(release.id))}.tmp")
         return runCatching {
             temporary.writeBytes(bytes)
             if (target.exists()) target.delete()

@@ -28,7 +28,12 @@ enum class ComponentId(val key: String) {
  */
 enum class UpdateChannel(val key: String, val label: String, val unstable: Boolean) {
     RELEASE("release", "Kararlı", false),
-    NIGHTLY("nightly", "Gecelik", true),
+    NIGHTLY("nightly", "Gecelik", true);
+
+    companion object {
+        fun fromKey(key: String): UpdateChannel =
+            entries.firstOrNull { it.key == key } ?: RELEASE
+    }
 }
 
 /**
