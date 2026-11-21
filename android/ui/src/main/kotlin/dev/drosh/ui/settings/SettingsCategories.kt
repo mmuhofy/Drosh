@@ -1071,8 +1071,8 @@ fun AboutCategory(
     }
 }
 
-private const val DEVELOPER_URL = "https://github.com/mmuhofy"
-private const val REPO_URL = "https://github.com/mmuhofy/Drosh"
+private const val DEVELOPER_URL = "https://github.com/dexbycode"
+private const val REPO_URL = "https://github.com/dexbycode/Drosh"
 
 /** Opens [url] in the browser, quietly doing nothing if nothing can. */
 private fun openUrl(activity: Activity?, url: String) {

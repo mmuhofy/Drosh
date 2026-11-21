@@ -7,11 +7,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mmuhofy/Drosh/actions/workflows/debug.yml">
-    <img src="https://github.com/mmuhofy/Drosh/actions/workflows/debug.yml/badge.svg" alt="Build">
+  <a href="https://github.com/dexbycode/Drosh/actions/workflows/debug.yml">
+    <img src="https://github.com/dexbycode/Drosh/actions/workflows/debug.yml/badge.svg" alt="Build">
   </a>
-  <a href="https://github.com/mmuhofy/Drosh/actions/workflows/tests.yml">
-    <img src="https://github.com/mmuhofy/Drosh/actions/workflows/tests.yml/badge.svg" alt="Tests">
+  <a href="https://github.com/dexbycode/Drosh/actions/workflows/tests.yml">
+    <img src="https://github.com/dexbycode/Drosh/actions/workflows/tests.yml/badge.svg" alt="Tests">
   </a>
   <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache 2.0">
   <img src="https://img.shields.io/badge/Android-8.0%2B-green.svg" alt="Android 8.0+">
@@ -65,7 +65,7 @@ Powered by Ghostty's VT core, Rust, OpenGL ES and chroot-ng, Drosh brings a full
 
 Drosh also has its own companion keyboard, developed specifically to improve terminal interaction on Android.
 
-[mmuhofy/DroshKeyboard](https://github.com/mmuhofy/DroshKeyboard)
+[mmuhofy/DroshKeyboard](https://github.com/dexbycode/DroshKeyboard)
 
 Its terminal-focused features include:
 

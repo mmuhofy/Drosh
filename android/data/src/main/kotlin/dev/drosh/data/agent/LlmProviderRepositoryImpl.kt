@@ -350,7 +350,7 @@ class LlmProviderRepositoryImpl @Inject constructor(
         // OpenRouter's documented recommendations for dashboard attribution. Not
         // authentication, which is why they live here rather than in an adapter.
         "openrouter" -> mapOf(
-            "HTTP-Referer" to "https://github.com/mmuhofy/Drosh",
+            "HTTP-Referer" to "https://github.com/dexbycode/Drosh",
             "X-Title" to "Drosh",
         )
 

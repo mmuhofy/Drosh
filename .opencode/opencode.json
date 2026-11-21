@@ -1,4 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["docs/AGENT.md"]
+  "instructions": ["docs/AGENT.md"],
+  "mcp": {
+    "exa": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp"
+    }
+  }
 }

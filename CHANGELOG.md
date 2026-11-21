@@ -353,4 +353,4 @@ release when it ships.
 - Everything has been verified on a physical device (Muhofy, 2026-11-18);
   the old claim that the agent and SSH were unverified was wrong
 
-[Unreleased]: https://github.com/mmuhofy/Drosh/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/dexbycode/Drosh/compare/v0.1.0...HEAD

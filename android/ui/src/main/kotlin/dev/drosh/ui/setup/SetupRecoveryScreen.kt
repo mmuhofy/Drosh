@@ -329,4 +329,4 @@ private fun reportIssue(
     runCatching { context.startActivity(intent) }
 }
 
-private const val GITHUB_ISSUES_URL = "https://github.com/mmuhofy/Drosh/issues/new"
+private const val GITHUB_ISSUES_URL = "https://github.com/dexbycode/Drosh/issues/new"

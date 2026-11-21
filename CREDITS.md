@@ -6,7 +6,7 @@ came from; [`LICENSE.md`](LICENSE.md) says what the terms are.
 | What | Where it lives in this project |
 |---|---|
 | **Ghostty** — the VT core (`libghostty-vt` v1.4.0) that parses the terminal's output and owns the grid, modes and scrollback | downloaded and checksum-verified by `tools/fetch-ghostty-vt.sh`, shipped as `libghostty-vt.so`; license in `LICENSES/MIT-Ghostty.txt` |
-| **chroot-ng** — the ptrace-free, seccomp-based guest runtime; upstream [`sylirre/fake-chroot-ng`](https://github.com/sylirre/fake-chroot-ng), built here as the fork [`mmuhofy/chroot-ng`](https://github.com/mmuhofy/chroot-ng) | pinned release asset staged from `android/linux/src/main/assets/libchrootng.so`; license beside it |
+| **chroot-ng** — the ptrace-free, seccomp-based guest runtime; upstream [`sylirre/fake-chroot-ng`](https://github.com/sylirre/fake-chroot-ng), built here as the fork [`mmuhofy/chroot-ng`](https://github.com/dexbycode/chroot-ng) | pinned release asset staged from `android/linux/src/main/assets/libchrootng.so`; license beside it |
 | **Ubuntu 24.04** — the Linux userspace | downloaded on first launch, never vendored |
 | **sora-editor** (Rosemoe) — the native code editor and its TextMate module | `:features:editor` dependency, used unmodified — `android/features/editor/NOTICE.md` |
 | **TextMate grammars** — syntax highlighting for the editor | `android/features/editor/src/main/assets/textmate/`, provenance beside them |
@@ -28,6 +28,6 @@ And if you built something with Drosh's pieces — the design system, the block
 engine contracts, the agent adapters — a line in your README is the whole
 ritual:
 
-> Built with [Drosh](https://github.com/mmuhofy/Drosh).
+> Built with [Drosh](https://github.com/dexbycode/Drosh).
 
 No obligation. Just how the name travels.

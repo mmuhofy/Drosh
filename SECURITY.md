@@ -14,7 +14,7 @@ Please do not disclose security vulnerabilities through public GitHub issues.
 
 Use GitHub's private vulnerability reporting feature:
 
-[Report a vulnerability](https://github.com/mmuhofy/Drosh/security/advisories/new)
+[Report a vulnerability](https://github.com/dexbycode/Drosh/security/advisories/new)
 
 When submitting a report, include as much of the following information as possible:
 
