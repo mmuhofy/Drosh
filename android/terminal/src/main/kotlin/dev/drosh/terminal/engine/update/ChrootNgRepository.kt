@@ -45,7 +45,7 @@ class ChrootNgRepository : UpdateRepository {
             ?: return null
         // The API orders by creation date, not by version. A release created
         // out of order (1.3.0 after 1.6.0) would otherwise be offered first.
-        return list.sortedByDescending { versionKey(it.tag_name) }
+        return list.sortedWith(compareByDescending { versionKey(it.tag_name) })
     }
 
     private fun versionKey(tag: String): List<Int> =

@@ -44,7 +44,7 @@ class UpstreamVtRepository : UpdateRepository {
             ?: return null
         val list = runCatching { UpdateJson.decodeFromString<List<GhRelease>>(body) }.getOrNull()
             ?: return null
-        return list.sortedByDescending { versionKey(it.tag_name) }
+        return list.sortedWith(compareByDescending { versionKey(it.tag_name) })
     }
 
     private fun versionKey(tag: String): List<Int> =
