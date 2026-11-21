@@ -35,7 +35,7 @@
 use jni::JNIEnv;
 
 use super::{jbyteArray, new_byte_array, read_string};
-use crate::font;
+use crate::font as fontmod;
 
 /// Load the font the app ships.
 ///
@@ -52,7 +52,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeFont_nativeLo
         Ok(bytes) => bytes,
         Err(_) => return 0,
     };
-    if font::set_font(&bytes) {
+    if fontmod::set_font(&bytes) {
         1
     } else {
         0
@@ -73,7 +73,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeFont_nativeSh
         s if !s.is_empty() => s,
         _ => String::new(),
     };
-    let shaped = font::shape(&text, size_px);
+    let shaped = fontmod::shape(&text, size_px);
     if shaped.is_empty() {
         return env.new_byte_array(0).unwrap_or(std::ptr::null_mut());
     }
@@ -99,7 +99,7 @@ pub extern "system" fn Java_dev_drosh_terminal_engine_native_NativeFont_nativeRa
     glyph_id: jni::sys::jint,
     size_px: jni::sys::jfloat,
 ) -> jbyteArray {
-    match font::rasterize(glyph_id as u32, size_px) {
+    match fontmod::rasterize(glyph_id as u32, size_px) {
         Some(mask) => {
             let mut out = Vec::with_capacity(16 + mask.coverage.len());
             push_u32(&mut out, mask.width);

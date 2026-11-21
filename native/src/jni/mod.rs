@@ -10,8 +10,6 @@
 
 use jni::JNIEnv;
 
-pub mod font;
-pub mod font;
 pub mod input;
 pub mod pty;
 pub mod search;
