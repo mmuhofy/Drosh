@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,6 +49,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 @HiltViewModel
 class UpdatesViewModel @Inject constructor(
@@ -77,6 +81,9 @@ class UpdatesViewModel @Inject constructor(
     private val _status = MutableStateFlow("")
     val status: StateFlow<String> = _status.asStateFlow()
 
+    private val _installApk = MutableSharedFlow<java.io.File>(extraBufferCapacity = 1)
+    val installApk: SharedFlow<java.io.File> = _installApk.asSharedFlow()
+
     fun setChannel(channel: UpdateChannel) {
         _channel.value = channel
         prefs.edit().putString("channel", channel.key).apply()
@@ -105,6 +112,28 @@ class UpdatesViewModel @Inject constructor(
             val bytes = withContext(Dispatchers.IO) { repo.download(release) }
             if (bytes == null) {
                 _status.value = "download failed"
+                _busy.value = null
+                return@launch
+            }
+            if (id == ComponentId.APK) {
+                // The APK carries Rust and Kotlin together: it is installed by
+                // the platform, not staged into a files directory.
+                val actual = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(bytes).joinToString("") { "%02x".format(it) }
+                if (actual != release.sha256.lowercase()) {
+                    _status.value = "checksum mismatch"
+                    _busy.value = null
+                    return@launch
+                }
+                val file = withContext(Dispatchers.IO) {
+                    val dir = java.io.File(context.cacheDir, "apk")
+                    if (!dir.isDirectory) dir.mkdirs()
+                    val target = java.io.File(dir, "drosh-update.apk")
+                    target.writeBytes(bytes)
+                    target
+                }
+                _status.value = "launching installer…"
+                _installApk.tryEmit(file)
                 _busy.value = null
                 return@launch
             }
@@ -141,6 +170,20 @@ fun UpdatesCategory(
     viewModel: UpdatesViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel(),
 ) {
     val channel by viewModel.channel.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.installApk.collect { file ->
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file,
+            )
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }
+    }
     val latest by viewModel.latest.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
